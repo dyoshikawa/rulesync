@@ -26,7 +26,7 @@ const customMatterOptions = {
           // 2. "globs: **/*.ts" (glob patterns without quotes) -> "globs: \"**/*.ts\""
           // 3. "globs: **/*.py,**/*.pyc" (comma-separated patterns) -> "globs: \"**/*.py,**/*.pyc\""
           // Note: Don't process array literals like [] or ["item"]
-          let preprocessed = str
+          const preprocessed = str
             // Handle bare asterisk
             .replace(/^(\s*globs:\s*)\*\s*$/gm, '$1"*"')
             // Handle glob patterns without quotes (single or comma-separated)

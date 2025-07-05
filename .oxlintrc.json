@@ -29,5 +29,14 @@
     "es2024": true
   },
 
-  "ignorePatterns": ["dist/**", "coverage/**", "*.d.ts", "node_modules/**"]
+  "ignorePatterns": ["dist/**", "coverage/**", "*.d.ts", "node_modules/**"],
+  
+  "overrides": [
+    {
+      "files": ["**/*.test.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
+    }
+  ]
 }

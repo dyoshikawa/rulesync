@@ -221,7 +221,6 @@ describe("importConfiguration", () => {
 
   it("should handle unsupported tools", async () => {
     const result = await importConfiguration({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tool: "unknown" as any,
       baseDir: testDir,
     });
