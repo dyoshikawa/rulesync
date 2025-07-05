@@ -2,6 +2,7 @@ import { defineConfig } from 'eslint/config';
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import oxlint from 'eslint-plugin-oxlint';
+import noTypeAssertion from 'eslint-plugin-no-type-assertion';
 
 /**
  * @type {import('eslint').Linter.Config}
@@ -25,7 +26,12 @@ export default defineConfig([
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    rules: {},
+    plugins: {
+      'no-type-assertion': noTypeAssertion,
+    },
+    rules: {
+      'no-type-assertion/no-type-assertion': 'warn',
+    },
   },
 
   {
@@ -40,6 +46,7 @@ export default defineConfig([
     rules: {
       "no-empty": 'off', // Allow empty test cases
       "@typescript-eslint/no-explicit-any": 'off', // Allow any in tests
+      'no-type-assertion/no-type-assertion': 'off', // Allow type assertions in tests
     },
   },
 
