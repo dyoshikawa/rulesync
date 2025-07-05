@@ -77,7 +77,9 @@ export function generateClaudeMcpConfiguration(
 
     // Only add transport if it's supported by Claude
     if (transport && transport !== "stdio") {
-      claudeServer.transport = transport as "sse" | "http";
+      if (transport === "sse" || transport === "http") {
+        claudeServer.transport = transport;
+      }
     }
 
     settings.mcpServers![serverName] = claudeServer;

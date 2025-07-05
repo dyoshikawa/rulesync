@@ -169,7 +169,12 @@ async function parseGeminiSettings(settingsPath: string): Promise<GeminiSettings
     const settings = JSON.parse(content);
 
     // Extract MCP servers
-    if (settings.mcpServers && Object.keys(settings.mcpServers).length > 0) {
+    if (
+      settings &&
+      typeof settings === "object" &&
+      settings.mcpServers &&
+      Object.keys(settings.mcpServers).length > 0
+    ) {
       mcpServers = settings.mcpServers as Record<string, RulesyncMcpServer>;
     }
   } catch (error) {

@@ -33,11 +33,13 @@ const customMatterOptions = {
             // But exclude array literals (starting with [ or already quoted strings)
             .replace(/^(\s*globs:\s*)([^\s"'[\n][^"'[\n]*?)(\s*)$/gm, '$1"$2"$3');
 
-          return load(preprocessed, { schema: DEFAULT_SCHEMA }) as object;
+          const result = load(preprocessed, { schema: DEFAULT_SCHEMA });
+          return result as object;
         } catch (error) {
           // If that fails, try with FAILSAFE_SCHEMA as a fallback
           try {
-            return load(str, { schema: FAILSAFE_SCHEMA }) as object;
+            const result = load(str, { schema: FAILSAFE_SCHEMA });
+            return result as object;
           } catch {
             // If all else fails, throw the original error
             throw error;
@@ -56,6 +58,9 @@ function convertCursorMdcFrontmatter(
   _filename: string,
 ): RuleFrontmatter {
   // Type guard to ensure we have an object
+  if (!cursorFrontmatter || typeof cursorFrontmatter !== "object") {
+    throw new Error("Invalid frontmatter: expected object");
+  }
   const frontmatter = cursorFrontmatter as Record<string, unknown>;
 
   // Normalize values according to term definitions
@@ -274,7 +279,12 @@ export async function parseCursorConfiguration(
     try {
       const content = await readFileContent(cursorMcpPath);
       const mcp = JSON.parse(content);
-      if (mcp.mcpServers && Object.keys(mcp.mcpServers).length > 0) {
+      if (
+        mcp &&
+        typeof mcp === "object" &&
+        mcp.mcpServers &&
+        Object.keys(mcp.mcpServers).length > 0
+      ) {
         mcpServers = mcp.mcpServers as Record<string, RulesyncMcpServer>;
       }
     } catch (error) {

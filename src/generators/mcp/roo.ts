@@ -86,7 +86,7 @@ export function generateRooMcpConfiguration(
       continue;
     }
 
-    // Cast to RulesyncMcpServer for type safety
+    // Cast to RulesyncMcpServer after type check
     const serverObj = server as RulesyncMcpServer;
 
     // Check if this server should be included for roo

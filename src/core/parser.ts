@@ -47,6 +47,7 @@ export async function parseRuleFile(filepath: string): Promise<ParsedRule> {
   // Validate frontmatter
   validateFrontmatter(parsed.data, filepath);
 
+  // After validation, we can safely cast since validateFrontmatter ensures the shape
   const frontmatter = parsed.data as RuleFrontmatter;
   const filename = basename(filepath, ".md");
 

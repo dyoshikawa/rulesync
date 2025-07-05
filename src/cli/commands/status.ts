@@ -37,9 +37,11 @@ export async function statusCommand(): Promise<void> {
           rule.frontmatter.targets[0] === "*" ? config.defaultTargets : rule.frontmatter.targets;
 
         for (const target of targets) {
-          if (target in targetCounts) {
-            targetCounts[target as keyof typeof targetCounts]++;
-          }
+          if (target === "copilot") targetCounts.copilot++;
+          else if (target === "cursor") targetCounts.cursor++;
+          else if (target === "cline") targetCounts.cline++;
+          else if (target === "claudecode") targetCounts.claudecode++;
+          else if (target === "roo") targetCounts.roo++;
         }
       }
 
