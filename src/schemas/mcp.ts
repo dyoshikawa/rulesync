@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const ToolTargetSchema = z.enum([
   "copilot",
@@ -21,7 +21,7 @@ export const McpServerBaseSchema = z.object({
   args: z.array(z.string()).optional(),
   url: z.string().optional(),
   httpUrl: z.string().optional(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
   disabled: z.boolean().optional(),
   networkTimeout: z.number().optional(),
   timeout: z.number().optional(),
