@@ -4,7 +4,7 @@ I want to eliminate all `as` assertions except for `as const`. `as` assertions s
 
 Please execute the following tasks:
 
-1. Search for all occurrences of `as` assertions in `target_dir/**/*.ts` files.
+1. Search for all occurrences of `as` assertions in `{target_dir}/**/*.ts` files.
     - Exclude test files (`**/*.test.ts`) as type safety is not as critical as in production code.
 2. Fix the places using `as` assertions.
     - Replace with `as const` or `satisfies` if they can resolve the issue.
