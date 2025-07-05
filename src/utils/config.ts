@@ -1,4 +1,5 @@
 import type { Config, ToolTarget } from "../types/index.js";
+import { ToolTargetsSchema } from "../types/tool-targets.js";
 
 export function getDefaultConfig(): Config {
   return {
@@ -17,8 +18,11 @@ export function getDefaultConfig(): Config {
 }
 
 export function resolveTargets(targets: ToolTarget[] | ["*"], config: Config): ToolTarget[] {
-  if (targets[0] === "*") {
+  if (targets.length === 1 && targets[0] === "*") {
     return config.defaultTargets;
   }
-  return targets as ToolTarget[];
+
+  // Type guard to ensure targets is ToolTarget[]
+  const validatedTargets = ToolTargetsSchema.parse(targets);
+  return validatedTargets;
 }
