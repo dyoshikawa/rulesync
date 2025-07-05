@@ -1,6 +1,7 @@
 import { basename, join } from "node:path";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
+import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { fileExists, readFileContent } from "../utils/index.js";
 
 export interface ClaudeImportResult {
@@ -180,11 +181,9 @@ async function parseClaudeSettings(settingsPath: string): Promise<ClaudeSettings
     }
 
     // Extract MCP servers
-    if (typeof settings === "object" && settings !== null && "mcpServers" in settings) {
-      const servers = settings.mcpServers;
-      if (servers && typeof servers === "object" && Object.keys(servers).length > 0) {
-        mcpServers = servers as Record<string, RulesyncMcpServer>;
-      }
+    const parseResult = RulesyncMcpConfigSchema.safeParse(settings);
+    if (parseResult.success && Object.keys(parseResult.data.mcpServers).length > 0) {
+      mcpServers = parseResult.data.mcpServers;
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

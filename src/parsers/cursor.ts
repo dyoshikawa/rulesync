@@ -1,8 +1,10 @@
 import { basename, join } from "node:path";
 import matter from "gray-matter";
 import { DEFAULT_SCHEMA, FAILSAFE_SCHEMA, load } from "js-yaml";
+import { z } from "zod/v4";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
+import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { fileExists, readFileContent } from "../utils/index.js";
 
 export interface CursorImportResult {
@@ -55,8 +57,20 @@ function convertCursorMdcFrontmatter(
   cursorFrontmatter: unknown,
   _filename: string,
 ): RuleFrontmatter {
-  // Type guard to ensure we have an object
-  const frontmatter = cursorFrontmatter as Record<string, unknown>;
+  // Validate frontmatter is an object
+  const FrontmatterSchema = z.record(z.string(), z.unknown());
+  const parseResult = FrontmatterSchema.safeParse(cursorFrontmatter);
+  if (!parseResult.success) {
+    // Fallback if validation fails
+    return {
+      root: false,
+      targets: ["*"],
+      description: "",
+      globs: [],
+      cursorRuleType: "manual",
+    };
+  }
+  const frontmatter = parseResult.data;
 
   // Normalize values according to term definitions
   const description = normalizeValue(frontmatter?.description);
@@ -274,8 +288,9 @@ export async function parseCursorConfiguration(
     try {
       const content = await readFileContent(cursorMcpPath);
       const mcp = JSON.parse(content);
-      if (mcp.mcpServers && Object.keys(mcp.mcpServers).length > 0) {
-        mcpServers = mcp.mcpServers as Record<string, RulesyncMcpServer>;
+      const parseResult = RulesyncMcpConfigSchema.safeParse(mcp);
+      if (parseResult.success && Object.keys(parseResult.data.mcpServers).length > 0) {
+        mcpServers = parseResult.data.mcpServers;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
