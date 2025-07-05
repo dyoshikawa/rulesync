@@ -78,8 +78,8 @@ export function generateClineMcpConfiguration(
 
     // Clone server config and remove targets
     const { targets: _, ...serverConfig } = server;
-    // Cast to ClineServer type - the index signature allows all properties
-    config.mcpServers[serverName] = serverConfig as ClineServer;
+    // Convert to ClineServer format preserving all properties
+    config.mcpServers[serverName] = { ...serverConfig };
   }
 
   return [

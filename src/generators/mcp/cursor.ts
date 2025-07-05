@@ -66,12 +66,10 @@ export function generateCursorMcpConfiguration(
   };
 
   for (const [serverName, server] of Object.entries(mcpServers)) {
-    // Type guard to ensure server is an object
+    // Type guard to ensure server is an object with relevant properties
     if (!server || typeof server !== "object") {
       continue;
     }
-
-    // Cast to RulesyncMcpServer for type safety
     const serverObj = server as RulesyncMcpServer;
 
     // Check if this server should be included for cursor
@@ -81,8 +79,8 @@ export function generateCursorMcpConfiguration(
 
     // Clone server config and remove targets
     const { targets: _targets, ...serverConfig } = serverObj;
-    // Convert to CursorServer format
-    const cursorServer: CursorServer = serverConfig as CursorServer;
+    // Convert to CursorServer format preserving all properties
+    const cursorServer: CursorServer = { ...serverConfig };
 
     // Handle httpUrl by converting to url
     if (serverConfig.httpUrl !== undefined) {

@@ -81,8 +81,8 @@ export function generateGeminiCliMcpConfiguration(
 
     // Clone server config and remove targets
     const { targets: _, ...serverConfig } = server;
-    // Cast to GeminiServer type - the index signature allows all properties
-    config.mcpServers[serverName] = serverConfig as GeminiServer;
+    // Convert to GeminiServer format preserving all properties
+    config.mcpServers[serverName] = { ...serverConfig };
   }
 
   return [
