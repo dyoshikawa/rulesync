@@ -1,15 +1,15 @@
 target_dir = $ARGUMENTS
 
-`as const` を除く `as` アサーションを撲滅したいです。`as` アサーションは型安全性を損なうので避けるべきです。どうしても `as` アサーションを使わないと型チェックを通せない場合は、値の型が保証されないためzodスキーマでバリデーションすべきです。
+I want to eliminate all `as` assertions except for `as const`. `as` assertions should be avoided as they compromise type safety. If you absolutely must use `as` assertions to pass type checking, you should validate with zod schemas since the value types cannot be guaranteed.
 
-以下のタスクを実行してください。
+Please execute the following tasks:
 
-1. `target_dir/**/*.ts` ファイルを対象に、`as` アサーションを使用している箇所をすべて検索します。
-    - テストファイル（`**/*.test.ts`）は除外します。プロダクションコードほど型安全性が重要でないためです。
-2. `as` アサーションを使用している箇所を修正します。
-    - `as const` や `satisfies` を使用して解決できる場合は、そちらに置き換えます。
-    - そもそも値の形式をバリデーションすべき場合は、zodスキーマを使用してバリデーションを追加します。zodスキーマが `src/types/*.ts` に存在する場合はそれをimportして使用します。存在しない場合は新たに `src/type/*.ts` にzodスキーマと `z.infer()` で導出した型定義を作成します。
-3. 修正後、各種チェックが通ることを確認します。
+1. Search for all occurrences of `as` assertions in `target_dir/**/*.ts` files.
+    - Exclude test files (`**/*.test.ts`) as type safety is not as critical as in production code.
+2. Fix the places using `as` assertions.
+    - Replace with `as const` or `satisfies` if they can resolve the issue.
+    - If the value format should be validated in the first place, add validation using zod schemas. If zod schemas exist in `src/types/*.ts`, import and use them. If they don't exist, create new zod schemas and type definitions derived with `z.infer()` in `src/types/*.ts`.
+3. After fixing, confirm that various checks pass.
      - `pnpm fix`
      - `pnpm test`
-4. 問題なければ、修正内容をコミットします。
+4. If there are no issues, commit the changes.
