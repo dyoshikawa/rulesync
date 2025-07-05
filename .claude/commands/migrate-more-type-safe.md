@@ -1,8 +1,8 @@
 target_dir = $ARGUMENTS
 
-`as const` を除く `as` アサーションを撲滅したいです。`as` アサーションは型安全性を損なうので避けるべきです。どうしても `as` アサーションを使わないと型チェックを通せない場合は、値の型が保証されないためzodスキーマでバリデーションすべきです。
+I want to eliminate all `as` assertions except for `as const`. `as` assertions should be avoided as they compromise type safety. If you absolutely must use `as` assertions to pass type checking, you should validate with zod schemas since the value types cannot be guaranteed.
 
-以下のタスクを実行してください。
+Please execute the following tasks:
 
 1. `target_dir/**/*.ts` ファイルを対象に、 `pnpm exec eslint` を実行し `as` アサーションを使用している箇所を検出します。
 2. `as` アサーションを使用している箇所を修正します。
@@ -11,4 +11,4 @@ target_dir = $ARGUMENTS
 3. 修正後、各種チェックが通ることを確認します。
      - `pnpm fix`
      - `pnpm test`
-4. 問題なければ、修正内容をコミットします。
+4. If there are no issues, commit the changes.

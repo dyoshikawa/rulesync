@@ -83,12 +83,10 @@ export function generateRooMcpConfiguration(
   };
 
   for (const [serverName, server] of Object.entries(mcpServers)) {
-    // Type guard to ensure server is an object
+    // Type guard to ensure server is an object with relevant properties
     if (!server || typeof server !== "object") {
       continue;
     }
-
-    // Cast to RulesyncMcpServer for type safety
     const serverObj = server as RulesyncMcpServer;
 
     // Check if this server should be included for roo
@@ -99,8 +97,8 @@ export function generateRooMcpConfiguration(
     // Clone server config and remove targets
     const { targets: _targets, ...serverConfig } = serverObj;
 
-    // Convert to RooServer format
-    const rooServer: RooServer = serverConfig as RooServer;
+    // Convert to RooServer format preserving all properties
+    const rooServer: RooServer = { ...serverConfig };
 
     // Handle httpUrl precedence over url
     if (serverConfig.httpUrl !== undefined && serverConfig.url !== undefined) {

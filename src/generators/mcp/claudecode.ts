@@ -72,8 +72,8 @@ export function generateClaudeMcpConfiguration(
 
     // Clone server config and remove targets
     const { targets: _, transport, ...serverConfig } = server;
-    // Convert to ClaudeServer format
-    const claudeServer: ClaudeServer = serverConfig as ClaudeServer;
+    // Convert to ClaudeServer format preserving all properties
+    const claudeServer: ClaudeServer = { ...serverConfig };
 
     // Handle httpUrl by converting to url
     if (serverConfig.httpUrl !== undefined) {
@@ -82,8 +82,8 @@ export function generateClaudeMcpConfiguration(
     }
 
     // Only add transport if it's supported by Claude
-    if (transport && transport !== "stdio") {
-      claudeServer.transport = transport as "sse" | "http";
+    if (transport && transport !== "stdio" && (transport === "sse" || transport === "http")) {
+      claudeServer.transport = transport;
     }
 
     settings.mcpServers![serverName] = claudeServer;

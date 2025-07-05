@@ -1,6 +1,7 @@
 import { basename, join } from "node:path";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
+import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { fileExists, readFileContent } from "../utils/index.js";
 
 export interface GeminiImportResult {
@@ -169,8 +170,9 @@ async function parseGeminiSettings(settingsPath: string): Promise<GeminiSettings
     const settings = JSON.parse(content);
 
     // Extract MCP servers
-    if (settings.mcpServers && Object.keys(settings.mcpServers).length > 0) {
-      mcpServers = settings.mcpServers as Record<string, RulesyncMcpServer>;
+    const parseResult = RulesyncMcpConfigSchema.safeParse(settings);
+    if (parseResult.success && Object.keys(parseResult.data.mcpServers).length > 0) {
+      mcpServers = parseResult.data.mcpServers;
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
