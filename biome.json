@@ -28,6 +28,6 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["src/**/*", "tests/**/*"]
+    "includes": ["src/**/*", "tests/**/*", "*.js", "*.mjs"]
   }
 }
