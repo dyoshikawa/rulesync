@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod/v4-mini";
 import { ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 export const ConfigSchema = z.object({

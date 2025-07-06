@@ -1,7 +1,7 @@
 import { basename, join } from "node:path";
 import matter from "gray-matter";
 import { DEFAULT_SCHEMA, FAILSAFE_SCHEMA, load } from "js-yaml";
-import { z } from "zod/v4";
+import { z } from "zod/v4-mini";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";

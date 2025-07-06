@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod/v4-mini";
 import { RulesyncTargetsSchema, ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 export const RuleFrontmatterSchema = z.object({
@@ -6,7 +6,7 @@ export const RuleFrontmatterSchema = z.object({
   targets: RulesyncTargetsSchema,
   description: z.string(),
   globs: z.array(z.string()),
-  cursorRuleType: z.enum(["always", "manual", "specificFiles", "intelligently"]).optional(),
+  cursorRuleType: z.optional(z.enum(["always", "manual", "specificFiles", "intelligently"])),
 });
 
 export const ParsedRuleSchema = z.object({
@@ -23,9 +23,9 @@ export const GeneratedOutputSchema = z.object({
 });
 
 export const GenerateOptionsSchema = z.object({
-  targetTools: ToolTargetsSchema.optional(),
-  outputDir: z.string().optional(),
-  watch: z.boolean().optional(),
+  targetTools: z.optional(ToolTargetsSchema),
+  outputDir: z.optional(z.string()),
+  watch: z.optional(z.boolean()),
 });
 
 export type RuleFrontmatter = z.infer<typeof RuleFrontmatterSchema>;

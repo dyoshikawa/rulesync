@@ -1,11 +1,12 @@
-import { z } from "zod/v4";
+import { z } from "zod/v4-mini";
 
 export const ClaudeSettingsSchema = z.looseObject({
-  permissions: z
-    .looseObject({
-      deny: z.array(z.string()).default([]),
-    })
-    .default({ deny: [] }),
+  permissions: z._default(
+    z.looseObject({
+      deny: z._default(z.array(z.string()), []),
+    }),
+    { deny: [] },
+  ),
 });
 
 export type ClaudeSettings = z.infer<typeof ClaudeSettingsSchema>;

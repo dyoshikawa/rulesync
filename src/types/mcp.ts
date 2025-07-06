@@ -1,27 +1,27 @@
-import { z } from "zod/v4";
+import { z } from "zod/v4-mini";
 import { RulesyncTargetsSchema } from "./tool-targets.js";
 
 export const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 
 export const McpServerBaseSchema = z.object({
-  command: z.string().optional(),
-  args: z.array(z.string()).optional(),
-  url: z.string().optional(),
-  httpUrl: z.string().optional(),
-  env: z.record(z.string(), z.string()).optional(),
-  disabled: z.boolean().optional(),
-  networkTimeout: z.number().optional(),
-  timeout: z.number().optional(),
-  trust: z.boolean().optional(),
-  cwd: z.string().optional(),
-  transport: McpTransportTypeSchema.optional(),
-  type: z.enum(["sse", "streamable-http"]).optional(),
-  alwaysAllow: z.array(z.string()).optional(),
-  tools: z.array(z.string()).optional(),
+  command: z.optional(z.string()),
+  args: z.optional(z.array(z.string())),
+  url: z.optional(z.string()),
+  httpUrl: z.optional(z.string()),
+  env: z.optional(z.record(z.string(), z.string())),
+  disabled: z.optional(z.boolean()),
+  networkTimeout: z.optional(z.number()),
+  timeout: z.optional(z.number()),
+  trust: z.optional(z.boolean()),
+  cwd: z.optional(z.string()),
+  transport: z.optional(McpTransportTypeSchema),
+  type: z.optional(z.enum(["sse", "streamable-http"])),
+  alwaysAllow: z.optional(z.array(z.string())),
+  tools: z.optional(z.array(z.string())),
 });
 
-export const RulesyncMcpServerSchema = McpServerBaseSchema.extend({
-  targets: RulesyncTargetsSchema.optional(),
+export const RulesyncMcpServerSchema = z.extend(McpServerBaseSchema, {
+  targets: z.optional(RulesyncTargetsSchema),
 });
 
 export const McpConfigSchema = z.object({
