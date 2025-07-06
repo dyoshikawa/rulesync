@@ -73,7 +73,7 @@ export function generateRooMcp(config: RulesyncMcpConfig): string {
 }
 
 export function generateRooMcpConfiguration(
-  mcpServers: Record<string, unknown>,
+  mcpServers: Record<string, RulesyncMcpServer>,
   baseDir: string = "",
 ): Array<{ filepath: string; content: string }> {
   const filepath = baseDir ? `${baseDir}/.roo/mcp.json` : ".roo/mcp.json";
@@ -83,19 +83,13 @@ export function generateRooMcpConfiguration(
   };
 
   for (const [serverName, server] of Object.entries(mcpServers)) {
-    // Type guard to ensure server is an object with relevant properties
-    if (!server || typeof server !== "object") {
-      continue;
-    }
-    const serverObj = server as RulesyncMcpServer;
-
     // Check if this server should be included for roo
-    if (!shouldIncludeServer(serverObj, "roo")) {
+    if (!shouldIncludeServer(server, "roo")) {
       continue;
     }
 
     // Clone server config and remove targets
-    const { targets: _targets, ...serverConfig } = serverObj;
+    const { targets: _targets, ...serverConfig } = server;
 
     // Convert to RooServer format preserving all properties
     const rooServer: RooServer = { ...serverConfig };

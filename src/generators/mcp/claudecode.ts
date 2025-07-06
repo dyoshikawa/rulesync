@@ -48,7 +48,9 @@ export function generateClaudeMcp(config: RulesyncMcpConfig): string {
       claudeServer.env = server.env;
     }
 
-    claudeSettings.mcpServers![serverName] = claudeServer;
+    if (claudeSettings.mcpServers) {
+      claudeSettings.mcpServers[serverName] = claudeServer;
+    }
   }
 
   return JSON.stringify(claudeSettings, null, 2);
@@ -86,7 +88,9 @@ export function generateClaudeMcpConfiguration(
       claudeServer.transport = transport;
     }
 
-    settings.mcpServers![serverName] = claudeServer;
+    if (settings.mcpServers) {
+      settings.mcpServers[serverName] = claudeServer;
+    }
   }
 
   return [

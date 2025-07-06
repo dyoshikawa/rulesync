@@ -38,7 +38,13 @@ describe("generateCursorMcpConfiguration", () => {
         command: "server3",
         targets: ["*"],
       },
-    };
+    } satisfies Record<
+      string,
+      {
+        command: string;
+        targets: ("claudecode" | "cline" | "copilot" | "cursor" | "geminicli" | "roo")[] | ["*"];
+      }
+    >;
 
     const result = generateCursorMcpConfiguration(mcpServers);
     const config = JSON.parse(result[0]!.content);
@@ -69,7 +75,14 @@ describe("generateCursorMcpConfiguration", () => {
         args: ["--stdio"],
         targets: ["cursor"],
       },
-    };
+    } satisfies Record<
+      string,
+      {
+        command: string;
+        args: string[];
+        targets: ("claudecode" | "cline" | "copilot" | "cursor" | "geminicli" | "roo")[] | ["*"];
+      }
+    >;
 
     const result = generateCursorMcpConfiguration(mcpServers);
     const config = JSON.parse(result[0]!.content);

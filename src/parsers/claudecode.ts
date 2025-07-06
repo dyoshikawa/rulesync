@@ -161,18 +161,21 @@ async function parseClaudeSettings(settingsPath: string): Promise<ClaudeSettings
 
     // Extract ignore patterns from permissions.deny
     if (typeof settings === "object" && settings !== null && "permissions" in settings) {
-      const permissions = settings.permissions as Record<string, unknown>;
+      const permissions = settings.permissions;
+      if (typeof permissions !== "object" || permissions === null) {
+        return { ignorePatterns: [], errors: [] };
+      }
       if (permissions && "deny" in permissions && Array.isArray(permissions.deny)) {
         const readPatterns = permissions.deny
           .filter(
-            (rule): rule is string =>
+            (rule: unknown): rule is string =>
               typeof rule === "string" && rule.startsWith("Read(") && rule.endsWith(")"),
           )
-          .map((rule) => {
+          .map((rule: string) => {
             const match = rule.match(/^Read\((.+)\)$/);
             return match ? match[1] : null;
           })
-          .filter((pattern): pattern is string => pattern !== null);
+          .filter((pattern: string | null): pattern is string => pattern !== null);
 
         if (readPatterns.length > 0) {
           ignorePatterns = readPatterns;

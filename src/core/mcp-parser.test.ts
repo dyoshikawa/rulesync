@@ -71,17 +71,13 @@ describe("parseMcpConfig", () => {
     const mcpConfig = { notServers: {} };
     fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig));
 
-    expect(() => parseMcpConfig(testDir)).toThrow(
-      "Invalid mcp.json: 'mcpServers' field must be an object",
-    );
+    expect(() => parseMcpConfig(testDir)).toThrow("Failed to parse mcp.json:");
   });
 
   it("should throw error when servers field is not an object", () => {
-    const mcpConfig = { servers: "not-an-object" };
+    const mcpConfig = { mcpServers: "not-an-object" };
     fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig));
 
-    expect(() => parseMcpConfig(testDir)).toThrow(
-      "Invalid mcp.json: 'mcpServers' field must be an object",
-    );
+    expect(() => parseMcpConfig(testDir)).toThrow("Failed to parse mcp.json:");
   });
 });

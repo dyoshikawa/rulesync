@@ -35,11 +35,19 @@ const customMatterOptions = {
             // But exclude array literals (starting with [ or already quoted strings)
             .replace(/^(\s*globs:\s*)([^\s"'[\n][^"'[\n]*?)(\s*)$/gm, '$1"$2"$3');
 
-          return load(preprocessed, { schema: DEFAULT_SCHEMA }) as object;
+          const result = load(preprocessed, { schema: DEFAULT_SCHEMA });
+          if (typeof result === "object" && result !== null) {
+            return result;
+          }
+          throw new Error("Failed to parse YAML: result is not an object");
         } catch (error) {
           // If that fails, try with FAILSAFE_SCHEMA as a fallback
           try {
-            return load(str, { schema: FAILSAFE_SCHEMA }) as object;
+            const result = load(str, { schema: FAILSAFE_SCHEMA });
+            if (typeof result === "object" && result !== null) {
+              return result;
+            }
+            throw new Error("Failed to parse YAML: result is not an object");
           } catch {
             // If all else fails, throw the original error
             throw error;
@@ -116,7 +124,7 @@ function convertCursorMdcFrontmatter(
     return {
       root: false,
       targets: ["*"],
-      description: description!,
+      description: description || "",
       globs: [],
       cursorRuleType: "intelligently",
     };

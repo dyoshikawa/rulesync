@@ -56,7 +56,7 @@ export function generateCursorMcp(config: RulesyncMcpConfig): string {
 }
 
 export function generateCursorMcpConfiguration(
-  mcpServers: Record<string, unknown>,
+  mcpServers: Record<string, RulesyncMcpServer>,
   baseDir: string = "",
 ): Array<{ filepath: string; content: string }> {
   const filepath = baseDir ? `${baseDir}/.cursor/mcp.json` : ".cursor/mcp.json";
@@ -66,19 +66,13 @@ export function generateCursorMcpConfiguration(
   };
 
   for (const [serverName, server] of Object.entries(mcpServers)) {
-    // Type guard to ensure server is an object with relevant properties
-    if (!server || typeof server !== "object") {
-      continue;
-    }
-    const serverObj = server as RulesyncMcpServer;
-
     // Check if this server should be included for cursor
-    if (!shouldIncludeServer(serverObj, "cursor")) {
+    if (!shouldIncludeServer(server, "cursor")) {
       continue;
     }
 
     // Clone server config and remove targets
-    const { targets: _targets, ...serverConfig } = serverObj;
+    const { targets: _targets, ...serverConfig } = server;
     // Convert to CursorServer format preserving all properties
     const cursorServer: CursorServer = { ...serverConfig };
 

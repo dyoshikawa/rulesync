@@ -205,7 +205,7 @@ describe("generateRooMcpConfiguration", () => {
     const mcpServers = {
       "http-server-1": {
         httpUrl: "http://api.example.com",
-        transport: "http",
+        transport: "http" as const,
       },
       "http-server-2": {
         url: "http://fallback.example.com",
@@ -213,11 +213,11 @@ describe("generateRooMcpConfiguration", () => {
       },
       "sse-server": {
         url: "ws://sse.example.com",
-        transport: "sse",
+        transport: "sse" as const,
       },
       "sse-type-server": {
         url: "ws://sse2.example.com",
-        type: "sse",
+        type: "sse" as const,
       },
     };
 
@@ -313,7 +313,7 @@ describe("generateRooMcpConfiguration", () => {
         args: ["--stdio"],
         url: "http://should-be-ignored.com",
         httpUrl: "http://also-ignored.com",
-        transport: "http",
+        transport: "http" as const,
       },
     };
 
