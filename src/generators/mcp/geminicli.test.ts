@@ -29,11 +29,11 @@ describe("generateGeminiCliMcpConfiguration", () => {
     const mcpServers = {
       server1: {
         command: "server1",
-        targets: ["geminicli", "claudecode"] as ToolTarget[],
+        targets: ["geminicli", "claudecode"] satisfies ToolTarget[],
       },
       server2: {
         command: "server2",
-        targets: ["claudecode"] as ToolTarget[],
+        targets: ["claudecode"] satisfies ToolTarget[],
       },
       server3: {
         command: "server3",
@@ -60,7 +60,7 @@ describe("generateGeminiCliMcpConfiguration", () => {
       "language-server": {
         command: "lang-server",
         args: ["--stdio", "--log-level", "info"],
-        targets: ["geminicli"] as ToolTarget[],
+        targets: ["geminicli"] satisfies ToolTarget[],
       },
     };
 
@@ -215,7 +215,7 @@ describe("generateGeminiCliMcpConfiguration", () => {
         url: "http://backup.url", // Should be preserved even if unusual
         headers: { "X-Backup": "true" },
         customField: "customValue", // Unknown fields should be preserved
-        targets: ["geminicli"] as ToolTarget[], // This should be removed
+        targets: ["geminicli"] satisfies ToolTarget[], // This should be removed
       },
     };
 

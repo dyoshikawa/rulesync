@@ -96,7 +96,7 @@ describe("generateConfigurations", () => {
   });
 
   it("should handle unknown tools gracefully", async () => {
-    const outputs = await generateConfigurations(mockRules, mockConfig, ["unknown" as ToolTarget]);
+    const outputs = await generateConfigurations(mockRules, mockConfig, ["unknown" as any]);
 
     expect(outputs).toHaveLength(0);
   });

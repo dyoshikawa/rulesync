@@ -29,11 +29,11 @@ describe("generateClineMcpConfiguration", () => {
     const mcpServers = {
       server1: {
         command: "server1",
-        targets: ["cline", "cursor"] as ToolTarget[],
+        targets: ["cline", "cursor"] satisfies ToolTarget[],
       },
       server2: {
         command: "server2",
-        targets: ["cursor"] as ToolTarget[],
+        targets: ["cursor"] satisfies ToolTarget[],
       },
       server3: {
         command: "server3",
@@ -60,7 +60,7 @@ describe("generateClineMcpConfiguration", () => {
       "api-server": {
         url: "http://api.example.com",
         headers: { "X-API-Key": "secret" },
-        targets: ["cline"] as ToolTarget[],
+        targets: ["cline"] satisfies ToolTarget[],
       },
     };
 

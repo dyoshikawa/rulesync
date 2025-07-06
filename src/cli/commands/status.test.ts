@@ -21,7 +21,7 @@ const mockConfig = {
     roo: ".roo/rules",
     geminicli: ".",
   },
-  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli"] as ToolTarget[],
+  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli"] satisfies ToolTarget[],
   watchEnabled: false,
 };
 
@@ -42,7 +42,7 @@ const mockRules = [
     filename: "rule2",
     filepath: ".rulesync/rule2.md",
     frontmatter: {
-      targets: ["copilot", "cursor"] as ToolTarget[],
+      targets: ["copilot", "cursor"] satisfies ToolTarget[],
       root: false,
       description: "Rule 2",
       globs: ["**/*.js"],

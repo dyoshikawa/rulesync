@@ -29,11 +29,11 @@ describe("generateRooMcpConfiguration", () => {
     const mcpServers = {
       server1: {
         command: "server1",
-        targets: ["roo", "claudecode"] as ToolTarget[],
+        targets: ["roo", "claudecode"] satisfies ToolTarget[],
       },
       server2: {
         command: "server2",
-        targets: ["claudecode", "cursor"] as ToolTarget[],
+        targets: ["claudecode", "cursor"] satisfies ToolTarget[],
       },
       server3: {
         command: "server3",
@@ -61,7 +61,7 @@ describe("generateRooMcpConfiguration", () => {
         command: "custom",
         args: ["--config", "roo.json"],
         env: { MODE: "production" },
-        targets: ["roo"] as ToolTarget[],
+        targets: ["roo"] satisfies ToolTarget[],
       },
     };
 

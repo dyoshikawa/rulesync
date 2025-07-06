@@ -37,7 +37,7 @@ describe("importConfiguration", () => {
       {
         frontmatter: {
           root: false,
-          targets: ["claudecode"] as ToolTarget[],
+          targets: ["claudecode"] satisfies ToolTarget[],
           description: "Main config",
           globs: ["**/*"],
         },
@@ -73,7 +73,7 @@ describe("importConfiguration", () => {
       {
         frontmatter: {
           root: false,
-          targets: ["cursor"] as ToolTarget[],
+          targets: ["cursor"] satisfies ToolTarget[],
           description: "Rule 1",
           globs: ["**/*"],
         },
@@ -84,7 +84,7 @@ describe("importConfiguration", () => {
       {
         frontmatter: {
           root: false,
-          targets: ["cursor"] as ToolTarget[],
+          targets: ["cursor"] satisfies ToolTarget[],
           description: "Rule 2",
           globs: ["**/*"],
         },
@@ -238,7 +238,7 @@ describe("importConfiguration", () => {
         {
           frontmatter: {
             root: false,
-            targets: ["claudecode"] as ToolTarget[],
+            targets: ["claudecode"] satisfies ToolTarget[],
             description: "Test",
             globs: ["**/*"],
           },

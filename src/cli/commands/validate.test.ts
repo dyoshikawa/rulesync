@@ -22,7 +22,7 @@ const mockConfig = {
     roo: ".roo/rules",
     geminicli: ".",
   },
-  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli"] as ToolTarget[],
+  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli"] satisfies ToolTarget[],
   watchEnabled: false,
 };
 
