@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { generateCursorMcpConfiguration } from "./cursor.js";
 
 describe("generateCursorMcpConfiguration", () => {
@@ -42,7 +43,7 @@ describe("generateCursorMcpConfiguration", () => {
       string,
       {
         command: string;
-        targets: ("claudecode" | "cline" | "copilot" | "cursor" | "geminicli" | "roo")[] | ["*"];
+        targets: ToolTarget[] | ["*"];
       }
     >;
 
@@ -80,7 +81,7 @@ describe("generateCursorMcpConfiguration", () => {
       {
         command: string;
         args: string[];
-        targets: ("claudecode" | "cline" | "copilot" | "cursor" | "geminicli" | "roo")[] | ["*"];
+        targets: ToolTarget[] | ["*"];
       }
     >;
 
