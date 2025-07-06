@@ -9,8 +9,10 @@ import noTypeAssertion from 'eslint-plugin-no-type-assertion';
  */
 export default defineConfig([
   {
-    files: ['**/*.{js,mjs,cjs,ts,mts}'],
     ignores: ['node_modules/', 'dist/', 'coverage/', '*.config.js', '*.config.mjs', '.lintstagedrc.js'],
+  },
+  {
+    files: ['**/*.{js,mjs,cjs,ts,mts}'],
   },
   
   eslint.configs.recommended,

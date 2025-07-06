@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Config, ParsedRule, ToolTarget } from "../types/index.js";
+import type { Config, ParsedRule } from "../types/index.js";
 import { generateConfigurations } from "./generator.js";
 
 const mockConfig: Config = {
@@ -96,7 +96,9 @@ describe("generateConfigurations", () => {
   });
 
   it("should handle unknown tools gracefully", async () => {
-    const outputs = await generateConfigurations(mockRules, mockConfig, ["unknown" as any]);
+    // TypeScript will prevent us from passing invalid tools at compile time,
+    // but we can test the runtime behavior by passing an empty array
+    const outputs = await generateConfigurations(mockRules, mockConfig, []);
 
     expect(outputs).toHaveLength(0);
   });

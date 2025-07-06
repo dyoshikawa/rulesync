@@ -9,7 +9,7 @@ import { watchCommand } from "./watch.js";
 type MockWatcher = {
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
-};
+} & Partial<FSWatcher>;
 
 vi.mock("chokidar", () => ({
   watch: vi.fn(),
@@ -31,7 +31,14 @@ const mockConfig = {
     roo: ".roo/rules",
     geminicli: ".",
   },
-  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli"] satisfies ToolTarget[],
+  defaultTargets: [
+    "copilot",
+    "cursor",
+    "cline",
+    "claudecode",
+    "roo",
+    "geminicli",
+  ] satisfies ToolTarget[],
   watchEnabled: false,
 };
 
@@ -46,7 +53,7 @@ describe("watchCommand", () => {
     vi.clearAllMocks();
     mockGetDefaultConfig.mockReturnValue(mockConfig);
     mockGenerateCommand.mockResolvedValue();
-    mockWatch.mockReturnValue(mockWatcher as unknown as FSWatcher);
+    mockWatch.mockReturnValue(mockWatcher as FSWatcher);
 
     // Mock console methods
     vi.spyOn(console, "log").mockImplementation(() => {});

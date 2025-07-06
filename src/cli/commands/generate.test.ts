@@ -40,7 +40,7 @@ const mockRules = [
     filename: "test",
     filepath: ".rulesync/test.md",
     frontmatter: {
-      targets: ["*"] as ["*"],
+      targets: ["*"] satisfies ["*"],
       root: true,
       description: "Test rule",
       globs: ["**/*.ts"],
