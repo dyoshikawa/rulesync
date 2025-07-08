@@ -56,12 +56,10 @@ function generateClaudeMarkdown(rootRules: ParsedRule[], detailRules: ParsedRule
   if (detailRules.length > 0) {
     lines.push("Please also reference the following documents as needed:");
     lines.push("");
-    lines.push("| Document | Description | File Patterns |");
-    lines.push("|----------|-------------|---------------|");
     for (const rule of detailRules) {
-      const globsText = rule.frontmatter.globs.length > 0 ? rule.frontmatter.globs.join(", ") : "-";
+      const globsText = rule.frontmatter.globs.length > 0 ? rule.frontmatter.globs.join(", ") : "";
       lines.push(
-        `| @.claude/memories/${rule.filename}.md | ${rule.frontmatter.description} | ${globsText} |`,
+        `@.claude/memories/${rule.filename}.md ${rule.frontmatter.description} ${globsText}`.trim(),
       );
     }
     lines.push("");
