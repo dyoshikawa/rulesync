@@ -68,12 +68,14 @@ describe("claudecode generator", () => {
     expect(outputs[0]!.filepath).toBe("CLAUDE.md");
     expect(outputs[0]!.content).not.toContain("# Claude Code Memory - Project Instructions");
     expect(outputs[0]!.content).not.toContain("Generated from rulesync configuration");
-    expect(outputs[0]!.content).toContain("| Document | Description | File Patterns |");
     expect(outputs[0]!.content).toContain(
-      "| @.claude/memories/architecture-rule.md | Detail architecture rule | **/*.tsx |",
+      "Please also reference the following documents as needed:",
     );
     expect(outputs[0]!.content).toContain(
-      "| @.claude/memories/naming-rule.md | Detail naming rule | **/*.js |",
+      "@.claude/memories/architecture-rule.md Detail architecture rule **/*.tsx",
+    );
+    expect(outputs[0]!.content).toContain(
+      "@.claude/memories/naming-rule.md Detail naming rule **/*.js",
     );
   });
 
@@ -82,12 +84,14 @@ describe("claudecode generator", () => {
 
     // Main CLAUDE.md should contain overview rules and memory references
     expect(outputs[0]!.content).toContain("Use TypeScript for all new code.");
-    expect(outputs[0]!.content).toContain("| Document | Description | File Patterns |");
     expect(outputs[0]!.content).toContain(
-      "| @.claude/memories/architecture-rule.md | Detail architecture rule | **/*.tsx |",
+      "Please also reference the following documents as needed:",
     );
     expect(outputs[0]!.content).toContain(
-      "| @.claude/memories/naming-rule.md | Detail naming rule | **/*.js |",
+      "@.claude/memories/architecture-rule.md Detail architecture rule **/*.tsx",
+    );
+    expect(outputs[0]!.content).toContain(
+      "@.claude/memories/naming-rule.md Detail naming rule **/*.js",
     );
 
     // Detail rules should be in separate memory files
