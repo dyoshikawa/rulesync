@@ -4,7 +4,8 @@
         "dist/**",
         "pnpm-lock.yaml",
         "node_modules/**",
-        ".git/**"
+        ".git/**",
+        ".gitignore"
     ],
     "words": [
         "agentrequested",
