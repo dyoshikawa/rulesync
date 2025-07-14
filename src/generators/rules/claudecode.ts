@@ -57,9 +57,11 @@ function generateClaudeMarkdown(rootRules: ParsedRule[], detailRules: ParsedRule
     lines.push("Please also reference the following documents as needed:");
     lines.push("");
     for (const rule of detailRules) {
-      const globsText = rule.frontmatter.globs.length > 0 ? rule.frontmatter.globs.join(", ") : "";
+      // Escape double quotes in description
+      const escapedDescription = rule.frontmatter.description.replace(/"/g, '\\"');
+      const globsText = rule.frontmatter.globs.join(",");
       lines.push(
-        `@.claude/memories/${rule.filename}.md ${rule.frontmatter.description} ${globsText}`.trim(),
+        `@.claude/memories/${rule.filename}.md description: "${escapedDescription}" globs: "${globsText}"`,
       );
     }
     lines.push("");

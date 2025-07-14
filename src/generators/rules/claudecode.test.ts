@@ -72,10 +72,10 @@ describe("claudecode generator", () => {
       "Please also reference the following documents as needed:",
     );
     expect(outputs[0]!.content).toContain(
-      "@.claude/memories/architecture-rule.md Detail architecture rule **/*.tsx",
+      '@.claude/memories/architecture-rule.md description: "Detail architecture rule" globs: "**/*.tsx"',
     );
     expect(outputs[0]!.content).toContain(
-      "@.claude/memories/naming-rule.md Detail naming rule **/*.js",
+      '@.claude/memories/naming-rule.md description: "Detail naming rule" globs: "**/*.js"',
     );
   });
 
@@ -88,10 +88,10 @@ describe("claudecode generator", () => {
       "Please also reference the following documents as needed:",
     );
     expect(outputs[0]!.content).toContain(
-      "@.claude/memories/architecture-rule.md Detail architecture rule **/*.tsx",
+      '@.claude/memories/architecture-rule.md description: "Detail architecture rule" globs: "**/*.tsx"',
     );
     expect(outputs[0]!.content).toContain(
-      "@.claude/memories/naming-rule.md Detail naming rule **/*.js",
+      '@.claude/memories/naming-rule.md description: "Detail naming rule" globs: "**/*.js"',
     );
 
     // Detail rules should be in separate memory files
@@ -333,5 +333,45 @@ describe("claudecode generator", () => {
     expect(settingsContent.anotherSetting).toEqual({
       nested: "property",
     });
+  });
+
+  it("should escape double quotes in descriptions", async () => {
+    const ruleWithQuotes: ParsedRule = {
+      frontmatter: {
+        root: false,
+        targets: ["claudecode"],
+        description: 'Rule with "double quotes" in description',
+        globs: ["**/*.ts"],
+      },
+      content: "Some rule content.",
+      filename: "quoted-rule",
+      filepath: "/test/quoted-rule.md",
+    };
+
+    const outputs = await generateClaudecodeConfig([ruleWithQuotes], config);
+
+    expect(outputs[0]!.content).toContain(
+      '@.claude/memories/quoted-rule.md description: "Rule with \\"double quotes\\" in description" globs: "**/*.ts"',
+    );
+  });
+
+  it("should join multiple globs with comma without space", async () => {
+    const ruleWithMultipleGlobs: ParsedRule = {
+      frontmatter: {
+        root: false,
+        targets: ["claudecode"],
+        description: "Rule with multiple globs",
+        globs: ["**/*.ts", "**/*.tsx", "src/**/*.js"],
+      },
+      content: "Some rule content.",
+      filename: "multi-glob-rule",
+      filepath: "/test/multi-glob-rule.md",
+    };
+
+    const outputs = await generateClaudecodeConfig([ruleWithMultipleGlobs], config);
+
+    expect(outputs[0]!.content).toContain(
+      '@.claude/memories/multi-glob-rule.md description: "Rule with multiple globs" globs: "**/*.ts,**/*.tsx,src/**/*.js"',
+    );
   });
 });
