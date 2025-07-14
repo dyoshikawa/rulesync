@@ -51,7 +51,8 @@
 		"test": "vitest run --silent",
 		"test:coverage": "vitest run --coverage --silent",
 		"test:watch": "vitest --silent",
-		"typecheck": "tsgo --noEmit"
+		"typecheck": "tsgo --noEmit",
+		"prepare": "simple-git-hooks"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "pnpm exec lint-staged"
