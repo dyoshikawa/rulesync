@@ -203,3 +203,5 @@ pnpm-lock.yaml
 /ai-tmp
 
 .claude/settings.local.json
+
+.pnpm-store

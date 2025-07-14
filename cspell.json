@@ -113,6 +113,12 @@
         "webidl",
         "whatwg",
         "wrappy",
-        "XVCJ"
+        "XVCJ",
+        "dbaeumer",
+        "eamodio",
+        "bashhistory",
+        "commandhistory",
+        "POWERLEVEL",
+        "GITSTATUS"
     ]
 }
