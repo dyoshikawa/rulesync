@@ -19,13 +19,16 @@ RUN apt update && apt install -y less \
   iproute2 \
   dnsutils \
   aggregate \
-  jq
+  jq \
+  vim
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
   chown -R node:node /usr/local/share
 
 ARG USERNAME=node
+
+RUN echo "node ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Persist bash history.
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \

@@ -119,6 +119,13 @@
         "bashhistory",
         "commandhistory",
         "POWERLEVEL",
-        "GITSTATUS"
+        "GITSTATUS",
+        "procps",
+        "dnsutils",
+        "NOPASSWD",
+        "HISTFILE",
+        "dpkg",
+        "powerline",
+        "ccinstall"
     ]
 }
