@@ -2,8 +2,8 @@ import eslint from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import noTypeAssertion from "eslint-plugin-no-type-assertion";
 import oxlint from "eslint-plugin-oxlint";
+import zodImport from "eslint-plugin-zod-import";
 import tseslint from "typescript-eslint";
-import zodMiniPlugin from "./eslint-plugin-zod-import.js";
 
 /**
  * @type {import('eslint').Linter.Config}
@@ -39,11 +39,11 @@ export default defineConfig([
     },
     plugins: {
       "no-type-assertion": noTypeAssertion,
-      "zod-mini": zodMiniPlugin,
+      "zod-import": zodImport,
     },
     rules: {
       "no-type-assertion/no-type-assertion": "warn",
-      "zod-mini/use-zod-mini": "error",
+      "zod-import/zod-import": ["error", { variant: "zod-mini" }],
     },
   },
 
