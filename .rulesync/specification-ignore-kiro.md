@@ -1,8 +1,8 @@
 ---
 root: false
-targets: ["kiro"]
+targets: ["*"]
 description: "Kiro IDE ignore files specification and best practices"
-globs: "src/**/*.ts"
+globs: ["src/**/*.ts"]
 ---
 
 # Kiro Ignore Files Specification

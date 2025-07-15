@@ -1,8 +1,8 @@
 ---
 root: false
-targets: ["kiro"]
+targets: ["*"]
 description: "Kiro IDE MCP (Model Context Protocol) configuration and AWS integration"
-globs: "src/**/*.ts"
+globs: ["src/**/*.ts"]
 ---
 
 # Kiro MCP (Model Context Protocol) Configuration Specification

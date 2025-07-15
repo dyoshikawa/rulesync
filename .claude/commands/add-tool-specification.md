@@ -8,6 +8,8 @@ If remarks is provided, please consider its content when performing the followin
 
 Please complete all of the following tasks.
 
+Important: `.rulesync/*.md` files must include the required frontmatter. Refer to @README.md for frontmatter specification details.
+
 ## specification-rules-{tool_name_in_rulesync}
 
 1. Research the specifications for rules or memories text files of target_tool_name by using "o3-search" mcp server.
