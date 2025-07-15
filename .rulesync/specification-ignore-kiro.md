@@ -1,3 +1,10 @@
+---
+root: false
+targets: ["kiro"]
+description: "Kiro IDE ignore files specification and best practices"
+globs: "src/**/*.ts"
+---
+
 # Kiro Ignore Files Specification
 
 ## Overview

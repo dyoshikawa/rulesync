@@ -1,3 +1,10 @@
+---
+root: false
+targets: ["*"]
+description: "Kiro IDE spec-driven development and steering documents configuration"
+globs: "src/**/*.ts"
+---
+
 # Kiro Rules and Steering Documentation Specification
 
 ## Overview
