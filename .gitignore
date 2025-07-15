@@ -205,3 +205,5 @@ pnpm-lock.yaml
 .claude/settings.local.json
 
 .pnpm-store
+
+.rulesync/my-instructions.md
