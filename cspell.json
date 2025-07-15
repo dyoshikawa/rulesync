@@ -126,6 +126,18 @@
         "HISTFILE",
         "dpkg",
         "powerline",
-        "ccinstall"
+        "ccinstall",
+        "Kiro",
+        "kiro",
+        "Kiro's",
+        "aiignore",
+        "kirodeignore",
+        "tfstate",
+        "pycache",
+        "venv",
+        "autoapprove",
+        "autoblock",
+        "awslabs",
+        "FASTMCP"
     ]
 }
