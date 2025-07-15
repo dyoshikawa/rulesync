@@ -1,4 +1,4 @@
-import { z } from "zod/v4-mini";
+import { z } from "zod/mini";
 import { RulesyncTargetsSchema } from "./tool-targets.js";
 
 export const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);

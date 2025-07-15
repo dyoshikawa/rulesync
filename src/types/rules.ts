@@ -1,4 +1,4 @@
-import { z } from "zod/v4-mini";
+import { z } from "zod/mini";
 import { RulesyncTargetsSchema, ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 export const RuleFrontmatterSchema = z.object({
