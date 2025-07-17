@@ -7,16 +7,12 @@ const testDir = join(process.cwd(), "test-tmp");
 
 describe("parser", () => {
   beforeEach(() => {
-    try {
-      rmSync(testDir, { recursive: true });
-    } catch {}
+    rmSync(testDir, { recursive: true, force: true });
     mkdirSync(testDir, { recursive: true });
   });
 
   afterEach(() => {
-    try {
-      rmSync(testDir, { recursive: true });
-    } catch {}
+    rmSync(testDir, { recursive: true, force: true });
   });
 
   describe("parseRuleFile", () => {
