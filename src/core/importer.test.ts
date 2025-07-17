@@ -231,8 +231,6 @@ describe("importConfiguration", () => {
   });
 
   it("should handle file write errors", async () => {
-    const { chmod } = await import("node:fs/promises");
-
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [
         {
@@ -250,8 +248,10 @@ describe("importConfiguration", () => {
       errors: [],
     });
 
-    // Make directory read-only to cause write error
-    await chmod(rulesDir, 0o555);
+    // Mock writeFileContent to throw an error
+    vi.spyOn(await import("../utils/index.js"), "writeFileContent").mockRejectedValueOnce(
+      new Error("Permission denied"),
+    );
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -261,9 +261,6 @@ describe("importConfiguration", () => {
     expect(result.success).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain("Failed to create rule file");
-
-    // Restore permissions
-    await chmod(rulesDir, 0o755);
   });
 
   it("should return success when only ignore file is created", async () => {
@@ -307,9 +304,10 @@ describe("importConfiguration", () => {
       ignorePatterns: ["*.log"],
     });
 
-    // Make testDir read-only to cause write error
-    const { chmod } = await import("node:fs/promises");
-    await chmod(testDir, 0o555);
+    // Mock writeFileContent to throw an error for .rulesyncignore
+    vi.spyOn(await import("../utils/index.js"), "writeFileContent").mockRejectedValueOnce(
+      new Error("Permission denied"),
+    );
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -318,9 +316,6 @@ describe("importConfiguration", () => {
 
     expect(result.ignoreFileCreated).toBe(false);
     expect(result.errors.some((e) => e.includes("Failed to create .rulesyncignore"))).toBe(true);
-
-    // Restore permissions
-    await chmod(testDir, 0o755);
   });
 
   it("should handle error creating .mcp.json", async () => {
@@ -330,9 +325,10 @@ describe("importConfiguration", () => {
       mcpServers: { server: { command: "test" } },
     });
 
-    // Make rulesDir read-only to cause write error
-    const { chmod } = await import("node:fs/promises");
-    await chmod(rulesDir, 0o555);
+    // Mock writeFileContent to throw an error for .mcp.json
+    vi.spyOn(await import("../utils/index.js"), "writeFileContent").mockRejectedValueOnce(
+      new Error("Permission denied"),
+    );
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -341,9 +337,6 @@ describe("importConfiguration", () => {
 
     expect(result.mcpFileCreated).toBe(false);
     expect(result.errors.some((e) => e.includes("Failed to create .mcp.json"))).toBe(true);
-
-    // Restore permissions
-    await chmod(rulesDir, 0o755);
   });
 
   it("should handle verbose mode for ignore and MCP files", async () => {

@@ -164,7 +164,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   }
 
   return {
-    success: rulesCreated > 0 || ignoreFileCreated || mcpFileCreated,
+    success: errors.length === 0 && (rulesCreated > 0 || ignoreFileCreated || mcpFileCreated),
     rulesCreated,
     errors,
     ignoreFileCreated,
