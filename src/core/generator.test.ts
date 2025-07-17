@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Config, ParsedRule } from "../types/index.js";
+import type { ParsedRule } from "../types/index.js";
+import { createMockConfig } from "../test-utils/index.js";
 import { generateConfigurations } from "./generator.js";
 
-const mockConfig: Config = {
-  aiRulesDir: ".rulesync",
+const mockConfig = createMockConfig({
   outputPaths: {
     copilot: ".github/instructions",
     cursor: ".cursor/rules",
@@ -13,9 +13,7 @@ const mockConfig: Config = {
     roo: ".roo",
     kiro: ".kiro/steering",
   },
-  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli", "kiro"],
-  watchEnabled: false,
-};
+});
 
 const mockRules: ParsedRule[] = [
   {

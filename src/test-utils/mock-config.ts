@@ -23,9 +23,9 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
 }
 
 /**
- * Creates a minimal mock configuration for generator tests
+ * Creates a mock configuration focused on a specific tool
  */
-export function createMinimalMockConfig(tool: ToolTarget, overrides: Partial<Config> = {}): Config {
+export function createMockConfigByTool(tool: ToolTarget, overrides: Partial<Config> = {}): Config {
   return createMockConfig({
     defaultTargets: [tool],
     ...overrides,

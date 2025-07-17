@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createMinimalMockConfig } from "../../test-utils/index.js";
+import { createMockConfigByTool } from "../../test-utils/index.js";
 import type { ParsedRule } from "../../types/index.js";
 import { generateKiroConfig } from "./kiro.js";
 
 describe("generateKiroConfig", () => {
-  const mockConfig = createMinimalMockConfig("kiro");
+  const mockConfig = createMockConfigByTool("kiro");
 
   const mockRule: ParsedRule = {
     frontmatter: {

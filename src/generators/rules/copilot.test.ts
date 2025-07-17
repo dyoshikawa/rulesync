@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMinimalMockConfig } from "../../test-utils/index.js";
+import { createMockConfigByTool } from "../../test-utils/index.js";
 import type { ParsedRule } from "../../types/index.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 import { generateCopilotConfig } from "./copilot.js";
@@ -13,7 +13,7 @@ describe("generateCopilotConfig", () => {
     vi.clearAllMocks();
   });
 
-  const mockConfig = createMinimalMockConfig("copilot");
+  const mockConfig = createMockConfigByTool("copilot");
 
   const mockRule: ParsedRule = {
     frontmatter: {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMinimalMockConfig } from "../../test-utils/index.js";
+import { createMockConfigByTool } from "../../test-utils/index.js";
 import type { ParsedRule } from "../../types/index.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 import { generateClineConfig } from "./cline.js";
@@ -13,7 +13,7 @@ describe("generateClineConfig", () => {
     vi.clearAllMocks();
   });
 
-  const mockConfig = createMinimalMockConfig("cline");
+  const mockConfig = createMockConfigByTool("cline");
 
   const mockRule: ParsedRule = {
     frontmatter: {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Config, ParsedRule } from "../../types/index.js";
+import type { ParsedRule } from "../../types/index.js";
+import { createMockConfigByTool } from "../../test-utils/index.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 import { generateCursorConfig } from "./cursor.js";
 
@@ -12,8 +13,7 @@ describe("generateCursorConfig", () => {
     vi.clearAllMocks();
   });
 
-  const mockConfig: Config = {
-    aiRulesDir: ".rulesync",
+  const mockConfig = createMockConfigByTool("cursor", {
     outputPaths: {
       copilot: ".github/instructions",
       cursor: ".cursor/rules",
@@ -23,9 +23,7 @@ describe("generateCursorConfig", () => {
       geminicli: "",
       kiro: ".kiro/steering",
     },
-    watchEnabled: false,
-    defaultTargets: ["cursor"],
-  };
+  });
 
   describe("rule type generation based on 4 type of .mdc", () => {
     it("should generate 'always' type for globs: ['**/*']", async () => {

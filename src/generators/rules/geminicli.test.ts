@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Config, ParsedRule } from "../../types/index.js";
+import type { ParsedRule } from "../../types/index.js";
+import { createMockConfig } from "../../test-utils/index.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 import { generateGeminiConfig } from "./geminicli.js";
 
@@ -7,20 +8,7 @@ vi.mock("../../utils/ignore.js", () => ({
   loadIgnorePatterns: vi.fn(),
 }));
 
-const mockConfig: Config = {
-  aiRulesDir: ".rulesync",
-  outputPaths: {
-    copilot: ".github/instructions",
-    cursor: ".cursor/rules",
-    cline: ".clinerules",
-    claudecode: ".",
-    roo: ".roo/rules",
-    geminicli: ".gemini/memories",
-    kiro: ".kiro/steering",
-  },
-  defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli", "kiro"],
-  watchEnabled: false,
-};
+const mockConfig = createMockConfig();
 
 const mockRules: ParsedRule[] = [
   {
