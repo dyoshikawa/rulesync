@@ -3,17 +3,7 @@ import { createMockConfig } from "../test-utils/index.js";
 import type { ParsedRule } from "../types/index.js";
 import { generateConfigurations } from "./generator.js";
 
-const mockConfig = createMockConfig({
-  outputPaths: {
-    copilot: ".github/instructions",
-    cursor: ".cursor/rules",
-    cline: ".clinerules",
-    claudecode: ".",
-    geminicli: ".geminicli",
-    roo: ".roo",
-    kiro: ".kiro/steering",
-  },
-});
+const mockConfig = createMockConfig();
 
 const mockRules: ParsedRule[] = [
   {

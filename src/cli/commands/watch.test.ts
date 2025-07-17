@@ -1,7 +1,7 @@
 import type { FSWatcher } from "chokidar";
 import { watch } from "chokidar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolTarget } from "../../types/tool-targets.js";
+import { createMockConfig } from "../../test-utils/index.js";
 import { getDefaultConfig } from "../../utils/index.js";
 import { generateCommand } from "./generate.js";
 import { watchCommand } from "./watch.js";
@@ -21,28 +21,7 @@ const mockWatch = vi.mocked(watch);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
 const mockGenerateCommand = vi.mocked(generateCommand);
 
-const mockConfig = {
-  aiRulesDir: ".rulesync",
-  outputPaths: {
-    copilot: ".github/instructions",
-    cursor: ".cursor/rules",
-    cline: ".clinerules",
-    claudecode: ".",
-    roo: ".roo/rules",
-    geminicli: ".",
-    kiro: ".kiro/steering",
-  },
-  defaultTargets: [
-    "copilot",
-    "cursor",
-    "cline",
-    "claudecode",
-    "roo",
-    "geminicli",
-    "kiro",
-  ] satisfies ToolTarget[],
-  watchEnabled: false,
-};
+const mockConfig = createMockConfig();
 
 // Mock watcher instance
 const mockWatcher: MockWatcher = {

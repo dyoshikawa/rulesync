@@ -13,17 +13,7 @@ describe("generateCursorConfig", () => {
     vi.clearAllMocks();
   });
 
-  const mockConfig = createMockConfigByTool("cursor", {
-    outputPaths: {
-      copilot: ".github/instructions",
-      cursor: ".cursor/rules",
-      cline: ".clinerules",
-      claudecode: "",
-      roo: ".roo/rules",
-      geminicli: "",
-      kiro: ".kiro/steering",
-    },
-  });
+  const mockConfig = createMockConfigByTool("cursor");
 
   describe("rule type generation based on 4 type of .mdc", () => {
     it("should generate 'always' type for globs: ['**/*']", async () => {

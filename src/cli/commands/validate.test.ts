@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseRulesFromDirectory, validateRules } from "../../core/index.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
+import { createMockConfig } from "../../test-utils/index.js";
 import { fileExists, getDefaultConfig } from "../../utils/index.js";
 import { validateCommand } from "./validate.js";
 
@@ -12,28 +12,7 @@ const mockValidateRules = vi.mocked(validateRules);
 const mockFileExists = vi.mocked(fileExists);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
 
-const mockConfig = {
-  aiRulesDir: ".rulesync",
-  outputPaths: {
-    copilot: ".github/instructions",
-    cursor: ".cursor/rules",
-    cline: ".clinerules",
-    claudecode: ".",
-    roo: ".roo/rules",
-    geminicli: ".",
-    kiro: ".kiro/steering",
-  },
-  defaultTargets: [
-    "copilot",
-    "cursor",
-    "cline",
-    "claudecode",
-    "roo",
-    "geminicli",
-    "kiro",
-  ] satisfies ToolTarget[],
-  watchEnabled: false,
-};
+const mockConfig = createMockConfig();
 
 const mockRules = [
   {

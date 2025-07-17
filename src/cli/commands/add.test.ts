@@ -12,17 +12,7 @@ const mockMkdir = vi.mocked(mkdir);
 const mockWriteFile = vi.mocked(writeFile);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
 
-const mockConfig = createMockConfig({
-  outputPaths: {
-    copilot: ".github/instructions",
-    cursor: ".cursor/rules",
-    cline: ".clinerules",
-    claudecode: ".",
-    roo: ".roo/rules",
-    geminicli: ".geminicli/rules",
-    kiro: ".kiro/steering",
-  },
-});
+const mockConfig = createMockConfig();
 
 describe("addCommand", () => {
   beforeEach(() => {

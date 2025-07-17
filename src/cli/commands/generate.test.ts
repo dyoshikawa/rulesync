@@ -21,17 +21,7 @@ const mockWriteFileContent = vi.mocked(writeFileContent);
 const mockRemoveDirectory = vi.mocked(removeDirectory);
 const mockRemoveClaudeGeneratedFiles = vi.mocked(removeClaudeGeneratedFiles);
 
-const mockConfig = createMockConfig({
-  outputPaths: {
-    copilot: ".github/instructions",
-    cursor: ".cursor/rules",
-    cline: ".clinerules",
-    claudecode: ".",
-    roo: ".roo/rules",
-    geminicli: ".geminicli/rules",
-    kiro: ".kiro/steering",
-  },
-});
+const mockConfig = createMockConfig();
 
 const mockRules = [
   {
