@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ParsedRule } from "../../types/index.js";
 import { createMockConfig } from "../../test-utils/index.js";
+import type { ParsedRule } from "../../types/index.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 import { generateGeminiConfig } from "./geminicli.js";
 

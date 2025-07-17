@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ParsedRule } from "../types/index.js";
 import { createMockConfig } from "../test-utils/index.js";
+import type { ParsedRule } from "../types/index.js";
 import { generateConfigurations } from "./generator.js";
 
 const mockConfig = createMockConfig({
