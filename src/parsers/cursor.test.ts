@@ -1,54 +1,14 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { parseCursorConfiguration } from "./cursor.js";
 
 const testDir = join(process.cwd(), "test-tmp-cursor");
 
 describe("cursor parser", () => {
   beforeEach(() => {
-    try {
-      rmSync(testDir, { recursive: true });
-    } catch {}
+    rmSync(testDir, { recursive: true, force: true });
     mkdirSync(testDir, { recursive: true });
-  });
-
-  afterEach(async () => {
-    try {
-      // Reset permissions before cleanup
-      const { chmod, stat } = await import("node:fs/promises");
-      const cursorRulesDir = join(testDir, ".cursor", "rules");
-      const cursorIgnore = join(testDir, ".cursorignore");
-      const cursorrules = join(testDir, ".cursorrules");
-
-      try {
-        // Only chmod if the path exists and set appropriate permissions
-        try {
-          const cursorRulesStats = await stat(cursorRulesDir);
-          if (cursorRulesStats.isDirectory()) {
-            await chmod(cursorRulesDir, 0o755);
-          }
-        } catch {}
-
-        try {
-          const cursorIgnoreStats = await stat(cursorIgnore);
-          if (cursorIgnoreStats.isFile()) {
-            await chmod(cursorIgnore, 0o644);
-          } else if (cursorIgnoreStats.isDirectory()) {
-            await chmod(cursorIgnore, 0o755);
-          }
-        } catch {}
-
-        try {
-          const cursorrulesStats = await stat(cursorrules);
-          if (cursorrulesStats.isFile()) {
-            await chmod(cursorrules, 0o644);
-          }
-        } catch {}
-      } catch {}
-
-      rmSync(testDir, { recursive: true });
-    } catch {}
   });
 
   describe("parseCursorConfiguration", () => {
