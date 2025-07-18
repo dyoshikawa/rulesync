@@ -1,3 +1,4 @@
+import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
 import { generateClaudecodeConfig } from "../generators/rules/claudecode.js";
 import { generateClineConfig } from "../generators/rules/cline.js";
 import { generateCopilotConfig } from "../generators/rules/copilot.js";
@@ -68,8 +69,11 @@ async function generateForTool(
       return generateRooConfig(rules, config, baseDir);
     case "geminicli":
       return generateGeminiConfig(rules, config, baseDir);
-    case "kiro":
-      return generateKiroConfig(rules, config, baseDir);
+    case "kiro": {
+      const kiroRulesOutputs = await generateKiroConfig(rules, config, baseDir);
+      const kiroIgnoreOutputs = await generateKiroIgnoreFiles(rules, config, baseDir);
+      return [...kiroRulesOutputs, ...kiroIgnoreOutputs];
+    }
     default:
       console.warn(`Unknown tool: ${tool}`);
       return null;

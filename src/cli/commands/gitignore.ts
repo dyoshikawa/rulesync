@@ -20,6 +20,8 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/GEMINI.md",
     "**/.gemini/memories/",
     "**/.aiexclude",
+    "**/.aiignore",
+    "**/.kiro/steering/",
     "**/.mcp.json",
     "!.rulesync/.mcp.json",
     "**/.cursor/mcp.json",
