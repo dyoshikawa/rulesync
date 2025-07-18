@@ -17,6 +17,7 @@ rulesyncは以下のAI開発ツールの**生成**と**インポート**の両�
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
+- **Kiro IDE カスタムステアリングドキュメント** (`.kiro/steering/*.md`) + **AI除外ファイル** (`.aiignore`)
 
 ## インストール
 
@@ -99,6 +100,35 @@ AI開発ツールは新しいツールが頻繁に登場し、急速に進化し
 
 ### 🎯 **ツール間の一貫性**
 すべてのAIツールに一貫したルールを適用し、チーム全体のコード品質と開発体験を向上させます。
+
+## Kiro IDE統合
+
+### カスタムステアリングドキュメントとAI除外ファイル
+
+rulesyncは、Kiro IDEの組み込みプロジェクト管理システムを補完する**カスタムステアリングドキュメント**と**AI除外ファイル**をサポートしています。
+
+**重要**: rulesyncは、Kiro IDE自体が直接管理する方が良いコアステアリングファイル（`product.md`、`structure.md`、`tech.md`）を生成しません。代わりに、rulesyncは追加のカスタムステアリングドキュメントとAI専用除外ファイルの生成に焦点を当てています。
+
+### rulesyncがKiroに提供する機能：
+- **カスタムステアリングドキュメント**: `.kiro/steering/`ディレクトリの追加`.md`ファイル
+- **AI除外ファイル**: AIアクセスからファイルを除外する`.aiignore`ファイル
+- **プロジェクト固有のルール**: チームコーディング標準、セキュリティガイドライン、デプロイプロセス
+- **ルール同期**: チームメンバー間でカスタムルールを一貫して保つ
+- **インテリジェントパターン抽出**: ルールglobからAI機密パターンを自動識別
+
+### AI除外ファイルの機能：
+- **セキュリティ優先除外**: 機密ファイル（`.pem`、`.key`、`.env*`）を自動除外
+- **データファイル除外**: AIを混乱させる可能性のある大きなデータファイル（`.csv`、`.sqlite`、`.zip`）を除外
+- **機密文書**: 内部文書と機密ディレクトリを除外
+- **パターンベース除外**: ルールglobを分析してAI機密パターンを識別
+- **明示的除外パターン**: ルールコンテンツ内の手動除外パターン（`# IGNORE:`、`# aiignore:`）をサポート
+
+### Kiro IDEが直接処理する機能：
+- **コアステアリングファイル**: `product.md`（ユーザー要件）、`structure.md`（アーキテクチャ）、`tech.md`（技術スタック）
+- **仕様管理**: `.kiro/specs/`内のフィーチャー仕様
+- **エージェントフック**: 自動化されたコンテキスト適用
+
+この責任分担により、rulesyncはKiroのコア機能を複製することなく、その機能を強化します。
 
 ## Claude Code統合
 
@@ -186,6 +216,7 @@ npx rulesync generate --cline
 npx rulesync generate --claudecode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
+npx rulesync generate --kiro
 
 # クリーンビルド（既存ファイルを最初に削除）
 npx rulesync generate --delete
@@ -207,7 +238,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: 新しいファイルを作成する前に既存の生成済みファイルをすべて削除
 - `--verbose`: 生成プロセス中に詳細出力を表示
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--roo`, `--geminicli`: 指定されたツールのみ生成
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--roo`, `--geminicli`, `--kiro`: 指定されたツールのみ生成
 - `--base-dir <paths>`: 指定されたベースディレクトリに設定ファイルを生成（複数パスの場合はカンマ区切り）。異なるプロジェクトディレクトリにツール固有の設定を生成したいmonorepoセットアップに便利。
 
 ### 4. 既存設定のインポート
@@ -330,6 +361,7 @@ draft-*.md
    - Roo Code用の`.rooignore`
    - GitHub Copilot用の`.copilotignore`（コミュニティツール用）
    - Gemini CLI用の`.aiexclude`
+   - Kiro IDE用の`.aiignore`
    - Claude Code用に`.claude/settings.json`のpermissions.denyに`Read()`ルールを追加
 
 ### フロントマタースキーマ
@@ -397,6 +429,7 @@ globs: "**/*.ts,**/*.tsx"
 | **Claude Code**    | `./CLAUDE.md` (ルート)<br>`.claude/memories/*.md` (非ルート) | プレーンMarkdown              | ルートはCLAUDE.mdに移動<br>非ルートは別メモリファイルに移動<br>CLAUDE.mdは`@filename`参照を含む                                                                                                                 |
 | **Roo Code**       | `.roo/rules/*.md`                                            | プレーンMarkdown              | 両レベルとも説明ヘッダー付きの同じフォーマットを使用                                                                                                                                                            |
 | **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                                                                                 |
+| **Kiro IDE**       | `.kiro/steering/*.md` + `.aiignore`                          | プレーンMarkdown + 除外パターン | カスタムステアリングドキュメントで両レベルとも同じフォーマット使用<br>AI除外ファイルで機密パターンを除外                                                                                                       |
 
 ## バリデーション
 

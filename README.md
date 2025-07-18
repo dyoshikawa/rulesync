@@ -17,7 +17,7 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
-- **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`)
+- **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
 
 ## Installation
 
@@ -103,16 +103,25 @@ Apply consistent rules across all AI tools, improving code quality and developme
 
 ## Kiro IDE Integration
 
-### Custom Steering Documents Only
+### Custom Steering Documents and AI Ignore Files
 
-rulesync supports **Custom Steering Documents** for Kiro IDE, complementing Kiro's built-in project management system.
+rulesync supports **Custom Steering Documents** and **AI Ignore Files** for Kiro IDE, complementing Kiro's built-in project management system.
 
-**Important**: rulesync does NOT generate the core steering files (`product.md`, `structure.md`, `tech.md`) as these are better managed directly by Kiro IDE itself. Instead, rulesync focuses on generating additional custom steering documents that contain project-specific rules and guidelines.
+**Important**: rulesync does NOT generate the core steering files (`product.md`, `structure.md`, `tech.md`) as these are better managed directly by Kiro IDE itself. Instead, rulesync focuses on generating additional custom steering documents and AI-specific ignore files.
 
 ### What rulesync provides for Kiro:
 - **Custom steering documents**: Additional `.md` files in `.kiro/steering/` directory
+- **AI ignore files**: `.aiignore` file for excluding files from AI access
 - **Project-specific rules**: Team coding standards, security guidelines, deployment processes
 - **Rule synchronization**: Keep custom rules consistent across team members
+- **Intelligent pattern extraction**: Automatically identifies AI-sensitive patterns from rule globs
+
+### AI Ignore File Features:
+- **Security-first exclusions**: Automatically excludes sensitive files (`.pem`, `.key`, `.env*`)
+- **Data file exclusions**: Excludes large data files that might confuse AI (`.csv`, `.sqlite`, `.zip`)
+- **Sensitive documentation**: Excludes internal documentation and confidential directories
+- **Pattern-based exclusions**: Analyzes rule globs to identify AI-sensitive patterns
+- **Explicit ignore patterns**: Supports manual ignore patterns in rule content (`# IGNORE:`, `# aiignore:`)
 
 ### What Kiro IDE handles directly:
 - **Core steering files**: `product.md` (user requirements), `structure.md` (architecture), `tech.md` (tech stack)
@@ -354,6 +363,7 @@ When `.rulesyncignore` exists, rulesync will:
    - `.rooignore` for Roo Code
    - `.copilotignore` for GitHub Copilot (community tools)
    - `.aiexclude` for Gemini CLI
+   - `.aiignore` for Kiro IDE
    - Update `.claude/settings.json` permissions.deny with `Read()` rules for Claude Code
 
 ### Frontmatter Schema
@@ -421,7 +431,7 @@ globs: "**/*.ts,**/*.tsx"
 | **Claude Code** | `./CLAUDE.md` (root)<br>`.claude/memories/*.md` (non-root) | Plain Markdown | Root goes to CLAUDE.md<br>Non-root go to separate memory files<br>CLAUDE.md includes `@filename` references |
 | **Roo Code** | `.roo/rules/*.md` | Plain Markdown | Both levels use same format with description header |
 | **Gemini CLI** | `GEMINI.md` (root)<br>`.gemini/memories/*.md` (non-root) | Plain Markdown | Root goes to GEMINI.md<br>Non-root go to separate memory files<br>GEMINI.md includes `@filename` references |
-| **Kiro IDE** | `.kiro/steering/*.md` | Plain Markdown | Both levels use same format for custom steering docs |
+| **Kiro IDE** | `.kiro/steering/*.md` + `.aiignore` | Plain Markdown + Ignore patterns | Both levels use same format for custom steering docs<br>AI ignore file excludes sensitive patterns |
 
 ## Validation
 
