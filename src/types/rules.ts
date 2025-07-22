@@ -7,6 +7,7 @@ export const RuleFrontmatterSchema = z.object({
   description: z.string(),
   globs: z.array(z.string()),
   cursorRuleType: z.optional(z.enum(["always", "manual", "specificFiles", "intelligently"])),
+  tags: z.optional(z.array(z.string())),
 });
 
 export const ParsedRuleSchema = z.object({

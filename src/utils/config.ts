@@ -5,6 +5,7 @@ export function getDefaultConfig(): Config {
   return {
     aiRulesDir: ".rulesync",
     outputPaths: {
+      augmentcode: ".",
       copilot: ".github/instructions",
       cursor: ".cursor/rules",
       cline: ".clinerules",
@@ -14,7 +15,16 @@ export function getDefaultConfig(): Config {
       kiro: ".kiro/steering",
     },
     watchEnabled: false,
-    defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli", "kiro"],
+    defaultTargets: [
+      "augmentcode",
+      "copilot",
+      "cursor",
+      "cline",
+      "claudecode",
+      "roo",
+      "geminicli",
+      "kiro",
+    ],
   };
 }
 

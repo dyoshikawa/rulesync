@@ -29,6 +29,7 @@ program
 program
   .command("import")
   .description("Import configurations from AI tools to rulesync format")
+  .option("--augmentcode", "Import from AugmentCode (.augment/rules/ or .augment-guidelines)")
   .option("--claudecode", "Import from Claude Code (CLAUDE.md)")
   .option("--cursor", "Import from Cursor (.cursorrules)")
   .option("--copilot", "Import from GitHub Copilot (.github/copilot-instructions.md)")
@@ -41,6 +42,7 @@ program
 program
   .command("generate")
   .description("Generate configuration files for AI tools")
+  .option("--augmentcode", "Generate only for AugmentCode")
   .option("--copilot", "Generate only for GitHub Copilot")
   .option("--cursor", "Generate only for Cursor")
   .option("--cline", "Generate only for Cline")
@@ -56,6 +58,7 @@ program
   .option("-v, --verbose", "Verbose output")
   .action(async (options) => {
     const tools: ToolTarget[] = [];
+    if (options.augmentcode) tools.push("augmentcode");
     if (options.copilot) tools.push("copilot");
     if (options.cursor) tools.push("cursor");
     if (options.cline) tools.push("cline");

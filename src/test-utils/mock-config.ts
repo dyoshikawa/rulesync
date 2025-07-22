@@ -8,6 +8,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
   return {
     aiRulesDir: ".rulesync",
     outputPaths: {
+      augmentcode: ".",
       copilot: ".github/instructions",
       cursor: ".cursor/rules",
       cline: ".clinerules",
@@ -17,7 +18,16 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
       kiro: ".kiro/steering",
     },
     watchEnabled: false,
-    defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli", "kiro"],
+    defaultTargets: [
+      "augmentcode",
+      "copilot",
+      "cursor",
+      "cline",
+      "claudecode",
+      "roo",
+      "geminicli",
+      "kiro",
+    ],
     ...overrides,
   };
 }

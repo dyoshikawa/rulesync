@@ -51,6 +51,7 @@ describe("types/index", () => {
     const config: Config = {
       aiRulesDir: ".rulesync",
       outputPaths: {
+        augmentcode: ".",
         copilot: ".github/instructions",
         cursor: ".cursor/rules",
         cline: ".clinerules",
@@ -59,7 +60,16 @@ describe("types/index", () => {
         geminicli: ".geminicli/rules",
         kiro: ".kiro/steering",
       },
-      defaultTargets: ["copilot", "cursor", "cline", "claudecode", "roo", "geminicli", "kiro"],
+      defaultTargets: [
+        "augmentcode",
+        "copilot",
+        "cursor",
+        "cline",
+        "claudecode",
+        "roo",
+        "geminicli",
+        "kiro",
+      ],
       watchEnabled: false,
     };
 
@@ -71,6 +81,7 @@ describe("types/index", () => {
 
   it("should validate ToolTarget type constraints", () => {
     const validTargets: ToolTarget[] = [
+      "augmentcode",
       "copilot",
       "cursor",
       "cline",
@@ -81,9 +92,16 @@ describe("types/index", () => {
     ];
 
     for (const target of validTargets) {
-      expect(["copilot", "cursor", "cline", "claudecode", "roo", "geminicli", "kiro"]).toContain(
-        target,
-      );
+      expect([
+        "augmentcode",
+        "copilot",
+        "cursor",
+        "cline",
+        "claudecode",
+        "roo",
+        "geminicli",
+        "kiro",
+      ]).toContain(target);
     }
   });
 

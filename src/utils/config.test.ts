@@ -7,6 +7,7 @@ describe("config utils", () => {
       const config = getDefaultConfig();
 
       expect(config.aiRulesDir).toBe(".rulesync");
+      expect(config.outputPaths.augmentcode).toBe(".");
       expect(config.outputPaths.copilot).toBe(".github/instructions");
       expect(config.outputPaths.cursor).toBe(".cursor/rules");
       expect(config.outputPaths.cline).toBe(".clinerules");
@@ -14,6 +15,7 @@ describe("config utils", () => {
       expect(config.outputPaths.geminicli).toBe(".gemini/memories");
       expect(config.outputPaths.kiro).toBe(".kiro/steering");
       expect(config.defaultTargets).toEqual([
+        "augmentcode",
         "copilot",
         "cursor",
         "cline",
@@ -32,6 +34,7 @@ describe("config utils", () => {
     it("should resolve * to all default targets", () => {
       const targets = resolveTargets(["*"], config);
       expect(targets).toEqual([
+        "augmentcode",
         "copilot",
         "cursor",
         "cline",

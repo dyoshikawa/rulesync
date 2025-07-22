@@ -22,7 +22,7 @@ describe("import command", () => {
   it("should require at least one tool to be specified", async () => {
     await expect(importCommand({})).rejects.toThrow("process.exit");
     expect(console.error).toHaveBeenCalledWith(
-      "❌ Please specify one tool to import from (--claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
+      "❌ Please specify one tool to import from (--augmentcode, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
     );
   });
 
@@ -122,7 +122,7 @@ describe("import command", () => {
   });
 
   it("should support all tool types", async () => {
-    const tools = ["claudecode", "cursor", "copilot", "cline", "roo", "geminicli"];
+    const tools = ["augmentcode", "claudecode", "cursor", "copilot", "cline", "roo", "geminicli"];
 
     for (const tool of tools) {
       vi.resetAllMocks();

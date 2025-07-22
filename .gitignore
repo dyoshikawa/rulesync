@@ -183,6 +183,8 @@ pnpm-lock.yaml
 **/GEMINI.md
 **/.gemini/memories/
 **/.aiexclude
+**/.augment/rules/
+**/.augment-guidelines
 
 **/.mcp.json
 !.rulesync/.mcp.json
@@ -198,6 +200,7 @@ pnpm-lock.yaml
 **/.rulesync/roo__*
 **/.rulesync/claudecode__*
 **/.rulesync/geminicli__*
+**/.rulesync/augmentcode__*
 
 /tmp
 /ai-tmp

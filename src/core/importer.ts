@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import matter from "gray-matter";
 import {
+  parseAugmentcodeConfiguration,
   parseClaudeConfiguration,
   parseClineConfiguration,
   parseCopilotConfiguration,
@@ -41,6 +42,12 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   // Parse configuration based on tool
   try {
     switch (tool) {
+      case "augmentcode": {
+        const augmentResult = await parseAugmentcodeConfiguration(baseDir);
+        rules = augmentResult.rules;
+        errors.push(...augmentResult.errors);
+        break;
+      }
       case "claudecode": {
         const claudeResult = await parseClaudeConfiguration(baseDir);
         rules = claudeResult.rules;
