@@ -15,6 +15,7 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
+- **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
 - **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
@@ -66,6 +67,7 @@ If you already have AI tool configurations, you can import them into rulesync fo
    npx rulesync import --cursor      # From .cursorrules and .cursor/rules/*.mdc
    npx rulesync import --copilot     # From .github/copilot-instructions.md
    npx rulesync import --cline       # From .cline/instructions.md
+   npx rulesync import --augmentcode # From .augment/rules/*.md
    npx rulesync import --roo         # From .roo/instructions.md
    npx rulesync import --geminicli   # From GEMINI.md and .gemini/memories/*.md
    ```
@@ -214,6 +216,7 @@ npx rulesync generate --copilot
 npx rulesync generate --cursor  
 npx rulesync generate --cline
 npx rulesync generate --claudecode
+npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
 npx rulesync generate --kiro
@@ -238,7 +241,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: Remove all existing generated files before creating new ones
 - `--verbose`: Show detailed output during generation process
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--roo`, `--geminicli`, `--kiro`: Generate only for specified tools
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--kiro`: Generate only for specified tools
 - `--base-dir <paths>`: Generate configuration files in specified base directories (comma-separated for multiple paths). Useful for monorepo setups where you want to generate tool-specific configurations in different project directories.
 
 ### 4. Import Existing Configurations
@@ -251,6 +254,7 @@ npx rulesync import --claudecode # Import from CLAUDE.md and .claude/memories/*.
 npx rulesync import --cursor     # Import from .cursorrules and .cursor/rules/*.md
 npx rulesync import --copilot    # Import from .github/copilot-instructions.md and .github/instructions/*.instructions.md
 npx rulesync import --cline      # Import from .cline/instructions.md
+npx rulesync import --augmentcode # Import from .augment/rules/*.md
 npx rulesync import --roo        # Import from .roo/instructions.md
 npx rulesync import --geminicli  # Import from GEMINI.md and .gemini/memories/*.md
 
@@ -429,6 +433,7 @@ globs: "**/*.ts,**/*.tsx"
 | **Cursor** | `.cursor/rules/*.mdc` | MDC (YAML header + Markdown) | Root: `cursorRuleType: always`<br>Non-root: `cursorRuleType: specificFiles` (with globs)<br>Non-root: `cursorRuleType: intelligently` (with description)<br>Non-root: `cursorRuleType: manual` (default) |
 | **Cline** | `.clinerules/*.md` | Plain Markdown | Both levels use same format |
 | **Claude Code** | `./CLAUDE.md` (root)<br>`.claude/memories/*.md` (non-root) | Plain Markdown | Root goes to CLAUDE.md<br>Non-root go to separate memory files<br>CLAUDE.md includes `@filename` references |
+| **AugmentCode** | `.augment/rules/*.md` | Markdown with YAML frontmatter | Root: `type: always`<br>Non-root: `type: auto` (with description) or `type: manual` (default) |
 | **Roo Code** | `.roo/rules/*.md` | Plain Markdown | Both levels use same format with description header |
 | **Gemini CLI** | `GEMINI.md` (root)<br>`.gemini/memories/*.md` (non-root) | Plain Markdown | Root goes to GEMINI.md<br>Non-root go to separate memory files<br>GEMINI.md includes `@filename` references |
 | **Kiro IDE** | `.kiro/steering/*.md` + `.aiignore` | Plain Markdown + Ignore patterns | Both levels use same format for custom steering docs<br>AI ignore file excludes sensitive patterns |

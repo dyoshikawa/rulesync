@@ -15,6 +15,7 @@ rulesyncは以下のAI開発ツールの**生成**と**インポート**の両�
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
+- **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
 - **Kiro IDE カスタムステアリングドキュメント** (`.kiro/steering/*.md`) + **AI除外ファイル** (`.aiignore`)
@@ -66,6 +67,7 @@ yarn global add rulesync
    npx rulesync import --cursor      # .cursorrulesと.cursor/rules/*.mdcから
    npx rulesync import --copilot     # .github/copilot-instructions.mdから
    npx rulesync import --cline       # .cline/instructions.mdから
+   npx rulesync import --augmentcode # .augment/rules/*.mdから
    npx rulesync import --roo         # .roo/instructions.mdから
    npx rulesync import --geminicli   # GEMINI.mdと.gemini/memories/*.mdから
    ```
@@ -214,6 +216,7 @@ npx rulesync generate --copilot
 npx rulesync generate --cursor  
 npx rulesync generate --cline
 npx rulesync generate --claudecode
+npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
 npx rulesync generate --kiro
@@ -238,7 +241,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: 新しいファイルを作成する前に既存の生成済みファイルをすべて削除
 - `--verbose`: 生成プロセス中に詳細出力を表示
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--roo`, `--geminicli`, `--kiro`: 指定されたツールのみ生成
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--kiro`: 指定されたツールのみ生成
 - `--base-dir <paths>`: 指定されたベースディレクトリに設定ファイルを生成（複数パスの場合はカンマ区切り）。異なるプロジェクトディレクトリにツール固有の設定を生成したいmonorepoセットアップに便利。
 
 ### 4. 既存設定のインポート
@@ -251,6 +254,7 @@ npx rulesync import --claudecode # CLAUDE.mdと.claude/memories/*.mdからイン
 npx rulesync import --cursor     # .cursorrulesと.cursor/rules/*.mdからインポート
 npx rulesync import --copilot    # .github/copilot-instructions.mdと.github/instructions/*.instructions.mdからインポート
 npx rulesync import --cline      # .cline/instructions.mdからインポート
+npx rulesync import --augmentcode # .augment/rules/*.mdからインポート
 npx rulesync import --roo        # .roo/instructions.mdからインポート
 npx rulesync import --geminicli  # GEMINI.mdと.gemini/memories/*.mdからインポート
 
@@ -427,6 +431,7 @@ globs: "**/*.ts,**/*.tsx"
 | **Cursor**         | `.cursor/rules/*.mdc`                                        | MDC (YAMLヘッダー + Markdown) | ルート: `cursorRuleType: always`<br>非ルート: `cursorRuleType: specificFiles` (globs指定時)<br>非ルート: `cursorRuleType: intelligently` (description指定時)<br>非ルート: `cursorRuleType: manual` (デフォルト) |
 | **Cline**          | `.clinerules/*.md`                                           | プレーンMarkdown              | 両レベルとも同じフォーマットを使用                                                                                                                                                                              |
 | **Claude Code**    | `./CLAUDE.md` (ルート)<br>`.claude/memories/*.md` (非ルート) | プレーンMarkdown              | ルートはCLAUDE.mdに移動<br>非ルートは別メモリファイルに移動<br>CLAUDE.mdは`@filename`参照を含む                                                                                                                 |
+| **AugmentCode**    | `.augment/rules/*.md`                                        | YAMLフロントマター + Markdown | ルート: `type: always`<br>非ルート: `type: auto` (description指定時) または `type: manual` (デフォルト)                                                                                                        |
 | **Roo Code**       | `.roo/rules/*.md`                                            | プレーンMarkdown              | 両レベルとも説明ヘッダー付きの同じフォーマットを使用                                                                                                                                                            |
 | **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                                                                                 |
 | **Kiro IDE**       | `.kiro/steering/*.md` + `.aiignore`                          | プレーンMarkdown + 除外パターン | カスタムステアリングドキュメントで両レベルとも同じフォーマット使用<br>AI除外ファイルで機密パターンを除外                                                                                                       |
