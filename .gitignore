@@ -216,3 +216,4 @@ test-*
 
 **/.aiignore
 **/.kiro/steering/
+**/.augmentignore
