@@ -7,10 +7,53 @@ export interface RuleGeneratorConfig {
   fileExtension: string;
   ignoreFileName: string;
   generateContent: (rule: ParsedRule) => string;
+  pathResolver?: (rule: ParsedRule, outputDir: string) => string;
 }
 
 /**
- * Generic generator for rule files that follows common patterns
+ * Resolve output directory for a given tool and base directory
+ */
+export function resolveOutputDir(config: Config, tool: ToolTarget, baseDir?: string): string {
+  return baseDir ? join(baseDir, config.outputPaths[tool]) : config.outputPaths[tool];
+}
+
+/**
+ * Base generator function signature for consistency
+ */
+export type BaseGeneratorFunction = (
+  rules: ParsedRule[],
+  config: Config,
+  baseDir?: string,
+) => Promise<GeneratedOutput[]>;
+
+/**
+ * Helper to create outputs array and common processing pattern
+ */
+export function createOutputsArray(): GeneratedOutput[] {
+  return [];
+}
+
+/**
+ * Helper to add output with resolved directory path
+ */
+export function addOutput(
+  outputs: GeneratedOutput[],
+  tool: ToolTarget,
+  config: Config,
+  baseDir: string | undefined,
+  relativePath: string,
+  content: string,
+): void {
+  const outputDir = resolveOutputDir(config, tool, baseDir);
+  outputs.push({
+    tool,
+    filepath: join(outputDir, relativePath),
+    content,
+  });
+}
+
+/**
+ * Generic generator for rule files that handles both simple and complex path generation
  */
 export async function generateRulesConfig(
   rules: ParsedRule[],
@@ -23,10 +66,11 @@ export async function generateRulesConfig(
   // Generate rule files
   for (const rule of rules) {
     const content = generatorConfig.generateContent(rule);
-    const outputDir = baseDir
-      ? join(baseDir, config.outputPaths[generatorConfig.tool])
-      : config.outputPaths[generatorConfig.tool];
-    const filepath = join(outputDir, `${rule.filename}${generatorConfig.fileExtension}`);
+    const outputDir = resolveOutputDir(config, generatorConfig.tool, baseDir);
+
+    const filepath = generatorConfig.pathResolver
+      ? generatorConfig.pathResolver(rule, outputDir)
+      : join(outputDir, `${rule.filename}${generatorConfig.fileExtension}`);
 
     outputs.push({
       tool: generatorConfig.tool,
@@ -75,6 +119,10 @@ export function generateIgnoreFile(patterns: string[], tool: ToolTarget): string
   return lines.join("\n");
 }
 
+/**
+ * @deprecated Use generateRulesConfig with pathResolver instead
+ * Compatibility wrapper for complex rule generators
+ */
 export interface ComplexRuleGeneratorConfig {
   tool: ToolTarget;
   fileExtension: string;
@@ -84,7 +132,8 @@ export interface ComplexRuleGeneratorConfig {
 }
 
 /**
- * Generic generator for complex rule files (like Copilot and Cursor)
+ * @deprecated Use generateRulesConfig with pathResolver instead
+ * Legacy wrapper for complex rule generation
  */
 export async function generateComplexRulesConfig(
   rules: ParsedRule[],
@@ -92,38 +141,14 @@ export async function generateComplexRulesConfig(
   generatorConfig: ComplexRuleGeneratorConfig,
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
-  const outputs: GeneratedOutput[] = [];
+  // Convert to unified config format
+  const unifiedConfig: RuleGeneratorConfig = {
+    tool: generatorConfig.tool,
+    fileExtension: generatorConfig.fileExtension,
+    ignoreFileName: generatorConfig.ignoreFileName,
+    generateContent: generatorConfig.generateContent,
+    pathResolver: generatorConfig.getOutputPath,
+  };
 
-  // Generate individual rule files for all rules
-  for (const rule of rules) {
-    const content = generatorConfig.generateContent(rule);
-    const outputDir = baseDir
-      ? join(baseDir, config.outputPaths[generatorConfig.tool])
-      : config.outputPaths[generatorConfig.tool];
-    const filepath = generatorConfig.getOutputPath(rule, outputDir);
-
-    outputs.push({
-      tool: generatorConfig.tool,
-      filepath,
-      content,
-    });
-  }
-
-  // Generate ignore file if .rulesyncignore exists
-  const ignorePatterns = await loadIgnorePatterns(baseDir);
-  if (ignorePatterns.patterns.length > 0) {
-    const ignorePath = baseDir
-      ? join(baseDir, generatorConfig.ignoreFileName)
-      : generatorConfig.ignoreFileName;
-
-    const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
-
-    outputs.push({
-      tool: generatorConfig.tool,
-      filepath: ignorePath,
-      content: ignoreContent,
-    });
-  }
-
-  return outputs;
+  return generateRulesConfig(rules, config, unifiedConfig, baseDir);
 }

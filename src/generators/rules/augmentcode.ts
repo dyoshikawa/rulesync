@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+import { addOutput, createOutputsArray } from "./shared-helpers.js";
 
 export async function generateAugmentcodeConfig(
   rules: ParsedRule[],
   config: Config,
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
-  const outputs: GeneratedOutput[] = [];
+  const outputs = createOutputsArray();
 
   // Separate root and non-root rules
   const rootRules = rules.filter((r) => r.frontmatter.root === true);
@@ -15,29 +16,20 @@ export async function generateAugmentcodeConfig(
   // Generate .augment/rules/ directory files for non-root rules
   for (const rule of detailRules) {
     const ruleContent = generateRuleFile(rule);
-    const augmentOutputDir = baseDir
-      ? join(baseDir, config.outputPaths.augmentcode)
-      : config.outputPaths.augmentcode;
-
-    outputs.push({
-      tool: "augmentcode",
-      filepath: join(augmentOutputDir, ".augment", "rules", `${rule.filename}.md`),
-      content: ruleContent,
-    });
+    addOutput(
+      outputs,
+      "augmentcode",
+      config,
+      baseDir,
+      join(".augment", "rules", `${rule.filename}.md`),
+      ruleContent,
+    );
   }
 
   // Generate .augment-guidelines for root rules (legacy format)
   if (rootRules.length > 0) {
     const guidelinesContent = generateGuidelinesFile(rootRules);
-    const augmentOutputDir = baseDir
-      ? join(baseDir, config.outputPaths.augmentcode)
-      : config.outputPaths.augmentcode;
-
-    outputs.push({
-      tool: "augmentcode",
-      filepath: join(augmentOutputDir, ".augment-guidelines"),
-      content: guidelinesContent,
-    });
+    addOutput(outputs, "augmentcode", config, baseDir, ".augment-guidelines", guidelinesContent);
   }
 
   return outputs;
