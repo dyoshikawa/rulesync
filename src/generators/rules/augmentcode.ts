@@ -8,28 +8,31 @@ export async function generateAugmentcodeConfig(
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
   const outputs = createOutputsArray();
-
-  // Separate root and non-root rules
   const rootRules = rules.filter((r) => r.frontmatter.root === true);
   const detailRules = rules.filter((r) => r.frontmatter.root === false);
 
-  // Generate .augment/rules/ directory files for non-root rules
-  for (const rule of detailRules) {
-    const ruleContent = generateRuleFile(rule);
+  // Generate individual rule files in .augment/rules/
+  detailRules.forEach((rule) => {
     addOutput(
       outputs,
       "augmentcode",
       config,
       baseDir,
       join(".augment", "rules", `${rule.filename}.md`),
-      ruleContent,
+      generateRuleFile(rule),
     );
-  }
+  });
 
-  // Generate .augment-guidelines for root rules (legacy format)
+  // Generate legacy .augment-guidelines file for root rules
   if (rootRules.length > 0) {
-    const guidelinesContent = generateGuidelinesFile(rootRules);
-    addOutput(outputs, "augmentcode", config, baseDir, ".augment-guidelines", guidelinesContent);
+    addOutput(
+      outputs,
+      "augmentcode",
+      config,
+      baseDir,
+      ".augment-guidelines",
+      generateGuidelinesFile(rootRules),
+    );
   }
 
   return outputs;
