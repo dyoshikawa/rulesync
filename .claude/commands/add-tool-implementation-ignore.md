@@ -11,4 +11,4 @@ Please refer to @.claude/memories/precautions.md and follow the instructions.
 
 ## ignore generate implementation
 
-Based on the content of @.claude/memories/specification-ignore-{tool_name_in_rulesync}.md, please add the implementation for generating {tool_name_in_rulesync} ignore files.
+Based on the content of @.claude/memories/specification-{tool_name_in_rulesync}-ignore.md, please add the implementation for generating {tool_name_in_rulesync} ignore files.
