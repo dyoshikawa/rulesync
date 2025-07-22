@@ -22,6 +22,8 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.aiexclude",
     "**/.aiignore",
     "**/.kiro/steering/",
+    "**/.augment/rules/",
+    "**/.augment-guidelines",
     "**/.mcp.json",
     "!.rulesync/.mcp.json",
     "**/.cursor/mcp.json",
