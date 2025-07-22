@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import {
+  generateAugmentcodeMcp,
   generateClaudeMcp,
   generateClineMcp,
   generateCopilotMcp,
@@ -32,6 +33,11 @@ export async function generateMcpConfigs(
   }
 
   const generators = [
+    {
+      tool: "augmentcode-project",
+      path: path.join(targetRoot, ".mcp.json"),
+      generate: () => generateAugmentcodeMcp(config),
+    },
     {
       tool: "claude-project",
       path: path.join(targetRoot, ".mcp.json"),
@@ -75,6 +81,7 @@ export async function generateMcpConfigs(
       const parsed = JSON.parse(content);
 
       if (
+        generator.tool.includes("augmentcode") ||
         generator.tool.includes("claude") ||
         generator.tool.includes("cline") ||
         generator.tool.includes("cursor") ||
@@ -135,6 +142,11 @@ export async function generateMcpConfigurations(
       dir: string,
     ) => Promise<Array<{ filepath: string; content: string }>>
   > = {
+    augmentcode: async (servers, dir) =>
+      (await import("../generators/mcp/augmentcode.js")).generateAugmentcodeMcpConfiguration(
+        servers,
+        dir,
+      ),
     claudecode: async (servers, dir) =>
       (await import("../generators/mcp/claudecode.js")).generateClaudeMcpConfiguration(
         servers,

@@ -31,9 +31,10 @@ describe("generateMcpConfigurations", () => {
 
     // Should generate for all supported tools by default
     // Copilot generates 2 files, others generate 1 each
-    expect(outputs).toHaveLength(8);
+    expect(outputs).toHaveLength(9);
 
     const filepaths = outputs.map((o) => o.filepath);
+    expect(filepaths).toContain(join(testDir, ".mcp.json")); // AugmentCode
     expect(filepaths).toContain(join(testDir, ".claude/settings.json"));
     expect(filepaths).toContain(join(testDir, ".vscode/mcp.json"));
     expect(filepaths).toContain(join(testDir, ".copilot/mcp.json"));
