@@ -29,7 +29,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
   // Validate that exactly one tool is selected
   if (tools.length === 0) {
     console.error(
-      "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
+      "❌ Please specify one tool to import from (--augmentcode, --augmentcodeLegacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
     );
     process.exit(1);
   }
