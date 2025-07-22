@@ -1,4 +1,5 @@
 export * from "./augmentcode.js";
+export * from "./augmentcode-legacy.js";
 export * from "./claudecode.js";
 export * from "./cline.js";
 export * from "./copilot.js";

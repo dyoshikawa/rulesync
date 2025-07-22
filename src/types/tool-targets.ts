@@ -2,6 +2,7 @@ import { z } from "zod/mini";
 
 export const ToolTargetSchema = z.enum([
   "augmentcode",
+  "augmentcode-legacy",
   "copilot",
   "cursor",
   "cline",

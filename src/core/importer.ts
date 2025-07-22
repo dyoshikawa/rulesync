@@ -2,6 +2,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import {
   parseAugmentcodeConfiguration,
+  parseAugmentcodeLegacyConfiguration,
   parseClaudeConfiguration,
   parseClineConfiguration,
   parseCopilotConfiguration,
@@ -46,6 +47,12 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const augmentResult = await parseAugmentcodeConfiguration(baseDir);
         rules = augmentResult.rules;
         errors.push(...augmentResult.errors);
+        break;
+      }
+      case "augmentcode-legacy": {
+        const augmentLegacyResult = await parseAugmentcodeLegacyConfiguration(baseDir);
+        rules = augmentLegacyResult.rules;
+        errors.push(...augmentLegacyResult.errors);
         break;
       }
       case "claudecode": {

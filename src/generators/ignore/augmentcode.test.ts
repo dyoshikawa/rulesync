@@ -7,6 +7,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
     aiRulesDir: "rules",
     outputPaths: {
       augmentcode: "output",
+      "augmentcode-legacy": "output",
       claudecode: "output",
       cline: "output",
       copilot: "output",

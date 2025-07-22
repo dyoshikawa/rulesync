@@ -39,6 +39,11 @@ export async function generateMcpConfigs(
       generate: () => generateAugmentcodeMcp(config),
     },
     {
+      tool: "augmentcode-legacy-project",
+      path: path.join(targetRoot, ".mcp.json"),
+      generate: () => generateAugmentcodeMcp(config),
+    },
+    {
       tool: "claude-project",
       path: path.join(targetRoot, ".mcp.json"),
       generate: () => generateClaudeMcp(config),
@@ -147,6 +152,11 @@ export async function generateMcpConfigurations(
         servers,
         dir,
       ),
+    "augmentcode-legacy": async (servers, dir) =>
+      (await import("../generators/mcp/augmentcode.js")).generateAugmentcodeMcpConfiguration(
+        servers,
+        dir,
+      ),
     claudecode: async (servers, dir) =>
       (await import("../generators/mcp/claudecode.js")).generateClaudeMcpConfiguration(
         servers,
@@ -171,11 +181,17 @@ export async function generateMcpConfigurations(
 
   const tools = targetTools || Object.keys(toolMap);
 
+  const seenPaths = new Set<string>();
+
   for (const tool of tools) {
     if (toolMap[tool]) {
       const results = await toolMap[tool](mcpConfig.mcpServers || {}, baseDir);
       for (const result of results) {
-        outputs.push({ ...result, tool });
+        // Skip duplicate file paths (e.g., augmentcode and augmentcode-legacy both generate .mcp.json)
+        if (!seenPaths.has(result.filepath)) {
+          seenPaths.add(result.filepath);
+          outputs.push({ ...result, tool });
+        }
       }
     }
   }

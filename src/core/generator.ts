@@ -1,6 +1,7 @@
 import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
+import { generateAugmentcodeLegacyConfig } from "../generators/rules/augmentcode-legacy.js";
 import { generateClaudecodeConfig } from "../generators/rules/claudecode.js";
 import { generateClineConfig } from "../generators/rules/cline.js";
 import { generateCopilotConfig } from "../generators/rules/copilot.js";
@@ -64,6 +65,15 @@ async function generateForTool(
       const augmentRulesOutputs = await generateAugmentcodeConfig(rules, config, baseDir);
       const augmentIgnoreOutputs = await generateAugmentCodeIgnoreFiles(rules, config, baseDir);
       return [...augmentRulesOutputs, ...augmentIgnoreOutputs];
+    }
+    case "augmentcode-legacy": {
+      const augmentLegacyRulesOutputs = await generateAugmentcodeLegacyConfig(
+        rules,
+        config,
+        baseDir,
+      );
+      const augmentIgnoreOutputs = await generateAugmentCodeIgnoreFiles(rules, config, baseDir);
+      return [...augmentLegacyRulesOutputs, ...augmentIgnoreOutputs];
     }
     case "copilot":
       return generateCopilotConfig(rules, config, baseDir);

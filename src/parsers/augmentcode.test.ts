@@ -220,90 +220,6 @@ Manual rule content.`);
     });
   });
 
-  describe("legacy .augment-guidelines format", () => {
-    it("should parse .augment-guidelines file", async () => {
-      vi.mocked(fileExists).mockImplementation(async (path: string) => {
-        if (path.includes(".augment/rules")) return false;
-        if (path.includes(".augment-guidelines")) return true;
-        return false;
-      });
-      vi.mocked(readFileContent).mockResolvedValue(`Use TypeScript for all new code.
-Follow clean architecture principles.
-Prefer functional programming patterns.`);
-
-      const result = await parseAugmentcodeConfiguration("/test");
-
-      expect(result.rules).toHaveLength(1);
-      expect(result.errors).toHaveLength(0);
-      expect(result.rules[0]).toEqual({
-        frontmatter: {
-          root: true, // Legacy guidelines become root rules
-          targets: ["augmentcode"],
-          description: "Legacy AugmentCode guidelines",
-          globs: ["**/*"],
-        },
-        content:
-          "Use TypeScript for all new code.\nFollow clean architecture principles.\nPrefer functional programming patterns.",
-        filename: "augmentcode-guidelines",
-        filepath: "/test/.augment-guidelines",
-      });
-    });
-
-    it("should handle empty .augment-guidelines file", async () => {
-      vi.mocked(fileExists).mockImplementation(async (path: string) => {
-        if (path.includes(".augment/rules")) return false;
-        if (path.includes(".augment-guidelines")) return true;
-        return false;
-      });
-      vi.mocked(readFileContent).mockResolvedValue("   \n\n   ");
-
-      const result = await parseAugmentcodeConfiguration("/test");
-
-      expect(result.rules).toHaveLength(0);
-      expect(result.errors).toContain(
-        "No AugmentCode configuration found. Expected .augment/rules/ directory or .augment-guidelines file.",
-      );
-    });
-
-    it("should handle guidelines file read error", async () => {
-      vi.mocked(fileExists).mockImplementation(async (path: string) => {
-        if (path.includes(".augment/rules")) return false;
-        if (path.includes(".augment-guidelines")) return true;
-        return false;
-      });
-      vi.mocked(readFileContent).mockRejectedValue(new Error("File read error"));
-
-      const result = await parseAugmentcodeConfiguration("/test");
-
-      expect(result.rules).toHaveLength(0);
-      expect(result.errors).toContain("Failed to parse .augment-guidelines: File read error");
-    });
-  });
-
-  describe("both formats present", () => {
-    it("should parse both new and legacy formats", async () => {
-      const { readdir } = await import("node:fs/promises");
-      vi.mocked(fileExists).mockImplementation(async (path: string) => {
-        return path.includes(".augment/rules") || path.includes(".augment-guidelines");
-      });
-      vi.mocked(readdir).mockResolvedValue(["new-rule.md"] as any);
-      vi.mocked(readFileContent)
-        .mockResolvedValueOnce(`---
-type: manual
-description: "New format rule"
----
-
-New format content.`)
-        .mockResolvedValueOnce("Legacy guidelines content.");
-
-      const result = await parseAugmentcodeConfiguration("/test");
-
-      expect(result.rules).toHaveLength(2);
-      expect(result.rules.some((r) => r.filename === "augmentcode-manual-new-rule")).toBe(true);
-      expect(result.rules.some((r) => r.filename === "augmentcode-guidelines")).toBe(true);
-    });
-  });
-
   describe("no configuration found", () => {
     it("should return error when no configuration files exist", async () => {
       vi.mocked(fileExists).mockResolvedValue(false);
@@ -312,7 +228,7 @@ New format content.`)
 
       expect(result.rules).toHaveLength(0);
       expect(result.errors).toContain(
-        "No AugmentCode configuration found. Expected .augment/rules/ directory or .augment-guidelines file.",
+        "No AugmentCode configuration found. Expected .augment/rules/ directory.",
       );
     });
   });

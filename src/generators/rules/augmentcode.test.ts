@@ -58,22 +58,23 @@ describe("augmentcode generator", () => {
   it("should generate augmentcode configuration", async () => {
     const outputs = await generateAugmentcodeConfig(mockRules, config);
 
-    expect(outputs).toHaveLength(4); // 1 guidelines file + 3 rule files
+    expect(outputs).toHaveLength(4); // 4 rule files (no guidelines file)
     expect(outputs.every((o) => o.tool === "augmentcode")).toBe(true);
   });
 
-  it("should separate root and detail rules", async () => {
+  it("should generate all rules as individual files", async () => {
     const outputs = await generateAugmentcodeConfig(mockRules, config);
 
-    // Root rule should generate .augment-guidelines
-    const guidelinesFile = outputs.find((o) => o.filepath.endsWith(".augment-guidelines"));
-    expect(guidelinesFile).toBeDefined();
-    expect(guidelinesFile!.content).toContain("Use TypeScript for all new code.");
-    expect(guidelinesFile!.content).toContain("Follow clean architecture.");
-
-    // Detail rules should generate .augment/rules/*.md files
+    // All rules should generate .augment/rules/*.md files (no guidelines file)
     const ruleFiles = outputs.filter((o) => o.filepath.includes(".augment/rules/"));
-    expect(ruleFiles).toHaveLength(3);
+    expect(ruleFiles).toHaveLength(4);
+
+    // Check that all rule files are present
+    const filenames = ruleFiles.map((f) => f.filepath.split("/").pop());
+    expect(filenames).toContain("coding-guidelines.md");
+    expect(filenames).toContain("architecture-manual.md");
+    expect(filenames).toContain("naming-always.md");
+    expect(filenames).toContain("onboarding-auto.md");
   });
 
   it("should generate proper rule file format with frontmatter", async () => {
@@ -156,7 +157,7 @@ describe("augmentcode generator", () => {
     const outputs = await generateAugmentcodeConfig(rootOnlyRules, config);
 
     expect(outputs).toHaveLength(1);
-    expect(outputs[0]!.filepath).toMatch(/\.augment-guidelines$/);
+    expect(outputs[0]!.filepath).toMatch(/\.augment\/rules\/coding-guidelines\.md$/);
     expect(outputs[0]!.content).toContain("Use TypeScript for all new code.");
   });
 
@@ -166,24 +167,23 @@ describe("augmentcode generator", () => {
 
     expect(outputs).toHaveLength(3);
     expect(outputs.every((o) => o.filepath.includes(".augment/rules/"))).toBe(true);
-    expect(outputs.find((o) => o.filepath.endsWith(".augment-guidelines"))).toBeUndefined();
   });
 
   it("should respect baseDir parameter", async () => {
     const outputs = await generateAugmentcodeConfig(mockRules, config, "/custom/base");
 
-    const guidelinesFile = outputs.find((o) => o.filepath.endsWith(".augment-guidelines"));
-    expect(guidelinesFile!.filepath).toBe("/custom/base/.augment-guidelines");
-
     const ruleFile = outputs.find((o) => o.filepath.includes("architecture-manual.md"));
     expect(ruleFile!.filepath).toBe("/custom/base/.augment/rules/architecture-manual.md");
+
+    const codingFile = outputs.find((o) => o.filepath.includes("coding-guidelines.md"));
+    expect(codingFile!.filepath).toBe("/custom/base/.augment/rules/coding-guidelines.md");
   });
 
   it("should generate correct file paths", async () => {
     const outputs = await generateAugmentcodeConfig(mockRules, config);
 
     const expectedPaths = [
-      ".augment-guidelines",
+      ".augment/rules/coding-guidelines.md",
       ".augment/rules/architecture-manual.md",
       ".augment/rules/naming-always.md",
       ".augment/rules/onboarding-auto.md",

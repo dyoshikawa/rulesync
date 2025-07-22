@@ -30,7 +30,8 @@ describe("generateMcpConfigurations", () => {
     const outputs = await generateMcpConfigurations(mcpConfig, testDir);
 
     // Should generate for all supported tools by default
-    // Copilot generates 2 files, others generate 1 each
+    // AugmentCode and AugmentCode-legacy both map to same .mcp.json (deduplicated), Copilot generates 2 files, others generate 1 each
+    // Total: augmentcode(1) + claudecode(1) + cursor(1) + cline(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) = 9
     expect(outputs).toHaveLength(9);
 
     const filepaths = outputs.map((o) => o.filepath);

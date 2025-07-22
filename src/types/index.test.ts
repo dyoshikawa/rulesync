@@ -52,6 +52,7 @@ describe("types/index", () => {
       aiRulesDir: ".rulesync",
       outputPaths: {
         augmentcode: ".",
+        "augmentcode-legacy": ".",
         copilot: ".github/instructions",
         cursor: ".cursor/rules",
         cline: ".clinerules",

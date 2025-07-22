@@ -14,28 +14,14 @@ export async function parseAugmentcodeConfiguration(
   const errors: string[] = [];
   const rules: ParsedRule[] = [];
 
-  // Check for .augment/rules/ directory (new format)
+  // Check for .augment/rules/ directory (new format only)
   const rulesDir = join(baseDir, ".augment", "rules");
   if (await fileExists(rulesDir)) {
     const rulesResult = await parseAugmentRules(rulesDir);
     rules.push(...rulesResult.rules);
     errors.push(...rulesResult.errors);
-  }
-
-  // Check for .augment-guidelines file (legacy format)
-  const guidelinesPath = join(baseDir, ".augment-guidelines");
-  if (await fileExists(guidelinesPath)) {
-    const guidelinesResult = await parseAugmentGuidelines(guidelinesPath);
-    if (guidelinesResult.rule) {
-      rules.push(guidelinesResult.rule);
-    }
-    errors.push(...guidelinesResult.errors);
-  }
-
-  if (rules.length === 0) {
-    errors.push(
-      "No AugmentCode configuration found. Expected .augment/rules/ directory or .augment-guidelines file.",
-    );
+  } else {
+    errors.push("No AugmentCode configuration found. Expected .augment/rules/ directory.");
   }
 
   return { rules, errors };
@@ -97,40 +83,4 @@ async function parseAugmentRules(rulesDir: string): Promise<RulesParseResult> {
   }
 
   return { rules, errors };
-}
-
-interface GuidelinesParseResult {
-  rule: ParsedRule | null;
-  errors: string[];
-}
-
-async function parseAugmentGuidelines(guidelinesPath: string): Promise<GuidelinesParseResult> {
-  const errors: string[] = [];
-
-  try {
-    const content = await readFileContent(guidelinesPath);
-
-    if (content.trim()) {
-      const frontmatter: RuleFrontmatter = {
-        root: true, // Legacy guidelines become root rules
-        targets: ["augmentcode"],
-        description: "Legacy AugmentCode guidelines",
-        globs: ["**/*"],
-      };
-
-      const rule: ParsedRule = {
-        frontmatter,
-        content: content.trim(),
-        filename: "augmentcode-guidelines",
-        filepath: guidelinesPath,
-      };
-
-      return { rule, errors };
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to parse .augment-guidelines: ${errorMessage}`);
-  }
-
-  return { rule: null, errors };
 }

@@ -3,6 +3,7 @@ import type { ToolTarget } from "../../types/index.js";
 
 export interface ImportOptions {
   augmentcode?: boolean;
+  augmentcodeLegacy?: boolean;
   claudecode?: boolean;
   cursor?: boolean;
   copilot?: boolean;
@@ -17,6 +18,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
 
   // Collect selected tools
   if (options.augmentcode) tools.push("augmentcode");
+  if (options.augmentcodeLegacy) tools.push("augmentcode-legacy");
   if (options.claudecode) tools.push("claudecode");
   if (options.cursor) tools.push("cursor");
   if (options.copilot) tools.push("copilot");
@@ -27,7 +29,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
   // Validate that exactly one tool is selected
   if (tools.length === 0) {
     console.error(
-      "❌ Please specify one tool to import from (--augmentcode, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
+      "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
     );
     process.exit(1);
   }
