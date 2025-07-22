@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "AugmentCode rules specification for configuration file generation"
-globs: "**/*.ts,**/*.js,**/*.md"
+globs: ["**/*.ts", "**/*.js", "**/*.md"]
 ---
 
 # AugmentCode Rules Specification
