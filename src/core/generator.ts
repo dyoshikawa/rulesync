@@ -1,3 +1,4 @@
+import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
 import { generateClaudecodeConfig } from "../generators/rules/claudecode.js";
@@ -59,8 +60,11 @@ async function generateForTool(
   baseDir?: string,
 ): Promise<GeneratedOutput[] | null> {
   switch (tool) {
-    case "augmentcode":
-      return await generateAugmentcodeConfig(rules, config, baseDir);
+    case "augmentcode": {
+      const augmentRulesOutputs = await generateAugmentcodeConfig(rules, config, baseDir);
+      const augmentIgnoreOutputs = await generateAugmentCodeIgnoreFiles(rules, config, baseDir);
+      return [...augmentRulesOutputs, ...augmentIgnoreOutputs];
+    }
     case "copilot":
       return generateCopilotConfig(rules, config, baseDir);
     case "cursor":

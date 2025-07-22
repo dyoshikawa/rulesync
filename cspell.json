@@ -12,6 +12,7 @@
         "aiexclude",
         "augmentcode",
         "augmentignore",
+        "augmentinclude",
         "argparse",
         "autoattached",
         "bcheck",
