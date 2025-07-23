@@ -1,28 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type {
+  CopilotCodingAgentConfig,
+  CopilotEditorConfig,
+  CopilotInput,
+  CopilotServer,
+} from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
-
-interface CopilotEditorConfig {
-  servers: Record<string, CopilotServer>;
-  inputs?: CopilotInput[];
-}
-
-interface CopilotCodingAgentConfig {
-  mcpServers: Record<string, CopilotServer>;
-}
-
-interface CopilotServer {
-  command?: string;
-  args?: string[];
-  url?: string;
-  env?: Record<string, string>;
-  tools?: string[];
-}
-
-interface CopilotInput {
-  id: string;
-  type: "password";
-  description: string;
-}
 
 export function generateCopilotMcp(
   config: RulesyncMcpConfig,

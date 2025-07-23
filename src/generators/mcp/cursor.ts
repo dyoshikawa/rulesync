@@ -1,20 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer, CursorConfig } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-interface CursorConfig {
-  mcpServers: Record<string, CursorServer>;
-}
-
-interface CursorServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  env?: Record<string, string> | undefined;
-  cwd?: string | undefined;
-  type?: "sse" | "streamable-http" | undefined;
+type CursorServer = BaseMcpServer & {
   // Allow additional properties that might be present in the server config
   [key: string]: unknown;
-}
+};
 
 export function generateCursorMcp(config: RulesyncMcpConfig): string {
   const cursorConfig: CursorConfig = {

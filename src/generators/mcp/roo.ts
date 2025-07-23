@@ -1,22 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer, RooConfig } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-interface RooConfig {
-  mcpServers: Record<string, RooServer>;
-}
-
-interface RooServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  env?: Record<string, string> | undefined;
-  disabled?: boolean | undefined;
-  alwaysAllow?: string[] | undefined;
-  networkTimeout?: number | undefined;
-  type?: "sse" | "streamable-http" | undefined;
+type RooServer = BaseMcpServer & {
   // Allow additional properties that might be present in the server config
   [key: string]: unknown;
-}
+};
 
 export function generateRooMcp(config: RulesyncMcpConfig): string {
   const rooConfig: RooConfig = {

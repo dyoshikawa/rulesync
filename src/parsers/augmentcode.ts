@@ -2,6 +2,7 @@ import { basename, join } from "node:path";
 import matter from "gray-matter";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import { fileExists, readFileContent } from "../utils/index.js";
+import { addError, addRules, createParseResult } from "../utils/parser-helpers.js";
 
 export interface AugmentImportResult {
   rules: ParsedRule[];
@@ -11,20 +12,19 @@ export interface AugmentImportResult {
 export async function parseAugmentcodeConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<AugmentImportResult> {
-  const errors: string[] = [];
-  const rules: ParsedRule[] = [];
+  const result = createParseResult();
 
   // Check for .augment/rules/ directory (new format only)
   const rulesDir = join(baseDir, ".augment", "rules");
   if (await fileExists(rulesDir)) {
     const rulesResult = await parseAugmentRules(rulesDir);
-    rules.push(...rulesResult.rules);
-    errors.push(...rulesResult.errors);
+    addRules(result, rulesResult.rules);
+    result.errors.push(...rulesResult.errors);
   } else {
-    errors.push("No AugmentCode configuration found. Expected .augment/rules/ directory.");
+    addError(result, "No AugmentCode configuration found. Expected .augment/rules/ directory.");
   }
 
-  return { rules, errors };
+  return { rules: result.rules || [], errors: result.errors };
 }
 
 interface RulesParseResult {

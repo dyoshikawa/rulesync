@@ -1,21 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer, GeminiSettings } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-interface GeminiSettings {
-  mcpServers: Record<string, GeminiServer>;
-}
-
-interface GeminiServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  httpUrl?: string | undefined;
-  env?: Record<string, string> | undefined;
-  timeout?: number | undefined;
-  trust?: boolean | undefined;
+type GeminiServer = BaseMcpServer & {
   // Allow additional properties that might be present in the server config
   [key: string]: unknown;
-}
+};
 
 export function generateGeminiCliMcp(config: RulesyncMcpConfig): string {
   const geminiSettings: GeminiSettings = {

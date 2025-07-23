@@ -1,23 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer, KiroConfig } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-interface KiroConfig {
-  mcpServers: Record<string, KiroServer>;
-}
-
-interface KiroServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  env?: Record<string, string> | undefined;
-  timeout?: number | undefined;
-  disabled?: boolean | undefined;
-  transport?: string | undefined;
-  autoApprove?: string[] | undefined;
-  autoBlock?: string[] | undefined;
+type KiroServer = BaseMcpServer & {
   // Allow additional properties that might be present in the server config
   [key: string]: unknown;
-}
+};
 
 export function generateKiroMcp(config: RulesyncMcpConfig): string {
   const kiroConfig: KiroConfig = {

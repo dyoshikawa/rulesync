@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import { fileExists, readFileContent } from "../utils/index.js";
+import { addError, addRule, createParseResult, safeReadFile } from "../utils/parser-helpers.js";
 
 export interface AugmentcodeLegacyImportResult {
   rules: ParsedRule[];
@@ -10,22 +11,24 @@ export interface AugmentcodeLegacyImportResult {
 export async function parseAugmentcodeLegacyConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<AugmentcodeLegacyImportResult> {
-  const errors: string[] = [];
-  const rules: ParsedRule[] = [];
+  const result = createParseResult();
 
   // Check for .augment-guidelines file (legacy format only)
   const guidelinesPath = join(baseDir, ".augment-guidelines");
   if (await fileExists(guidelinesPath)) {
     const guidelinesResult = await parseAugmentGuidelines(guidelinesPath);
     if (guidelinesResult.rule) {
-      rules.push(guidelinesResult.rule);
+      addRule(result, guidelinesResult.rule);
     }
-    errors.push(...guidelinesResult.errors);
+    result.errors.push(...guidelinesResult.errors);
   } else {
-    errors.push("No AugmentCode legacy configuration found. Expected .augment-guidelines file.");
+    addError(
+      result,
+      "No AugmentCode legacy configuration found. Expected .augment-guidelines file.",
+    );
   }
 
-  return { rules, errors };
+  return { rules: result.rules || [], errors: result.errors };
 }
 
 interface GuidelinesParseResult {
@@ -34,9 +37,7 @@ interface GuidelinesParseResult {
 }
 
 async function parseAugmentGuidelines(guidelinesPath: string): Promise<GuidelinesParseResult> {
-  const errors: string[] = [];
-
-  try {
+  const parseResult = await safeReadFile(async () => {
     const content = await readFileContent(guidelinesPath);
 
     if (content.trim()) {
@@ -47,19 +48,19 @@ async function parseAugmentGuidelines(guidelinesPath: string): Promise<Guideline
         globs: ["**/*"],
       };
 
-      const rule: ParsedRule = {
+      return {
         frontmatter,
         content: content.trim(),
         filename: "augmentcode-legacy-guidelines",
         filepath: guidelinesPath,
       };
-
-      return { rule, errors };
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to parse .augment-guidelines: ${errorMessage}`);
-  }
+    return null;
+  }, "Failed to parse .augment-guidelines");
 
-  return { rule: null, errors };
+  if (parseResult.success) {
+    return { rule: parseResult.result || null, errors: [] };
+  } else {
+    return { rule: null, errors: [parseResult.error || "Unknown error"] };
+  }
 }

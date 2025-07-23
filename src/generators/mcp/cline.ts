@@ -1,21 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer, ClineConfig } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-interface ClineConfig {
-  mcpServers: Record<string, ClineServer>;
-}
-
-interface ClineServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  env?: Record<string, string> | undefined;
-  disabled?: boolean | undefined;
-  alwaysAllow?: string[] | undefined;
-  networkTimeout?: number | undefined;
+type ClineServer = BaseMcpServer & {
   // Allow additional properties that might be present in the server config
   [key: string]: unknown;
-}
+};
 
 export function generateClineMcp(config: RulesyncMcpConfig): string {
   const clineConfig: ClineConfig = {

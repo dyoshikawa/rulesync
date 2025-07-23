@@ -1,19 +1,11 @@
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer, ClaudeSettings } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-interface ClaudeSettings {
-  mcpServers?: Record<string, ClaudeServer>;
-}
-
-interface ClaudeServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  env?: Record<string, string> | undefined;
-  transport?: "sse" | "http" | undefined;
+type ClaudeServer = BaseMcpServer & {
   // Allow additional properties that might be present in the server config
   [key: string]: unknown;
-}
+};
 
 export function generateClaudeMcp(config: RulesyncMcpConfig): string {
   const claudeSettings: ClaudeSettings = {
