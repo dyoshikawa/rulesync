@@ -62,7 +62,7 @@ project/
 - Easy switching between project contexts
 
 ## Advanced Management Features
-- Cline v3.13 introduces toggle-able popover UI
+- Cline v3.13 introduces toggleable popover UI
 - Instant display and switching of active rules
 - Quick rule file creation and management functionality
 
