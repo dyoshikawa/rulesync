@@ -18,7 +18,7 @@ A mechanism to provide "system-level guidance" to Cline projects and conversatio
 
 ## Creation Methods
 1. Click the "+" button in Rules tab
-2. Use `/new-rule` slash command in chat
+2. Use `/newrule` slash command in chat
 3. Manually create Markdown files
 
 ## File Structure Best Practices
