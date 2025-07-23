@@ -36,6 +36,47 @@ A mechanism to provide custom instructions to Roo Code for personalized behavior
     └── type-safety.md
 ```
 
+## Subdirectory Support
+
+### Unlimited Recursive Loading
+- **Full Recursion**: Supports unlimited nesting depth within `.roo/rules/` directories
+- **File Discovery**: Uses Node.js `fs.readdir(dir, {withFileTypes: true, recursive: true})`
+- **No Depth Limit**: Only limited by OS path length (~260 chars on older Windows) or system resources
+- **File Types**: Loads all files (binary files may cause issues - avoid swap files)
+
+### File Processing Order
+- **Sorting**: Files sorted by full relative path in lexicographical order (case-insensitive)
+- **Directory Independence**: Subdirectory location doesn't affect precedence
+- **Naming Control**: Use numeric prefixes (00-, 10-, 20-) to guarantee load order
+- **Context Limits**: When combined rules exceed LLM context window, oldest (alphabetically-first) rules are truncated
+
+### Directory Organization Examples
+```
+.roo/
+├── rules/
+│   ├── 00-global-standards.md    # Loaded first (numeric prefix)
+│   ├── security/
+│   │   ├── 10-auth-policy.md     # Loaded by numeric prefix
+│   │   └── db/
+│   │       └── encryption.md     # Deep nesting supported
+│   ├── api/
+│   │   ├── contracts.md
+│   │   └── validation.md
+│   └── frontend/
+│       ├── components.md
+│       └── styling.md
+└── rules-typescript/             # Mode-specific rules
+    ├── 00-type-safety.md
+    └── patterns/
+        └── react-hooks.md
+```
+
+### Best Practices for Deep Organization
+- **Numeric Prefixes**: Use `00-`, `10-`, `20-` to control load order across directories
+- **Focused Files**: Keep individual rule files small and focused
+- **Clean Environment**: Avoid editor swap files (`.swp`, temporary files) in rules directories
+- **Monitor Context**: Large rule sets may exceed model context limits
+
 ## Features
 - Recursive file loading from directories
 - Alphabetical file processing order

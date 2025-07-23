@@ -85,6 +85,66 @@ You can add additional steering documents as needed:
 - Use Command Palette → "Refine" to let Kiro expand the content
 - Examples: `libraries.md` for dependency policies, `security.md` for security guidelines
 
+## Subdirectory Support
+
+### Specs Directory Structure
+- **Recursive Discovery**: `.kiro/specs/` supports unlimited nesting depth
+- **Spec Recognition**: Each subdirectory containing `requirements.md`, `design.md`, and `tasks.md` becomes a spec
+- **Spec Naming**: Subdirectory path relative to `.kiro/specs/` becomes the spec name
+- **Helper Files**: Additional files (screenshots, diagrams, JSON) can be placed alongside spec files
+
+#### Specs Organization Examples
+```
+.kiro/
+└── specs/
+    ├── authentication/           # Simple spec
+    │   ├── requirements.md
+    │   ├── design.md
+    │   └── tasks.md
+    ├── payments/
+    │   ├── core/                 # Nested spec: "payments/core"
+    │   │   ├── requirements.md
+    │   │   ├── design.md
+    │   │   └── tasks.md
+    │   └── refunds/              # Nested spec: "payments/refunds"
+    │       ├── requirements.md
+    │       ├── design.md
+    │       └── tasks.md
+    └── mobile/
+        └── ios/                  # Deep nesting: "mobile/ios"
+            ├── requirements.md
+            ├── design.md
+            ├── tasks.md
+            └── mockups/          # Helper files
+                └── login.png
+```
+
+### Steering Directory Structure
+- **Flat Structure Only**: `.kiro/steering/` does **not** support subdirectories
+- **File Discovery**: Only `*.md` files directly in `.kiro/steering/` are loaded
+- **Nested Files Ignored**: Files in subdirectories like `.kiro/steering/security/api.md` are **not** loaded
+
+#### Steering Organization Workarounds
+```
+.kiro/
+├── steering/
+│   ├── product.md              # Core files (flat structure)
+│   ├── structure.md
+│   ├── tech.md
+│   ├── security-api.md         # Use naming conventions
+│   ├── security-auth.md        # instead of subdirectories
+│   └── testing-unit.md
+└── staging/                    # External organization
+    └── security/               # (not loaded by Kiro)
+        ├── api.md
+        └── auth.md
+```
+
+### File Discovery Limitations
+- **Specs**: Full recursive scanning with no depth limit
+- **Steering**: Single-level scanning only
+- **Future Plans**: Nested steering folders requested but not yet on roadmap (as of July 2025)
+
 ## 3. Agent Hooks - Automated Context Application
 
 ### Purpose

@@ -150,6 +150,24 @@ For teams wanting source-controlled, hierarchical project memory:
 └── rules/                       # Active rule files
 ```
 
+## Subdirectory Support
+
+### Directory Nesting
+- **Current Status**: **No subdirectory support**
+- **Limitation**: AugmentCode only scans one level deep in `.augment/rules/`
+- **File Discovery**: Only `*.md` and `*.mdc` files directly in `.augment/rules/` are loaded
+- **Nested Files**: Files in subdirectories like `.augment/rules/backend/api-rules.md` are **ignored**
+
+### Workarounds for Organization
+- **Flat Structure**: Keep all rule files directly in `.augment/rules/`
+- **Naming Conventions**: Use descriptive prefixes (e.g., `backend-api.md`, `frontend-ui.md`)
+- **Manual Import**: Use Settings → User Guidelines and Rules → Import Rules for nested files
+  - **Note**: This copies files to top-level, not live-linked
+
+### Future Considerations
+- Recursive folder support not yet announced in changelog (as of July 2025)
+- Consider filing feature request in AugmentCode Discord/support portal
+
 ## File Discovery and Indexing
 
 ### Auto-Discovery
