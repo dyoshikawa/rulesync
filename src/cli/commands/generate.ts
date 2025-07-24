@@ -1,9 +1,12 @@
+import { join } from "node:path";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigs } from "../../core/mcp-generator.js";
 import type { ToolTarget } from "../../types/index.js";
+import type { ConfigLoaderOptions } from "../../utils/config-loader.js";
 import {
   fileExists,
-  getDefaultConfig,
+  loadConfig,
+  mergeWithCliOptions,
   removeClaudeGeneratedFiles,
   removeDirectory,
   writeFileContent,
@@ -14,11 +17,47 @@ export interface GenerateOptions {
   verbose?: boolean;
   delete?: boolean;
   baseDirs?: string[];
+  config?: string;
+  noConfig?: boolean;
+}
+
+interface CliOptions {
+  tools?: ToolTarget[];
+  verbose?: boolean;
+  delete?: boolean;
+  baseDirs?: string[];
 }
 
 export async function generateCommand(options: GenerateOptions = {}): Promise<void> {
-  const config = getDefaultConfig();
-  const baseDirs = options.baseDirs || [process.cwd()];
+  // Build config loader options with proper typing
+  const configLoaderOptions: ConfigLoaderOptions = {
+    ...(options.config !== undefined && { configPath: options.config }),
+    ...(options.noConfig !== undefined && { noConfig: options.noConfig }),
+  };
+
+  const configResult = await loadConfig(configLoaderOptions);
+
+  const cliOptions: CliOptions = {
+    ...(options.tools !== undefined && { tools: options.tools }),
+    ...(options.verbose !== undefined && { verbose: options.verbose }),
+    ...(options.delete !== undefined && { delete: options.delete }),
+    ...(options.baseDirs !== undefined && { baseDirs: options.baseDirs }),
+  };
+
+  const config = mergeWithCliOptions(configResult.config, cliOptions);
+
+  let baseDirs: string[];
+  if (config.baseDir) {
+    baseDirs = Array.isArray(config.baseDir) ? config.baseDir : [config.baseDir];
+  } else if (options.baseDirs) {
+    baseDirs = options.baseDirs;
+  } else {
+    baseDirs = [process.cwd()];
+  }
+
+  if (config.verbose && configResult.filepath) {
+    console.log(`Loaded configuration from: ${configResult.filepath}`);
+  }
 
   console.log("Generating configuration files...");
 
@@ -30,7 +69,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
   try {
     // Parse rules
-    if (options.verbose) {
+    if (config.verbose) {
       console.log(`Parsing rules from ${config.aiRulesDir}...`);
     }
     const rules = await parseRulesFromDirectory(config.aiRulesDir);
@@ -40,22 +79,31 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       return;
     }
 
-    if (options.verbose) {
+    if (config.verbose) {
       console.log(`Found ${rules.length} rule(s)`);
       console.log(`Base directories: ${baseDirs.join(", ")}`);
     }
 
     // Delete existing output directories if --delete option is specified
-    if (options.delete) {
-      if (options.verbose) {
+    if (config.delete) {
+      if (config.verbose) {
         console.log("Deleting existing output directories...");
       }
 
-      const targetTools = options.tools || config.defaultTargets;
+      const targetTools = config.defaultTargets;
       const deleteTasks = [];
 
       for (const tool of targetTools) {
         switch (tool) {
+          case "augmentcode":
+            deleteTasks.push(removeDirectory(join(".augment", "rules")));
+            deleteTasks.push(removeDirectory(join(".augment", "ignore")));
+            break;
+          case "augmentcode-legacy":
+            // Legacy AugmentCode files are in the root directory
+            deleteTasks.push(removeClaudeGeneratedFiles());
+            deleteTasks.push(removeDirectory(join(".augment", "ignore")));
+            break;
           case "copilot":
             deleteTasks.push(removeDirectory(config.outputPaths.copilot));
             break;
@@ -83,7 +131,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
       await Promise.all(deleteTasks);
 
-      if (options.verbose) {
+      if (config.verbose) {
         console.log("Deleted existing output directories");
       }
     }
@@ -91,14 +139,14 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
     // Generate configurations for each base directory
     let totalOutputs = 0;
     for (const baseDir of baseDirs) {
-      if (options.verbose) {
+      if (config.verbose) {
         console.log(`\nGenerating configurations for base directory: ${baseDir}`);
       }
 
-      const outputs = await generateConfigurations(rules, config, options.tools, baseDir);
+      const outputs = await generateConfigurations(rules, config, config.defaultTargets, baseDir);
 
       if (outputs.length === 0) {
-        if (options.verbose) {
+        if (config.verbose) {
           console.warn(`⚠️  No configurations generated for ${baseDir}`);
         }
         continue;
@@ -119,7 +167,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
     }
 
     // Generate MCP configurations
-    if (options.verbose) {
+    if (config.verbose) {
       console.log("\nGenerating MCP configurations...");
     }
 
@@ -128,10 +176,11 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       const mcpResults = await generateMcpConfigs(
         process.cwd(),
         baseDir === process.cwd() ? undefined : baseDir,
+        config.defaultTargets,
       );
 
       if (mcpResults.length === 0) {
-        if (options.verbose) {
+        if (config.verbose) {
           console.log(`No MCP configuration found for ${baseDir}`);
         }
         continue;
@@ -143,7 +192,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
           totalMcpOutputs++;
         } else if (result.status === "error") {
           console.error(`❌ Failed to generate ${result.tool} MCP configuration: ${result.error}`);
-        } else if (options.verbose && result.status === "skipped") {
+        } else if (config.verbose && result.status === "skipped") {
           console.log(`⏭️  Skipped ${result.tool} MCP configuration (no servers configured)`);
         }
       }

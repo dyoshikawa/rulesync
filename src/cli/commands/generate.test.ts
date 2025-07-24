@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
+import { generateMcpConfigs } from "../../core/mcp-generator.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import {
   fileExists,
   getDefaultConfig,
+  loadConfig,
+  mergeWithCliOptions,
   removeClaudeGeneratedFiles,
   removeDirectory,
   writeFileContent,
@@ -11,12 +14,16 @@ import {
 import { generateCommand } from "./generate.js";
 
 vi.mock("../../core/index.js");
+vi.mock("../../core/mcp-generator.js");
 vi.mock("../../utils/index.js");
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);
+const mockGenerateMcpConfigs = vi.mocked(generateMcpConfigs);
 const mockFileExists = vi.mocked(fileExists);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
+const mockLoadConfig = vi.mocked(loadConfig);
+const mockMergeWithCliOptions = vi.mocked(mergeWithCliOptions);
 const mockWriteFileContent = vi.mocked(writeFileContent);
 const mockRemoveDirectory = vi.mocked(removeDirectory);
 const mockRemoveClaudeGeneratedFiles = vi.mocked(removeClaudeGeneratedFiles);
@@ -55,6 +62,17 @@ describe("generateCommand", () => {
     mockWriteFileContent.mockResolvedValue();
     mockRemoveDirectory.mockResolvedValue();
     mockRemoveClaudeGeneratedFiles.mockResolvedValue();
+    mockGenerateMcpConfigs.mockResolvedValue([]);
+
+    mockLoadConfig.mockResolvedValue({
+      config: mockConfig,
+      isEmpty: true,
+    });
+    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => ({
+      ...config,
+      ...cliOptions,
+      defaultTargets: cliOptions.tools || config.defaultTargets,
+    }));
 
     // Mock console methods
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -73,7 +91,7 @@ describe("generateCommand", () => {
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
       mockRules,
       mockConfig,
-      undefined,
+      mockConfig.defaultTargets,
       process.cwd(),
     );
     expect(mockWriteFileContent).toHaveBeenCalledWith(
@@ -119,7 +137,10 @@ describe("generateCommand", () => {
 
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
       mockRules,
-      mockConfig,
+      expect.objectContaining({
+        ...mockConfig,
+        defaultTargets: ["copilot"],
+      }),
       ["copilot"],
       process.cwd(),
     );

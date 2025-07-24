@@ -12,6 +12,7 @@ import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../types/index.js";
 import { resolveTargets } from "../utils/index.js";
+import { isToolSpecificRule } from "../utils/rules.js";
 
 export async function generateConfigurations(
   rules: ParsedRule[],
@@ -50,7 +51,11 @@ export async function generateConfigurations(
 function filterRulesForTool(rules: ParsedRule[], tool: ToolTarget, config: Config): ParsedRule[] {
   return rules.filter((rule) => {
     const targets = resolveTargets(rule.frontmatter.targets, config);
-    return targets.includes(tool);
+    if (!targets.includes(tool)) {
+      return false;
+    }
+
+    return isToolSpecificRule(rule, tool);
   });
 }
 

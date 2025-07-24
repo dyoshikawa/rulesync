@@ -243,6 +243,89 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 - `--verbose`: Show detailed output during generation process
 - `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--kiro`: Generate only for specified tools
 - `--base-dir <paths>`: Generate configuration files in specified base directories (comma-separated for multiple paths). Useful for monorepo setups where you want to generate tool-specific configurations in different project directories.
+- `--config <path>`: Use a specific configuration file
+- `--no-config`: Disable configuration file loading
+
+### Configuration Files
+
+rulesync supports configuration files to avoid repetitive command-line arguments. The configuration is loaded from (in order of precedence):
+
+1. Path specified with `--config` flag
+2. `rulesync.jsonc` (JSONC format with comments)
+3. `rulesync.ts` (TypeScript format)
+4. `rulesync.config.ts`
+5. `rulesync.config.jsonc`
+6. `package.json` (in a `"rulesync"` field)
+
+#### Configuration File Examples
+
+**JSONC format (`rulesync.jsonc`):**
+```jsonc
+{
+  // List of tools to generate configurations for
+  "targets": ["copilot", "cursor", "claudecode"],
+  
+  // Tools to exclude from generation (overrides targets)
+  "exclude": ["roo"],
+  
+  // Custom output paths for specific tools
+  "outputPaths": {
+    "copilot": ".github/copilot-instructions.md"
+  },
+  
+  // Base directory or directories for generation
+  "baseDir": "./packages",
+  
+  // Delete existing files before generating
+  "delete": false,
+  
+  // Enable verbose output
+  "verbose": true
+}
+```
+
+**TypeScript format (`rulesync.ts`):**
+```typescript
+import type { ConfigOptions } from "rulesync";
+
+const config: ConfigOptions = {
+  targets: ["copilot", "cursor", "claudecode"],
+  exclude: ["roo"],
+  outputPaths: {
+    copilot: ".github/copilot-instructions.md"
+  },
+  baseDir: "./packages",
+  delete: false,
+  verbose: true
+};
+
+export default config;
+```
+
+#### Configuration Options
+
+- `targets`: Array of tools to generate configurations for (overrides default targets)
+- `exclude`: Array of tools to exclude from generation
+- `outputPaths`: Custom output paths for specific tools
+- `baseDir`: Base directory or array of directories for generation
+- `delete`: Delete existing files before generating (default: false)
+- `verbose`: Enable verbose output (default: false)
+- `aiRulesDir`: Directory containing rule files (default: ".rulesync")
+- `watch`: Watch configuration with `enabled`, `interval`, and `ignore` options
+
+#### Managing Configuration
+
+```bash
+# Show current configuration
+npx rulesync config
+
+# Initialize a configuration file
+npx rulesync config --init
+
+# Initialize with specific format
+npx rulesync config --init --format jsonc  # Default, supports comments
+npx rulesync config --init --format ts     # TypeScript with type safety
+```
 
 ### 4. Import Existing Configurations
 
@@ -328,6 +411,10 @@ npx rulesync watch
 
 # Add generated files to .gitignore
 npx rulesync gitignore
+
+# Show or manage configuration
+npx rulesync config
+npx rulesync config --init  # Create configuration file
 ```
 
 ## Configuration File Structure

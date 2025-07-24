@@ -4,6 +4,7 @@ import { Command } from "commander";
 import type { ToolTarget } from "../types/index.js";
 import {
   addCommand,
+  configCommand,
   generateCommand,
   gitignoreCommand,
   importCommand,
@@ -58,6 +59,8 @@ program
     "Base directories to generate files (comma-separated for multiple paths)",
   )
   .option("-v, --verbose", "Verbose output")
+  .option("-c, --config <path>", "Path to configuration file")
+  .option("--no-config", "Disable configuration file loading")
   .action(async (options) => {
     const tools: ToolTarget[] = [];
     if (options.augmentcode) tools.push("augmentcode");
@@ -75,9 +78,13 @@ program
       tools?: ToolTarget[];
       delete?: boolean;
       baseDirs?: string[];
+      config?: string;
+      noConfig?: boolean;
     } = {
       verbose: options.verbose,
       delete: options.delete,
+      config: options.config,
+      noConfig: options.noConfig,
     };
 
     if (tools.length > 0) {
@@ -102,5 +109,18 @@ program
   .command("watch")
   .description("Watch for changes and auto-generate configurations")
   .action(watchCommand);
+
+program
+  .command("config")
+  .description("Show or initialize rulesync configuration")
+  .option("--init", "Initialize a new configuration file")
+  .option("--format <format>", "Configuration file format (jsonc, ts)", "jsonc")
+  .option("--targets <tools>", "Comma-separated list of tools to generate for")
+  .option("--exclude <tools>", "Comma-separated list of tools to exclude")
+  .option("--ai-rules-dir <dir>", "Directory containing AI rule files")
+  .option("--base-dir <path>", "Base directory for generation")
+  .option("--verbose", "Enable verbose output")
+  .option("--delete", "Delete existing files before generating")
+  .action(configCommand);
 
 program.parse();

@@ -9,6 +9,7 @@ import {
   generateKiroMcp,
   generateRooMcp,
 } from "../generators/mcp/index.js";
+import { isToolTarget, type ToolTarget, type ToolTargets } from "../types/index.js";
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../types/mcp.js";
 import { writeFileContent } from "../utils/file.js";
 import { parseMcpConfig } from "./mcp-parser.js";
@@ -23,6 +24,7 @@ export interface McpGenerationResult {
 export async function generateMcpConfigs(
   projectRoot: string,
   baseDir?: string,
+  targetTools?: ToolTargets,
 ): Promise<McpGenerationResult[]> {
   const results: McpGenerationResult[] = [];
   const targetRoot = baseDir || projectRoot;
@@ -80,7 +82,24 @@ export async function generateMcpConfigs(
     },
   ];
 
-  for (const generator of generators) {
+  const filteredGenerators = targetTools
+    ? generators.filter((g) => {
+        const baseTool = g.tool.split("-")[0];
+
+        if (!isToolTarget(baseTool)) {
+          return false;
+        }
+
+        // Special case: augmentcode and augmentcode-legacy both map to their respective targets
+        if (baseTool === "augmentcode") {
+          return targetTools.includes("augmentcode") || targetTools.includes("augmentcode-legacy");
+        }
+
+        return targetTools.includes(baseTool);
+      })
+    : generators;
+
+  for (const generator of filteredGenerators) {
     try {
       const content = generator.generate();
       const parsed = JSON.parse(content);
@@ -136,12 +155,12 @@ export async function generateMcpConfigs(
 export async function generateMcpConfigurations(
   mcpConfig: RulesyncMcpConfig,
   baseDir: string,
-  targetTools?: string[],
+  targetTools?: ToolTargets,
 ): Promise<Array<{ filepath: string; content: string; tool: string }>> {
   const outputs: Array<{ filepath: string; content: string; tool: string }> = [];
 
   const toolMap: Record<
-    string,
+    ToolTarget,
     (
       servers: Record<string, RulesyncMcpServer>,
       dir: string,
@@ -179,12 +198,12 @@ export async function generateMcpConfigurations(
       (await import("../generators/mcp/kiro.js")).generateKiroMcpConfiguration(servers, dir),
   };
 
-  const tools = targetTools || Object.keys(toolMap);
+  const tools = targetTools || Object.keys(toolMap).filter(isToolTarget);
 
   const seenPaths = new Set<string>();
 
   for (const tool of tools) {
-    if (toolMap[tool]) {
+    if (tool in toolMap) {
       const results = await toolMap[tool](mcpConfig.mcpServers || {}, baseDir);
       for (const result of results) {
         // Skip duplicate file paths (e.g., augmentcode and augmentcode-legacy both generate .mcp.json)

@@ -1,5 +1,5 @@
 import type { Config, ToolTarget } from "../types/index.js";
-import { ToolTargetsSchema } from "../types/tool-targets.js";
+import { ALL_TOOL_TARGETS, ToolTargetsSchema } from "../types/tool-targets.js";
 
 export function getDefaultConfig(): Config {
   return {
@@ -16,16 +16,7 @@ export function getDefaultConfig(): Config {
       kiro: ".kiro/steering",
     },
     watchEnabled: false,
-    defaultTargets: [
-      "augmentcode",
-      "copilot",
-      "cursor",
-      "cline",
-      "claudecode",
-      "roo",
-      "geminicli",
-      "kiro",
-    ],
+    defaultTargets: ALL_TOOL_TARGETS.filter((tool) => tool !== "augmentcode-legacy"),
   };
 }
 

@@ -1,6 +1,6 @@
 import { z } from "zod/mini";
 
-export const ToolTargetSchema = z.enum([
+export const ALL_TOOL_TARGETS = [
   "augmentcode",
   "augmentcode-legacy",
   "copilot",
@@ -10,7 +10,9 @@ export const ToolTargetSchema = z.enum([
   "roo",
   "geminicli",
   "kiro",
-]);
+] as const;
+
+export const ToolTargetSchema = z.enum(ALL_TOOL_TARGETS);
 
 export type ToolTarget = z.infer<typeof ToolTargetSchema>;
 
@@ -21,3 +23,11 @@ export type ToolTargets = z.infer<typeof ToolTargetsSchema>;
 export const WildcardTargetSchema = z.tuple([z.literal("*")]);
 
 export const RulesyncTargetsSchema = z.union([ToolTargetsSchema, WildcardTargetSchema]);
+
+export type RulesyncTargets = z.infer<typeof RulesyncTargetsSchema>;
+
+export function isToolTarget(target: string | undefined): target is ToolTarget {
+  if (!target) return false;
+
+  return ALL_TOOL_TARGETS.some((validTarget) => validTarget === target);
+}
