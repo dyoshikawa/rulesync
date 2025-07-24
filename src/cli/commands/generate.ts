@@ -46,6 +46,34 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
   const config = mergeWithCliOptions(configResult.config, cliOptions);
 
+  if (options.tools && options.tools.length > 0) {
+    const configTargets = config.defaultTargets;
+    const cliTools = options.tools;
+
+    const cliToolsSet = new Set(cliTools);
+    const configTargetsSet = new Set(configTargets);
+
+    const notInConfig = cliTools.filter((tool) => !configTargetsSet.has(tool));
+    const notInCli = configTargets.filter((tool) => !cliToolsSet.has(tool));
+
+    if (notInConfig.length > 0 || notInCli.length > 0) {
+      console.warn("⚠️  Warning: CLI tool selection differs from configuration!");
+      console.warn(`   Config targets: ${configTargets.join(", ")}`);
+      console.warn(`   CLI specified: ${cliTools.join(", ")}`);
+
+      if (notInConfig.length > 0) {
+        console.warn(`   Tools specified but not in config: ${notInConfig.join(", ")}`);
+      }
+      if (notInCli.length > 0) {
+        console.warn(`   Tools in config but not specified: ${notInCli.join(", ")}`);
+      }
+
+      console.warn("\n   The configuration file targets will be used.");
+      console.warn("   To change targets, update your rulesync config file.");
+      console.warn("");
+    }
+  }
+
   let baseDirs: string[];
   if (config.baseDir) {
     baseDirs = Array.isArray(config.baseDir) ? config.baseDir : [config.baseDir];

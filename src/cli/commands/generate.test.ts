@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigs } from "../../core/mcp-generator.js";
 import { createMockConfig } from "../../test-utils/index.js";
+import type { ToolTarget } from "../../types/index.js";
 import {
   fileExists,
   getDefaultConfig,
@@ -179,5 +180,73 @@ describe("generateCommand", () => {
 
     expect(console.log).toHaveBeenCalledWith("Deleting existing output directories...");
     expect(console.log).toHaveBeenCalledWith("Deleted existing output directories");
+  });
+
+  it("should warn when CLI tools differ from config targets", async () => {
+    const configWithTargets = {
+      ...mockConfig,
+      defaultTargets: ["copilot", "cursor", "claudecode"] as ToolTarget[],
+    };
+
+    mockLoadConfig.mockResolvedValue({
+      config: configWithTargets,
+      isEmpty: false,
+    });
+
+    mockMergeWithCliOptions.mockImplementation((config) => config);
+
+    await generateCommand({ tools: ["claudecode", "geminicli"] });
+
+    expect(console.warn).toHaveBeenCalledWith(
+      "⚠️  Warning: CLI tool selection differs from configuration!",
+    );
+    expect(console.warn).toHaveBeenCalledWith("   Config targets: copilot, cursor, claudecode");
+    expect(console.warn).toHaveBeenCalledWith("   CLI specified: claudecode, geminicli");
+    expect(console.warn).toHaveBeenCalledWith("   Tools specified but not in config: geminicli");
+    expect(console.warn).toHaveBeenCalledWith(
+      "   Tools in config but not specified: copilot, cursor",
+    );
+    expect(console.warn).toHaveBeenCalledWith("\n   The configuration file targets will be used.");
+    expect(console.warn).toHaveBeenCalledWith(
+      "   To change targets, update your rulesync config file.",
+    );
+
+    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
+      mockRules,
+      configWithTargets,
+      ["copilot", "cursor", "claudecode"],
+      process.cwd(),
+    );
+  });
+
+  it("should not warn when CLI tools match config targets", async () => {
+    // Set up config with specific targets
+    const configWithTargets = {
+      ...mockConfig,
+      defaultTargets: ["copilot", "cursor"] as ToolTarget[],
+    };
+
+    mockLoadConfig.mockResolvedValue({
+      config: configWithTargets,
+      isEmpty: false,
+    });
+
+    mockMergeWithCliOptions.mockImplementation((config) => config);
+
+    // Generate with same tools via CLI
+    await generateCommand({ tools: ["copilot", "cursor"] });
+
+    // Should not warn
+    expect(console.warn).not.toHaveBeenCalledWith(
+      "⚠️  Warning: CLI tool selection differs from configuration!",
+    );
+
+    // Should use config targets
+    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
+      mockRules,
+      configWithTargets,
+      ["copilot", "cursor"],
+      process.cwd(),
+    );
   });
 });
