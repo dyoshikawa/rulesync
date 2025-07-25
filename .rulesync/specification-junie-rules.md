@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "JetBrains Junie AI coding assistant guidelines and rules configuration specification"
-globs: "**/*"
+globs: ["**/*"]
 ---
 
 # JetBrains Junie Guidelines and Rules Configuration Specification

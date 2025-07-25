@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "JetBrains Junie Model Context Protocol (MCP) server configuration specification"
-globs: "**/*"
+globs: ["**/*"]
 ---
 
 # JetBrains Junie MCP (Model Context Protocol) Configuration Specification
