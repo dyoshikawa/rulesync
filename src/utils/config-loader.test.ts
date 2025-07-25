@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MergedConfig, ToolTarget } from "../types/index.js";
 import { generateSampleConfig, loadConfig, mergeWithCliOptions } from "./config-loader.js";
@@ -9,18 +7,30 @@ vi.mock("c12", () => ({
   loadConfig: vi.fn(),
 }));
 
-// Helper to load fixture files with better error handling
-const loadFixture = (filename: string) => {
-  const fixturePath = path.join(__dirname, "../test-utils/fixtures/config-loader", filename);
-  return JSON.parse(readFileSync(fixturePath, "utf-8"));
-};
-
-// Pre-load all fixtures for better performance and cleaner tests
 const FIXTURES = {
-  valid: loadFixture("valid-config.json"),
-  full: loadFixture("full-config.json"),
-  minimal: loadFixture("minimal-config.json"),
-  invalid: loadFixture("invalid-tool-config.json"),
+  valid: {
+    verbose: true,
+    delete: false,
+    targets: ["copilot", "cursor"],
+    outputPaths: {
+      copilot: ".github/custom-copilot.md",
+    },
+  },
+  full: {
+    targets: ["copilot", "cursor", "claudecode"],
+    baseDir: ["./packages"],
+    watch: {
+      enabled: true,
+      interval: 2000,
+      ignore: ["node_modules/**", "dist/**"],
+    },
+  },
+  minimal: {
+    targets: ["copilot"],
+  },
+  invalid: {
+    targets: ["invalid-tool"],
+  },
 } as const;
 
 describe("config-loader", () => {
