@@ -6,6 +6,7 @@ import {
   generateCopilotMcp,
   generateCursorMcp,
   generateGeminiCliMcp,
+  generateJunieMcp,
   generateKiroMcp,
   generateRooMcp,
 } from "../generators/mcp/index.js";
@@ -71,6 +72,11 @@ export async function generateMcpConfigs(
       generate: () => generateGeminiCliMcp(config),
     },
     {
+      tool: "junie-project",
+      path: path.join(targetRoot, ".junie", "mcp-config.json"),
+      generate: () => generateJunieMcp(config),
+    },
+    {
       tool: "kiro-project",
       path: path.join(targetRoot, ".kiro", "mcp.json"),
       generate: () => generateKiroMcp(config),
@@ -110,6 +116,7 @@ export async function generateMcpConfigs(
         generator.tool.includes("cline") ||
         generator.tool.includes("cursor") ||
         generator.tool.includes("gemini") ||
+        generator.tool.includes("junie") ||
         generator.tool.includes("kiro") ||
         generator.tool.includes("roo")
       ) {

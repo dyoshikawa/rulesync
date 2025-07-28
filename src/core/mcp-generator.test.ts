@@ -31,8 +31,8 @@ describe("generateMcpConfigurations", () => {
 
     // Should generate for all supported tools by default
     // AugmentCode and AugmentCode-legacy both map to same .mcp.json (deduplicated), Copilot generates 2 files, others generate 1 each
-    // Total: augmentcode(1) + claudecode(1) + cursor(1) + cline(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) = 9
-    expect(outputs).toHaveLength(9);
+    // Total: augmentcode(1) + claudecode(1) + cursor(1) + cline(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) + junie(1) = 10
+    expect(outputs).toHaveLength(10);
 
     const filepaths = outputs.map((o) => o.filepath);
     expect(filepaths).toContain(join(testDir, ".mcp.json")); // AugmentCode
@@ -43,6 +43,7 @@ describe("generateMcpConfigurations", () => {
     expect(filepaths).toContain(join(testDir, ".cline/mcp.json"));
     expect(filepaths).toContain(join(testDir, ".roo/mcp.json"));
     expect(filepaths).toContain(join(testDir, ".gemini/settings.json"));
+    expect(filepaths).toContain(join(testDir, ".junie/mcp-config.json"));
     expect(filepaths).toContain(join(testDir, ".kiro/mcp.json"));
   });
 
