@@ -57,7 +57,11 @@ export function addOutput(
  */
 export interface EnhancedRuleGeneratorConfig extends RuleGeneratorConfig {
   /** Generate root document content */
-  generateRootContent?: (rootRule: ParsedRule | undefined, detailRules: ParsedRule[], baseDir?: string) => string;
+  generateRootContent?: (
+    rootRule: ParsedRule | undefined,
+    detailRules: ParsedRule[],
+    baseDir?: string,
+  ) => string;
   /** Custom root file path (relative to baseDir) */
   rootFilePath?: string;
   /** Generate memory/detail file content */
@@ -65,7 +69,10 @@ export interface EnhancedRuleGeneratorConfig extends RuleGeneratorConfig {
   /** Memory/detail file directory (relative to output dir) */
   detailSubDir?: string;
   /** Update additional configuration files */
-  updateAdditionalConfig?: (ignorePatterns: string[], baseDir?: string) => Promise<GeneratedOutput[]>;
+  updateAdditionalConfig?: (
+    ignorePatterns: string[],
+    baseDir?: string,
+  ) => Promise<GeneratedOutput[]>;
 }
 
 /**
@@ -134,7 +141,7 @@ export async function generateComplexRules(
   if (generatorConfig.generateDetailContent && generatorConfig.detailSubDir) {
     for (const rule of detailRules) {
       const content = generatorConfig.generateDetailContent(rule);
-      const filepath = baseDir 
+      const filepath = baseDir
         ? join(baseDir, generatorConfig.detailSubDir, `${rule.filename}.md`)
         : join(generatorConfig.detailSubDir, `${rule.filename}.md`);
 
@@ -149,7 +156,7 @@ export async function generateComplexRules(
   // Generate root document
   if (generatorConfig.generateRootContent && generatorConfig.rootFilePath) {
     const rootContent = generatorConfig.generateRootContent(rootRule, detailRules, baseDir);
-    const rootFilepath = baseDir 
+    const rootFilepath = baseDir
       ? join(baseDir, generatorConfig.rootFilePath)
       : generatorConfig.rootFilePath;
 
@@ -178,7 +185,10 @@ export async function generateComplexRules(
 
     // Additional configuration updates (e.g., Claude Code settings.json)
     if (generatorConfig.updateAdditionalConfig) {
-      const additionalOutputs = await generatorConfig.updateAdditionalConfig(ignorePatterns.patterns, baseDir);
+      const additionalOutputs = await generatorConfig.updateAdditionalConfig(
+        ignorePatterns.patterns,
+        baseDir,
+      );
       outputs.push(...additionalOutputs);
     }
   }

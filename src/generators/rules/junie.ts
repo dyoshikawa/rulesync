@@ -1,5 +1,5 @@
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
-import { generateComplexRules, type EnhancedRuleGeneratorConfig } from "./shared-helpers.js";
+import { type EnhancedRuleGeneratorConfig, generateComplexRules } from "./shared-helpers.js";
 
 export async function generateJunieConfig(
   rules: ParsedRule[],
@@ -18,7 +18,10 @@ export async function generateJunieConfig(
   return generateComplexRules(rules, config, generatorConfig, baseDir);
 }
 
-function generateGuidelinesMarkdown(rootRule: ParsedRule | undefined, detailRules: ParsedRule[]): string {
+function generateGuidelinesMarkdown(
+  rootRule: ParsedRule | undefined,
+  detailRules: ParsedRule[],
+): string {
   const lines: string[] = [];
 
   // Add all rules content (both root and detail) into single guidelines.md

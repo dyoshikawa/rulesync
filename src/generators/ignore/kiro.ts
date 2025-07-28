@@ -1,8 +1,6 @@
 import { join } from "node:path";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
-import {
-  extractIgnorePatternsFromRules,
-} from "./shared-helpers.js";
+import { extractIgnorePatternsFromRules } from "./shared-helpers.js";
 
 export async function generateKiroIgnoreFiles(
   rules: ParsedRule[],

@@ -1,5 +1,5 @@
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
-import { generateComplexRules, type EnhancedRuleGeneratorConfig } from "./shared-helpers.js";
+import { type EnhancedRuleGeneratorConfig, generateComplexRules } from "./shared-helpers.js";
 
 export async function generateGeminiConfig(
   rules: ParsedRule[],
@@ -61,4 +61,3 @@ function generateGeminiRootMarkdown(
 
   return lines.join("\n");
 }
-

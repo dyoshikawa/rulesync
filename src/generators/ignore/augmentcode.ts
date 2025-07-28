@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
 import {
+  extractAugmentCodeIgnorePatternsFromContent,
   extractIgnorePatternsFromRules,
 } from "./shared-helpers.js";
 
@@ -129,9 +130,17 @@ function generateAugmentignoreContent(rules: ParsedRule[]): string {
 
   // Add patterns from rules
   const rulePatterns = extractIgnorePatternsFromRules(rules);
-  if (rulePatterns.length > 0) {
+
+  // Extract AugmentCode-specific patterns from rule content
+  const augmentPatterns: string[] = [];
+  for (const rule of rules) {
+    augmentPatterns.push(...extractAugmentCodeIgnorePatternsFromContent(rule.content));
+  }
+
+  const allPatterns = [...rulePatterns, ...augmentPatterns];
+  if (allPatterns.length > 0) {
     lines.push("# Project-specific patterns from rulesync rules");
-    lines.push(...rulePatterns);
+    lines.push(...allPatterns);
     lines.push("");
   }
 
@@ -157,4 +166,3 @@ function generateAugmentignoreContent(rules: ParsedRule[]): string {
 
   return lines.join("\n");
 }
-

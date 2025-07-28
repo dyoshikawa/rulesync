@@ -49,14 +49,17 @@ describe("generateJunieConfig", () => {
 
     const outputs = await generateJunieConfig(rules, mockConfig);
 
-    expect(outputs).toHaveLength(1);
-    expect(outputs[0]?.tool).toBe("junie");
-    expect(outputs[0]?.filepath).toBe(".junie/guidelines.md");
-    expect(outputs[0]?.content).toContain("# Main Guidelines");
-    expect(outputs[0]?.content).toContain("# Detail Rule");
+    expect(outputs).toHaveLength(2); // guidelines.md + .aiignore
+
+    // Find the guidelines file
+    const guidelinesFile = outputs.find((o) => o.filepath === ".junie/guidelines.md");
+    expect(guidelinesFile).toBeDefined();
+    expect(guidelinesFile?.tool).toBe("junie");
+    expect(guidelinesFile?.content).toContain("# Main Guidelines");
+    expect(guidelinesFile?.content).toContain("# Detail Rule");
 
     // Check that root rules come first
-    const content = outputs[0]?.content || "";
+    const content = guidelinesFile?.content || "";
     const mainIndex = content.indexOf("# Main Guidelines");
     const detailIndex = content.indexOf("# Detail Rule");
     expect(mainIndex).toBeLessThan(detailIndex);
@@ -90,9 +93,13 @@ describe("generateJunieConfig", () => {
 
     const outputs = await generateJunieConfig(rules, mockConfig);
 
-    expect(outputs).toHaveLength(1);
-    expect(outputs[0]?.content).toContain("# Detail Rule 1");
-    expect(outputs[0]?.content).toContain("# Detail Rule 2");
+    expect(outputs).toHaveLength(2); // guidelines.md + .aiignore
+
+    // Find the guidelines file
+    const guidelinesFile = outputs.find((o) => o.filepath === ".junie/guidelines.md");
+    expect(guidelinesFile).toBeDefined();
+    expect(guidelinesFile?.content).toContain("# Detail Rule 1");
+    expect(guidelinesFile?.content).toContain("# Detail Rule 2");
   });
 
   it("should generate empty guidelines.md for empty rules", async () => {
@@ -100,8 +107,12 @@ describe("generateJunieConfig", () => {
 
     const outputs = await generateJunieConfig(rules, mockConfig);
 
-    expect(outputs).toHaveLength(1);
-    expect(outputs[0]?.content).toBe("");
+    expect(outputs).toHaveLength(2); // guidelines.md + .aiignore
+
+    // Find the guidelines file
+    const guidelinesFile = outputs.find((o) => o.filepath === ".junie/guidelines.md");
+    expect(guidelinesFile).toBeDefined();
+    expect(guidelinesFile?.content).toBe("");
   });
 
   it("should use baseDir when provided", async () => {

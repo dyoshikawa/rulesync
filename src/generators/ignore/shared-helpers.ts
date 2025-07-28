@@ -142,9 +142,12 @@ export function extractAugmentCodeIgnorePatternsFromContent(content: string): st
 
     // Look for performance-related exclusions mentioned in content
     if (trimmed.includes("large file") || trimmed.includes("binary") || trimmed.includes("media")) {
-      const matches = trimmed.match(/['"`]([^'"`]+\.(mp4|avi|zip|tar\.gz|rar|pdf|doc|xlsx))['"`]/g);
-      if (matches) {
-        patterns.push(...matches.map((m) => m.replace(/['"`]/g, "")));
+      const regex = /['"`]([^'"`]+\.(mp4|avi|zip|tar\.gz|rar|pdf|doc|xlsx))['"`]/g;
+      let match;
+      while ((match = regex.exec(trimmed)) !== null) {
+        if (match[1]) {
+          patterns.push(match[1]);
+        }
       }
     }
   }
