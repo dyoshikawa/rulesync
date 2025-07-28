@@ -67,8 +67,9 @@ yarn global add rulesync
    npx rulesync import --cursor      # .cursorrulesと.cursor/rules/*.mdcから
    npx rulesync import --copilot     # .github/copilot-instructions.mdから
    npx rulesync import --cline       # .cline/instructions.mdから
-   npx rulesync import --augmentcode # .augment/rules/*.mdから
-   npx rulesync import --roo         # .roo/instructions.mdから
+   npx rulesync import --augmentcode        # .augment/rules/*.mdから
+   npx rulesync import --augmentcode-legacy # .augment-guidelines（レガシー形式）から
+   npx rulesync import --roo                # .roo/instructions.mdから
    npx rulesync import --geminicli   # GEMINI.mdと.gemini/memories/*.mdから
    ```
 

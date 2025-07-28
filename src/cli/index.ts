@@ -31,7 +31,7 @@ program
   .command("import")
   .description("Import configurations from AI tools to rulesync format")
   .option("--augmentcode", "Import from AugmentCode (.augment/rules/)")
-  .option("--augmentcodeLegacy", "Import from AugmentCode legacy format (.augment-guidelines)")
+  .option("--augmentcode-legacy", "Import from AugmentCode legacy format (.augment-guidelines)")
   .option("--claudecode", "Import from Claude Code (CLAUDE.md)")
   .option("--cursor", "Import from Cursor (.cursorrules)")
   .option("--copilot", "Import from GitHub Copilot (.github/copilot-instructions.md)")
@@ -46,7 +46,7 @@ program
   .command("generate")
   .description("Generate configuration files for AI tools")
   .option("--augmentcode", "Generate only for AugmentCode")
-  .option("--augmentcodeLegacy", "Generate only for AugmentCode legacy format")
+  .option("--augmentcode-legacy", "Generate only for AugmentCode legacy format")
   .option("--copilot", "Generate only for GitHub Copilot")
   .option("--cursor", "Generate only for Cursor")
   .option("--cline", "Generate only for Cline")
@@ -66,7 +66,7 @@ program
   .action(async (options) => {
     const tools: ToolTarget[] = [];
     if (options.augmentcode) tools.push("augmentcode");
-    if (options.augmentcodeLegacy) tools.push("augmentcode-legacy");
+    if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
     if (options.copilot) tools.push("copilot");
     if (options.cursor) tools.push("cursor");
     if (options.cline) tools.push("cline");

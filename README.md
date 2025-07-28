@@ -67,8 +67,9 @@ If you already have AI tool configurations, you can import them into rulesync fo
    npx rulesync import --cursor      # From .cursorrules and .cursor/rules/*.mdc
    npx rulesync import --copilot     # From .github/copilot-instructions.md
    npx rulesync import --cline       # From .cline/instructions.md
-   npx rulesync import --augmentcode # From .augment/rules/*.md
-   npx rulesync import --roo         # From .roo/instructions.md
+   npx rulesync import --augmentcode        # From .augment/rules/*.md
+   npx rulesync import --augmentcode-legacy # From .augment-guidelines (legacy format)
+   npx rulesync import --roo                # From .roo/instructions.md
    npx rulesync import --geminicli   # From GEMINI.md and .gemini/memories/*.md
    ```
 
