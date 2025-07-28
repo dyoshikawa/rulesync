@@ -53,6 +53,22 @@ export function addOutput(
 }
 
 /**
+ * Enhanced generator configuration for handling complex rule generation patterns
+ */
+export interface EnhancedRuleGeneratorConfig extends RuleGeneratorConfig {
+  /** Generate root document content */
+  generateRootContent?: (rootRule: ParsedRule | undefined, detailRules: ParsedRule[], baseDir?: string) => string;
+  /** Custom root file path (relative to baseDir) */
+  rootFilePath?: string;
+  /** Generate memory/detail file content */
+  generateDetailContent?: (rule: ParsedRule) => string;
+  /** Memory/detail file directory (relative to output dir) */
+  detailSubDir?: string;
+  /** Update additional configuration files */
+  updateAdditionalConfig?: (ignorePatterns: string[], baseDir?: string) => Promise<GeneratedOutput[]>;
+}
+
+/**
  * Generic generator for rule files that handles both simple and complex path generation
  */
 export async function generateRulesConfig(
@@ -93,6 +109,78 @@ export async function generateRulesConfig(
       filepath: ignorePath,
       content: ignoreContent,
     });
+  }
+
+  return outputs;
+}
+
+/**
+ * Complex generator for tools with root + detail file patterns (Claude Code, Gemini CLI, Junie)
+ */
+export async function generateComplexRules(
+  rules: ParsedRule[],
+  config: Config,
+  generatorConfig: EnhancedRuleGeneratorConfig,
+  baseDir?: string,
+): Promise<GeneratedOutput[]> {
+  const outputs: GeneratedOutput[] = [];
+
+  // Separate root and detail rules
+  const rootRules = rules.filter((r) => r.frontmatter.root === true);
+  const detailRules = rules.filter((r) => r.frontmatter.root === false);
+  const rootRule = rootRules[0]; // Take first root rule
+
+  // Generate detail/memory files
+  if (generatorConfig.generateDetailContent && generatorConfig.detailSubDir) {
+    for (const rule of detailRules) {
+      const content = generatorConfig.generateDetailContent(rule);
+      const filepath = baseDir 
+        ? join(baseDir, generatorConfig.detailSubDir, `${rule.filename}.md`)
+        : join(generatorConfig.detailSubDir, `${rule.filename}.md`);
+
+      outputs.push({
+        tool: generatorConfig.tool,
+        filepath,
+        content,
+      });
+    }
+  }
+
+  // Generate root document
+  if (generatorConfig.generateRootContent && generatorConfig.rootFilePath) {
+    const rootContent = generatorConfig.generateRootContent(rootRule, detailRules, baseDir);
+    const rootFilepath = baseDir 
+      ? join(baseDir, generatorConfig.rootFilePath)
+      : generatorConfig.rootFilePath;
+
+    outputs.push({
+      tool: generatorConfig.tool,
+      filepath: rootFilepath,
+      content: rootContent,
+    });
+  }
+
+  // Handle ignore patterns
+  const ignorePatterns = await loadIgnorePatterns(baseDir);
+  if (ignorePatterns.patterns.length > 0) {
+    // Standard ignore file
+    const ignorePath = baseDir
+      ? join(baseDir, generatorConfig.ignoreFileName)
+      : generatorConfig.ignoreFileName;
+
+    const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
+
+    outputs.push({
+      tool: generatorConfig.tool,
+      filepath: ignorePath,
+      content: ignoreContent,
+    });
+
+    // Additional configuration updates (e.g., Claude Code settings.json)
+    if (generatorConfig.updateAdditionalConfig) {
+      const additionalOutputs = await generatorConfig.updateAdditionalConfig(ignorePatterns.patterns, baseDir);
+      outputs.push(...additionalOutputs);
+    }
   }
 
   return outputs;

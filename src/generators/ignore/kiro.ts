@@ -1,5 +1,8 @@
 import { join } from "node:path";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+import {
+  extractIgnorePatternsFromRules,
+} from "./shared-helpers.js";
 
 export async function generateKiroIgnoreFiles(
   rules: ParsedRule[],
@@ -65,86 +68,4 @@ function generateAiignoreContent(rules: ParsedRule[]): string {
   }
 
   return lines.join("\n");
-}
-
-function extractIgnorePatternsFromRules(rules: ParsedRule[]): string[] {
-  const patterns: string[] = [];
-
-  for (const rule of rules) {
-    // Extract ignore patterns from rule globs
-    if (rule.frontmatter.globs && rule.frontmatter.globs.length > 0) {
-      for (const glob of rule.frontmatter.globs) {
-        // Convert globs to ignore patterns where appropriate
-        // Only add patterns that make sense for AI exclusion
-        if (shouldExcludeFromAI(glob)) {
-          patterns.push(`# Exclude: ${rule.frontmatter.description}`);
-          patterns.push(glob);
-        }
-      }
-    }
-
-    // Look for explicit ignore patterns in rule content
-    const contentPatterns = extractIgnorePatternsFromContent(rule.content);
-    patterns.push(...contentPatterns);
-  }
-
-  return patterns;
-}
-
-function shouldExcludeFromAI(glob: string): boolean {
-  // Determine if a glob pattern should be excluded from AI access
-  const excludePatterns = [
-    // Test and fixture files that might be large or confusing
-    "**/test/fixtures/**",
-    "**/tests/fixtures/**",
-    "**/*.fixture.*",
-
-    // Build and generated files
-    "**/dist/**",
-    "**/build/**",
-    "**/coverage/**",
-
-    // Configuration that might contain sensitive data
-    "**/config/production/**",
-    "**/config/prod/**",
-    "**/*.prod.*",
-
-    // Documentation that might be sensitive
-    "**/internal/**",
-    "**/private/**",
-    "**/confidential/**",
-  ];
-
-  return excludePatterns.some((pattern) => {
-    // Simple pattern matching for common cases
-    const regex = new RegExp(pattern.replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*"));
-    return regex.test(glob);
-  });
-}
-
-function extractIgnorePatternsFromContent(content: string): string[] {
-  const patterns: string[] = [];
-  const lines = content.split("\n");
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Look for explicit ignore patterns in content
-    if (trimmed.startsWith("# IGNORE:") || trimmed.startsWith("# aiignore:")) {
-      const pattern = trimmed.replace(/^# (IGNORE|aiignore):\s*/, "").trim();
-      if (pattern) {
-        patterns.push(pattern);
-      }
-    }
-
-    // Look for common ignore patterns mentioned in content
-    if (trimmed.includes("exclude") || trimmed.includes("ignore")) {
-      const matches = trimmed.match(/['"`]([^'"`]+\.(log|tmp|cache|temp))['"`]/g);
-      if (matches) {
-        patterns.push(...matches.map((m) => m.replace(/['"`]/g, "")));
-      }
-    }
-  }
-
-  return patterns;
 }

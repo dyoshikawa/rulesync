@@ -1,42 +1,31 @@
-import { join } from "node:path";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+import { generateComplexRules, type EnhancedRuleGeneratorConfig } from "./shared-helpers.js";
 
 export async function generateJunieConfig(
   rules: ParsedRule[],
   config: Config,
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
-  const outputs: GeneratedOutput[] = [];
-
-  // Separate root and non-root rules
-  const rootRules = rules.filter((r) => r.frontmatter.root === true);
-  const detailRules = rules.filter((r) => r.frontmatter.root === false);
-
-  // Generate .junie/guidelines.md with combined content
-  const guidelinesContent = generateGuidelinesMarkdown(rootRules, detailRules);
-  const junieOutputDir = baseDir
-    ? join(baseDir, config.outputPaths.junie)
-    : config.outputPaths.junie;
-
-  outputs.push({
+  const generatorConfig: EnhancedRuleGeneratorConfig = {
     tool: "junie",
-    filepath: join(junieOutputDir, ".junie", "guidelines.md"),
-    content: guidelinesContent,
-  });
+    fileExtension: ".md",
+    ignoreFileName: ".aiignore",
+    generateContent: (rule) => rule.content.trim(),
+    generateRootContent: generateGuidelinesMarkdown,
+    rootFilePath: ".junie/guidelines.md",
+  };
 
-  return outputs;
+  return generateComplexRules(rules, config, generatorConfig, baseDir);
 }
 
-function generateGuidelinesMarkdown(rootRules: ParsedRule[], detailRules: ParsedRule[]): string {
+function generateGuidelinesMarkdown(rootRule: ParsedRule | undefined, detailRules: ParsedRule[]): string {
   const lines: string[] = [];
 
   // Add all rules content (both root and detail) into single guidelines.md
-  // Root rules come first
-  if (rootRules.length > 0) {
-    for (const rule of rootRules) {
-      lines.push(rule.content);
-      lines.push("");
-    }
+  // Root rule comes first
+  if (rootRule) {
+    lines.push(rootRule.content);
+    lines.push("");
   }
 
   // Add detail rules
