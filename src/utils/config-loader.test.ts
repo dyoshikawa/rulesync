@@ -147,6 +147,7 @@ describe("config-loader", () => {
         kiro: ".kiro/steering",
         augmentcode: ".",
         "augmentcode-legacy": ".",
+        junie: ".",
       },
       watchEnabled: false,
       defaultTargets: ["copilot", "cursor"],

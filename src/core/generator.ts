@@ -7,6 +7,7 @@ import { generateClineConfig } from "../generators/rules/cline.js";
 import { generateCopilotConfig } from "../generators/rules/copilot.js";
 import { generateCursorConfig } from "../generators/rules/cursor.js";
 import { generateGeminiConfig } from "../generators/rules/geminicli.js";
+import { generateJunieConfig } from "../generators/rules/junie.js";
 import { generateKiroConfig } from "../generators/rules/kiro.js";
 import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
@@ -92,6 +93,8 @@ async function generateForTool(
       return generateRooConfig(rules, config, baseDir);
     case "geminicli":
       return generateGeminiConfig(rules, config, baseDir);
+    case "junie":
+      return generateJunieConfig(rules, config, baseDir);
     case "kiro": {
       const kiroRulesOutputs = await generateKiroConfig(rules, config, baseDir);
       const kiroIgnoreOutputs = await generateKiroIgnoreFiles(rules, config, baseDir);

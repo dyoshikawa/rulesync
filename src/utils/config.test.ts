@@ -23,6 +23,7 @@ describe("config utils", () => {
         "roo",
         "geminicli",
         "kiro",
+        "junie",
       ]);
       expect(config.watchEnabled).toBe(false);
     });
@@ -42,6 +43,7 @@ describe("config utils", () => {
         "roo",
         "geminicli",
         "kiro",
+        "junie",
       ]);
     });
 

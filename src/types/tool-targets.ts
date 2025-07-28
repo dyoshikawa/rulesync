@@ -10,6 +10,7 @@ export const ALL_TOOL_TARGETS = [
   "roo",
   "geminicli",
   "kiro",
+  "junie",
 ] as const;
 
 export const ToolTargetSchema = z.enum(ALL_TOOL_TARGETS);

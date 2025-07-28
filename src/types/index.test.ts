@@ -60,6 +60,7 @@ describe("types/index", () => {
         roo: ".roo/rules",
         geminicli: ".geminicli/rules",
         kiro: ".kiro/steering",
+        junie: ".",
       },
       defaultTargets: [
         "augmentcode",

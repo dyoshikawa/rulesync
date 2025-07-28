@@ -11,6 +11,7 @@ export const OutputPathsSchema = z.object({
   roo: z.optional(z.string()),
   geminicli: z.optional(z.string()),
   kiro: z.optional(z.string()),
+  junie: z.optional(z.string()),
 });
 
 export const ConfigOptionsSchema = z.object({

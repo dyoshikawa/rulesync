@@ -8,6 +8,7 @@ import {
   parseCopilotConfiguration,
   parseCursorConfiguration,
   parseGeminiConfiguration,
+  parseJunieConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
@@ -95,6 +96,12 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         errors.push(...geminiResult.errors);
         ignorePatterns = geminiResult.ignorePatterns;
         mcpServers = geminiResult.mcpServers;
+        break;
+      }
+      case "junie": {
+        const junieResult = await parseJunieConfiguration(baseDir);
+        rules = junieResult.rules;
+        errors.push(...junieResult.errors);
         break;
       }
       default:

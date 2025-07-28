@@ -196,6 +196,8 @@ export async function generateMcpConfigurations(
       ),
     kiro: async (servers, dir) =>
       (await import("../generators/mcp/kiro.js")).generateKiroMcpConfiguration(servers, dir),
+    junie: async (servers, dir) =>
+      (await import("../generators/mcp/junie.js")).generateJunieMcpConfiguration(servers, dir),
   };
 
   const tools = targetTools || Object.keys(toolMap).filter(isToolTarget);

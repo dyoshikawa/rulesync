@@ -17,6 +17,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
       roo: ".roo/rules",
       geminicli: ".gemini/memories",
       kiro: ".kiro/steering",
+      junie: ".",
     },
     watchEnabled: false,
     defaultTargets: [

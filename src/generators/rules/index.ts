@@ -4,5 +4,6 @@ export * from "./cline.js";
 export * from "./copilot.js";
 export * from "./cursor.js";
 export * from "./geminicli.js";
+export * from "./junie.js";
 export * from "./kiro.js";
 export * from "./roo.js";

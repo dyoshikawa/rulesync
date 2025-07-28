@@ -15,6 +15,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
       geminicli: "output",
       kiro: "output",
       roo: "output",
+      junie: "output",
     },
     watchEnabled: false,
     defaultTargets: ["augmentcode"],
