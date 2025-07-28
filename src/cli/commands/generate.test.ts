@@ -249,4 +249,176 @@ describe("generateCommand", () => {
       process.cwd(),
     );
   });
+
+  it("should handle multiple base directories", async () => {
+    const baseDirs = ["./package1", "./package2"];
+    mockGenerateConfigurations.mockResolvedValue(mockOutputs);
+
+    await generateCommand({ baseDirs, verbose: true });
+
+    expect(console.log).toHaveBeenCalledWith(
+      "\nGenerating configurations for base directory: ./package1",
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      "\nGenerating configurations for base directory: ./package2",
+    );
+    expect(mockGenerateConfigurations).toHaveBeenCalledTimes(2);
+  });
+
+  it("should handle config file path option", async () => {
+    await generateCommand({ config: "./custom-config.json" });
+
+    expect(mockLoadConfig).toHaveBeenCalledWith({
+      configPath: "./custom-config.json",
+    });
+  });
+
+  it("should handle noConfig option", async () => {
+    await generateCommand({ noConfig: true });
+
+    expect(mockLoadConfig).toHaveBeenCalledWith({
+      noConfig: true,
+    });
+  });
+
+  it("should show config file path in verbose mode", async () => {
+    mockLoadConfig.mockResolvedValue({
+      config: { ...mockConfig, verbose: true },
+      isEmpty: false,
+      filepath: "/path/to/config.json",
+    });
+
+    await generateCommand({ verbose: true });
+
+    expect(console.log).toHaveBeenCalledWith("Loaded configuration from: /path/to/config.json");
+  });
+
+  it("should handle baseDir from config", async () => {
+    const configWithBaseDir = {
+      ...mockConfig,
+      baseDir: ["./src", "./lib"],
+    };
+
+    mockLoadConfig.mockResolvedValue({
+      config: configWithBaseDir,
+      isEmpty: false,
+    });
+
+    await generateCommand({ verbose: true });
+
+    expect(console.log).toHaveBeenCalledWith("Base directories: ./src, ./lib");
+    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
+      mockRules,
+      expect.objectContaining({
+        ...configWithBaseDir,
+        verbose: true,
+      }),
+      configWithBaseDir.defaultTargets,
+      "./src",
+    );
+    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
+      mockRules,
+      expect.objectContaining({
+        ...configWithBaseDir,
+        verbose: true,
+      }),
+      configWithBaseDir.defaultTargets,
+      "./lib",
+    );
+  });
+
+  it("should handle string baseDir from config", async () => {
+    const configWithBaseDir = {
+      ...mockConfig,
+      baseDir: "./single-base",
+    };
+
+    mockLoadConfig.mockResolvedValue({
+      config: configWithBaseDir,
+      isEmpty: false,
+    });
+
+    await generateCommand();
+
+    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
+      mockRules,
+      configWithBaseDir,
+      configWithBaseDir.defaultTargets,
+      "./single-base",
+    );
+  });
+
+  it("should warn when no configurations generated for a specific base directory", async () => {
+    mockGenerateConfigurations.mockResolvedValue([]);
+
+    await generateCommand({ baseDirs: ["./empty-dir"], verbose: true });
+
+    expect(console.warn).toHaveBeenCalledWith("⚠️  No configurations generated for ./empty-dir");
+  });
+
+  it("should handle MCP configuration generation", async () => {
+    const mcpResults = [
+      { tool: "copilot-editor", status: "success" as const, path: ".vscode/mcp.json" },
+      {
+        tool: "claude-project",
+        status: "error" as const,
+        path: ".claude/settings.json",
+        error: "Failed to write",
+      },
+      { tool: "cursor-project", status: "skipped" as const, path: ".cursor/mcp.json" },
+    ];
+    mockGenerateMcpConfigs.mockResolvedValue(mcpResults);
+
+    await generateCommand({ verbose: true });
+
+    expect(console.log).toHaveBeenCalledWith("\nGenerating MCP configurations...");
+    expect(console.log).toHaveBeenCalledWith(
+      "✅ Generated copilot-editor MCP configuration: .vscode/mcp.json",
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      "❌ Failed to generate claude-project MCP configuration: Failed to write",
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      "⏭️  Skipped cursor-project MCP configuration (no servers configured)",
+    );
+  });
+
+  it("should handle delete operation for different tools", async () => {
+    const configWithSpecificTools = {
+      ...mockConfig,
+      defaultTargets: ["augmentcode", "augmentcode-legacy", "claudecode", "junie"] as ToolTarget[],
+    };
+
+    mockLoadConfig.mockResolvedValue({
+      config: configWithSpecificTools,
+      isEmpty: false,
+    });
+
+    await generateCommand({ delete: true });
+
+    expect(mockRemoveDirectory).toHaveBeenCalledWith(expect.stringContaining(".augment/rules"));
+    expect(mockRemoveDirectory).toHaveBeenCalledWith(expect.stringContaining(".augment/ignore"));
+    expect(mockRemoveClaudeGeneratedFiles).toHaveBeenCalledTimes(2); // Once for augmentcode-legacy, once for claudecode
+  });
+
+  it("should handle final success message with MCP outputs", async () => {
+    const mcpResults = [
+      { tool: "copilot-editor", status: "success" as const, path: ".vscode/mcp.json" },
+    ];
+    mockGenerateMcpConfigs.mockResolvedValue(mcpResults);
+
+    await generateCommand();
+
+    expect(console.log).toHaveBeenCalledWith(
+      "\n🎉 All done! Generated 2 file(s) total (1 configurations + 1 MCP configurations)",
+    );
+  });
+
+  it("should handle case when no MCP configurations are found", async () => {
+    mockGenerateMcpConfigs.mockResolvedValue([]);
+
+    await generateCommand({ verbose: true });
+
+    expect(console.log).toHaveBeenCalledWith("No MCP configuration found for " + process.cwd());
+  });
 });

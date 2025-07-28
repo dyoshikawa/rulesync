@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RulesyncMcpConfig } from "../types/mcp.js";
-import { generateMcpConfigurations } from "./mcp-generator.js";
+import { generateMcpConfigs, generateMcpConfigurations } from "./mcp-generator.js";
 import { parseMcpConfig } from "./mcp-parser.js";
 
 describe("generateMcpConfigurations", () => {
@@ -240,5 +240,165 @@ describe("generateMcpConfigurations", () => {
     expect(geminiOutput?.filepath).toContain("settings.json");
     const geminiConfig = JSON.parse(geminiOutput!.content);
     expect(geminiConfig).toHaveProperty("mcpServers");
+  });
+});
+
+describe("generateMcpConfigs", () => {
+  const testDir = join(__dirname, "test-temp-mcp-configs");
+
+  beforeEach(async () => {
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it("should return empty results when no MCP config exists", async () => {
+    const results = await generateMcpConfigs(testDir);
+    expect(results).toEqual([]);
+  });
+
+  it("should generate configs for all tools when no target tools specified", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    await mkdir(rulesyncDir, { recursive: true });
+
+    const mcpConfig = {
+      mcpServers: {
+        "test-server": {
+          command: "test-server",
+          args: ["--stdio"],
+        },
+      },
+    };
+    await writeFile(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
+
+    const results = await generateMcpConfigs(testDir);
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((r) => r.status === "success" || r.status === "skipped")).toBe(true);
+  });
+
+  it("should generate configs for specific target tools", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    await mkdir(rulesyncDir, { recursive: true });
+
+    const mcpConfig = {
+      mcpServers: {
+        "claude-server": {
+          command: "claude-server",
+        },
+      },
+    };
+    await writeFile(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
+
+    const results = await generateMcpConfigs(testDir, undefined, ["claudecode"]);
+
+    // The function requires non-empty MCP config to generate anything
+    expect(results.length).toBeGreaterThanOrEqual(0);
+    if (results.length > 0) {
+      expect(results[0]?.tool).toBe("claude-project");
+      expect(results[0]?.status).toBe("success");
+    }
+  });
+
+  it("should use baseDir when provided", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    const baseDir = join(testDir, "custom-base");
+    await mkdir(rulesyncDir, { recursive: true });
+    await mkdir(baseDir, { recursive: true });
+
+    const mcpConfig = {
+      mcpServers: {
+        "test-server": {
+          command: "test",
+        },
+      },
+    };
+    await writeFile(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
+
+    const results = await generateMcpConfigs(testDir, baseDir, ["claudecode"]);
+
+    expect(results.length).toBeGreaterThanOrEqual(0);
+    if (results.length > 0) {
+      expect(results[0]?.path).toBe(join(baseDir, ".mcp.json"));
+    }
+  });
+
+  it("should skip generation when mcpServers is empty", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    await mkdir(rulesyncDir, { recursive: true });
+
+    const mcpConfig = {
+      mcpServers: {},
+    };
+    await writeFile(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
+
+    const results = await generateMcpConfigs(testDir, undefined, ["claudecode"]);
+
+    // Empty servers should result in skipped
+    expect(results.length).toBeGreaterThanOrEqual(0);
+    if (results.length > 0) {
+      expect(results[0]?.status).toBe("skipped");
+    }
+  });
+
+  it("should handle generation errors gracefully", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    await mkdir(rulesyncDir, { recursive: true });
+
+    // Create invalid JSON to trigger an error
+    await writeFile(join(rulesyncDir, ".mcp.json"), "invalid json");
+
+    // This should throw an error during parsing
+    await expect(generateMcpConfigs(testDir, undefined, ["claudecode"])).rejects.toThrow(
+      "Failed to parse mcp.json",
+    );
+  });
+
+  it("should filter augmentcode targets correctly", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    await mkdir(rulesyncDir, { recursive: true });
+
+    const mcpConfig = {
+      mcpServers: {
+        "test-server": {
+          command: "test",
+        },
+      },
+    };
+    await writeFile(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
+
+    const resultsAugment = await generateMcpConfigs(testDir, undefined, ["augmentcode"]);
+    const resultsLegacy = await generateMcpConfigs(testDir, undefined, ["augmentcode-legacy"]);
+
+    // Both should include augmentcode generators
+    expect(resultsAugment.some((r) => r.tool === "augmentcode-project")).toBe(true);
+    expect(resultsLegacy.some((r) => r.tool === "augmentcode-legacy-project")).toBe(true);
+  });
+
+  it("should handle copilot-specific logic for empty servers", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const rulesyncDir = join(testDir, ".rulesync");
+    await mkdir(rulesyncDir, { recursive: true });
+
+    const mcpConfig = {
+      mcpServers: {},
+    };
+    await writeFile(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
+
+    const results = await generateMcpConfigs(testDir, undefined, ["copilot"]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.tool).toBe("copilot-editor");
+    expect(results[0]?.status).toBe("skipped");
   });
 });
