@@ -1,0 +1,378 @@
+import { join } from "node:path";
+import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../../types/index.js";
+import {
+  extractAugmentCodeIgnorePatternsFromContent,
+  extractIgnorePatternsFromRules,
+} from "./shared-helpers.js";
+
+export interface IgnoreFileConfig {
+  /** Target tool identifier */
+  tool: ToolTarget;
+  /** Ignore file name (e.g., ".aiignore", ".augmentignore") */
+  filename: string;
+  /** Header comment describing the file purpose */
+  header: string[];
+  /** Core ignore patterns specific to this tool */
+  corePatterns: string[];
+  /** Whether to include common patterns (security, build artifacts, etc.) */
+  includeCommonPatterns?: boolean;
+  /** Custom pattern processing function */
+  customPatternProcessor?: (rules: ParsedRule[]) => string[];
+  /** Header text for project-specific patterns section */
+  projectPatternsHeader?: string;
+}
+
+/**
+ * Generic ignore file generator factory
+ */
+export function generateIgnoreFile(
+  rules: ParsedRule[],
+  config: Config,
+  ignoreConfig: IgnoreFileConfig,
+  baseDir?: string,
+): GeneratedOutput[] {
+  const outputs: GeneratedOutput[] = [];
+  const content = generateIgnoreContent(rules, ignoreConfig);
+  const outputPath = baseDir || process.cwd();
+  const filepath = join(outputPath, ignoreConfig.filename);
+
+  outputs.push({
+    tool: ignoreConfig.tool,
+    filepath,
+    content,
+  });
+
+  return outputs;
+}
+
+/**
+ * Generate ignore file content using the provided configuration
+ */
+function generateIgnoreContent(rules: ParsedRule[], config: IgnoreFileConfig): string {
+  const lines: string[] = [];
+
+  // Add header
+  lines.push(...config.header);
+  lines.push("");
+
+  // Add common patterns if requested
+  if (config.includeCommonPatterns) {
+    lines.push(...getCommonIgnorePatterns());
+  }
+
+  // Add tool-specific core patterns
+  if (config.corePatterns.length > 0) {
+    lines.push(...config.corePatterns);
+    lines.push("");
+  }
+
+  // Add patterns from rules
+  const rulePatterns = extractIgnorePatternsFromRules(rules);
+
+  // Apply custom pattern processing if provided
+  const customPatterns = config.customPatternProcessor ? config.customPatternProcessor(rules) : [];
+
+  const allPatterns = [...rulePatterns, ...customPatterns];
+  if (allPatterns.length > 0) {
+    const headerText =
+      config.projectPatternsHeader ||
+      "# ───── Project-specific exclusions from rulesync rules ─────";
+    lines.push(headerText);
+    lines.push(...allPatterns);
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Common ignore patterns used across multiple tools
+ */
+function getCommonIgnorePatterns(): string[] {
+  return [
+    "# ───── Source Control Metadata ─────",
+    ".git/",
+    ".svn/",
+    ".hg/",
+    ".idea/",
+    "*.iml",
+    ".vscode/settings.json",
+    "",
+    "# ───── Build Artifacts ─────",
+    "/out/",
+    "/dist/",
+    "/target/",
+    "/build/",
+    "*.class",
+    "*.jar",
+    "*.war",
+    "",
+    "# ───── Secrets & Credentials ─────",
+    "# Environment files",
+    ".env",
+    ".env.*",
+    "!.env.example",
+    "",
+    "# Key material",
+    "*.pem",
+    "*.key",
+    "*.crt",
+    "*.p12",
+    "*.pfx",
+    "*.der",
+    "id_rsa*",
+    "id_dsa*",
+    "*.ppk",
+    "",
+    "# Cloud and service configs",
+    "aws-credentials.json",
+    "gcp-service-account*.json",
+    "azure-credentials.json",
+    "secrets/**",
+    "config/secrets/",
+    "**/secrets/",
+    "",
+    "# Database credentials",
+    "database.yml",
+    "**/database/config.*",
+    "",
+    "# API keys and tokens",
+    "**/apikeys/",
+    "**/*_token*",
+    "**/*_secret*",
+    "**/*api_key*",
+    "",
+    "# ───── Infrastructure & Deployment ─────",
+    "# Terraform state",
+    "*.tfstate",
+    "*.tfstate.*",
+    ".terraform/",
+    "",
+    "# Kubernetes secrets",
+    "**/k8s/**/secret*.yaml",
+    "**/kubernetes/**/secret*.yaml",
+    "",
+    "# Docker secrets",
+    "docker-compose.override.yml",
+    "**/docker/secrets/",
+    "",
+    "# ───── Logs & Runtime Data ─────",
+    "*.log",
+    "*.tmp",
+    "*.cache",
+    "logs/",
+    "/var/log/",
+    "coverage/",
+    ".nyc_output/",
+    "",
+    "# ───── Large Data Files ─────",
+    "*.csv",
+    "*.xlsx",
+    "*.sqlite",
+    "*.db",
+    "*.dump",
+    "data/",
+    "datasets/",
+    "",
+    "# ───── Node.js Specific ─────",
+    "node_modules/",
+    ".pnpm-store/",
+    ".yarn/",
+    ".next/",
+    ".nuxt/",
+    ".cache/",
+    ".parcel-cache/",
+    "",
+    "# ───── Python Specific ─────",
+    "__pycache__/",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    ".Python",
+    "venv/",
+    ".venv/",
+    "env/",
+    ".env/",
+    "",
+    "# ───── Java Specific ─────",
+    "*.class",
+    "*.jar",
+    "*.war",
+    "target/",
+    "",
+  ];
+}
+
+/**
+ * Pre-configured ignore file configurations for common tools
+ */
+export const ignoreConfigs = {
+  junie: {
+    tool: "junie" as const,
+    filename: ".aiignore",
+    header: [
+      "# Generated by rulesync - JetBrains Junie AI ignore file",
+      "# This file controls which files the AI can access automatically",
+      "# AI must ask before reading or editing matched files/directories",
+    ],
+    corePatterns: [
+      "# ───── Allow specific source files (uncomment as needed) ─────",
+      "# !src/**/*.ts",
+      "# !src/**/*.js",
+      "# !lib/**/*.py",
+      "# !src/main/**/*.java",
+    ],
+    includeCommonPatterns: true,
+  } satisfies IgnoreFileConfig,
+
+  kiro: {
+    tool: "kiro" as const,
+    filename: ".aiignore",
+    header: [
+      "# Generated by rulesync - Kiro AI-specific exclusions",
+      "# This file excludes files that can be in Git but shouldn't be read by the AI",
+    ],
+    corePatterns: [
+      "# Data files AI shouldn't process",
+      "*.csv",
+      "*.tsv",
+      "*.sqlite",
+      "*.db",
+      "",
+      "# Large binary files",
+      "*.zip",
+      "*.tar.gz",
+      "*.rar",
+      "",
+      "# Sensitive documentation",
+      "internal-docs/",
+      "confidential/",
+      "",
+      "# Test data that might confuse AI",
+      "test/fixtures/large-*.json",
+      "benchmark-results/",
+      "",
+      "# Reinforce critical exclusions from .gitignore",
+      "*.pem",
+      "*.key",
+      ".env*",
+    ],
+    includeCommonPatterns: false,
+    projectPatternsHeader: "# Project-specific exclusions from rulesync rules",
+  } satisfies IgnoreFileConfig,
+
+  augmentcode: {
+    tool: "augmentcode" as const,
+    filename: ".augmentignore",
+    header: [
+      "# Generated by rulesync - AugmentCode ignore patterns",
+      "# AugmentCode uses a two-tier approach: .gitignore first, then .augmentignore",
+      "# This file provides Augment-specific exclusions and re-inclusions",
+    ],
+    corePatterns: [
+      "# Security and Secrets (critical exclusions)",
+      "# Environment files",
+      ".env*",
+      "",
+      "# Private keys and certificates",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.crt",
+      "*.der",
+      "",
+      "# SSH keys",
+      "id_rsa*",
+      "id_dsa*",
+      "",
+      "# AWS credentials",
+      ".aws/",
+      "aws-exports.js",
+      "",
+      "# API keys and tokens",
+      "**/apikeys/",
+      "**/*_token*",
+      "**/*_secret*",
+      "",
+      "# Build Artifacts and Dependencies",
+      "# Build outputs",
+      "dist/",
+      "build/",
+      "out/",
+      "target/",
+      "",
+      "# Dependencies",
+      "node_modules/",
+      "venv/",
+      "*.egg-info/",
+      "",
+      "# Logs",
+      "*.log",
+      "logs/",
+      "",
+      "# Temporary files",
+      "*.tmp",
+      "*.swp",
+      "*.swo",
+      "*~",
+      "",
+      "# Large Files and Media",
+      "# Binary files",
+      "*.jar",
+      "*.png",
+      "*.jpg",
+      "*.jpeg",
+      "*.gif",
+      "*.mp4",
+      "*.avi",
+      "*.zip",
+      "*.tar.gz",
+      "*.rar",
+      "",
+      "# Database files",
+      "*.sqlite",
+      "*.db",
+      "*.mdb",
+      "",
+      "# Data files",
+      "*.csv",
+      "*.tsv",
+      "*.xlsx",
+      "",
+      "# Performance Optimization",
+      "# Exclude files that are too large for effective AI processing",
+      "**/*.{mp4,avi,mov,mkv}",
+      "**/*.{zip,tar,gz,rar}",
+      "**/*.{pdf,doc,docx}",
+      "**/logs/**/*.log",
+      "",
+      "# But include small configuration files",
+      "!**/config.{json,yaml,yml}",
+      "",
+      "# Team Collaboration",
+      "# Exclude personal IDE settings",
+      ".vscode/settings.json",
+      ".idea/workspace.xml",
+      "",
+      "# But include shared team settings",
+      "!.vscode/extensions.json",
+      "!.idea/codeStyles/",
+      "",
+      "# Exclude test fixtures with sensitive data",
+      "tests/fixtures/real-data/**",
+      "",
+      "# Re-include important documentation",
+      "!vendor/*/README.md",
+      "!third-party/*/LICENSE",
+    ],
+    includeCommonPatterns: false,
+    projectPatternsHeader: "# Project-specific patterns from rulesync rules",
+    customPatternProcessor: (rules: ParsedRule[]): string[] => {
+      const augmentPatterns: string[] = [];
+      for (const rule of rules) {
+        augmentPatterns.push(...extractAugmentCodeIgnorePatternsFromContent(rule.content));
+      }
+      return augmentPatterns;
+    },
+  } satisfies IgnoreFileConfig,
+};
