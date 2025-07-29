@@ -82,7 +82,7 @@ This is the real content after the table.`;
     const result = await parseClaudeConfiguration(testDir);
     expect(result.rules).toHaveLength(3);
 
-    const memoryRules = result.rules.filter((r) => r.filename.includes("memory"));
+    const memoryRules = result.rules.filter((r) => r.filename !== "main");
     expect(memoryRules).toHaveLength(2);
 
     const contents = memoryRules.map((r) => r.content);
@@ -97,9 +97,9 @@ This is the real content after the table.`;
     await writeFile(join(memoryDir, "valid.md"), "# Valid content");
 
     const result = await parseClaudeConfiguration(testDir);
-    const memoryRules = result.rules.filter((r) => r.filename.includes("memory"));
+    const memoryRules = result.rules.filter((r) => r.filename !== "main");
     expect(memoryRules).toHaveLength(1);
-    expect(memoryRules[0]?.filename).toContain("valid");
+    expect(memoryRules[0]?.filename).toBe("valid");
   });
 
   it("should parse settings.json and extract ignore patterns", async () => {

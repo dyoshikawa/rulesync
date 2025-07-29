@@ -66,9 +66,9 @@ This is a TypeScript project.
     expect(result.rules).toHaveLength(2);
 
     const filenames = result.rules.map((r) => r.filename);
-    expect(filenames).toContain("copilot-typescript");
-    expect(filenames).toContain("copilot-testing");
-    expect(filenames).not.toContain("copilot-not-instructions");
+    expect(filenames).toContain("typescript");
+    expect(filenames).toContain("testing");
+    expect(filenames).not.toContain("not-instructions");
   });
 
   it("should parse both main file and instructions", async () => {
@@ -120,6 +120,6 @@ This is a TypeScript project.
       description: "Copilot instruction: api-design",
       globs: ["**/*"],
     });
-    expect(result.rules[0]!.filename).toBe("copilot-api-design");
+    expect(result.rules[0]!.filename).toBe("api-design");
   });
 });

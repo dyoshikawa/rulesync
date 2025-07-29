@@ -66,8 +66,8 @@ This is a React TypeScript project.
     expect(result.rules).toHaveLength(2);
 
     const filenames = result.rules.map((r) => r.filename);
-    expect(filenames).toContain("roo-react-patterns");
-    expect(filenames).toContain("roo-performance");
+    expect(filenames).toContain("react-patterns");
+    expect(filenames).toContain("performance");
   });
 
   it("should parse both instructions and rules", async () => {
@@ -134,7 +134,7 @@ This is a React TypeScript project.
       description: "Roo rule: state-management",
       globs: ["**/*"],
     });
-    expect(result.rules[0]?.filename).toBe("roo-state-management");
+    expect(result.rules[0]?.filename).toBe("state-management");
   });
 
   it("should handle special characters in filenames", async () => {
@@ -143,7 +143,7 @@ This is a React TypeScript project.
 
     const result = await parseRooConfiguration(testDir);
     expect(result.rules).toHaveLength(2);
-    expect(result.rules[0]?.filename).toBe("roo-api-integration");
-    expect(result.rules[1]?.filename).toBe("roo-ui_components");
+    expect(result.rules[0]?.filename).toBe("api-integration");
+    expect(result.rules[1]?.filename).toBe("ui_components");
   });
 });

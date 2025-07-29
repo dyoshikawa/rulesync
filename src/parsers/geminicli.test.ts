@@ -49,7 +49,7 @@ This is the main Gemini CLI configuration.
       globs: ["**/*"],
     });
     expect(result.rules[0]?.content).toContain("This is the main Gemini CLI configuration");
-    expect(result.rules[0]?.filename).toBe("gemini-main");
+    expect(result.rules[0]?.filename).toBe("main");
   });
 
   it("should skip reference table when parsing main file", async () => {
@@ -84,9 +84,7 @@ This is the actual content after the table.`;
     const result = await parseGeminiConfiguration(testDir);
     expect(result.rules).toHaveLength(3); // main + 2 memory files
 
-    const memoryRules = result.rules.filter((rule: ParsedRule) =>
-      rule.filename.startsWith("gemini-memory-"),
-    );
+    const memoryRules = result.rules.filter((rule: ParsedRule) => rule.filename !== "main");
     expect(memoryRules).toHaveLength(2);
     expect(memoryRules[0]?.frontmatter.description).toContain("Memory file:");
     expect(memoryRules[0]?.content).toContain("Memory content");
@@ -179,11 +177,9 @@ dist/
     const result = await parseGeminiConfiguration(testDir);
     expect(result.rules).toHaveLength(2); // main + 1 valid memory file
 
-    const memoryRules = result.rules.filter((rule: ParsedRule) =>
-      rule.filename.startsWith("gemini-memory-"),
-    );
+    const memoryRules = result.rules.filter((rule: ParsedRule) => rule.filename !== "main");
     expect(memoryRules).toHaveLength(1);
-    expect(memoryRules[0]?.filename).toBe("gemini-memory-valid");
+    expect(memoryRules[0]?.filename).toBe("valid");
   });
 
   it("should handle file reading errors gracefully", async () => {
@@ -197,7 +193,7 @@ dist/
     const result = await parseGeminiConfiguration(testDir);
     // Should not crash and should still parse main file
     expect(result.rules).toHaveLength(1);
-    expect(result.rules[0]?.filename).toBe("gemini-main");
+    expect(result.rules[0]?.filename).toBe("main");
   });
 
   it("should use default baseDir when not provided", async () => {

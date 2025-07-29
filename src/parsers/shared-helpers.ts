@@ -69,7 +69,7 @@ export async function parseConfigurationFiles(
           rules.push({
             frontmatter,
             content,
-            filename: `${config.tool}-instructions`,
+            filename: "instructions",
             filepath: mainFilePath,
           });
         }
@@ -116,7 +116,7 @@ export async function parseConfigurationFiles(
                   rules.push({
                     frontmatter,
                     content,
-                    filename: `${config.tool}-${filename}`,
+                    filename: filename,
                     filepath: filePath,
                   });
                 }
@@ -274,7 +274,7 @@ function parseMainFile(
   return {
     frontmatter,
     content: mainContent,
-    filename: `${config.filenamePrefix}-main`,
+    filename: "main",
     filepath,
   };
 }
@@ -306,7 +306,7 @@ async function parseMemoryFiles(
           rules.push({
             frontmatter,
             content: content.trim(),
-            filename: `${config.filenamePrefix}-memory-${filename}`,
+            filename: filename,
             filepath: filePath,
           });
         }

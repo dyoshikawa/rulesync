@@ -66,8 +66,8 @@ This is a Node.js application.
     expect(result.rules).toHaveLength(2);
 
     const filenames = result.rules.map((r) => r.filename);
-    expect(filenames).toContain("cline-coding-style");
-    expect(filenames).toContain("cline-testing");
+    expect(filenames).toContain("coding-style");
+    expect(filenames).toContain("testing");
   });
 
   it("should parse both instructions and rules", async () => {
@@ -134,6 +134,6 @@ This is a Node.js application.
       description: "Cline rule: architecture",
       globs: ["**/*"],
     });
-    expect(result.rules[0]?.filename).toBe("cline-architecture");
+    expect(result.rules[0]?.filename).toBe("architecture");
   });
 });
