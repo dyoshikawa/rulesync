@@ -133,7 +133,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   let rulesCreated = 0;
   for (const rule of rules) {
     try {
-      const baseFilename = `${tool}__${rule.filename}`;
+      const baseFilename = rule.filename;
       const filename = await generateUniqueFilename(rulesDirPath, baseFilename);
       const filePath = join(rulesDirPath, `${filename}.md`);
       const content = generateRuleFileContent(rule);

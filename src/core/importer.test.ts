@@ -63,7 +63,7 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.errors).toEqual([]);
 
-    const createdFile = await readFile(join(rulesDir, "claudecode__main.md"), "utf-8");
+    const createdFile = await readFile(join(rulesDir, "main.md"), "utf-8");
     expect(createdFile).toContain("root: false");
     expect(createdFile).toContain("# Main content");
   });
@@ -106,8 +106,8 @@ describe("importConfiguration", () => {
 
     expect(result.rulesCreated).toBe(2);
 
-    const file1 = await readFile(join(rulesDir, "cursor__rules.md"), "utf-8");
-    const file2 = await readFile(join(rulesDir, "cursor__rules-1.md"), "utf-8");
+    const file1 = await readFile(join(rulesDir, "rules.md"), "utf-8");
+    const file2 = await readFile(join(rulesDir, "rules-1.md"), "utf-8");
     expect(file1).toContain("Content 1");
     expect(file2).toContain("Content 2");
   });
