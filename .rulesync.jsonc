@@ -1,0 +1,29 @@
+{
+  // List of tools to generate configurations for
+  "targets": ["*"],
+  
+  // Tools to exclude from generation (overrides targets)
+  "exclude": [],
+  
+  // Custom output paths for specific tools
+  "outputPaths": {},
+  
+  // Base directory or directories for generation
+  "baseDir": ".",
+  
+  // Delete existing files before generating
+  "delete": false,
+  
+  // Enable verbose output
+  "verbose": false,
+  
+  // Directory containing rule files
+  "aiRulesDir": ".rulesync",
+  
+  // Watch configuration
+  "watch": {
+    "enabled": false,
+    "interval": 1000,
+    "ignore": ["node_modules/**", ".git/**", "dist/**", "build/**"]
+  }
+}
