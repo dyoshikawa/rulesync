@@ -12,7 +12,7 @@
   "baseDir": ".",
   
   // Delete existing files before generating
-  "delete": false,
+  "delete": true,
   
   // Enable verbose output
   "verbose": false,
