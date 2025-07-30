@@ -1,0 +1,14 @@
+{
+  "targets": ["*"],
+  "exclude": [],
+  "outputPaths": {},
+  "baseDir": ".",
+  "delete": false,
+  "verbose": false,
+  "aiRulesDir": ".rulesync",
+  "watch": {
+    "enabled": false,
+    "interval": 1000,
+    "ignore": ["node_modules/**", ".git/**", "dist/**", "build/**"]
+  }
+}
