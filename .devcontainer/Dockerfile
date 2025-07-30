@@ -55,7 +55,7 @@ USER node
 
 # Rust and similarity-ts install
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-RUN cargo install similarity-ts
+RUN ~/.cargo/bin/cargo install similarity-ts
 
 # Install global packages
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
