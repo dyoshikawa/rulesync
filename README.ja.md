@@ -18,6 +18,7 @@ rulesyncは以下のAI開発ツールの**生成**と**インポート**の両�
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
+- **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Kiro IDE カスタムステアリングドキュメント** (`.kiro/steering/*.md`) + **AI除外ファイル** (`.aiignore`)
 
 ## インストール
@@ -71,6 +72,7 @@ yarn global add rulesync
    npx rulesync import --augmentcode-legacy # .augment-guidelines（レガシー形式）から
    npx rulesync import --roo                # .roo/instructions.mdから
    npx rulesync import --geminicli   # GEMINI.mdと.gemini/memories/*.mdから
+   npx rulesync import --junie       # .junie/guidelines.mdから
    ```
 
 2. **`.rulesync/`ディレクトリのインポートされたルールを確認・編集**
@@ -97,9 +99,10 @@ AI開発ツールは新しいツールが頻繁に登場し、急速に進化し
 - Claude Code：アーキテクチャ設計
 - Cline：デバッグ支援
 - Gemini CLI：知的コード解析
+- JetBrains Junie：自律的AIコーディング
 
 ### 🔓 **ベンダーロックインなし**
-ベンダーロックインを完全に回避できます。rulesyncの使用を停止することを決定した場合でも、生成されたルールファイル（`.github/instructions/`、`.cursor/rules/`、`.clinerules/`、`CLAUDE.md`、`GEMINI.md`など）をそのまま使い続けることができます。
+ベンダーロックインを完全に回避できます。rulesyncの使用を停止することを決定した場合でも、生成されたルールファイル（`.github/instructions/`、`.cursor/rules/`、`.clinerules/`、`CLAUDE.md`、`GEMINI.md`、`.junie/guidelines.md`など）をそのまま使い続けることができます。
 
 ### 🎯 **ツール間の一貫性**
 すべてのAIツールに一貫したルールを適用し、チーム全体のコード品質と開発体験を向上させます。
@@ -220,6 +223,7 @@ npx rulesync generate --claudecode
 npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
+npx rulesync generate --junie
 npx rulesync generate --kiro
 
 # クリーンビルド（既存ファイルを最初に削除）
@@ -242,7 +246,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: 新しいファイルを作成する前に既存の生成済みファイルをすべて削除
 - `--verbose`: 生成プロセス中に詳細出力を表示
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--kiro`: 指定されたツールのみ生成
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: 指定されたツールのみ生成
 - `--base-dir <paths>`: 指定されたベースディレクトリに設定ファイルを生成（複数パスの場合はカンマ区切り）。異なるプロジェクトディレクトリにツール固有の設定を生成したいmonorepoセットアップに便利。
 
 ### 4. 既存設定のインポート
@@ -258,6 +262,7 @@ npx rulesync import --cline      # .cline/instructions.mdからインポート
 npx rulesync import --augmentcode # .augment/rules/*.mdからインポート
 npx rulesync import --roo        # .roo/instructions.mdからインポート
 npx rulesync import --geminicli  # GEMINI.mdと.gemini/memories/*.mdからインポート
+npx rulesync import --junie      # .junie/guidelines.mdからインポート
 
 # 各ツールを個別にインポート
 npx rulesync import --claudecode
@@ -434,7 +439,8 @@ globs: "**/*.ts,**/*.tsx"
 | **Claude Code**    | `./CLAUDE.md` (ルート)<br>`.claude/memories/*.md` (非ルート) | プレーンMarkdown              | ルートはCLAUDE.mdに移動<br>非ルートは別メモリファイルに移動<br>CLAUDE.mdは`@filename`参照を含む                                                                                                                 |
 | **AugmentCode**    | `.augment/rules/*.md`                                        | YAMLフロントマター + Markdown | ルート: `type: always`<br>非ルート: `type: auto` (description指定時) または `type: manual` (デフォルト)                                                                                                        |
 | **Roo Code**       | `.roo/rules/*.md`                                            | プレーンMarkdown              | 両レベルとも説明ヘッダー付きの同じフォーマットを使用                                                                                                                                                            |
-| **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                                                                                 |
+| **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                      |
+| **JetBrains Junie** | `.junie/guidelines.md`                                      | プレーンMarkdown              | すべてのルールを単一のガイドラインファイルに統合                                                                                                                                                                |
 | **Kiro IDE**       | `.kiro/steering/*.md` + `.aiignore`                          | プレーンMarkdown + 除外パターン | カスタムステアリングドキュメントで両レベルとも同じフォーマット使用<br>AI除外ファイルで機密パターンを除外                                                                                                       |
 
 ## バリデーション
@@ -462,6 +468,7 @@ rulesyncは、対応するAIツール用のMCPサーバー設定も管理でき�
 - **Cursor** (`.cursor/mcp.json`)
 - **Cline** (`.cline/mcp.json`)
 - **Gemini CLI** (`.gemini/settings.json`)
+- **JetBrains Junie** (`.junie/mcp.json`)
 - **Kiro IDE** (`.kiro/mcp.json`)
 - **Roo Code** (`.roo/mcp.json`)
 
@@ -533,7 +540,7 @@ MCP設定はルールファイルと一緒に生成されます：
 npx rulesync generate
 
 # 特定のツールのみ生成
-npx rulesync generate --claudecode --cursor --kiro
+npx rulesync generate --claudecode --cursor --junie --kiro
 
 # 特定のディレクトリに生成（monorepo）
 npx rulesync generate --base-dir ./packages/frontend

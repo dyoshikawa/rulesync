@@ -18,6 +18,7 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
+- **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
 
 ## Installation
@@ -71,6 +72,7 @@ If you already have AI tool configurations, you can import them into rulesync fo
    npx rulesync import --augmentcode-legacy # From .augment-guidelines (legacy format)
    npx rulesync import --roo                # From .roo/instructions.md
    npx rulesync import --geminicli   # From GEMINI.md and .gemini/memories/*.md
+   npx rulesync import --junie       # From .junie/guidelines.md
    ```
 
 2. **Review and edit** the imported rules in `.rulesync/` directory
@@ -97,9 +99,10 @@ Enable hybrid development workflows combining multiple AI tools:
 - Claude Code for architecture design
 - Cline for debugging assistance
 - Gemini CLI for intelligent code analysis
+- JetBrains Junie for autonomous AI coding
 
 ### 🔓 **No Vendor Lock-in**
-Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files (`.github/instructions/`, `.cursor/rules/`, `.clinerules/`, `CLAUDE.md`, `GEMINI.md`, etc.) as-is.
+Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files (`.github/instructions/`, `.cursor/rules/`, `.clinerules/`, `CLAUDE.md`, `GEMINI.md`, `.junie/guidelines.md`, etc.) as-is.
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
@@ -220,6 +223,7 @@ npx rulesync generate --claudecode
 npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
+npx rulesync generate --junie
 npx rulesync generate --kiro
 
 # Clean build (delete existing files first)
@@ -242,7 +246,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: Remove all existing generated files before creating new ones
 - `--verbose`: Show detailed output during generation process
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--kiro`: Generate only for specified tools
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: Generate only for specified tools
 - `--base-dir <paths>`: Generate configuration files in specified base directories (comma-separated for multiple paths). Useful for monorepo setups where you want to generate tool-specific configurations in different project directories.
 - `--config <path>`: Use a specific configuration file
 - `--no-config`: Disable configuration file loading
@@ -341,6 +345,7 @@ npx rulesync import --cline      # Import from .cline/instructions.md
 npx rulesync import --augmentcode # Import from .augment/rules/*.md
 npx rulesync import --roo        # Import from .roo/instructions.md
 npx rulesync import --geminicli  # Import from GEMINI.md and .gemini/memories/*.md
+npx rulesync import --junie      # Import from .junie/guidelines.md
 
 # Import each tool individually
 npx rulesync import --claudecode
@@ -524,6 +529,7 @@ globs: "**/*.ts,**/*.tsx"
 | **AugmentCode** | `.augment/rules/*.md` | Markdown with YAML frontmatter | Root: `type: always`<br>Non-root: `type: auto` (with description) or `type: manual` (default) |
 | **Roo Code** | `.roo/rules/*.md` | Plain Markdown | Both levels use same format with description header |
 | **Gemini CLI** | `GEMINI.md` (root)<br>`.gemini/memories/*.md` (non-root) | Plain Markdown | Root goes to GEMINI.md<br>Non-root go to separate memory files<br>GEMINI.md includes `@filename` references |
+| **JetBrains Junie** | `.junie/guidelines.md` | Plain Markdown | All rules combined into single guidelines file |
 | **Kiro IDE** | `.kiro/steering/*.md` + `.aiignore` | Plain Markdown + Ignore patterns | Both levels use same format for custom steering docs<br>AI ignore file excludes sensitive patterns |
 
 ## Validation
@@ -551,6 +557,7 @@ rulesync can also manage MCP server configurations for supported AI tools. This 
 - **Cursor** (`.cursor/mcp.json`)
 - **Cline** (`.cline/mcp.json`)
 - **Gemini CLI** (`.gemini/settings.json`)
+- **JetBrains Junie** (`.junie/mcp.json`)
 - **Kiro IDE** (`.kiro/mcp.json`)
 - **Roo Code** (`.roo/mcp.json`)
 
@@ -622,7 +629,7 @@ MCP configurations are generated alongside rule files:
 npx rulesync generate
 
 # Generate only for specific tools
-npx rulesync generate --claudecode --cursor --kiro
+npx rulesync generate --claudecode --cursor --junie --kiro
 
 # Generate in specific directories (monorepo)
 npx rulesync generate --base-dir ./packages/frontend
