@@ -74,6 +74,23 @@ pnpm typecheck
 
 ## プロジェクトアーキテクチャ
 
+### 簡素化された.rulesyncディレクトリ
+
+プロジェクトは合理化された.rulesyncディレクトリ構造で簡素化されました:
+
+```
+.rulesync/
+├── overview.md              # プロジェクト概要とアーキテクチャ (root: true)
+├── my-instructions.md       # カスタムプロジェクト指示
+├── precautions.md          # 開発上の注意事項とガイドライン
+└── specification-[tool]-[type].md  # ツール固有の仕様
+    # タイプ: rules, mcp, ignore
+    # ツール: augmentcode, copilot, cursor, cline, claudecode, 
+    #        geminicli, junie, kiro, roo
+```
+
+**主要な変更**: 5つの専門ルールファイル（build-tooling.md, cli-development.md, docs-maintenance.md, mcp-support.md, security-quality.md）を削除し、ルール構造を簡素化しました。
+
 ### コア構造
 
 ```
@@ -88,36 +105,57 @@ rulesync/
 │   │   │   ├── watch.ts     # ファイル監視
 │   │   │   ├── status.ts    # プロジェクト状態
 │   │   │   ├── validate.ts  # ルール検証
-│   │   │   └── gitignore.ts # .gitignore管理
+│   │   │   ├── gitignore.ts # .gitignore管理
+│   │   │   └── config.ts    # 設定管理
 │   │   └── index.ts        # CLIエントリーポイント (Commander.js)
 │   ├── core/
 │   │   ├── parser.ts       # .rulesync/*.mdファイルのパース
 │   │   ├── generator.ts    # 生成のオーケストレーション
 │   │   ├── importer.ts     # 既存設定のインポート
-│   │   └── validator.ts    # ルール構造の検証
-│   ├── generators/         # ツール固有のジェネレーター
-│   │   ├── copilot.ts     # GitHub Copilot Custom Instructions
-│   │   ├── cursor.ts      # Cursor Project Rules (MDCフォーマット)
-│   │   ├── cline.ts       # Cline Rules
-│   │   ├── claudecode.ts  # Claude Code Memory (CLAUDE.md + memories)
-│   │   ├── geminicli.ts   # Gemini CLI設定 (GEMINI.md + memories)
-│   │   └── roo.ts         # Roo Code Rules
+│   │   ├── validator.ts    # ルール構造の検証
+│   │   ├── mcp-generator.ts # MCP固有の生成ロジック
+│   │   └── mcp-parser.ts   # MCP固有のパースロジック
+│   ├── generators/         # ツール固有のジェネレーター（出力タイプ別に整理）
+│   │   ├── rules/          # 標準ルールジェネレーター
+│   │   │   ├── augmentcode.ts  # AugmentCode Rules
+│   │   │   ├── copilot.ts     # GitHub Copilot Custom Instructions
+│   │   │   ├── cursor.ts      # Cursor Project Rules (MDCフォーマット)
+│   │   │   ├── cline.ts       # Cline Rules
+│   │   │   ├── claudecode.ts  # Claude Code Memory (CLAUDE.md + memories)
+│   │   │   ├── geminicli.ts   # Gemini CLI設定 (GEMINI.md + memories)
+│   │   │   ├── junie.ts       # JetBrains Junie Guidelines
+│   │   │   ├── kiro.ts        # Kiro IDE Custom Steering Documents
+│   │   │   └── roo.ts         # Roo Code Rules
+│   │   ├── mcp/            # MCP設定ジェネレーター
+│   │   │   └── [tool].ts   # 各ツール用のMCP固有設定
+│   │   └── ignore/         # Ignoreファイルジェネレーター
+│   │       └── [tool].ts   # ツール固有のignore設定
 │   ├── parsers/           # インポート機能用ツール固有パーサー
+│   │   ├── augmentcode.ts # AugmentCode設定のパース
 │   │   ├── copilot.ts     # GitHub Copilot設定のパース (.github/copilot-instructions.md)
 │   │   ├── cursor.ts      # Cursor設定のパース (.cursorrules, .cursor/rules/*.mdc)
 │   │   │                  # 4つのルールタイプをサポート: always, manual, specificFiles, intelligently
 │   │   ├── cline.ts       # Cline設定のパース (.cline/instructions.md)
 │   │   ├── claudecode.ts  # Claude Code設定のパース (CLAUDE.md, .claude/memories/*.md)
 │   │   ├── geminicli.ts   # Gemini CLI設定のパース (GEMINI.md, .gemini/memories/*.md)
+│   │   ├── junie.ts       # JetBrains Junie設定のパース
+│   │   ├── kiro.ts        # Kiro IDE設定のパース
 │   │   └── roo.ts         # Roo Code設定のパース (.roo/instructions.md)
 │   ├── types/              # TypeScript型定義
 │   │   ├── config.ts      # 設定型
-│   │   └── rules.ts       # ルールとフロントマター型
+│   │   ├── rules.ts       # ルールとフロントマター型
+│   │   ├── mcp.ts         # MCP固有型
+│   │   ├── tool-targets.ts # ツールターゲット定義
+│   │   └── config-options.ts # 設定オプション型
 │   └── utils/
 │       ├── file.ts         # ファイル操作 (read/write/delete)
-│       └── config.ts       # 設定管理
+│       ├── config.ts       # 設定管理
+│       ├── config-loader.ts # 設定読み込みユーティリティ
+│       ├── ignore.ts       # ignoreファイルユーティリティ
+│       ├── rules.ts        # ルール処理ユーティリティ
+│       └── parser-helpers.ts # パーサーユーティリティ関数
 ├── dist/                   # ビルド出力 (CJS + ESM)
-└── tests/                  # テストファイル (*.test.ts)
+└── [module].test.ts        # テストファイル（ソースと同じ場所に配置）
 ```
 
 ### 主要な依存関係

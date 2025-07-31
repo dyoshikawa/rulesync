@@ -56,7 +56,7 @@ pnpm format
 # Check formatting
 pnpm format:check
 
-# Run both lint and format
+# Run comprehensive checks (Biome + Oxlint + ESLint + TypeScript)
 pnpm check
 
 # Fix linting and formatting issues
@@ -74,6 +74,23 @@ pnpm typecheck
 
 ## Project Architecture
 
+### Simplified .rulesync Directory
+
+The project has been simplified with a streamlined .rulesync directory structure:
+
+```
+.rulesync/
+├── overview.md              # Project overview and architecture (root: true)
+├── my-instructions.md       # Custom project instructions
+├── precautions.md          # Development precautions and guidelines
+└── specification-[tool]-[type].md  # Tool-specific specifications
+    # Types: rules, mcp, ignore
+    # Tools: augmentcode, copilot, cursor, cline, claudecode, 
+    #        geminicli, junie, kiro, roo
+```
+
+**Key Changes**: Removed 5 specialized rule files (build-tooling.md, cli-development.md, docs-maintenance.md, mcp-support.md, security-quality.md) to simplify the rule structure.
+
 ### Core Structure
 
 ```
@@ -88,36 +105,57 @@ rulesync/
 │   │   │   ├── watch.ts     # File watching
 │   │   │   ├── status.ts    # Project status
 │   │   │   ├── validate.ts  # Rule validation
-│   │   │   └── gitignore.ts # .gitignore management
+│   │   │   ├── gitignore.ts # .gitignore management
+│   │   │   └── config.ts    # Configuration management
 │   │   └── index.ts        # CLI entry point (Commander.js)
 │   ├── core/
 │   │   ├── parser.ts       # Parse .rulesync/*.md files
 │   │   ├── generator.ts    # Orchestrate generation
 │   │   ├── importer.ts     # Import existing configurations
-│   │   └── validator.ts    # Validate rule structure
-│   ├── generators/         # Tool-specific generators
-│   │   ├── copilot.ts     # GitHub Copilot Custom Instructions
-│   │   ├── cursor.ts      # Cursor Project Rules (MDC format)
-│   │   ├── cline.ts       # Cline Rules
-│   │   ├── claudecode.ts  # Claude Code Memory (CLAUDE.md + memories)
-│   │   ├── geminicli.ts   # Gemini CLI configuration (GEMINI.md + memories)
-│   │   └── roo.ts         # Roo Code Rules
+│   │   ├── validator.ts    # Validate rule structure
+│   │   ├── mcp-generator.ts # MCP-specific generation logic
+│   │   └── mcp-parser.ts   # MCP-specific parsing logic
+│   ├── generators/         # Tool-specific generators (organized by output type)
+│   │   ├── rules/          # Standard rule generators
+│   │   │   ├── augmentcode.ts  # AugmentCode Rules
+│   │   │   ├── copilot.ts     # GitHub Copilot Custom Instructions
+│   │   │   ├── cursor.ts      # Cursor Project Rules (MDC format)
+│   │   │   ├── cline.ts       # Cline Rules
+│   │   │   ├── claudecode.ts  # Claude Code Memory (CLAUDE.md + memories)
+│   │   │   ├── geminicli.ts   # Gemini CLI configuration (GEMINI.md + memories)
+│   │   │   ├── junie.ts       # JetBrains Junie Guidelines
+│   │   │   ├── kiro.ts        # Kiro IDE Custom Steering Documents
+│   │   │   └── roo.ts         # Roo Code Rules
+│   │   ├── mcp/            # MCP configuration generators
+│   │   │   └── [tool].ts   # MCP-specific configs for each tool
+│   │   └── ignore/         # Ignore file generators
+│   │       └── [tool].ts   # Tool-specific ignore configurations
 │   ├── parsers/           # Tool-specific parsers for import functionality
+│   │   ├── augmentcode.ts # Parse AugmentCode configurations
 │   │   ├── copilot.ts     # Parse GitHub Copilot configurations (.github/copilot-instructions.md)
 │   │   ├── cursor.ts      # Parse Cursor configurations (.cursorrules, .cursor/rules/*.mdc)
 │   │   │                  # Supports 4 rule types: always, manual, specificFiles, intelligently
 │   │   ├── cline.ts       # Parse Cline configurations (.cline/instructions.md)
 │   │   ├── claudecode.ts  # Parse Claude Code configurations (CLAUDE.md, .claude/memories/*.md)
 │   │   ├── geminicli.ts   # Parse Gemini CLI configurations (GEMINI.md, .gemini/memories/*.md)
+│   │   ├── junie.ts       # Parse JetBrains Junie configurations
+│   │   ├── kiro.ts        # Parse Kiro IDE configurations
 │   │   └── roo.ts         # Parse Roo Code configurations (.roo/instructions.md)
 │   ├── types/              # TypeScript type definitions
 │   │   ├── config.ts      # Configuration types
-│   │   └── rules.ts       # Rule and frontmatter types
+│   │   ├── rules.ts       # Rule and frontmatter types
+│   │   ├── mcp.ts         # MCP-specific types
+│   │   ├── tool-targets.ts # Tool target definitions
+│   │   └── config-options.ts # Configuration option types
 │   └── utils/
 │       ├── file.ts         # File operations (read/write/delete)
-│       └── config.ts       # Configuration management
+│       ├── config.ts       # Configuration management
+│       ├── config-loader.ts # Configuration loading utilities
+│       ├── ignore.ts       # Ignore file utilities
+│       ├── rules.ts        # Rule processing utilities
+│       └── parser-helpers.ts # Parser utility functions
 ├── dist/                   # Build output (CJS + ESM)
-└── tests/                  # Test files (*.test.ts)
+└── [module].test.ts        # Test files (co-located with source)
 ```
 
 ### Key Dependencies
@@ -126,9 +164,15 @@ rulesync/
 - **gray-matter**: Frontmatter parsing for Markdown files (supports YAML, TOML, JSON)
 - **marked**: Markdown parsing and rendering
 - **chokidar**: File watching for `watch` command with high performance
+- **c12**: Configuration loading with support for multiple formats
+- **micromatch**: Glob pattern matching for file filtering
+- **zod**: Runtime type validation and schema definition
+- **js-yaml**: YAML parsing and stringification
 - **tsup**: Build system (outputs both CJS and ESM)
 - **tsx**: TypeScript execution for development
-- **Biome**: Unified linter and formatter (replaces ESLint + Prettier)
+- **Biome**: Unified linter and formatter (primary)
+- **ESLint**: Additional linting with custom plugins
+- **Oxlint**: Fast Rust-based linter for additional checks
 - **Vitest**: Testing framework with coverage
 - **cspell**: Spell checker for code and documentation
 
@@ -206,8 +250,14 @@ Examples:
 
 ## Code Style
 
-We use [Biome](https://biomejs.dev/) for linting and formatting:
+We use multiple linting tools for comprehensive code quality:
 
+**Primary Tools:**
+- **[Biome](https://biomejs.dev/)**: Main linter and formatter
+- **[Oxlint](https://oxc.rs/)**: Fast Rust-based linter for additional checks
+- **ESLint**: Additional linting with custom plugins (zod-import, no-type-assertion)
+
+**Code Style:**
 - 2 spaces for indentation
 - Semicolons required
 - Double quotes for strings
@@ -265,24 +315,32 @@ pnpm test src/parsers/                     # Test all parsers
 
 ### Recent Improvements
 
-- **Cursor Parser**: Updated to support specification changes with 4 rule types (always, manual, specificFiles, intelligently)
-- **Cursor Generator**: Updated with cursorRuleType field priority
-- **Type Safety**: Improved type safety by replacing `any` types with `unknown` and proper type guards
-- **Test Suite**: Added comprehensive tests covering error handling and edge cases
+- **Simplified Architecture**: Removed 5 specialized .rulesync rule files to streamline project structure
+- **Enhanced Frontmatter**: Updated init-rulesync command with comprehensive frontmatter specification
+- **Expanded Tool Support**: Added support for AugmentCode, JetBrains Junie, and Kiro IDE
+- **Serial Execution**: Changed research-tool-specs command from parallel to serial execution for better stability
+- **Improved Organization**: Reorganized generators into rules/, mcp/, and ignore/ subdirectories
+- **Enhanced Testing**: Comprehensive test coverage across all modules with co-located test files
+- **Type Safety**: Improved type safety with Zod schemas and proper type guards
+- **Development Tooling**: Added Oxlint for additional code quality checks alongside Biome and ESLint
 
 ## Adding New AI Tools
 
-To add support for a new AI tool (see the recent addition of `geminicli` as a reference):
+To add support for a new AI tool (see the recent additions of `augmentcode`, `junie`, `kiro` as references):
 
-1. **Create generator**: Add `src/generators/newtool.ts`
+1. **Create generators**: Add files in appropriate subdirectories:
+   - `src/generators/rules/newtool.ts` (standard rules)
+   - `src/generators/mcp/newtool.ts` (MCP configurations, if applicable)
+   - `src/generators/ignore/newtool.ts` (ignore files, if applicable)
 2. **Create parser**: Add `src/parsers/newtool.ts` for import functionality
-3. **Implement interfaces**: Export async functions following the patterns
+3. **Implement interfaces**: Export async functions following the established patterns
 4. **Add to core**: Update `src/core/generator.ts` and `src/core/importer.ts`
 5. **Add CLI options**: Update `src/cli/index.ts` for both generate and import commands
-6. **Update types**: Add to `ToolTarget` in `src/types/rules.ts`
+6. **Update types**: Add to `ALL_TOOL_TARGETS` in `src/types/tool-targets.ts`
 7. **Update config**: Add output path in `src/utils/config.ts`
-8. **Add tests**: Create `src/generators/newtool.test.ts` and `src/parsers/newtool.test.ts`
+8. **Add tests**: Create comprehensive test files for all generators and parsers
 9. **Update docs**: Add to README.md and README.ja.md
+10. **Add specifications**: Create rule specification files in `.rulesync/` directory
 
 ### Generator Interface Pattern
 
