@@ -1,14 +1,24 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseCursorConfiguration } from "./cursor.js";
 
-const testDir = join(process.cwd(), "test-tmp-cursor");
+let testDir: string;
 
 describe("cursor parser", () => {
   beforeEach(() => {
+    // Create unique test directory per test
+    testDir = join(
+      process.cwd(),
+      `test-tmp-cursor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    );
     rmSync(testDir, { recursive: true, force: true });
     mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    // Clean up unique test directory
+    rmSync(testDir, { recursive: true, force: true });
   });
 
   describe("parseCursorConfiguration", () => {
