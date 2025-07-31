@@ -167,6 +167,13 @@
         "whatwg",
         "wrappy",
         "wscript",
-        "XVCJ"
+        "XVCJ",
+        "codexignore",
+        "oneline",
+        "tfvars",
+        "uvicorn",
+        "rmulligan",
+        "asctime",
+        "levelname"
     ]
 }
