@@ -56,7 +56,7 @@ pnpm format
 # フォーマットをチェック
 pnpm format:check
 
-# リントとフォーマットの両方を実行
+# 包括的チェック（Biome + Oxlint + ESLint + TypeScript）
 pnpm check
 
 # リントとフォーマット問題を修正
@@ -164,9 +164,15 @@ rulesync/
 - **gray-matter**: Markdownファイルのフロントマターパーシング（YAML、TOML、JSON対応）
 - **marked**: Markdownのパーシングとレンダリング
 - **chokidar**: 高性能な`watch`コマンド用のファイル監視
+- **c12**: 複数フォーマットサポートの設定読み込み
+- **micromatch**: ファイルフィルタリング用のglobパターンマッチング
+- **zod**: ランタイム型検証とスキーマ定義
+- **js-yaml**: YAMLパーシングと文字列化
 - **tsup**: ビルドシステム（CJSとESMの両方を出力）
 - **tsx**: 開発用TypeScript実行
-- **Biome**: 統合リンターとフォーマッター（ESLint + Prettierの代替）
+- **Biome**: 統合リンターとフォーマッター（メイン）
+- **ESLint**: カスタムプラグインによる追加リンティング
+- **Oxlint**: 追加チェック用の高速Rustベースリンター
 - **Vitest**: カバレッジ付きテストフレームワーク
 - **cspell**: コードとドキュメント用のスペルチェッカー
 
@@ -244,8 +250,14 @@ type(scope): description
 
 ## コードスタイル
 
-リントとフォーマットに[Biome](https://biomejs.dev/)を使用しています:
+包括的なコード品質のために複数のリンティングツールを使用しています:
 
+**メインツール:**
+- **[Biome](https://biomejs.dev/)**: メインリンターとフォーマッター
+- **[Oxlint](https://oxc.rs/)**: 追加チェック用の高速Rustベースリンター
+- **ESLint**: カスタムプラグインによる追加リンティング (zod-import, no-type-assertion)
+
+**コードスタイル:**
 - インデントは2スペース
 - セミコロン必須
 - 文字列は二重引用符
@@ -303,24 +315,32 @@ pnpm test src/parsers/                     # すべてのパーサーのテス�
 
 ### 最近の改善
 
-- **Cursorパーサー**: 仕様変更に対応し、4つのルールタイプ（always, manual, specificFiles, intelligently）をサポート
-- **Cursorジェネレーター**: cursorRuleTypeフィールドの優先処理に対応
-- **型安全性**: `any`型を`unknown`型に置き換え、適切な型ガードで型安全性を向上
-- **テストスイート**: 包括的なテストを追加し、エラーハンドリングやエッジケースを網羅
+- **簡素化されたアーキテクチャ**: 5つの専門.rulesyncルールファイルを削除し、プロジェクト構造を合理化
+- **強化されたフロントマター**: init-rulesyncコマンドに包括的なフロントマター仕様を追加
+- **ツールサポートの拡大**: AugmentCode、JetBrains Junie、Kiro IDEのサポートを追加
+- **シリアル実行**: research-tool-specsコマンドを並列からシリアル実行に変更し、安定性を向上
+- **改善された組織化**: ジェネレーターをrules/、mcp/、ignore/サブディレクトリに組織化
+- **強化されたテスト**: ソースと同じ場所に配置されたテストファイルで全モジュールを包括的にカバー
+- **型安全性**: Zodスキーマと適切な型ガードで型安全性を向上
+- **開発ツール**: Biome、ESLintと並んで追加のコード品質チェックのOxlintを追加
 
 ## 新しいAIツールの追加
 
-新しいAIツールのサポートを追加するには（最近追加された`geminicli`を参考として）:
+新しいAIツールのサポートを追加するには（最近追加された`augmentcode`、`junie`、`kiro`を参考として）:
 
-1. **ジェネレーターを作成**: `src/generators/newtool.ts`を追加
+1. **ジェネレーターを作成**: 適切なサブディレクトリにファイルを追加:
+   - `src/generators/rules/newtool.ts` （標準ルール）
+   - `src/generators/mcp/newtool.ts` （MCP設定、該当する場合）
+   - `src/generators/ignore/newtool.ts` （ignoreファイル、該当する場合）
 2. **パーサーを作成**: インポート機能用に`src/parsers/newtool.ts`を追加
-3. **インターフェースを実装**: パターンに従って非同期関数をエクスポート
+3. **インターフェースを実装**: 確立されたパターンに従って非同期関数をエクスポート
 4. **コアに追加**: `src/core/generator.ts`と`src/core/importer.ts`を更新
 5. **CLIオプションを追加**: generateとimportコマンドの両方で`src/cli/index.ts`を更新
-6. **型を更新**: `src/types/rules.ts`の`ToolTarget`に追加
+6. **型を更新**: `src/types/tool-targets.ts`の`ALL_TOOL_TARGETS`に追加
 7. **設定を更新**: `src/utils/config.ts`で出力パスを追加
-8. **テストを追加**: `src/generators/newtool.test.ts`と`src/parsers/newtool.test.ts`を作成
+8. **テストを追加**: すべてのジェネレーターとパーサーの包括的なテストファイルを作成
 9. **ドキュメントを更新**: README.mdとREADME.ja.mdに追加
+10. **仕様を追加**: `.rulesync/`ディレクトリにルール仕様ファイルを作成
 
 ### ジェネレーターインターフェースパターン
 
