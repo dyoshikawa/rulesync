@@ -15,6 +15,7 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
+- **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
@@ -98,11 +99,12 @@ Enable hybrid development workflows combining multiple AI tools:
 - Cursor for refactoring
 - Claude Code for architecture design
 - Cline for debugging assistance
+- OpenAI Codex CLI for GPT-4 powered development
 - Gemini CLI for intelligent code analysis
 - JetBrains Junie for autonomous AI coding
 
 ### 🔓 **No Vendor Lock-in**
-Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files (`.github/instructions/`, `.cursor/rules/`, `.clinerules/`, `CLAUDE.md`, `GEMINI.md`, `.junie/guidelines.md`, etc.) as-is.
+Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files (`.github/instructions/`, `.cursor/rules/`, `.clinerules/`, `CLAUDE.md`, `codex.md`, `GEMINI.md`, `.junie/guidelines.md`, etc.) as-is.
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
@@ -135,6 +137,59 @@ rulesync supports **Custom Steering Documents** and **AI Ignore Files** for Kiro
 - **Agent hooks**: Automated context application
 
 This division of responsibility ensures that rulesync enhances Kiro's capabilities without duplicating its core functionality.
+
+## OpenAI Codex CLI Integration
+
+### Hierarchical Memory System
+
+rulesync supports **OpenAI Codex CLI**'s hierarchical memory system, which provides persistent context and project-specific rules to GPT-4 powered development workflows.
+
+**Key Features**:
+- **Hierarchical Instructions**: Global user instructions → Project-level instructions → Directory-specific instructions
+- **MCP Integration**: Model Context Protocol support through wrapper servers for extended functionality  
+- **GPT-4 Models**: Support for GPT-4, GPT-4 Turbo, o1-mini, and other OpenAI models
+- **Plain Markdown Format**: Clean, readable instruction files without complex frontmatter
+- **Community Ignore Support**: Optional `.codexignore` file for excluding sensitive files from AI access
+
+### File Structure
+
+rulesync generates the following files for OpenAI Codex CLI:
+
+- **`codex.md`**: Main project-level instructions (generated from root rules)
+- **`<filename>.md`**: Additional instruction files (generated from non-root rules)
+- **`.codex/mcp-config.json`**: MCP server configuration for wrapper servers
+- **`.codexignore`**: Optional ignore file for community tools and enhanced privacy
+
+### Usage with OpenAI Models
+
+OpenAI Codex CLI works with various OpenAI models:
+- **GPT-4**: Best for complex reasoning and architecture decisions
+- **GPT-4 Turbo**: Optimized for performance and cost efficiency
+- **o1-mini**: Specialized for coding tasks and problem-solving
+- **GPT-4o-mini**: Balanced performance for everyday development tasks
+
+The hierarchical memory system ensures consistent coding standards and project context across all model interactions.
+
+### Example Usage
+
+Generate OpenAI Codex CLI configuration files:
+
+```bash
+# Generate only for OpenAI Codex CLI
+npx rulesync generate --codexcli
+
+# Generate with MCP configuration for wrapper servers
+npx rulesync generate --codexcli --verbose
+
+# Generate in specific directory (useful for monorepos)
+npx rulesync generate --codexcli --base-dir ./packages/frontend
+```
+
+This will create:
+- `codex.md` with your project-level instructions
+- Additional `.md` files for specific rule categories  
+- `.codex/mcp-config.json` for MCP wrapper server integration
+- `.codexignore` for enhanced privacy control (if `.rulesyncignore` exists)
 
 ## Claude Code Integration
 
@@ -218,6 +273,7 @@ npx rulesync generate --copilot
 npx rulesync generate --cursor  
 npx rulesync generate --cline
 npx rulesync generate --claudecode
+npx rulesync generate --codexcli
 npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
@@ -228,7 +284,7 @@ npx rulesync generate --kiro
 npx rulesync generate --delete
 
 # Clean build for specific tools
-npx rulesync generate --copilot --cursor --delete
+npx rulesync generate --copilot --cursor --codexcli --delete
 
 # Verbose output
 npx rulesync generate --verbose
@@ -244,7 +300,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: Remove all existing generated files before creating new ones
 - `--verbose`: Show detailed output during generation process
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: Generate only for specified tools
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--codexcli`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: Generate only for specified tools
 - `--base-dir <paths>`: Generate configuration files in specified base directories (comma-separated for multiple paths). Useful for monorepo setups where you want to generate tool-specific configurations in different project directories.
 - `--config <path>`: Use a specific configuration file
 - `--no-config`: Disable configuration file loading
@@ -266,7 +322,7 @@ rulesync supports configuration files to avoid repetitive command-line arguments
 ```jsonc
 {
   // List of tools to generate configurations for
-  "targets": ["copilot", "cursor", "claudecode"],
+  "targets": ["copilot", "cursor", "claudecode", "codexcli"],
   
   // Tools to exclude from generation (overrides targets)
   "exclude": ["roo"],
@@ -302,7 +358,7 @@ rulesync supports configuration files to avoid repetitive command-line arguments
 import type { ConfigOptions } from "rulesync";
 
 const config: ConfigOptions = {
-  targets: ["copilot", "cursor", "claudecode"],
+  targets: ["copilot", "cursor", "claudecode", "codexcli"],
   exclude: ["roo"],
   outputPaths: {
     copilot: ".github/copilot-instructions.md"
@@ -537,6 +593,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 | **Cursor** | `.cursor/rules/*.mdc` | MDC (YAML header + Markdown) | Root: `cursorRuleType: always`<br>Non-root: `cursorRuleType: specificFiles` (with globs)<br>Non-root: `cursorRuleType: intelligently` (with description)<br>Non-root: `cursorRuleType: manual` (default) |
 | **Cline** | `.clinerules/*.md` | Plain Markdown | Both levels use same format |
 | **Claude Code** | `./CLAUDE.md` (root)<br>`.claude/memories/*.md` (non-root) | Plain Markdown | Root goes to CLAUDE.md<br>Non-root go to separate memory files<br>CLAUDE.md includes `@filename` references |
+| **OpenAI Codex CLI** | `codex.md` (root)<br>`<filename>.md` (non-root) | Plain Markdown | Root goes to codex.md<br>Non-root go to separate instruction files<br>Hierarchical memory system |
 | **AugmentCode** | `.augment/rules/*.md` | Markdown with YAML frontmatter | Root: `type: always`<br>Non-root: `type: auto` (with description) or `type: manual` (default) |
 | **Roo Code** | `.roo/rules/*.md` | Plain Markdown | Both levels use same format with description header |
 | **Gemini CLI** | `GEMINI.md` (root)<br>`.gemini/memories/*.md` (non-root) | Plain Markdown | Root goes to GEMINI.md<br>Non-root go to separate memory files<br>GEMINI.md includes `@filename` references |
@@ -567,6 +624,7 @@ rulesync can also manage MCP server configurations for supported AI tools. This 
 - **GitHub Copilot** (`.vscode/mcp.json`)
 - **Cursor** (`.cursor/mcp.json`)
 - **Cline** (`.cline/mcp.json`)
+- **OpenAI Codex CLI** (`.codex/mcp-config.json`)
 - **Gemini CLI** (`.gemini/settings.json`)
 - **JetBrains Junie** (`.junie/mcp.json`)
 - **Kiro IDE** (`.kiro/mcp.json`)
@@ -640,7 +698,7 @@ MCP configurations are generated alongside rule files:
 npx rulesync generate
 
 # Generate only for specific tools
-npx rulesync generate --claudecode --cursor --junie --kiro
+npx rulesync generate --claudecode --cursor --codexcli --junie --kiro
 
 # Generate in specific directories (monorepo)
 npx rulesync generate --base-dir ./packages/frontend

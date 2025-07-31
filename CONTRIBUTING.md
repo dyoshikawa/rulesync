@@ -86,7 +86,7 @@ The project has been simplified with a streamlined .rulesync directory structure
 └── specification-[tool]-[type].md  # Tool-specific specifications
     # Types: rules, mcp, ignore
     # Tools: augmentcode, copilot, cursor, cline, claudecode, 
-    #        geminicli, junie, kiro, roo
+    #        codexcli, geminicli, junie, kiro, roo
 ```
 
 **Key Changes**: Removed 5 specialized rule files (build-tooling.md, cli-development.md, docs-maintenance.md, mcp-support.md, security-quality.md) to simplify the rule structure.
@@ -122,6 +122,7 @@ rulesync/
 │   │   │   ├── cursor.ts      # Cursor Project Rules (MDC format)
 │   │   │   ├── cline.ts       # Cline Rules
 │   │   │   ├── claudecode.ts  # Claude Code Memory (CLAUDE.md + memories)
+│   │   │   ├── codexcli.ts    # OpenAI Codex CLI Rules (codex.md hierarchy)
 │   │   │   ├── geminicli.ts   # Gemini CLI configuration (GEMINI.md + memories)
 │   │   │   ├── junie.ts       # JetBrains Junie Guidelines
 │   │   │   ├── kiro.ts        # Kiro IDE Custom Steering Documents
@@ -137,6 +138,7 @@ rulesync/
 │   │   │                  # Supports 4 rule types: always, manual, specificFiles, intelligently
 │   │   ├── cline.ts       # Parse Cline configurations (.cline/instructions.md)
 │   │   ├── claudecode.ts  # Parse Claude Code configurations (CLAUDE.md, .claude/memories/*.md)
+│   │   ├── codexcli.ts    # Parse OpenAI Codex CLI configurations (codex.md hierarchy)
 │   │   ├── geminicli.ts   # Parse Gemini CLI configurations (GEMINI.md, .gemini/memories/*.md)
 │   │   ├── junie.ts       # Parse JetBrains Junie configurations
 │   │   ├── kiro.ts        # Parse Kiro IDE configurations
@@ -317,21 +319,29 @@ pnpm test src/parsers/                     # Test all parsers
 
 - **Simplified Architecture**: Removed 5 specialized .rulesync rule files to streamline project structure
 - **Enhanced Frontmatter**: Updated init-rulesync command with comprehensive frontmatter specification
-- **Expanded Tool Support**: Added support for AugmentCode, JetBrains Junie, and Kiro IDE
+- **Expanded Tool Support**: Added support for AugmentCode, JetBrains Junie, Kiro IDE, and OpenAI Codex CLI
+- **Advanced MCP Integration**: Complete MCP (Model Context Protocol) support with wrapper server configurations, multiple transport types (stdio, SSE, HTTP), and environment variable handling
+- **Hierarchical Rule System**: Support for multi-level rule precedence (global → project → directory) as implemented in OpenAI Codex CLI
 - **Serial Execution**: Changed research-tool-specs command from parallel to serial execution for better stability
 - **Improved Organization**: Reorganized generators into rules/, mcp/, and ignore/ subdirectories
-- **Enhanced Testing**: Comprehensive test coverage across all modules with co-located test files
+- **Enhanced Testing**: Comprehensive test coverage across all modules with co-located test files (1,200+ lines of test code for new tools)
 - **Type Safety**: Improved type safety with Zod schemas and proper type guards
 - **Development Tooling**: Added Oxlint for additional code quality checks alongside Biome and ESLint
 
 ## Adding New AI Tools
 
-To add support for a new AI tool (see the recent additions of `augmentcode`, `junie`, `kiro` as references):
+To add support for a new AI tool (see the recent additions of `augmentcode`, `junie`, `kiro`, `codexcli` as references):
 
 1. **Create generators**: Add files in appropriate subdirectories:
    - `src/generators/rules/newtool.ts` (standard rules)
    - `src/generators/mcp/newtool.ts` (MCP configurations, if applicable)
    - `src/generators/ignore/newtool.ts` (ignore files, if applicable)
+   
+   **Implementation Notes for MCP generators**:
+   - Use `shared-factory.ts` for consistent MCP configuration generation
+   - Support multiple transport types: stdio (command-based), SSE, HTTP
+   - Handle environment variable expansion for API keys
+   - Follow wrapper server patterns for third-party integrations
 2. **Create parser**: Add `src/parsers/newtool.ts` for import functionality
 3. **Implement interfaces**: Export async functions following the established patterns
 4. **Add to core**: Update `src/core/generator.ts` and `src/core/importer.ts`
@@ -339,8 +349,15 @@ To add support for a new AI tool (see the recent additions of `augmentcode`, `ju
 6. **Update types**: Add to `ALL_TOOL_TARGETS` in `src/types/tool-targets.ts`
 7. **Update config**: Add output path in `src/utils/config.ts`
 8. **Add tests**: Create comprehensive test files for all generators and parsers
+   - Aim for 250-350+ lines per test file for thorough coverage
+   - Test all transport types for MCP generators
+   - Include integration tests for parser functionality
+   - Update shared factory tests when modifying ignore patterns
 9. **Update docs**: Add to README.md and README.ja.md
 10. **Add specifications**: Create rule specification files in `.rulesync/` directory
+    - `specification-[tool]-rules.md`: Tool-specific rule format and file hierarchy
+    - `specification-[tool]-mcp.md`: MCP server configuration specification
+    - `specification-[tool]-ignore.md`: Ignore file patterns and behavior
 
 ### Generator Interface Pattern
 

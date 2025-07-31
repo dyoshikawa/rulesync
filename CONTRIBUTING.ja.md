@@ -86,7 +86,7 @@ pnpm typecheck
 └── specification-[tool]-[type].md  # ツール固有の仕様
     # タイプ: rules, mcp, ignore
     # ツール: augmentcode, copilot, cursor, cline, claudecode, 
-    #        geminicli, junie, kiro, roo
+    #        codexcli, geminicli, junie, kiro, roo
 ```
 
 **主要な変更**: 5つの専門ルールファイル（build-tooling.md, cli-development.md, docs-maintenance.md, mcp-support.md, security-quality.md）を削除し、ルール構造を簡素化しました。
@@ -122,6 +122,7 @@ rulesync/
 │   │   │   ├── cursor.ts      # Cursor Project Rules (MDCフォーマット)
 │   │   │   ├── cline.ts       # Cline Rules
 │   │   │   ├── claudecode.ts  # Claude Code Memory (CLAUDE.md + memories)
+│   │   │   ├── codexcli.ts    # OpenAI Codex CLI Rules (codex.md階層)
 │   │   │   ├── geminicli.ts   # Gemini CLI設定 (GEMINI.md + memories)
 │   │   │   ├── junie.ts       # JetBrains Junie Guidelines
 │   │   │   ├── kiro.ts        # Kiro IDE Custom Steering Documents
@@ -137,6 +138,7 @@ rulesync/
 │   │   │                  # 4つのルールタイプをサポート: always, manual, specificFiles, intelligently
 │   │   ├── cline.ts       # Cline設定のパース (.cline/instructions.md)
 │   │   ├── claudecode.ts  # Claude Code設定のパース (CLAUDE.md, .claude/memories/*.md)
+│   │   ├── codexcli.ts    # OpenAI Codex CLI設定のパース (codex.md階層)
 │   │   ├── geminicli.ts   # Gemini CLI設定のパース (GEMINI.md, .gemini/memories/*.md)
 │   │   ├── junie.ts       # JetBrains Junie設定のパース
 │   │   ├── kiro.ts        # Kiro IDE設定のパース
@@ -317,21 +319,29 @@ pnpm test src/parsers/                     # すべてのパーサーのテス�
 
 - **簡素化されたアーキテクチャ**: 5つの専門.rulesyncルールファイルを削除し、プロジェクト構造を合理化
 - **強化されたフロントマター**: init-rulesyncコマンドに包括的なフロントマター仕様を追加
-- **ツールサポートの拡大**: AugmentCode、JetBrains Junie、Kiro IDEのサポートを追加
+- **ツールサポートの拡大**: AugmentCode、JetBrains Junie、Kiro IDE、OpenAI Codex CLIのサポートを追加
+- **高度なMCP統合**: ラッパーサーバー設定、複数の転送タイプ（stdio、SSE、HTTP）、環境変数処理を含む完全なMCP（Model Context Protocol）サポート
+- **階層ルールシステム**: OpenAI Codex CLIで実装されているマルチレベルルール優先順位（グローバル → プロジェクト → ディレクトリ）のサポート
 - **シリアル実行**: research-tool-specsコマンドを並列からシリアル実行に変更し、安定性を向上
 - **改善された組織化**: ジェネレーターをrules/、mcp/、ignore/サブディレクトリに組織化
-- **強化されたテスト**: ソースと同じ場所に配置されたテストファイルで全モジュールを包括的にカバー
+- **強化されたテスト**: ソースと同じ場所に配置されたテストファイルで全モジュールを包括的にカバー（新ツール向けの1,200+行のテストコード）
 - **型安全性**: Zodスキーマと適切な型ガードで型安全性を向上
 - **開発ツール**: Biome、ESLintと並んで追加のコード品質チェックのOxlintを追加
 
 ## 新しいAIツールの追加
 
-新しいAIツールのサポートを追加するには（最近追加された`augmentcode`、`junie`、`kiro`を参考として）:
+新しいAIツールのサポートを追加するには（最近追加された`augmentcode`、`junie`、`kiro`、`codexcli`を参考として）:
 
 1. **ジェネレーターを作成**: 適切なサブディレクトリにファイルを追加:
    - `src/generators/rules/newtool.ts` （標準ルール）
    - `src/generators/mcp/newtool.ts` （MCP設定、該当する場合）
    - `src/generators/ignore/newtool.ts` （ignoreファイル、該当する場合）
+   
+   **MCPジェネレーターの実装注意事項**:
+   - 一貫したMCP設定生成のために`shared-factory.ts`を使用
+   - 複数の転送タイプをサポート: stdio（コマンドベース）、SSE、HTTP
+   - APIキー用の環境変数展開を処理
+   - サードパーティ統合のラッパーサーバーパターンに従う
 2. **パーサーを作成**: インポート機能用に`src/parsers/newtool.ts`を追加
 3. **インターフェースを実装**: 確立されたパターンに従って非同期関数をエクスポート
 4. **コアに追加**: `src/core/generator.ts`と`src/core/importer.ts`を更新
@@ -339,8 +349,15 @@ pnpm test src/parsers/                     # すべてのパーサーのテス�
 6. **型を更新**: `src/types/tool-targets.ts`の`ALL_TOOL_TARGETS`に追加
 7. **設定を更新**: `src/utils/config.ts`で出力パスを追加
 8. **テストを追加**: すべてのジェネレーターとパーサーの包括的なテストファイルを作成
+   - 徹底的なカバレッジのためにテストファイルあたり250-350+行を目指す
+   - MCPジェネレーターのすべての転送タイプをテスト
+   - パーサー機能の統合テストを含める
+   - ignoreパターンを変更する際は共有ファクトリーテストを更新
 9. **ドキュメントを更新**: README.mdとREADME.ja.mdに追加
 10. **仕様を追加**: `.rulesync/`ディレクトリにルール仕様ファイルを作成
+    - `specification-[tool]-rules.md`: ツール固有のルール形式とファイル階層
+    - `specification-[tool]-mcp.md`: MCPサーバー設定仕様
+    - `specification-[tool]-ignore.md`: ignoreファイルパターンと動作
 
 ### ジェネレーターインターフェースパターン
 

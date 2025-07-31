@@ -15,6 +15,7 @@ rulesyncは以下のAI開発ツールの**生成**と**インポート**の両�
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
+- **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
@@ -98,11 +99,12 @@ AI開発ツールは新しいツールが頻繁に登場し、急速に進化し
 - Cursor：リファクタリング
 - Claude Code：アーキテクチャ設計
 - Cline：デバッグ支援
+- OpenAI Codex CLI：GPT-4を活用した開発
 - Gemini CLI：知的コード解析
 - JetBrains Junie：自律的AIコーディング
 
 ### 🔓 **ベンダーロックインなし**
-ベンダーロックインを完全に回避できます。rulesyncの使用を停止することを決定した場合でも、生成されたルールファイル（`.github/instructions/`、`.cursor/rules/`、`.clinerules/`、`CLAUDE.md`、`GEMINI.md`、`.junie/guidelines.md`など）をそのまま使い続けることができます。
+ベンダーロックインを完全に回避できます。rulesyncの使用を停止することを決定した場合でも、生成されたルールファイル（`.github/instructions/`、`.cursor/rules/`、`.clinerules/`、`CLAUDE.md`、`codex.md`、`GEMINI.md`、`.junie/guidelines.md`など）をそのまま使い続けることができます。
 
 ### 🎯 **ツール間の一貫性**
 すべてのAIツールに一貫したルールを適用し、チーム全体のコード品質と開発体験を向上させます。
@@ -135,6 +137,59 @@ rulesyncは、Kiro IDEの組み込みプロジェクト管理システムを補�
 - **エージェントフック**: 自動化されたコンテキスト適用
 
 この責任分担により、rulesyncはKiroのコア機能を複製することなく、その機能を強化します。
+
+## OpenAI Codex CLI統合
+
+### 階層メモリシステム
+
+rulesyncは**OpenAI Codex CLI**の階層メモリシステムをサポートしており、GPT-4を活用した開発ワークフローに持続的なコンテキストとプロジェクト固有のルールを提供します。
+
+**主要機能**：
+- **階層インストラクション**: グローバルユーザーインストラクション → プロジェクトレベルインストラクション → ディレクトリ固有インストラクション
+- **MCP統合**: ラッパーサーバーを通じたModel Context Protocolサポートで機能拡張
+- **GPT-4モデル**: GPT-4、GPT-4 Turbo、o1-mini、その他のOpenAIモデルをサポート
+- **プレーンMarkdown形式**: 複雑なフロントマターなしのクリーンで読みやすいインストラクションファイル
+- **コミュニティIgnoreサポート**: 機密ファイルをAIアクセスから除外するオプションの`.codexignore`ファイル
+
+### ファイル構造
+
+rulesyncはOpenAI Codex CLI用に以下のファイルを生成します：
+
+- **`codex.md`**: メインのプロジェクトレベルインストラクション（ルートルールから生成）
+- **`<filename>.md`**: 追加のインストラクションファイル（非ルートルールから生成）
+- **`.codex/mcp-config.json`**: ラッパーサーバー用のMCPサーバー設定
+- **`.codexignore`**: コミュニティツールとプライバシー強化用のオプション除外ファイル
+
+### OpenAIモデルでの使用
+
+OpenAI Codex CLIは様々なOpenAIモデルで動作します：
+- **GPT-4**: 複雑な推論とアーキテクチャ決定に最適
+- **GPT-4 Turbo**: パフォーマンスとコスト効率を最適化
+- **o1-mini**: コーディングタスクと問題解決に特化
+- **GPT-4o-mini**: 日常的な開発タスクでバランスの取れたパフォーマンス
+
+階層メモリシステムにより、すべてのモデルとのやり取りで一貫したコーディング標準とプロジェクトコンテキストが保証されます。
+
+### 使用例
+
+OpenAI Codex CLI設定ファイルを生成：
+
+```bash
+# OpenAI Codex CLI専用で生成
+npx rulesync generate --codexcli
+
+# ラッパーサーバー用のMCP設定付きで生成
+npx rulesync generate --codexcli --verbose
+
+# 特定のディレクトリに生成（monorepoに便利）
+npx rulesync generate --codexcli --base-dir ./packages/frontend
+```
+
+これにより以下が作成されます：
+- `codex.md` プロジェクトレベルのインストラクション
+- 特定のルールカテゴリ用の追加`.md`ファイル
+- `.codex/mcp-config.json` MCPラッパーサーバー統合用
+- `.codexignore` プライバシー制御強化用（`.rulesyncignore`が存在する場合）
 
 ## Claude Code統合
 
@@ -218,6 +273,7 @@ npx rulesync generate --copilot
 npx rulesync generate --cursor  
 npx rulesync generate --cline
 npx rulesync generate --claudecode
+npx rulesync generate --codexcli
 npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
@@ -228,7 +284,7 @@ npx rulesync generate --kiro
 npx rulesync generate --delete
 
 # 特定ツール用のクリーンビルド
-npx rulesync generate --copilot --cursor --delete
+npx rulesync generate --copilot --cursor --codexcli --delete
 
 # 詳細出力
 npx rulesync generate --verbose
@@ -244,7 +300,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: 新しいファイルを作成する前に既存の生成済みファイルをすべて削除
 - `--verbose`: 生成プロセス中に詳細出力を表示
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: 指定されたツールのみ生成
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--codexcli`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: 指定されたツールのみ生成
 - `--base-dir <paths>`: 指定されたベースディレクトリに設定ファイルを生成（複数パスの場合はカンマ区切り）。異なるプロジェクトディレクトリにツール固有の設定を生成したいmonorepoセットアップに便利。
 - `--config <path>`: 特定の設定ファイルを使用
 - `--no-config`: 設定ファイルの読み込みを無効化
@@ -327,7 +383,7 @@ rulesyncは、繰り返しコマンドライン引数を避けるために設定
 ```jsonc
 {
   // 設定を生成するツールのリスト
-  "targets": ["copilot", "cursor", "claudecode"],
+  "targets": ["copilot", "cursor", "claudecode", "codexcli"],
   
   // 生成から除外するツール（targetsをオーバーライド）
   "exclude": ["roo"],
@@ -363,7 +419,7 @@ rulesyncは、繰り返しコマンドライン引数を避けるために設定
 import type { ConfigOptions } from "rulesync";
 
 const config: ConfigOptions = {
-  targets: ["copilot", "cursor", "claudecode"],
+  targets: ["copilot", "cursor", "claudecode", "codexcli"],
   exclude: ["roo"],
   outputPaths: {
     copilot: ".github/copilot-instructions.md"
@@ -535,6 +591,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 | **Cursor**         | `.cursor/rules/*.mdc`                                        | MDC (YAMLヘッダー + Markdown) | ルート: `cursorRuleType: always`<br>非ルート: `cursorRuleType: specificFiles` (globs指定時)<br>非ルート: `cursorRuleType: intelligently` (description指定時)<br>非ルート: `cursorRuleType: manual` (デフォルト) |
 | **Cline**          | `.clinerules/*.md`                                           | プレーンMarkdown              | 両レベルとも同じフォーマットを使用                                                                                                                                                                              |
 | **Claude Code**    | `./CLAUDE.md` (ルート)<br>`.claude/memories/*.md` (非ルート) | プレーンMarkdown              | ルートはCLAUDE.mdに移動<br>非ルートは別メモリファイルに移動<br>CLAUDE.mdは`@filename`参照を含む                                                                                                                 |
+| **OpenAI Codex CLI** | `codex.md` (ルート)<br>`<filename>.md` (非ルート) | プレーンMarkdown | ルートはcodex.mdに移動<br>非ルートは別インストラクションファイルに移動<br>階層メモリシステム |
 | **AugmentCode**    | `.augment/rules/*.md`                                        | YAMLフロントマター + Markdown | ルート: `type: always`<br>非ルート: `type: auto` (description指定時) または `type: manual` (デフォルト)                                                                                                        |
 | **Roo Code**       | `.roo/rules/*.md`                                            | プレーンMarkdown              | 両レベルとも説明ヘッダー付きの同じフォーマットを使用                                                                                                                                                            |
 | **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                      |
@@ -565,6 +622,7 @@ rulesyncは、対応するAIツール用のMCPサーバー設定も管理でき�
 - **GitHub Copilot** (`.vscode/mcp.json`)
 - **Cursor** (`.cursor/mcp.json`)
 - **Cline** (`.cline/mcp.json`)
+- **OpenAI Codex CLI** (`.codex/mcp-config.json`)
 - **Gemini CLI** (`.gemini/settings.json`)
 - **JetBrains Junie** (`.junie/mcp.json`)
 - **Kiro IDE** (`.kiro/mcp.json`)
@@ -638,7 +696,7 @@ MCP設定はルールファイルと一緒に生成されます：
 npx rulesync generate
 
 # 特定のツールのみ生成
-npx rulesync generate --claudecode --cursor --junie --kiro
+npx rulesync generate --claudecode --cursor --codexcli --junie --kiro
 
 # 特定のディレクトリに生成（monorepo）
 npx rulesync generate --base-dir ./packages/frontend
