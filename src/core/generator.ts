@@ -5,6 +5,7 @@ import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
 import { generateAugmentcodeLegacyConfig } from "../generators/rules/augmentcode-legacy.js";
 import { generateClaudecodeConfig } from "../generators/rules/claudecode.js";
 import { generateClineConfig } from "../generators/rules/cline.js";
+import { generateCodexConfig } from "../generators/rules/codexcli.js";
 import { generateCopilotConfig } from "../generators/rules/copilot.js";
 import { generateCursorConfig } from "../generators/rules/cursor.js";
 import { generateGeminiConfig } from "../generators/rules/geminicli.js";
@@ -90,6 +91,8 @@ async function generateForTool(
       return generateClineConfig(rules, config, baseDir);
     case "claudecode":
       return await generateClaudecodeConfig(rules, config, baseDir);
+    case "codexcli":
+      return generateCodexConfig(rules, config, baseDir);
     case "roo":
       return generateRooConfig(rules, config, baseDir);
     case "geminicli":

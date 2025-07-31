@@ -10,6 +10,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
       "augmentcode-legacy": "output",
       claudecode: "output",
       cline: "output",
+      codexcli: "output",
       copilot: "output",
       cursor: "output",
       geminicli: "output",

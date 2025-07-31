@@ -142,6 +142,7 @@ describe("config-loader", () => {
         cursor: ".cursor/rules",
         cline: ".clinerules",
         claudecode: ".",
+        codexcli: ".",
         roo: ".roo/rules",
         geminicli: ".gemini/memories",
         kiro: ".kiro/steering",

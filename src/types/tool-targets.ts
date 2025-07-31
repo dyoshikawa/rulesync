@@ -7,6 +7,7 @@ export const ALL_TOOL_TARGETS = [
   "cursor",
   "cline",
   "claudecode",
+  "codexcli",
   "roo",
   "geminicli",
   "kiro",

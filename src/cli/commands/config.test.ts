@@ -44,7 +44,7 @@ describe("config command", () => {
       );
       expect(console.log).toHaveBeenCalledWith("\nAI Rules Directory: .rulesync");
       expect(console.log).toHaveBeenCalledWith(
-        "\nDefault Targets: augmentcode, copilot, cursor, cline, claudecode, roo, geminicli, kiro",
+        "\nDefault Targets: augmentcode, copilot, cursor, cline, claudecode, codexcli, roo, geminicli, kiro, junie",
       );
     });
 

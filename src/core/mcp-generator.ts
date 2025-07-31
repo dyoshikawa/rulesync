@@ -3,6 +3,7 @@ import {
   generateAugmentcodeMcp,
   generateClaudeMcp,
   generateClineMcp,
+  generateCodexMcp,
   generateCopilotMcp,
   generateCursorMcp,
   generateGeminiCliMcp,
@@ -65,6 +66,11 @@ export async function generateMcpConfigs(
       tool: "cline-project",
       path: path.join(targetRoot, ".cline", "mcp.json"),
       generate: () => generateClineMcp(config),
+    },
+    {
+      tool: "codexcli-project",
+      path: path.join(targetRoot, ".codex", "config.json"),
+      generate: () => generateCodexMcp(config),
     },
     {
       tool: "gemini-project",
@@ -194,6 +200,8 @@ export async function generateMcpConfigurations(
       (await import("../generators/mcp/cursor.js")).generateCursorMcpConfiguration(servers, dir),
     cline: async (servers, dir) =>
       (await import("../generators/mcp/cline.js")).generateClineMcpConfiguration(servers, dir),
+    codexcli: async (servers, dir) =>
+      (await import("../generators/mcp/codexcli.js")).generateCodexMcpConfiguration(servers, dir),
     roo: async (servers, dir) =>
       (await import("../generators/mcp/roo.js")).generateRooMcpConfiguration(servers, dir),
     geminicli: async (servers, dir) =>

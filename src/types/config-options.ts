@@ -8,6 +8,7 @@ export const OutputPathsSchema = z.object({
   cursor: z.optional(z.string()),
   cline: z.optional(z.string()),
   claudecode: z.optional(z.string()),
+  codexcli: z.optional(z.string()),
   roo: z.optional(z.string()),
   geminicli: z.optional(z.string()),
   kiro: z.optional(z.string()),
