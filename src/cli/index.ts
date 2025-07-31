@@ -50,6 +50,7 @@ program
   .option("--copilot", "Generate only for GitHub Copilot")
   .option("--cursor", "Generate only for Cursor")
   .option("--cline", "Generate only for Cline")
+  .option("--codexcli", "Generate only for OpenAI Codex CLI")
   .option("--claudecode", "Generate only for Claude Code")
   .option("--roo", "Generate only for Roo Code")
   .option("--geminicli", "Generate only for Gemini CLI")
@@ -70,6 +71,7 @@ program
     if (options.copilot) tools.push("copilot");
     if (options.cursor) tools.push("cursor");
     if (options.cline) tools.push("cline");
+    if (options.codexcli) tools.push("codexcli");
     if (options.claudecode) tools.push("claudecode");
     if (options.roo) tools.push("roo");
     if (options.geminicli) tools.push("geminicli");

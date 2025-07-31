@@ -69,7 +69,7 @@ export async function generateMcpConfigs(
     },
     {
       tool: "codexcli-project",
-      path: path.join(targetRoot, ".codex", "config.json"),
+      path: path.join(targetRoot, ".codex", "mcp-config.json"),
       generate: () => generateCodexMcp(config),
     },
     {
@@ -120,6 +120,7 @@ export async function generateMcpConfigs(
         generator.tool.includes("augmentcode") ||
         generator.tool.includes("claude") ||
         generator.tool.includes("cline") ||
+        generator.tool.includes("codexcli") ||
         generator.tool.includes("cursor") ||
         generator.tool.includes("gemini") ||
         generator.tool.includes("junie") ||

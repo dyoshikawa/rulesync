@@ -20,6 +20,7 @@ export const McpServerBaseSchema = z.object({
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
+  headers: z.optional(z.record(z.string(), z.string())),
 });
 
 export const RulesyncMcpServerSchema = z.extend(McpServerBaseSchema, {
