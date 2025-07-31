@@ -46,3 +46,9 @@ You must create exactly three files for each research task:
 Each file must include the required frontmatter structure and provide comprehensive coverage of the respective specification area. Focus on practical implementation details, configuration examples, and clear explanations that will enable developers to properly configure and use the AI tool.
 
 Your documentation should serve as the definitive reference for integrating the researched AI tool into the rulesync ecosystem.
+
+**Post-Completion Actions:**
+After successfully creating all three specification files, you must commit your work:
+- Stage the created specification files
+- Create a descriptive commit message following the project's commit conventions
+- Execute the git commit to preserve your research and documentation work
