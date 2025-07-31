@@ -14,6 +14,8 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.clineignore",
     "**/CLAUDE.md",
     "**/.claude/memories/",
+    "**/codex.md",
+    "**/.codexignore",
     "**/.roo/rules/",
     "**/.rooignore",
     "**/.copilotignore",
@@ -32,6 +34,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.cursor/mcp.json",
     "**/.cline/mcp.json",
     "**/.vscode/mcp.json",
+    "**/.codex/mcp-config.json",
     "**/.gemini/settings.json",
     "**/.roo/mcp.json",
   ];
