@@ -1,136 +1,136 @@
 ---
 root: false
 targets: ["copilot"]
-description: "GitHub Copilot の Content exclusion 機能に関する仕様書"
+description: "GitHub Copilot Content exclusion feature specification"
 globs: ["**/*.yml", "**/*.yaml"]
 ---
 
-# GitHub Copilot Ignore ファイル仕様
+# GitHub Copilot Ignore File Specification
 
-## 重要な前提
+## Important Prerequisites
 
-**GitHub Copilotには従来の「ignoreファイル」は存在しません。**
-- `.gitignore`のようなファイルベースの無視設定はサポートされていない
-- 代わりに「Content exclusion（コンテンツ除外）」機能を使用
-- 設定はGitHubのWeb UI上でYAML形式で管理
+**GitHub Copilot does not have traditional "ignore files".**
+- File-based ignore settings like `.gitignore` are not supported
+- Instead, use the "Content exclusion" feature
+- Settings are managed in YAML format on GitHub's Web UI
 
-## Content exclusion の仕様
+## Content Exclusion Specification
 
-### 利用条件
-- **対象プラン**: Copilot Business または Copilot Enterprise
-- **権限**: Repository Admin / Organization Owner / Enterprise Owner
-- **対象IDE**: VS Code、Visual Studio、JetBrains IDE等（Vimは補完のみ）
-- **反映時間**: 設定変更後30分以内に自動配信
+### Usage Requirements
+- **Target Plans**: Copilot Business or Copilot Enterprise
+- **Permissions**: Repository Admin / Organization Owner / Enterprise Owner
+- **Target IDEs**: VS Code, Visual Studio, JetBrains IDEs, etc. (Vim completion only)
+- **Reflection Time**: Automatically distributed within 30 minutes after setting changes
 
-### 制限事項
-- シンボリックリンクは使用不可
-- IDEが推論的に取得した型情報は完全遮断不可
+### Limitations
+- Symbolic links cannot be used
+- Type information inferentially obtained by IDEs cannot be completely blocked
 
-## 設定場所と方法
+## Setting Locations and Methods
 
-### 1. リポジトリ設定（最も一般的）
-- **場所**: GitHub → Settings → Copilot → Content exclusion
-- **項目**: "Paths to exclude in this repository"
-- **形式**: YAML リスト形式
+### 1. Repository Settings (Most Common)
+- **Location**: GitHub → Settings → Copilot → Content exclusion
+- **Item**: "Paths to exclude in this repository"
+- **Format**: YAML list format
 
-### 2. 組織設定
-- **場所**: Organization Settings → Copilot → Content exclusion
-- **範囲**: 組織内の複数リポジトリに適用
+### 2. Organization Settings
+- **Location**: Organization Settings → Copilot → Content exclusion
+- **Scope**: Applied to multiple repositories within the organization
 
-### 3. Enterprise設定
-- **場所**: Enterprise Policies → Copilot → Content exclusion
-- **範囲**: Enterprise全体に適用
+### 3. Enterprise Settings
+- **Location**: Enterprise Policies → Copilot → Content exclusion
+- **Scope**: Applied to entire Enterprise
 
-## YAML設定の構文
+## YAML Configuration Syntax
 
-### 基本ルール
-- 各行は `- "パターン"` 形式（必ず引用符で囲む）
-- コメントは `#` から行末まで
-- 大文字小文字を区別しない（fnmatch準拠）
+### Basic Rules
+- Each line in `- "pattern"` format (must be enclosed in quotes)
+- Comments from `#` to end of line
+- Case insensitive (fnmatch compliant)
 
-### パスパターン
-- `先頭/` : リポジトリルート基準の絶対パス
-- `*` : ファイル名または1階層の任意文字列
-- `**` : 階層をまたいだ任意ディレクトリ
-- `?` : 任意の1文字
+### Path Patterns
+- `Leading /` : Absolute path based on repository root
+- `*` : Filename or arbitrary string for one level
+- `**` : Arbitrary directories across hierarchies
+- `?` : Any single character
 
-### リポジトリ設定例
+### Repository Configuration Examples
 ```yaml
-# 特定ファイルを除外
+# Exclude specific file
 - "/src/some-dir/kernel.rs"
 
-# どこにあってもsecrets.jsonを除外
+# Exclude secrets.json wherever it is
 - "secrets.json"
 
-# ワイルドカードパターン
+# Wildcard patterns
 - "secret*"
 - "*.cfg"
 
-# ディレクトリを再帰的に除外
+# Recursively exclude directory
 - "/scripts/**"
 ```
 
-### 組織/Enterprise設定例
+### Organization/Enterprise Configuration Examples
 
-#### 任意の場所を除外
+#### Exclude arbitrary locations
 ```yaml
 "*":
   - "/home/runner/.ssh/**"
   - "/etc/**"
 ```
 
-#### 特定リポジトリ内のみ除外
+#### Exclude only within specific repository
 ```yaml
 https://github.com/org/example-repo.git:
   - "/internal/**"
   - "private*.md"
 ```
 
-### リポジトリ参照の注意点
-- HTTP(S) / git:// / SSH等の形式すべて対応
-- ユーザ名やポート番号は無視される
+### Repository Reference Notes
+- All formats HTTP(S) / git:// / SSH are supported
+- Username and port numbers are ignored
 
-## 設定の反映確認
+## Verifying Setting Reflection
 
 ### VS Code
 ```
 Command Palette → "Developer: Reload Window"
 ```
 
-### その他IDE
-- 再起動で設定取得
+### Other IDEs
+- Restart to obtain settings
 
-## 非公式の`.copilotignore`について
+## About Unofficial `.copilotignore`
 
-### コミュニティ実装
-- **mattickx/copilotignore-vscode** (VS Code拡張)
-- **panozzaj/vim-copilot-ignore** (Vim プラグイン)
+### Community Implementations
+- **mattickx/copilotignore-vscode** (VS Code extension)
+- **panozzaj/vim-copilot-ignore** (Vim plugin)
 
-### 制限事項
-- 公式サポートなし
-- ローカルでのCopilot無効化のみ
-- 他の開発者には効果なし
-- GitHubサーバ側の除外ではない
+### Limitations
+- No official support
+- Local Copilot disabling only
+- No effect on other developers
+- Not GitHub server-side exclusion
 
-## ベストプラクティス
+## Best Practices
 
-### セキュリティ
-1. 機密情報は必ずContent exclusionで除外
-2. 組織レベルでの一貫した除外ルール設定
-3. 定期的な除外設定の見直し
+### Security
+1. Always exclude confidential information with Content exclusion
+2. Set consistent exclusion rules at organization level
+3. Regularly review exclusion settings
 
-### パフォーマンス
-1. 大きなバイナリファイルや生成されたファイルを除外
-2. テストフィクスチャやモックデータの除外
-3. サードパーティライブラリの除外
+### Performance
+1. Exclude large binary files and generated files
+2. Exclude test fixtures and mock data
+3. Exclude third-party libraries
 
-### 管理運用
-1. 除外パターンの文書化
-2. チーム内での除外ルール共有
-3. 設定変更時の影響範囲確認
+### Management Operations
+1. Document exclusion patterns
+2. Share exclusion rules within team
+3. Verify impact scope when changing settings
 
-## 技術仕様詳細
-- **パターンマッチング**: fnmatch準拠
-- **文字エンコーディング**: UTF-8
-- **パス区切り**: `/`（Windows環境でも統一）
-- **最大設定数**: 公式制限は未公表（実用的な範囲で制限あり）
+## Technical Specification Details
+- **Pattern Matching**: fnmatch compliant
+- **Character Encoding**: UTF-8
+- **Path Separator**: `/` (unified even in Windows environment)
+- **Maximum Settings**: Official limit unpublished (limited within practical range)

@@ -148,6 +148,18 @@ Refer to the [Claude Code slash commands documentation](https://docs.anthropic.c
 
 ```markdown
 Analyze this project's codebase and update .rulesync/overview.md files as needed.
+
+Please ensure the following frontmatter is defined in .rulesync/overview.md:
+
+---
+root: true | false               # Required: Rule level (true for overview, false for details)
+targets: ["*"]                   # Required: Target tools (* = all, or specific tools)
+description: "" # Required: Rule description
+globs: ["**/*"]                  # Required: File patterns
+cursorRuleType: "always"         # Optional: Cursor-specific rule type (always, manual, specificFiles, intelligently)
+---
+
+In .rulesync/overview.md, root should be set to true. Please write an appropriate description in the description field.
 ```
 
 ### Integration Benefits
@@ -271,7 +283,17 @@ rulesync supports configuration files to avoid repetitive command-line arguments
   "delete": false,
   
   // Enable verbose output
-  "verbose": true
+  "verbose": true,
+  
+  // Directory containing rule files
+  "aiRulesDir": ".rulesync",
+  
+  // Watch configuration
+  "watch": {
+    "enabled": false,
+    "interval": 1000,
+    "ignore": ["node_modules/**", ".git/**", "dist/**", "build/**"]
+  }
 }
 ```
 
@@ -303,6 +325,9 @@ export default config;
 - `verbose`: Enable verbose output (default: false)
 - `aiRulesDir`: Directory containing rule files (default: ".rulesync")
 - `watch`: Watch configuration with `enabled`, `interval`, and `ignore` options
+  - `enabled`: Enable file watching (default: false)
+  - `interval`: Watch interval in milliseconds (default: 1000)
+  - `ignore`: Array of patterns to ignore during watching
 
 #### Managing Configuration
 
@@ -458,7 +483,7 @@ Each rule file must include frontmatter with the following fields:
 root: true | false               # Required: Rule level (true for overview, false for details)
 targets: ["*"]                   # Required: Target tools (* = all, or specific tools)
 description: "Brief description" # Required: Rule description
-globs: "**/*.ts,**/*.js"          # Required: File patterns (comma-separated or empty string)
+globs: ["**/*"]                  # Required: File patterns (array format)
 cursorRuleType: "always"         # Optional: Cursor-specific rule type (always, manual, specificFiles, intelligently)
 ---
 ```
@@ -480,7 +505,7 @@ Additional metadata field for Cursor tool:
 root: true
 targets: ["*"]
 description: "Project overview and development philosophy"
-globs: "src/**/*.ts"
+globs: ["src/**/*.ts"]
 ---
 
 # Project Development Guidelines
@@ -494,7 +519,7 @@ This project follows TypeScript-first development with clean architecture princi
 root: false
 targets: ["copilot", "cursor", "roo"]
 description: "TypeScript coding standards"
-globs: "**/*.ts,**/*.tsx"
+globs: ["**/*.ts", "**/*.tsx"]
 ---
 
 # TypeScript Coding Rules

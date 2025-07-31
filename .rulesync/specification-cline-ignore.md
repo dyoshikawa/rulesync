@@ -1,90 +1,90 @@
 ---
 root: false
 targets: ["cline"]
-description: "Cline VSCode Extension の .clineignore ファイルに関する仕様書"
+description: "Specification document for Cline VSCode Extension .clineignore file"
 globs: ["**/.clineignore"]
 ---
 
-# Cline VSCode Extension Ignore ファイル仕様
+# Cline VSCode Extension Ignore File Specification
 
-## ファイルの配置場所とファイル名
+## File Location and Filename
 
-### ファイルパス
-- **配置場所**: ワークスペースのルートフォルダ
-  - VS Codeで開いている最上位フォルダ
-  - `.vscode`フォルダと同じ階層
-- **マルチルートワークスペース**: 各ルートごとに配置可能（そのルートにのみ適用）
-- **グローバル設定**: 現在のところサポートされていない
+### File Path
+- **Location**: Workspace root folder
+  - Top-level folder opened in VS Code
+  - Same level as `.vscode` folder
+- **Multi-root workspace**: Can be placed in each root (applies only to that root)
+- **Global settings**: Currently not supported
 
-### ファイル名
-- **`.clineignore`** （完全一致、大文字小文字区別あり）
-- 別名や拡張子付き（`.clineignore.txt`など）は無効
+### Filename
+- **`.clineignore`** (exact match, case-sensitive)
+- Alternative names or extensions (e.g., `.clineignore.txt`) are invalid
 
-## ファイル内容の仕様
+## File Content Specification
 
-### 基本構文（`.gitignore`と同一）
-- 1行 = 1パターン
-- 空行は無視
-- UTF-8（BOM無し）推奨
+### Basic Syntax (same as `.gitignore`)
+- 1 line = 1 pattern
+- Empty lines are ignored
+- UTF-8 (without BOM) recommended
 
-### ワイルドカード
-- `*` : 0文字以上
-- `?` : 任意の1文字  
-- `[...]` : 文字集合/範囲
-- `**` : 任意階層のディレクトリ（ダブルスター）
+### Wildcards
+- `*` : 0 or more characters
+- `?` : Any single character  
+- `[...]` : Character set/range
+- `**` : Any level of directories (double star)
 
-### 特殊記号
-- `末尾/` : ディレクトリ指定（フォルダ全体を無視）
-- `!pattern` : 否定（直前の無視設定を打ち消し）
-- `#` : コメント行
-- `先頭/` : ルート相対パス
-- スラッシュなし : どこからでもマッチ
+### Special Symbols
+- `Trailing /` : Directory specification (ignore entire folder)
+- `!pattern` : Negation (cancels previous ignore setting)
+- `#` : Comment line
+- `Leading /` : Root-relative path
+- No slash : Matches from anywhere
 
-### 基本例
+### Basic Examples
 ```
-# 例: .clineignore
-# すべてのログ
+# Example: .clineignore
+# All logs
 *.log
 
-# 依存モジュールを無視
+# Ignore dependency modules
 node_modules/
 
-# temp 以下を階層ごと無視
+# Ignore temp folder hierarchy
 temp/**
 
-# ただし important.log は対象に含める
+# But include important.log
 !important.log
 ```
 
-## Clineでの動作
+## Behavior in Cline
 
-### 即時反映
-- VS Code上で保存すると即時にウォッチされ、再起動不要で反映
+### Immediate Reflection
+- Watched immediately when saved in VS Code, applied without restart
 
-### アクセス制御
-- `read_file`などの内容読み取り系ツールは完全拒否
-- アクセス時に"ignore されている"旨のエラーを表示
+### Access Control
+- Content reading tools like `read_file` are completely blocked
+- Shows "ignored" error message when accessed
 
-### ファイル一覧での表示
-- `list_files`等でディレクトリ列挙時、ファイル名は表示される
-- 無視対象ファイルにはロックアイコン(🔒)が付与
+### Display in File Lists
+- File names are displayed when listing directories with `list_files`, etc.
+- Ignored files are marked with a lock icon (🔒)
 
-### 影響範囲
-- 無視設定はClineにのみ作用
-- Git や他の拡張機能の動作には影響しない
+### Scope of Impact
+- Ignore settings only affect Cline
+- Does not impact Git or other extensions
 
-## ベストプラクティス
+## Best Practices
 
-1. **プロジェクト作成直後の設定**
-   - `node_modules`や`build/`などの大きな生成物を除外
+1. **Setup Immediately After Project Creation**
+   - Exclude large generated artifacts like `node_modules` and `build/`
 
-2. **機密情報の保護**
-   - `.env`, `secret.json`などを必ず除外
+2. **Protect Sensitive Information**
+   - Always exclude `.env`, `secret.json`, etc.
 
-3. **パフォーマンス最適化**
-   - 大規模リポジトリでは`**/test-fixtures/**`や`**/*.snap`など
-   - AIに読ませる必要のない資材をリストアップ
+3. **Performance Optimization**
+   - For large repositories, list items like `**/test-fixtures/**` and `**/*.snap`
+   - List assets that don't need to be read by AI
 
-## 利用効果
-- プライバシー確保
-- パフォーマンス向上（プロンプト回数と応答速度の改善）
+## Benefits
+- Privacy protection
+- Performance improvement (better prompt count and response speed)

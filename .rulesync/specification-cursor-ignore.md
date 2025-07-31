@@ -1,96 +1,96 @@
 ---
 root: false
 targets: ["cursor"]
-description: "Cursor IDE の .cursorignore および .cursorindexingignore ファイルに関する仕様書"
+description: "Cursor IDE .cursorignore and .cursorindexingignore file specification"
 globs: ["**/.cursorignore", "**/.cursorindexingignore"]
 ---
 
-# Cursor IDE Ignore ファイル仕様
+# Cursor IDE Ignore File Specification
 
-## ファイルの配置場所とファイル名
+## File Placement and File Names
 
-### プロジェクト単位のIgnoreファイル
+### Project-Level Ignore Files
 - **`.cursorignore`** 
-  - 配置場所: ワークスペース/プロジェクトのルートディレクトリ
-  - 効果: インデックスとAI機能の両方から除外
+  - Placement: Workspace/project root directory
+  - Effect: Excluded from both indexing and AI features
 
 - **`.cursorindexingignore`**
-  - 配置場所: ワークスペース/プロジェクトのルートディレクトリ  
-  - 効果: インデックスからのみ除外、AI機能では参照可能
+  - Placement: Workspace/project root directory  
+  - Effect: Excluded from indexing only, still accessible to AI features
 
-### 階層的Ignore設定
-- 設定: Settings › Features › Editor › "Hierarchical Cursor Ignore" を有効化
-- 効果: ルートから上位ディレクトリの複数の `.cursorignore` を合成
+### Hierarchical Ignore Settings
+- Setting: Enable "Hierarchical Cursor Ignore" in Settings › Features › Editor
+- Effect: Combines multiple `.cursorignore` files from root to parent directories
 
-### グローバルIgnore設定
-- 設定: アプリ設定の「Global Ignore Files」
-- 効果: すべてのプロジェクトに共通適用
+### Global Ignore Settings
+- Setting: "Global Ignore Files" in app settings
+- Effect: Applied commonly to all projects
 
-## ファイル内容の仕様
+## File Content Specification
 
-### 構文（`.gitignore`と同一）
-- 空行は無視
-- `#` から行末まではコメント
-- パターンは `.cursorignore` の配置場所を基準とした相対パス
-- 後に書いたパターンが優先（後勝ち）
+### Syntax (Same as `.gitignore`)
+- Empty lines are ignored
+- Comments from `#` to end of line
+- Patterns are relative paths based on `.cursorignore` placement location
+- Later patterns take precedence (last wins)
 
-### パターンマッチング規則
-- `末尾/` : ディレクトリ指定
-- `!` : 否定（無視を解除）
-- `*` : 任意の0文字以上（スラッシュを除く）
-- `**` : 任意階層ディレクトリ横断
-- `?` : 任意1文字
-- `[abc]` : 文字クラス
+### Pattern Matching Rules
+- `Trailing /` : Directory specification
+- `!` : Negation (removes ignore)
+- `*` : Any zero or more characters (excluding slash)
+- `**` : Cross any hierarchical directories
+- `?` : Any single character
+- `[abc]` : Character class
 
-### 基本例
+### Basic Examples
 ```
-# 特定ファイル
+# Specific file
 config.json
 
-# ディレクトリごと
+# Entire directory
 dist/
 
-# 拡張子
+# File extension
 *.log
 ```
 
-### 高度な例
+### Advanced Examples
 ```
-# いったん全部無視
+# Ignore everything first
 *
 
-# app/ だけは対象に戻す
+# Restore only app/
 !app/
 
-# logs フォルダをツリー全域で無視
+# Ignore logs folder across entire tree
 **/logs
 ```
 
-## デフォルトで無視されるファイル
+## Files Ignored by Default
 
-Cursorは以下を自動的に除外:
-1. ルートの `.gitignore` に列挙されたもの
+Cursor automatically excludes:
+1. Items listed in root `.gitignore`
 2. Default Ignore List:
    - `node_modules/`
    - `package-lock.json`
    - `*.lock`
    - `.env*`
-   - 画像/動画/バイナリファイル各種
+   - Various image/video/binary files
 
-## ファイル種類別の動作
+## Behavior by File Type
 
-| ファイル                    | インデックス | AI機能での参照 |
-|----------------------------|-------------|----------------|
-| `.cursorignore`            | 除外        | 除外           |
-| `.cursorindexingignore`    | 除外        | 参照可能       |
+| File                       | Indexing | AI Feature Access |
+|----------------------------|----------|-------------------|
+| `.cursorignore`            | Excluded | Excluded          |
+| `.cursorindexingignore`    | Excluded | Accessible        |
 
-## トラブルシューティング
+## Troubleshooting
 
-除外設定の確認方法:
+How to verify exclusion settings:
 ```bash
 git check-ignore -v <path/to/file>
 ```
 
-## 注意事項
-- ChatからTerminalや外部ツールを呼び出した場合、`.cursorignore`は完全には強制されない
-- 意図した通りに除外されているかの確認が重要
+## Important Notes
+- When calling Terminal or external tools from Chat, `.cursorignore` is not fully enforced
+- It's important to verify that exclusions are working as intended

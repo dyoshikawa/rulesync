@@ -1,55 +1,54 @@
 ---
 root: true
-targets: ['*']
-description: "rulesync project overview and architecture guide"
-globs: ["src/**/*.ts"]
+targets: ["*"]
+description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+globs: ["**/*"]
+cursorRuleType: "always"
 ---
 
 # rulesync Project Overview
 
-rulesync is a unified AI configuration management CLI tool that supports multiple AI development tools (GitHub Copilot, Cursor, Cline, Claude Code, Roo Code).
+This is rulesync, a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
 
-## Core Architecture
+## Project Architecture
 
-### Main Components
-- **CLI Entry Point**: `src/cli/index.ts` - Uses Commander.js with comprehensive commands
-- **Core Parsing**: `src/core/parser.ts` - Frontmatter processing with gray-matter
-- **Generation Engine**: `src/core/generator.ts` - Orchestrates tool-specific configuration file generation
-- **Tool-Specific Generators**: `src/generators/` - Markdown generation for each AI tool
-- **Validation System**: `src/core/validator.ts` - Rules validation and error reporting
-- **File Utilities**: `src/utils/file.ts` - Safe file operations with atomic updates
+- **CLI Interface**: Built with Commander.js for command-line operations
+- **Core Engine**: TypeScript-based processing engine for rule parsing and generation
+- **Multi-Tool Support**: Generates configurations for 9+ AI development tools
+- **Configuration Management**: Supports JSONC and TypeScript configuration files
 
-### Design Patterns
-- **TypeScript strict mode**: Enable `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`
-- **Dual ESM/CJS output**: Generate dist/index.js (CJS) and dist/index.mjs (ESM) with tsup
-- **Functional approach**: Prioritize pure functions and minimize side effects
-- **Error handling**: Emphasize specific error messages and type safety
-- **Command pattern**: Each CLI command as separate module with comprehensive testing
+## Supported AI Tools
 
-### Key Features
-- **Monorepo Support**: Base directory option (`--base-dir`) for generating configs in multiple locations
-- **Hot Reloading**: File watching with automatic regeneration
-- **Comprehensive Validation**: Frontmatter and content validation with helpful error messages
-- **Multiple Output Formats**: Support for 7 different AI tool configuration formats
-- **Safety First**: Dangerous path protection and atomic file operations
+- GitHub Copilot Custom Instructions
+- Cursor Project Rules
+- Cline Rules
+- Claude Code Memory
+- AugmentCode Rules
+- Roo Code Rules
+- Gemini CLI
+- JetBrains Junie Guidelines
+- Kiro IDE Custom Steering Documents
 
-### Input Data Structure
-```typescript
-type RuleFrontmatter = {
-  root: boolean;           // Whether it's root level
-  targets: ["*"] | ToolTarget[]; // Target tool specification
-  description: string;     // Concise rule description
-  globs: string[];        // File patterns to apply
-}
+## Development Standards
 
-type ToolTarget = "copilot" | "cursor" | "cline" | "claudecode" | "claude" | "roo" | "geminicli";
-```
+- **TypeScript-first**: All source code in TypeScript with strict configuration
+- **Modern Node.js**: Requires Node.js >=20.0.0, uses ES modules
+- **Quality Tools**: Biome, ESLint, Oxlint for code quality
+- **Testing**: Vitest for unit and integration testing
+- **Build System**: tsup for bundling CJS/ESM outputs
 
-### CLI Commands
-- `init`: Initialize project with sample rules
-- `add <filename>`: Add new rule file with template
-- `generate`: Generate all tool configurations
-- `validate`: Validate rule files and configuration
-- `status`: Show current project status
-- `watch`: Watch for changes and auto-regenerate
-- `gitignore`: Add generated files to .gitignore
+## Key Components
+
+- `/src/cli/`: Command-line interface and command handlers
+- `/src/core/`: Core parsing, generation, and validation logic
+- `/src/generators/`: Tool-specific configuration generators
+- `/src/parsers/`: Import parsers for existing configurations
+- `/src/types/`: TypeScript type definitions
+- `/src/utils/`: Utility functions and helpers
+
+## Rule System
+
+- **Two-level hierarchy**: Root rules (project overview) and detail rules (specific guidelines)
+- **Frontmatter-driven**: YAML frontmatter defines rule metadata
+- **Multi-target**: Rules can target specific tools or all tools
+- **Glob patterns**: File pattern matching for rule application

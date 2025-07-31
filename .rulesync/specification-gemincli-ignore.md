@@ -1,108 +1,108 @@
 ---
 root: false
 targets: ["*"]
-description: "Gemini CLI Coding Assistant の .aiexclude ファイルに関する仕様書"
+description: "Gemini CLI Coding Assistant .aiexclude file specification"
 globs: ["**/.aiexclude", "**/.gitignore"]
 ---
 
-# Gemini CLI Coding Assistant Ignore ファイル仕様
+# Gemini CLI Coding Assistant Ignore File Specification
 
-## ファイルの配置場所とファイル名
+## File Placement and File Names
 
-### 対応するIgnoreファイル
+### Supported Ignore Files
 
-#### 1. `.aiexclude`（推奨）
-- **配置場所**: プロジェクト内の任意のディレクトリ
-- **効果範囲**: そのディレクトリ自身と配下ディレクトリに作用
-- **複数配置**: 可能（探索開始ディレクトリからルートへ向かって上位をマージ）
-- **優先順位**: 下位（より深い階層）の設定が優先
+#### 1. `.aiexclude` (Recommended)
+- **Placement**: Any directory within the project
+- **Scope**: Affects the directory itself and all subdirectories
+- **Multiple placement**: Possible (merged from search start directory up to root)
+- **Priority**: Lower level (deeper hierarchy) settings take precedence
 
-#### 2. `.gitignore`（プレビュー機能）
-- **配置場所**: ルート作業フォルダ（Gemini CLIを起動した場所）のみ
-- **制限**: サブディレクトリの`.gitignore`は無視される
-- **設定**: "Context Exclusion Gitignore"で有効/無効を切替可能
+#### 2. `.gitignore` (Preview feature)
+- **Placement**: Only at root working folder (where Gemini CLI is launched)
+- **Limitation**: `.gitignore` files in subdirectories are ignored
+- **Setting**: Can be toggled on/off with "Context Exclusion Gitignore"
 
-### 優先順位ルール
-- 同じファイルで衝突した場合、`.aiexclude`が`.gitignore`に優先
+### Priority Rules
+- When conflicts occur in the same file, `.aiexclude` takes precedence over `.gitignore`
 
-## ファイル内容の仕様
+## File Content Specification
 
-### 基本構文（`.gitignore`と同一）
-- 空行は無視
-- `#`で始まる行はコメント
-- 1行1パターンで対象パスを指定
+### Basic Syntax (Same as `.gitignore`)
+- Empty lines are ignored
+- Lines starting with `#` are comments
+- One pattern per line to specify target paths
 
-### ワイルドカードとパターン
-- `*` : 区切り文字（`/`以外）を任意長でマッチ
-- `**` : `/`をまたいで任意深さにマッチ
-- `?` : 任意の1文字
-- `先頭/` : `.aiexclude`を置いたディレクトリを起点に絶対指定
-- `末尾/` : ディレクトリ全体を指定
-- `先頭!` : 否定（除外解除）
+### Wildcards and Patterns
+- `*` : Matches any length of characters except delimiter (`/`)
+- `**` : Matches any depth across `/` delimiters
+- `?` : Matches any single character
+- `Leading /` : Absolute specification from the directory containing `.aiexclude`
+- `Trailing /` : Specifies entire directory
+- `Leading !` : Negation (exclusion removal)
 
-### 基本例
+### Basic Examples
 ```
-# 秘密鍵やAPIキー
+# Secret keys and API keys
 apikeys.txt
 *.key
 /secret.env
 
-# ディレクトリ丸ごと
+# Entire directories
 my/sensitive/dir/
 
-# 否定パターン（環境により動作が異なる可能性あり）
+# Negation patterns (behavior may vary by environment)
 foo/*
 !foo/README.md
 ```
 
-### 注意事項：否定パターン
-- Firebase Studio/IDXでは否定パターン（`!`）非対応
-- Gemini Code Assist本家では対応
-- CLI環境では要テスト確認
+### Important Notes: Negation Patterns
+- Firebase Studio/IDX does not support negation patterns (`!`)
+- Gemini Code Assist proper supports them
+- CLI environment requires testing confirmation
 
-## 特殊なケース
+## Special Cases
 
-### 空の`.aiexclude`
-- Firebase Studio/IDX: `**/*`と同義（全てブロック）
-- 否定パターンは使用不可
+### Empty `.aiexclude`
+- Firebase Studio/IDX: Equivalent to `**/*` (blocks everything)
+- Negation patterns cannot be used
 
-### VS Code拡張との連携
-- Extensions > Gemini Code Assist > Context Exclusion Fileで設定カスタマイズ可能
-- CLI は拡張側の設定を参照
+### VS Code Extension Integration
+- Customizable via Extensions > Gemini Code Assist > Context Exclusion File
+- CLI references extension-side settings
 
-## Gemini CLIでのワークフロー
+## Gemini CLI Workflow
 
-### 基本手順
-1. プロジェクトルートに`.gitignore`（任意）と`.aiexclude`（推奨）を配置
-2. 必要に応じてサブディレクトリに追加の`.aiexclude`を配置
-3. CLI実行時はカレントディレクトリを「プロジェクトルート」に設定
-4. 除外設定の確認（将来のプレビュー版で診断コマンド追加予定）
+### Basic Steps
+1. Place `.gitignore` (optional) and `.aiexclude` (recommended) at project root
+2. Add additional `.aiexclude` files in subdirectories as needed
+3. Set current directory as "project root" when running CLI
+4. Verify exclusion settings (diagnostic command planned for future preview version)
 
-### 診断コマンド（予定）
+### Diagnostic Command (Planned)
 ```bash
-# プレビュー版 v0.2以降で追加予定
+# Planned for preview version v0.2 and later
 gemini context list-excluded
 ```
 
-## ベストプラクティス
+## Best Practices
 
-### セキュリティ重視
-- APIキーや秘密鍵、社内コードは最上位の`.aiexclude`で管理
-- 「絶対にモデルに渡したくない」ものを明確に除外
+### Security First
+- Manage API keys, secret keys, and internal code in top-level `.aiexclude`
+- Clearly exclude anything you "absolutely don't want passed to the model"
 
-### パフォーマンス最適化
-- ライブラリ・生成コード・ビルド成果物は`.gitignore`にも記載
-- GitとGeminiの両方で管理を統一
+### Performance Optimization
+- Include libraries, generated code, and build artifacts in `.gitignore` as well
+- Unify management between Git and Gemini
 
-### 複雑なルール管理
-- 「広くブロック → 必要なものだけ `!` で戻す」パターンを採用
-- ただし否定パターンの動作確認が必要
+### Complex Rule Management
+- Adopt the pattern "broadly block → selectively restore needed items with `!`"
+- However, negation pattern behavior verification is required
 
-### セーフティファースト
-- 迷うファイルは最初は除外
-- 必要に応じて段階的に `!` で個別復帰
+### Safety First
+- Initially exclude files you're unsure about
+- Gradually restore individual items with `!` as needed
 
-## バージョン情報
-- 基盤: Gemini Code Assist
-- 現在: CLI v0.1（手動確認のみ）
-- 予定: v0.2以降で診断機能追加
+## Version Information
+- Foundation: Gemini Code Assist
+- Current: CLI v0.1 (manual verification only)
+- Planned: Diagnostic functionality added in v0.2 and later
