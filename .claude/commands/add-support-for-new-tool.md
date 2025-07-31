@@ -14,5 +14,5 @@ If remarks is provided, please consider its content when performing the followin
 6. Call ignore-file-generator subagent to implement ignore file generation for the new tool, then call ci-pipeline-fixer subagent to run CI pipeline and fix any errors.
 7. Call rulesync-gitignore-updater subagent to add gitignore command support for the new tool, then call ci-pipeline-fixer subagent to run CI pipeline and fix any errors.
 8. Call code-similarity-refactorer subagent to detect code duplication and perform refactoring as needed, then call ci-pipeline-fixer subagent to run CI pipeline and fix any errors.
-10. Call project-docs-reviewer subagent to review and update project documentation files about above changes, then call ci-pipeline-fixer subagent to run CI pipeline and fix any errors.
-11. Execute `git commit` and `git push`, then create a PR.
+9. Call project-docs-reviewer subagent to review and update project documentation files about above changes, then call ci-pipeline-fixer subagent to run CI pipeline and fix any errors.
+10. Execute `git commit` and `git push`, then create a PR.
