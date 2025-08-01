@@ -1,52 +1,33 @@
 import { join } from "node:path";
 import { ClaudeSettingsSchema } from "../../types/claudecode.js";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import { loadIgnorePatterns } from "../../utils/ignore.js";
+import { fileExists, readFileContent, resolvePath, writeFileContent } from "../../utils/file.js";
+import { type EnhancedRuleGeneratorConfig, generateComplexRules } from "./shared-helpers.js";
 
 export async function generateClaudecodeConfig(
   rules: ParsedRule[],
   config: Config,
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
-  const outputs: GeneratedOutput[] = [];
-
-  // Separate root and non-root rules
-  const rootRules = rules.filter((r) => r.frontmatter.root === true);
-  const detailRules = rules.filter((r) => r.frontmatter.root === false);
-
-  // Generate CLAUDE.md with root rule and references to detail files
-  const claudeMdContent = generateClaudeMarkdown(rootRules, detailRules);
-  const claudeOutputDir = baseDir
-    ? join(baseDir, config.outputPaths.claudecode)
-    : config.outputPaths.claudecode;
-  outputs.push({
+  const generatorConfig: EnhancedRuleGeneratorConfig = {
     tool: "claudecode",
-    filepath: join(claudeOutputDir, "CLAUDE.md"),
-    content: claudeMdContent,
-  });
+    fileExtension: ".md",
+    ignoreFileName: ".aiignore",
+    generateContent: generateMemoryFile,
+    generateRootContent: (rootRule, detailRules) =>
+      generateClaudeMarkdown(rootRule ? [rootRule] : [], detailRules),
+    rootFilePath: "CLAUDE.md",
+    generateDetailContent: generateMemoryFile,
+    detailSubDir: ".claude/memories",
+    updateAdditionalConfig: async (ignorePatterns: string[], baseDir?: string) => {
+      const settingsPath = resolvePath(join(".claude", "settings.json"), baseDir);
 
-  // Generate individual memory files for detail rules
-  for (const rule of detailRules) {
-    const memoryContent = generateMemoryFile(rule);
-    outputs.push({
-      tool: "claudecode",
-      filepath: join(claudeOutputDir, ".claude", "memories", `${rule.filename}.md`),
-      content: memoryContent,
-    });
-  }
+      await updateClaudeSettings(settingsPath, ignorePatterns);
+      return []; // updateClaudeSettings modifies existing file, doesn't return new outputs
+    },
+  };
 
-  // Update .claude/settings.json with ignore patterns if .rulesyncignore exists
-  const ignorePatterns = await loadIgnorePatterns(baseDir);
-  if (ignorePatterns.patterns.length > 0) {
-    const settingsPath = baseDir
-      ? join(baseDir, ".claude", "settings.json")
-      : join(".claude", "settings.json");
-
-    await updateClaudeSettings(settingsPath, ignorePatterns.patterns);
-  }
-
-  return outputs;
+  return generateComplexRules(rules, config, generatorConfig, baseDir);
 }
 
 function generateClaudeMarkdown(rootRules: ParsedRule[], detailRules: ParsedRule[]): string {

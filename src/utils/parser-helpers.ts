@@ -1,4 +1,10 @@
 import type { ParsedRule } from "../types/index.js";
+import {
+  createErrorResult,
+  createSuccessResult,
+  formatErrorWithContext,
+  type Result,
+} from "./error.js";
 
 export interface ParseResult<T = ParsedRule[]> {
   rules?: T;
@@ -28,22 +34,21 @@ export function addRules(result: ParseResult, rules: ParsedRule[]): void {
   result.rules.push(...rules);
 }
 
+/**
+ * Handle parse error with context (legacy function, kept for compatibility)
+ */
 export function handleParseError(error: unknown, context: string): string {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  return `${context}: ${errorMessage}`;
+  return formatErrorWithContext(error, context);
 }
 
 export async function safeReadFile<T>(
   operation: () => Promise<T>,
   errorContext: string,
-): Promise<{ success: boolean; result?: T; error?: string }> {
+): Promise<Result<T | null>> {
   try {
     const result = await operation();
-    return { success: true, result };
+    return createSuccessResult(result);
   } catch (error) {
-    return {
-      success: false,
-      error: handleParseError(error, errorContext),
-    };
+    return createErrorResult(error, errorContext);
   }
 }

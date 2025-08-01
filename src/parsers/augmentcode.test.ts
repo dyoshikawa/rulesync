@@ -228,7 +228,7 @@ Manual rule content.`);
 
       expect(result.rules).toHaveLength(0);
       expect(result.errors).toContain(
-        "No AugmentCode configuration found. Expected .augment/rules/ directory.",
+        "No AugmentCode configuration found. Expected .augment/rules directory.",
       );
     });
   });
@@ -245,7 +245,7 @@ Manual rule content.`);
 
       expect(result.rules).toHaveLength(0);
       expect(result.errors).toContain(
-        "Failed to read .augment/rules/ directory: Directory read error",
+        "Failed to read .augment/rules directory: Directory read error",
       );
     });
   });

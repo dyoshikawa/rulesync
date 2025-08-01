@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../../types/index.js";
+import { resolvePath } from "../../utils/file.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 
 export interface RuleGeneratorConfig {
@@ -14,7 +15,7 @@ export interface RuleGeneratorConfig {
  * Resolve output directory for a given tool and base directory
  */
 export function resolveOutputDir(config: Config, tool: ToolTarget, baseDir?: string): string {
-  return baseDir ? join(baseDir, config.outputPaths[tool]) : config.outputPaths[tool];
+  return resolvePath(config.outputPaths[tool], baseDir);
 }
 
 /**
@@ -105,9 +106,7 @@ export async function generateRulesConfig(
   // Generate ignore file if .rulesyncignore exists
   const ignorePatterns = await loadIgnorePatterns(baseDir);
   if (ignorePatterns.patterns.length > 0) {
-    const ignorePath = baseDir
-      ? join(baseDir, generatorConfig.ignoreFileName)
-      : generatorConfig.ignoreFileName;
+    const ignorePath = resolvePath(generatorConfig.ignoreFileName, baseDir);
 
     const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
 
@@ -141,9 +140,10 @@ export async function generateComplexRules(
   if (generatorConfig.generateDetailContent && generatorConfig.detailSubDir) {
     for (const rule of detailRules) {
       const content = generatorConfig.generateDetailContent(rule);
-      const filepath = baseDir
-        ? join(baseDir, generatorConfig.detailSubDir, `${rule.filename}.md`)
-        : join(generatorConfig.detailSubDir, `${rule.filename}.md`);
+      const filepath = resolvePath(
+        join(generatorConfig.detailSubDir, `${rule.filename}.md`),
+        baseDir,
+      );
 
       outputs.push({
         tool: generatorConfig.tool,
@@ -156,9 +156,7 @@ export async function generateComplexRules(
   // Generate root document
   if (generatorConfig.generateRootContent && generatorConfig.rootFilePath) {
     const rootContent = generatorConfig.generateRootContent(rootRule, detailRules, baseDir);
-    const rootFilepath = baseDir
-      ? join(baseDir, generatorConfig.rootFilePath)
-      : generatorConfig.rootFilePath;
+    const rootFilepath = resolvePath(generatorConfig.rootFilePath, baseDir);
 
     outputs.push({
       tool: generatorConfig.tool,
@@ -171,9 +169,7 @@ export async function generateComplexRules(
   const ignorePatterns = await loadIgnorePatterns(baseDir);
   if (ignorePatterns.patterns.length > 0) {
     // Standard ignore file
-    const ignorePath = baseDir
-      ? join(baseDir, generatorConfig.ignoreFileName)
-      : generatorConfig.ignoreFileName;
+    const ignorePath = resolvePath(generatorConfig.ignoreFileName, baseDir);
 
     const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
 

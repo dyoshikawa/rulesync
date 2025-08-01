@@ -3,7 +3,8 @@ import matter from "gray-matter";
 import type { ParsedRule, RuleFrontmatter, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
-import { fileExists, readFileContent } from "../utils/index.js";
+import { getErrorMessage, safeAsyncOperation } from "../utils/error.js";
+import { fileExists, readFileContent, resolvePath } from "../utils/file.js";
 
 export interface ParserResult {
   rules: ParsedRule[];
@@ -22,13 +23,22 @@ export interface ParserConfig {
     path: string;
     useFrontmatter?: boolean;
     description: string;
+    isRoot?: boolean;
+    filenameOverride?: string;
   };
   directories?: DirectoryConfig[];
+  ignoreFile?: {
+    path: string;
+    parser?: (filePath: string) => Promise<string[]>;
+  };
+  mcpFile?: {
+    path: string;
+  };
   errorMessage: string;
 }
 
 /**
- * Generic parser for configuration files that follows common patterns
+ * Enhanced generic parser for configuration files that follows common patterns
  */
 export async function parseConfigurationFiles(
   baseDir: string = process.cwd(),
@@ -39,28 +49,32 @@ export async function parseConfigurationFiles(
 
   // Parse main configuration file
   if (config.mainFile) {
-    const mainFilePath = join(baseDir, config.mainFile.path);
+    const mainFile = config.mainFile;
+    const mainFilePath = resolvePath(mainFile.path, baseDir);
     if (await fileExists(mainFilePath)) {
-      try {
+      const result = await safeAsyncOperation(async () => {
         const rawContent = await readFileContent(mainFilePath);
         let content: string;
         let frontmatter: RuleFrontmatter;
 
-        if (config.mainFile.useFrontmatter) {
+        if (mainFile.useFrontmatter) {
           const parsed = matter(rawContent);
           content = parsed.content.trim();
+          // Extract additional frontmatter data if present
+          const parsedFrontmatter = parsed.data;
           frontmatter = {
-            root: false,
+            root: mainFile.isRoot ?? false,
             targets: [config.tool],
-            description: config.mainFile.description,
-            globs: ["**/*"],
+            description: parsedFrontmatter.description || mainFile.description,
+            globs: Array.isArray(parsedFrontmatter.globs) ? parsedFrontmatter.globs : ["**/*"],
+            ...(parsedFrontmatter.tags && { tags: parsedFrontmatter.tags }),
           };
         } else {
           content = rawContent.trim();
           frontmatter = {
-            root: false,
+            root: mainFile.isRoot ?? false,
             targets: [config.tool],
-            description: config.mainFile.description,
+            description: mainFile.description,
             globs: ["**/*"],
           };
         }
@@ -69,13 +83,14 @@ export async function parseConfigurationFiles(
           rules.push({
             frontmatter,
             content,
-            filename: "instructions",
+            filename: mainFile.filenameOverride || "instructions",
             filepath: mainFilePath,
           });
         }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        errors.push(`Failed to parse ${config.mainFile.path}: ${errorMessage}`);
+      }, `Failed to parse ${mainFile.path}`);
+
+      if (!result.success) {
+        errors.push(result.error);
       }
     }
   }
@@ -83,36 +98,48 @@ export async function parseConfigurationFiles(
   // Parse directory-based configuration files
   if (config.directories) {
     for (const dirConfig of config.directories) {
-      const dirPath = join(baseDir, dirConfig.directory);
+      const dirPath = resolvePath(dirConfig.directory, baseDir);
       if (await fileExists(dirPath)) {
-        try {
+        const result = await safeAsyncOperation(async () => {
           const { readdir } = await import("node:fs/promises");
           const files = await readdir(dirPath);
 
           for (const file of files) {
             if (file.endsWith(dirConfig.filePattern)) {
               const filePath = join(dirPath, file);
-              try {
+              const fileResult = await safeAsyncOperation(async () => {
                 const rawContent = await readFileContent(filePath);
                 let content: string;
+                let frontmatter: RuleFrontmatter;
+
+                const filename = file.replace(new RegExp(`\\${dirConfig.filePattern}$`), "");
 
                 if (dirConfig.filePattern === ".instructions.md") {
                   // GitHub Copilot style with frontmatter
                   const parsed = matter(rawContent);
                   content = parsed.content.trim();
+                  const parsedFrontmatter = parsed.data;
+                  frontmatter = {
+                    root: false,
+                    targets: [config.tool],
+                    description:
+                      parsedFrontmatter.description || `${dirConfig.description}: ${filename}`,
+                    globs: Array.isArray(parsedFrontmatter.globs)
+                      ? parsedFrontmatter.globs
+                      : ["**/*"],
+                    ...(parsedFrontmatter.tags && { tags: parsedFrontmatter.tags }),
+                  };
                 } else {
                   content = rawContent.trim();
-                }
-
-                if (content) {
-                  const filename = file.replace(new RegExp(`\\${dirConfig.filePattern}$`), "");
-                  const frontmatter: RuleFrontmatter = {
+                  frontmatter = {
                     root: false,
                     targets: [config.tool],
                     description: `${dirConfig.description}: ${filename}`,
                     globs: ["**/*"],
                   };
+                }
 
+                if (content) {
                   rules.push({
                     frontmatter,
                     content,
@@ -120,15 +147,17 @@ export async function parseConfigurationFiles(
                     filepath: filePath,
                   });
                 }
-              } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                errors.push(`Failed to parse ${filePath}: ${errorMessage}`);
+              }, `Failed to parse ${filePath}`);
+
+              if (!fileResult.success) {
+                errors.push(fileResult.error);
               }
             }
           }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          errors.push(`Failed to parse ${dirConfig.directory} files: ${errorMessage}`);
+        }, `Failed to parse ${dirConfig.directory} files`);
+
+        if (!result.success) {
+          errors.push(result.error);
         }
       }
     }
@@ -175,7 +204,7 @@ export async function parseMemoryBasedConfiguration(
   let mcpServers: Record<string, RulesyncMcpServer> | undefined;
 
   // Check for main file (CLAUDE.md or GEMINI.md)
-  const mainFilePath = join(baseDir, config.mainFileName);
+  const mainFilePath = resolvePath(config.mainFileName, baseDir);
   if (!(await fileExists(mainFilePath))) {
     errors.push(`${config.mainFileName} file not found`);
     return { rules, errors };
@@ -191,14 +220,14 @@ export async function parseMemoryBasedConfiguration(
     }
 
     // Parse memory files if they exist
-    const memoryDir = join(baseDir, config.memoryDirPath);
+    const memoryDir = resolvePath(config.memoryDirPath, baseDir);
     if (await fileExists(memoryDir)) {
       const memoryRules = await parseMemoryFiles(memoryDir, config);
       rules.push(...memoryRules);
     }
 
     // Parse settings.json if it exists
-    const settingsPath = join(baseDir, config.settingsPath);
+    const settingsPath = resolvePath(config.settingsPath, baseDir);
     if (await fileExists(settingsPath)) {
       const settingsResult = await parseSettingsFile(settingsPath, config.tool);
       if (settingsResult.ignorePatterns) {
@@ -212,7 +241,7 @@ export async function parseMemoryBasedConfiguration(
 
     // Parse additional ignore file if specified (e.g., .aiexclude for Gemini)
     if (config.additionalIgnoreFile) {
-      const additionalIgnorePath = join(baseDir, config.additionalIgnoreFile.path);
+      const additionalIgnorePath = resolvePath(config.additionalIgnoreFile.path, baseDir);
       if (await fileExists(additionalIgnorePath)) {
         const additionalPatterns = await config.additionalIgnoreFile.parser(additionalIgnorePath);
         if (additionalPatterns.length > 0) {
@@ -223,8 +252,7 @@ export async function parseMemoryBasedConfiguration(
       }
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to parse ${config.tool} configuration: ${errorMessage}`);
+    errors.push(`Failed to parse ${config.tool} configuration: ${getErrorMessage(error)}`);
   }
 
   return {
@@ -369,8 +397,7 @@ async function parseSettingsFile(settingsPath: string, tool: ToolTarget): Promis
       mcpServers = parseResult.data.mcpServers;
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to parse settings.json: ${errorMessage}`);
+    errors.push(`Failed to parse settings.json: ${getErrorMessage(error)}`);
   }
 
   return {

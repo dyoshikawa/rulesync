@@ -1,27 +1,83 @@
 import { basename, join } from "node:path";
 import matter from "gray-matter";
-import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
+import type { ParsedRule, RuleFrontmatter, ToolTarget } from "../types/index.js";
 import { fileExists, readFileContent } from "../utils/index.js";
-import { addError, addRules, createParseResult } from "../utils/parser-helpers.js";
+import {
+  addError,
+  addRule,
+  addRules,
+  createParseResult,
+  safeReadFile,
+} from "../utils/parser-helpers.js";
 
 export interface AugmentImportResult {
   rules: ParsedRule[];
   errors: string[];
 }
 
+interface AugmentcodeParserConfig {
+  rulesDir?: string;
+  legacyFilePath?: string;
+  targetName: ToolTarget;
+  filenamePrefix: string;
+}
+
 export async function parseAugmentcodeConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<AugmentImportResult> {
+  return parseUnifiedAugmentcode(baseDir, {
+    rulesDir: ".augment/rules",
+    targetName: "augmentcode",
+    filenamePrefix: "augmentcode",
+  });
+}
+
+export async function parseAugmentcodeLegacyConfiguration(
+  baseDir: string = process.cwd(),
+): Promise<AugmentImportResult> {
+  return parseUnifiedAugmentcode(baseDir, {
+    legacyFilePath: ".augment-guidelines",
+    targetName: "augmentcode-legacy",
+    filenamePrefix: "augmentcode-legacy",
+  });
+}
+
+async function parseUnifiedAugmentcode(
+  baseDir: string,
+  config: AugmentcodeParserConfig,
+): Promise<AugmentImportResult> {
   const result = createParseResult();
 
-  // Check for .augment/rules/ directory (new format only)
-  const rulesDir = join(baseDir, ".augment", "rules");
-  if (await fileExists(rulesDir)) {
-    const rulesResult = await parseAugmentRules(rulesDir);
-    addRules(result, rulesResult.rules);
-    result.errors.push(...rulesResult.errors);
-  } else {
-    addError(result, "No AugmentCode configuration found. Expected .augment/rules/ directory.");
+  // Try modern format first if configured
+  if (config.rulesDir) {
+    const rulesDir = join(baseDir, config.rulesDir);
+    if (await fileExists(rulesDir)) {
+      const rulesResult = await parseAugmentRules(rulesDir, config);
+      addRules(result, rulesResult.rules);
+      result.errors.push(...rulesResult.errors);
+    } else {
+      addError(
+        result,
+        `No AugmentCode configuration found. Expected ${config.rulesDir} directory.`,
+      );
+    }
+  }
+
+  // Try legacy format if configured
+  if (config.legacyFilePath) {
+    const legacyPath = join(baseDir, config.legacyFilePath);
+    if (await fileExists(legacyPath)) {
+      const legacyResult = await parseAugmentGuidelines(legacyPath, config);
+      if (legacyResult.rule) {
+        addRule(result, legacyResult.rule);
+      }
+      result.errors.push(...legacyResult.errors);
+    } else {
+      addError(
+        result,
+        `No AugmentCode legacy configuration found. Expected ${config.legacyFilePath} file.`,
+      );
+    }
   }
 
   return { rules: result.rules || [], errors: result.errors };
@@ -32,7 +88,10 @@ interface RulesParseResult {
   errors: string[];
 }
 
-async function parseAugmentRules(rulesDir: string): Promise<RulesParseResult> {
+async function parseAugmentRules(
+  rulesDir: string,
+  config: AugmentcodeParserConfig,
+): Promise<RulesParseResult> {
   const rules: ParsedRule[] = [];
   const errors: string[] = [];
 
@@ -59,7 +118,7 @@ async function parseAugmentRules(rulesDir: string): Promise<RulesParseResult> {
           const filename = basename(file, file.endsWith(".mdc") ? ".mdc" : ".md");
           const frontmatter: RuleFrontmatter = {
             root: isRoot,
-            targets: ["augmentcode"],
+            targets: [config.targetName],
             description: description,
             globs: ["**/*"], // AugmentCode doesn't use specific globs in the same way
             ...(tags && { tags }),
@@ -68,7 +127,7 @@ async function parseAugmentRules(rulesDir: string): Promise<RulesParseResult> {
           rules.push({
             frontmatter,
             content: parsed.content.trim(),
-            filename: `augmentcode-${ruleType}-${filename}`,
+            filename: `${config.filenamePrefix}-${ruleType}-${filename}`,
             filepath: filePath,
           });
         } catch (error) {
@@ -79,8 +138,48 @@ async function parseAugmentRules(rulesDir: string): Promise<RulesParseResult> {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to read .augment/rules/ directory: ${errorMessage}`);
+    errors.push(`Failed to read ${config.rulesDir || rulesDir} directory: ${errorMessage}`);
   }
 
   return { rules, errors };
+}
+
+interface GuidelinesParseResult {
+  rule: ParsedRule | null;
+  errors: string[];
+}
+
+async function parseAugmentGuidelines(
+  guidelinesPath: string,
+  config: AugmentcodeParserConfig,
+): Promise<GuidelinesParseResult> {
+  const parseResult = await safeReadFile(
+    async () => {
+      const content = await readFileContent(guidelinesPath);
+
+      if (content.trim()) {
+        const frontmatter: RuleFrontmatter = {
+          root: true, // Legacy guidelines become root rules
+          targets: [config.targetName],
+          description: "Legacy AugmentCode guidelines",
+          globs: ["**/*"],
+        };
+
+        return {
+          frontmatter,
+          content: content.trim(),
+          filename: `${config.filenamePrefix}-guidelines`,
+          filepath: guidelinesPath,
+        };
+      }
+      return null;
+    },
+    `Failed to parse ${config.legacyFilePath || guidelinesPath}`,
+  );
+
+  if (parseResult.success) {
+    return { rule: parseResult.result || null, errors: [] };
+  } else {
+    return { rule: null, errors: [parseResult.error || "Unknown error"] };
+  }
 }

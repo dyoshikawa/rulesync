@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParsedRule } from "../../types/index.js";
 import { getDefaultConfig } from "../../utils/config.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent, resolvePath, writeFileContent } from "../../utils/file.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 import { generateClaudecodeConfig } from "./claudecode.js";
 
@@ -14,6 +14,7 @@ vi.mock("../../utils/file.js", () => ({
   readFileContent: vi.fn(),
   writeFileContent: vi.fn(),
   ensureDir: vi.fn(),
+  resolvePath: vi.fn(),
 }));
 
 describe("claudecode generator", () => {
@@ -22,6 +23,9 @@ describe("claudecode generator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(loadIgnorePatterns).mockResolvedValue({ patterns: [] });
+    vi.mocked(resolvePath).mockImplementation((path: string, baseDir?: string) =>
+      baseDir ? `${baseDir}/${path}` : path,
+    );
   });
 
   const mockRules: ParsedRule[] = [
@@ -63,18 +67,25 @@ describe("claudecode generator", () => {
   it("should generate claudecode configuration", async () => {
     const outputs = await generateClaudecodeConfig(mockRules, config);
 
-    expect(outputs).toHaveLength(3); // 1 main file + 2 detail memory files
+    expect(outputs).toHaveLength(3); // 2 detail memory files + 1 main file
+
+    // Check detail files are generated first
     expect(outputs[0]!.tool).toBe("claudecode");
-    expect(outputs[0]!.filepath).toBe("CLAUDE.md");
-    expect(outputs[0]!.content).not.toContain("# Claude Code Memory - Project Instructions");
-    expect(outputs[0]!.content).not.toContain("Generated from rulesync configuration");
-    expect(outputs[0]!.content).toContain(
-      "Please also reference the following documents as needed:",
-    );
-    expect(outputs[0]!.content).toContain(
+    expect(outputs[0]!.filepath).toBe(".claude/memories/architecture-rule.md");
+    expect(outputs[1]!.tool).toBe("claudecode");
+    expect(outputs[1]!.filepath).toBe(".claude/memories/naming-rule.md");
+
+    // Check main CLAUDE.md file (should be last)
+    const mainFile = outputs[2]!;
+    expect(mainFile.tool).toBe("claudecode");
+    expect(mainFile.filepath).toBe("CLAUDE.md");
+    expect(mainFile.content).not.toContain("# Claude Code Memory - Project Instructions");
+    expect(mainFile.content).not.toContain("Generated from rulesync configuration");
+    expect(mainFile.content).toContain("Please also reference the following documents as needed:");
+    expect(mainFile.content).toContain(
       '@.claude/memories/architecture-rule.md description: "Detail architecture rule" globs: "**/*.tsx"',
     );
-    expect(outputs[0]!.content).toContain(
+    expect(mainFile.content).toContain(
       '@.claude/memories/naming-rule.md description: "Detail naming rule" globs: "**/*.js"',
     );
   });
@@ -82,21 +93,20 @@ describe("claudecode generator", () => {
   it("should separate overview and detail rules", async () => {
     const outputs = await generateClaudecodeConfig(mockRules, config);
 
-    // Main CLAUDE.md should contain overview rules and memory references
-    expect(outputs[0]!.content).toContain("Use TypeScript for all new code.");
-    expect(outputs[0]!.content).toContain(
-      "Please also reference the following documents as needed:",
-    );
-    expect(outputs[0]!.content).toContain(
+    // Main CLAUDE.md should contain overview rules and memory references (at index 2)
+    const mainFile = outputs[2]!;
+    expect(mainFile.content).toContain("Use TypeScript for all new code.");
+    expect(mainFile.content).toContain("Please also reference the following documents as needed:");
+    expect(mainFile.content).toContain(
       '@.claude/memories/architecture-rule.md description: "Detail architecture rule" globs: "**/*.tsx"',
     );
-    expect(outputs[0]!.content).toContain(
+    expect(mainFile.content).toContain(
       '@.claude/memories/naming-rule.md description: "Detail naming rule" globs: "**/*.js"',
     );
 
     // Detail rules should be in separate memory files
-    expect(outputs[1]!.filepath).toBe(".claude/memories/architecture-rule.md");
-    expect(outputs[2]!.filepath).toBe(".claude/memories/naming-rule.md");
+    expect(outputs[0]!.filepath).toBe(".claude/memories/architecture-rule.md");
+    expect(outputs[1]!.filepath).toBe(".claude/memories/naming-rule.md");
   });
 
   it("should include rule metadata", async () => {
@@ -350,7 +360,7 @@ describe("claudecode generator", () => {
 
     const outputs = await generateClaudecodeConfig([ruleWithQuotes], config);
 
-    expect(outputs[0]!.content).toContain(
+    expect(outputs[1]!.content).toContain(
       '@.claude/memories/quoted-rule.md description: "Rule with \\"double quotes\\" in description" globs: "**/*.ts"',
     );
   });
@@ -370,7 +380,7 @@ describe("claudecode generator", () => {
 
     const outputs = await generateClaudecodeConfig([ruleWithMultipleGlobs], config);
 
-    expect(outputs[0]!.content).toContain(
+    expect(outputs[1]!.content).toContain(
       '@.claude/memories/multi-glob-rule.md description: "Rule with multiple globs" globs: "**/*.ts,**/*.tsx,src/**/*.js"',
     );
   });

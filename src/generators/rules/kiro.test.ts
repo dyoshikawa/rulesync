@@ -21,12 +21,15 @@ describe("generateKiroConfig", () => {
   it("should generate kiro custom steering documents", async () => {
     const outputs = await generateKiroConfig([mockRule], mockConfig);
 
-    expect(outputs).toHaveLength(1);
+    expect(outputs).toHaveLength(2); // Rule file + ignore file
     expect(outputs[0]).toEqual({
       tool: "kiro",
       filepath: ".kiro/steering/security-guidelines.md",
       content: "# Security Guidelines\n\n- Never hardcode API keys\n- Use environment variables",
     });
+    // Second output should be the ignore file
+    expect(outputs[1]?.tool).toBe("kiro");
+    expect(outputs[1]?.filepath).toBe(".kiroignore");
   });
 
   it("should generate multiple steering documents", async () => {
@@ -57,7 +60,7 @@ describe("generateKiroConfig", () => {
 
     const outputs = await generateKiroConfig(mockRules, mockConfig);
 
-    expect(outputs).toHaveLength(2);
+    expect(outputs).toHaveLength(3); // 2 rule files + 1 ignore file
     expect(outputs[0]).toEqual({
       tool: "kiro",
       filepath: ".kiro/steering/security.md",
@@ -68,19 +71,25 @@ describe("generateKiroConfig", () => {
       filepath: ".kiro/steering/deployment.md",
       content: "# Deployment Process\n\nDeployment steps here",
     });
+    // Third output should be the ignore file
+    expect(outputs[2]?.tool).toBe("kiro");
+    expect(outputs[2]?.filepath).toBe(".kiroignore");
   });
 
   it("should respect baseDir parameter", async () => {
     const outputs = await generateKiroConfig([mockRule], mockConfig, "/custom/base");
 
-    expect(outputs).toHaveLength(1);
+    expect(outputs).toHaveLength(2); // Rule file + ignore file
     expect(outputs[0]?.filepath).toBe("/custom/base/.kiro/steering/security-guidelines.md");
+    expect(outputs[1]?.filepath).toBe("/custom/base/.kiroignore");
   });
 
   it("should handle empty rules array", async () => {
     const outputs = await generateKiroConfig([], mockConfig);
 
-    expect(outputs).toHaveLength(0);
+    expect(outputs).toHaveLength(1); // Only the ignore file
+    expect(outputs[0]?.tool).toBe("kiro");
+    expect(outputs[0]?.filepath).toBe(".kiroignore");
   });
 
   it("should trim content whitespace", async () => {

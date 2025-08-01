@@ -9,6 +9,60 @@ export async function ensureDir(dirPath: string): Promise<void> {
   }
 }
 
+/**
+ * Resolves a path relative to a base directory, handling both absolute and relative paths
+ */
+export function resolvePath(relativePath: string, baseDir?: string): string {
+  return baseDir ? join(baseDir, relativePath) : relativePath;
+}
+
+/**
+ * Creates a path resolver function bound to a specific base directory
+ */
+export function createPathResolver(baseDir?: string) {
+  return (relativePath: string) => resolvePath(relativePath, baseDir);
+}
+
+/**
+ * Safely reads a JSON file with error handling and optional default value
+ */
+export async function readJsonFile<T = unknown>(filepath: string, defaultValue?: T): Promise<T> {
+  try {
+    const content = await readFileContent(filepath);
+    const parsed: T = JSON.parse(content);
+    return parsed;
+  } catch (error) {
+    if (defaultValue !== undefined) {
+      return defaultValue;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Writes an object to a JSON file with proper formatting
+ */
+export async function writeJsonFile(
+  filepath: string,
+  data: unknown,
+  indent: number = 2,
+): Promise<void> {
+  const content = JSON.stringify(data, null, indent);
+  await writeFileContent(filepath, content);
+}
+
+/**
+ * Checks if a directory exists and is actually a directory
+ */
+export async function directoryExists(dirPath: string): Promise<boolean> {
+  try {
+    const stats = await stat(dirPath);
+    return stats.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function readFileContent(filepath: string): Promise<string> {
   return readFile(filepath, "utf-8");
 }
