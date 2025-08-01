@@ -1,51 +1,71 @@
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
-import { generateRulesConfig, type RuleGeneratorConfig } from "./shared-helpers.js";
+import { resolvePath } from "../../utils/file.js";
+import { loadIgnorePatterns } from "../../utils/ignore.js";
+import { generateIgnoreFile, resolveOutputDir } from "./shared-helpers.js";
 
 export async function generateCodexConfig(
   rules: ParsedRule[],
   config: Config,
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
-  const generatorConfig: RuleGeneratorConfig = {
-    tool: "codexcli",
-    fileExtension: ".md",
-    ignoreFileName: ".codexignore",
-    generateContent: generateCodexInstructionsMarkdown,
-    pathResolver: (rule, outputDir) => {
-      // For root rules, generate codex.md in the output directory
-      if (rule.frontmatter.root === true) {
-        return `${outputDir}/codex.md`;
-      }
-      // For non-root rules, generate <filename>.md in output directory
-      return `${outputDir}/${rule.filename}.md`;
-    },
-  };
+  const outputs: GeneratedOutput[] = [];
 
-  return generateRulesConfig(rules, config, generatorConfig, baseDir);
+  // If no rules, return empty array
+  if (rules.length === 0) {
+    return outputs;
+  }
+
+  // Sort rules: root rules first, then detail rules
+  const sortedRules = [...rules].sort((a, b) => {
+    if (a.frontmatter.root === true && b.frontmatter.root !== true) return -1;
+    if (a.frontmatter.root !== true && b.frontmatter.root === true) return 1;
+    return 0;
+  });
+
+  // Generate concatenated content
+  const concatenatedContent = generateConcatenatedCodexContent(sortedRules);
+
+  // Only generate codex.md file if we have content
+  if (concatenatedContent.trim()) {
+    const outputDir = resolveOutputDir(config, "codexcli", baseDir);
+    const filepath = `${outputDir}/codex.md`;
+
+    outputs.push({
+      tool: "codexcli",
+      filepath,
+      content: concatenatedContent,
+    });
+  }
+
+  // Generate ignore file if .rulesyncignore exists
+  const ignorePatterns = await loadIgnorePatterns(baseDir);
+  if (ignorePatterns.patterns.length > 0) {
+    const ignorePath = resolvePath(".codexignore", baseDir);
+    const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, "codexcli");
+
+    outputs.push({
+      tool: "codexcli",
+      filepath: ignorePath,
+      content: ignoreContent,
+    });
+  }
+
+  return outputs;
 }
 
-function generateCodexInstructionsMarkdown(rule: ParsedRule): string {
-  const lines: string[] = [];
+function generateConcatenatedCodexContent(rules: ParsedRule[]): string {
+  const sections: string[] = [];
 
-  // For Codex CLI, we generate plain Markdown without frontmatter
-  // Only include description as comment for non-root rules and when it's not the default
-  if (
-    rule.frontmatter.root === false &&
-    rule.frontmatter.description &&
-    rule.frontmatter.description !== "Main instructions" &&
-    !rule.frontmatter.description.includes("Project-level Codex CLI instructions")
-  ) {
-    lines.push(`<!-- ${rule.frontmatter.description} -->`);
-    if (rule.content.trim()) {
-      lines.push("");
+  for (const rule of rules) {
+    const content = rule.content.trim();
+
+    if (!content) {
+      continue; // Skip empty rules
     }
+
+    // Add content directly - Codex CLI expects plain Markdown
+    sections.push(content);
   }
 
-  // Add the content directly - Codex CLI expects plain Markdown
-  const content = rule.content.trim();
-  if (content) {
-    lines.push(content);
-  }
-
-  return lines.join("\n");
+  return sections.join("\n\n---\n\n");
 }
