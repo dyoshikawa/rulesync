@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Config, ParsedRule } from "../../types/index.js";
+import { createMockConfigByTool } from "../../test-utils/mock-config.js";
+import type { ParsedRule } from "../../types/index.js";
 import { generateCodexCliIgnoreFiles } from "./codexcli.js";
 
 describe("generateCodexCliIgnoreFiles", () => {
-  const mockConfig: Config = {
-    aiRulesDir: ".rulesync",
+  const mockConfig = createMockConfigByTool("codexcli", {
     outputPaths: {
       augmentcode: "./.augment/rules",
       "augmentcode-legacy": "./.augment-guidelines",
@@ -18,9 +18,7 @@ describe("generateCodexCliIgnoreFiles", () => {
       kiro: "./.kiro/steering",
       junie: "./.junie/guidelines.md",
     },
-    watchEnabled: false,
-    defaultTargets: ["codexcli"],
-  };
+  });
 
   it("should generate .codexignore file with basic content", async () => {
     const rules: ParsedRule[] = [];

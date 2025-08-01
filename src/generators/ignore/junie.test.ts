@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Config, ParsedRule } from "../../types/index.js";
+import { createMockConfigByTool } from "../../test-utils/mock-config.js";
+import type { ParsedRule } from "../../types/index.js";
 import { generateJunieIgnoreFiles } from "./junie.js";
 
 describe("generateJunieIgnoreFiles", () => {
-  const mockConfig: Config = {
-    aiRulesDir: ".rulesync",
+  const mockConfig = createMockConfigByTool("junie", {
     outputPaths: {
       augmentcode: "./.augment/rules",
       "augmentcode-legacy": "./.augment-guidelines",
@@ -18,9 +18,7 @@ describe("generateJunieIgnoreFiles", () => {
       kiro: "./.kiro/steering",
       junie: "./.junie/guidelines.md",
     },
-    watchEnabled: false,
-    defaultTargets: ["junie"],
-  };
+  });
 
   it("should generate .aiignore file with basic content", async () => {
     const rules: ParsedRule[] = [];
