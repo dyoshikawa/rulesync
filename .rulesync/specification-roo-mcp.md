@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: RooCode MCP (Model Context Protocol) configuration specification
-globs: ["**/*.json", "**/*.ts", "**/*.js"]
+globs: []
 ---
 
 # RooCode MCP (Model Context Protocol) Configuration Specification

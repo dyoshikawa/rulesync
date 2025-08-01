@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "OpenAI Codex CLI MCP (Model Context Protocol) server configuration specification"
-globs: ["**/*.json", "**/*.toml", "**/*.yaml", "**/*.yml", "**/*.js", "**/*.ts"]
+globs: []
 ---
 
 # OpenAI Codex CLI MCP (Model Context Protocol) Configuration Specification

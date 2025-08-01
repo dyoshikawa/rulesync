@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "Gemini CLI Coding Assistant .aiexclude file specification"
-globs: ["**/.aiexclude", "**/.gitignore"]
+globs: []
 ---
 
 # Gemini CLI Coding Assistant Ignore File Specification

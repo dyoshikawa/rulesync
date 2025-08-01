@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "OpenAI Codex CLI instructions and memory file specification"
-globs: ["**/*.md", "**/*.toml", "**/*.yaml", "**/*.yml", "**/*.json"]
+globs: []
 ---
 
 # OpenAI Codex CLI Rules/Memory Configuration Specification

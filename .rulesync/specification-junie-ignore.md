@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "JetBrains Junie .aiignore file specification for controlling file access and privacy"
-globs: ["**/*"]
+globs: []
 ---
 
 # JetBrains Junie Ignore Files Specification

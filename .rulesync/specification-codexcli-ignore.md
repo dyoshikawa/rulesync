@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "OpenAI Codex CLI file exclusion and ignore patterns specification"
-globs: ["**/.codexignore", "**/.gitignore", "**/*.json", "**/*.toml", "**/*.yaml"]
+globs: []
 ---
 
 # OpenAI Codex CLI Ignore File Specification

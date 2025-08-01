@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "AugmentCode ignore files specification for controlling AI file access"
-globs: ["**/*.gitignore", "**/.augmentignore"]
+globs: []
 ---
 
 # AugmentCode Ignore Files Specification

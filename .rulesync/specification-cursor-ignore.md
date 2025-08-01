@@ -2,7 +2,7 @@
 root: false
 targets: ["cursor"]
 description: "Cursor IDE .cursorignore and .cursorindexingignore file specification"
-globs: ["**/.cursorignore", "**/.cursorindexingignore"]
+globs: []
 ---
 
 # Cursor IDE Ignore File Specification

@@ -2,7 +2,7 @@
 root: false
 targets: ["cline"]
 description: "Specification document for Cline VSCode Extension .clineignore file"
-globs: ["**/.clineignore"]
+globs: []
 ---
 
 # Cline VSCode Extension Ignore File Specification

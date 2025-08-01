@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: Gemini CLI Memory (GEMINI.md) specification for configuration file generation
-globs: ["**/*.ts", "**/*.js", "**/*.md"]
+globs: []
 ---
 
 # Gemini CLI Memory (GEMINI.md) Specification

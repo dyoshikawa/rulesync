@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: Cline MCP (Model Context Protocol) configuration specification
-globs: ["**/*.json", "**/*.ts", "**/*.js"]
+globs: []
 ---
 
 # Cline MCP (Model Context Protocol) Configuration Specification

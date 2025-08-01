@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "AugmentCode MCP (Model Context Protocol) configuration specification"
-globs: ["**/*.json", "**/*.ts", "**/*.js"]
+globs: []
 ---
 
 # AugmentCode MCP (Model Context Protocol) Configuration Specification

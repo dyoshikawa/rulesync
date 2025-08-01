@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: Claude Code settings.json permission.deny specification for security configuration
-globs: ["**/*.json", "**/*.ts", "**/*.js"]
+globs: []
 ---
 
 # Claude Code settings.json permission.deny Specification

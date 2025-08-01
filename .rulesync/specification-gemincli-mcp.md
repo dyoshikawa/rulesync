@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: Gemini CLI MCP (Model Context Protocol) configuration specification
-globs: ["**/*.json", "**/*.ts", "**/*.js"]
+globs: []
 ---
 
 # Gemini CLI MCP (Model Context Protocol) Configuration Specification

@@ -2,7 +2,7 @@
 root: false
 targets: ["roo"]
 description: "Roocode AI Coding Assistant .rooignore file specification"
-globs: ["**/.rooignore"]
+globs: []
 ---
 
 # Roocode AI Coding Assistant Ignore File Specification

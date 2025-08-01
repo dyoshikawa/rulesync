@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: GitHub Copilot MCP (Model Context Protocol) configuration specification
-globs: ["**/*.json", "**/*.ts", "**/*.js"]
+globs: []
 ---
 
 # GitHub Copilot MCP (Model Context Protocol) Configuration Specification

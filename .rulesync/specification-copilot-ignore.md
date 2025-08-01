@@ -2,7 +2,7 @@
 root: false
 targets: ["copilot"]
 description: "GitHub Copilot Content exclusion feature specification"
-globs: ["**/*.yml", "**/*.yaml"]
+globs: []
 ---
 
 # GitHub Copilot Ignore File Specification
