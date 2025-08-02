@@ -1,510 +1,367 @@
 ---
 root: false
-targets: ["*"]
-description: "Windsurf Model Context Protocol (MCP) server configuration specification"
-globs: ["**/*"]
+targets: ["windsurf"]
+description: "Windsurf MCP (Model Context Protocol) configuration specification"
+globs: ["~/.codeium/windsurf/mcp_config.json", ".windsurf/mcp_config.json", "**/*.json"]
 ---
 
-# Windsurf Model Context Protocol (MCP) Configuration Specification
+# Windsurf MCP (Model Context Protocol) Configuration Specification
 
 ## Overview
-Windsurf IDE integrates with the Model Context Protocol (MCP) to extend its Cascade agent capabilities through external tools and services. MCP is a JSON-RPC 2.0 application-layer protocol that standardizes how AI models discover and interact with tools, files, and data sources.
+Model Context Protocol (MCP) servers expose tools to Windsurf's Cascade AI assistant, enabling integration with external services, databases, and APIs. MCP configuration allows Windsurf to connect to and utilize these extended capabilities.
 
-## Architecture Overview
-Windsurf implements MCP with a client-server architecture:
-- **MCP Client**: Windsurf's Cascade agent acts as the client
-- **MCP Servers**: External processes that expose tools and capabilities
+## Configuration File Placement
 
-## Configuration File Location
+### User-Level Configuration (Global)
+- **Location**: `~/.codeium/windsurf/mcp_config.json`
+- **Scope**: Available to all workspaces for the current user
+- **Use Case**: Personal development tools and commonly used servers
 
-### Primary Configuration
-- **File**: `~/.codeium/windsurf/mcp_config.json`
-- **Scope**: Global configuration for all Windsurf instances
-- **Format**: JSON with `mcpServers` root object
+### Workspace-Specific Configuration (Project)
+- **Location**: `.windsurf/mcp_config.json` in project root
+- **Scope**: Specific to current project
+- **Behavior**: Merged on top of user-level configuration at load-time
+- **Use Case**: Project-specific tools and team-shared configurations
 
-### Alternative Configuration (VS Code compatibility)
-- **File**: `.vscode/mcp.json` (project-specific)
-- **Scope**: Project-level configuration
-- **Format**: JSON with `servers` root object
+### Configuration Access
+- **Settings UI**: Settings → Cascade → "View raw config"
+- **Command Palette**: "Open Windsurf Settings" → search for "mcp_config.json"
+- **Direct File Editing**: Edit JSON files directly with text editor
 
-## File Format Structure
+## JSON Configuration Schema
 
-### Windsurf Native Format
+### Top-Level Structure
 ```json
 {
   "mcpServers": {
-    "server-id": {
-      // Server configuration
+    "<server-ID>": {
+      // Server definition object
     }
   }
 }
 ```
 
-### VS Code Compatible Format
+### Transport Types
+
+#### 1. STDIO Transport (Local Process)
 ```json
 {
-  "inputs": [
-    // Optional user input prompts
-  ],
-  "servers": {
-    "server-id": {
-      // Server configuration
-    }
+  "command": "<binary | script-runner>",
+  "args": ["<arg1>", "<arg2>", "..."],
+  "env": {
+    "<VAR>": "<value>",
+    "...": "..."
   }
 }
 ```
 
-## Server Configuration Fields
-
-### Required Fields (Choose One)
-
-#### STDIO Transport (Local Process)
-- **command** (string): Executable to run (e.g., "node", "python", "npx", "docker")
-- **args** (string[]): Command-line arguments array
-
-#### Remote Transport (HTTP/SSE)
-- **serverUrl** (string): Full HTTPS URL endpoint
-- **url** (string): Alternative field name for VS Code compatibility
-
-### Optional Fields
-- **env** (object): Environment variables for the server process
-- **cwd** (string): Working directory for process execution
-- **disabled** (boolean): Skip loading this server (default: false)
-- **disabledTools** (string[]): Tools to exclude from server capabilities
-- **autoApprove** (string[]): Tools that run without confirmation
-- **transport** (string): Transport protocol ("stdio", "sse", "http")
-- **headers** (object): HTTP headers for remote servers
-- **envFile** (string): Path to environment file (VS Code format)
-
-## Transport Types
-
-### 1. STDIO Transport
-Local process communication via stdin/stdout (most common)
-
-**Features**:
-- Spawns local executable
-- Exchanges JSON-RPC over stdin/stdout
-- Full process lifecycle management
-- Environment variable injection
-
-**Example**:
+#### 2. Server-Sent Events (SSE)
 ```json
 {
-  "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxx"
-      }
-    }
-  }
+  "serverUrl": "https://host.tld/path/sse"
 }
 ```
 
-### 2. SSE Transport (Legacy)
-Server-Sent Events over HTTP
-
-**Features**:
-- Remote server communication
-- Long-lived connection
-- Real-time server-to-client events
-
-**Example**:
+#### 3. Streamable HTTP (Remote Endpoint)
 ```json
 {
-  "mcpServers": {
-    "figma": {
-      "serverUrl": "https://figma-mcp.yourcompany.com/sse"
-    }
-  }
+  "transport": "streamableHttp",
+  "url": "https://host.tld/path/mcp"
 }
 ```
-
-### 3. Streamable HTTP Transport (Recommended)
-Modern HTTP-based transport with streaming support
-
-**Features**:
-- Single `/mcp` endpoint
-- Session management
-- Connection resumability
-- Better error handling
-
-**Example**:
-```json
-{
-  "mcpServers": {
-    "weather": {
-      "serverUrl": "https://weather.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
-
-## Environment Variable Handling
-
-### Direct Environment Variables
-```json
-{
-  "mcpServers": {
-    "postgres": {
-      "command": "node",
-      "args": ["postgres-server.js"],
-      "env": {
-        "PGHOST": "localhost",
-        "PGPORT": "5432",
-        "PGUSER": "app",
-        "PGPASSWORD": "secret",
-        "PGDATABASE": "mydb"
-      }
-    }
-  }
-}
-```
-
-### Environment File Reference (VS Code)
-```json
-{
-  "servers": {
-    "aws": {
-      "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
-      "envFile": "${workspaceFolder}/.env"
-    }
-  }
-}
-```
-
-### Variable Expansion (VS Code)
-```json
-{
-  "inputs": [
-    {
-      "id": "apiKey",
-      "type": "promptString",
-      "description": "API Key",
-      "password": true
-    }
-  ],
-  "servers": {
-    "api": {
-      "serverUrl": "https://api.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer ${input:apiKey}"
-      }
-    }
-  }
-}
-```
-
-## Authentication and Security
-
-### API Key Management
-```json
-{
-  "mcpServers": {
-    "secure-api": {
-      "serverUrl": "https://api.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_TOKEN",
-        "X-API-Key": "YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
-
-### Docker Isolation
-```json
-{
-  "mcpServers": {
-    "isolated-server": {
-      "command": "docker",
-      "args": [
-        "run", "--rm", "-i",
-        "--security-opt", "no-new-privileges:true",
-        "--user", "1000:1000",
-        "your-mcp-server:latest"
-      ]
-    }
-  }
-}
-```
-
-### Tool-Level Security
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-      "disabledTools": ["write_file", "create_directory", "delete_file"],
-      "autoApprove": ["read_file", "list_directory"]
-    }
-  }
-}
-```
-
-## Server Lifecycle Management
-
-### Startup Process
-1. Windsurf reads configuration on startup
-2. Servers are initialized lazily when first needed
-3. Failed servers are logged and marked as unavailable
-4. Configuration changes require Windsurf restart
-
-### Health Monitoring
-- Connection status visible in Cascade settings
-- Error logs available in Help → Open Logs Folder → `mcp-client.log`
-- Failed servers automatically marked as disabled
-
-### Restart and Reload
-```bash
-# Refresh MCP servers without full restart
-# Cascade → Settings → "Refresh MCP servers"
-```
-
-## Integration with Cascade Agent
-
-### Tool Discovery
-- Cascade automatically discovers available tools from all enabled servers
-- Tools are presented in natural language interface
-- Tool limitations: Maximum 100 tools per session
-
-### Execution Flow
-1. User request analyzed by Cascade
-2. Relevant tools identified from MCP servers
-3. Tools executed with appropriate parameters
-4. Results integrated into agent response
-
-### Context Management
-- MCP servers can provide context about available capabilities
-- Tool descriptions help Cascade understand when to use each tool
-- Server resources (files, databases) become available to agent
 
 ## Configuration Examples
 
-### Complete Development Setup
+### Complete Multi-Transport Configuration
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { 
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxx" 
+      }
+    },
+    "figma-dev-mode": {
+      "serverUrl": "http://127.0.0.1:3845/sse"
+    },
+    "zapier-actions": {
+      "serverUrl": "https://actions.zapier.com/mcp/ABC123/sse"
+    }
+  }
+}
+```
+
+### STDIO Server Examples
+
+#### Node.js Package Server
 ```json
 {
   "mcpServers": {
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-      "disabledTools": ["delete_file"]
-    },
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/project/root"],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxx"
+        "LOG_LEVEL": "info"
       }
-    },
-    "postgres": {
+    }
+  }
+}
+```
+
+#### Python MCP Server
+```json
+{
+  "mcpServers": {
+    "postgresql": {
+      "command": "python",
+      "args": ["-m", "postgresql_mcp_server"],
+      "env": {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db",
+        "DEBUG": "true"
+      }
+    }
+  }
+}
+```
+
+#### Docker-Based Server
+```json
+{
+  "mcpServers": {
+    "database-tools": {
       "command": "docker",
       "args": [
-        "run", "--rm", "-i",
-        "-e", "PGHOST=host.docker.internal",
-        "-e", "PGUSER=app",
-        "-e", "PGPASSWORD=secret",
-        "ghcr.io/modelcontext/postgres-mcp:latest"
+        "run", "-i", "--rm",
+        "-e", "DATABASE_URL",
+        "-e", "API_KEY",
+        "ghcr.io/org/database-mcp-server"
       ]
-    },
-    "tomtom-maps": {
-      "command": "npx",
-      "args": ["-y", "@tomtom-org/tomtom-mcp@latest"],
-      "env": {
-        "TOMTOM_API_KEY": "YOUR_API_KEY"
-      }
     }
   }
 }
 ```
 
-### Remote Services Setup
+### Remote Server Examples
+
+#### Figma Dev Mode Integration
 ```json
 {
   "mcpServers": {
-    "company-api": {
-      "serverUrl": "https://internal-tools.company.com/mcp",
-      "headers": {
-        "Authorization": "Bearer INTERNAL_TOKEN"
-      }
-    },
-    "external-service": {
-      "serverUrl": "https://api.external.com/sse"
+    "figma-dev-mode": {
+      "serverUrl": "http://127.0.0.1:3845/sse"
     }
   }
 }
 ```
 
-### Multi-Environment Configuration
+#### Zapier Actions Integration
 ```json
 {
   "mcpServers": {
-    "dev-database": {
-      "command": "node",
-      "args": ["db-server.js"],
-      "env": {
-        "NODE_ENV": "development",
-        "DB_URL": "postgresql://localhost:5432/dev"
-      },
-      "disabled": false
-    },
-    "prod-database": {
-      "command": "node", 
-      "args": ["db-server.js"],
-      "env": {
-        "NODE_ENV": "production",
-        "DB_URL": "postgresql://prod.company.com:5432/app"
-      },
-      "disabled": true
+    "zapier-actions": {
+      "serverUrl": "https://actions.zapier.com/mcp/YOUR_TOKEN/sse"
     }
   }
 }
 ```
 
-## Error Handling and Troubleshooting
-
-### Common Error Patterns
-
-#### JSON Syntax Errors
-**Symptom**: All MCP servers fail to load
-**Solution**: Validate JSON syntax with `jq . ~/.codeium/windsurf/mcp_config.json`
-
-#### Command Not Found
-**Symptom**: Server fails to start with "command not found"
-**Solution**: Use absolute paths or ensure commands are in PATH
-
-#### Connection Refused
-**Symptom**: "Cannot call write after a stream was destroyed"
-**Solution**: Check server endpoint and network connectivity
-
-#### Authentication Failures
-**Symptom**: 401/403 errors in logs
-**Solution**: Verify API keys and authentication headers
-
-### Diagnostic Steps
-
-#### 1. Configuration Validation
-```bash
-# Validate JSON syntax
-jq . ~/.codeium/windsurf/mcp_config.json
-
-# Check for common issues
-grep -E '"@|serverUrl.*command|disabled.*true' ~/.codeium/windsurf/mcp_config.json
-```
-
-#### 2. Server Testing
-```bash
-# Test STDIO server manually
-npx -y @modelcontextprotocol/server-github --version
-
-# Test HTTP/SSE server
-curl -v -X POST http://localhost:8000/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","method":"mcp/initialize","id":1}'
-```
-
-#### 3. Log Analysis
-- **Location**: Help → Open Logs Folder → `mcp-client.log`
-- **Look for**: Connection errors, authentication failures, JSON-RPC errors
-- **Common patterns**: "couldn't create connection", "stream was destroyed"
-
-#### 4. Progressive Isolation
-1. Start with empty configuration: `{ "mcpServers": {} }`
-2. Add servers one by one until failure
-3. Identify problematic server configuration
-4. Fix specific issues and test again
-
-### Error Response Handling
-
-#### STDIO Transport Errors
+#### Custom API Server
 ```json
 {
-  "jsonrpc": "2.0",
-  "error": {
-    "code": -32603,
-    "message": "Invalid API key"
-  },
-  "id": 42
+  "mcpServers": {
+    "internal-api": {
+      "transport": "streamableHttp",
+      "url": "https://internal-api.company.com/mcp"
+    }
+  }
 }
 ```
 
-#### HTTP Transport Errors
-- Return appropriate HTTP status (400/404/405)
-- Include JSON-RPC error in response body
-- Use standard error codes for consistency
+## Server Management Methods
 
-## Best Practices
+### Method 1: Plugin Store Installation
+1. Open Cascade → Plugins icon
+2. Browse or search for server
+3. Click Install → enter API key/token → Save
+4. Press Refresh (⟳) button to load server
+
+### Method 2: Settings UI Configuration
+1. Settings → Cascade → "Add Server"
+2. Choose from pre-populated list or "Add custom server +"
+3. Fill configuration form or use JSON editor
+4. Save configuration
+
+### Method 3: Manual JSON Editing
+1. Open `~/.codeium/windsurf/mcp_config.json` in text editor
+2. Add server configuration to `mcpServers` object
+3. Save file
+4. Refresh Cascade panel or restart Windsurf
+
+## Server Setup and Deployment
+
+### STDIO Server Requirements
+- **Executable**: Must be available in PATH or use absolute path
+- **Arguments**: Pass required configuration through `args` array
+- **Environment**: Use `env` object for API keys and configuration
+- **Startup**: Server launched on-demand when Windsurf starts
+
+### Docker Server Deployment
+```json
+{
+  "mcpServers": {
+    "docker-server": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "/project:/workspace",
+        "-e", "WORKSPACE=/workspace",
+        "-e", "API_KEY",
+        "custom/mcp-server:latest"
+      ]
+    }
+  }
+}
+```
+
+### Remote Server Setup
+- **SSE Servers**: No local setup required, just provide endpoint URL
+- **Hosted Services**: Use provider-issued URLs and authentication
+- **Internal Services**: Ensure network connectivity and CORS configuration
+
+## Cascade Integration
+
+### Enabling MCP in Cascade
+1. Open Windsurf
+2. Cmd/Ctrl + Shift + P → "Open Windsurf Settings"
+3. Advanced → Cascade → toggle "Model Context Protocol (MCP)"
+4. Add servers via plugin store or JSON configuration
+5. Refresh Cascade panel
+
+### Tool Management
+- **Tool Limit**: Hard cap of 100 total tools across all servers
+- **Tool Selection**: Enable/disable individual tools per server
+- **Tool Discovery**: Available tools listed in Cascade sidebar after server connection
+
+### Usage Patterns
+```
+# Natural language prompts that trigger MCP tools:
+"Analyze my PostgreSQL database"
+"Get the latest GitHub issues for this repository"
+"Fetch design tokens from Figma"
+```
+
+## Security and Best Practices
 
 ### Security Guidelines
-1. **Never commit secrets**: Use environment variables and secret managers
-2. **Principle of least privilege**: Disable unnecessary tools
-3. **Network isolation**: Use Docker for untrusted servers
-4. **Regular rotation**: Rotate API keys and tokens regularly
-5. **Audit logging**: Monitor tool usage and access patterns
-
-### Performance Optimization
-1. **Lazy loading**: Servers start only when needed
-2. **Connection pooling**: Reuse connections for HTTP servers
-3. **Tool limiting**: Keep total tools under 100
-4. **Resource management**: Clean up server processes properly
+- **Secret Management**: Keep API keys and tokens out of JSON files
+- **Environment Variables**: Reference secrets through environment variables
+- **Principle of Least Privilege**: Use read-only tokens when possible
+- **Token Rotation**: Regularly rotate API keys and access tokens
 
 ### Configuration Management
-1. **Version control**: Track configuration changes
-2. **Environment separation**: Use different configs for dev/prod
-3. **Documentation**: Document server purposes and requirements
-4. **Testing**: Validate configurations in development first
+- **Version Control**: Commit workspace `.windsurf/mcp_config.json` for team sharing
+- **Documentation**: Document server purposes and configuration requirements
+- **Testing**: Verify server connectivity before team deployment
+- **Monitoring**: Regular health checks for production servers
 
-### Development Workflow
-1. **Start simple**: Begin with single server configurations
-2. **Test incrementally**: Add servers one at a time
-3. **Monitor logs**: Watch for errors during development
-4. **Use disabled flag**: Keep experimental servers disabled
-5. **Regular cleanup**: Remove unused server configurations
+### Performance Optimization
+- **Selective Servers**: Only configure servers needed for current project
+- **Resource Limits**: Monitor memory and CPU usage of stdio servers
+- **Caching**: Implement server-side caching for frequently accessed data
+- **Connection Pooling**: Use connection pooling for database servers
 
-## Migration and Compatibility
+## Enterprise and Team Controls
 
-### From Other MCP Clients
-When migrating from VS Code or other MCP clients:
+### Administrative Controls
+- **Access Toggle**: Admins can enable/disable MCP access entirely
+- **Server Allowlists**: Whitelist specific server IDs for security
+- **Command Validation**: Regex-match command/args patterns for approval
+- **Security Policy**: Once allowlist exists, non-listed servers are blocked
 
-```javascript
-// VS Code format
-{
-  "servers": {
-    "github": { ... }
-  }
-}
+### Team Collaboration
+- **Shared Configuration**: Use workspace-specific `mcp_config.json` for team consistency
+- **Onboarding**: Include MCP server setup in developer onboarding documentation
+- **Standards**: Establish team standards for server configuration and usage
+- **Review Process**: Include MCP configuration changes in code reviews
 
-// Convert to Windsurf format
+## Advanced Configuration Patterns
+
+### Multi-Environment Servers
+```json
 {
   "mcpServers": {
-    "github": { ... }
+    "api-dev": {
+      "serverUrl": "https://dev-api.company.com/mcp"
+    },
+    "api-staging": {
+      "serverUrl": "https://staging-api.company.com/mcp"
+    },
+    "api-prod": {
+      "serverUrl": "https://api.company.com/mcp"
+    }
   }
 }
 ```
 
-### Backwards Compatibility
-- Windsurf supports both legacy SSE and modern HTTP transports
-- Old configuration files continue to work
-- Gradual migration path available for existing setups
+### Development vs Production Configuration
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "DATABASE_URL=${DB_URL_DEV}",
+        "postgres-mcp:dev"
+      ],
+      "env": {
+        "LOG_LEVEL": "debug"
+      }
+    }
+  }
+}
+```
 
-## Future Considerations
+### Conditional Server Loading
+- Use environment variables to control which servers are active
+- Implement feature flags through environment configuration
+- Support different server configurations per deployment environment
 
-### Upcoming Features
-- Enhanced security models
-- Improved error reporting
-- Better performance monitoring
-- Advanced tool orchestration
+## Troubleshooting and Debugging
 
-### Protocol Evolution
-- MCP specification updates
-- New transport types
-- Enhanced authentication methods
-- Improved tool discovery
+### Common Issues
+- **Server Connection Failures**: Verify command paths and network connectivity
+- **Authentication Errors**: Check API keys and token validity
+- **Tool Limit Exceeded**: Disable unused tools or servers
+- **Performance Issues**: Monitor server resource usage and optimize configuration
 
-This specification provides comprehensive guidance for configuring MCP servers in Windsurf, enabling powerful AI-assisted development workflows through the Cascade agent system.
+### Debugging Steps
+1. **Server Status**: Check server connection status in Cascade panel
+2. **Log Review**: Examine server startup logs and error messages
+3. **Manual Testing**: Test server commands and endpoints manually
+4. **Configuration Validation**: Verify JSON syntax and structure
+5. **Network Connectivity**: Test network access to remote servers
+
+### Tool Refresh Process
+- Save configuration changes
+- Press Refresh (⟳) button in Cascade panel
+- Restart Windsurf if issues persist
+- Check server status indicators for connection health
+
+## Migration and Maintenance
+
+### Server Updates
+- **Regular Updates**: Keep server packages and Docker images updated
+- **Version Pinning**: Pin specific versions for production stability
+- **Testing**: Test server updates in development before production deployment
+- **Rollback**: Maintain previous working configurations for quick rollback
+
+### Configuration Migration
+- **Backup**: Regular backups of working configurations
+- **Version Control**: Track configuration changes through Git
+- **Documentation**: Maintain change logs for server configurations
+- **Team Communication**: Notify team of configuration changes
+
+This comprehensive specification enables effective implementation of Windsurf MCP configuration management in rulesync, supporting both individual and team development workflows with external tool integration.

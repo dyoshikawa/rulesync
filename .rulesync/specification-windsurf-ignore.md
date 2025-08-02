@@ -1,118 +1,207 @@
 ---
 root: false
-targets: ["*"]
-description: "Windsurf ignore file specification for controlling file access and privacy"
-globs: ["**/*"]
+targets: ["windsurf"]
+description: "Windsurf AI assistant ignore files configuration specification"
+globs: [".codeiumignore", ".cursorignore", ".aiexclude", ".aiignore", ".noai", "**/.gitignore"]
 ---
 
-# Windsurf Ignore File Specification
+# Windsurf AI Assistant Ignore Files Configuration Specification
 
 ## Overview
-Windsurf is an AI-powered coding assistant and IDE that uses ignore files to control which files the AI can access, index, and analyze. The ignore system provides privacy and security controls to prevent sensitive data from being sent to remote AI systems.
+Windsurf provides multiple layers of control over what files and directories the AI assistant (Cascade, chat, autocomplete, etc.) can access. This includes automatic exclusions and manual control through ignore files to protect sensitive data and improve performance.
 
-## File Placement and Naming
+## Automatic Exclusions
 
-### Primary Ignore File
-- **File**: `.codeiumignore` in repository/workspace root
-- **Alternative**: `.windsurfignore` (deprecated, not officially supported)
-- **Scope**: Applies to the entire workspace/repository
-- **Discovery**: Windsurf reads the file on startup and when it changes
+### Default Ignored Patterns
+Windsurf automatically excludes these patterns from AI access:
+- **Everything in .gitignore**: All files and directories already listed in `.gitignore`
+- **node_modules/**: All Node.js dependency directories
+- **Hidden files and directories**: Any file or directory whose name starts with a dot (.)
 
-### Global Configuration
-- **Location**: `~/.codeium/.codeiumignore`
-- **Scope**: Applied to all repositories opened with Windsurf
-- **Use Case**: Enterprise/organizational policies, personal global preferences
+### Behavior
+- These files are never indexed, embedded, or sent to Windsurf's servers
+- Files don't count against workspace size limits
+- No configuration required - exclusions are automatic
 
-### Multiple Workspaces
-- Each workspace root can have its own `.codeiumignore`
-- Rules are applied independently per workspace
-- Monorepo support: each root directory maintains separate ignore rules
+## Manual Ignore Files
 
-## File Format and Syntax
+### Primary Ignore File: .codeiumignore
 
-### Basic Structure
-The `.codeiumignore` file uses identical syntax to `.gitignore` files:
+#### File Placement and Scope
+- **Location**: `.codeiumignore` in the root of the repository/workspace
+- **Scope**: Entire workspace (only one file read per workspace)
+- **Limitation**: Nested `.codeiumignore` files in subdirectories are ignored
 
+#### Purpose and Behavior
+- Tell Windsurf "never index these paths, even if they are NOT in .gitignore"
+- File names remain visible in project tree
+- File contents cannot be read automatically by AI
+- AI must ask for explicit permission before accessing ignored files
+
+#### Syntax (Identical to .gitignore)
+The `.codeiumignore` file uses the same syntax as `.gitignore`:
+
+##### Basic Patterns
+- **Comments**: Lines starting with `#` are ignored
+- **Blank lines**: Used as separators, ignored by parser
+- **Wildcards**:
+  - `*`: Matches any characters except `/`
+  - `?`: Matches any single character except `/`
+  - `[abc]`: Matches any character in the set
+  - `[a-z]`: Matches any character in the range
+
+##### Path Patterns
+- **Leading `/`**: Anchors pattern to project root
+  - `/secrets` matches only `secrets` at root
+  - `secrets` matches any `secrets` directory at any level
+- **Trailing `/`**: Matches only directories
+  - `logs/` matches directories named `logs`
+  - `logs` matches both files and directories named `logs`
+- **Double asterisk `**`**: Matches zero or more directories
+  - `**/temp` matches `temp` anywhere in tree
+  - `config/**` matches everything under `config`
+  - `**/*.log` matches all `.log` files at any depth
+
+##### Negation Patterns
+- **Leading `!`**: Re-includes previously excluded items
+  - Must not have trailing `/` in negation patterns
+  - Cannot re-include if parent directory is excluded
+
+#### Example .codeiumignore Configuration
 ```gitignore
-# Comments start with #
-# Blank lines are ignored
+# Keep API keys totally out of AI context
+*.env
+*.key
 
-# Basic patterns
+# Block large media & build artifacts
+dist/
+build/
+**/*.mp4
+*.pdf
+
+# Ignore every secrets/ dir anywhere, but keep template files
+secrets/
+!secrets/*.sample
+
+# Sensitive documentation
+internal-docs/
+confidential/
+proprietary/
+
+# Database files
+*.db
+*.sqlite
+*.dump
+
+# Logs and temporary files
 *.log
 *.tmp
-.env
+logs/
+temp/
 
-# Directory patterns
-build/
-node_modules/
+# Certificate and key files
+*.pem
+*.crt
+*.p12
+*.pfx
+*.der
+id_rsa*
+id_dsa*
+*.ppk
 
-# Negation patterns (exceptions)
-!important.log
-!src/public-api/**
+# Cloud and service configurations
+aws-credentials.json
+gcp-service-account*.json
+azure-credentials.json
+**/apikeys/
+**/*_token*
+**/*_secret*
+**/*api_key*
 ```
 
-### Pattern Matching Rules
+### Alternative Ignore Files (Auto-detected)
 
-#### Wildcards and Special Characters
-- `*` - Matches any characters except `/` (single path segment)
-- `?` - Matches any single character except `/`
-- `**` - Recursive wildcard (matches any number of directories)
-- `[abc]` - Character class matching
-- `[a-z]` - Character range matching
+For compatibility with other AI tools, Windsurf automatically recognizes these ignore files if they exist and `.codeiumignore` does not:
 
-#### Path Anchoring
-- **Leading `/`** - Anchors pattern to workspace root
-  - `/secret.txt` matches only root-level file
-  - `secret.txt` matches any file named secret.txt anywhere
-- **Trailing `/`** - Matches directories only
-  - `logs/` matches directories named logs
-  - `logs` matches both files and directories
+#### .cursorignore
+- **Source**: Cursor AI ignore file
+- **Behavior**: Same syntax and functionality as `.codeiumignore`
+- **Precedence**: Used only if `.codeiumignore` doesn't exist
 
-#### Advanced Patterns
-```gitignore
-# Match at any depth
-**/test/fixtures/**
+#### .aiexclude
+- **Source**: Generic AI exclusion file
+- **Behavior**: Same syntax and functionality as `.codeiumignore`
+- **Precedence**: Used only if neither `.codeiumignore` nor `.cursorignore` exist
 
-# Match from root only
-/docs/private-design/*.pdf
+#### .aiignore
+- **Source**: Generic AI ignore file
+- **Behavior**: Same syntax and functionality as `.codeiumignore`
+- **Precedence**: Lowest priority among ignore files
 
-# Match specific file types in specific locations
-src/**/*.{tmp,cache,bak}
+### Project-Wide Kill Switch: .noai
 
-# Directory exclusion with exceptions
-docs/**
-!docs/README.md
-!docs/public/**
+#### Complete AI Disable
+- **File**: Empty file called `.noai` in project root
+- **Effect**: Turns off ALL AI features for the project
+- **Scope**: Affects entire project, disables all AI functionality
+- **Use Case**: Projects requiring complete AI exclusion
+
+#### Implementation
+```bash
+# Create .noai file to disable all AI features
+touch .noai
 ```
 
-## Precedence and Hierarchy
+## Privacy and Security Controls
 
-### Rule Evaluation Order
-1. **Built-in defaults** - Automatic exclusions (node_modules/, .git/, build/, dist/)
-2. **`.gitignore` rules** - Git ignore patterns are respected
-3. **Repository `.codeiumignore`** - Project-specific rules
-4. **Global `.codeiumignore`** - User/enterprise-wide rules
+### Data Processing Modes
 
-### Rule Resolution
-- Patterns are evaluated top-to-bottom within each file
-- **Last matching rule wins** within the same file
-- More specific files (repository-level) take precedence over global rules
+#### Local vs Remote Processing
+- **Local Indexing**: Embeddings stored only on your machine
+- **Transient Processing**: Code snippets sent to servers temporarily for embedding computation
+- **No Persistence**: Neither code nor embeddings are stored server-side
+- **Zero-Data-Retention**: Available for Team & Enterprise tiers, can be toggled in user profile
 
-### Current Limitations
-- **Exception Override Issue**: `.codeiumignore` exceptions (`!pattern`) may not properly override `.gitignore` exclusions
-- **Single Location**: Only workspace root `.codeiumignore` is supported (no nested ignore files)
+#### Disabling Indexing Entirely
+- **Location**: Settings → Windsurf Search → Toggle indexing off
+- **Effect**: Nothing is embedded, AI only sees manually opened or pinned files
+- **Use Case**: Maximum privacy for sensitive projects
 
-## Pattern Examples and Use Cases
+### Security Bypass Scenarios
 
-### Security and Privacy Patterns
+Ignore rules can be bypassed in these specific scenarios:
+1. **Brave Mode enabled**: AI can access any file without confirmation
+2. **Action Allowlist commands**: Pre-approved CLI commands can touch ignored paths
+3. **Explicit user action**: User manually provides ignored file content
+
+## Configuration Examples by Use Case
+
+### Complete Security Template
 ```gitignore
-# === SECURITY & SECRETS ===
+# ───── Source Control Metadata ─────
+.git/
+.svn/
+.hg/
+.idea/
+*.iml
+.vscode/settings.json
+
+# ───── Build Artifacts ─────
+/out/
+/dist/
+/target/
+/build/
+*.class
+*.jar
+*.war
+
+# ───── Secrets & Credentials ─────
 # Environment files
 .env
 .env.*
 !.env.example
 
-# Key materials and certificates
+# Key material
 *.pem
 *.key
 *.crt
@@ -121,6 +210,19 @@ docs/**
 *.der
 id_rsa*
 id_dsa*
+*.ppk
+
+# Cloud and service configs
+aws-credentials.json
+gcp-service-account*.json
+azure-credentials.json
+secrets/**
+config/secrets/
+**/secrets/
+
+# Database credentials
+database.yml
+**/database/config.*
 
 # API keys and tokens
 **/apikeys/
@@ -128,86 +230,37 @@ id_dsa*
 **/*_secret*
 **/*api_key*
 
-# Database credentials
-database.yml
-**/database/config.*
+# ───── Infrastructure & Deployment ─────
+# Terraform state
+*.tfstate
+*.tfstate.*
+.terraform/
 
-# Cloud service configurations
-aws-credentials.json
-gcp-service-account*.json
-azure-credentials.json
-```
+# Kubernetes secrets
+**/k8s/**/secret*.yaml
+**/kubernetes/**/secret*.yaml
 
-### Build Artifacts and Generated Files
-```gitignore
-# === BUILD ARTIFACTS ===
-# Common build directories
-build/
-dist/
-out/
-target/
-.next/
-.nuxt/
+# Docker secrets
+docker-compose.override.yml
+**/docker/secrets/
 
-# Compiled files
-*.class
-*.jar
-*.war
-*.exe
-*.dll
-
-# Cache directories
-.cache/
-.parcel-cache/
-.webpack/
-```
-
-### Development and Testing
-```gitignore
-# === DEVELOPMENT ===
-# Logs
+# ───── Logs & Runtime Data ─────
 *.log
-logs/
 *.tmp
-
-# Coverage reports
+*.cache
+logs/
+/var/log/
 coverage/
 .nyc_output/
-lcov.info
 
-# Test fixtures and data
-**/test/fixtures/**
-**/test-data/**
-**/__snapshots__/**
-
-# IDE and editor files
-.vscode/settings.json
-.idea/
-*.swp
-*.swo
-```
-
-### Large Data Files
-```gitignore
-# === LARGE DATA FILES ===
-# Data files
+# ───── Large Data Files ─────
 *.csv
 *.xlsx
 *.sqlite
 *.db
 *.dump
-
-# Media files
-*.mp4
-*.avi
-*.mov
-*.wav
-*.mp3
-
-# Archive files
-*.zip
-*.tar.gz
-*.rar
+data/
+datasets/
 ```
 
 ### Framework-Specific Examples
@@ -219,18 +272,27 @@ node_modules/
 .pnpm-store/
 .yarn/
 
+# Environment and secrets
+.env*
+!.env.example
+
 # Build outputs
 dist/
 build/
 .next/
+.nuxt/
 
-# Environment
-.env*
-!.env.example
-
-# Logs and cache
+# Logs
 *.log
+logs/
+
+# Cache
 .cache/
+.parcel-cache/
+
+# Testing
+coverage/
+.nyc_output/
 ```
 
 #### Python Project
@@ -246,12 +308,26 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+pip-log.txt
 
-# Data and models
+# Environment files
+.env*
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Data
 data/
-models/
-*.pkl
-*.h5
+datasets/
+*.csv
+*.xlsx
 ```
 
 #### Java/Spring Project
@@ -260,263 +336,158 @@ models/
 target/
 out/
 *.class
+*.jar
+*.war
 
 # IDE files
 .idea/
 *.iml
+.vscode/
 
 # Application secrets
 application-prod.properties
+application-secrets.properties
 src/main/resources/application-*.yml
 !src/main/resources/application.yml
+!src/main/resources/application-dev.yml
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
 ```
 
-## Integration with Windsurf Features
-
-### Local Indexing System
-- **Process**: Windsurf preprocesses the workspace up to a configurable file limit
-- **AST Generation**: Creates Abstract Syntax Tree representation of code
-- **Embedding Computation**: Generates embeddings for code chunks locally
-- **Vector Store**: Maintains local index with file path and line range pointers
-
-### Context Awareness
-- **Automatic Exclusion**: Large vendor folders excluded by default
-- **Import Graph**: Considers dependency relationships while respecting ignore rules
-- **Build Scripts**: Includes relevant build configuration while excluding outputs
-
-### Cascade Integration
-- **File Access**: Cascade cannot view, edit, or create files in ignored paths
-- **Context Injection**: Ignored files are never included in AI context
-- **Tool Operations**: All Windsurf tools respect ignore patterns
-
-## Privacy and Security Implications
-
-### Data Protection
-- **No Upload**: Ignored files are never uploaded to Windsurf servers
-- **Local Processing**: Indexing respects ignore rules during local preprocessing
-- **Memory Only**: In Zero-Data-Retention mode, even non-ignored code is only held in memory
-- **SOC 2 Compliance**: Annual third-party penetration testing and certification
-
-### User Control
-- **Opt-out Mechanism**: Complete control over what data is indexed
-- **Manual Override Warning**: Manually pasted ignored file content is still processed
-- **Telemetry Control**: Separate settings for usage metrics and code snippet telemetry
-
-### Enterprise Features
-- **Global Policies**: Managed global `.codeiumignore` for organizational standards
-- **Audit Trail**: Logging of ignore rule application and file access
-- **Compliance**: Support for regulatory requirements (GDPR, HIPAA, SOX)
-
-## Performance Considerations
-
-### Large Codebase Optimization
+### Enterprise/Corporate Configuration
 ```gitignore
-# Exclude large directories early
-/vendor/
-/third_party/
-/external/
+# ───── Legal & Compliance ─────
+legal/
+compliance/
+audit/
+contracts/
+**/confidential/
+**/proprietary/
 
-# Binary and media files
-*.bin
-*.exe
-*.so
-*.dylib
+# ───── Internal Documentation ─────
+internal-docs/
+company-secrets/
+strategy/
+financial/
 
-# Generated documentation
-/docs/generated/
-/api-docs/
+# ───── Customer Data ─────
+customer-data/
+pii/
+gdpr/
+**/*customer*.csv
+**/*personal*.json
 
-# Large data directories
-/datasets/
-/backups/
-/archives/
+# ───── Infrastructure Secrets ─────
+# VPN configs
+*.openvpn
+*.ovpn
+vpn-config/
+
+# Certificate authorities
+ca/
+certificates/
+ssl/
+
+# Network configs
+network-config/
+firewall-rules/
 ```
 
-### Indexing Performance
-- **File Limit**: Configurable maximum number of files to index
-- **Memory Management**: Exclude large files to prevent memory issues
-- **Processing Speed**: Fewer files means faster startup and re-indexing
+## File Processing Behavior
 
-### Best Practices for Performance
-1. **Broad Exclusions First**: Exclude large directories before specific files
-2. **Binary File Exclusion**: Always exclude binary files and media
-3. **Generated Code**: Consider excluding generated code that changes frequently
-4. **Regular Review**: Periodically review and optimize ignore patterns
+### Incremental Indexing
+- Changes to ignore files are processed immediately upon save
+- Windsurf stops embedding newly ignored paths
+- Existing embeddings for ignored files are removed from local vector store
+- AI chat, autocomplete, and search can no longer access ignored files
 
-## Configuration Management
+### File Visibility vs Access
+- **File names**: Remain visible in project tree and file explorer
+- **Content access**: Blocked from automatic AI access
+- **Manual access**: Requires explicit user permission through confirmation dialog
 
-### Version Control Integration
-```gitignore
-# Commit .codeiumignore to share with team
-# Keep it alongside .gitignore for consistency
+### Upload Prevention
+- Ignored files will not be uploaded in rare cases of remote indexing
+- Provides protection even when using cloud-based AI features
 
-# Example repository structure:
-# .gitignore          - Git exclusions
-# .codeiumignore      - Windsurf AI exclusions
-# .editorconfig       - Editor settings
-```
+## Best Practices and Recommendations
+
+### Security Guidelines
+1. **Never commit secrets**: Use environment variables and secret managers
+2. **Regular audits**: Review `.codeiumignore` rules periodically
+3. **Team consistency**: Ensure all team members use same ignore rules
+4. **Principle of least privilege**: Start with restrictive rules, gradually relax
+5. **Secret rotation**: If ignored files contained secrets, rotate them
+
+### Quick Checklist for Sensitive Projects
+- ☑ Put secret-bearing files (`.env*`, `*.pem`, `*.key`) in `.gitignore`
+- ☑ Add same patterns to `.codeiumignore` for AI protection
+- ☑ Enable zero-data-retention in Profile → Privacy
+- ☑ Use `.noai` file for completely private repositories
+- ☑ Regular review and update of ignore patterns
+- ☑ Document ignore patterns for team understanding
+
+### Maintenance Workflow
+1. **Initial setup**: Create comprehensive `.codeiumignore` before enabling AI features
+2. **Code review**: Include `.codeiumignore` changes in pull request reviews
+3. **Documentation**: Document why specific patterns are ignored
+4. **Regular review**: Update rules as project structure evolves
+5. **Testing**: Regularly verify that sensitive files remain protected
 
 ### Team Collaboration
-- **Shared Rules**: Commit `.codeiumignore` for team consistency
-- **Local Overrides**: Use global configuration for personal preferences
-- **Documentation**: Document ignore decisions in team wikis or README
+1. **Version control**: Commit `.codeiumignore` to repository
+2. **Onboarding**: Include ignore file setup in developer onboarding
+3. **Standards**: Establish team standards for what should be ignored
+4. **Communication**: Clearly communicate ignore rules to all team members
+5. **Training**: Educate team on proper ignore file usage
 
-### Migration Strategies
-- **From .gitignore**: Copy relevant patterns and add AI-specific exclusions
-- **From Other Tools**: Adapt patterns from `.cursorignore`, `.aiexclude`
-- **Gradual Implementation**: Start restrictive, gradually relax as needed
+## Integration with Development Workflows
+
+### Version Control Integration
+- Commit `.codeiumignore` alongside `.gitignore`
+- Use similar patterns but focus on AI-specific privacy concerns
+- Consider more restrictive rules than `.gitignore`
+- Track changes through pull request reviews
+
+### CI/CD Integration
+- Validate `.codeiumignore` syntax in CI pipeline
+- Ensure ignore rules don't conflict with build requirements
+- Test that sensitive files remain protected
+- Automate ignore pattern validation
+
+### Documentation Integration
+- Include ignore file documentation in project README
+- Maintain changelog of ignore rule changes
+- Document exceptions and their justifications
+- Provide examples for common use cases
 
 ## Troubleshooting and Validation
 
-### Verification Methods
-
-#### IDE Context Panel
-1. Open Windsurf Chat → "Context" pane
-2. Indexed files show green dots
-3. Ignored files don't appear in the list
-4. Hover over files to see which rule applied
-
-#### Command Line Verification
-```bash
-# Check specific file status
-windsurf context --explain path/to/file.ts
-
-# Show effective context
-# Command Palette → "Windsurf AI: Show Effective Context"
-```
+### Testing Ignore Rules
+1. Open a file that should be ignored
+2. Invoke any AI action (explain code, refactor, etc.)
+3. IDE should display: "AI has no access to this file"
+4. Confirm dialog should appear requesting permission
 
 ### Common Issues and Solutions
+- **Rules not working**: Check file location (must be in workspace root)
+- **Syntax errors**: Validate against gitignore syntax rules
+- **Performance issues**: Monitor impact of complex patterns
+- **Team inconsistencies**: Standardize ignore files across team
 
-#### Rule Not Applied
-- **Problem**: Ignore patterns not taking effect
-- **Solutions**:
-  - Confirm file is at workspace root
-  - Reload IDE window
-  - Run "Windsurf: Re-index Workspace"
-  - Check for conflicting patterns
+### Validation Commands
+```bash
+# List files that would be ignored (similar to git)
+find . -name ".codeiumignore" -exec cat {} \;
 
-#### Exception Patterns Not Working
-- **Problem**: `!pattern` not overriding `.gitignore`
-- **Known Issue**: Exception rules may not take precedence over Git exclusions
-- **Workaround**: Modify `.gitignore` or use more specific patterns
-
-#### Over-Exclusion
-- **Problem**: Too many files excluded, losing context
-- **Solutions**:
-  - Use more specific patterns
-  - Add exception rules for important interfaces
-  - Review and refine broad exclusions
-
-#### Performance Issues
-- **Problem**: Slow indexing or large memory usage
-- **Solutions**:
-  - Exclude large directories early in the file
-  - Add binary file exclusions
-  - Reduce workspace size limit in settings
-
-### Debugging Techniques
-
-#### Pattern Testing
-```gitignore
-# Test patterns incrementally
-# Start with broad patterns
-build/
-*.log
-
-# Add specific exceptions
-!build/config.json
-
-# Use comments to document decisions
-# Exclude test fixtures - too large for context
-tests/fixtures/**
+# Test specific patterns (manual verification required)
+# Compare file paths against ignore patterns
 ```
 
-#### Log Analysis
-- **Location**: Check Windsurf logs for ignore pattern processing
-- **IDE Logs**: Help → Show Log in Explorer
-- **Console Output**: Debug information during indexing
-
-## Best Practices
-
-### Security-First Approach
-1. **Default Deny**: Start with restrictive rules, gradually allow
-2. **Secret Scanning**: Regularly audit for exposed credentials
-3. **Team Training**: Educate team on ignore file importance
-4. **Regular Review**: Periodic security review of patterns
-
-### Maintenance Guidelines
-1. **Document Decisions**: Comment complex patterns
-2. **Version Control**: Always commit ignore files
-3. **Team Consistency**: Establish organization-wide standards
-4. **Performance Monitoring**: Monitor indexing performance and adjust
-
-### Pattern Organization
-```gitignore
-# === .codeiumignore TEMPLATE ===
-# Organized by category for maintainability
-
-# 1. SECURITY & SECRETS
-*.env
-*.key
-secrets/
-
-# 2. BUILD ARTIFACTS  
-build/
-dist/
-*.class
-
-# 3. LARGE DATA FILES
-*.csv
-*.zip
-data/
-
-# 4. DEVELOPMENT
-*.log
-.cache/
-coverage/
-
-# 5. PROJECT-SPECIFIC
-# Add your custom patterns here
-
-# 6. EXCEPTIONS (LAST)
-!src/public-api/**
-!docs/README.md
-```
-
-### Enterprise Deployment
-1. **Global Policies**: Deploy managed global `.codeiumignore`
-2. **Compliance Mapping**: Map ignore patterns to regulatory requirements
-3. **Audit Trails**: Maintain logs of ignore pattern changes
-4. **Training Programs**: Regular security awareness training
-
-## Integration with Other Systems
-
-### Git Integration
-- **Complementary**: Works alongside `.gitignore`, doesn't replace it
-- **Precedence**: `.gitignore` rules are respected by default
-- **Override Issues**: Limited ability to override Git exclusions
-
-### CI/CD Integration
-```yaml
-# Example GitHub Actions validation
-name: Validate Ignore Files
-on: [push, pull_request]
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Check ignore file syntax
-        run: |
-          if [ -f .codeiumignore ]; then
-            echo "Validating .codeiumignore syntax"
-            # Add syntax validation logic
-          fi
-```
-
-### Other AI Tools
-- **Cursor**: Can adapt patterns from `.cursorignore`
-- **Codeium**: Direct compatibility (same underlying system)
-- **Generic AI**: Can reuse patterns in `.aiexclude`
-
-This comprehensive specification provides the foundation for understanding and implementing Windsurf's ignore file system, ensuring secure and efficient AI-assisted development workflows while maintaining privacy and performance standards.
+This comprehensive specification enables effective implementation of Windsurf ignore file management in rulesync, ensuring sensitive data protection while maintaining productive AI-assisted development workflows.

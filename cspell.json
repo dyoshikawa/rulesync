@@ -201,6 +201,11 @@
         "secops",
         "sandboxed",
         "Grazie",
-        "USERPROFILE"
+        "USERPROFILE",
+        "windsurfrules",
+        "cicdrules",
+        "iamrolerules",
+        "windsurf",
+        "codeium"
     ]
 }
