@@ -7,6 +7,8 @@ export const RuleFrontmatterSchema = z.object({
   description: z.string(),
   globs: z.array(z.string()),
   cursorRuleType: z.optional(z.enum(["always", "manual", "specificFiles", "intelligently"])),
+  windsurfActivationMode: z.optional(z.enum(["always", "manual", "model-decision", "glob"])),
+  windsurfOutputFormat: z.optional(z.enum(["single-file", "directory"])),
   tags: z.optional(z.array(z.string())),
 });
 

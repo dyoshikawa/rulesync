@@ -136,6 +136,55 @@ const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
     generateContent: (rule) => rule.content.trim(),
   },
 
+  windsurf: {
+    type: "simple",
+    tool: "windsurf",
+    fileExtension: ".md",
+    ignoreFileName: ".codeiumignore",
+    generateContent: (rule) => {
+      const lines: string[] = [];
+
+      // Add YAML frontmatter if activation mode is specified
+      const activationMode = rule.frontmatter.windsurfActivationMode;
+      const globPattern = rule.frontmatter.globs?.[0];
+
+      if (activationMode || globPattern) {
+        lines.push("---");
+
+        if (activationMode) {
+          lines.push(`activation: ${activationMode}`);
+        }
+
+        if (globPattern && activationMode === "glob") {
+          lines.push(`pattern: "${globPattern}"`);
+        }
+
+        lines.push("---");
+        lines.push("");
+      }
+
+      lines.push(rule.content.trim());
+      return lines.join("\n");
+    },
+    pathResolver: (rule, outputDir) => {
+      // Based on the specification, we support two variants:
+      // A. Single-File Variant: .windsurf-rules in project root
+      // B. Directory Variant: .windsurf/rules/ directory with multiple .md files
+
+      // Check if rule specifies a specific output format
+      const outputFormat = rule.frontmatter.windsurfOutputFormat || "directory";
+
+      if (outputFormat === "single-file") {
+        // Single-file variant: output to .windsurf-rules
+        return join(outputDir, ".windsurf-rules");
+      } else {
+        // Directory variant (recommended): output to .windsurf/rules/
+        const rulesDir = join(outputDir, ".windsurf", "rules");
+        return join(rulesDir, `${rule.filename}.md`);
+      }
+    },
+  },
+
   // Complex generators with root + detail pattern
   claudecode: {
     type: "complex",

@@ -17,6 +17,7 @@ describe("generateJunieIgnoreFiles", () => {
       geminicli: "./GEMINI.md",
       kiro: "./.kiro/steering",
       junie: "./.junie/guidelines.md",
+      windsurf: "./.windsurf/rules",
     },
   });
 

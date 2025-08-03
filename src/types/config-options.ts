@@ -13,6 +13,7 @@ export const OutputPathsSchema = z.object({
   geminicli: z.optional(z.string()),
   kiro: z.optional(z.string()),
   junie: z.optional(z.string()),
+  windsurf: z.optional(z.string()),
 });
 
 export const ConfigOptionsSchema = z.object({

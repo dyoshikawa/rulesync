@@ -17,6 +17,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
       kiro: "output",
       roo: "output",
       junie: "output",
+      windsurf: "output",
     },
     watchEnabled: false,
     defaultTargets: ["augmentcode"],

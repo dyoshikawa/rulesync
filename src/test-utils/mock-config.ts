@@ -19,6 +19,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
       geminicli: ".gemini/memories",
       kiro: ".kiro/steering",
       junie: ".",
+      windsurf: ".",
     },
     watchEnabled: false,
     defaultTargets: [
@@ -32,6 +33,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
       "geminicli",
       "kiro",
       "junie",
+      "windsurf",
     ],
     ...overrides,
   };

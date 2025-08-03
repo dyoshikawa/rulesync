@@ -17,6 +17,7 @@ describe("generateJunieConfig", () => {
       geminicli: ".gemini/memories",
       kiro: ".kiro/steering",
       junie: ".",
+      windsurf: ".",
     },
     watchEnabled: false,
     defaultTargets: ["junie"],

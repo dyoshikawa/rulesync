@@ -149,6 +149,7 @@ describe("config-loader", () => {
         augmentcode: ".",
         "augmentcode-legacy": ".",
         junie: ".",
+        windsurf: ".",
       },
       watchEnabled: false,
       defaultTargets: ["copilot", "cursor"],

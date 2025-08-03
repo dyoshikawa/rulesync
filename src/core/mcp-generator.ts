@@ -214,6 +214,11 @@ export async function generateMcpConfigurations(
       (await import("../generators/mcp/kiro.js")).generateKiroMcpConfiguration(servers, dir),
     junie: async (servers, dir) =>
       (await import("../generators/mcp/junie.js")).generateJunieMcpConfiguration(servers, dir),
+    windsurf: async (servers, dir) =>
+      (await import("../generators/mcp/windsurf.js")).generateWindsurfMcpConfiguration(
+        servers,
+        dir,
+      ),
   };
 
   const tools = targetTools || Object.keys(toolMap).filter(isToolTarget);

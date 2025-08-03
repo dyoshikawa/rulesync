@@ -62,6 +62,7 @@ describe("types/index", () => {
         geminicli: ".geminicli/rules",
         kiro: ".kiro/steering",
         junie: ".",
+        windsurf: ".",
       },
       defaultTargets: [
         "augmentcode",

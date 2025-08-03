@@ -25,6 +25,7 @@ describe("config utils", () => {
         "geminicli",
         "kiro",
         "junie",
+        "windsurf",
       ]);
       expect(config.watchEnabled).toBe(false);
     });
@@ -46,6 +47,7 @@ describe("config utils", () => {
         "geminicli",
         "kiro",
         "junie",
+        "windsurf",
       ]);
     });
 

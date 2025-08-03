@@ -16,6 +16,7 @@ export function getDefaultConfig(): Config {
       geminicli: ".gemini/memories",
       kiro: ".kiro/steering",
       junie: ".",
+      windsurf: ".",
     },
     watchEnabled: false,
     defaultTargets: ALL_TOOL_TARGETS.filter((tool) => tool !== "augmentcode-legacy"),
