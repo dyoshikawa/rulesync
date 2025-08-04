@@ -212,37 +212,3 @@ export function generateIgnoreFile(patterns: string[], tool: ToolTarget): string
 
   return lines.join("\n");
 }
-
-/**
- * @deprecated Use generateRulesConfig with pathResolver instead
- * Compatibility wrapper for complex rule generators
- */
-export interface ComplexRuleGeneratorConfig {
-  tool: ToolTarget;
-  fileExtension: string;
-  ignoreFileName: string;
-  generateContent: (rule: ParsedRule) => string;
-  getOutputPath: (rule: ParsedRule, outputDir: string) => string;
-}
-
-/**
- * @deprecated Use generateRulesConfig with pathResolver instead
- * Legacy wrapper for complex rule generation
- */
-export async function generateComplexRulesConfig(
-  rules: ParsedRule[],
-  config: Config,
-  generatorConfig: ComplexRuleGeneratorConfig,
-  baseDir?: string,
-): Promise<GeneratedOutput[]> {
-  // Convert to unified config format
-  const unifiedConfig: RuleGeneratorConfig = {
-    tool: generatorConfig.tool,
-    fileExtension: generatorConfig.fileExtension,
-    ignoreFileName: generatorConfig.ignoreFileName,
-    generateContent: generatorConfig.generateContent,
-    pathResolver: generatorConfig.getOutputPath,
-  };
-
-  return generateRulesConfig(rules, config, unifiedConfig, baseDir);
-}
