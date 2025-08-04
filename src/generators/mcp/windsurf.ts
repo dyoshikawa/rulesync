@@ -1,47 +1,78 @@
-import { join } from "node:path";
-import type { RulesyncMcpServer } from "../../types/mcp.js";
+import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpServer } from "../../types/mcp-config.js";
+import {
+  configWrappers,
+  generateMcpConfig,
+  generateMcpConfigurationFiles,
+  type McpServerMapping,
+} from "./shared-factory.js";
 
-export async function generateWindsurfMcpConfiguration(
-  servers: Record<string, RulesyncMcpServer>,
-  baseDir: string,
-): Promise<Array<{ filepath: string; content: string }>> {
-  // Windsurf uses the same MCP configuration format as other tools
-  // Configuration is stored in mcp_config.json in the project root
-  const configPath = join(baseDir, "mcp_config.json");
+type WindsurfServer = BaseMcpServer & {
+  serverUrl?: string;
+  [key: string]: unknown;
+};
 
-  const mcpConfig = {
-    mcpServers: Object.fromEntries(
-      Object.entries(servers).map(([name, server]) => {
-        const config: Record<string, unknown> = {};
+export function generateWindsurfMcp(config: RulesyncMcpConfig): string {
+  return generateMcpConfig(config, {
+    target: "windsurf",
+    configPaths: ["mcp_config.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      const windsurfServer: WindsurfServer = {};
 
-        if (server.command) {
-          config.command = server.command;
-          if (server.args) {
-            config.args = server.args;
-          }
-        } else if (server.url) {
-          config.serverUrl = server.url;
-        } else if (server.httpUrl) {
-          config.serverUrl = server.httpUrl;
+      if (server.command) {
+        windsurfServer.command = server.command;
+        if (server.args) windsurfServer.args = server.args;
+      } else if (server.url || server.httpUrl) {
+        // Windsurf uses serverUrl for both SSE and HTTP URLs
+        const url = server.httpUrl || server.url;
+        if (url) {
+          windsurfServer.serverUrl = url;
         }
+      }
 
-        if (server.env) {
-          config.env = server.env;
-        }
+      if (server.env) {
+        windsurfServer.env = server.env;
+      }
 
-        if (server.cwd) {
-          config.cwd = server.cwd;
-        }
+      if (server.cwd) {
+        windsurfServer.cwd = server.cwd;
+      }
 
-        return [name, config];
-      }),
-    ),
-  };
-
-  return [
-    {
-      filepath: configPath,
-      content: JSON.stringify(mcpConfig, null, 2),
+      return windsurfServer;
     },
-  ];
+    configWrapper: configWrappers.mcpServers,
+  });
+}
+
+export function generateWindsurfMcpConfiguration(
+  mcpServers: Record<string, RulesyncMcpServer>,
+  baseDir: string = "",
+): Array<{ filepath: string; content: string }> {
+  return generateMcpConfigurationFiles(
+    mcpServers,
+    {
+      target: "windsurf",
+      configPaths: ["mcp_config.json"],
+      serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+        const { targets: _, transport: _transport, ...serverConfig } = server;
+        const windsurfServer: WindsurfServer = { ...serverConfig };
+
+        // Handle httpUrl by converting to serverUrl
+        if (serverConfig.httpUrl !== undefined) {
+          windsurfServer.serverUrl = serverConfig.httpUrl;
+          delete windsurfServer.httpUrl;
+        }
+
+        // Handle url by converting to serverUrl
+        if (serverConfig.url !== undefined) {
+          windsurfServer.serverUrl = serverConfig.url;
+          delete windsurfServer.url;
+        }
+
+        return windsurfServer;
+      },
+      configWrapper: configWrappers.mcpServers,
+    },
+    baseDir,
+  );
 }

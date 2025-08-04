@@ -10,6 +10,7 @@ import {
   generateJunieMcp,
   generateKiroMcp,
   generateRooMcp,
+  generateWindsurfMcp,
 } from "../generators/mcp/index.js";
 import { isToolTarget, type ToolTarget, type ToolTargets } from "../types/index.js";
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../types/mcp.js";
@@ -92,6 +93,11 @@ export async function generateMcpConfigs(
       path: path.join(targetRoot, ".roo", "mcp.json"),
       generate: () => generateRooMcp(config),
     },
+    {
+      tool: "windsurf-project",
+      path: path.join(targetRoot, "mcp_config.json"),
+      generate: () => generateWindsurfMcp(config),
+    },
   ];
 
   const filteredGenerators = targetTools
@@ -125,7 +131,8 @@ export async function generateMcpConfigs(
         generator.tool.includes("gemini") ||
         generator.tool.includes("junie") ||
         generator.tool.includes("kiro") ||
-        generator.tool.includes("roo")
+        generator.tool.includes("roo") ||
+        generator.tool.includes("windsurf")
       ) {
         if (!parsed.mcpServers || Object.keys(parsed.mcpServers).length === 0) {
           results.push({
