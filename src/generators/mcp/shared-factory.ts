@@ -1,5 +1,6 @@
 import type { ToolTarget } from "../../types/index.js";
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
+import type { BaseMcpConfig, BaseMcpServer } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
 export interface McpServerMapping {
@@ -103,6 +104,19 @@ export const serverTransforms = {
       result.tools = server.tools;
     }
 
+    // Additional fields for Gemini CLI and similar tools
+    if (server.timeout !== undefined) {
+      result.timeout = server.timeout;
+    }
+
+    if (server.trust !== undefined) {
+      result.trust = server.trust;
+    }
+
+    if (server.headers) {
+      result.headers = server.headers;
+    }
+
     return result;
   },
 
@@ -133,3 +147,276 @@ export const configWrappers = {
     servers,
   }),
 };
+
+/**
+ * MCP generator registry - Centralized configuration for supported tools
+ * Note: Not all tools are in the registry - some have complex custom logic
+ */
+export const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
+  claudecode: {
+    target: "claudecode",
+    configPaths: [".claude/settings.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      const claudeServer: BaseMcpServer & { [key: string]: unknown } = {};
+
+      if (server.command) {
+        claudeServer.command = server.command;
+        if (server.args) claudeServer.args = server.args;
+      } else if (server.url || server.httpUrl) {
+        const url = server.httpUrl || server.url;
+        if (url) {
+          claudeServer.url = url;
+        }
+        if (server.httpUrl) {
+          claudeServer.transport = "http";
+        } else if (server.transport === "sse") {
+          claudeServer.transport = "sse";
+        }
+      }
+
+      if (server.env) {
+        claudeServer.env = server.env;
+      }
+
+      return claudeServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
+
+  cursor: {
+    target: "cursor",
+    configPaths: [".cursor/mcp.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      const cursorServer: BaseMcpServer & {
+        type?: "sse" | "streamable-http";
+        [key: string]: unknown;
+      } = {};
+
+      if (server.command) {
+        cursorServer.command = server.command;
+        if (server.args) cursorServer.args = server.args;
+      } else if (server.url || server.httpUrl) {
+        const url = server.httpUrl || server.url;
+        if (url) {
+          cursorServer.url = url;
+        }
+        if (server.httpUrl || server.transport === "http") {
+          cursorServer.type = "streamable-http";
+        } else if (server.transport === "sse" || server.type === "sse") {
+          cursorServer.type = "sse";
+        }
+      }
+
+      if (server.env) {
+        cursorServer.env = server.env;
+      }
+
+      if (server.cwd) {
+        cursorServer.cwd = server.cwd;
+      }
+
+      return cursorServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
+
+  windsurf: {
+    target: "windsurf",
+    configPaths: ["mcp_config.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      const windsurfServer: BaseMcpServer & { serverUrl?: string; [key: string]: unknown } = {};
+
+      if (server.command) {
+        windsurfServer.command = server.command;
+        if (server.args) windsurfServer.args = server.args;
+      } else if (server.url || server.httpUrl) {
+        // Windsurf uses serverUrl for both SSE and HTTP URLs
+        const url = server.httpUrl || server.url;
+        if (url) {
+          windsurfServer.serverUrl = url;
+        }
+      }
+
+      if (server.env) {
+        windsurfServer.env = server.env;
+      }
+
+      if (server.cwd) {
+        windsurfServer.cwd = server.cwd;
+      }
+
+      return windsurfServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
+
+  junie: {
+    target: "junie",
+    configPaths: [".junie/mcp-config.json"],
+    serverTransform: (server: RulesyncMcpServer, serverName: string): McpServerMapping => {
+      const junieServer: BaseMcpServer & {
+        name?: string;
+        workingDirectory?: string;
+        transport?: "stdio" | "http" | "sse";
+        [key: string]: unknown;
+      } = {
+        name: serverName,
+      };
+
+      if (server.command) {
+        junieServer.command = server.command;
+        if (server.args) junieServer.args = server.args;
+      } else if (server.url || server.httpUrl) {
+        if (server.httpUrl) {
+          junieServer.httpUrl = server.httpUrl;
+        } else if (server.url) {
+          junieServer.url = server.url;
+        }
+      }
+
+      if (server.env) {
+        junieServer.env = server.env;
+      }
+
+      if (server.cwd) {
+        junieServer.workingDirectory = server.cwd;
+      }
+
+      if (server.timeout !== undefined) {
+        junieServer.timeout = server.timeout;
+      }
+
+      if (server.trust !== undefined) {
+        junieServer.trust = server.trust;
+      }
+
+      // Map transport types
+      if (server.transport) {
+        if (String(server.transport) === "streamable-http") {
+          junieServer.transport = "http";
+        } else if (
+          server.transport === "stdio" ||
+          server.transport === "http" ||
+          server.transport === "sse"
+        ) {
+          junieServer.transport = server.transport;
+        }
+      } else if (server.command) {
+        junieServer.transport = "stdio";
+      }
+
+      return junieServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
+
+  cline: {
+    target: "cline",
+    configPaths: [".cline/mcp.json"],
+    serverTransform: serverTransforms.extended,
+    configWrapper: configWrappers.mcpServers,
+  },
+};
+
+/**
+ * Generate MCP configuration using registry
+ */
+export function generateMcpFromRegistry(tool: ToolTarget, config: RulesyncMcpConfig): string {
+  const generatorConfig = MCP_GENERATOR_REGISTRY[tool];
+  if (!generatorConfig) {
+    throw new Error(`No MCP generator configuration found for tool: ${tool}`);
+  }
+  return generateMcpConfig(config, generatorConfig);
+}
+
+/**
+ * Generate MCP configuration files using registry
+ */
+export function generateMcpConfigurationFilesFromRegistry(
+  tool: ToolTarget,
+  mcpServers: Record<string, RulesyncMcpServer>,
+  baseDir: string = "",
+): Array<{ filepath: string; content: string }> {
+  const generatorConfig = MCP_GENERATOR_REGISTRY[tool];
+  if (!generatorConfig) {
+    throw new Error(`No MCP generator configuration found for tool: ${tool}`);
+  }
+
+  // Special handling for tools with custom configuration structure
+  if (tool === "junie") {
+    return generateJunieMcpConfigurationFiles(mcpServers, baseDir);
+  }
+
+  // Tools with complex custom logic that are not in the registry
+  const customTools = ["copilot", "augmentcode", "roo", "codexcli", "kiro", "geminicli"];
+  if (customTools.includes(tool)) {
+    throw new Error(
+      `Tool ${tool} uses custom configuration logic - use its specific generator function instead`,
+    );
+  }
+
+  return generateMcpConfigurationFiles(mcpServers, generatorConfig, baseDir);
+}
+
+/**
+ * Special configuration files generation for Junie
+ */
+function generateJunieMcpConfigurationFiles(
+  mcpServers: Record<string, RulesyncMcpServer>,
+  baseDir: string = "",
+): Array<{ filepath: string; content: string }> {
+  // Generate project-level configuration only (as per precautions.md constraint)
+  // Junie MCP config is stored in project root - no IDE settings path is used
+  // to avoid creating user-level settings
+  const filepath = baseDir ? `${baseDir}/.junie/mcp-config.json` : ".junie/mcp-config.json";
+
+  const config: BaseMcpConfig = {
+    mcpServers: {},
+  };
+
+  for (const [serverName, server] of Object.entries(mcpServers)) {
+    // Check if this server should be included for junie
+    if (!shouldIncludeServer(server, "junie")) {
+      continue;
+    }
+
+    // Clone server config and remove targets
+    const { targets: _, transport, cwd, ...serverConfig } = server;
+
+    // Convert to JunieServer format preserving all properties
+    const junieServer: BaseMcpServer & {
+      name?: string;
+      workingDirectory?: string;
+      transport?: "stdio" | "http" | "sse";
+      [key: string]: unknown;
+    } = {
+      ...serverConfig,
+      name: serverName,
+    };
+
+    // Map cwd to workingDirectory
+    if (cwd) {
+      junieServer.workingDirectory = cwd;
+    }
+
+    // Map transport types for Junie compatibility
+    if (transport) {
+      if (String(transport) === "streamable-http") {
+        junieServer.transport = "http";
+      } else if (transport === "stdio" || transport === "http" || transport === "sse") {
+        junieServer.transport = transport;
+      }
+    } else if (serverConfig.command) {
+      junieServer.transport = "stdio";
+    }
+
+    config.mcpServers[serverName] = junieServer;
+  }
+
+  return [
+    {
+      filepath,
+      content: `${JSON.stringify(config, null, 2)}\n`,
+    },
+  ];
+}
