@@ -154,6 +154,9 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
           case "kiro":
             deleteTasks.push(removeDirectory(config.outputPaths.kiro));
             break;
+          case "windsurf":
+            deleteTasks.push(removeDirectory(config.outputPaths.windsurf));
+            break;
         }
       }
 

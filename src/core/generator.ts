@@ -1,6 +1,7 @@
 import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
 import { generateJunieIgnoreFiles } from "../generators/ignore/junie.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
+import { generateWindsurfIgnore } from "../generators/ignore/windsurf.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
 import { generateAugmentcodeLegacyConfig } from "../generators/rules/augmentcode-legacy.js";
 import { generateClaudecodeConfig } from "../generators/rules/claudecode.js";
@@ -13,6 +14,7 @@ import { generateJunieConfig } from "../generators/rules/junie.js";
 import { generateKiroConfig } from "../generators/rules/kiro.js";
 import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
+import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../types/index.js";
 import { resolveTargets } from "../utils/index.js";
 import { isToolSpecificRule } from "../utils/rules.js";
@@ -106,6 +108,11 @@ async function generateForTool(
       const kiroRulesOutputs = await generateKiroConfig(rules, config, baseDir);
       const kiroIgnoreOutputs = await generateKiroIgnoreFiles(rules, config, baseDir);
       return [...kiroRulesOutputs, ...kiroIgnoreOutputs];
+    }
+    case "windsurf": {
+      const windsurfRulesOutputs = await generateWindsurfConfig(rules, config, baseDir);
+      const windsurfIgnoreOutputs = await generateWindsurfIgnore(rules, config, baseDir);
+      return [...windsurfRulesOutputs, ...windsurfIgnoreOutputs];
     }
     default:
       console.warn(`Unknown tool: ${tool}`);
