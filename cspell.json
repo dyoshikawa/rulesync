@@ -1,4 +1,7 @@
 {
+    "ignorePaths": [
+        ".rulesync/**"
+    ],
     "useGitignore": true,
     "words": [
         "agentrequested",
