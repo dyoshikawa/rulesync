@@ -5,3 +5,4 @@
     - .claude/commands/*.md
     - .claude/agents/*.md
     - .rulesync/*.md
+        - Except for `my-instructions.md`.

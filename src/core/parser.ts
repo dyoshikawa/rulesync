@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import matter from "gray-matter";
-import { type ParsedRule, RuleFrontmatterSchema } from "../types/index.js";
+import { type ParsedRule, type RuleFrontmatter, RuleFrontmatterSchema } from "../types/index.js";
 import { filterIgnoredFiles, loadIgnorePatterns } from "../utils/ignore.js";
 import { findFiles, readFileContent } from "../utils/index.js";
 
@@ -47,7 +47,26 @@ export async function parseRuleFile(filepath: string): Promise<ParsedRule> {
 
   // Validate frontmatter using zod schema
   try {
-    const frontmatter = RuleFrontmatterSchema.parse(parsed.data);
+    const validatedData = RuleFrontmatterSchema.parse(parsed.data);
+
+    // Apply default values for optional fields
+    const frontmatter: RuleFrontmatter = {
+      root: validatedData.root ?? false,
+      targets: validatedData.targets ?? ["*"],
+      description: validatedData.description ?? "",
+      globs: validatedData.globs ?? [],
+      ...(validatedData.cursorRuleType !== undefined && {
+        cursorRuleType: validatedData.cursorRuleType,
+      }),
+      ...(validatedData.windsurfActivationMode !== undefined && {
+        windsurfActivationMode: validatedData.windsurfActivationMode,
+      }),
+      ...(validatedData.windsurfOutputFormat !== undefined && {
+        windsurfOutputFormat: validatedData.windsurfOutputFormat,
+      }),
+      ...(validatedData.tags !== undefined && { tags: validatedData.tags }),
+    };
+
     const filename = basename(filepath, ".md");
 
     return {

@@ -2,22 +2,31 @@ import { z } from "zod/mini";
 import { RulesyncTargetsSchema, ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 export const RuleFrontmatterSchema = z.object({
-  root: z.boolean(),
-  targets: RulesyncTargetsSchema,
-  description: z.string(),
-  globs: z.array(z.string()),
+  root: z.optional(z.boolean()),
+  targets: z.optional(RulesyncTargetsSchema),
+  description: z.optional(z.string()),
+  globs: z.optional(z.array(z.string())),
   cursorRuleType: z.optional(z.enum(["always", "manual", "specificFiles", "intelligently"])),
   windsurfActivationMode: z.optional(z.enum(["always", "manual", "model-decision", "glob"])),
   windsurfOutputFormat: z.optional(z.enum(["single-file", "directory"])),
   tags: z.optional(z.array(z.string())),
 });
 
+// Schema for parsing (with optional fields)
 export const ParsedRuleSchema = z.object({
   frontmatter: RuleFrontmatterSchema,
   content: z.string(),
   filename: z.string(),
   filepath: z.string(),
 });
+
+// Type for processed rule (with defaults applied)
+export type ProcessedRule = {
+  frontmatter: RuleFrontmatter;
+  content: string;
+  filename: string;
+  filepath: string;
+};
 
 export const GeneratedOutputSchema = z.object({
   tool: ToolTargetSchema,
@@ -31,7 +40,21 @@ export const GenerateOptionsSchema = z.object({
   watch: z.optional(z.boolean()),
 });
 
-export type RuleFrontmatter = z.infer<typeof RuleFrontmatterSchema>;
-export type ParsedRule = z.infer<typeof ParsedRuleSchema>;
+// Raw frontmatter type from the schema (with optional fields)
+export type RawRuleFrontmatter = z.infer<typeof RuleFrontmatterSchema>;
+
+// Processed frontmatter type with defaults applied (required fields)
+export type RuleFrontmatter = {
+  root: boolean;
+  targets: z.infer<typeof RulesyncTargetsSchema>;
+  description: string;
+  globs: string[];
+  cursorRuleType?: "always" | "manual" | "specificFiles" | "intelligently";
+  windsurfActivationMode?: "always" | "manual" | "model-decision" | "glob";
+  windsurfOutputFormat?: "single-file" | "directory";
+  tags?: string[];
+};
+
+export type ParsedRule = ProcessedRule;
 export type GeneratedOutput = z.infer<typeof GeneratedOutputSchema>;
 export type GenerateOptions = z.infer<typeof GenerateOptionsSchema>;

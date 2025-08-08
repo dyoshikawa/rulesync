@@ -96,7 +96,7 @@ globs: ["**/*.ts"]
       await expect(parseRuleFile(filepath)).rejects.toThrow("Invalid frontmatter");
     });
 
-    it("should throw error for missing description", async () => {
+    it("should apply default value for missing description", async () => {
       const ruleContent = `---
 root: true
 targets: ["copilot"]
@@ -109,10 +109,15 @@ globs: ["**/*.ts"]
       const filepath = join(testDir, "missing-desc.md");
       writeFileSync(filepath, ruleContent);
 
-      await expect(parseRuleFile(filepath)).rejects.toThrow("Invalid frontmatter");
+      const rule = await parseRuleFile(filepath);
+
+      expect(rule.frontmatter.description).toBe("");
+      expect(rule.frontmatter.root).toBe(true);
+      expect(rule.frontmatter.targets).toEqual(["copilot"]);
+      expect(rule.frontmatter.globs).toEqual(["**/*.ts"]);
     });
 
-    it("should throw error for missing globs", async () => {
+    it("should apply default value for missing globs", async () => {
       const ruleContent = `---
 root: true
 targets: ["copilot"]
@@ -125,7 +130,12 @@ description: "Test rule"
       const filepath = join(testDir, "missing-globs.md");
       writeFileSync(filepath, ruleContent);
 
-      await expect(parseRuleFile(filepath)).rejects.toThrow("Invalid frontmatter");
+      const rule = await parseRuleFile(filepath);
+
+      expect(rule.frontmatter.globs).toEqual([]);
+      expect(rule.frontmatter.root).toBe(true);
+      expect(rule.frontmatter.targets).toEqual(["copilot"]);
+      expect(rule.frontmatter.description).toBe("Test rule");
     });
 
     it("should throw error for invalid globs type", async () => {
@@ -164,7 +174,7 @@ globs: []
       expect(rule.frontmatter.globs).toEqual([]);
     });
 
-    it("should throw error for file without frontmatter", async () => {
+    it("should apply all default values for file without frontmatter", async () => {
       const ruleContent = `# No Frontmatter
 
 This file has no frontmatter.
@@ -173,10 +183,15 @@ This file has no frontmatter.
       const filepath = join(testDir, "no-frontmatter.md");
       writeFileSync(filepath, ruleContent);
 
-      await expect(parseRuleFile(filepath)).rejects.toThrow("Invalid frontmatter");
+      const rule = await parseRuleFile(filepath);
+
+      expect(rule.frontmatter.root).toBe(false);
+      expect(rule.frontmatter.targets).toEqual(["*"]);
+      expect(rule.frontmatter.description).toBe("");
+      expect(rule.frontmatter.globs).toEqual([]);
     });
 
-    it("should throw error for completely empty frontmatter", async () => {
+    it("should apply all default values for completely empty frontmatter", async () => {
       const ruleContent = `---
 ---
 
@@ -186,7 +201,12 @@ This file has no frontmatter.
       const filepath = join(testDir, "empty-frontmatter.md");
       writeFileSync(filepath, ruleContent);
 
-      await expect(parseRuleFile(filepath)).rejects.toThrow("Invalid frontmatter");
+      const rule = await parseRuleFile(filepath);
+
+      expect(rule.frontmatter.root).toBe(false);
+      expect(rule.frontmatter.targets).toEqual(["*"]);
+      expect(rule.frontmatter.description).toBe("");
+      expect(rule.frontmatter.globs).toEqual([]);
     });
 
     it("should throw error for string targets", async () => {

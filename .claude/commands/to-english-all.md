@@ -5,3 +5,4 @@ Call the japanese-to-english-translator subagent in parallel as much as possible
 - .claude/commands/*.md
 - .claude/agents/*.md
 - .rulesync/*.md
+    - Except for `my-instructions.md`.
