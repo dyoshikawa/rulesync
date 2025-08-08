@@ -74,9 +74,22 @@ pnpm typecheck
 
 ## プロジェクトアーキテクチャ
 
-### 簡素化された.rulesyncディレクトリ
+### レジストリパターンアーキテクチャ
 
-プロジェクトは合理化された.rulesyncディレクトリ構造で簡素化されました:
+プロジェクトは保守性とコード再利用性を向上させるためにレジストリパターンアーキテクチャを実装しています:
+
+**共有ファクトリーパターン**:
+- **Ignore共有ファクトリー**: 統一されたignoreファイル生成パターン
+- **MCP共有ファクトリー**: 標準化されたMCP設定生成
+- **レジストリベース設計**: 各AIツールの設定パターンを中央管理
+
+**主要な改善点**:
+- 関心事の分離: ジェネレーター、パーサー、共有ファクトリーの明確な分離
+- コード重複の削減: 共通パターンの共有ファクトリーによる統一
+- 型安全性の向上: Zodスキーマと適切な型ガードの実装
+- 包括的テストカバレッジ: 全モジュールで1,200+行のテストコード
+
+### .rulesyncディレクトリ構造
 
 ```
 .rulesync/
@@ -86,10 +99,10 @@ pnpm typecheck
 └── specification-[tool]-[type].md  # ツール固有の仕様
     # タイプ: rules, mcp, ignore
     # ツール: augmentcode, copilot, cursor, cline, claudecode, 
-    #        codexcli, geminicli, junie, kiro, roo
+    #        codexcli, geminicli, junie, kiro, roo, windsurf
 ```
 
-**主要な変更**: 5つの専門ルールファイル（build-tooling.md, cli-development.md, docs-maintenance.md, mcp-support.md, security-quality.md）を削除し、ルール構造を簡素化しました。
+**注**: 新しいWindsurf AIコードエディターサポートが追加され、全体で10のAIツールをサポートしています。
 
 ### コア構造
 
@@ -110,7 +123,7 @@ rulesync/
 │   │   └── index.ts        # CLIエントリーポイント (Commander.js)
 │   ├── core/
 │   │   ├── parser.ts       # .rulesync/*.mdファイルのパース
-│   │   ├── generator.ts    # 生成のオーケストレーション
+│   │   ├── generator.ts    # レジストリパターンベースの生成オーケストレーション
 │   │   ├── importer.ts     # 既存設定のインポート
 │   │   ├── validator.ts    # ルール構造の検証
 │   │   ├── mcp-generator.ts # MCP固有の生成ロジック
@@ -126,10 +139,15 @@ rulesync/
 │   │   │   ├── geminicli.ts   # Gemini CLI設定 (GEMINI.md + memories)
 │   │   │   ├── junie.ts       # JetBrains Junie Guidelines
 │   │   │   ├── kiro.ts        # Kiro IDE Custom Steering Documents
-│   │   │   └── roo.ts         # Roo Code Rules
+│   │   │   ├── roo.ts         # Roo Code Rules
+│   │   │   ├── windsurf.ts    # 新しいWindsurf AIコードエディター
+│   │   │   └── shared-helpers.ts # 共通ヘルパー関数とパターン
 │   │   ├── mcp/            # MCP設定ジェネレーター
+│   │   │   ├── shared-factory.ts # 統一されたMCP設定生成ファクトリー
 │   │   │   └── [tool].ts   # 各ツール用のMCP固有設定
 │   │   └── ignore/         # Ignoreファイルジェネレーター
+│   │       ├── shared-factory.ts # 統一されたignore設定生成ファクトリー
+│   │       ├── shared-helpers.ts # 共通ignoreパターンヘルパー
 │   │       └── [tool].ts   # ツール固有のignore設定
 │   ├── parsers/           # インポート機能用ツール固有パーサー
 │   │   ├── augmentcode.ts # AugmentCode設定のパース
@@ -142,11 +160,13 @@ rulesync/
 │   │   ├── geminicli.ts   # Gemini CLI設定のパース (GEMINI.md, .gemini/memories/*.md)
 │   │   ├── junie.ts       # JetBrains Junie設定のパース
 │   │   ├── kiro.ts        # Kiro IDE設定のパース
-│   │   └── roo.ts         # Roo Code設定のパース (.roo/instructions.md)
+│   │   ├── roo.ts         # Roo Code設定のパース (.roo/instructions.md)
+│   │   └── windsurf.ts    # 新しいWindsurf設定のパース
 │   ├── types/              # TypeScript型定義
 │   │   ├── config.ts      # 設定型
 │   │   ├── rules.ts       # ルールとフロントマター型
 │   │   ├── mcp.ts         # MCP固有型
+│   │   ├── mcp-config.ts  # 共有MCP設定インターフェース
 │   │   ├── tool-targets.ts # ツールターゲット定義
 │   │   └── config-options.ts # 設定オプション型
 │   └── utils/
@@ -155,6 +175,7 @@ rulesync/
 │       ├── config-loader.ts # 設定読み込みユーティリティ
 │       ├── ignore.ts       # ignoreファイルユーティリティ
 │       ├── rules.ts        # ルール処理ユーティリティ
+│       ├── mcp-helpers.ts  # MCP設定処理ヘルパー
 │       └── parser-helpers.ts # パーサーユーティリティ関数
 ├── dist/                   # ビルド出力 (CJS + ESM)
 └── [module].test.ts        # テストファイル（ソースと同じ場所に配置）
@@ -315,64 +336,195 @@ pnpm test src/parsers/                     # すべてのパーサーのテス�
 - **utils**: すべてのモジュールで高カバレッジ
 - **types**: 型定義ファイルのため測定対象外
 
-### 最近の改善
+### 最近の主要改善
 
-- **簡素化されたアーキテクチャ**: 5つの専門.rulesyncルールファイルを削除し、プロジェクト構造を合理化
-- **強化されたフロントマター**: init-rulesyncコマンドに包括的なフロントマター仕様を追加
-- **ツールサポートの拡大**: AugmentCode、JetBrains Junie、Kiro IDE、OpenAI Codex CLIのサポートを追加
-- **高度なMCP統合**: ラッパーサーバー設定、複数の転送タイプ（stdio、SSE、HTTP）、環境変数処理を含む完全なMCP（Model Context Protocol）サポート
-- **階層ルールシステム**: OpenAI Codex CLIで実装されているマルチレベルルール優先順位（グローバル → プロジェクト → ディレクトリ）のサポート
-- **シリアル実行**: research-tool-specsコマンドを並列からシリアル実行に変更し、安定性を向上
-- **改善された組織化**: ジェネレーターをrules/、mcp/、ignore/サブディレクトリに組織化
-- **強化されたテスト**: ソースと同じ場所に配置されたテストファイルで全モジュールを包括的にカバー（新ツール向けの1,200+行のテストコード）
-- **型安全性**: Zodスキーマと適切な型ガードで型安全性を向上
-- **開発ツール**: Biome、ESLintと並んで追加のコード品質チェックのOxlintを追加
+**新しいAIツール統合**:
+- **Windsurf AIコードエディター**: 完全サポート（ジェネレーター、パーサー、MCP、ignoreファイル）
+- **包括的テストカバレッジ**: 新ツール向けの包括的テストスイート実装
+
+**アーキテクチャリファクタリング**:
+- **レジストリパターン実装**: 中央集権的なツール設定管理システム
+- **共有ファクトリーパターン**: 統一されたMCPおよびignoreファイル生成
+- **関心事の分離**: ジェネレーター、パーサー、共有ロジックの明確な分離
+- **コード重複削減**: 共通パターンの統合により保守性が大幅向上
+
+**強化された開発体験**:
+- **型安全性向上**: Zodスキーマと適切な型ガードの実装
+- **包括的テスト**: 全モジュールで1,200+行のテストコード（250-350行/ファイル）
+- **開発ツール強化**: Biome + ESLint + Oxlintによる多層品質チェック
+- **改善された組織化**: rules/、mcp/、ignore/サブディレクトリによる明確な構造
+
+**高度なMCP統合**:
+- **マルチトランスポート**: stdio、SSE、HTTPの完全サポート
+- **ラッパーサーバーパターン**: サードパーティ統合のための標準化されたアプローチ
+- **環境変数処理**: セキュアな設定管理とAPIキー処理
+- **レジストリベース生成**: 統一されたMCP設定パターン
+
+**品質とセキュリティ**:
+- **階層ルールシステム**: マルチレベルルール優先順位システム
+- **改善された検証**: 堅牢なルール構造とフロントマター検証
+- **シリアル実行**: 安定性向上のための順次処理実装
 
 ## 新しいAIツールの追加
 
-新しいAIツールのサポートを追加するには（最近追加された`augmentcode`、`junie`、`kiro`、`codexcli`を参考として）:
+新しいAIツールのサポートを追加するには（最近追加された`windsurf`とレジストリパターンアーキテクチャを参考として）:
 
-1. **ジェネレーターを作成**: 適切なサブディレクトリにファイルを追加:
-   - `src/generators/rules/newtool.ts` （標準ルール）
-   - `src/generators/mcp/newtool.ts` （MCP設定、該当する場合）
-   - `src/generators/ignore/newtool.ts` （ignoreファイル、該当する場合）
-   
-   **MCPジェネレーターの実装注意事項**:
-   - 一貫したMCP設定生成のために`shared-factory.ts`を使用
-   - 複数の転送タイプをサポート: stdio（コマンドベース）、SSE、HTTP
-   - APIキー用の環境変数展開を処理
-   - サードパーティ統合のラッパーサーバーパターンに従う
-2. **パーサーを作成**: インポート機能用に`src/parsers/newtool.ts`を追加
-3. **インターフェースを実装**: 確立されたパターンに従って非同期関数をエクスポート
-4. **コアに追加**: `src/core/generator.ts`と`src/core/importer.ts`を更新
-5. **CLIオプションを追加**: generateとimportコマンドの両方で`src/cli/index.ts`を更新
-6. **型を更新**: `src/types/tool-targets.ts`の`ALL_TOOL_TARGETS`に追加
-7. **設定を更新**: `src/utils/config.ts`で出力パスを追加
-8. **テストを追加**: すべてのジェネレーターとパーサーの包括的なテストファイルを作成
-   - 徹底的なカバレッジのためにテストファイルあたり250-350+行を目指す
-   - MCPジェネレーターのすべての転送タイプをテスト
-   - パーサー機能の統合テストを含める
-   - ignoreパターンを変更する際は共有ファクトリーテストを更新
-9. **ドキュメントを更新**: README.mdとREADME.ja.mdに追加
-10. **仕様を追加**: `.rulesync/`ディレクトリにルール仕様ファイルを作成
-    - `specification-[tool]-rules.md`: ツール固有のルール形式とファイル階層
-    - `specification-[tool]-mcp.md`: MCPサーバー設定仕様
-    - `specification-[tool]-ignore.md`: ignoreファイルパターンと動作
+### 1. ジェネレーターの実装
 
-### ジェネレーターインターフェースパターン
+**レジストリパターンの活用**:
+- 可能な場合は既存の共有ファクトリーを使用
+- 共通パターンは共有ヘルパーを拡張
+- 特殊なロジックが必要な場合のみカスタムジェネレーター実装
 
+**ファイル作成**:
+```bash
+# 標準ルールジェネレーター
+src/generators/rules/newtool.ts
+
+# MCP設定（該当する場合）
+src/generators/mcp/newtool.ts
+# または共有ファクトリーをレジストリに追加
+
+# Ignoreファイル（該当する場合）
+src/generators/ignore/newtool.ts
+# または共有ファクトリー設定を追加
+```
+
+### 2. 共有ファクトリーパターンの活用
+
+**MCP共有ファクトリー使用例**:
 ```typescript
+// src/generators/mcp/newtool.ts
+import { generateMcpFromRegistry, MCP_GENERATOR_REGISTRY } from "./shared-factory.js";
+
+// レジストリに設定を追加
+MCP_GENERATOR_REGISTRY.newtool = {
+  target: "newtool",
+  configPaths: ["newtool/mcp-config.json"],
+  serverTransform: serverTransforms.extended,
+  configWrapper: configWrappers.mcpServers,
+};
+```
+
+**Ignore共有ファクトリー使用例**:
+```typescript
+// src/generators/ignore/shared-factory.ts内
+export const ignoreConfigs = {
+  // ... 既存の設定
+  newtool: {
+    tool: "newtool" as const,
+    filename: ".newtoolignore",
+    header: ["# Generated by rulesync - NewTool ignore file"],
+    corePatterns: ["# ツール固有パターン"],
+    includeCommonPatterns: true,
+  } satisfies IgnoreFileConfig,
+};
+```
+
+### 3. 包括的テストの実装
+
+**テストガイドライン**（Windsurfテストを参考）:
+```typescript
+// テストファイル例: src/generators/rules/newtool.test.ts
+- 基本設定生成テスト
+- フロントマター処理テスト 
+- 複数ルール処理テスト
+- エラーハンドリングテスト
+- 目標: 250-350行の包括的カバレッジ
+```
+
+### 4. 実装チェックリスト
+
+- [ ] **ジェネレーター実装**: 適切な共有パターン使用
+- [ ] **パーサー作成**: `src/parsers/newtool.ts`でインポート機能
+- [ ] **コア統合**: `generator.ts`と`importer.ts`を更新
+- [ ] **CLI統合**: `src/cli/index.ts`にオプション追加
+- [ ] **型定義**: `tool-targets.ts`の`ALL_TOOL_TARGETS`に追加
+- [ ] **設定パス**: `src/utils/config.ts`で出力パス定義
+- [ ] **包括的テスト**: 全機能の徹底的テストカバレッジ
+- [ ] **レジストリ統合**: 該当する場合は共有ファクトリーレジストリに追加
+- [ ] **ドキュメント更新**: README.mdとREADME.ja.md
+- [ ] **仕様書作成**: `.rulesync/specification-[tool]-*.md`
+
+### 5. アーキテクチャパターンに従った実装
+
+**保守性重視**:
+- 共通ロジックは共有ヘルパーに移動
+- 重複コードを避け、既存パターンを再利用
+- 明確な関心事の分離を維持
+
+**型安全性確保**:
+- 適切な型定義とZodスキーマ
+- コンパイル時エラー検出
+- ランタイム検証実装
+
+### レジストリパターンベースの実装パターン
+
+**共有ファクトリーを使用したMCPジェネレーター**:
+```typescript
+// src/generators/mcp/newtool.ts
+import { generateMcpConfigurationFilesFromRegistry } from "./shared-factory.js";
+import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+
+export async function generateNewToolMcpConfig(
+  rules: ParsedRule[],
+  config: Config,
+  baseDir?: string,
+): Promise<GeneratedOutput[]> {
+  // MCP設定を抽出
+  const mcpServers = extractMcpServersFromRules(rules);
+  if (Object.keys(mcpServers).length === 0) {
+    return [];
+  }
+
+  // 共有ファクトリーを使用して設定ファイルを生成
+  const configFiles = generateMcpConfigurationFilesFromRegistry(
+    "newtool",
+    mcpServers,
+    baseDir || "",
+  );
+
+  return configFiles.map(({ filepath, content }) => ({
+    tool: "newtool",
+    filepath,
+    content,
+  }));
+}
+```
+
+**共有ファクトリーを使用したIgnoreジェネレーター**:
+```typescript
+// src/generators/ignore/newtool.ts
+import { generateIgnoreFile, ignoreConfigs } from "./shared-factory.js";
+import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+
+export function generateNewToolIgnoreFiles(
+  rules: ParsedRule[],
+  config: Config,
+  baseDir?: string,
+): GeneratedOutput[] {
+  // 事前設定されたignore設定を使用
+  return generateIgnoreFile(rules, config, ignoreConfigs.newtool, baseDir);
+}
+```
+
+**標準ルールジェネレーターパターン**:
+```typescript
+// src/generators/rules/newtool.ts
+import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+import { createOutputsArray } from "./shared-helpers.js";
+
 export async function generateNewToolConfig(
   rules: ParsedRule[],
   config: Config,
-  baseDir?: string
+  baseDir?: string,
 ): Promise<GeneratedOutput[]> {
-  const outputs: GeneratedOutput[] = [];
-  
+  const outputs = createOutputsArray();
+  const outputPath = baseDir || process.cwd();
+
   for (const rule of rules) {
     const content = generateNewToolMarkdown(rule);
-    const outputDir = baseDir ? join(baseDir, config.outputPaths.newtool) : config.outputPaths.newtool;
-    const filepath = join(outputDir, `${rule.filename}.ext`);
+    const filepath = join(outputPath, config.outputPaths.newtool, `${rule.filename}.md`);
     
     outputs.push({
       tool: "newtool",
@@ -380,7 +532,7 @@ export async function generateNewToolConfig(
       content,
     });
   }
-  
+
   return outputs;
 }
 ```
@@ -394,26 +546,35 @@ export async function parseNewToolConfiguration(
   const rules: ParsedRule[] = [];
   const errors: string[] = [];
   
-  // 設定ファイルを確認
-  const configFiles = await findNewToolConfigFiles(baseDir);
-  
-  if (configFiles.length === 0) {
-    errors.push("NewTool設定ファイルが見つかりません");
-    return { rules, errors };
-  }
-  
-  // 各設定ファイルをパース
-  for (const configFile of configFiles) {
-    try {
-      const content = await readFile(configFile, "utf-8");
-      const parsed = await parseNewToolFormat(content);
-      rules.push({
-        ...parsed,
-        filename: generateUniqueFilename("newtool", parsed),
-      });
-    } catch (error) {
-      errors.push(`${configFile}のパースに失敗: ${error.message}`);
+  try {
+    // 設定ファイルを検索
+    const configFiles = await findNewToolConfigFiles(baseDir);
+    
+    if (configFiles.length === 0) {
+      errors.push("NewTool設定ファイルが見つかりません");
+      return { rules, errors };
     }
+    
+    // 各設定ファイルをパース（包括的エラーハンドリング付き）
+    for (const configFile of configFiles) {
+      try {
+        const content = await readFile(configFile, "utf-8");
+        const parsed = await parseNewToolFormat(content);
+        
+        // フロントマター検証
+        const validatedRule = validateRuleFrontmatter(parsed);
+        
+        rules.push({
+          ...validatedRule,
+          filename: generateUniqueFilename("newtool", parsed),
+          filepath: configFile,
+        });
+      } catch (error) {
+        errors.push(`${configFile}のパースに失敗: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  } catch (error) {
+    errors.push(`設定ファイル検索に失敗: ${error instanceof Error ? error.message : String(error)}`);
   }
   
   return { rules, errors };

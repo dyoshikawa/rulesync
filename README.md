@@ -21,6 +21,7 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
+- **Windsurf AI Code Editor** (`.windsurf/rules/*.md` + `.windsurf/mcp.json` + `.codeiumignore`)
 
 ## Installation
 
@@ -74,6 +75,7 @@ If you already have AI tool configurations, you can import them into rulesync fo
    npx rulesync import --roo                # From .roo/instructions.md
    npx rulesync import --geminicli   # From GEMINI.md and .gemini/memories/*.md
    npx rulesync import --junie       # From .junie/guidelines.md
+   npx rulesync import --windsurf    # From .windsurf/rules/*.md
    ```
 
 2. **Review and edit** the imported rules in `.rulesync/` directory
@@ -102,9 +104,10 @@ Enable hybrid development workflows combining multiple AI tools:
 - OpenAI Codex CLI for GPT-4 powered development
 - Gemini CLI for intelligent code analysis
 - JetBrains Junie for autonomous AI coding
+- Windsurf for comprehensive AI-assisted editing with Cascade AI
 
 ### 🔓 **No Vendor Lock-in**
-Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files (`.github/instructions/`, `.cursor/rules/`, `.clinerules/`, `CLAUDE.md`, `codex.md`, `GEMINI.md`, `.junie/guidelines.md`, etc.) as-is.
+Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files (`.github/instructions/`, `.cursor/rules/`, `.clinerules/`, `CLAUDE.md`, `codex.md`, `GEMINI.md`, `.junie/guidelines.md`, `.windsurf/rules/`, etc.) as-is.
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
@@ -190,6 +193,69 @@ This will create:
 - Additional `.md` files for specific rule categories  
 - `.codex/mcp-config.json` for MCP wrapper server integration
 - `.codexignore` for enhanced privacy control (if `.rulesyncignore` exists)
+
+## Windsurf AI Code Editor Integration
+
+### Comprehensive AI-Assisted Development
+
+rulesync provides full integration with **Windsurf AI Code Editor**, supporting its complete ecosystem of features including rules/memories, MCP servers, and ignore file patterns.
+
+**Key Features**:
+- **Unified Rule System**: Supports both workspace rules and global rules with automatic memory integration
+- **Cascade AI Enhancement**: Provides persistent context to Windsurf's Cascade AI for better code understanding
+- **MCP Integration**: Model Context Protocol support for extended functionality through external services
+- **Privacy Controls**: Advanced ignore file generation for sensitive data protection
+
+### File Structure
+
+rulesync generates the following files for Windsurf:
+
+- **`.windsurf/rules/*.md`**: Project-specific rules (generated from both root and detail rules)
+- **`.windsurf/mcp.json`**: MCP server configuration for external tool integration  
+- **`.codeiumignore`**: Ignore file for excluding sensitive files from Cascade AI analysis
+
+### Rule Integration Options
+
+Windsurf supports multiple rule placement strategies:
+
+#### Directory Variant (Recommended)
+- **Location**: `.windsurf/rules/` directory
+- **Files**: Multiple Markdown files for organized rule categorization
+- **Benefits**: Better organization, team collaboration, version control friendly
+
+#### Single-File Alternative  
+- **Location**: `.windsurf-rules` file at project root
+- **Format**: Single Markdown file with all rules
+- **Use Case**: Simple projects or minimal rule sets
+
+### Cascade AI Memory System
+
+Windsurf's Cascade AI automatically integrates with both:
+- **Workspace Rules**: Project-specific guidelines in `.windsurf/rules/`
+- **Auto-generated Memories**: Context learned from development patterns
+- **Global Rules**: User-wide preferences (not managed by rulesync)
+
+The combination provides comprehensive context for AI-assisted development.
+
+### Example Usage
+
+Generate Windsurf configuration files:
+
+```bash
+# Generate only for Windsurf
+npx rulesync generate --windsurf
+
+# Generate with verbose output
+npx rulesync generate --windsurf --verbose
+
+# Generate in specific directory (useful for monorepos)
+npx rulesync generate --windsurf --base-dir ./packages/frontend
+```
+
+This will create:
+- `.windsurf/rules/*.md` with your project rules organized by category
+- `.windsurf/mcp.json` for MCP server integration
+- `.codeiumignore` for enhanced privacy control (if `.rulesyncignore` exists)
 
 ## Claude Code Integration
 
@@ -279,12 +345,13 @@ npx rulesync generate --roo
 npx rulesync generate --geminicli
 npx rulesync generate --junie
 npx rulesync generate --kiro
+npx rulesync generate --windsurf
 
 # Clean build (delete existing files first)
 npx rulesync generate --delete
 
 # Clean build for specific tools
-npx rulesync generate --copilot --cursor --codexcli --delete
+npx rulesync generate --copilot --cursor --codexcli --windsurf --delete
 
 # Verbose output
 npx rulesync generate --verbose
@@ -300,7 +367,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: Remove all existing generated files before creating new ones
 - `--verbose`: Show detailed output during generation process
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--codexcli`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: Generate only for specified tools
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--codexcli`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`, `--windsurf`: Generate only for specified tools
 - `--base-dir <paths>`: Generate configuration files in specified base directories (comma-separated for multiple paths). Useful for monorepo setups where you want to generate tool-specific configurations in different project directories.
 - `--config <path>`: Use a specific configuration file
 - `--no-config`: Disable configuration file loading
@@ -322,7 +389,7 @@ rulesync supports configuration files to avoid repetitive command-line arguments
 ```jsonc
 {
   // List of tools to generate configurations for
-  "targets": ["copilot", "cursor", "claudecode", "codexcli"],
+  "targets": ["copilot", "cursor", "claudecode", "codexcli", "windsurf"],
   
   // Tools to exclude from generation (overrides targets)
   "exclude": ["roo"],
@@ -358,7 +425,7 @@ rulesync supports configuration files to avoid repetitive command-line arguments
 import type { ConfigOptions } from "rulesync";
 
 const config: ConfigOptions = {
-  targets: ["copilot", "cursor", "claudecode", "codexcli"],
+  targets: ["copilot", "cursor", "claudecode", "codexcli", "windsurf"],
   exclude: ["roo"],
   outputPaths: {
     copilot: ".github/copilot-instructions.md"
@@ -413,6 +480,7 @@ npx rulesync import --augmentcode # Import from .augment/rules/*.md
 npx rulesync import --roo        # Import from .roo/instructions.md
 npx rulesync import --geminicli  # Import from GEMINI.md and .gemini/memories/*.md
 npx rulesync import --junie      # Import from .junie/guidelines.md
+npx rulesync import --windsurf   # Import from .windsurf/rules/*.md
 
 # Import each tool individually
 npx rulesync import --claudecode
@@ -528,6 +596,7 @@ When `.rulesyncignore` exists, rulesync will:
    - `.copilotignore` for GitHub Copilot (community tools)
    - `.aiexclude` for Gemini CLI
    - `.aiignore` for Kiro IDE
+   - `.codeiumignore` for Windsurf
    - Update `.claude/settings.json` permissions.deny with `Read()` rules for Claude Code
 
 ### Frontmatter Schema
@@ -599,6 +668,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 | **Gemini CLI** | `GEMINI.md` (root)<br>`.gemini/memories/*.md` (non-root) | Plain Markdown | Root goes to GEMINI.md<br>Non-root go to separate memory files<br>GEMINI.md includes `@filename` references |
 | **JetBrains Junie** | `.junie/guidelines.md` | Plain Markdown | All rules combined into single guidelines file |
 | **Kiro IDE** | `.kiro/steering/*.md` + `.aiignore` | Plain Markdown + Ignore patterns | Both levels use same format for custom steering docs<br>AI ignore file excludes sensitive patterns |
+| **Windsurf** | `.windsurf/rules/*.md` | Plain Markdown | Both levels use same format with auto-generated memory integration |
 
 ## Validation
 
@@ -629,6 +699,7 @@ rulesync can also manage MCP server configurations for supported AI tools. This 
 - **JetBrains Junie** (`.junie/mcp.json`)
 - **Kiro IDE** (`.kiro/mcp.json`)
 - **Roo Code** (`.roo/mcp.json`)
+- **Windsurf** (`.windsurf/mcp.json`)
 
 ### MCP Configuration
 
@@ -698,7 +769,7 @@ MCP configurations are generated alongside rule files:
 npx rulesync generate
 
 # Generate only for specific tools
-npx rulesync generate --claudecode --cursor --codexcli --junie --kiro
+npx rulesync generate --claudecode --cursor --codexcli --junie --kiro --windsurf
 
 # Generate in specific directories (monorepo)
 npx rulesync generate --base-dir ./packages/frontend

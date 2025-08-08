@@ -9,7 +9,7 @@
 
 ## 対応ツール
 
-rulesyncは以下のAI開発ツールの**生成**と**インポート**の両方をサポートしています：
+rulesyncは以下の**10のAI開発ツール**の**生成**と**インポート**の両方をサポートしています：
 
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
@@ -20,6 +20,7 @@ rulesyncは以下のAI開発ツールの**生成**と**インポート**の両�
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
+- **Windsurf AIコードエディター** (`.windsurfrules` + `.windsurfignore` + `.windsurf/mcp.json`)
 - **Kiro IDE カスタムステアリングドキュメント** (`.kiro/steering/*.md`) + **AI除外ファイル** (`.aiignore`)
 
 ## インストール
@@ -74,6 +75,7 @@ yarn global add rulesync
    npx rulesync import --roo                # .roo/instructions.mdから
    npx rulesync import --geminicli   # GEMINI.mdと.gemini/memories/*.mdから
    npx rulesync import --junie       # .junie/guidelines.mdから
+   npx rulesync import --windsurf    # .windsurfrules と .windsurf/rules/*.mdから
    ```
 
 2. **`.rulesync/`ディレクトリのインポートされたルールを確認・編集**
@@ -102,9 +104,10 @@ AI開発ツールは新しいツールが頻繁に登場し、急速に進化し
 - OpenAI Codex CLI：GPT-4を活用した開発
 - Gemini CLI：知的コード解析
 - JetBrains Junie：自律的AIコーディング
+- Windsurf：高度なAIコードエディティング
 
 ### 🔓 **ベンダーロックインなし**
-ベンダーロックインを完全に回避できます。rulesyncの使用を停止することを決定した場合でも、生成されたルールファイル（`.github/instructions/`、`.cursor/rules/`、`.clinerules/`、`CLAUDE.md`、`codex.md`、`GEMINI.md`、`.junie/guidelines.md`など）をそのまま使い続けることができます。
+ベンダーロックインを完全に回避できます。rulesyncの使用を停止することを決定した場合でも、生成されたルールファイル（`.github/instructions/`、`.cursor/rules/`、`.clinerules/`、`CLAUDE.md`、`codex.md`、`GEMINI.md`、`.junie/guidelines.md`、`.windsurfrules`など）をそのまま使い続けることができます。
 
 ### 🎯 **ツール間の一貫性**
 すべてのAIツールに一貫したルールを適用し、チーム全体のコード品質と開発体験を向上させます。
@@ -191,6 +194,59 @@ npx rulesync generate --codexcli --base-dir ./packages/frontend
 - `.codex/mcp-config.json` MCPラッパーサーバー統合用
 - `.codexignore` プライバシー制御強化用（`.rulesyncignore`が存在する場合）
 
+## Windsurf AI統合
+
+### 包括的なWindsurf対応
+
+rulesyncは**Windsurf AIコードエディター**の完全統合を提供し、ルール/メモリー管理、Model Context Protocol (MCP)サーバー、AIファイル除外の3つの主要領域をサポートしています。
+
+**主要機能**：
+- **統一ルールシステム**: プロジェクト固有のAIルールと開発ガイドライン
+- **MCP統合**: Model Context Protocolサーバー設定で外部ツールとの拡張可能性
+- **プライバシー制御**: 機密ファイルをAIアクセスから除外するスマートな除外システム
+- **プロジェクトレベル設定**: チーム全体で一貫したAI支援開発体験
+
+### 生成されるファイル構造
+
+rulesyncはWindsurf用に以下のファイルを生成します：
+
+- **`.windsurfrules`**: メインのプロジェクトルール（ルートルールから生成）
+- **`.windsurf/rules/<filename>.md`**: 追加のルールファイル（非ルートルールから生成）
+- **`.windsurf/mcp.json`**: Model Context Protocol サーバー設定
+- **`.windsurfignore`**: AIアクセス除外ファイル（`.rulesyncignore`から生成）
+
+### Windsurf設定の生成
+
+Windsurf設定ファイルを生成する：
+
+```bash
+# Windsurf専用で生成
+npx rulesync generate --windsurf
+
+# MCPサーバー設定の詳細出力付きで生成
+npx rulesync generate --windsurf --verbose
+
+# 特定のディレクトリに生成（monorepoに便利）
+npx rulesync generate --windsurf --base-dir ./packages/frontend
+```
+
+これにより以下が作成されます：
+- `.windsurfrules` プロジェクトレベルのルール
+- `.windsurf/rules/` ディレクトリの詳細ルールファイル
+- `.windsurf/mcp.json` Model Context Protocolサーバー統合用
+- `.windsurfignore` プライバシー保護用（`.rulesyncignore`が存在する場合）
+
+### アーキテクチャ改善
+
+Windsurfサポートの実装により、rulesyncのアーキテクチャは大幅に改善されました：
+
+- **レジストリパターン**: すべてのルールジェネレーターを統一されたレジストリシステムで管理
+- **共有ファクトリー**: ジェネレーター間でコードの重複を削減
+- **関心事の分離**: より良い保守性とテストのためのモジュラー設計
+- **包括的なテスト**: 新機能の広範なテストカバレッジ
+
+これらの改善により、すべてのAI開発ツールにおいて、より一貫性があり信頼性の高い設定生成が可能になりました。
+
 ## Claude Code統合
 
 ### カスタムスラッシュコマンドの作成
@@ -261,6 +317,7 @@ rulesyncは2レベルのルールシステムを使用します：
 | **Cline**          | 標準フォーマット   | 標準フォーマット         | すべてのルールがプレーンMarkdownフォーマットを使用                   |
 | **Roo Code**       | 標準フォーマット   | 標準フォーマット         | すべてのルールが説明ヘッダー付きのプレーンMarkdownフォーマットを使用 |
 | **Gemini CLI**     | `GEMINI.md`        | `.gemini/memories/*.md`  | GEMINI.mdがメモリファイルへの`@filename`参照を含む                   |
+| **Windsurf**       | `.windsurfrules`   | `.windsurf/rules/*.md`   | 包括的統合：MCP設定、ignoreファイル、プレーンMarkdownフォーマット    |
 
 ### 3. 設定ファイルの生成
 
@@ -278,13 +335,14 @@ npx rulesync generate --augmentcode
 npx rulesync generate --roo
 npx rulesync generate --geminicli
 npx rulesync generate --junie
+npx rulesync generate --windsurf
 npx rulesync generate --kiro
 
 # クリーンビルド（既存ファイルを最初に削除）
 npx rulesync generate --delete
 
 # 特定ツール用のクリーンビルド
-npx rulesync generate --copilot --cursor --codexcli --delete
+npx rulesync generate --copilot --cursor --codexcli --windsurf --delete
 
 # 詳細出力
 npx rulesync generate --verbose
@@ -300,7 +358,7 @@ npx rulesync generate --base-dir ./apps/web,./apps/api,./packages/shared
 
 - `--delete`: 新しいファイルを作成する前に既存の生成済みファイルをすべて削除
 - `--verbose`: 生成プロセス中に詳細出力を表示
-- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--codexcli`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--kiro`: 指定されたツールのみ生成
+- `--copilot`, `--cursor`, `--cline`, `--claudecode`, `--codexcli`, `--augmentcode`, `--roo`, `--geminicli`, `--junie`, `--windsurf`, `--kiro`: 指定されたツールのみ生成
 - `--base-dir <paths>`: 指定されたベースディレクトリに設定ファイルを生成（複数パスの場合はカンマ区切り）。異なるプロジェクトディレクトリにツール固有の設定を生成したいmonorepoセットアップに便利。
 - `--config <path>`: 特定の設定ファイルを使用
 - `--no-config`: 設定ファイルの読み込みを無効化
@@ -319,6 +377,7 @@ npx rulesync import --augmentcode # .augment/rules/*.mdからインポート
 npx rulesync import --roo        # .roo/instructions.mdからインポート
 npx rulesync import --geminicli  # GEMINI.mdと.gemini/memories/*.mdからインポート
 npx rulesync import --junie      # .junie/guidelines.mdからインポート
+npx rulesync import --windsurf   # .windsurfrules と .windsurf/rules/*.mdからインポート
 
 # 各ツールを個別にインポート
 npx rulesync import --claudecode
@@ -524,6 +583,7 @@ draft-*.md
    - Cline用の`.clineignore`
    - Roo Code用の`.rooignore`
    - GitHub Copilot用の`.copilotignore`（コミュニティツール用）
+   - Windsurf用の`.windsurfignore`
    - Gemini CLI用の`.aiexclude`
    - Kiro IDE用の`.aiignore`
    - Claude Code用に`.claude/settings.json`のpermissions.denyに`Read()`ルールを追加
@@ -596,6 +656,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 | **Roo Code**       | `.roo/rules/*.md`                                            | プレーンMarkdown              | 両レベルとも説明ヘッダー付きの同じフォーマットを使用                                                                                                                                                            |
 | **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                      |
 | **JetBrains Junie** | `.junie/guidelines.md`                                      | プレーンMarkdown              | すべてのルールを単一のガイドラインファイルに統合                                                                                                                                                                |
+| **Windsurf**       | `.windsurfrules` (ルート)<br>`.windsurf/rules/*.md` (非ルート) | プレーンMarkdown           | ルートはメインルールファイルに移動<br>非ルートは別ルールファイルに移動<br>MCP設定とignoreファイルを含む包括的統合                                                                                              |
 | **Kiro IDE**       | `.kiro/steering/*.md` + `.aiignore`                          | プレーンMarkdown + 除外パターン | カスタムステアリングドキュメントで両レベルとも同じフォーマット使用<br>AI除外ファイルで機密パターンを除外                                                                                                       |
 
 ## バリデーション
@@ -625,6 +686,7 @@ rulesyncは、対応するAIツール用のMCPサーバー設定も管理でき�
 - **OpenAI Codex CLI** (`.codex/mcp-config.json`)
 - **Gemini CLI** (`.gemini/settings.json`)
 - **JetBrains Junie** (`.junie/mcp.json`)
+- **Windsurf** (`.windsurf/mcp.json`)
 - **Kiro IDE** (`.kiro/mcp.json`)
 - **Roo Code** (`.roo/mcp.json`)
 
@@ -696,7 +758,7 @@ MCP設定はルールファイルと一緒に生成されます：
 npx rulesync generate
 
 # 特定のツールのみ生成
-npx rulesync generate --claudecode --cursor --codexcli --junie --kiro
+npx rulesync generate --claudecode --cursor --codexcli --windsurf --junie --kiro
 
 # 特定のディレクトリに生成（monorepo）
 npx rulesync generate --base-dir ./packages/frontend
