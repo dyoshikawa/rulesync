@@ -20,7 +20,7 @@ rulesyncは以下の**10のAI開発ツール**の**生成**と**インポート*
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
-- **Windsurf AIコードエディター** (`.windsurfrules` + `.windsurfignore` + `.windsurf/mcp.json`)
+- **Windsurf AIコードエディター** (`.windsurf/rules/*.md` + `.codeiumignore` + `.windsurf/mcp.json`)
 - **Kiro IDE カスタムステアリングドキュメント** (`.kiro/steering/*.md`) + **AI除外ファイル** (`.aiignore`)
 
 ## インストール
@@ -317,7 +317,7 @@ rulesyncは2レベルのルールシステムを使用します：
 | **Cline**          | 標準フォーマット   | 標準フォーマット         | すべてのルールがプレーンMarkdownフォーマットを使用                   |
 | **Roo Code**       | 標準フォーマット   | 標準フォーマット         | すべてのルールが説明ヘッダー付きのプレーンMarkdownフォーマットを使用 |
 | **Gemini CLI**     | `GEMINI.md`        | `.gemini/memories/*.md`  | GEMINI.mdがメモリファイルへの`@filename`参照を含む                   |
-| **Windsurf**       | `.windsurfrules`   | `.windsurf/rules/*.md`   | 包括的統合：MCP設定、ignoreファイル、プレーンMarkdownフォーマット    |
+| **Windsurf**       | `.windsurf/rules/*.md`   | `.windsurf/rules/*.md`   | 包括的統合：MCP設定、ignoreファイル、プレーンMarkdownフォーマット    |
 
 ### 3. 設定ファイルの生成
 
@@ -656,7 +656,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 | **Roo Code**       | `.roo/rules/*.md`                                            | プレーンMarkdown              | 両レベルとも説明ヘッダー付きの同じフォーマットを使用                                                                                                                                                            |
 | **Gemini CLI**     | `GEMINI.md` (ルート)<br>`.gemini/memories/*.md` (非ルート)   | プレーンMarkdown              | ルートはGEMINI.mdに移動<br>非ルートは別メモリファイルに移動<br>GEMINI.mdは`@filename`参照を含む                                                      |
 | **JetBrains Junie** | `.junie/guidelines.md`                                      | プレーンMarkdown              | すべてのルールを単一のガイドラインファイルに統合                                                                                                                                                                |
-| **Windsurf**       | `.windsurfrules` (ルート)<br>`.windsurf/rules/*.md` (非ルート) | プレーンMarkdown           | ルートはメインルールファイルに移動<br>非ルートは別ルールファイルに移動<br>MCP設定とignoreファイルを含む包括的統合                                                                                              |
+| **Windsurf**       | `.windsurf/rules/*.md` (ルート)<br>`.windsurf/rules/*.md` (非ルート) | プレーンMarkdown           | 両レベルとも`.windsurf/rules/`ディレクトリに統合<br>MCP設定とignoreファイルを含む包括的統合                                                                                              |
 | **Kiro IDE**       | `.kiro/steering/*.md` + `.aiignore`                          | プレーンMarkdown + 除外パターン | カスタムステアリングドキュメントで両レベルとも同じフォーマット使用<br>AI除外ファイルで機密パターンを除外                                                                                                       |
 
 ## バリデーション

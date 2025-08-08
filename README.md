@@ -601,30 +601,46 @@ When `.rulesyncignore` exists, rulesync will:
 
 ### Frontmatter Schema
 
-Each rule file must include frontmatter with the following fields:
+Each rule file includes frontmatter with the following fields. **As of v0.56.0, all frontmatter keys are now optional with sensible default values applied automatically**:
 
 ```yaml
 ---
-root: true | false               # Required: Rule level (true for overview, false for details)
-targets: ["*"]                   # Required: Target tools (* = all, or specific tools)
-description: "Brief description" # Required: Rule description
-globs: ["**/*"]                  # Required: File patterns (array format)
+root: true | false               # Optional: Rule level (default: false)
+targets: ["*"]                   # Optional: Target tools (default: ["*"] = all tools)
+description: "Brief description" # Optional: Rule description (default: generated from filename)
+globs: ["**/*"]                  # Optional: File patterns (default: ["**/*"])
 cursorRuleType: "always"         # Optional: Cursor-specific rule type (always, manual, specificFiles, intelligently)
+windsurfActivationMode: "always" # Optional: Windsurf-specific activation mode (always, manual, model-decision, glob)
+windsurfOutputFormat: "directory" # Optional: Windsurf output format (single-file, directory)
+tags: ["security", "typescript"]  # Optional: Rule tags for categorization
 ---
 ```
 
-#### cursorRuleType Field (Optional)
+#### Optional Frontmatter Fields
 
-Additional metadata field for Cursor tool:
-
+**cursorRuleType** - Cursor-specific rule behavior:
 - **`always`**: Rules applied to the entire project constantly
 - **`manual`**: Rules applied manually (default)
 - **`specificFiles`**: Rules automatically applied to specific file patterns
 - **`intelligently`**: Rules applied by AI judgment
 
+**windsurfActivationMode** - Windsurf AI activation behavior:
+- **`always`**: Always-on rules injected in every prompt
+- **`manual`**: Only when explicitly @mentioned
+- **`model-decision`**: AI model decides when rule is relevant
+- **`glob`**: Apply only when editing files matching glob pattern
+
+**windsurfOutputFormat** - Windsurf file organization:
+- **`single-file`**: Generate `.windsurf-rules` file
+- **`directory`**: Generate `.windsurf/rules/*.md` files (default)
+
+**tags** - Rule categorization and filtering:
+- Array of strings for organizing and filtering rules
+- Useful for complex projects with many rule files
+
 ### Example Files
 
-**Root file** (`.rulesync/overview.md`):
+**Root file** (`.rulesync/overview.md`) - With explicit frontmatter:
 ```markdown
 ---
 root: true
@@ -638,12 +654,10 @@ globs: ["src/**/*.ts"]
 This project follows TypeScript-first development with clean architecture principles.
 ```
 
-**Non-root file** (`.rulesync/coding-rules.md`):
+**Non-root file** (`.rulesync/coding-rules.md`) - With minimal frontmatter (using defaults):
 ```markdown
 ---
-root: false
 targets: ["copilot", "cursor", "roo"]
-description: "TypeScript coding standards"
 globs: ["**/*.ts", "**/*.tsx"]
 ---
 
@@ -652,6 +666,20 @@ globs: ["**/*.ts", "**/*.tsx"]
 - Use strict TypeScript configuration
 - Prefer interfaces over types for object shapes
 - Use meaningful variable names
+```
+
+**Windsurf-specific rule** (`.rulesync/windsurf-ui-rules.md`):
+```markdown
+---
+windsurfActivationMode: "glob"
+windsurfOutputFormat: "directory"
+globs: ["**/*.tsx", "**/*.jsx"]
+tags: ["ui", "react"]
+---
+
+# React UI Component Rules
+
+Specific rules for React components that activate only when editing UI files.
 ```
 
 ## Generated Configuration Files

@@ -83,11 +83,13 @@ pnpm typecheck
 - **MCP共有ファクトリー**: 標準化されたMCP設定生成
 - **レジストリベース設計**: 各AIツールの設定パターンを中央管理
 
-**主要な改善点**:
-- 関心事の分離: ジェネレーター、パーサー、共有ファクトリーの明確な分離
-- コード重複の削減: 共通パターンの共有ファクトリーによる統一
-- 型安全性の向上: Zodスキーマと適切な型ガードの実装
-- 包括的テストカバレッジ: 全モジュールで1,200+行のテストコード
+**主要な改善点 (v0.56.0)**:
+- **オプションフロントマター**: 全フロントマターフィールドが適切なデフォルト値付きでオプションに
+- **レジストリパターン**: 新ツール追加を容易にする統一ジェネレーターアーキテクチャ
+- **関心事の分離**: ジェネレーター、パーサー、共有ファクトリーの明確な分離
+- **コード重複の削減**: 共通パターンの共有ファクトリーによる統一
+- **型安全性の向上**: Zodスキーマと適切な型ガードの実装
+- **包括的テストカバレッジ**: 全モジュールで1,500+行のテストコード
 
 ### .rulesyncディレクトリ構造
 
@@ -102,7 +104,7 @@ pnpm typecheck
     #        codexcli, geminicli, junie, kiro, roo, windsurf
 ```
 
-**注**: 新しいWindsurf AIコードエディターサポートが追加され、全体で10のAIツールをサポートしています。
+**注**: 新しいWindsurf AIコードエディターサポートが追加され、全体で11のAIツールをサポートしています。
 
 ### コア構造
 
@@ -180,6 +182,38 @@ rulesync/
 ├── dist/                   # ビルド出力 (CJS + ESM)
 └── [module].test.ts        # テストファイル（ソースと同じ場所に配置）
 ```
+
+### フロントマタースキーマの変更 (v0.56.0)
+
+**重要な変更**: 全フロントマターフィールドが自動デフォルト値付きでオプションになりました：
+
+```typescript
+// v0.56.0以前（必須フィールド）
+export const RuleFrontmatterSchema = z.object({
+  root: z.boolean(),                    // 必須
+  targets: RulesyncTargetsSchema,       // 必須
+  description: z.string(),              // 必須
+  globs: z.array(z.string()),          // 必須
+});
+
+// v0.56.0以降（デフォルト値付きオプション）
+export const RuleFrontmatterSchema = z.object({
+  root: z.optional(z.boolean()),        // デフォルト: false
+  targets: z.optional(RulesyncTargetsSchema), // デフォルト: ["*"]
+  description: z.optional(z.string()),  // デフォルト: ファイル名から生成
+  globs: z.optional(z.array(z.string())), // デフォルト: ["**/*"]
+  // 新しいオプションフィールド:
+  windsurfActivationMode: z.optional(z.enum(["always", "manual", "model-decision", "glob"])),
+  windsurfOutputFormat: z.optional(z.enum(["single-file", "directory"])),
+  tags: z.optional(z.array(z.string())),
+});
+```
+
+**開発への影響**:
+- ルールファイルが最小限またはフロントマターなしでも作成可能
+- パース段階でデフォルト値が自動適用
+- 既存ルールファイルとの後方互換性を維持
+- 明確なエラーメッセージによる強化された検証
 
 ### 主要な依存関係
 

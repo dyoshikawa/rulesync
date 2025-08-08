@@ -10,7 +10,7 @@ rulesync is a Node.js CLI tool that automatically generates configuration files 
 
 ### Supported AI Tools
 
-rulesync now supports **12 AI development tools** with comprehensive rule, MCP, and ignore file generation:
+rulesync now supports **11 AI development tools** with comprehensive rule, MCP, and ignore file generation:
 
 - **GitHub Copilot** Custom Instructions (.github/copilot-*.md)
 - **Cursor** Project Rules (4 rule types: always, manual, specificFiles, intelligently)
@@ -22,7 +22,7 @@ rulesync now supports **12 AI development tools** with comprehensive rule, MCP, 
 - **JetBrains Junie** Guidelines (.junie/guidelines.md)
 - **Kiro IDE** Custom Steering Documents
 - **OpenAI Codex CLI** (hierarchical codex.md files)
-- **Windsurf AI Code Editor** (NEW - .windsurf/rules/ + memories)
+- **Windsurf AI Code Editor** (.windsurf/rules/ + MCP + ignore files)
 
 ## Getting Started
 
@@ -110,9 +110,14 @@ The project uses a comprehensive `.rulesync` directory for internal rule managem
 ```
 
 **Comprehensive Specifications**: Each AI tool has detailed specifications covering:
-- **Rules format**: File structure, frontmatter, hierarchy patterns
+- **Rules format**: File structure, frontmatter (now optional with defaults), hierarchy patterns
 - **MCP configuration**: Server setup, transport types, environment handling
 - **Ignore patterns**: Security-focused exclusions and file access control
+
+**Recent Major Updates (v0.56.0)**:
+- **Optional Frontmatter**: All frontmatter fields now have sensible defaults
+- **Registry Pattern**: Unified generator architecture for easier tool addition
+- **Enhanced Windsurf Support**: Complete integration with activation modes and output formats
 
 ### Core Architecture - Registry Pattern Implementation
 
@@ -198,6 +203,38 @@ rulesync/
 ├── dist/                              # Build output (CJS + ESM + types)
 └── **/*.test.ts                       # Co-located test files (1,500+ lines)
 ```
+
+### Frontmatter Schema Changes (v0.56.0)
+
+**Breaking Change**: All frontmatter fields are now optional with automatic default values:
+
+```typescript
+// Before v0.56.0 (required fields)
+export const RuleFrontmatterSchema = z.object({
+  root: z.boolean(),                    // Required
+  targets: RulesyncTargetsSchema,       // Required
+  description: z.string(),              // Required
+  globs: z.array(z.string()),          // Required
+});
+
+// v0.56.0+ (optional with defaults)
+export const RuleFrontmatterSchema = z.object({
+  root: z.optional(z.boolean()),        // Default: false
+  targets: z.optional(RulesyncTargetsSchema), // Default: ["*"]
+  description: z.optional(z.string()),  // Default: generated from filename
+  globs: z.optional(z.array(z.string())), // Default: ["**/*"]
+  // New optional fields:
+  windsurfActivationMode: z.optional(z.enum(["always", "manual", "model-decision", "glob"])),
+  windsurfOutputFormat: z.optional(z.enum(["single-file", "directory"])),
+  tags: z.optional(z.array(z.string())),
+});
+```
+
+**Impact on Development**:
+- Rule files can now have minimal or no frontmatter
+- Default values are applied during parsing phase
+- Backward compatibility maintained for existing rule files
+- Enhanced validation with clear error messages
 
 ### Key Dependencies
 
