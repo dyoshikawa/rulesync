@@ -1,12 +1,5 @@
 {
-    "ignorePaths": [
-        "coverage/**",
-        "dist/**",
-        "pnpm-lock.yaml",
-        "node_modules/**",
-        ".git/**",
-        ".gitignore"
-    ],
+    "useGitignore": true,
     "words": [
         "agentrequested",
         "aiexclude",
