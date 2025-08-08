@@ -18,6 +18,8 @@ Use the o3 search MCP to research the specifications and create the following fi
   - Research the specifications for MCP configuration text files of target_tool_name using o3 search.
 3. `.rulesync/specification-{tool_name_in_rulesync}-ignore.md`
   - Research the specifications for ignore text files of target_tool_name using o3 search. Ignore files are configuration files used to specify files that should not be read or written by AI coding tools, such as files containing secret information.
+4. `.rulesync/specification-{tool_name_in_rulesync}-commands.md`
+  - Research the specifications for custom slash commands of target_tool_name using o3 search.
 
 For all files, research and document the specifications as comprehensively and thoroughly as possible without omissions.
 
