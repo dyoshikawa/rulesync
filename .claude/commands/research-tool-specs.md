@@ -1,9 +1,11 @@
-target_tool_name, tool_name_in_rulesync, remarks = $ARGUMENTS
+target_tool_name, tool_name_in_rulesync, overwrite, remarks = $ARGUMENTS
 
 target_tool_name: required
 tool_name_in_rulesync: optional, default: target_tool_name
+overwrite: optional, default: false
 remarks: optional
 
+If overwrite is true, even though the files already exists, please overwrite them.
 If remarks is provided, please consider its content when performing the following tasks.
 
 Please complete all of the following tasks.
