@@ -73,14 +73,6 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
 
-# Copy and set up firewall script
-COPY init-firewall.sh /usr/local/bin/
-USER root
-RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
-  chmod 0440 /etc/sudoers.d/node-firewall
-USER node
-
 ### Customize ###
 
 RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
@@ -90,6 +82,15 @@ RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
 
-COPY mise.toml /workspace/.mise.toml
-RUN mise install
-RUN ccinstall
+# COPY mise.toml /workspace/mise.toml
+# RUN mise install
+# RUN ccinstall
+
+### Copy and set up firewall script ###
+
+COPY init-firewall.sh /usr/local/bin/
+USER root
+RUN chmod +x /usr/local/bin/init-firewall.sh && \
+  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
+  chmod 0440 /etc/sudoers.d/node-firewall
+USER node
