@@ -1,6 +1,6 @@
 ---
 root: false
-targets: ["cursor"]
+targets: ["*"]
 description: "Cursor IDE .cursorignore and .cursorindexingignore file specification"
 globs: []
 ---

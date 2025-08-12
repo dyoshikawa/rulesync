@@ -1,6 +1,6 @@
 ---
 root: false
-targets: ["copilot"]
+targets: ["*"]
 description: "GitHub Copilot Content exclusion feature specification"
 globs: []
 ---

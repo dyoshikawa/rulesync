@@ -1,6 +1,6 @@
 ---
 root: false
-targets: ["roo"]
+targets: ["*"]
 description: "Roocode AI Coding Assistant .rooignore file specification"
 globs: []
 ---
