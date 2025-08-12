@@ -83,8 +83,13 @@ USER node
 
 ### Customize ###
 
+RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
+RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
+
 # Install mise
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
-RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
-RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
+
+COPY mise.toml /workspace/.mise.toml
+RUN mise install
+RUN ccinstall
