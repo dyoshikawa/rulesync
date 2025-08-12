@@ -6,7 +6,8 @@
         "pnpm-lock.yaml",
         "node_modules/**",
         ".git/**",
-        ".gitignore"
+        ".gitignore",
+        ".rulesync/**"
     ],
     "words": [
         "agentrequested",
@@ -207,6 +208,14 @@
         "windsurfrules",
         "windsurfignore",
         "windsurf",
-        "ENOENT"
+        "ENOENT",
+        "autocompleter",
+        "Namespacing",
+        "pytest",
+        "netcat",
+        "CODEOWNERS",
+        "PGDATABASE",
+        "myapp",
+        "kazuph"
     ]
 }
