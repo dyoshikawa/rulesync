@@ -47,5 +47,6 @@
     "GITHUB_TOKEN": "${localEnv:DEVCONTAINER_GITHUB_TOKEN}"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
-  "workspaceFolder": "/workspace"
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "sudo /usr/local/bin/init-firewall.sh"
 }
