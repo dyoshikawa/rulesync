@@ -37,7 +37,7 @@
 		"bcheck:fix": "biome check --write src/",
 		"build": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
-		"cspell": "cspell --config .cspell.json \"**/*\"",
+		"cspell": "cspell --config cspell.json \"**/*\"",
 		"dev": "tsx src/cli/index.ts",
 		"eslint": "eslint . --max-warnings 0 --cache",
 		"eslint:fix": "eslint . --fix --max-warnings 0 --cache",
