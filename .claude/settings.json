@@ -1,9 +1,4 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "npx -y ccusage statusline",
-    "padding": 0 
-  },
   "permissions": {
     "deny": [
       "Bash(rm -rf ~/**)",
@@ -42,6 +37,11 @@
       "Bash(gh release create:*)"
     ],
     "defaultMode": "acceptEdits"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccusage statusline",
+    "padding": 0
   },
   "env": {
     "BASH_DEFAULT_TIMEOUT_MS": "300000",
