@@ -1,4 +1,5 @@
 export * from "./claudecode.js";
+export * from "./commands.js";
 export * from "./config.js";
 export * from "./config-options.js";
 export * from "./mcp.js";

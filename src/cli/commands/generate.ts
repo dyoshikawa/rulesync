@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
+import { generateCommands } from "../../core/command-generator.js";
 import { generateMcpConfigs } from "../../core/mcp-generator.js";
 import type { ToolTarget } from "../../types/index.js";
 import type { ConfigLoaderOptions } from "../../utils/config-loader.js";
@@ -144,12 +145,14 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
           case "claudecode":
             // Use safe deletion for Claude Code files only
             deleteTasks.push(removeClaudeGeneratedFiles());
+            deleteTasks.push(removeDirectory(join(".claude", "commands")));
             break;
           case "roo":
             deleteTasks.push(removeDirectory(config.outputPaths.roo));
             break;
           case "geminicli":
             deleteTasks.push(removeDirectory(config.outputPaths.geminicli));
+            deleteTasks.push(removeDirectory(join(".gemini", "commands")));
             break;
           case "kiro":
             deleteTasks.push(removeDirectory(config.outputPaths.kiro));
@@ -229,11 +232,43 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       }
     }
 
+    // Generate command files
+    if (config.verbose) {
+      console.log("\nGenerating command files...");
+    }
+
+    let totalCommandOutputs = 0;
+    for (const baseDir of baseDirs) {
+      const commandResults = await generateCommands(
+        process.cwd(),
+        baseDir === process.cwd() ? undefined : baseDir,
+        config.defaultTargets,
+      );
+
+      if (commandResults.length === 0) {
+        if (config.verbose) {
+          console.log(`No commands found for ${baseDir}`);
+        }
+        continue;
+      }
+
+      for (const result of commandResults) {
+        await writeFileContent(result.filepath, result.content);
+        console.log(`✅ Generated ${result.tool} command: ${result.filepath}`);
+        totalCommandOutputs++;
+      }
+    }
+
     // Final success message
-    const totalGenerated = totalOutputs + totalMcpOutputs;
+    const totalGenerated = totalOutputs + totalMcpOutputs + totalCommandOutputs;
     if (totalGenerated > 0) {
+      const parts = [];
+      if (totalOutputs > 0) parts.push(`${totalOutputs} configurations`);
+      if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP configurations`);
+      if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
+      
       console.log(
-        `\n🎉 All done! Generated ${totalGenerated} file(s) total (${totalOutputs} configurations + ${totalMcpOutputs} MCP configurations)`,
+        `\n🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,
       );
     }
   } catch (error) {
