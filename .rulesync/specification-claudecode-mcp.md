@@ -1,165 +1,433 @@
 ---
 root: false
 targets: ["*"]
-description: Claude Code MCP (Model Context Protocol) configuration specification
+description: "Claude Code MCP (Model Context Protocol) configuration specification"
 globs: []
 ---
 
 # Claude Code MCP (Model Context Protocol) Configuration Specification
 
 ## Overview
-MCP servers expose tools to Claude Code following the naming convention: `mcp__<serverName>__<toolName>`
+Claude Code supports Model Context Protocol (MCP) servers to extend its capabilities with external tools and services. MCP enables standardized communication between Claude and various development tools, databases, APIs, and other services.
 
-Security requires explicit tool allowlisting with `--allowedTools` or blocking with `--disallowedTools`.
+## Configuration Location and Hierarchy
 
-## Adding Servers with CLI
+### Configuration Files (Priority Order)
+1. **Enterprise-Managed Policy** (Highest Priority, Cannot be Overridden)
+   - **macOS**: `/Library/Application Support/ClaudeCode/managed-settings.json`
+   - **Linux/WSL**: `/etc/claude-code/managed-settings.json`
+   - **Windows**: `C:\ProgramData\ClaudeCode\managed-settings.json`
 
-### STDIO (Local Process)
-```bash
-claude mcp add my-stdio-srv /path/to/server [arg1 arg2]
-```
+2. **Per-User Configuration** (Global User Settings)
+   - **Location**: `~/.claude/settings.json`
+   - **Scope**: Applies to all projects for the current user
 
-### SSE (Server-Sent Events)
-```bash
-claude mcp add --transport sse my-sse-srv https://example.com/mcp --header 'X-API-Key:123'
-```
+3. **Per-Project Configuration** (Repository-Specific)
+   - **Shared**: `.claude/settings.json` (committed to version control)
+   - **Local**: `.claude/settings.local.json` (developer-only, automatically gitignored)
 
-### HTTP Endpoint
-```bash
-claude mcp add --transport http my-http-srv https://example.com/mcp
-```
+### Precedence Rules
+Enterprise → CLI flags → `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json`
 
-### Add from JSON
-```bash
-claude mcp add-json weather '{"type":"stdio","command":"weather","args":["--units","metric"]}'
-```
+## JSON Configuration Format
 
-## Management Commands
-- `claude mcp list` - Show all configured servers
-- `claude mcp get <name>` - Show specific server configuration
-- `claude mcp remove <name>` - Remove server configuration
-
-## Configuration Scope
-
-### Local Scope (default)
-- **File**: `.claude/settings.local.json` (per-user, per-project)
-- **Visibility**: Only current user in current repository
-- **Command**: `claude mcp add --scope local` (default)
-
-### Project Scope
-- **File**: `.mcp.json` (repository root)
-- **Visibility**: Shared with team via version control
-- **Command**: `claude mcp add --scope project`
-- **Security**: Prompts teammates on first use
-
-### User Scope
-- **File**: `~/.claude/settings.json` (global user settings)
-- **Visibility**: Available to all projects for current user
-- **Command**: `claude mcp add --scope user`
-
-### Custom Configuration
-- **Runtime**: `--mcp-config <file.json>` option
-- **Purpose**: Use custom configuration file without modifying defaults
-
-## Precedence Order
-1. Local scope (`.claude/settings.local.json`)
-2. Project scope (`.mcp.json`)
-3. User scope (`~/.claude/settings.json`)
-
-## JSON Schema
-
-### Project-Scoped (.mcp.json)
+### Basic Structure
 ```json
 {
   "mcpServers": {
-    "shared-server": {
-      "command": "/path/to/server",
-      "args": [],
+    "server-name": {
+      "type": "stdio",
+      "command": "executable-path",
+      "args": ["argument1", "argument2"],
+      "env": {
+        "API_KEY": "your-api-key-here",
+        "CONFIG_OPTION": "value"
+      }
+    }
+  }
+}
+```
+
+### Required Fields
+- **type**: Must be `"stdio"` (currently the only supported transport)
+- **command**: Path to executable or command name (e.g., `"npx"`, `"python"`, `"/usr/local/bin/server"`)
+- **args**: Array of command-line arguments
+- **env**: Environment variables object (can be empty `{}`)
+
+## Configuration Examples
+
+### 1. GitHub Integration Server
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+### 2. Filesystem Access Server
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/project/root",
+        "/additional/allowed/path"
+      ],
       "env": {}
     }
   }
 }
 ```
 
-### Complete Configuration Example
+### 3. Database Integration (PostgreSQL)
 ```json
 {
   "mcpServers": {
-    "filesystem": {
-      "command": "npx",
+    "postgres": {
+      "type": "stdio",
+      "command": "docker",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/src"
-      ]
-    },
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": { "GITHUB_TOKEN": "ghp_xxx" }
-    },
-    "price-feed": {
-      "transport": "sse",
-      "url": "https://prices.example.com/mcp",
-      "headers": { "X-API-Key": "abc" }
+        "run", "--rm", "-i",
+        "-e", "PGHOST=localhost",
+        "-e", "PGUSER=developer", 
+        "-e", "PGPASSWORD=secret",
+        "-e", "PGDATABASE=myapp",
+        "ghcr.io/modelcontextprotocol/postgres-mcp:latest"
+      ],
+      "env": {}
     }
   }
 }
 ```
 
-## Configuration Fields
-
-### Common Fields
-- **command**: Executable path for STDIO transport (required for STDIO)
-- **args**: Command line arguments array (optional)
-- **env**: Environment variables object (optional)
-- **transport**: Transport type - "stdio" (default), "sse", or "http"
-
-### Remote Server Fields (SSE/HTTP)
-- **url**: Server endpoint URL (required for remote)
-- **headers**: HTTP headers object (optional)
-
-## Transport Types
-1. **STDIO**: Local process communication via stdin/stdout
-2. **SSE**: Server-Sent Events over HTTP/HTTPS
-3. **HTTP**: Plain HTTP endpoint
-
-## Usage in Sessions
-
-### With Tool Allowlisting
-```bash
-claude -p "List project files" \
-      --mcp-config mcp-servers.json \
-      --allowedTools "mcp__filesystem__list_directory"
+### 4. Custom Python MCP Server
+```json
+{
+  "mcpServers": {
+    "custom-tools": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "my_mcp_server", "--config", "production.json"],
+      "env": {
+        "API_KEY": "your-api-key",
+        "DEBUG": "false",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
 ```
 
-### With Permission Prompt Tool
-```bash
-claude --permission-prompt-tool mcp__<srv>__<tool>
+### 5. Web Search/Fetch Server
+```json
+{
+  "mcpServers": {
+    "fetch": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@kazuph/mcp-fetch"],
+      "env": {}
+    }
+  }
+}
 ```
 
-## File Locations
+### 6. Multiple Servers Configuration
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    "filesystem": {
+      "type": "stdio", 
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "env": {}
+    },
+    "database": {
+      "type": "stdio",
+      "command": "python", 
+      "args": ["-m", "database_mcp_server"],
+      "env": {
+        "DB_CONNECTION_STRING": "postgresql://user:pass@localhost/db"
+      }
+    }
+  }
+}
+```
 
-### Local Settings
-- `.claude/settings.local.json` (in repository root)
+## CLI Management Commands
 
-### Project Settings  
-- `.mcp.json` (in repository root, version controlled)
+### Add MCP Servers
+```bash
+# Add STDIO server
+claude mcp add server-name /path/to/server [arg1 arg2]
 
-### User Settings
-- `~/.claude/settings.json` (global user configuration)
+# Add server from JSON configuration
+claude mcp add-json server-name '{"type":"stdio","command":"executable","args":["--flag"]}'
+```
+
+### Management Commands
+```bash
+# List all configured servers
+claude mcp list
+
+# Show specific server configuration  
+claude mcp get server-name
+
+# Remove server configuration
+claude mcp remove server-name
+```
+
+### Configuration Scopes
+```bash
+# Add to local scope (default) - .claude/settings.local.json
+claude mcp add --scope local server-name /path/to/server
+
+# Add to project scope - .claude/settings.json
+claude mcp add --scope project server-name /path/to/server
+
+# Add to user scope - ~/.claude/settings.json  
+claude mcp add --scope user server-name /path/to/server
+```
+
+### Custom Configuration File
+```bash
+# Use custom configuration file at runtime
+claude --mcp-config /path/to/custom-mcp-config.json
+```
 
 ## Security Considerations
-- All MCP tools require explicit allowlisting for security
-- Project-scoped servers prompt teammates before first use
-- Environment variables can contain sensitive data (API keys, tokens)
-- Use appropriate scope for sensitivity level
+
+### Environment Variables
+- Store sensitive data (API keys, tokens, passwords) in environment variables
+- Never hardcode secrets in configuration files
+- Use secure environment variable management systems
+
+### Access Control
+- MCP servers have significant access to system resources
+- Review server code and permissions before deployment
+- Use principle of least privilege for server access
+
+### Network Security
+- Validate server sources and integrity
+- Use secure communication channels
+- Configure firewall rules appropriately
+
+### Example Security-Focused Configuration
+```json
+{
+  "mcpServers": {
+    "secure-github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_API_URL": "https://api.github.com"
+      }
+    },
+    "restricted-filesystem": {
+      "type": "stdio",
+      "command": "npx", 
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/workspace/src",
+        "/workspace/docs"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+## Common MCP Server Types
+
+### Official ModelContextProtocol Servers
+- **GitHub**: `@modelcontextprotocol/server-github`
+- **Filesystem**: `@modelcontextprotocol/server-filesystem`
+- **SQLite**: `@modelcontextprotocol/server-sqlite`
+- **PostgreSQL**: Docker-based PostgreSQL server
+- **Brave Search**: `@modelcontextprotocol/server-brave-search`
+
+### Community Servers
+- **Fetch**: `@kazuph/mcp-fetch` - Web content fetching
+- **AWS**: Various AWS service integrations
+- **Docker**: Container management servers
+- **Kubernetes**: Cluster management tools
+
+### Custom Servers
+- Python-based servers using the MCP SDK
+- Node.js servers with MCP protocol implementation
+- Language-specific implementations
+
+## Usage in Claude Code Sessions
+
+### Automatic Tool Discovery
+Claude automatically discovers available tools from configured MCP servers and uses them when appropriate.
+
+### Manual Tool Invocation
+```bash
+# List available MCP tools
+/mcp
+
+# Check server status and available tools
+/mcp status
+
+# Restart MCP servers
+/mcp restart
+```
+
+### Tool Naming Convention
+MCP tools follow the naming pattern: `mcp__<serverName>__<toolName>`
+
+Example:
+- `mcp__github__create_issue`
+- `mcp__filesystem__read_file`
+- `mcp__database__execute_query`
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Server Not Starting
+**Symptoms**: Server fails to load or tools not available
+**Solutions**:
+- Check command path and arguments
+- Verify dependencies are installed
+- Review server logs in Claude output
+- Test server manually from command line
+
+#### 2. Permission Errors
+**Symptoms**: Access denied or authentication failures
+**Solutions**:
+- Check environment variables are set correctly
+- Verify API keys and tokens are valid
+- Review server permissions and access rights
+- Check file system permissions
+
+#### 3. Network Connectivity Issues
+**Symptoms**: API calls fail or timeouts occur
+**Solutions**:
+- Test network connectivity manually
+- Check firewall settings
+- Verify API endpoints are accessible
+- Review proxy configurations
+
+#### 4. Configuration Not Loading
+**Symptoms**: MCP servers not recognized
+**Solutions**:
+- Validate JSON syntax with `jq . .claude/settings.json`
+- Check file location and naming
+- Restart Claude Code
+- Review configuration hierarchy
+
+### Debugging Steps
+1. **Validate Configuration**: Check JSON syntax and required fields
+2. **Test Dependencies**: Ensure server executables are available
+3. **Check Logs**: Review Claude Code output for error messages
+4. **Manual Testing**: Test server commands manually from terminal
+5. **Environment Validation**: Verify environment variables are set
+
+### Debug Commands
+```bash
+# Show current MCP configuration
+/mcp list
+
+# Test server connectivity
+/mcp test server-name
+
+# View server logs
+/mcp logs server-name
+```
 
 ## Best Practices
-- Use project scope for team-shared servers
-- Commit `.mcp.json` for project scope configurations
-- Use user scope for personal development tools
-- Use local scope for experimental or temporary servers
-- Always specify `--allowedTools` in non-interactive mode
-- Audit configurations with `claude mcp list`
-- Use environment variables for sensitive data
+
+### Configuration Management
+1. **Version Control**: Commit `.claude/settings.json` for team sharing
+2. **Secret Management**: Use environment variables for sensitive data
+3. **Documentation**: Document server purposes and requirements
+4. **Testing**: Validate configurations in development environments
+
+### Server Selection and Setup
+1. **Official First**: Prefer official MCP servers when available
+2. **Security Review**: Audit third-party servers before deployment
+3. **Resource Management**: Monitor server resource usage
+4. **Update Management**: Keep servers updated to latest versions
+
+### Team Collaboration
+1. **Shared Standards**: Establish team conventions for MCP usage
+2. **Server Inventory**: Maintain documentation of available servers
+3. **Access Management**: Control server access based on roles
+4. **Training**: Educate team on MCP capabilities and usage
+
+### Performance Optimization
+1. **Selective Loading**: Only load necessary servers
+2. **Resource Monitoring**: Track server performance impact
+3. **Connection Pooling**: Use efficient connection management
+4. **Caching**: Implement appropriate caching strategies
+
+## Advanced Configuration
+
+### Environment-Specific Configuration
+```json
+{
+  "mcpServers": {
+    "dev-database": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "db_server", "--env", "development"],
+      "env": {
+        "DB_HOST": "dev-db.example.com",
+        "DB_NAME": "myapp_dev"
+      }
+    },
+    "prod-database": {
+      "type": "stdio", 
+      "command": "python",
+      "args": ["-m", "db_server", "--env", "production"],
+      "env": {
+        "DB_HOST": "prod-db.example.com",
+        "DB_NAME": "myapp_prod"
+      }
+    }
+  }
+}
+```
+
+### Conditional Server Loading
+```json
+{
+  "mcpServers": {
+    "dev-tools": {
+      "type": "stdio",
+      "command": "sh",
+      "args": ["-c", "if [ \"$NODE_ENV\" = \"development\" ]; then exec npx dev-mcp-server; else exec npx prod-mcp-server; fi"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}
+```
+
+This specification provides comprehensive guidance for configuring MCP servers in Claude Code, enabling powerful integrations that extend Claude's capabilities with external tools and services while maintaining security and performance.
