@@ -81,7 +81,7 @@ describe("GeminiCliCommandGenerator", () => {
 
     it("should warn about @ syntax", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      
+
       const command: ParsedCommand = {
         frontmatter: {},
         content: "Include @file.txt and @another.md",
@@ -92,7 +92,7 @@ describe("GeminiCliCommandGenerator", () => {
       generator.generate(command, "/output");
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("@ syntax found (@file.txt, @another.md)")
+        expect.stringContaining("@ syntax found (@file.txt, @another.md)"),
       );
 
       consoleSpy.mockRestore();

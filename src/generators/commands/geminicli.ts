@@ -4,24 +4,24 @@ import type { CommandOutput, ParsedCommand } from "../../types/commands.js";
 export class GeminiCliCommandGenerator {
   generate(command: ParsedCommand, outputDir: string): CommandOutput {
     const filepath = this.getOutputPath(command.filename, outputDir);
-    
+
     // Convert content syntax from Claude Code to Gemini CLI
-    let convertedContent = this.convertSyntax(command.content);
-    
+    const convertedContent = this.convertSyntax(command.content);
+
     // Build TOML content
     const tomlLines: string[] = [];
-    
+
     // Add description if present
     if (command.frontmatter.description) {
       tomlLines.push(`description = "${this.escapeTomlString(command.frontmatter.description)}"`);
       tomlLines.push("");
     }
-    
+
     // Add prompt
     tomlLines.push(`prompt = """${convertedContent}"""`);
-    
+
     const content = tomlLines.join("\n") + "\n";
-    
+
     return {
       tool: "geminicli",
       filepath,
@@ -38,23 +38,23 @@ export class GeminiCliCommandGenerator {
 
   private convertSyntax(content: string): string {
     let converted = content;
-    
+
     // Convert $ARGUMENTS to {{args}}
     converted = converted.replace(/\$ARGUMENTS/g, "{{args}}");
-    
+
     // Convert shell command injection: !`command` to !{command}
     converted = converted.replace(/!`([^`]+)`/g, "!{$1}");
-    
+
     // Check for @ syntax and log warning (Gemini CLI doesn't support file injection)
     const atSyntaxMatches = converted.match(/@[^\s]+/g);
     if (atSyntaxMatches) {
       console.warn(
         `⚠️  Warning: @ syntax found (${atSyntaxMatches.join(", ")}). ` +
-        "Gemini CLI does not support file content injection. " +
-        "Consider using shell commands or remove these references.",
+          "Gemini CLI does not support file content injection. " +
+          "Consider using shell commands or remove these references.",
       );
     }
-    
+
     return converted.trim();
   }
 

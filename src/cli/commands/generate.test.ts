@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { generateCommands } from "../../core/command-generator.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigs } from "../../core/mcp-generator.js";
 import { createMockConfig } from "../../test-utils/index.js";
@@ -16,11 +17,13 @@ import { generateCommand } from "./generate.js";
 
 vi.mock("../../core/index.js");
 vi.mock("../../core/mcp-generator.js");
+vi.mock("../../core/command-generator.js");
 vi.mock("../../utils/index.js");
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);
 const mockGenerateMcpConfigs = vi.mocked(generateMcpConfigs);
+const mockGenerateCommands = vi.mocked(generateCommands);
 const mockFileExists = vi.mocked(fileExists);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
 const mockLoadConfig = vi.mocked(loadConfig);
@@ -64,6 +67,7 @@ describe("generateCommand", () => {
     mockRemoveDirectory.mockResolvedValue();
     mockRemoveClaudeGeneratedFiles.mockResolvedValue();
     mockGenerateMcpConfigs.mockResolvedValue([]);
+    mockGenerateCommands.mockResolvedValue([]);
 
     mockLoadConfig.mockResolvedValue({
       config: mockConfig,

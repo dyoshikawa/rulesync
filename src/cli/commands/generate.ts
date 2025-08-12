@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateCommands } from "../../core/command-generator.js";
+import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigs } from "../../core/mcp-generator.js";
 import type { ToolTarget } from "../../types/index.js";
 import type { ConfigLoaderOptions } from "../../utils/config-loader.js";
@@ -266,7 +266,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       if (totalOutputs > 0) parts.push(`${totalOutputs} configurations`);
       if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP configurations`);
       if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
-      
+
       console.log(
         `\n🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,
       );

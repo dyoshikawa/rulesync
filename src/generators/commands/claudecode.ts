@@ -4,17 +4,17 @@ import type { CommandOutput, ParsedCommand } from "../../types/commands.js";
 export class ClaudeCodeCommandGenerator {
   generate(command: ParsedCommand, outputDir: string): CommandOutput {
     const filepath = this.getOutputPath(command.filename, outputDir);
-    
+
     // Build frontmatter
     const frontmatter: string[] = ["---"];
     if (command.frontmatter.description) {
       frontmatter.push(`description: ${command.frontmatter.description}`);
     }
     frontmatter.push("---");
-    
+
     // Combine frontmatter and content
     const content = `${frontmatter.join("\n")}\n\n${command.content.trim()}\n`;
-    
+
     return {
       tool: "claudecode",
       filepath,
