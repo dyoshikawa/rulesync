@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setupTestDirectory } from "../utils/test-helpers.js";
+import { setupTestDirectory } from "../test-utils/index.js";
 import { parseMcpConfig } from "./mcp-parser.js";
 
 describe("parseMcpConfig", () => {

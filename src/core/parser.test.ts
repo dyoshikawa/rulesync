@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseRuleFile, parseRulesFromDirectory } from "../../src/core/parser.js";
-import { setupTestDirectory } from "../utils/test-helpers.js";
+import { setupTestDirectory } from "../test-utils/index.js";
 
 describe("parser", () => {
   let testDir: string;

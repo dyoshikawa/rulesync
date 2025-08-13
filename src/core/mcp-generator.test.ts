@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../test-utils/index.js";
 import type { RulesyncMcpConfig } from "../types/mcp.js";
-import { setupTestDirectory } from "../utils/test-helpers.js";
 import { generateMcpConfigs, generateMcpConfigurations } from "./mcp-generator.js";
 import { parseMcpConfig } from "./mcp-parser.js";
 

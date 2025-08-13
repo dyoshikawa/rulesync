@@ -17,13 +17,13 @@ For all test code, where directories are specified for actual file generation, u
 
 Use the following pattern for all tests:
 - Unique random directory in `/tmp/tests/{random-string}` format
-- Mandatory use of helper functions from existing `src/utils/test-helpers.ts`
+- Mandatory use of helper functions from existing `src/test-utils/index.ts`
 - Complete separation between tests and thorough cleanup
 
 ### 2. Recommended Implementation Pattern
 
 ```typescript
-import { setupTestDirectory } from "../utils/test-helpers.js";
+import { setupTestDirectory } from "../src/test-utils/index.js";
 
 describe("Test Name", () => {
   let testDir: string;
@@ -90,7 +90,7 @@ const testDir = "/tmp/test-fixed-name";
 
 1. **Add Import**
 ```typescript
-import { setupTestDirectory } from "../utils/test-helpers.js";
+import { setupTestDirectory } from "../src/test-utils/index.js";
 ```
 
 2. **Modify Variable Declaration**
