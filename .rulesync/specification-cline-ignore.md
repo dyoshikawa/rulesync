@@ -1,6 +1,6 @@
 ---
 root: false
-targets: ["cline"]
+targets: ["*"]
 description: "Specification document for Cline VSCode Extension .clineignore file"
 globs: []
 ---

@@ -1,3 +1,10 @@
+---
+root: false
+targets: ["*"]
+description: "Testing directory unification rules"
+globs: ["**/*.test.ts"]
+---
+
 # テスト用ディレクトリ統一化規約
 
 ## 概要

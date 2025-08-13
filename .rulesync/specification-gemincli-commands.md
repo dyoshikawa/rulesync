@@ -1,3 +1,10 @@
+---
+root: false
+targets: ["*"]
+description: "Gemini CLI custom slash commands specification"
+globs: []
+---
+
 # Gemini CLI Custom Slash Commands Specification
 
 ## Overview

@@ -1,3 +1,10 @@
+---
+root: false
+targets: ["*"]
+description: "Claude Code custom slash commands specification"
+globs: []
+---
+
 # Claude Code Custom Slash Commands Specification
 
 ## Overview
