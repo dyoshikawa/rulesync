@@ -37,12 +37,6 @@
       "rules": {
         "typescript/no-explicit-any": "off"
       }
-    },
-    {
-      "files": ["src/test-utils/**/*.ts"],
-      "rules": {
-        "typescript/no-extraneous-class": "off"
-      }
     }
   ]
 }
