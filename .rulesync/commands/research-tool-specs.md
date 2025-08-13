@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: research-tool-specs'
 targets:
   - claudecode
-description: 'Command: research-tool-specs'
-globs:
-  - '**/*'
 ---
 
 target_tool_name, tool_name_in_rulesync, remarks = $ARGUMENTS

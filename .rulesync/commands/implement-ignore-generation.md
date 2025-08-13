@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: implement-ignore-generation'
 targets:
   - claudecode
-description: 'Command: implement-ignore-generation'
-globs:
-  - '**/*'
 ---
 
 tool_name_in_rulesync, remarks = $ARGUMENTS

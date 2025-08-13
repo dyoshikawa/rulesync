@@ -1,10 +1,7 @@
 ---
-root: false
+description: Fix a GitHub issue following project standards
 targets:
   - claudecode
-description: Fix a GitHub issue following project standards
-globs:
-  - '**/*'
 ---
 
 Fix GitHub issue #$ARGUMENTS by following these steps:

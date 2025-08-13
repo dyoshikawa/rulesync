@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: to-english'
 targets:
   - claudecode
-description: 'Command: to-english'
-globs:
-  - '**/*'
 ---
 
 1. Call the diff-analyzer subagent to detect the changes of docs in current branch.

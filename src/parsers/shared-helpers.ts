@@ -382,16 +382,17 @@ async function parseCommandsFiles(
             const parsed = matter(content);
             ruleContent = parsed.content.trim();
             const parsedFrontmatter = parsed.data;
+            // Commands use simplified frontmatter with only description and targets
             frontmatter = {
               root: false,
               targets: [config.tool],
               description: parsedFrontmatter.description || `Command: ${filename}`,
-              globs: Array.isArray(parsedFrontmatter.globs) ? parsedFrontmatter.globs : ["**/*"],
-              ...(parsedFrontmatter.tags && { tags: parsedFrontmatter.tags }),
+              globs: ["**/*"],
             };
           } catch {
             // If frontmatter parsing fails, treat as plain content
             ruleContent = content.trim();
+            // Commands use simplified frontmatter with only description and targets
             frontmatter = {
               root: false,
               targets: [config.tool],

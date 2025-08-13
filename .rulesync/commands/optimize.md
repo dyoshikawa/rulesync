@@ -1,10 +1,7 @@
 ---
-root: false
+description: Optimize code for performance and readability
 targets:
   - claudecode
-description: Optimize code for performance and readability
-globs:
-  - '**/*'
 ---
 
 Optimize the following code or file: $ARGUMENTS

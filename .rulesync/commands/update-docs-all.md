@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: update-docs-all'
 targets:
   - claudecode
-description: 'Command: update-docs-all'
-globs:
-  - '**/*'
 ---
 
 Call the docs-updater subagent in parallel as much as possible to update the following documents.

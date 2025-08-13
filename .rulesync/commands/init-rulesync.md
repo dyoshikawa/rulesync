@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: init-rulesync'
 targets:
   - claudecode
-description: 'Command: init-rulesync'
-globs:
-  - '**/*'
 ---
 
 Analyze this project's codebase and update .rulesync/overview.md files as needed.

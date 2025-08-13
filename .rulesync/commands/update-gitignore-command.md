@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: update-gitignore-command'
 targets:
   - claudecode
-description: 'Command: update-gitignore-command'
-globs:
-  - '**/*'
 ---
 
 tool_name_in_rulesync, remarks = $ARGUMENTS

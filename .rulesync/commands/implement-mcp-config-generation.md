@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: implement-mcp-config-generation'
 targets:
   - claudecode
-description: 'Command: implement-mcp-config-generation'
-globs:
-  - '**/*'
 ---
 
 tool_name_in_rulesync, remarks = $ARGUMENTS

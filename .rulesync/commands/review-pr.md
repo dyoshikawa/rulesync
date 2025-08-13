@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: review-pr'
 targets:
   - claudecode
-description: 'Command: review-pr'
-globs:
-  - '**/*'
 ---
 
 target_pr = $ARGUMENTS

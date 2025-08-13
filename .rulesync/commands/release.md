@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: release'
 targets:
   - claudecode
-description: 'Command: release'
-globs:
-  - '**/*'
 ---
 
 new_version = get_version_without_v_prefix($ARGUMENTS) # example: 1.0.0

@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: refactor'
 targets:
   - claudecode
-description: 'Command: refactor'
-globs:
-  - '**/*'
 ---
 
 1. Call refactoring-planner subagent to plan refactoring tasks.

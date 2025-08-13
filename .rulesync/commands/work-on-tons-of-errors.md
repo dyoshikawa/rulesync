@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: work-on-tons-of-errors'
 targets:
   - claudecode
-description: 'Command: work-on-tons-of-errors'
-globs:
-  - '**/*'
 ---
 
 work_guidelines = $ARGUMENTS

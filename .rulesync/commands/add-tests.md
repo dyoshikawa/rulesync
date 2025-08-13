@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: add-tests'
 targets:
   - claudecode
-description: 'Command: add-tests'
-globs:
-  - '**/*'
 ---
 
 1. Add test code until coverage reaches 80% or higher.

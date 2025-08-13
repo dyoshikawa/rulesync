@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: check'
 targets:
   - claudecode
-description: 'Command: check'
-globs:
-  - '**/*'
 ---
 
 Execute the following commands and fix any failures until they PASS:

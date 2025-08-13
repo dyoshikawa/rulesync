@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: to-english-all'
 targets:
   - claudecode
-description: 'Command: to-english-all'
-globs:
-  - '**/*'
 ---
 
 Call the japanese-to-english-translator subagent in parallel as much as possible to convert the following documents to English and overwrite them.

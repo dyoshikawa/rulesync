@@ -377,9 +377,9 @@ describe("importConfiguration", () => {
     const mockRules = [
       {
         frontmatter: {
-          root: false,
-          targets: ["claudecode"] satisfies ToolTarget[],
           description: "Command: fix-issue",
+          targets: ["claudecode"] satisfies ToolTarget[],
+          root: false,
           globs: ["**/*"],
         },
         content: "Fix GitHub issue #$ARGUMENTS by following these steps:",
@@ -403,7 +403,11 @@ describe("importConfiguration", () => {
     expect(result.success).toBe(true);
 
     const createdFile = await readFile(join(rulesDir, "commands", "fix-issue.md"), "utf-8");
-    expect(createdFile).toContain("Command: fix-issue");
+    expect(createdFile).toContain("description: 'Command: fix-issue'");
+    expect(createdFile).toContain("targets:");
+    expect(createdFile).toContain("- claudecode");
+    expect(createdFile).not.toContain("root:");
+    expect(createdFile).not.toContain("globs:");
     expect(createdFile).toContain("Fix GitHub issue #$ARGUMENTS");
   });
 
@@ -411,9 +415,9 @@ describe("importConfiguration", () => {
     const mockRules = [
       {
         frontmatter: {
-          root: false,
-          targets: ["geminicli"] satisfies ToolTarget[],
           description: "Command: optimize",
+          targets: ["geminicli"] satisfies ToolTarget[],
+          root: false,
           globs: ["**/*"],
         },
         content: "Optimize the code by following these steps:",
@@ -437,7 +441,11 @@ describe("importConfiguration", () => {
     expect(result.success).toBe(true);
 
     const createdFile = await readFile(join(rulesDir, "commands", "optimize.md"), "utf-8");
-    expect(createdFile).toContain("Command: optimize");
+    expect(createdFile).toContain("description: 'Command: optimize'");
+    expect(createdFile).toContain("targets:");
+    expect(createdFile).toContain("- geminicli");
+    expect(createdFile).not.toContain("root:");
+    expect(createdFile).not.toContain("globs:");
     expect(createdFile).toContain("Optimize the code by following");
   });
 });

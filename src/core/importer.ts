@@ -202,6 +202,16 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
 }
 
 function generateRuleFileContent(rule: ParsedRule): string {
+  // Commands use simplified frontmatter with only description and targets
+  if (rule.type === "command") {
+    const simplifiedFrontmatter = {
+      description: rule.frontmatter.description,
+      targets: rule.frontmatter.targets,
+    };
+    const frontmatter = matter.stringify("", simplifiedFrontmatter);
+    return frontmatter + rule.content;
+  }
+
   const frontmatter = matter.stringify("", rule.frontmatter);
   return frontmatter + rule.content;
 }

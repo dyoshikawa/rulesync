@@ -1,10 +1,7 @@
 ---
-root: false
+description: 'Command: implement-rules-generation'
 targets:
   - claudecode
-description: 'Command: implement-rules-generation'
-globs:
-  - '**/*'
 ---
 
 tool_name_in_rulesync, remarks = $ARGUMENTS
