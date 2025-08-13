@@ -17,7 +17,6 @@ import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../types/index.js";
 import { resolveTargets } from "../utils/index.js";
-import { isToolSpecificRule } from "../utils/rules.js";
 
 export async function generateConfigurations(
   rules: ParsedRule[],
@@ -60,7 +59,7 @@ function filterRulesForTool(rules: ParsedRule[], tool: ToolTarget, config: Confi
       return false;
     }
 
-    return isToolSpecificRule(rule, tool);
+    return true;
   });
 }
 

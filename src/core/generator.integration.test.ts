@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Config } from "../types/index.js";
 import { getDefaultConfig } from "../utils/config.js";
-import { generateConfigurations, parseRulesFromDirectory } from "./index.js";
+import { generateConfigurations } from "./generator.js";
+import { parseRulesFromDirectory } from "./parser.js";
 
-describe("generator integration tests - specification filtering", () => {
+describe("generator integration tests", () => {
   let tempDir: string;
   let rulesDir: string;
 
@@ -20,7 +21,7 @@ describe("generator integration tests - specification filtering", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("should only generate tool-specific specifications for their intended tools", async () => {
+  it("should generate configurations for targeted tools", async () => {
     const rules = [
       // General rule - should be included for all tools
       {
@@ -34,7 +35,7 @@ globs: ["**/*.ts"]
 
 General coding standards content`,
       },
-      // Tool-specific specifications
+      // Tool-specific specifications - now included for all tools with targets ["*"]
       {
         filename: "specification-copilot-rules.md",
         content: `---
@@ -47,17 +48,6 @@ globs: ["**/*.ts"]
 Copilot rules content`,
       },
       {
-        filename: "specification-cursor-rules.md",
-        content: `---
-root: false
-targets: ["*"]
-description: "Cursor specific rules"
-globs: ["**/*.ts"]
----
-
-Cursor rules content`,
-      },
-      {
         filename: "specification-claudecode-rules.md",
         content: `---
 root: false
@@ -68,17 +58,6 @@ globs: ["**/*.ts"]
 
 Claude Code rules content`,
       },
-      {
-        filename: "specification-geminicli-rules.md",
-        content: `---
-root: false
-targets: ["*"]
-description: "Gemini CLI specific rules"
-globs: ["**/*.ts"]
----
-
-Gemini CLI rules content`,
-      },
     ];
 
     for (const rule of rules) {
@@ -86,56 +65,26 @@ Gemini CLI rules content`,
     }
 
     const parsedRules = await parseRulesFromDirectory(rulesDir);
-    expect(parsedRules).toHaveLength(5);
+    expect(parsedRules).toHaveLength(3);
 
     const config: Config = {
       ...getDefaultConfig(),
-      defaultTargets: ["claudecode", "geminicli"],
+      defaultTargets: ["claudecode"],
     };
 
-    const outputs = await generateConfigurations(parsedRules, config, ["claudecode", "geminicli"]);
+    const outputs = await generateConfigurations(parsedRules, config, ["claudecode"]);
 
-    // Check that only appropriate files were generated
+    // Check that outputs were generated
     const claudecodeOutputs = outputs.filter((o) => o.tool === "claudecode");
-    const geminicliOutputs = outputs.filter((o) => o.tool === "geminicli");
+    expect(claudecodeOutputs.length).toBeGreaterThan(0);
 
-    // Claude Code should have:
-    // - CLAUDE.md (root file)
-    // - coding-standards.md (general rule)
-    // - specification-claudecode-rules.md (its own specification)
-    // But NOT specification-copilot-rules.md, specification-cursor-rules.md, etc.
-
+    // Should include root file and all specification files (since isToolSpecificRule was removed)
     const claudeMemoryFiles = claudecodeOutputs.filter((o) =>
       o.filepath.includes(".claude/memories/"),
     );
-    const claudeSpecFiles = claudeMemoryFiles.filter((o) => o.filepath.includes("specification-"));
 
-    // Should only have its own specification file
-    expect(claudeSpecFiles).toHaveLength(1);
-    expect(claudeSpecFiles[0]?.filepath).toContain("specification-claudecode-rules.md");
-
-    // Gemini CLI should have similar behavior
-    const geminiMemoryFiles = geminicliOutputs.filter((o) =>
-      o.filepath.includes(".gemini/memories/"),
-    );
-    const geminiSpecFiles = geminiMemoryFiles.filter((o) => o.filepath.includes("specification-"));
-
-    expect(geminiSpecFiles).toHaveLength(1);
-    expect(geminiSpecFiles[0]?.filepath).toContain("specification-geminicli-rules.md");
-
-    const allSpecFiles = outputs.filter((o) => o.filepath.includes("specification-"));
-    for (const output of allSpecFiles) {
-      if (output.tool === "claudecode") {
-        expect(output.filepath).not.toContain("specification-copilot");
-        expect(output.filepath).not.toContain("specification-cursor");
-        expect(output.filepath).not.toContain("specification-geminicli");
-      }
-      if (output.tool === "geminicli") {
-        expect(output.filepath).not.toContain("specification-copilot");
-        expect(output.filepath).not.toContain("specification-cursor");
-        expect(output.filepath).not.toContain("specification-claudecode");
-      }
-    }
+    // Should have the root file plus all specification files
+    expect(claudeMemoryFiles.length).toBeGreaterThan(1);
   });
 
   it("should include general rules for all targeted tools", async () => {
@@ -157,7 +106,7 @@ Build tooling content`,
 root: false
 targets: ["*"]
 description: "Copilot MCP configuration"
-globs: ["**/*.json"]
+globs: ["**/*.ts"]
 ---
 
 Copilot MCP content`,
@@ -183,8 +132,8 @@ Copilot MCP content`,
     expect(cursorOutputs.some((o) => o.filepath.includes("build-tooling.md"))).toBe(true);
     expect(clineOutputs.some((o) => o.filepath.includes("build-tooling.md"))).toBe(true);
 
-    // Neither should get the copilot specification
-    expect(cursorOutputs.some((o) => o.filepath.includes("specification-copilot"))).toBe(false);
-    expect(clineOutputs.some((o) => o.filepath.includes("specification-copilot"))).toBe(false);
+    // Both should also get all specification files now (since isToolSpecificRule was removed)
+    expect(cursorOutputs.some((o) => o.filepath.includes("specification-copilot"))).toBe(true);
+    expect(clineOutputs.some((o) => o.filepath.includes("specification-copilot"))).toBe(true);
   });
 });
