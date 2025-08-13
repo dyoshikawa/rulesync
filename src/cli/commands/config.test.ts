@@ -235,9 +235,6 @@ describe("config command", () => {
       spy.mockRestore();
     });
 
-    // Skipping this test as fs.access mocking is complex in ESM
-    it.skip("should fail when config file already exists", async () => {});
-
     it("should handle file write errors", async () => {
       mockWriteFileSync.mockImplementation(() => {
         throw new Error("Permission denied");
