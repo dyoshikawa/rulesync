@@ -4,7 +4,7 @@ targets:
   - claudecode
 ---
 
-Call the docs-updater subagent in parallel as much as possible to update the following documents.
+Call the docs-updater subagent to update the following documents in light of the changes detected by the diff-analyzer. All files should be processed at once in a single subagent execution.
 
 - README.md, README.ja.md
   - For users of this tool. Focus on usage and specifications.

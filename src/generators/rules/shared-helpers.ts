@@ -6,7 +6,7 @@ import { loadIgnorePatterns } from "../../utils/ignore.js";
 export interface RuleGeneratorConfig {
   tool: ToolTarget;
   fileExtension: string;
-  ignoreFileName: string;
+  ignoreFileName?: string;
   generateContent: (rule: ParsedRule) => string;
   pathResolver?: (rule: ParsedRule, outputDir: string) => string;
 }
@@ -56,7 +56,12 @@ export function addOutput(
 /**
  * Enhanced generator configuration for handling complex rule generation patterns
  */
-export interface EnhancedRuleGeneratorConfig extends RuleGeneratorConfig {
+export interface EnhancedRuleGeneratorConfig {
+  tool: ToolTarget;
+  fileExtension: string;
+  ignoreFileName?: string;
+  generateContent: (rule: ParsedRule) => string;
+  pathResolver?: (rule: ParsedRule, outputDir: string) => string;
   /** Generate root document content */
   generateRootContent?: (
     rootRule: ParsedRule | undefined,
@@ -105,7 +110,7 @@ export async function generateRulesConfig(
 
   // Generate ignore file if .rulesyncignore exists
   const ignorePatterns = await loadIgnorePatterns(baseDir);
-  if (ignorePatterns.patterns.length > 0) {
+  if (ignorePatterns.patterns.length > 0 && generatorConfig.ignoreFileName) {
     const ignorePath = resolvePath(generatorConfig.ignoreFileName, baseDir);
 
     const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
@@ -168,16 +173,18 @@ export async function generateComplexRules(
   // Handle ignore patterns
   const ignorePatterns = await loadIgnorePatterns(baseDir);
   if (ignorePatterns.patterns.length > 0) {
-    // Standard ignore file
-    const ignorePath = resolvePath(generatorConfig.ignoreFileName, baseDir);
+    // Standard ignore file (skip if ignoreFileName is undefined, e.g., for Claude Code)
+    if (generatorConfig.ignoreFileName) {
+      const ignorePath = resolvePath(generatorConfig.ignoreFileName, baseDir);
 
-    const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
+      const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
 
-    outputs.push({
-      tool: generatorConfig.tool,
-      filepath: ignorePath,
-      content: ignoreContent,
-    });
+      outputs.push({
+        tool: generatorConfig.tool,
+        filepath: ignorePath,
+        content: ignoreContent,
+      });
+    }
 
     // Additional configuration updates (e.g., Claude Code settings.json)
     if (generatorConfig.updateAdditionalConfig) {

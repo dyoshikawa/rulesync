@@ -12,7 +12,7 @@ export async function generateClaudecodeConfig(
   const generatorConfig: EnhancedRuleGeneratorConfig = {
     tool: "claudecode",
     fileExtension: ".md",
-    ignoreFileName: ".aiignore",
+    // ignoreFileName omitted - Claude Code uses settings.json permissions.deny instead of ignore files
     generateContent: generateMemoryFile,
     generateRootContent: generateClaudeMarkdown,
     rootFilePath: "CLAUDE.md",
