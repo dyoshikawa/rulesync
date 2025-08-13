@@ -82,3 +82,10 @@ RUN echo "alias dangerous-claude=\"claude --dangerously-skip-permissions\"" >> "
 # Install mise
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
+
+# Install init.sh
+ENV PATH=$PATH:/home/node/bin
+COPY init.sh /home/node/bin/init.sh
+USER root
+RUN chmod +x /home/node/bin/init.sh
+USER node
