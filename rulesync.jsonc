@@ -1,6 +1,6 @@
 {
   // List of tools to generate configurations for
-  "targets": ["cursor", "claudecode"],
+  "targets": ["cursor", "claudecode", "geminicli"],
   
   // Tools to exclude from generation (overrides targets)
   "exclude": [],
