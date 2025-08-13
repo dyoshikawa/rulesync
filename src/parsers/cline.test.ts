@@ -14,7 +14,7 @@ describe("parseClineConfiguration", () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     clineInstructionsPath = join(testDir, ".cline", "instructions.md");
     clinerulesDirPath = join(testDir, ".clinerules");
-    
+
     const { mkdir } = await import("node:fs/promises");
     await mkdir(join(testDir, ".cline"), { recursive: true });
     await mkdir(clinerulesDirPath, { recursive: true });

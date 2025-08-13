@@ -14,7 +14,7 @@ describe("parseRooConfiguration", () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     rooInstructionsPath = join(testDir, ".roo", "instructions.md");
     rooRulesDir = join(testDir, ".roo", "rules");
-    
+
     const { mkdir } = await import("node:fs/promises");
     await mkdir(join(testDir, ".roo"), { recursive: true });
     await mkdir(rooRulesDir, { recursive: true });

@@ -19,7 +19,7 @@ describe("parseGeminiConfiguration", () => {
     memoryDir = join(testDir, ".gemini", "memories");
     settingsPath = join(testDir, ".gemini", "settings.json");
     aiexcludePath = join(testDir, ".aiexclude");
-    
+
     const { mkdir } = await import("node:fs/promises");
     await mkdir(memoryDir, { recursive: true });
   });

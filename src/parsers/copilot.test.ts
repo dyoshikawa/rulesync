@@ -14,7 +14,7 @@ describe("parseCopilotConfiguration", () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     copilotPath = join(testDir, ".github", "copilot-instructions.md");
     instructionsDir = join(testDir, ".github", "instructions");
-    
+
     const { mkdir } = await import("node:fs/promises");
     await mkdir(join(testDir, ".github"), { recursive: true });
     await mkdir(instructionsDir, { recursive: true });

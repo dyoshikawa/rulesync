@@ -16,7 +16,7 @@ describe("parseClaudeConfiguration", () => {
     claudeFilePath = join(testDir, "CLAUDE.md");
     memoryDir = join(testDir, ".claude", "memories");
     settingsPath = join(testDir, ".claude", "settings.json");
-    
+
     const { mkdir } = await import("node:fs/promises");
     await mkdir(memoryDir, { recursive: true });
   });
