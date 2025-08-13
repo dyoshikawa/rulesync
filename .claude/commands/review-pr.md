@@ -1,3 +1,7 @@
+---
+description: Command: review-pr
+---
+
 target_pr = $ARGUMENTS
 
 If target_pr is not provided, use the PR of the current branch.

@@ -1,3 +1,7 @@
+---
+description: Command: update-docs
+---
+
 1. Call the diff-analyzer subagent to detect the changes in current branch.
 2. Call the docs-updater subagent in parallel as much as possible to update the following documents in light of the changes detected by the diff-analyzer.
   - README.md, README.ja.md

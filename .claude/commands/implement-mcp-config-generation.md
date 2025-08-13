@@ -1,3 +1,7 @@
+---
+description: Command: implement-mcp-config-generation
+---
+
 tool_name_in_rulesync, remarks = $ARGUMENTS
 
 tool_name_in_rulesync: required

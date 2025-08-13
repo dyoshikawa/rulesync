@@ -1,3 +1,7 @@
+---
+description: Command: research-tool-specs
+---
+
 target_tool_name, tool_name_in_rulesync, remarks = $ARGUMENTS
 
 target_tool_name: required

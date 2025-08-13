@@ -1,3 +1,7 @@
+---
+description: Command: update-docs-all
+---
+
 Call the docs-updater subagent in parallel as much as possible to update the following documents.
 
 - README.md, README.ja.md

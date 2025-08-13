@@ -1,3 +1,7 @@
+---
+description: Command: check
+---
+
 Execute the following commands and fix any failures until they PASS:
 
 - `pnpm fix`

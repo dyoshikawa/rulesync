@@ -1,3 +1,7 @@
+---
+description: Command: init-rulesync
+---
+
 Analyze this project's codebase and update .rulesync/overview.md files as needed.
 
 Please always define the following frontmatter in .rulesync/overview.md files.

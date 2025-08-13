@@ -1,3 +1,7 @@
+---
+description: Command: update-gitignore-command
+---
+
 tool_name_in_rulesync, remarks = $ARGUMENTS
 
 tool_name_in_rulesync: required

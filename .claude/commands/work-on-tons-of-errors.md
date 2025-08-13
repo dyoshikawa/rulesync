@@ -1,3 +1,7 @@
+---
+description: Command: work-on-tons-of-errors
+---
+
 work_guidelines = $ARGUMENTS
 
 work_guidelines: Optional
