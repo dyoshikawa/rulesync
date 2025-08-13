@@ -155,7 +155,7 @@ export const configWrappers = {
 export const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
   claudecode: {
     target: "claudecode",
-    configPaths: [".claude/settings.json"],
+    configPaths: [".mcp.json"],
     serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
       const claudeServer: BaseMcpServer & { [key: string]: unknown } = {};
 

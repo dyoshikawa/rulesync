@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { generateCommands } from "../../core/command-generator.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
-import { generateMcpConfigs } from "../../core/mcp-generator.js";
+import { generateMcpConfigurations } from "../../core/mcp-generator.js";
+import { parseMcpConfig } from "../../core/mcp-parser.js";
 import type { ToolTarget } from "../../types/index.js";
 import type { ConfigLoaderOptions } from "../../utils/config-loader.js";
 import {
@@ -207,27 +208,39 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
     let totalMcpOutputs = 0;
     for (const baseDir of baseDirs) {
-      const mcpResults = await generateMcpConfigs(
-        process.cwd(),
-        baseDir === process.cwd() ? undefined : baseDir,
-        config.defaultTargets,
-      );
+      try {
+        const mcpConfig = parseMcpConfig(process.cwd());
 
-      if (mcpResults.length === 0) {
-        if (config.verbose) {
-          console.log(`No MCP configuration found for ${baseDir}`);
+        if (!mcpConfig || !mcpConfig.mcpServers || Object.keys(mcpConfig.mcpServers).length === 0) {
+          if (config.verbose) {
+            console.log(`No MCP configuration found for ${baseDir}`);
+          }
+          continue;
         }
-        continue;
-      }
 
-      for (const result of mcpResults) {
-        if (result.status === "success") {
-          console.log(`✅ Generated ${result.tool} MCP configuration: ${result.path}`);
+        const mcpResults = await generateMcpConfigurations(
+          mcpConfig,
+          baseDir === process.cwd() ? "." : baseDir,
+          config.defaultTargets,
+        );
+
+        if (mcpResults.length === 0) {
+          if (config.verbose) {
+            console.log(`No MCP configurations generated for ${baseDir}`);
+          }
+          continue;
+        }
+
+        for (const result of mcpResults) {
+          await writeFileContent(result.filepath, result.content);
+          console.log(`✅ Generated ${result.tool} MCP configuration: ${result.filepath}`);
           totalMcpOutputs++;
-        } else if (result.status === "error") {
-          console.error(`❌ Failed to generate ${result.tool} MCP configuration: ${result.error}`);
-        } else if (config.verbose && result.status === "skipped") {
-          console.log(`⏭️  Skipped ${result.tool} MCP configuration (no servers configured)`);
+        }
+      } catch (error) {
+        if (config.verbose) {
+          console.error(
+            `❌ Failed to generate MCP configurations: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     }

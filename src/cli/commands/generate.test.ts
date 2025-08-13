@@ -425,4 +425,38 @@ describe("generateCommand", () => {
 
     expect(console.log).toHaveBeenCalledWith("No MCP configuration found for " + process.cwd());
   });
+
+  it("should generate MCP configurations for claudecode tool", async () => {
+    // Mock the new MCP generation approach
+    vi.doMock("../../core/mcp-generator.js", () => ({
+      generateMcpConfigurations: vi.fn().mockResolvedValue([
+        {
+          tool: "claudecode",
+          filepath: "./.mcp.json",
+          content: JSON.stringify({ mcpServers: { test: { command: "test" } } }, null, 2),
+        },
+      ]),
+    }));
+
+    vi.doMock("../../core/mcp-parser.js", () => ({
+      parseMcpConfig: vi.fn().mockReturnValue({
+        mcpServers: { test: { command: "test", targets: ["claudecode"] } },
+      }),
+    }));
+
+    // Create a new config with claudecode as target
+    const claudecodeConfig = {
+      ...mockConfig,
+      defaultTargets: ["claudecode" as ToolTarget],
+    };
+    mockMergeWithCliOptions.mockReturnValue(claudecodeConfig);
+
+    await generateCommand({ tools: ["claudecode"] });
+
+    // Verify that MCP configuration was generated
+    expect(console.log).toHaveBeenCalledWith(
+      "✅ Generated claudecode MCP configuration: ./.mcp.json",
+    );
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("1 MCP configuration"));
+  });
 });
