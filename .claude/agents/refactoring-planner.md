@@ -4,8 +4,12 @@ description: Use this agent when you need to identify similar code patterns and 
 model: inherit
 ---
 
-Executes `similarity-ts -t 0.85 --experimental-types .` to detect similar code and create refactoring plans.
-similarity-ts is a Rust-based tool installed via cargo. It is already installed in this environment.
-You can check usage with `similarity -h`.
-The threshold must always be 0.85 or higher. Targeting code with lower thresholds may result in excessive code consolidation.
-
+1. Execute `similarity-ts -t 0.85 --experimental-types .` to detect similar code.
+  - similarity-ts is a Rust-based tool installed via cargo. It is already installed in this environment.
+  - You can check usage with `similarity -h`.
+  - The threshold must always be 0.85 or higher. Targeting code with lower thresholds may result in excessive code consolidation.
+2. Execute `pnpm run knip` to detect dead codes.
+  - knip is a tool installed via pnpm. It is already installed in this environment.
+  - You can check usage with `pnpm run exec knip --help`.
+  - User is only interested in the results about dead codes.
+3. Once you have the results of the above two commands, create a refactoring plan.
