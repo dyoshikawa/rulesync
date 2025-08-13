@@ -208,6 +208,7 @@
         "windsurfrules",
         "windsurfignore",
         "windsurf",
-        "ENOENT"
+        "ENOENT",
+        "namespacing"
     ]
 }

@@ -314,11 +314,10 @@ Create command files in the `.rulesync/commands/` directory. Each file represent
 
 ### Command File Format
 
-Command files use YAML frontmatter to define metadata and Markdown content for the command description:
+Command files use simplified YAML frontmatter to define metadata and Markdown content for the command description:
 
 ```markdown
 ---
-name: "init-project"                    # Command name (used as slash command)
 targets: ["claudecode", "geminicli"]    # Target tools (optional, defaults to both)
 description: "Initialize project setup"  # Brief description (optional)
 ---
@@ -339,11 +338,12 @@ Please ensure the following:
 - README is updated with setup instructions
 ```
 
-### Frontmatter Fields for Commands
+### Frontmatter Fields for Commands (Simplified in v0.58.0)
 
-- **`name`** (optional): Command name. If not specified, uses the filename without extension.
 - **`targets`** (optional): Array of target tools. Defaults to `["claudecode", "geminicli"]`.
 - **`description`** (optional): Brief description of the command's purpose.
+
+**Note**: The command name is automatically derived from the filename (without extension), so there's no need for a separate `name` field.
 
 ### Generated Command Files
 
@@ -359,7 +359,6 @@ Commands are generated in the following locations:
 **Testing Command** (`.rulesync/commands/test-all.md`):
 ```markdown
 ---
-name: "test-all"
 description: "Run all test suites with coverage"
 ---
 
@@ -424,7 +423,7 @@ npx rulesync generate --geminicli
 npx rulesync init
 ```
 
-This creates a `.rulesync/` directory with sample rule files.
+This creates a `.rulesync/` directory with sample rule files and an optional `.rulesync/commands/` directory for custom slash commands.
 
 ### 2. Edit Rule Files
 
@@ -621,14 +620,22 @@ npx rulesync import --copilot
 npx rulesync import --claudecode --verbose
 ```
 
+**Enhanced Import Features** (v0.58.0+):
+- **Overwrite Protection**: Safely imports without overwriting existing `.rulesync/` files
+- **Commands Directory Support**: Automatically detects and imports custom slash commands from tools that support them (Claude Code, Gemini CLI)
+- **Improved Organization**: Creates better organized rule files with descriptive names and proper categorization
+- **MCP Configuration Import**: Imports Model Context Protocol configurations where available
+
 The import command will:
 - Parse existing configuration files from each AI tool using custom parsers
 - Convert them to rulesync format with appropriate frontmatter metadata
 - Create new `.rulesync/*.md` files with imported content and proper rule categorization
+- Import custom commands to `.rulesync/commands/` directory (Claude Code, Gemini CLI)
 - Use tool-specific prefixes to avoid filename conflicts (e.g., `claudecode-overview.md`, `cursor-custom-rules.md`)
 - Generate unique filenames if conflicts occur
 - Support complex formats like Cursor's MDC files with YAML frontmatter
 - Handle multiple file imports (e.g., all files from `.claude/memories/` directory)
+- Import MCP configurations to `.rulesync/.mcp.json` where available
 
 ### Cursor Import Details
 
@@ -749,6 +756,19 @@ windsurfOutputFormat: "directory" # Optional: Windsurf output format (single-fil
 tags: ["security", "typescript"]  # Optional: Rule tags for categorization
 ---
 ```
+
+### Custom Command Frontmatter
+
+Command files in `.rulesync/commands/` use simplified frontmatter (as of v0.58.0):
+
+```yaml
+---
+description: "Brief description"             # Optional: Command description
+targets: ["claudecode", "geminicli"]         # Optional: Target tools (default: both Claude Code and Gemini CLI)
+---
+```
+
+**Note**: The `name` field is automatically derived from the filename, so `init-project.md` becomes the `/init-project` command.
 
 #### Optional Frontmatter Fields
 
