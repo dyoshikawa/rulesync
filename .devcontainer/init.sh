@@ -2,4 +2,5 @@
 
 gh auth setup-git
 mise install
-ccinstall
+pnpm i
+npm i -g @anthropic-ai/claude-code
