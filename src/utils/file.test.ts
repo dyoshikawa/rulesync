@@ -1,14 +1,19 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createPathResolver,
+  directoryExists,
   ensureDir,
   fileExists,
   findFiles,
   readFileContent,
+  readJsonFile,
   removeClaudeGeneratedFiles,
   removeDirectory,
   removeFile,
+  resolvePath,
   writeFileContent,
+  writeJsonFile,
 } from "./file.js";
 
 vi.mock("node:fs/promises");
@@ -262,6 +267,133 @@ describe("file utilities", () => {
       expect(mockStat).toHaveBeenCalledWith("CLAUDE.md");
       expect(mockStat).toHaveBeenCalledWith(".claude/memories");
       expect(mockRm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resolvePath", () => {
+    it("should return relative path when no base directory provided", () => {
+      expect(resolvePath("test.txt")).toBe("test.txt");
+      expect(resolvePath("subdir/test.txt")).toBe("subdir/test.txt");
+    });
+
+    it("should join path with base directory", () => {
+      expect(resolvePath("test.txt", "/base")).toBe("/base/test.txt");
+      expect(resolvePath("subdir/test.txt", "/base")).toBe("/base/subdir/test.txt");
+    });
+  });
+
+  describe("createPathResolver", () => {
+    it("should create a path resolver function", () => {
+      const resolver = createPathResolver("/base");
+      expect(resolver("test.txt")).toBe("/base/test.txt");
+      expect(resolver("subdir/test.txt")).toBe("/base/subdir/test.txt");
+    });
+
+    it("should create a path resolver without base directory", () => {
+      const resolver = createPathResolver();
+      expect(resolver("test.txt")).toBe("test.txt");
+      expect(resolver("subdir/test.txt")).toBe("subdir/test.txt");
+    });
+  });
+
+  describe("readJsonFile", () => {
+    it("should read and parse JSON file", async () => {
+      const jsonContent = '{"key": "value"}';
+      mockReadFile.mockResolvedValue(jsonContent);
+
+      const result = await readJsonFile("/path/to/file.json");
+
+      expect(mockReadFile).toHaveBeenCalledWith("/path/to/file.json", "utf-8");
+      expect(result).toEqual({ key: "value" });
+    });
+
+    it("should return default value when file read fails", async () => {
+      mockReadFile.mockRejectedValue(new Error("File not found"));
+      const defaultValue = { default: true };
+
+      const result = await readJsonFile("/path/to/nonexistent.json", defaultValue);
+
+      expect(result).toEqual(defaultValue);
+    });
+
+    it("should throw error when no default value provided and file read fails", async () => {
+      mockReadFile.mockRejectedValue(new Error("File not found"));
+
+      await expect(readJsonFile("/path/to/nonexistent.json")).rejects.toThrow("File not found");
+    });
+
+    it("should throw error when JSON parsing fails and no default provided", async () => {
+      mockReadFile.mockResolvedValue("invalid json");
+
+      await expect(readJsonFile("/path/to/invalid.json")).rejects.toThrow();
+    });
+
+    it("should return default value when JSON parsing fails", async () => {
+      mockReadFile.mockResolvedValue("invalid json");
+      const defaultValue = { default: true };
+
+      const result = await readJsonFile("/path/to/invalid.json", defaultValue);
+
+      expect(result).toEqual(defaultValue);
+    });
+  });
+
+  describe("writeJsonFile", () => {
+    it("should write JSON file with default indentation", async () => {
+      mockStat.mockResolvedValue({} as never);
+      mockWriteFile.mockResolvedValue(undefined);
+
+      const data = { key: "value" };
+      await writeJsonFile("/path/to/file.json", data);
+
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        "/path/to/file.json",
+        JSON.stringify(data, null, 2),
+        "utf-8",
+      );
+    });
+
+    it("should write JSON file with custom indentation", async () => {
+      mockStat.mockResolvedValue({} as never);
+      mockWriteFile.mockResolvedValue(undefined);
+
+      const data = { key: "value" };
+      await writeJsonFile("/path/to/file.json", data, 4);
+
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        "/path/to/file.json",
+        JSON.stringify(data, null, 4),
+        "utf-8",
+      );
+    });
+  });
+
+  describe("directoryExists", () => {
+    it("should return true if directory exists", async () => {
+      mockStat.mockResolvedValue({ isDirectory: () => true } as never);
+
+      const result = await directoryExists("/path/to/dir");
+
+      expect(mockStat).toHaveBeenCalledWith("/path/to/dir");
+      expect(result).toBe(true);
+    });
+
+    it("should return false if path exists but is not a directory", async () => {
+      mockStat.mockResolvedValue({ isDirectory: () => false } as never);
+
+      const result = await directoryExists("/path/to/file.txt");
+
+      expect(mockStat).toHaveBeenCalledWith("/path/to/file.txt");
+      expect(result).toBe(false);
+    });
+
+    it("should return false if path does not exist", async () => {
+      mockStat.mockRejectedValue(new Error("Path not found"));
+
+      const result = await directoryExists("/path/to/nonexistent");
+
+      expect(mockStat).toHaveBeenCalledWith("/path/to/nonexistent");
+      expect(result).toBe(false);
     });
   });
 });
