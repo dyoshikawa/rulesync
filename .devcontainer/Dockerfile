@@ -28,7 +28,7 @@ RUN mkdir -p /usr/local/share/npm-global && \
 
 ARG USERNAME=node
 
-RUN echo "node ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# RUN echo "node ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Persist bash history.
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
@@ -75,7 +75,10 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 
 ### Customize ###
 
+# Aliases
+RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
+RUN echo "alias dangerous-claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
+
 # Install mise
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
-RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
