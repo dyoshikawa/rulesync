@@ -68,7 +68,7 @@ describe("importConfiguration", () => {
     expect(createdFile).toContain("# Main content");
   });
 
-  it("should handle unique filename generation", async () => {
+  it("should overwrite files with same filename", async () => {
     const mockRules = [
       {
         frontmatter: {
@@ -106,10 +106,10 @@ describe("importConfiguration", () => {
 
     expect(result.rulesCreated).toBe(2);
 
-    const file1 = await readFile(join(rulesDir, "rules.md"), "utf-8");
-    const file2 = await readFile(join(rulesDir, "rules-1.md"), "utf-8");
-    expect(file1).toContain("Content 1");
-    expect(file2).toContain("Content 2");
+    // The last rule with the same filename should overwrite the previous one
+    const file = await readFile(join(rulesDir, "rules.md"), "utf-8");
+    expect(file).toContain("Content 2");
+    expect(file).not.toContain("Content 1");
   });
 
   it("should create .rulesyncignore file when ignore patterns exist", async () => {
@@ -369,5 +369,71 @@ describe("importConfiguration", () => {
     expect(calls.some((msg) => msg.includes("Created .mcp.json with 2 servers"))).toBe(true);
 
     consoleSpy.mockRestore();
+  });
+
+  it("should import commands files from Claude Code", async () => {
+    const mockRules = [
+      {
+        frontmatter: {
+          root: false,
+          targets: ["claudecode"] satisfies ToolTarget[],
+          description: "Command: fix-issue",
+          globs: ["**/*"],
+        },
+        content: "Fix GitHub issue #$ARGUMENTS by following these steps:",
+        filename: "command-fix-issue",
+        filepath: "/test/.claude/commands/fix-issue.md",
+      },
+    ];
+
+    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
+      rules: mockRules,
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "claudecode",
+      baseDir: testDir,
+    });
+
+    expect(result.rulesCreated).toBe(1);
+    expect(result.success).toBe(true);
+
+    const createdFile = await readFile(join(rulesDir, "command-fix-issue.md"), "utf-8");
+    expect(createdFile).toContain("Command: fix-issue");
+    expect(createdFile).toContain("Fix GitHub issue #$ARGUMENTS");
+  });
+
+  it("should import commands files from Gemini CLI", async () => {
+    const mockRules = [
+      {
+        frontmatter: {
+          root: false,
+          targets: ["geminicli"] satisfies ToolTarget[],
+          description: "Command: optimize",
+          globs: ["**/*"],
+        },
+        content: "Optimize the code by following these steps:",
+        filename: "command-optimize",
+        filepath: "/test/.gemini/commands/optimize.md",
+      },
+    ];
+
+    vi.spyOn(parsers, "parseGeminiConfiguration").mockResolvedValueOnce({
+      rules: mockRules,
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "geminicli",
+      baseDir: testDir,
+    });
+
+    expect(result.rulesCreated).toBe(1);
+    expect(result.success).toBe(true);
+
+    const createdFile = await readFile(join(rulesDir, "command-optimize.md"), "utf-8");
+    expect(createdFile).toContain("Command: optimize");
+    expect(createdFile).toContain("Optimize the code by following");
   });
 });

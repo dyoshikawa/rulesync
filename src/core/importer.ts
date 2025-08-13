@@ -13,7 +13,7 @@ import {
 } from "../parsers/index.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
-import { fileExists, writeFileContent } from "../utils/index.js";
+import { writeFileContent } from "../utils/index.js";
 
 export interface ImportOptions {
   tool: ToolTarget;
@@ -134,8 +134,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   for (const rule of rules) {
     try {
       const baseFilename = rule.filename;
-      const filename = await generateUniqueFilename(rulesDirPath, baseFilename);
-      const filePath = join(rulesDirPath, `${filename}.md`);
+      const filePath = join(rulesDirPath, `${baseFilename}.md`);
       const content = generateRuleFileContent(rule);
 
       await writeFileContent(filePath, content);
@@ -196,16 +195,4 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
 function generateRuleFileContent(rule: ParsedRule): string {
   const frontmatter = matter.stringify("", rule.frontmatter);
   return frontmatter + rule.content;
-}
-
-async function generateUniqueFilename(rulesDir: string, baseFilename: string): Promise<string> {
-  let filename = baseFilename;
-  let counter = 1;
-
-  while (await fileExists(join(rulesDir, `${filename}.md`))) {
-    filename = `${baseFilename}-${counter}`;
-    counter++;
-  }
-
-  return filename;
 }

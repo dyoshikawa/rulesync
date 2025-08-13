@@ -189,6 +189,7 @@ export interface MemoryBasedConfig {
     path: string;
     parser: (filePath: string) => Promise<string[]>;
   };
+  commandsDirPath?: string;
 }
 
 /**
@@ -224,6 +225,15 @@ export async function parseMemoryBasedConfiguration(
     if (await fileExists(memoryDir)) {
       const memoryRules = await parseMemoryFiles(memoryDir, config);
       rules.push(...memoryRules);
+    }
+
+    // Parse commands files if they exist
+    if (config.commandsDirPath) {
+      const commandsDir = resolvePath(config.commandsDirPath, baseDir);
+      if (await fileExists(commandsDir)) {
+        const commandsRules = await parseCommandsFiles(commandsDir, config);
+        rules.push(...commandsRules);
+      }
     }
 
     // Parse settings.json if it exists
@@ -342,6 +352,67 @@ async function parseMemoryFiles(
     }
   } catch {
     // Silently handle directory reading errors
+  }
+
+  return rules;
+}
+
+async function parseCommandsFiles(
+  commandsDir: string,
+  config: MemoryBasedConfig,
+): Promise<ParsedRule[]> {
+  const rules: ParsedRule[] = [];
+
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(commandsDir);
+
+    for (const file of files) {
+      if (file.endsWith(".md")) {
+        const filePath = join(commandsDir, file);
+        const content = await readFileContent(filePath);
+
+        if (content.trim()) {
+          const filename = basename(file, ".md");
+          let frontmatter: RuleFrontmatter;
+          let ruleContent: string;
+
+          // Parse frontmatter if it exists
+          try {
+            const parsed = matter(content);
+            ruleContent = parsed.content.trim();
+            const parsedFrontmatter = parsed.data;
+            frontmatter = {
+              root: false,
+              targets: [config.tool],
+              description: parsedFrontmatter.description || `Command: ${filename}`,
+              globs: Array.isArray(parsedFrontmatter.globs) ? parsedFrontmatter.globs : ["**/*"],
+              ...(parsedFrontmatter.tags && { tags: parsedFrontmatter.tags }),
+            };
+          } catch {
+            // If frontmatter parsing fails, treat as plain content
+            ruleContent = content.trim();
+            frontmatter = {
+              root: false,
+              targets: [config.tool],
+              description: `Command: ${filename}`,
+              globs: ["**/*"],
+            };
+          }
+
+          if (ruleContent) {
+            rules.push({
+              frontmatter,
+              content: ruleContent,
+              filename: `command-${filename}`,
+              filepath: filePath,
+            });
+          }
+        }
+      }
+    }
+  } catch {
+    // Commands files are optional, so we don't throw errors
   }
 
   return rules;

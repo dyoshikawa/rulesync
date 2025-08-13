@@ -38,5 +38,6 @@ export async function parseGeminiConfiguration(
       path: ".aiexclude",
       parser: parseAiexclude,
     },
+    commandsDirPath: ".gemini/commands",
   });
 }

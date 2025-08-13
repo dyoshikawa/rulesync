@@ -20,5 +20,6 @@ export async function parseClaudeConfiguration(
     mainDescription: "Main Claude Code configuration",
     memoryDescription: "Memory file",
     filenamePrefix: "claude",
+    commandsDirPath: ".claude/commands",
   });
 }
