@@ -14,11 +14,11 @@ rulesyncは以下の**10のAI開発ツール**の**生成**と**インポート*
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
-- **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
+- **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md` + **カスタムスラッシュコマンド**)
 - **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
-- **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
+- **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md` + **カスタムスラッシュコマンド**)
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Windsurf AIコードエディター** (`.windsurf/rules/*.md` + `.codeiumignore` + `.windsurf/mcp.json`)
 - **Kiro IDE カスタムステアリングドキュメント** (`.kiro/steering/*.md`) + **AI除外ファイル** (`.aiignore`)
@@ -153,6 +153,7 @@ rulesyncは**OpenAI Codex CLI**の階層メモリシステムをサポートし�
 - **GPT-4モデル**: GPT-4、GPT-4 Turbo、o1-mini、その他のOpenAIモデルをサポート
 - **プレーンMarkdown形式**: 複雑なフロントマターなしのクリーンで読みやすいインストラクションファイル
 - **コミュニティIgnoreサポート**: 機密ファイルをAIアクセスから除外するオプションの`.codexignore`ファイル
+- **カスタムスラッシュコマンド**: Claude CodeとGemini CLI用の統一されたカスタムコマンド生成
 
 ### ファイル構造
 
@@ -205,6 +206,7 @@ rulesyncは**Windsurf AIコードエディター**の完全統合を提供し、
 - **MCP統合**: Model Context Protocolサーバー設定で外部ツールとの拡張可能性
 - **プライバシー制御**: 機密ファイルをAIアクセスから除外するスマートな除外システム
 - **プロジェクトレベル設定**: チーム全体で一貫したAI支援開発体験
+- **カスタムスラッシュコマンド**: Claude CodeとGemini CLI用の統一されたカスタムコマンド生成
 
 ### 生成されるファイル構造
 
@@ -279,6 +281,129 @@ In .rulesync/overview.md, root should be set to true. Please write an appropriat
 - **自動ルール更新**: プロジェクトの変更に応じてルールが自動的に適応
 - **チーム標準化**: すべてのメンバーが同じルールセットを使用
 - **継続的改善**: プロジェクトの成長とともにルールが進化
+
+## カスタムスラッシュコマンド
+
+### 概要
+
+rulesyncは、統一されたコマンド定義からClaude CodeとGemini CLI用のカスタムスラッシュコマンドを生成できます。これにより、異なるAIアシスタント間で一貫したカスタムコマンドを作成できます。
+
+### カスタムコマンドの作成
+
+`.rulesync/commands/`ディレクトリにコマンドファイルを作成します。各ファイルは1つのカスタムコマンドを表します：
+
+```
+.rulesync/
+├── commands/
+│   ├── init-project.md      # /init-projectコマンド
+│   ├── test-suite.md         # /test-suiteコマンド
+│   └── deploy.md             # /deployコマンド
+└── *.md                      # 通常のルールファイル
+```
+
+### コマンドファイルのフォーマット
+
+コマンドファイルは、メタデータを定義するYAMLフロントマターとコマンドの説明用Markdownコンテンツを使用します：
+
+```markdown
+---
+name: "init-project"                    # コマンド名（スラッシュコマンドとして使用）
+targets: ["claudecode", "geminicli"]    # ターゲットツール（オプション、デフォルトは両方）
+description: "プロジェクトセットアップを初期化"  # 簡潔な説明（オプション）
+---
+
+# プロジェクトの初期化
+
+このプロジェクトのコードベースを分析して、初期設定をセットアップします。
+
+## 手順:
+1. プロジェクト構造をスキャン
+2. 技術スタックを特定
+3. 設定ファイルを作成
+4. 開発環境をセットアップ
+
+以下を確認してください：
+- すべての依存関係が適切に設定されている
+- 環境変数がドキュメント化されている
+- READMEにセットアップ手順が更新されている
+```
+
+### コマンド用フロントマターフィールド
+
+- **`name`**（オプション）: コマンド名。指定しない場合、拡張子なしのファイル名を使用。
+- **`targets`**（オプション）: ターゲットツールの配列。デフォルトは`["claudecode", "geminicli"]`。
+- **`description`**（オプション）: コマンドの目的の簡潔な説明。
+
+### 生成されるコマンドファイル
+
+コマンドは以下の場所に生成されます：
+
+| ツール | 出力パス | フォーマット |
+|------|------------|--------|
+| **Claude Code** | `.claude/commands/<name>.md` | プレーンMarkdown |
+| **Gemini CLI** | `.gemini/commands/<name>.md` | プレーンMarkdown |
+
+### コマンドファイルの例
+
+**テストコマンド**（`.rulesync/commands/test-all.md`）:
+```markdown
+---
+name: "test-all"
+description: "カバレッジ付きですべてのテストスイートを実行"
+---
+
+カバレッジレポート付きでこのプロジェクトの完全なテストスイートを実行します。
+
+以下を実行：
+1. ユニットテスト
+2. 統合テスト
+3. E2Eテスト（該当する場合）
+4. カバレッジレポートを生成
+
+失敗がある場合は以下の詳細を報告：
+- テスト名と場所
+- エラーメッセージ
+- 修正案
+```
+
+**ドキュメントコマンド**（`.rulesync/commands/update-docs.md`）:
+```markdown
+---
+targets: ["claudecode"]
+description: "プロジェクトドキュメントを更新"
+---
+
+プロジェクトのドキュメントを現在のコードベースに合わせて確認・更新します。
+
+タスク：
+- README.mdを現在の機能で更新
+- APIドキュメントが完全であることを確認
+- 古い例をチェック
+- 不足している設定オプションを追加
+```
+
+### コマンドの生成
+
+コマンドは通常の`generate`コマンドで自動的に生成されます：
+
+```bash
+# コマンドを含むすべてを生成
+npx rulesync generate
+
+# Claude Codeのみ生成（コマンドを含む）
+npx rulesync generate --claudecode
+
+# Gemini CLIのみ生成（コマンドを含む）
+npx rulesync generate --geminicli
+```
+
+### コマンドのベストプラクティス
+
+1. **コマンドをフォーカスする**: 各コマンドは単一の明確な目的を持つべき
+2. **説明的な名前を使用**: コマンド名は何をするかを明確に示すべき
+3. **明確な指示を含める**: コマンド本文にステップバイステップのガイダンスを提供
+4. **適切にターゲット設定**: コマンドの機能をサポートするツールのみをターゲットに
+5. **期待される結果を文書化**: 何が達成されるべきかを指定
 
 ## 使用方法
 
@@ -464,6 +589,9 @@ rulesyncは、繰り返しコマンドライン引数を避けるために設定
   // ルールファイルを含むディレクトリ
   "aiRulesDir": ".rulesync",
   
+  // カスタムコマンドを含むディレクトリ
+  "commandsDir": ".rulesync/commands",
+  
   // 監視設定
   "watch": {
     "enabled": false,
@@ -485,7 +613,8 @@ const config: ConfigOptions = {
   },
   baseDir: "./packages",
   delete: false,
-  verbose: true
+  verbose: true,
+  commandsDir: ".rulesync/commands"
 };
 
 export default config;
@@ -500,6 +629,7 @@ export default config;
 - `delete`: 生成前に既存ファイルを削除（デフォルト: false）
 - `verbose`: 詳細出力を有効化（デフォルト: false）
 - `aiRulesDir`: ルールファイルを含むディレクトリ（デフォルト: ".rulesync"）
+- `commandsDir`: カスタムコマンドファイルを含むディレクトリ（デフォルト: ".rulesync/commands"）
 - `watch`: `enabled`、`interval`、`ignore`オプション付きの監視設定
   - `enabled`: ファイル監視を有効化（デフォルト: false）
   - `interval`: 監視間隔（ミリ秒、デフォルト: 1000）
@@ -556,7 +686,10 @@ npx rulesync config --init  # 設定ファイルを作成
 ├── naming-conventions.md # 命名規約 (root: false)
 ├── architecture.md      # アーキテクチャガイドライン (root: false)  
 ├── security.md          # セキュリティルール (root: false)
-└── custom.md           # プロジェクト固有ルール (root: false)
+├── custom.md           # プロジェクト固有ルール (root: false)
+└── commands/           # カスタムスラッシュコマンド (オプション)
+    ├── init-project.md  # /init-projectコマンド
+    └── test-all.md      # /test-allコマンド
 ```
 
 ### .rulesyncignoreでファイルを除外

@@ -129,7 +129,9 @@ rulesync/
 │   │   ├── importer.ts     # 既存設定のインポート
 │   │   ├── validator.ts    # ルール構造の検証
 │   │   ├── mcp-generator.ts # MCP固有の生成ロジック
-│   │   └── mcp-parser.ts   # MCP固有のパースロジック
+│   │   ├── mcp-parser.ts   # MCP固有のパースロジック
+│   │   ├── command-generator.ts # ⭐ 新機能: カスタムコマンド生成オーケストレーション
+│   │   └── command-parser.ts    # ⭐ 新機能: ルールからのコマンド定義パース
 │   ├── generators/         # ツール固有のジェネレーター（出力タイプ別に整理）
 │   │   ├── rules/          # 標準ルールジェネレーター
 │   │   │   ├── augmentcode.ts  # AugmentCode Rules
@@ -147,10 +149,13 @@ rulesync/
 │   │   ├── mcp/            # MCP設定ジェネレーター
 │   │   │   ├── shared-factory.ts # 統一されたMCP設定生成ファクトリー
 │   │   │   └── [tool].ts   # 各ツール用のMCP固有設定
-│   │   └── ignore/         # Ignoreファイルジェネレーター
+│   │   ├── ignore/         # Ignoreファイルジェネレーター
 │   │       ├── shared-factory.ts # 統一されたignore設定生成ファクトリー
 │   │       ├── shared-helpers.ts # 共通ignoreパターンヘルパー
 │   │       └── [tool].ts   # ツール固有のignore設定
+│   │   └── commands/       # ⭐ 新機能: カスタムコマンドジェネレーター
+│   │       ├── claudecode.ts    # Claude Codeコマンド生成
+│   │       └── geminicli.ts     # Gemini CLIコマンド生成
 │   ├── parsers/           # インポート機能用ツール固有パーサー
 │   │   ├── augmentcode.ts # AugmentCode設定のパース
 │   │   ├── copilot.ts     # GitHub Copilot設定のパース (.github/copilot-instructions.md)
@@ -169,6 +174,7 @@ rulesync/
 │   │   ├── rules.ts       # ルールとフロントマター型
 │   │   ├── mcp.ts         # MCP固有型
 │   │   ├── mcp-config.ts  # 共有MCP設定インターフェース
+│   │   ├── commands.ts    # ⭐ 新機能: カスタムコマンド型とインターフェース
 │   │   ├── tool-targets.ts # ツールターゲット定義
 │   │   └── config-options.ts # 設定オプション型
 │   └── utils/
@@ -214,6 +220,76 @@ export const RuleFrontmatterSchema = z.object({
 - パース段階でデフォルト値が自動適用
 - 既存ルールファイルとの後方互換性を維持
 - 明確なエラーメッセージによる強化された検証
+
+### カスタムコマンド生成アーキテクチャ (新機能)
+
+プロジェクトは**カスタムコマンド生成システム**を導入しました。これにより、AIツールはルールファイルで定義されたカスタムコマンドを登録・実行できるようになります。この機能は現在、コマンド実行機能を持つツールでサポートされています：
+
+#### コアコンポーネント
+
+1. **CommandParser (`src/core/command-parser.ts`)**
+   - ルールフロントマターからコマンド定義を抽出
+   - コマンド構文と構造の検証
+   - インラインコマンドとコマンドブロックのサポート
+   - フロントマター例:
+     ```yaml
+     commands:
+       - name: "test"
+         description: "テストを実行"
+         content: "npm test"
+       - name: "build"
+         description: "プロジェクトをビルド"
+         content: |
+           npm run clean
+           npm run compile
+           npm run bundle
+     ```
+
+2. **CommandGenerator (`src/core/command-generator.ts`)**
+   - サポートされているツール全体でのコマンド生成をオーケストレーション
+   - 適切なツール固有ジェネレーターへのルーティング
+   - コマンドファイルの作成とフォーマット処理
+   - コマンドの登録と重複排除の管理
+
+3. **ツール固有コマンドジェネレーター (`src/generators/commands/`)**
+   - **claudecode.ts**: Claude Code用のメモリファイル生成
+   - **geminicli.ts**: Gemini CLI用のメモリファイル生成
+
+#### コマンド定義フォーマット
+
+コマンドはルールフロントマターで以下の構造を使用して定義されます:
+
+```typescript
+interface CommandDefinition {
+  name: string;        // コマンド識別子
+  description: string; // 人間が読める説明
+  content: string;     // コマンドスクリプト（単一行または複数行）
+}
+```
+
+#### ジェネレーターパターン
+
+各ツールのコマンドジェネレーターは以下のパターンに従います:
+
+```typescript
+export async function generateToolCommands(
+  rules: ParsedRule[],
+  config: Config,
+  baseDir?: string
+): Promise<GeneratedOutput[]> {
+  // 1. ルールからコマンドを抽出
+  const commands = CommandParser.extractCommands(rules);
+  
+  // 2. 特定のツール用にコマンドをフォーマット
+  const formattedCommands = formatCommandsForTool(commands);
+  
+  // 3. 出力ファイルを生成
+  return [{
+    path: getCommandFilePath(config, baseDir),
+    content: formattedCommands
+  }];
+}
+```
 
 ### 主要な依存関係
 
@@ -359,13 +435,25 @@ pnpm test src/generators/copilot.test.ts
 # 特定機能のテストを実行
 pnpm test src/cli/commands/import.test.ts  # インポート機能のテスト
 pnpm test src/parsers/                     # すべてのパーサーのテスト
+
+# コマンド生成のテスト
+pnpm test src/core/command-parser          # コマンドパース
+pnpm test src/core/command-generator       # コマンド生成オーケストレーション
+pnpm test src/generators/commands/         # すべてのコマンドジェネレーター
+
+# 特定ツールのコマンド生成テスト
+pnpm test src/generators/commands/claudecode
+pnpm test src/generators/commands/geminicli
 ```
 
 ### モジュール別テストカバレッジ
 
 - **cli/commands**: 優秀なカバレッジ
-- **core**: 高カバレッジを達成
-- **generators**: すべてのモジュールで高カバレッジ
+- **core**: 高カバレッジを達成（command-parser、command-generatorを含む）
+- **generators/rules**: すべてのツールで高カバレッジ
+- **generators/mcp**: すべてのMCP設定で高カバレッジ
+- **generators/ignore**: セキュリティパターンで高カバレッジ
+- **generators/commands**: コマンド生成で高カバレッジ（Claude Code、Gemini CLI）
 - **parsers**: すべてのパーサーで良好なカバレッジ
 - **utils**: すべてのモジュールで高カバレッジ
 - **types**: 型定義ファイルのため測定対象外
@@ -376,6 +464,12 @@ pnpm test src/parsers/                     # すべてのパーサーのテス�
 - **Windsurf AIコードエディター**: 完全サポート（ジェネレーター、パーサー、MCP、ignoreファイル）
 - **包括的テストカバレッジ**: 新ツール向けの包括的テストスイート実装
 
+**カスタムコマンド生成システム** (新機能):
+- **コマンドパーサー**: ルールフロントマターからのコマンド定義抽出
+- **コマンドジェネレーター**: ツール固有のコマンドファイル生成
+- **サポートツール**: Claude Code、Gemini CLI用のメモリファイル生成
+- **拡張可能アーキテクチャ**: 新ツールへのコマンドサポート追加が容易
+
 **アーキテクチャリファクタリング**:
 - **レジストリパターン実装**: 中央集権的なツール設定管理システム
 - **共有ファクトリーパターン**: 統一されたMCPおよびignoreファイル生成
@@ -384,9 +478,9 @@ pnpm test src/parsers/                     # すべてのパーサーのテス�
 
 **強化された開発体験**:
 - **型安全性向上**: Zodスキーマと適切な型ガードの実装
-- **包括的テスト**: 全モジュールで1,200+行のテストコード（250-350行/ファイル）
+- **包括的テスト**: 全モジュールで1,500+行のテストコード（250-350行/ファイル）
 - **開発ツール強化**: Biome + ESLint + Oxlintによる多層品質チェック
-- **改善された組織化**: rules/、mcp/、ignore/サブディレクトリによる明確な構造
+- **改善された組織化**: rules/、mcp/、ignore/、commands/サブディレクトリによる明確な構造
 
 **高度なMCP統合**:
 - **マルチトランスポート**: stdio、SSE、HTTPの完全サポート
@@ -475,12 +569,75 @@ export const ignoreConfigs = {
 - [ ] **CLI統合**: `src/cli/index.ts`にオプション追加
 - [ ] **型定義**: `tool-targets.ts`の`ALL_TOOL_TARGETS`に追加
 - [ ] **設定パス**: `src/utils/config.ts`で出力パス定義
-- [ ] **包括的テスト**: 全機能の徹底的テストカバレッジ
+- [ ] **コマンドサポート**: ツールがコマンド実行をサポートする場合、コマンドジェネレーターを追加
+- [ ] **包括的テスト**: 全機能の徹底的テストカバレッジ（コマンド生成テストを含む）
 - [ ] **レジストリ統合**: 該当する場合は共有ファクトリーレジストリに追加
 - [ ] **ドキュメント更新**: README.mdとREADME.ja.md
 - [ ] **仕様書作成**: `.rulesync/specification-[tool]-*.md`
 
-### 5. アーキテクチャパターンに従った実装
+### 5. 新しいツールへのコマンドサポート追加
+
+ツールがカスタムコマンド実行をサポートする場合:
+
+1. **ツール機能の確認**: ツールがカスタムコマンド実行をサポートしているか確認
+2. **コマンドジェネレーター作成**: `src/generators/commands/newtool.ts`を追加
+3. **出力フォーマット定義**: ツールが期待するコマンドフォーマットを決定
+4. **CommandGeneratorへの登録**: `command-generator.ts`のツールスイッチに追加
+5. **型の追加**: 必要に応じて`src/types/commands.ts`を更新
+6. **包括的テスト作成**: 新しいジェネレーターのテストを作成
+7. **ドキュメント更新**: ツール仕様書にコマンドフォーマットを記載
+
+実装例:
+```typescript
+// src/generators/commands/newtool.ts
+export async function generateNewToolCommands(
+  rules: ParsedRule[],
+  config: Config,
+  baseDir?: string
+): Promise<GeneratedOutput[]> {
+  const commands = CommandParser.extractCommands(rules);
+  
+  if (commands.length === 0) {
+    return [];
+  }
+  
+  const content = formatNewToolCommands(commands);
+  const outputPath = join(
+    baseDir ?? config.outputDirectory ?? process.cwd(),
+    ".newtool",
+    "commands.json"
+  );
+  
+  return [{
+    path: outputPath,
+    content: JSON.stringify(content, null, 2)
+  }];
+}
+```
+
+#### コマンド生成のテスト
+
+```typescript
+// コマンド抽出のテスト
+it("should extract commands from rule frontmatter", async () => {
+  const commands = CommandParser.extractCommands(rules);
+  expect(commands).toHaveLength(3);
+  expect(commands[0]).toHaveProperty("name");
+  expect(commands[0]).toHaveProperty("description");
+  expect(commands[0]).toHaveProperty("content");
+});
+
+// 複数行コマンドの処理テスト
+it("should handle multi-line command scripts", async () => { /* ... */ });
+
+// コマンド重複排除のテスト
+it("should deduplicate commands with same name", async () => { /* ... */ });
+
+// ツール固有フォーマットのテスト
+it("should format commands for tool-specific format", async () => { /* ... */ });
+```
+
+### 6. アーキテクチャパターンに従った実装
 
 **保守性重視**:
 - 共通ロジックは共有ヘルパーに移動

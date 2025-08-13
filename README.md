@@ -14,11 +14,11 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
-- **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md`)
+- **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md` + **Custom Slash Commands** `.claude/commands/*.md`)
 - **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
-- **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md`)
+- **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md` + **Custom Slash Commands** `.gemini/commands/*.md`)
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
 - **Windsurf AI Code Editor** (`.windsurf/rules/*.md` + `.windsurf/mcp.json` + `.codeiumignore`)
@@ -111,6 +111,9 @@ Avoid vendor lock-in completely. If you decide to stop using rulesync, you can c
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
+
+### 🚀 **Custom Slash Commands**
+Generate custom slash commands for Claude Code and Gemini CLI from unified command definitions, enabling consistent tooling shortcuts across different AI assistants.
 
 ## Kiro IDE Integration
 
@@ -290,6 +293,129 @@ In .rulesync/overview.md, root should be set to true. Please write an appropriat
 - **Team Standardization**: All members use the same rule set
 - **Continuous Improvement**: Rules evolve with project growth
 
+## Custom Slash Commands
+
+### Overview
+
+rulesync can generate custom slash commands for Claude Code and Gemini CLI from unified command definitions. This enables you to create consistent custom commands across different AI assistants.
+
+### Creating Custom Commands
+
+Create command files in the `.rulesync/commands/` directory. Each file represents a custom command:
+
+```
+.rulesync/
+├── commands/
+│   ├── init-project.md      # /init-project command
+│   ├── test-suite.md         # /test-suite command
+│   └── deploy.md             # /deploy command
+└── *.md                      # Regular rule files
+```
+
+### Command File Format
+
+Command files use YAML frontmatter to define metadata and Markdown content for the command description:
+
+```markdown
+---
+name: "init-project"                    # Command name (used as slash command)
+targets: ["claudecode", "geminicli"]    # Target tools (optional, defaults to both)
+description: "Initialize project setup"  # Brief description (optional)
+---
+
+# Initialize Project
+
+Analyze this project's codebase and set up the initial configuration.
+
+## Steps:
+1. Scan project structure
+2. Identify technology stack
+3. Create configuration files
+4. Set up development environment
+
+Please ensure the following:
+- All dependencies are properly configured
+- Environment variables are documented
+- README is updated with setup instructions
+```
+
+### Frontmatter Fields for Commands
+
+- **`name`** (optional): Command name. If not specified, uses the filename without extension.
+- **`targets`** (optional): Array of target tools. Defaults to `["claudecode", "geminicli"]`.
+- **`description`** (optional): Brief description of the command's purpose.
+
+### Generated Command Files
+
+Commands are generated in the following locations:
+
+| Tool | Output Path | Format |
+|------|------------|--------|
+| **Claude Code** | `.claude/commands/<name>.md` | Plain Markdown |
+| **Gemini CLI** | `.gemini/commands/<name>.md` | Plain Markdown |
+
+### Example Command Files
+
+**Testing Command** (`.rulesync/commands/test-all.md`):
+```markdown
+---
+name: "test-all"
+description: "Run all test suites with coverage"
+---
+
+Run the complete test suite for this project with coverage reporting.
+
+Execute the following:
+1. Unit tests
+2. Integration tests
+3. E2E tests (if applicable)
+4. Generate coverage report
+
+Report any failures with details about:
+- Test name and location
+- Error message
+- Potential fix suggestions
+```
+
+**Documentation Command** (`.rulesync/commands/update-docs.md`):
+```markdown
+---
+targets: ["claudecode"]
+description: "Update project documentation"
+---
+
+Review and update the project documentation to reflect the current codebase.
+
+Tasks:
+- Update README.md with current features
+- Ensure API documentation is complete
+- Check for outdated examples
+- Add missing configuration options
+```
+
+### Generating Commands
+
+Commands are generated automatically with the regular `generate` command:
+
+```bash
+# Generate everything including commands
+npx rulesync generate
+
+# Generate only for Claude Code (includes commands)
+npx rulesync generate --claudecode
+
+# Generate only for Gemini CLI (includes commands)
+npx rulesync generate --geminicli
+```
+
+### Best Practices for Commands
+
+1. **Keep commands focused**: Each command should have a single, clear purpose
+2. **Use descriptive names**: Command names should clearly indicate what they do
+3. **Include clear instructions**: Provide step-by-step guidance in the command body
+4. **Target appropriately**: Only target tools that support the command's functionality
+5. **Document expected outcomes**: Specify what should be accomplished
+
 ## Usage
 
 ### 1. Initialize
@@ -411,6 +537,9 @@ rulesync supports configuration files to avoid repetitive command-line arguments
   // Directory containing rule files
   "aiRulesDir": ".rulesync",
   
+  // Directory containing command files (optional)
+  "aiCommandsDir": ".rulesync/commands",
+  
   // Watch configuration
   "watch": {
     "enabled": false,
@@ -447,6 +576,7 @@ export default config;
 - `delete`: Delete existing files before generating (default: false)
 - `verbose`: Enable verbose output (default: false)
 - `aiRulesDir`: Directory containing rule files (default: ".rulesync")
+- `aiCommandsDir`: Directory containing command files (default: ".rulesync/commands")
 - `watch`: Watch configuration with `enabled`, `interval`, and `ignore` options
   - `enabled`: Enable file watching (default: false)
   - `interval`: Watch interval in milliseconds (default: 1000)
@@ -567,7 +697,11 @@ npx rulesync config --init  # Create configuration file
 ├── naming-conventions.md # Naming conventions (root: false)
 ├── architecture.md      # Architecture guidelines (root: false)  
 ├── security.md          # Security rules (root: false)
-└── custom.md           # Project-specific rules (root: false)
+├── custom.md           # Project-specific rules (root: false)
+└── commands/           # Custom slash commands (optional)
+    ├── init-project.md  # /init-project command
+    ├── test-all.md      # /test-all command
+    └── deploy.md        # /deploy command
 ```
 
 ### Excluding Files with .rulesyncignore
