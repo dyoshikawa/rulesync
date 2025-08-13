@@ -5,27 +5,27 @@ description: "Testing directory unification rules"
 globs: ["**/*.test.ts"]
 ---
 
-# テスト用ディレクトリ統一化規約
+# Test Directory Unification Rules
 
-## 概要
+## Overview
 
-すべてのテストコードにおいて、ディレクトリを指定して実際にファイル生成を実施する箇所では、`/tmp/tests/{randomstr}` を対象ディレクトリに指定する統一パターンを使用する。
+For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `/tmp/tests/{random-string}` as the directory.
 
-## 必須ルール
+## Mandatory Rules
 
-### 1. テストディレクトリパターン
+### 1. Test Directory Pattern
 
-すべてのテストで以下のパターンを使用する：
-- `/tmp/tests/{randomstr}` 形式の一意なランダムディレクトリ
-- 既存の `src/utils/test-helpers.ts` のヘルパー関数を必須使用
-- テスト間の完全な分離とクリーンアップの徹底
+Use the following pattern for all tests:
+- Unique random directory in `/tmp/tests/{random-string}` format
+- Mandatory use of helper functions from existing `src/utils/test-helpers.ts`
+- Complete separation between tests and thorough cleanup
 
-### 2. 推奨実装パターン
+### 2. Recommended Implementation Pattern
 
 ```typescript
 import { setupTestDirectory } from "../utils/test-helpers.js";
 
-describe("テスト名", () => {
+describe("Test Name", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -37,8 +37,8 @@ describe("テスト名", () => {
     await cleanup();
   });
 
-  it("テストケース", async () => {
-    // testDir を使用してテストを実行
+  it("Test Case", async () => {
+    // Run test using testDir
     const subDir = join(testDir, "subdir");
     await mkdir(subDir, { recursive: true });
     // ...
@@ -46,64 +46,64 @@ describe("テスト名", () => {
 });
 ```
 
-### 3. 利用可能なヘルパー関数
+### 3. Available Helper Functions
 
 #### `createTestDirectory(): Promise<string>`
-- `/tmp/tests/rulesync-test-{random}` 形式のディレクトリを作成
-- 一意なランダム文字列でディレクトリ名を生成
-- 戻り値：作成されたディレクトリの絶対パス
+- Creates directory in `/tmp/tests/rulesync-test-{random}` format
+- Generates unique random string for directory name
+- Return value: Absolute path of the created directory
 
 #### `cleanupTestDirectory(testDir: string): Promise<void>`
-- 指定されたテストディレクトリとその内容を完全削除
-- `rm(testDir, { recursive: true, force: true })` による安全な削除
+- Completely removes specified test directory and its contents
+- Safe deletion using `rm(testDir, { recursive: true, force: true })`
 
 #### `setupTestDirectory(): Promise<{ testDir: string; cleanup: () => Promise<void> }>`
-- テストディレクトリの作成とクリーンアップ関数をセットで提供
-- beforeEach/afterEach での使用に最適化
+- Provides test directory creation and cleanup function as a set
+- Optimized for use with beforeEach/afterEach
 
-## 禁止パターン
+## Prohibited Patterns
 
-以下のパターンは使用を禁止する：
+The following patterns are prohibited:
 
-### ❌ __dirname ベースの固定パターン
+### ❌ __dirname Based Fixed Patterns
 ```typescript
-// 禁止：固定的なディレクトリ名
+// Prohibited: Fixed directory names
 const testDir = join(__dirname, "test-temp-copilot");
 const testDir = join(__dirname, "test-temp-cursor");
 ```
 
-### ❌ mkdtemp の直接使用
+### ❌ Direct Use of mkdtemp
 ```typescript
-// 禁止：ヘルパー関数を使わない直接使用
+// Prohibited: Direct use without helper functions
 const tempDir = await mkdtemp(join(tmpdir(), "rulesync-test-"));
 ```
 
-### ❌ 固定ディレクトリ名
+### ❌ Fixed Directory Names
 ```typescript
-// 禁止：固定的な名前
+// Prohibited: Fixed names
 const testDir = "/tmp/test-fixed-name";
 ```
 
-## 移行ガイドライン
+## Migration Guidelines
 
-### 既存コードの修正手順
+### Steps to Modify Existing Code
 
-1. **インポートの追加**
+1. **Add Import**
 ```typescript
 import { setupTestDirectory } from "../utils/test-helpers.js";
 ```
 
-2. **変数宣言の修正**
+2. **Modify Variable Declaration**
 ```typescript
-// 修正前
+// Before modification
 const testDir = join(__dirname, "test-temp-tool");
 
-// 修正後
+// After modification
 let testDir: string;
 let cleanup: () => Promise<void>;
 ```
 
-3. **beforeEach/afterEach の実装**
+3. **Implement beforeEach/afterEach**
 ```typescript
 beforeEach(async () => {
   ({ testDir, cleanup } = await setupTestDirectory());
@@ -114,55 +114,55 @@ afterEach(async () => {
 });
 ```
 
-4. **手動削除コードの削除**
+4. **Remove Manual Deletion Code**
 ```typescript
-// 削除対象：手動でのクリーンアップコード
+// Target for deletion: Manual cleanup code
 await rm(testDir, { recursive: true, force: true });
 ```
 
-### 修正が必要なファイル例
+### Examples of Files Requiring Modification
 
-以下のようなパターンを含むファイルは修正対象：
+Files containing patterns like the following require modification:
 - `join(__dirname, "test-temp-*")`
 - `mkdtemp(join(tmpdir(), ...))`
-- 手動での `mkdir` と `rm` の組み合わせ
+- Manual combinations of `mkdir` and `rm`
 
-## 適用範囲
+## Scope of Application
 
-### 対象テストファイル
-- 実際のファイル生成を行うすべての `.test.ts` ファイル
-- パーサーテスト（`src/parsers/*.test.ts`）
-- ジェネレーターテスト（`src/generators/**/*.test.ts`）
-- コアモジュールテスト（`src/core/*.test.ts`）
-- ユーティリティテスト（一部の `src/utils/*.test.ts`）
+### Target Test Files
+- All `.test.ts` files that perform actual file generation
+- Parser tests (`src/parsers/*.test.ts`)
+- Generator tests (`src/generators/**/*.test.ts`)
+- Core module tests (`src/core/*.test.ts`)
+- Utility tests (some `src/utils/*.test.ts`)
 
-### 除外対象
-- モックのみを使用するテスト
-- ファイルシステムを使用しないユニットテスト
-- 既存のファイル読み取りのみのテスト
+### Exclusions
+- Tests using only mocks
+- Unit tests that don't use the file system
+- Tests that only read existing files
 
-## テストの品質向上効果
+## Test Quality Improvement Effects
 
-### 1. 分離性の向上
-- 各テストが独立したディレクトリで実行
-- テスト間での干渉を完全に排除
-- 並列実行時の競合状態を防止
+### 1. Enhanced Isolation
+- Each test runs in an independent directory
+- Complete elimination of interference between tests
+- Prevention of race conditions during parallel execution
 
-### 2. クリーンアップの確実性
-- `afterEach` での自動クリーンアップ
-- テスト失敗時もディレクトリが確実に削除
-- CI/CD環境でのディスク容量問題を防止
+### 2. Reliable Cleanup
+- Automatic cleanup in `afterEach`
+- Directories are reliably deleted even when tests fail
+- Prevention of disk capacity issues in CI/CD environments
 
-### 3. 開発効率の向上
-- 統一されたパターンによる学習コストの削減
-- デバッグ時の予測可能なファイル配置
-- チーム全体での一貫したテスト作成方法
+### 3. Improved Development Efficiency
+- Reduced learning cost through unified patterns
+- Predictable file placement during debugging
+- Consistent test creation methods across the entire team
 
-## トラブルシューティング
+## Troubleshooting
 
-### 権限エラーの場合
+### For Permission Errors
 ```typescript
-// Windows環境での権限問題対応例
+// Example handling permission issues in Windows environment
 beforeEach(async () => {
   ({ testDir, cleanup } = await setupTestDirectory());
 });
@@ -171,7 +171,7 @@ afterEach(async () => {
   try {
     await cleanup();
   } catch (error) {
-    // 権限エラーの場合は再試行
+    // Retry in case of permission error
     if (process.platform === "win32") {
       await new Promise(resolve => setTimeout(resolve, 100));
       await cleanup();
@@ -180,15 +180,15 @@ afterEach(async () => {
 });
 ```
 
-### CI環境での考慮事項
-- `/tmp` ディレクトリの存在確認
-- ディスク容量の監視
-- 並列実行時の競合回避
+### CI Environment Considerations
+- Verify existence of `/tmp` directory
+- Monitor disk capacity
+- Avoid conflicts during parallel execution
 
-## 実装優先度
+## Implementation Priority
 
-1. **高優先度**: パーサーとジェネレーターのテスト
-2. **中優先度**: コアモジュールのテスト
-3. **低優先度**: ユーティリティのテスト
+1. **High Priority**: Parser and generator tests
+2. **Medium Priority**: Core module tests
+3. **Low Priority**: Utility tests
 
-この規約に従うことで、テストの信頼性と保守性を大幅に向上させることができる。
+By following these rules, test reliability and maintainability can be significantly improved.
