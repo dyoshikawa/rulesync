@@ -31,12 +31,12 @@ describe("generateMcpConfigurations", () => {
 
     // Should generate for all supported tools by default
     // AugmentCode and AugmentCode-legacy both map to same .mcp.json (deduplicated), Copilot generates 2 files, others generate 1 each
-    // Total: augmentcode(1) + claudecode(1) + cursor(1) + cline(1) + codexcli(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) + junie(1) + windsurf(1) = 12
-    expect(outputs).toHaveLength(12);
+    // ClaudeCode now uses .mcp.json which conflicts with AugmentCode, so they're deduplicated
+    // Total: augmentcode+claudecode(1) + cursor(1) + cline(1) + codexcli(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) + junie(1) + windsurf(1) = 11
+    expect(outputs).toHaveLength(11);
 
     const filepaths = outputs.map((o) => o.filepath);
-    expect(filepaths).toContain(join(testDir, ".mcp.json")); // AugmentCode
-    expect(filepaths).toContain(join(testDir, ".claude/settings.json"));
+    expect(filepaths).toContain(join(testDir, ".mcp.json")); // AugmentCode + ClaudeCode
     expect(filepaths).toContain(join(testDir, ".vscode/mcp.json"));
     expect(filepaths).toContain(join(testDir, ".copilot/mcp.json"));
     expect(filepaths).toContain(join(testDir, ".cursor/mcp.json"));
@@ -63,7 +63,7 @@ describe("generateMcpConfigurations", () => {
     expect(outputs).toHaveLength(2);
 
     const filepaths = outputs.map((o) => o.filepath);
-    expect(filepaths).toContain(join(testDir, ".claude/settings.json"));
+    expect(filepaths).toContain(join(testDir, ".mcp.json")); // ClaudeCode now uses .mcp.json
     expect(filepaths).toContain(join(testDir, ".cursor/mcp.json"));
   });
 
@@ -87,8 +87,10 @@ describe("generateMcpConfigurations", () => {
 
     const outputs = await generateMcpConfigurations(mcpConfig, testDir, ["claudecode", "cursor"]);
 
-    // Check Claude configuration
-    const claudeOutput = outputs.find((o) => o.filepath.includes(".claude"));
+    // Check Claude configuration (now uses .mcp.json)
+    const claudeOutput = outputs.find(
+      (o) => o.filepath.includes(".mcp.json") && !o.filepath.includes(".cursor"),
+    );
     expect(claudeOutput).toBeDefined();
     const claudeConfig = JSON.parse(claudeOutput!.content);
     expect(claudeConfig.mcpServers).toHaveProperty("claude-only");
@@ -199,8 +201,8 @@ describe("generateMcpConfigurations", () => {
     const outputs1 = await generateMcpConfigurations(mcpConfig, baseDir1, ["claudecode"]);
     const outputs2 = await generateMcpConfigurations(mcpConfig, baseDir2, ["claudecode"]);
 
-    expect(outputs1[0]!.filepath).toBe(join(baseDir1, ".claude/settings.json"));
-    expect(outputs2[0]!.filepath).toBe(join(baseDir2, ".claude/settings.json"));
+    expect(outputs1[0]!.filepath).toBe(join(baseDir1, ".mcp.json"));
+    expect(outputs2[0]!.filepath).toBe(join(baseDir2, ".mcp.json"));
   });
 
   it("should handle tool-specific formatting differences", async () => {
@@ -220,9 +222,11 @@ describe("generateMcpConfigurations", () => {
       "geminicli",
     ]);
 
-    // Claude uses settings.json with mcpServers
-    const claudeOutput = outputs.find((o) => o.filepath.includes(".claude"));
-    expect(claudeOutput?.filepath).toContain("settings.json");
+    // Claude now uses .mcp.json with mcpServers
+    const claudeOutput = outputs.find(
+      (o) => o.filepath.includes(".mcp.json") && !o.filepath.includes(".vscode"),
+    );
+    expect(claudeOutput?.filepath).toContain(".mcp.json");
     const claudeConfig = JSON.parse(claudeOutput!.content);
     expect(claudeConfig).toHaveProperty("mcpServers");
 

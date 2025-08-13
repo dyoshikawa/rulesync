@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateCommands } from "../../core/command-generator.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
-import { generateMcpConfigs } from "../../core/mcp-generator.js";
+import { generateMcpConfigurations } from "../../core/mcp-generator.js";
+import { parseMcpConfig } from "../../core/mcp-parser.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import type { ToolTarget } from "../../types/index.js";
 import {
@@ -17,12 +18,14 @@ import { generateCommand } from "./generate.js";
 
 vi.mock("../../core/index.js");
 vi.mock("../../core/mcp-generator.js");
+vi.mock("../../core/mcp-parser.js");
 vi.mock("../../core/command-generator.js");
 vi.mock("../../utils/index.js");
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);
-const mockGenerateMcpConfigs = vi.mocked(generateMcpConfigs);
+const mockGenerateMcpConfigurations = vi.mocked(generateMcpConfigurations);
+const mockParseMcpConfig = vi.mocked(parseMcpConfig);
 const mockGenerateCommands = vi.mocked(generateCommands);
 const mockFileExists = vi.mocked(fileExists);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
@@ -66,7 +69,8 @@ describe("generateCommand", () => {
     mockWriteFileContent.mockResolvedValue();
     mockRemoveDirectory.mockResolvedValue();
     mockRemoveClaudeGeneratedFiles.mockResolvedValue();
-    mockGenerateMcpConfigs.mockResolvedValue([]);
+    mockGenerateMcpConfigurations.mockResolvedValue([]);
+    mockParseMcpConfig.mockReturnValue(null);
     mockGenerateCommands.mockResolvedValue([]);
 
     mockLoadConfig.mockResolvedValue({
@@ -361,29 +365,23 @@ describe("generateCommand", () => {
   });
 
   it("should handle MCP configuration generation", async () => {
-    const mcpResults = [
-      { tool: "copilot-editor", status: "success" as const, path: ".vscode/mcp.json" },
-      {
-        tool: "claude-project",
-        status: "error" as const,
-        path: ".claude/settings.json",
-        error: "Failed to write",
+    const mcpConfig = {
+      mcpServers: {
+        "test-server": {
+          command: "test-server",
+        },
       },
-      { tool: "cursor-project", status: "skipped" as const, path: ".cursor/mcp.json" },
-    ];
-    mockGenerateMcpConfigs.mockResolvedValue(mcpResults);
+    };
+    const mcpResults = [{ tool: "copilot", filepath: ".vscode/mcp.json", content: "{}" }];
+
+    mockParseMcpConfig.mockReturnValue(mcpConfig);
+    mockGenerateMcpConfigurations.mockResolvedValue(mcpResults);
 
     await generateCommand({ verbose: true });
 
     expect(console.log).toHaveBeenCalledWith("\nGenerating MCP configurations...");
     expect(console.log).toHaveBeenCalledWith(
-      "✅ Generated copilot-editor MCP configuration: .vscode/mcp.json",
-    );
-    expect(console.error).toHaveBeenCalledWith(
-      "❌ Failed to generate claude-project MCP configuration: Failed to write",
-    );
-    expect(console.log).toHaveBeenCalledWith(
-      "⏭️  Skipped cursor-project MCP configuration (no servers configured)",
+      "✅ Generated copilot MCP configuration: .vscode/mcp.json",
     );
   });
 
@@ -406,10 +404,17 @@ describe("generateCommand", () => {
   });
 
   it("should handle final success message with MCP outputs", async () => {
-    const mcpResults = [
-      { tool: "copilot-editor", status: "success" as const, path: ".vscode/mcp.json" },
-    ];
-    mockGenerateMcpConfigs.mockResolvedValue(mcpResults);
+    const mcpConfig = {
+      mcpServers: {
+        "test-server": {
+          command: "test-server",
+        },
+      },
+    };
+    const mcpResults = [{ tool: "copilot", filepath: ".vscode/mcp.json", content: "{}" }];
+
+    mockParseMcpConfig.mockReturnValue(mcpConfig);
+    mockGenerateMcpConfigurations.mockResolvedValue(mcpResults);
 
     await generateCommand();
 
@@ -419,7 +424,7 @@ describe("generateCommand", () => {
   });
 
   it("should handle case when no MCP configurations are found", async () => {
-    mockGenerateMcpConfigs.mockResolvedValue([]);
+    mockParseMcpConfig.mockReturnValue(null);
 
     await generateCommand({ verbose: true });
 
@@ -427,22 +432,17 @@ describe("generateCommand", () => {
   });
 
   it("should generate MCP configurations for claudecode tool", async () => {
-    // Mock the new MCP generation approach
-    vi.doMock("../../core/mcp-generator.js", () => ({
-      generateMcpConfigurations: vi.fn().mockResolvedValue([
-        {
-          tool: "claudecode",
-          filepath: "./.mcp.json",
-          content: JSON.stringify({ mcpServers: { test: { command: "test" } } }, null, 2),
+    const mcpConfig = {
+      mcpServers: {
+        "test-server": {
+          command: "test-server",
         },
-      ]),
-    }));
+      },
+    };
+    const mcpResults = [{ tool: "claudecode", filepath: "./.mcp.json", content: "{}" }];
 
-    vi.doMock("../../core/mcp-parser.js", () => ({
-      parseMcpConfig: vi.fn().mockReturnValue({
-        mcpServers: { test: { command: "test", targets: ["claudecode"] } },
-      }),
-    }));
+    mockParseMcpConfig.mockReturnValue(mcpConfig);
+    mockGenerateMcpConfigurations.mockResolvedValue(mcpResults);
 
     // Create a new config with claudecode as target
     const claudecodeConfig = {
