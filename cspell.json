@@ -188,6 +188,8 @@
         "asctime",
         "levelname",
         "codeiumignore",
+        "ccusage",
+        "statusline",
         "deepview",
         "Laravel",
         "ovpn",
