@@ -404,8 +404,9 @@ async function parseCommandsFiles(
             rules.push({
               frontmatter,
               content: ruleContent,
-              filename: `command-${filename}`,
+              filename: filename,
               filepath: filePath,
+              type: "command",
             });
           }
         }

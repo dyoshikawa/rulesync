@@ -18,6 +18,7 @@ export const ParsedRuleSchema = z.object({
   content: z.string(),
   filename: z.string(),
   filepath: z.string(),
+  type: z.optional(z.enum(["rule", "command"])),
 });
 
 // Type for processed rule (with defaults applied)
@@ -26,6 +27,7 @@ export type ProcessedRule = {
   content: string;
   filename: string;
   filepath: string;
+  type?: "rule" | "command";
 };
 
 export const GeneratedOutputSchema = z.object({

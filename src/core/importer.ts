@@ -134,7 +134,16 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   for (const rule of rules) {
     try {
       const baseFilename = rule.filename;
-      const filePath = join(rulesDirPath, `${baseFilename}.md`);
+      let targetDir = rulesDirPath;
+
+      // Commands go to .rulesync/commands/ subdirectory
+      if (rule.type === "command") {
+        targetDir = join(rulesDirPath, "commands");
+        const { mkdir } = await import("node:fs/promises");
+        await mkdir(targetDir, { recursive: true });
+      }
+
+      const filePath = join(targetDir, `${baseFilename}.md`);
       const content = generateRuleFileContent(rule);
 
       await writeFileContent(filePath, content);

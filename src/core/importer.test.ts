@@ -10,11 +10,13 @@ vi.mock("../parsers");
 describe("importConfiguration", () => {
   const testDir = join(__dirname, "test-temp-importer");
   const rulesDir = join(testDir, ".rulesync");
+  const commandsDir = join(rulesDir, "commands");
 
   beforeEach(async () => {
     const { mkdir } = await import("node:fs/promises");
     await mkdir(testDir, { recursive: true });
     await mkdir(rulesDir, { recursive: true });
+    await mkdir(commandsDir, { recursive: true });
     vi.resetAllMocks();
   });
 
@@ -381,8 +383,9 @@ describe("importConfiguration", () => {
           globs: ["**/*"],
         },
         content: "Fix GitHub issue #$ARGUMENTS by following these steps:",
-        filename: "command-fix-issue",
+        filename: "fix-issue",
         filepath: "/test/.claude/commands/fix-issue.md",
+        type: "command" as const,
       },
     ];
 
@@ -399,7 +402,7 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.success).toBe(true);
 
-    const createdFile = await readFile(join(rulesDir, "command-fix-issue.md"), "utf-8");
+    const createdFile = await readFile(join(rulesDir, "commands", "fix-issue.md"), "utf-8");
     expect(createdFile).toContain("Command: fix-issue");
     expect(createdFile).toContain("Fix GitHub issue #$ARGUMENTS");
   });
@@ -414,8 +417,9 @@ describe("importConfiguration", () => {
           globs: ["**/*"],
         },
         content: "Optimize the code by following these steps:",
-        filename: "command-optimize",
+        filename: "optimize",
         filepath: "/test/.gemini/commands/optimize.md",
+        type: "command" as const,
       },
     ];
 
@@ -432,7 +436,7 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.success).toBe(true);
 
-    const createdFile = await readFile(join(rulesDir, "command-optimize.md"), "utf-8");
+    const createdFile = await readFile(join(rulesDir, "commands", "optimize.md"), "utf-8");
     expect(createdFile).toContain("Command: optimize");
     expect(createdFile).toContain("Optimize the code by following");
   });
