@@ -1,31 +1,27 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseCursorConfiguration } from "./cursor.js";
 
-let testDir: string;
-
 describe("cursor parser", () => {
-  beforeEach(() => {
-    // Create unique test directory per test
-    testDir = join(
-      process.cwd(),
-      `test-tmp-cursor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    );
-    rmSync(testDir, { recursive: true, force: true });
-    mkdirSync(testDir, { recursive: true });
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
   });
 
-  afterEach(() => {
-    // Clean up unique test directory
-    rmSync(testDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await cleanup();
   });
 
   describe("parseCursorConfiguration", () => {
     it("should parse .cursor/rules/*.mdc files", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Test cursor rule
@@ -59,7 +55,7 @@ This is a test cursor rule content.
     it("should handle globs: * without quotes (Cursor's valid format)", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       // This is the specific case that was causing issues - globs: * without quotes
       const mdcContent = `---
@@ -93,7 +89,7 @@ This rule applies to all files using the asterisk wildcard without quotes.
     it("should handle multiple .mdc files including ones with globs: *", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent1 = `---
 description: Build tooling standards
@@ -171,7 +167,7 @@ This is a legacy .cursorrules file.
     it("should ignore non-.mdc files in .cursor/rules directory", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Valid mdc file
@@ -196,7 +192,7 @@ ruletype: always
     it("should handle empty content files", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const emptyContent = `---
 description: Empty content file
@@ -229,7 +225,7 @@ ruletype: always
     it("should handle malformed YAML gracefully", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       // Malformed YAML that can't be rescued
       const malformedContent = `---
@@ -271,7 +267,7 @@ ruletype: always
     it("should handle .cursor/rules directory parsing errors", async () => {
       // Create .cursor/rules directory
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       writeFileSync(join(cursorRulesDir, "test.mdc"), "Valid content");
 
@@ -330,7 +326,7 @@ dist/
       writeFileSync(join(testDir, ".cursorrules"), "# Valid config");
 
       const cursorDir = join(testDir, ".cursor");
-      mkdirSync(cursorDir, { recursive: true });
+      await mkdir(cursorDir, { recursive: true });
 
       const mcpConfig = {
         mcpServers: {
@@ -359,7 +355,7 @@ dist/
       writeFileSync(join(testDir, ".cursorrules"), "# Valid config");
 
       const cursorDir = join(testDir, ".cursor");
-      mkdirSync(cursorDir, { recursive: true });
+      await mkdir(cursorDir, { recursive: true });
 
       writeFileSync(join(cursorDir, "mcp.json"), "invalid json content");
 
@@ -373,7 +369,7 @@ dist/
   describe("four kinds of .mdc pattern specification compliance", () => {
     it("should handle 'always' pattern (alwaysApply: true)", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: "Any description"
@@ -404,7 +400,7 @@ This rule is always applied.
 
     it("should handle 'manual' pattern (empty description and empty globs)", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description:
@@ -435,7 +431,7 @@ This is a manual rule with no file patterns.
 
     it("should handle 'auto attached' pattern (empty description and non-empty globs)", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description:
@@ -466,7 +462,7 @@ This rule is automatically attached to Python files.
 
     it("should handle 'auto attached' pattern with single glob", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description:
@@ -497,7 +493,7 @@ This rule applies to TypeScript files only.
 
     it("should handle 'agent_request' pattern (non-empty description)", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: "When writing Python code"
@@ -528,7 +524,7 @@ This rule is triggered by agent requests.
 
     it("should handle edge case: non-empty description and non-empty globs (should be specificFiles)", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: "TypeScript development rules"
@@ -559,7 +555,7 @@ This has both description and globs, but should be treated as specificFiles acco
 
     it("should handle undefined alwaysApply (should default to false)", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description:
@@ -588,7 +584,7 @@ This rule has no alwaysApply field.
 
     it("should handle empty array globs", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description:
@@ -621,7 +617,7 @@ This rule has empty array globs.
   describe("additional coverage tests", () => {
     it("should handle .cursorignore file with comments and empty lines", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Test rule
@@ -653,7 +649,7 @@ node_modules/
 
     it("should handle .cursorignore read error", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Test rule
@@ -667,7 +663,7 @@ alwaysApply: false
       writeFileSync(join(cursorRulesDir, "test.mdc"), mdcContent);
 
       // Create a directory instead of a file to cause read error
-      mkdirSync(join(testDir, ".cursorignore"));
+      await mkdir(join(testDir, ".cursorignore"));
 
       const result = await parseCursorConfiguration(testDir);
 
@@ -679,7 +675,7 @@ alwaysApply: false
 
     it("should handle .cursor/mcp.json file", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Test rule
@@ -712,7 +708,7 @@ alwaysApply: false
 
     it("should handle .cursor/mcp.json parse error", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Test rule
@@ -738,7 +734,7 @@ alwaysApply: false
 
     it("should handle .cursor/mcp.json read error", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: Test rule
@@ -752,7 +748,7 @@ alwaysApply: false
       writeFileSync(join(cursorRulesDir, "test.mdc"), mdcContent);
 
       // Create a directory instead of a file to cause read error
-      mkdirSync(join(testDir, ".cursor", "mcp.json"));
+      await mkdir(join(testDir, ".cursor", "mcp.json"));
 
       const result = await parseCursorConfiguration(testDir);
 
@@ -764,7 +760,7 @@ alwaysApply: false
 
     it("should handle fallback to default when no conditions match", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 alwaysApply: false
@@ -794,7 +790,7 @@ This rule should fall back to manual.
 
     it("should handle normalizeValue edge cases", async () => {
       const cursorRulesDir = join(testDir, ".cursor", "rules");
-      mkdirSync(cursorRulesDir, { recursive: true });
+      await mkdir(cursorRulesDir, { recursive: true });
 
       const mdcContent = `---
 description: 

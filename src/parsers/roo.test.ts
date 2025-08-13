@@ -1,22 +1,27 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseRooConfiguration } from "./roo.js";
 
 describe("parseRooConfiguration", () => {
-  const testDir = join(__dirname, "test-temp-roo");
-  const rooInstructionsPath = join(testDir, ".roo", "instructions.md");
-  const rooRulesDir = join(testDir, ".roo", "rules");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let rooInstructionsPath: string;
+  let rooRulesDir: string;
 
   beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    rooInstructionsPath = join(testDir, ".roo", "instructions.md");
+    rooRulesDir = join(testDir, ".roo", "rules");
+    
     const { mkdir } = await import("node:fs/promises");
     await mkdir(join(testDir, ".roo"), { recursive: true });
     await mkdir(rooRulesDir, { recursive: true });
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should return error when no configuration files found", async () => {

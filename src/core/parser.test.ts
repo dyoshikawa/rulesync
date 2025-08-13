@@ -1,18 +1,19 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseRuleFile, parseRulesFromDirectory } from "../../src/core/parser.js";
-
-const testDir = join(process.cwd(), "test-tmp");
+import { setupTestDirectory } from "../utils/test-helpers.js";
 
 describe("parser", () => {
-  beforeEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
-    mkdirSync(testDir, { recursive: true });
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
   });
 
-  afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await cleanup();
   });
 
   describe("parseRuleFile", () => {

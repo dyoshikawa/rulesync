@@ -1,18 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseMcpConfig } from "./mcp-parser.js";
 
 describe("parseMcpConfig", () => {
-  const testDir = path.join(process.cwd(), ".test-rulesync");
-  const mcpPath = path.join(testDir, ".rulesync", ".mcp.json");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let mcpPath: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    mcpPath = path.join(testDir, ".rulesync", ".mcp.json");
     fs.mkdirSync(path.join(testDir, ".rulesync"), { recursive: true });
   });
 
-  afterEach(() => {
-    fs.rmSync(testDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await cleanup();
   });
 
   it("should return null when mcp.json does not exist", () => {

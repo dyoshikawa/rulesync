@@ -3,35 +3,30 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as parsers from "../parsers/index.js";
 import type { ToolTarget } from "../types/index.js";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
 
 describe("importConfiguration", () => {
-  const testDir = join(__dirname, "test-temp-importer");
-  const rulesDir = join(testDir, ".rulesync");
-  const commandsDir = join(rulesDir, "commands");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let rulesDir: string;
+  let commandsDir: string;
 
   beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    rulesDir = join(testDir, ".rulesync");
+    commandsDir = join(rulesDir, "commands");
+    
     const { mkdir } = await import("node:fs/promises");
-    await mkdir(testDir, { recursive: true });
     await mkdir(rulesDir, { recursive: true });
     await mkdir(commandsDir, { recursive: true });
     vi.resetAllMocks();
   });
 
   afterEach(async () => {
-    const { rm, chmod } = await import("node:fs/promises");
-
-    // Restore permissions before cleanup
-    try {
-      await chmod(testDir, 0o755);
-      await chmod(rulesDir, 0o755);
-    } catch {
-      // Ignore permission errors during cleanup
-    }
-
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should import Claude Code configuration successfully", async () => {

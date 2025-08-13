@@ -2,24 +2,30 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ParsedRule } from "../types/rules.js";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseGeminiConfiguration } from "./geminicli.js";
 
 describe("parseGeminiConfiguration", () => {
-  const testDir = join(__dirname, "test-temp-gemini");
-  const geminiFilePath = join(testDir, "GEMINI.md");
-  const memoryDir = join(testDir, ".gemini", "memories");
-  const settingsPath = join(testDir, ".gemini", "settings.json");
-  const aiexcludePath = join(testDir, ".aiexclude");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let geminiFilePath: string;
+  let memoryDir: string;
+  let settingsPath: string;
+  let aiexcludePath: string;
 
   beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    geminiFilePath = join(testDir, "GEMINI.md");
+    memoryDir = join(testDir, ".gemini", "memories");
+    settingsPath = join(testDir, ".gemini", "settings.json");
+    aiexcludePath = join(testDir, ".aiexclude");
+    
     const { mkdir } = await import("node:fs/promises");
-    await mkdir(testDir, { recursive: true });
     await mkdir(memoryDir, { recursive: true });
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should return error when GEMINI.md is not found", async () => {

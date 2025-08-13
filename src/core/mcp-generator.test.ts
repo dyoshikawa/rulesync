@@ -1,20 +1,20 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RulesyncMcpConfig } from "../types/mcp.js";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { generateMcpConfigs, generateMcpConfigurations } from "./mcp-generator.js";
 import { parseMcpConfig } from "./mcp-parser.js";
 
 describe("generateMcpConfigurations", () => {
-  const testDir = join(__dirname, "test-temp-mcp");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    const { mkdir } = await import("node:fs/promises");
-    await mkdir(testDir, { recursive: true });
+    ({ testDir, cleanup } = await setupTestDirectory());
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should generate configurations for all default targets", async () => {
@@ -247,16 +247,15 @@ describe("generateMcpConfigurations", () => {
 });
 
 describe("generateMcpConfigs", () => {
-  const testDir = join(__dirname, "test-temp-mcp-configs");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    const { mkdir } = await import("node:fs/promises");
-    await mkdir(testDir, { recursive: true });
+    ({ testDir, cleanup } = await setupTestDirectory());
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should return empty results when no MCP config exists", async () => {

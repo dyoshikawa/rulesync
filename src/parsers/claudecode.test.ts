@@ -1,23 +1,28 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseClaudeConfiguration } from "./claudecode.js";
 
 describe("parseClaudeConfiguration", () => {
-  const testDir = join(__dirname, "test-temp-claude");
-  const claudeFilePath = join(testDir, "CLAUDE.md");
-  const memoryDir = join(testDir, ".claude", "memories");
-  const settingsPath = join(testDir, ".claude", "settings.json");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let claudeFilePath: string;
+  let memoryDir: string;
+  let settingsPath: string;
 
   beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    claudeFilePath = join(testDir, "CLAUDE.md");
+    memoryDir = join(testDir, ".claude", "memories");
+    settingsPath = join(testDir, ".claude", "settings.json");
+    
     const { mkdir } = await import("node:fs/promises");
-    await mkdir(testDir, { recursive: true });
     await mkdir(memoryDir, { recursive: true });
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should return error when CLAUDE.md is not found", async () => {

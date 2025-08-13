@@ -205,9 +205,6 @@ pnpm-lock.yaml
 /tmp
 /ai-tmp
 
-# Test temporary directories
-test-*
-
 .claude/settings.local.json
 
 .pnpm-store

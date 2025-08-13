@@ -2,21 +2,23 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ParsedRule } from "../types/rules.js";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseCodexConfiguration } from "./codexcli.js";
 
 describe("parseCodexConfiguration", () => {
-  const testDir = join(__dirname, "test-temp-codex");
-  const codexFilePath = join(testDir, "codex.md");
-  const codexignorePath = join(testDir, ".codexignore");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let codexFilePath: string;
+  let codexignorePath: string;
 
   beforeEach(async () => {
-    const { mkdir } = await import("node:fs/promises");
-    await mkdir(testDir, { recursive: true });
+    ({ testDir, cleanup } = await setupTestDirectory());
+    codexFilePath = join(testDir, "codex.md");
+    codexignorePath = join(testDir, ".codexignore");
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should parse codex.md file successfully", async () => {

@@ -1,22 +1,27 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../utils/test-helpers.js";
 import { parseClineConfiguration } from "./cline.js";
 
 describe("parseClineConfiguration", () => {
-  const testDir = join(__dirname, "test-temp-cline");
-  const clineInstructionsPath = join(testDir, ".cline", "instructions.md");
-  const clinerulesDirPath = join(testDir, ".clinerules");
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let clineInstructionsPath: string;
+  let clinerulesDirPath: string;
 
   beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    clineInstructionsPath = join(testDir, ".cline", "instructions.md");
+    clinerulesDirPath = join(testDir, ".clinerules");
+    
     const { mkdir } = await import("node:fs/promises");
     await mkdir(join(testDir, ".cline"), { recursive: true });
     await mkdir(clinerulesDirPath, { recursive: true });
   });
 
   afterEach(async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(testDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should return error when no configuration files found", async () => {
