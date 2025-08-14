@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockConfig } from "../../test-utils/index.js";
+import { createMockConfig, mockLogger } from "../../test-utils/index.js";
 import type { MergedConfig } from "../../types/index.js";
 import { loadConfig } from "../../utils/index.js";
 import { configCommand } from "./config.js";
@@ -14,6 +14,9 @@ vi.mock("../../utils/index.js", async () => {
     generateSampleConfig: actual.generateSampleConfig,
   };
 });
+vi.mock("../../utils/logger.js", () => ({
+  logger: mockLogger,
+}));
 vi.mock("node:fs");
 
 const mockLoadConfig = vi.mocked(loadConfig);
@@ -22,9 +25,6 @@ const mockWriteFileSync = vi.mocked(writeFileSync);
 describe("config command", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   describe("showConfig", () => {
@@ -39,11 +39,11 @@ describe("config command", () => {
       await configCommand();
 
       expect(mockLoadConfig).toHaveBeenCalled();
-      expect(console.log).toHaveBeenCalledWith(
+      expect(mockLogger.log).toHaveBeenCalledWith(
         "Configuration loaded from: /path/to/rulesync.jsonc\n",
       );
-      expect(console.log).toHaveBeenCalledWith("\nAI Rules Directory: .rulesync");
-      expect(console.log).toHaveBeenCalledWith(
+      expect(mockLogger.log).toHaveBeenCalledWith("\nAI Rules Directory: .rulesync");
+      expect(mockLogger.log).toHaveBeenCalledWith(
         "\nDefault Targets: augmentcode, copilot, cursor, cline, claudecode, codexcli, roo, geminicli, kiro, junie, windsurf",
       );
     });

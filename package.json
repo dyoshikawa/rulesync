@@ -62,6 +62,7 @@
 		"c12": "3.2.0",
 		"chokidar": "4.0.3",
 		"commander": "14.0.0",
+		"consola": "3.4.2",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.0",
 		"micromatch": "4.0.8",

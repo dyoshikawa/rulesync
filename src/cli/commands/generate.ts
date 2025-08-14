@@ -13,6 +13,7 @@ import {
   removeDirectory,
   writeFileContent,
 } from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
 
 export interface GenerateOptions {
   tools?: ToolTarget[];
@@ -48,6 +49,9 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
   const config = mergeWithCliOptions(configResult.config, cliOptions);
 
+  // Set logger verbosity based on config
+  logger.setVerbose(config.verbose || false);
+
   if (options.tools && options.tools.length > 0) {
     const configTargets = config.defaultTargets;
     const cliTools = options.tools;
@@ -59,20 +63,20 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
     const notInCli = configTargets.filter((tool) => !cliToolsSet.has(tool));
 
     if (notInConfig.length > 0 || notInCli.length > 0) {
-      console.warn("⚠️  Warning: CLI tool selection differs from configuration!");
-      console.warn(`   Config targets: ${configTargets.join(", ")}`);
-      console.warn(`   CLI specified: ${cliTools.join(", ")}`);
+      logger.warn("⚠️  Warning: CLI tool selection differs from configuration!");
+      logger.warn(`   Config targets: ${configTargets.join(", ")}`);
+      logger.warn(`   CLI specified: ${cliTools.join(", ")}`);
 
       if (notInConfig.length > 0) {
-        console.warn(`   Tools specified but not in config: ${notInConfig.join(", ")}`);
+        logger.warn(`   Tools specified but not in config: ${notInConfig.join(", ")}`);
       }
       if (notInCli.length > 0) {
-        console.warn(`   Tools in config but not specified: ${notInCli.join(", ")}`);
+        logger.warn(`   Tools in config but not specified: ${notInCli.join(", ")}`);
       }
 
-      console.warn("\n   The configuration file targets will be used.");
-      console.warn("   To change targets, update your rulesync config file.");
-      console.warn("");
+      logger.warn("\n   The configuration file targets will be used.");
+      logger.warn("   To change targets, update your rulesync config file.");
+      logger.warn("");
     }
   }
 
@@ -85,40 +89,32 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
     baseDirs = [process.cwd()];
   }
 
-  if (config.verbose && configResult.filepath) {
-    console.log(`Loaded configuration from: ${configResult.filepath}`);
-  }
+  logger.info(`Loaded configuration from: ${configResult.filepath}`);
 
-  console.log("Generating configuration files...");
+  logger.log("Generating configuration files...");
 
   // Check if .rulesync directory exists
   if (!(await fileExists(config.aiRulesDir))) {
-    console.error("❌ .rulesync directory not found. Run 'rulesync init' first.");
+    logger.error("❌ .rulesync directory not found. Run 'rulesync init' first.");
     process.exit(1);
   }
 
   try {
     // Parse rules
-    if (config.verbose) {
-      console.log(`Parsing rules from ${config.aiRulesDir}...`);
-    }
+    logger.info(`Parsing rules from ${config.aiRulesDir}...`);
     const rules = await parseRulesFromDirectory(config.aiRulesDir);
 
     if (rules.length === 0) {
-      console.warn("⚠️  No rules found in .rulesync directory");
+      logger.warn("⚠️  No rules found in .rulesync directory");
       return;
     }
 
-    if (config.verbose) {
-      console.log(`Found ${rules.length} rule(s)`);
-      console.log(`Base directories: ${baseDirs.join(", ")}`);
-    }
+    logger.info(`Found ${rules.length} rule(s)`);
+    logger.info(`Base directories: ${baseDirs.join(", ")}`);
 
     // Delete existing output directories if --delete option is specified
     if (config.delete) {
-      if (config.verbose) {
-        console.log("Deleting existing output directories...");
-      }
+      logger.info("Deleting existing output directories...");
 
       const targetTools = config.defaultTargets;
       const deleteTasks = [];
@@ -167,45 +163,37 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
       await Promise.all(deleteTasks);
 
-      if (config.verbose) {
-        console.log("Deleted existing output directories");
-      }
+      logger.info("Deleted existing output directories");
     }
 
     // Generate configurations for each base directory
     let totalOutputs = 0;
     for (const baseDir of baseDirs) {
-      if (config.verbose) {
-        console.log(`\nGenerating configurations for base directory: ${baseDir}`);
-      }
+      logger.info(`\nGenerating configurations for base directory: ${baseDir}`);
 
       const outputs = await generateConfigurations(rules, config, config.defaultTargets, baseDir);
 
       if (outputs.length === 0) {
-        if (config.verbose) {
-          console.warn(`⚠️  No configurations generated for ${baseDir}`);
-        }
+        logger.warn(`⚠️  No configurations generated for ${baseDir}`);
         continue;
       }
 
       // Write output files
       for (const output of outputs) {
         await writeFileContent(output.filepath, output.content);
-        console.log(`✅ Generated ${output.tool} configuration: ${output.filepath}`);
+        logger.success(`Generated ${output.tool} configuration: ${output.filepath}`);
       }
 
       totalOutputs += outputs.length;
     }
 
     if (totalOutputs === 0) {
-      console.warn("⚠️  No configurations generated");
+      logger.warn("⚠️  No configurations generated");
       return;
     }
 
     // Generate MCP configurations
-    if (config.verbose) {
-      console.log("\nGenerating MCP configurations...");
-    }
+    logger.info("\nGenerating MCP configurations...");
 
     let totalMcpOutputs = 0;
     for (const baseDir of baseDirs) {
@@ -213,9 +201,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
         const mcpConfig = parseMcpConfig(process.cwd());
 
         if (!mcpConfig || !mcpConfig.mcpServers || Object.keys(mcpConfig.mcpServers).length === 0) {
-          if (config.verbose) {
-            console.log(`No MCP configuration found for ${baseDir}`);
-          }
+          logger.info(`No MCP configuration found for ${baseDir}`);
           continue;
         }
 
@@ -226,30 +212,24 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
         );
 
         if (mcpResults.length === 0) {
-          if (config.verbose) {
-            console.log(`No MCP configurations generated for ${baseDir}`);
-          }
+          logger.info(`No MCP configurations generated for ${baseDir}`);
           continue;
         }
 
         for (const result of mcpResults) {
           await writeFileContent(result.filepath, result.content);
-          console.log(`✅ Generated ${result.tool} MCP configuration: ${result.filepath}`);
+          logger.success(`Generated ${result.tool} MCP configuration: ${result.filepath}`);
           totalMcpOutputs++;
         }
       } catch (error) {
-        if (config.verbose) {
-          console.error(
-            `❌ Failed to generate MCP configurations: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+        logger.error(
+          `❌ Failed to generate MCP configurations: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
     // Generate command files
-    if (config.verbose) {
-      console.log("\nGenerating command files...");
-    }
+    logger.info("\nGenerating command files...");
 
     let totalCommandOutputs = 0;
     for (const baseDir of baseDirs) {
@@ -260,15 +240,13 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       );
 
       if (commandResults.length === 0) {
-        if (config.verbose) {
-          console.log(`No commands found for ${baseDir}`);
-        }
+        logger.info(`No commands found for ${baseDir}`);
         continue;
       }
 
       for (const result of commandResults) {
         await writeFileContent(result.filepath, result.content);
-        console.log(`✅ Generated ${result.tool} command: ${result.filepath}`);
+        logger.success(`Generated ${result.tool} command: ${result.filepath}`);
         totalCommandOutputs++;
       }
     }
@@ -281,12 +259,12 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP configurations`);
       if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
 
-      console.log(
+      logger.success(
         `\n🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,
       );
     }
   } catch (error) {
-    console.error("❌ Failed to generate configurations:", error);
+    logger.error("❌ Failed to generate configurations:", error);
     process.exit(1);
   }
 }

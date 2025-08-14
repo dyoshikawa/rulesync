@@ -45,3 +45,4 @@ export async function setupTestDirectory(): Promise<{
 }
 
 export * from "./mock-config.js";
+export * from "./logger-mock.js";

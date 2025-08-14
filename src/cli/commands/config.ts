@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ConfigOptions, ToolTarget } from "../../types/index.js";
 import { ALL_TOOL_TARGETS, ToolTargetSchema } from "../../types/index.js";
 import { generateMinimalConfig, generateSampleConfig, loadConfig } from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
 
 export interface ConfigCommandOptions {
   init?: boolean;
@@ -25,56 +26,56 @@ export async function configCommand(options: ConfigCommandOptions = {}): Promise
 }
 
 async function showConfig(): Promise<void> {
-  console.log("Loading configuration...\n");
+  logger.log("Loading configuration...\n");
 
   try {
     const result = await loadConfig();
 
     if (result.isEmpty) {
-      console.log("No configuration file found. Using default configuration.\n");
+      logger.log("No configuration file found. Using default configuration.\n");
     } else {
-      console.log(`Configuration loaded from: ${result.filepath}\n`);
+      logger.log(`Configuration loaded from: ${result.filepath}\n`);
     }
 
-    console.log("Current configuration:");
-    console.log("=====================");
+    logger.log("Current configuration:");
+    logger.log("=====================");
 
     const config = result.config;
 
-    console.log(`\nAI Rules Directory: ${config.aiRulesDir}`);
-    console.log(`\nDefault Targets: ${config.defaultTargets.join(", ")}`);
+    logger.log(`\nAI Rules Directory: ${config.aiRulesDir}`);
+    logger.log(`\nDefault Targets: ${config.defaultTargets.join(", ")}`);
 
     if (config.exclude && config.exclude.length > 0) {
-      console.log(`Excluded Targets: ${config.exclude.join(", ")}`);
+      logger.log(`Excluded Targets: ${config.exclude.join(", ")}`);
     }
 
-    console.log("\nOutput Paths:");
+    logger.log("\nOutput Paths:");
     for (const [tool, outputPath] of Object.entries(config.outputPaths)) {
-      console.log(`  ${tool}: ${outputPath}`);
+      logger.log(`  ${tool}: ${outputPath}`);
     }
 
     if (config.baseDir) {
       const dirs = Array.isArray(config.baseDir) ? config.baseDir : [config.baseDir];
-      console.log(`\nBase Directories: ${dirs.join(", ")}`);
+      logger.log(`\nBase Directories: ${dirs.join(", ")}`);
     }
 
-    console.log(`\nVerbose: ${config.verbose || false}`);
-    console.log(`Delete before generate: ${config.delete || false}`);
+    logger.log(`\nVerbose: ${config.verbose || false}`);
+    logger.log(`Delete before generate: ${config.delete || false}`);
 
     if (config.watch) {
-      console.log("\nWatch Configuration:");
-      console.log(`  Enabled: ${config.watch.enabled || false}`);
+      logger.log("\nWatch Configuration:");
+      logger.log(`  Enabled: ${config.watch.enabled || false}`);
       if (config.watch.interval) {
-        console.log(`  Interval: ${config.watch.interval}ms`);
+        logger.log(`  Interval: ${config.watch.interval}ms`);
       }
       if (config.watch.ignore && config.watch.ignore.length > 0) {
-        console.log(`  Ignore patterns: ${config.watch.ignore.join(", ")}`);
+        logger.log(`  Ignore patterns: ${config.watch.ignore.join(", ")}`);
       }
     }
 
-    console.log("\nTip: Use 'rulesync config init' to create a configuration file.");
+    logger.log("\nTip: Use 'rulesync config init' to create a configuration file.");
   } catch (error) {
-    console.error(
+    logger.error(
       "❌ Failed to load configuration:",
       error instanceof Error ? error.message : String(error),
     );
@@ -102,7 +103,7 @@ async function initConfig(options: ConfigCommandOptions): Promise<void> {
   const selectedFormat = options.format || "jsonc";
 
   if (!validFormats.includes(selectedFormat)) {
-    console.error(
+    logger.error(
       `❌ Invalid format: ${selectedFormat}. Valid formats are: ${validFormats.join(", ")}`,
     );
     process.exit(1);
@@ -121,7 +122,7 @@ async function initConfig(options: ConfigCommandOptions): Promise<void> {
       if (result.success) {
         validTargets.push(result.data);
       } else {
-        console.error(`❌ Invalid target: ${target}`);
+        logger.error(`❌ Invalid target: ${target}`);
         process.exit(1);
       }
     }
@@ -136,7 +137,7 @@ async function initConfig(options: ConfigCommandOptions): Promise<void> {
       if (result.success) {
         validExcludes.push(result.data);
       } else {
-        console.error(`❌ Invalid exclude target: ${exclude}`);
+        logger.error(`❌ Invalid exclude target: ${exclude}`);
         process.exit(1);
       }
     }
@@ -165,8 +166,8 @@ async function initConfig(options: ConfigCommandOptions): Promise<void> {
   try {
     const fs = await import("node:fs/promises");
     await fs.access(filepath);
-    console.error(`❌ Configuration file already exists: ${filepath}`);
-    console.log("Remove the existing file or choose a different format.");
+    logger.error(`❌ Configuration file already exists: ${filepath}`);
+    logger.log("Remove the existing file or choose a different format.");
     process.exit(1);
   } catch {
     // File doesn't exist, we can create it
@@ -174,11 +175,11 @@ async function initConfig(options: ConfigCommandOptions): Promise<void> {
 
   try {
     writeFileSync(filepath, content, "utf-8");
-    console.log(`✅ Created configuration file: ${filepath}`);
-    console.log("\nYou can now customize the configuration to fit your needs.");
-    console.log("Run 'rulesync generate' to use the new configuration.");
+    logger.success(`Created configuration file: ${filepath}`);
+    logger.log("\nYou can now customize the configuration to fit your needs.");
+    logger.log("Run 'rulesync generate' to use the new configuration.");
   } catch (error) {
-    console.error(
+    logger.error(
       `❌ Failed to create configuration file: ${error instanceof Error ? error.message : String(error)}`,
     );
     process.exit(1);
