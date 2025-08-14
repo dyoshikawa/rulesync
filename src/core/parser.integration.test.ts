@@ -44,10 +44,10 @@ This is another test rule in the new location.`;
     const rules = await parseRulesFromDirectory(testDir);
 
     expect(rules).toHaveLength(2);
-    expect(rules[0].filename).toBe("test1");
-    expect(rules[0].frontmatter.targets).toEqual(["copilot"]);
-    expect(rules[1].filename).toBe("test2");
-    expect(rules[1].frontmatter.targets).toEqual(["cursor"]);
+    expect(rules[0]?.filename).toBe("test1");
+    expect(rules[0]?.frontmatter.targets).toEqual(["copilot"]);
+    expect(rules[1]?.filename).toBe("test2");
+    expect(rules[1]?.frontmatter.targets).toEqual(["cursor"]);
   });
 
   it("should parse rules from legacy location (.rulesync/*.md) when no new location exists", async () => {
@@ -65,8 +65,8 @@ This is a test rule in the legacy location.`;
     const rules = await parseRulesFromDirectory(testDir);
 
     expect(rules).toHaveLength(1);
-    expect(rules[0].filename).toBe("legacy1");
-    expect(rules[0].frontmatter.description).toBe("Legacy test rule 1");
+    expect(rules[0]?.filename).toBe("legacy1");
+    expect(rules[0]?.frontmatter.description).toBe("Legacy test rule 1");
   });
 
   it("should prioritize new location over legacy location for same-named files", async () => {
