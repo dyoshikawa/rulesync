@@ -5,8 +5,6 @@
 
 A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files (`.rulesync/*.md`). Also imports existing AI tool configurations into the unified format.
 
-**English** | [日本語](./README.ja.md)
-
 ## Installation
 
 ```bash
