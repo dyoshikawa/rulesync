@@ -61,7 +61,9 @@ describe("initCommand", () => {
     await initCommand();
 
     expect(mockWriteFileContent).not.toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith("Skipped .rulesync/rules/overview.md (already exists)");
+    expect(console.log).toHaveBeenCalledWith(
+      "Skipped .rulesync/rules/overview.md (already exists)",
+    );
   });
 
   it("should handle all files existing", async () => {
@@ -70,7 +72,9 @@ describe("initCommand", () => {
     await initCommand();
 
     expect(mockWriteFileContent).not.toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith("Skipped .rulesync/rules/overview.md (already exists)");
+    expect(console.log).toHaveBeenCalledWith(
+      "Skipped .rulesync/rules/overview.md (already exists)",
+    );
   });
 
   it("should create proper content for root file", async () => {
