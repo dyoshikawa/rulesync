@@ -4,7 +4,7 @@ description: Use this agent when you need to identify similar code patterns, det
 model: inherit
 ---
 
-1. Execute `similarity-ts -t 0.85 --experimental-types .` to detect similar code.
+1. Execute `similarity-ts -t 0.85 --types --classes .` to detect similar code.
   - similarity-ts is a Rust-based tool installed via cargo. It is already installed in this environment.
   - You can check usage with `similarity -h`.
   - The threshold must always be 0.85 or higher. Targeting code with lower thresholds may result in excessive code consolidation.
