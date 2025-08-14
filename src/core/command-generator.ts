@@ -3,6 +3,7 @@ import { getCommandGenerator } from "../generators/commands/index.js";
 import type { CommandOutput } from "../types/commands.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { fileExists } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 import { parseCommandsFromDirectory } from "./command-parser.js";
 
 export async function generateCommands(
@@ -47,8 +48,8 @@ export async function generateCommands(
         outputs.push(output);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(
-          `❌ Failed to generate ${target} command for ${command.filename}: ${errorMessage}`,
+        logger.error(
+          `Failed to generate ${target} command for ${command.filename}: ${errorMessage}`,
         );
       }
     }

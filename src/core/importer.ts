@@ -14,6 +14,7 @@ import {
 import type { ParsedRule, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { writeFileContent } from "../utils/index.js";
+import { logger } from "../utils/logger.js";
 
 export interface ImportOptions {
   tool: ToolTarget;
@@ -45,7 +46,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   let mcpServers: Record<string, RulesyncMcpServer> | undefined;
 
   if (verbose) {
-    console.log(`Importing ${tool} configuration from ${baseDir}...`);
+    logger.log(`Importing ${tool} configuration from ${baseDir}...`);
   }
 
   // Parse configuration based on tool
@@ -164,7 +165,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       rulesCreated++;
 
       if (verbose) {
-        console.log(`✅ Created rule file: ${filePath}`);
+        logger.success(`Created rule file: ${filePath}`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -181,7 +182,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       await writeFileContent(rulesyncignorePath, ignoreContent);
       ignoreFileCreated = true;
       if (verbose) {
-        console.log(`✅ Created .rulesyncignore with ${ignorePatterns.length} patterns`);
+        logger.success(`Created .rulesyncignore with ${ignorePatterns.length} patterns`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -198,7 +199,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       await writeFileContent(mcpPath, mcpContent);
       mcpFileCreated = true;
       if (verbose) {
-        console.log(`✅ Created .mcp.json with ${Object.keys(mcpServers).length} servers`);
+        logger.success(`Created .mcp.json with ${Object.keys(mcpServers).length} servers`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

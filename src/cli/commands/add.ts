@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { loadConfig } from "../../utils/config-loader.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * Remove .md extension from filename
@@ -53,11 +54,11 @@ export async function addCommand(
     // Create the file
     await writeFile(filePath, template, "utf8");
 
-    console.log(`✅ Created rule file: ${filePath}`);
-    console.log(`📝 Edit the file to customize your rules.`);
+    logger.success(`Created rule file: ${filePath}`);
+    logger.log(`📝 Edit the file to customize your rules.`);
   } catch (error) {
-    console.error(
-      `❌ Failed to create rule file: ${error instanceof Error ? error.message : String(error)}`,
+    logger.error(
+      `Failed to create rule file: ${error instanceof Error ? error.message : String(error)}`,
     );
     process.exit(3); // File I/O error
   }

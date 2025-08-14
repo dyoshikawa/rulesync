@@ -17,6 +17,7 @@ import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../types/index.js";
 import { resolveTargets } from "../utils/index.js";
+import { logger } from "../utils/logger.js";
 
 export async function generateConfigurations(
   rules: ParsedRule[],
@@ -30,16 +31,14 @@ export async function generateConfigurations(
   // Check for root files
   const rootFiles = rules.filter((rule) => rule.frontmatter.root === true);
   if (rootFiles.length === 0) {
-    console.warn(
-      "⚠️  Warning: No files with 'root: true' found. This may result in incomplete configurations.",
-    );
+    logger.warn("No files with 'root: true' found. This may result in incomplete configurations.");
   }
 
   for (const tool of toolsToGenerate) {
     const relevantRules = filterRulesForTool(rules, tool, config);
 
     if (relevantRules.length === 0) {
-      console.warn(`No rules found for tool: ${tool}`);
+      logger.warn(`No rules found for tool: ${tool}`);
       continue;
     }
 
@@ -114,7 +113,7 @@ async function generateForTool(
       return [...windsurfRulesOutputs, ...windsurfIgnoreOutputs];
     }
     default:
-      console.warn(`Unknown tool: ${tool}`);
+      logger.warn(`Unknown tool: ${tool}`);
       return null;
   }
 }

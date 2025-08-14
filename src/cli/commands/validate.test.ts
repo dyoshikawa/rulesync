@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../utils/logger.js";
 import { parseRulesFromDirectory, validateRules } from "../../core/index.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import { fileExists, getDefaultConfig } from "../../utils/index.js";
@@ -41,9 +42,9 @@ describe("validateCommand", () => {
     });
 
     // Mock console methods
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(logger, "log").mockImplementation(() => {});
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    vi.spyOn(logger, "warn").mockImplementation(() => {});
     vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit called");
     });
@@ -52,9 +53,9 @@ describe("validateCommand", () => {
   it("should validate rules successfully", async () => {
     await validateCommand();
 
-    expect(console.log).toHaveBeenCalledWith("Validating rulesync configuration...");
-    expect(console.log).toHaveBeenCalledWith("Found 1 rule(s), validating...");
-    expect(console.log).toHaveBeenCalledWith("\n✅ All rules are valid!");
+    expect(logger.log).toHaveBeenCalledWith("Validating rulesync configuration...");
+    expect(logger.log).toHaveBeenCalledWith("Found 1 rule(s), validating...");
+    expect(logger.log).toHaveBeenCalledWith("\n✅ All rules are valid!");
     expect(mockValidateRules).toHaveBeenCalledWith(mockRules);
   });
 
@@ -62,7 +63,7 @@ describe("validateCommand", () => {
     mockFileExists.mockResolvedValue(false);
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       "❌ .rulesync directory not found. Run 'rulesync init' first.",
     );
   });
@@ -72,7 +73,7 @@ describe("validateCommand", () => {
 
     await validateCommand();
 
-    expect(console.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
+    expect(logger.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
     expect(mockValidateRules).not.toHaveBeenCalled();
   });
 
@@ -85,10 +86,10 @@ describe("validateCommand", () => {
 
     await validateCommand();
 
-    expect(console.log).toHaveBeenCalledWith("\n⚠️  Warnings:");
-    expect(console.log).toHaveBeenCalledWith("  - Warning 1");
-    expect(console.log).toHaveBeenCalledWith("  - Warning 2");
-    expect(console.log).toHaveBeenCalledWith("\n✅ All rules are valid!");
+    expect(logger.log).toHaveBeenCalledWith("\n⚠️  Warnings:");
+    expect(logger.log).toHaveBeenCalledWith("  - Warning 1");
+    expect(logger.log).toHaveBeenCalledWith("  - Warning 2");
+    expect(logger.log).toHaveBeenCalledWith("\n✅ All rules are valid!");
   });
 
   it("should display errors and exit", async () => {
@@ -100,10 +101,10 @@ describe("validateCommand", () => {
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
 
-    expect(console.log).toHaveBeenCalledWith("\n❌ Errors:");
-    expect(console.log).toHaveBeenCalledWith("  - Error 1");
-    expect(console.log).toHaveBeenCalledWith("  - Error 2");
-    expect(console.log).toHaveBeenCalledWith("\n❌ Validation failed with 2 error(s)");
+    expect(logger.log).toHaveBeenCalledWith("\n❌ Errors:");
+    expect(logger.log).toHaveBeenCalledWith("  - Error 1");
+    expect(logger.log).toHaveBeenCalledWith("  - Error 2");
+    expect(logger.log).toHaveBeenCalledWith("\n❌ Validation failed with 2 error(s)");
   });
 
   it("should display both warnings and errors", async () => {
@@ -115,10 +116,10 @@ describe("validateCommand", () => {
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
 
-    expect(console.log).toHaveBeenCalledWith("\n⚠️  Warnings:");
-    expect(console.log).toHaveBeenCalledWith("  - Warning 1");
-    expect(console.log).toHaveBeenCalledWith("\n❌ Errors:");
-    expect(console.log).toHaveBeenCalledWith("  - Error 1");
+    expect(logger.log).toHaveBeenCalledWith("\n⚠️  Warnings:");
+    expect(logger.log).toHaveBeenCalledWith("  - Warning 1");
+    expect(logger.log).toHaveBeenCalledWith("\n❌ Errors:");
+    expect(logger.log).toHaveBeenCalledWith("  - Error 1");
   });
 
   it("should handle parsing errors gracefully", async () => {
@@ -126,7 +127,7 @@ describe("validateCommand", () => {
     mockParseRulesFromDirectory.mockRejectedValue(error);
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith("❌ Failed to validate rules:", error);
+    expect(logger.error).toHaveBeenCalledWith("❌ Failed to validate rules:", error);
   });
 
   it("should handle validation errors gracefully", async () => {
@@ -134,6 +135,6 @@ describe("validateCommand", () => {
     mockValidateRules.mockRejectedValue(error);
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith("❌ Failed to validate rules:", error);
+    expect(logger.error).toHaveBeenCalledWith("❌ Failed to validate rules:", error);
   });
 });

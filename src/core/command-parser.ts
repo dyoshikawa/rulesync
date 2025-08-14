@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import matter from "gray-matter";
 import { CommandFrontmatterSchema, type ParsedCommand } from "../types/commands.js";
 import { findFiles, readFileContent } from "../utils/index.js";
+import { logger } from "../utils/logger.js";
 
 export async function parseCommandsFromDirectory(commandsDir: string): Promise<ParsedCommand[]> {
   const commandFiles = await findFiles(commandsDir, ".md");
@@ -19,7 +20,7 @@ export async function parseCommandsFromDirectory(commandsDir: string): Promise<P
   }
 
   if (errors.length > 0) {
-    console.warn(`⚠️  Command parsing errors:\n${errors.join("\n")}`);
+    logger.warn(`Command parsing errors:\n${errors.join("\n")}`);
   }
 
   return commands;

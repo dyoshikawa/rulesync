@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { logger } from "./logger.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
@@ -119,7 +120,7 @@ export async function removeDirectory(dirPath: string): Promise<void> {
   // Safety check: prevent deletion of dangerous paths
   const dangerousPaths = [".", "/", "~", "src", "node_modules"];
   if (dangerousPaths.includes(dirPath) || dirPath === "") {
-    console.warn(`Skipping deletion of dangerous path: ${dirPath}`);
+    logger.warn(`Skipping deletion of dangerous path: ${dirPath}`);
     return;
   }
 
@@ -128,7 +129,7 @@ export async function removeDirectory(dirPath: string): Promise<void> {
       await rm(dirPath, { recursive: true, force: true });
     }
   } catch (error) {
-    console.warn(`Failed to remove directory ${dirPath}:`, error);
+    logger.warn(`Failed to remove directory ${dirPath}:`, error);
   }
 }
 
@@ -138,7 +139,7 @@ export async function removeFile(filepath: string): Promise<void> {
       await rm(filepath);
     }
   } catch (error) {
-    console.warn(`Failed to remove file ${filepath}:`, error);
+    logger.warn(`Failed to remove file ${filepath}:`, error);
   }
 }
 

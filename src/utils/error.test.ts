@@ -262,35 +262,38 @@ describe("error utilities", () => {
   });
 
   describe("logError", () => {
-    it("should log formatted error to console.error", () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    it("should log formatted error to logger.error", async () => {
+      const { logger } = await import("./logger.js");
+      const loggerSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
 
       const error = new Error("test error");
       logError(error);
 
-      expect(consoleSpy).toHaveBeenCalledWith("❌ test error");
-      consoleSpy.mockRestore();
+      expect(loggerSpy).toHaveBeenCalledWith("❌ test error");
+      loggerSpy.mockRestore();
     });
 
-    it("should log error with context", () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    it("should log error with context", async () => {
+      const { logger } = await import("./logger.js");
+      const loggerSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
 
       const error = new Error("test error");
       logError(error, "Test context");
 
-      expect(consoleSpy).toHaveBeenCalledWith("❌ Test context: test error");
-      consoleSpy.mockRestore();
+      expect(loggerSpy).toHaveBeenCalledWith("❌ Test context: test error");
+      loggerSpy.mockRestore();
     });
   });
 
   describe("logSuccess", () => {
-    it("should log formatted success to console.log", () => {
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    it("should log formatted success to logger.success", async () => {
+      const { logger } = await import("./logger.js");
+      const loggerSpy = vi.spyOn(logger, "success").mockImplementation(() => {});
 
       logSuccess("Success message");
 
-      expect(consoleSpy).toHaveBeenCalledWith("✅ Success message");
-      consoleSpy.mockRestore();
+      expect(loggerSpy).toHaveBeenCalledWith("✅ Success message");
+      loggerSpy.mockRestore();
     });
   });
 

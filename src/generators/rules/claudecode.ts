@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { ClaudeSettingsSchema } from "../../types/claudecode.js";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
 import { fileExists, readFileContent, resolvePath, writeFileContent } from "../../utils/file.js";
+import { logger } from "../../utils/logger.js";
 import { type EnhancedRuleGeneratorConfig, generateComplexRules } from "./shared-helpers.js";
 
 export async function generateClaudecodeConfig(
@@ -72,7 +73,7 @@ async function updateClaudeSettings(settingsPath: string, ignorePatterns: string
       const content = await readFileContent(settingsPath);
       rawSettings = JSON.parse(content);
     } catch {
-      console.warn(`Failed to parse existing ${settingsPath}, creating new settings`);
+      logger.warn(`Failed to parse existing ${settingsPath}, creating new settings`);
       rawSettings = {};
     }
   }
@@ -115,5 +116,5 @@ async function updateClaudeSettings(settingsPath: string, ignorePatterns: string
   const jsonContent = JSON.stringify(settings, null, 2);
   await writeFileContent(settingsPath, jsonContent);
 
-  console.log(`✅ Updated Claude Code settings: ${settingsPath}`);
+  logger.success(`Updated Claude Code settings: ${settingsPath}`);
 }

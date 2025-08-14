@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import { type ParsedRule, type RuleFrontmatter, RuleFrontmatterSchema } from "../types/index.js";
 import { filterIgnoredFiles, loadIgnorePatterns } from "../utils/ignore.js";
 import { findRuleFiles, readFileContent } from "../utils/index.js";
+import { logger } from "../utils/logger.js";
 
 export async function parseRulesFromDirectory(aiRulesDir: string): Promise<ParsedRule[]> {
   const ignorePatterns = await loadIgnorePatterns();
@@ -12,7 +13,7 @@ export async function parseRulesFromDirectory(aiRulesDir: string): Promise<Parse
   const errors: string[] = [];
 
   if (ignorePatterns.patterns.length > 0) {
-    console.log(`Loaded ${ignorePatterns.patterns.length} ignore patterns from .rulesyncignore`);
+    logger.info(`Loaded ${ignorePatterns.patterns.length} ignore patterns from .rulesyncignore`);
   }
 
   for (const filepath of ruleFiles) {

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { logger } from "../../utils/logger.js";
 
 export const gitignoreCommand = async (): Promise<void> => {
   const gitignorePath = join(process.cwd(), ".gitignore");
@@ -56,7 +57,7 @@ export const gitignoreCommand = async (): Promise<void> => {
   }
 
   if (linesToAdd.length === 0) {
-    console.log("✅ .gitignore is already up to date");
+    logger.success(".gitignore is already up to date");
     return;
   }
 
@@ -66,10 +67,10 @@ export const gitignoreCommand = async (): Promise<void> => {
 
   writeFileSync(gitignorePath, newContent);
 
-  console.log(`✅ Added ${linesToAdd.length} rules to .gitignore:`);
+  logger.success(`Added ${linesToAdd.length} rules to .gitignore:`);
   for (const line of linesToAdd) {
     if (!line.startsWith("#")) {
-      console.log(`  ${line}`);
+      logger.log(`  ${line}`);
     }
   }
 };

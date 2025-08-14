@@ -328,7 +328,7 @@ describe("generateRooMcpConfiguration", () => {
     const server = config.mcpServers["command-priority-server"];
     if (server.url || server.httpUrl || server.transport) {
       // Roo generator copies all properties
-      console.log("Roo generator includes URL properties even with command");
+      // This is expected behavior for Roo generator
     }
   });
 });

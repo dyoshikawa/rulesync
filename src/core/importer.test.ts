@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as parsers from "../parsers/index.js";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { ToolTarget } from "../types/index.js";
+import { logger } from "../utils/logger.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
@@ -170,7 +171,8 @@ describe("importConfiguration", () => {
   });
 
   it("should handle verbose mode", async () => {
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const loggerSpy = vi.spyOn(logger, "log").mockImplementation(() => {});
+    const loggerSuccessSpy = vi.spyOn(logger, "success").mockImplementation(() => {});
 
     vi.spyOn(parsers, "parseClineConfiguration").mockResolvedValueOnce({
       rules: [
@@ -195,12 +197,13 @@ describe("importConfiguration", () => {
       verbose: true,
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerSpy).toHaveBeenCalledWith(
       expect.stringContaining("Importing cline configuration from"),
     );
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("✅ Created rule file:"));
+    expect(loggerSuccessSpy).toHaveBeenCalledWith(expect.stringContaining("Created rule file:"));
 
-    consoleSpy.mockRestore();
+    loggerSpy.mockRestore();
+    loggerSuccessSpy.mockRestore();
   });
 
   it("should handle parser exceptions", async () => {
@@ -337,7 +340,8 @@ describe("importConfiguration", () => {
   });
 
   it("should handle verbose mode for ignore and MCP files", async () => {
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const loggerSpy = vi.spyOn(logger, "log").mockImplementation(() => {});
+    const loggerSuccessSpy = vi.spyOn(logger, "success").mockImplementation(() => {});
 
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
@@ -356,16 +360,17 @@ describe("importConfiguration", () => {
     });
 
     // Check that verbose log was called for importing
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerSpy).toHaveBeenCalledWith(
       expect.stringContaining("Importing claudecode configuration from"),
     );
 
     // Check that the ignore and MCP creation logs were called
-    const calls = consoleSpy.mock.calls.map((call) => call[0]);
-    expect(calls.some((msg) => msg.includes("Created .rulesyncignore with 2 patterns"))).toBe(true);
-    expect(calls.some((msg) => msg.includes("Created .mcp.json with 2 servers"))).toBe(true);
+    const successCalls = loggerSuccessSpy.mock.calls.map((call) => call[0]);
+    expect(successCalls.some((msg) => msg.includes("Created .rulesyncignore with 2 patterns"))).toBe(true);
+    expect(successCalls.some((msg) => msg.includes("Created .mcp.json with 2 servers"))).toBe(true);
 
-    consoleSpy.mockRestore();
+    loggerSpy.mockRestore();
+    loggerSuccessSpy.mockRestore();
   });
 
   it("should import commands files from Claude Code", async () => {

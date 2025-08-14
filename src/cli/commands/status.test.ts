@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../utils/logger.js";
 import { parseRulesFromDirectory } from "../../core/index.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import type { ParsedRule } from "../../types/index.js";
@@ -47,17 +48,17 @@ describe("statusCommand", () => {
     mockParseRulesFromDirectory.mockResolvedValue(mockRules);
 
     // Mock console methods
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(logger, "log").mockImplementation(() => {});
+    vi.spyOn(logger, "error").mockImplementation(() => {});
   });
 
   it("should show status when .rulesync directory exists", async () => {
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("rulesync Status");
-    expect(console.log).toHaveBeenCalledWith("===============");
-    expect(console.log).toHaveBeenCalledWith("\n📁 .rulesync directory: ✅ Found");
-    expect(console.log).toHaveBeenCalledWith("\n📋 Rules: 2 total");
+    expect(logger.log).toHaveBeenCalledWith("rulesync Status");
+    expect(logger.log).toHaveBeenCalledWith("===============");
+    expect(logger.log).toHaveBeenCalledWith("\n📁 .rulesync directory: ✅ Found");
+    expect(logger.log).toHaveBeenCalledWith("\n📋 Rules: 2 total");
   });
 
   it("should show message when .rulesync directory does not exist", async () => {
@@ -67,25 +68,25 @@ describe("statusCommand", () => {
 
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("\n📁 .rulesync directory: ❌ Not found");
-    expect(console.log).toHaveBeenCalledWith("\n💡 Run 'rulesync init' to get started");
+    expect(logger.log).toHaveBeenCalledWith("\n📁 .rulesync directory: ❌ Not found");
+    expect(logger.log).toHaveBeenCalledWith("\n💡 Run 'rulesync init' to get started");
     expect(mockParseRulesFromDirectory).not.toHaveBeenCalled();
   });
 
   it("should count rules by root status", async () => {
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("   - Root rules: 1");
-    expect(console.log).toHaveBeenCalledWith("   - Non-root rules: 1");
+    expect(logger.log).toHaveBeenCalledWith("   - Root rules: 1");
+    expect(logger.log).toHaveBeenCalledWith("   - Non-root rules: 1");
   });
 
   it("should count target tool coverage", async () => {
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("\n🎯 Target tool coverage:");
-    expect(console.log).toHaveBeenCalledWith("   - Copilot: 2 rules"); // rule1 (*) + rule2 (copilot)
-    expect(console.log).toHaveBeenCalledWith("   - Cursor: 2 rules"); // rule1 (*) + rule2 (cursor)
-    expect(console.log).toHaveBeenCalledWith("   - Cline: 1 rules"); // rule1 (*) only
+    expect(logger.log).toHaveBeenCalledWith("\n🎯 Target tool coverage:");
+    expect(logger.log).toHaveBeenCalledWith("   - Copilot: 2 rules"); // rule1 (*) + rule2 (copilot)
+    expect(logger.log).toHaveBeenCalledWith("   - Cursor: 2 rules"); // rule1 (*) + rule2 (cursor)
+    expect(logger.log).toHaveBeenCalledWith("   - Cline: 1 rules"); // rule1 (*) only
   });
 
   it("should check generated files status", async () => {
@@ -98,16 +99,16 @@ describe("statusCommand", () => {
 
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("\n📤 Generated files:");
-    expect(console.log).toHaveBeenCalledWith("   - copilot: ✅ Generated");
-    expect(console.log).toHaveBeenCalledWith("   - cursor: ❌ Not found");
-    expect(console.log).toHaveBeenCalledWith("   - cline: ✅ Generated");
+    expect(logger.log).toHaveBeenCalledWith("\n📤 Generated files:");
+    expect(logger.log).toHaveBeenCalledWith("   - copilot: ✅ Generated");
+    expect(logger.log).toHaveBeenCalledWith("   - cursor: ❌ Not found");
+    expect(logger.log).toHaveBeenCalledWith("   - cline: ✅ Generated");
   });
 
   it("should show generate suggestion when rules exist", async () => {
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith(
+    expect(logger.log).toHaveBeenCalledWith(
       "\n💡 Run 'rulesync generate' to update configuration files",
     );
   });
@@ -117,8 +118,8 @@ describe("statusCommand", () => {
 
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("\n📋 Rules: 0 total");
-    expect(console.log).not.toHaveBeenCalledWith(
+    expect(logger.log).toHaveBeenCalledWith("\n📋 Rules: 0 total");
+    expect(logger.log).not.toHaveBeenCalledWith(
       "\n💡 Run 'rulesync generate' to update configuration files",
     );
   });
@@ -129,7 +130,7 @@ describe("statusCommand", () => {
 
     await statusCommand();
 
-    expect(console.error).toHaveBeenCalledWith("\n❌ Failed to get status:", error);
+    expect(logger.error).toHaveBeenCalledWith("\n❌ Failed to get status:", error);
   });
 
   it("should handle rules with root field correctly", async () => {
@@ -150,7 +151,7 @@ describe("statusCommand", () => {
 
     await statusCommand();
 
-    expect(console.log).toHaveBeenCalledWith("   - Root rules: 1");
-    expect(console.log).toHaveBeenCalledWith("   - Non-root rules: 0");
+    expect(logger.log).toHaveBeenCalledWith("   - Root rules: 1");
+    expect(logger.log).toHaveBeenCalledWith("   - Non-root rules: 0");
   });
 });

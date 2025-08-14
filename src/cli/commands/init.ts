@@ -1,13 +1,14 @@
 import { join } from "node:path";
 import { loadConfig } from "../../utils/config-loader.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
 
 export async function initCommand(options: { legacy?: boolean } = {}): Promise<void> {
   const configResult = await loadConfig();
   const config = configResult.config;
   const aiRulesDir = config.aiRulesDir;
 
-  console.log("Initializing rulesync...");
+  logger.log("Initializing rulesync...");
 
   // Create .rulesync directory
   await ensureDir(aiRulesDir);
@@ -24,10 +25,10 @@ export async function initCommand(options: { legacy?: boolean } = {}): Promise<v
   // Create sample rule files
   await createSampleFiles(rulesDir);
 
-  console.log("✅ rulesync initialized successfully!");
-  console.log("\nNext steps:");
-  console.log(`1. Edit rule files in ${rulesDir}/`);
-  console.log("2. Run 'rulesync generate' to create configuration files");
+  logger.success("rulesync initialized successfully!");
+  logger.log("\nNext steps:");
+  logger.log(`1. Edit rule files in ${rulesDir}/`);
+  logger.log("2. Run 'rulesync generate' to create configuration files");
 }
 
 async function createSampleFiles(rulesDir: string): Promise<void> {
@@ -70,8 +71,8 @@ globs: ["**/*"]
   const filepath = join(rulesDir, sampleFile.filename);
   if (!(await fileExists(filepath))) {
     await writeFileContent(filepath, sampleFile.content);
-    console.log(`Created ${filepath}`);
+    logger.success(`Created ${filepath}`);
   } else {
-    console.log(`Skipped ${filepath} (already exists)`);
+    logger.log(`Skipped ${filepath} (already exists)`);
   }
 }

@@ -2,6 +2,8 @@
  * Error handling utilities for consistent error management across the application
  */
 
+import { logger } from "./logger.js";
+
 /**
  * Extract error message from unknown error type
  */
@@ -121,14 +123,14 @@ export function combineErrors(errors: string[], separator: string = "; "): strin
  * Log error with consistent formatting
  */
 export function logError(error: unknown, context?: string): void {
-  console.error(formatCliError(error, context));
+  logger.error(formatCliError(error, context));
 }
 
 /**
  * Log success message with consistent formatting
  */
 export function logSuccess(message: string): void {
-  console.log(formatCliSuccess(message));
+  logger.success(formatCliSuccess(message));
 }
 
 /**

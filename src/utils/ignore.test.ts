@@ -110,15 +110,16 @@ temp/
       vi.mocked(fileExists).mockResolvedValue(true);
       vi.mocked(readFileContent).mockRejectedValue(new Error("Read error"));
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { logger } = await import("./logger.js");
+      const loggerSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       const patterns = await loadIgnorePatterns();
 
       expect(patterns.patterns).toEqual([]);
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(loggerSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to read .rulesyncignore"),
       );
 
-      consoleSpy.mockRestore();
+      loggerSpy.mockRestore();
     });
   });
 });

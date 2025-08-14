@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockConfig } from "../../test-utils/index.js";
 import { loadConfig } from "../../utils/config-loader.js";
+import { logger } from "../../utils/logger.js";
 import { addCommand } from "./add.js";
 
 vi.mock("node:fs/promises");
@@ -21,9 +22,10 @@ describe("addCommand", () => {
     mockMkdir.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue();
 
-    // Mock console methods
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    // Mock logger methods
+    vi.spyOn(logger, "success").mockImplementation(() => {});
+    vi.spyOn(logger, "log").mockImplementation(() => {});
+    vi.spyOn(logger, "error").mockImplementation(() => {});
     vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit called");
     });
@@ -38,10 +40,10 @@ describe("addCommand", () => {
       expect.stringContaining("root: false"),
       "utf8",
     );
-    expect(console.log).toHaveBeenCalledWith(
-      `✅ Created rule file: ${path.join(".rulesync/rules", "test-rule.md")}`,
+    expect(logger.success).toHaveBeenCalledWith(
+      `Created rule file: ${path.join(".rulesync/rules", "test-rule.md")}`,
     );
-    expect(console.log).toHaveBeenCalledWith("📝 Edit the file to customize your rules.");
+    expect(logger.log).toHaveBeenCalledWith("📝 Edit the file to customize your rules.");
   });
 
   it("should remove .md extension from filename", async () => {
@@ -71,7 +73,7 @@ describe("addCommand", () => {
     mockMkdir.mockRejectedValue(error);
 
     await expect(addCommand("test-rule")).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith("❌ Failed to create rule file: Permission denied");
+    expect(logger.error).toHaveBeenCalledWith("Failed to create rule file: Permission denied");
   });
 
   it("should handle writeFile errors gracefully", async () => {
@@ -79,14 +81,14 @@ describe("addCommand", () => {
     mockWriteFile.mockRejectedValue(error);
 
     await expect(addCommand("test-rule")).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith("❌ Failed to create rule file: Disk full");
+    expect(logger.error).toHaveBeenCalledWith("Failed to create rule file: Disk full");
   });
 
   it("should handle non-Error exceptions", async () => {
     mockWriteFile.mockRejectedValue("String error");
 
     await expect(addCommand("test-rule")).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith("❌ Failed to create rule file: String error");
+    expect(logger.error).toHaveBeenCalledWith("Failed to create rule file: String error");
   });
 
   it("should capitalize first letter in template", async () => {

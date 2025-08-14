@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import matter from "gray-matter";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
+import { logger } from "../utils/logger.js";
 
 export interface ImportOptions {
   ignoreErrors?: boolean;
@@ -49,7 +50,7 @@ export async function importWindsurfRules(
     return results;
   } catch (error) {
     if (options.ignoreErrors) {
-      console.warn(`Warning: Failed to import Windsurf rules from ${sourceDir}:`, error);
+      logger.warn(`Warning: Failed to import Windsurf rules from ${sourceDir}:`, error);
       return results;
     }
     throw error;
@@ -103,7 +104,7 @@ function parseWindsurfRule(content: string, filename: string, filepath: string):
       filepath,
     };
   } catch (error) {
-    console.warn(`Warning: Failed to parse Windsurf rule file ${filename}:`, error);
+    logger.warn(`Warning: Failed to parse Windsurf rule file ${filename}:`, error);
     return null;
   }
 }

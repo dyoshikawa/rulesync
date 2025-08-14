@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import micromatch from "micromatch";
 import { fileExists, readFileContent } from "./file.js";
+import { logger } from "./logger.js";
 
 interface IgnorePatterns {
   patterns: string[];
@@ -26,7 +27,7 @@ export async function loadIgnorePatterns(baseDir: string = process.cwd()): Promi
     cachedIgnorePatterns = { patterns };
     return cachedIgnorePatterns;
   } catch (error) {
-    console.warn(`Failed to read .rulesyncignore: ${error}`);
+    logger.warn(`Failed to read .rulesyncignore: ${error}`);
     cachedIgnorePatterns = { patterns: [] };
     return cachedIgnorePatterns;
   }
