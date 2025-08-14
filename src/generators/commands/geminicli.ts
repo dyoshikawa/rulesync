@@ -45,16 +45,6 @@ export class GeminiCliCommandGenerator {
     // Convert shell command injection: !`command` to !{command}
     converted = converted.replace(/!`([^`]+)`/g, "!{$1}");
 
-    // Check for @ syntax and log warning (Gemini CLI doesn't support file injection)
-    const atSyntaxMatches = converted.match(/@[^\s]+/g);
-    if (atSyntaxMatches) {
-      console.warn(
-        `⚠️  Warning: @ syntax found (${atSyntaxMatches.join(", ")}). ` +
-          "Gemini CLI does not support file content injection. " +
-          "Consider using shell commands or remove these references.",
-      );
-    }
-
     return converted.trim();
   }
 

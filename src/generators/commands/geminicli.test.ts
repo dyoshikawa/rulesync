@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ParsedCommand } from "../../types/commands.js";
 import { GeminiCliCommandGenerator } from "./geminicli.js";
 
@@ -77,25 +77,6 @@ describe("GeminiCliCommandGenerator", () => {
 
       expect(result.content).toContain("!{git status}");
       expect(result.content).not.toContain("!`");
-    });
-
-    it("should warn about @ syntax", () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      const command: ParsedCommand = {
-        frontmatter: {},
-        content: "Include @file.txt and @another.md",
-        filename: "test",
-        filepath: "/path/to/test.md",
-      };
-
-      generator.generate(command, "/output");
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("@ syntax found (@file.txt, @another.md)"),
-      );
-
-      consoleSpy.mockRestore();
     });
 
     it("should escape special characters in description", () => {
