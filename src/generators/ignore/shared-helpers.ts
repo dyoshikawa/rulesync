@@ -7,19 +7,17 @@ export function extractIgnorePatternsFromRules(rules: ParsedRule[]): string[] {
   const patterns: string[] = [];
 
   for (const rule of rules) {
-    // Extract ignore patterns from rule globs
+    // Extract ignore patterns from rule globs (only sensitive ones)
     if (rule.frontmatter.globs && rule.frontmatter.globs.length > 0) {
-      for (const glob of rule.frontmatter.globs) {
-        // Convert globs to ignore patterns where appropriate for AI exclusion
-        if (shouldExcludeFromAI(glob)) {
-          patterns.push(`# Exclude: ${rule.frontmatter.description}`);
-          patterns.push(glob);
-        }
+      const sensitiveGlobs = rule.frontmatter.globs.filter(shouldExcludeFromAI);
+      if (sensitiveGlobs.length > 0) {
+        patterns.push(`# Exclude: ${rule.frontmatter.description}`);
+        patterns.push(...sensitiveGlobs);
       }
     }
 
-    // Look for explicit ignore patterns in rule content
-    const contentPatterns = extractIgnorePatternsFromContent(rule.content);
+    // Extract basic ignore patterns from rule content
+    const contentPatterns = extractBasicIgnorePatternsFromContent(rule.content);
     patterns.push(...contentPatterns);
   }
 
@@ -27,51 +25,80 @@ export function extractIgnorePatternsFromRules(rules: ParsedRule[]): string[] {
 }
 
 /**
- * Determine if a glob pattern should be excluded from AI access
+ * Determine if a glob pattern should be excluded from AI analysis
+ * Returns true for patterns that likely contain sensitive or non-source content
  */
-export function shouldExcludeFromAI(glob: string): boolean {
-  const excludePatterns = [
-    // Large generated files that slow indexing
-    "**/assets/generated/**",
-    "**/public/build/**",
+function shouldExcludeFromAI(glob: string): boolean {
+  const sensitivePatterns = [
+    // Security-related patterns
+    "**/secret**",
+    "**/credential**",
+    "**/token**",
+    "**/key**",
+    "**/password**",
+    "**/auth**",
+    "**/private**",
+    "**/confidential**",
+    "**/internal**",
+    "**/internal-docs/**",
+    "**/admin**",
 
-    // Test fixtures with potentially sensitive data
-    "**/tests/fixtures/**",
-    "**/test/fixtures/**",
-    "**/*.fixture.*",
+    // Configuration patterns that might contain secrets
+    "**/config/prod**",
+    "**/config/production**",
+    "**/config/secret**",
+    "**/config/secrets/**",
+    "**/env/**",
+    "**/.env**",
 
-    // Build outputs that provide little value for AI context
+    // Build and deployment patterns
     "**/dist/**",
     "**/build/**",
-    "**/coverage/**",
+    "**/target/**",
+    "**/out/**",
+    "**/node_modules/**",
 
-    // Configuration that might contain sensitive data
-    "**/config/production/**",
-    "**/config/secrets/**",
-    "**/config/prod/**",
-    "**/deploy/prod/**",
-    "**/*.prod.*",
+    // Data and media patterns
+    "**/data/**",
+    "**/dataset**",
+    "**/backup**",
+    "**/logs/**",
+    "**/log/**",
+    "**/temp/**",
+    "**/tmp/**",
+    "**/cache/**",
 
-    // Internal documentation that might be sensitive
-    "**/internal/**",
-    "**/internal-docs/**",
-    "**/proprietary/**",
-    "**/personal-notes/**",
-    "**/private/**",
-    "**/confidential/**",
+    // Test fixtures that might contain sensitive data
+    "**/test/fixtures/**",
+    "**/test**/fixture**",
+    "**/test**/mock**",
+    "**/test**/data/**",
+
+    // Database and infrastructure
+    "**/*.sqlite",
+    "**/*.db",
+    "**/*.dump",
+
+    // Production files
+    "**/*.prod.json",
+    "**/*.production.*",
   ];
 
-  return excludePatterns.some((pattern) => {
-    // Simple pattern matching for common cases
-    const regex = new RegExp(pattern.replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*"));
-    return regex.test(glob);
+  const lowerGlob = glob.toLowerCase();
+
+  return sensitivePatterns.some((pattern) => {
+    // Convert glob pattern to regex for matching
+    const regexPattern = pattern.replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*").replace(/\?/g, ".");
+
+    const regex = new RegExp(`^${regexPattern}$`, "i");
+    return regex.test(lowerGlob);
   });
 }
 
 /**
- * Extract ignore patterns from rule content for AI tools
+ * Extract basic ignore patterns from rule content
  */
-export function extractIgnorePatternsFromContent(content: string): string[] {
+function extractBasicIgnorePatternsFromContent(content: string): string[] {
   const patterns: string[] = [];
   const lines = content.split("\n");
 
@@ -83,30 +110,6 @@ export function extractIgnorePatternsFromContent(content: string): string[] {
       const pattern = trimmed.replace(/^# (IGNORE|aiignore):\s*/, "").trim();
       if (pattern) {
         patterns.push(pattern);
-      }
-    }
-
-    // Look for AugmentCode-specific ignore patterns
-    if (trimmed.startsWith("# AUGMENT_IGNORE:") || trimmed.startsWith("# augmentignore:")) {
-      const pattern = trimmed.replace(/^# (AUGMENT_IGNORE|augmentignore):\s*/, "").trim();
-      if (pattern) {
-        patterns.push(pattern);
-      }
-    }
-
-    // Look for re-inclusion patterns (negation with !)
-    if (trimmed.startsWith("# AUGMENT_INCLUDE:") || trimmed.startsWith("# augmentinclude:")) {
-      const pattern = trimmed.replace(/^# (AUGMENT_INCLUDE|augmentinclude):\s*/, "").trim();
-      if (pattern) {
-        patterns.push(`!${pattern}`);
-      }
-    }
-
-    // Look for common ignore patterns mentioned in content
-    if (trimmed.includes("exclude") || trimmed.includes("ignore")) {
-      const matches = trimmed.match(/['"`]([^'"`]+\.(log|tmp|cache|temp))['"`]/g);
-      if (matches) {
-        patterns.push(...matches.map((m) => m.replace(/['"`]/g, "")));
       }
     }
   }
@@ -153,11 +156,4 @@ export function extractAugmentCodeIgnorePatternsFromContent(content: string): st
   }
 
   return patterns;
-}
-
-/**
- * Determine if a glob pattern should be excluded specifically from AugmentCode indexing
- */
-export function shouldExcludeFromAugmentCode(glob: string): boolean {
-  return shouldExcludeFromAI(glob);
 }

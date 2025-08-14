@@ -1,16 +1,4 @@
-import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
-import {
-  generateMcpConfigurationFilesFromRegistry,
-  generateMcpFromRegistry,
-} from "./shared-factory.js";
+import { cursorMcpGenerator } from "./shared-factory.js";
 
-export function generateCursorMcp(config: RulesyncMcpConfig): string {
-  return generateMcpFromRegistry("cursor", config);
-}
-
-export function generateCursorMcpConfiguration(
-  mcpServers: Record<string, RulesyncMcpServer>,
-  baseDir: string = "",
-): Array<{ filepath: string; content: string }> {
-  return generateMcpConfigurationFilesFromRegistry("cursor", mcpServers, baseDir);
-}
+export const generateCursorMcp = cursorMcpGenerator.generateMcp;
+export const generateCursorMcpConfiguration = cursorMcpGenerator.generateMcpConfiguration;

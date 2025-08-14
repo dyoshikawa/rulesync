@@ -25,7 +25,7 @@ export async function parseCommandsFromDirectory(commandsDir: string): Promise<P
   return commands;
 }
 
-export async function parseCommandFile(filepath: string): Promise<ParsedCommand> {
+async function parseCommandFile(filepath: string): Promise<ParsedCommand> {
   const content = await readFileContent(filepath);
   const parsed = matter(content);
 

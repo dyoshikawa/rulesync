@@ -330,6 +330,36 @@ export function generateMcpFromRegistry(tool: ToolTarget, config: RulesyncMcpCon
 }
 
 /**
+ * Create simple MCP generator functions for tools that use the registry pattern
+ */
+export function createMcpGenerator(toolName: ToolTarget) {
+  return {
+    generateMcp: (config: RulesyncMcpConfig): string => {
+      return generateMcpFromRegistry(toolName, config);
+    },
+    generateMcpConfiguration: (
+      mcpServers: Record<string, RulesyncMcpServer>,
+      baseDir: string = "",
+    ): Array<{ filepath: string; content: string }> => {
+      return generateMcpConfigurationFilesFromRegistry(toolName, mcpServers, baseDir);
+    },
+  };
+}
+
+// Pre-created MCP generators for common tools
+export const cursorMcpGenerator = createMcpGenerator("cursor");
+export const clineMcpGenerator = createMcpGenerator("cline");
+export const copilotMcpGenerator = createMcpGenerator("copilot");
+export const windsurfMcpGenerator = createMcpGenerator("windsurf");
+export const kiroMcpGenerator = createMcpGenerator("kiro");
+export const rooMcpGenerator = createMcpGenerator("roo");
+export const claudecodeMcpGenerator = createMcpGenerator("claudecode");
+export const augmentcodeMcpGenerator = createMcpGenerator("augmentcode");
+export const geminicliMcpGenerator = createMcpGenerator("geminicli");
+export const junieMcpGenerator = createMcpGenerator("junie");
+export const codexcliMcpGenerator = createMcpGenerator("codexcli");
+
+/**
  * Generate MCP configuration files using registry
  */
 export function generateMcpConfigurationFilesFromRegistry(
