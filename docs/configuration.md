@@ -8,7 +8,12 @@ This comprehensive guide covers all aspects of rulesync configuration, from basi
 
 ### File Format
 
-Rule files are Markdown documents with optional YAML frontmatter located in the `.rulesync/` directory:
+Rule files are Markdown documents with optional YAML frontmatter. Starting from v0.62.0, rules can be placed in two locations:
+
+- **Recommended**: `.rulesync/rules/*.md` (new organized structure)
+- **Legacy**: `.rulesync/*.md` (backward compatible)
+
+When both locations contain files with the same name, the new location takes precedence.
 
 ```markdown
 ---
@@ -429,6 +434,13 @@ Enable verbose output during operations.
 ```jsonc
 "verbose": false  // Default: minimal output
 "verbose": true   // Detailed logging
+```
+
+#### `legacy`
+Use legacy directory structure for rule files.
+```jsonc
+"legacy": false  // Default: use .rulesync/rules/*.md (recommended)
+"legacy": true   // Use .rulesync/*.md (legacy structure)
 ```
 
 ### Directory Options

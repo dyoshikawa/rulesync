@@ -6,6 +6,7 @@ import {
   ensureDir,
   fileExists,
   findFiles,
+  findRuleFiles,
   readFileContent,
   readJsonFile,
   removeClaudeGeneratedFiles,
@@ -365,6 +366,64 @@ describe("file utilities", () => {
         JSON.stringify(data, null, 4),
         "utf-8",
       );
+    });
+  });
+
+  describe("findRuleFiles", () => {
+    it("should find files in new location (.rulesync/rules/*.md)", async () => {
+      // Mock the rules subdirectory
+      mockReaddir
+        .mockResolvedValueOnce(["test1.md", "test2.md"] as never) // rules directory
+        .mockResolvedValueOnce([] as never); // main directory
+
+      const result = await findRuleFiles("/test/.rulesync");
+
+      expect(mockReaddir).toHaveBeenCalledWith("/test/.rulesync/rules");
+      expect(mockReaddir).toHaveBeenCalledWith("/test/.rulesync");
+      expect(result).toEqual(["/test/.rulesync/rules/test1.md", "/test/.rulesync/rules/test2.md"]);
+    });
+
+    it("should find files in legacy location when rules directory is empty", async () => {
+      mockReaddir
+        .mockResolvedValueOnce([] as never) // rules directory (empty)
+        .mockResolvedValueOnce(["legacy1.md", "legacy2.md"] as never); // main directory
+
+      const result = await findRuleFiles("/test/.rulesync");
+
+      expect(result).toEqual(["/test/.rulesync/legacy1.md", "/test/.rulesync/legacy2.md"]);
+    });
+
+    it("should prioritize new location over legacy location for same-named files", async () => {
+      mockReaddir
+        .mockResolvedValueOnce(["duplicate.md", "new-only.md"] as never) // rules directory
+        .mockResolvedValueOnce(["duplicate.md", "legacy-only.md"] as never); // main directory
+
+      const result = await findRuleFiles("/test/.rulesync");
+
+      expect(result).toHaveLength(3);
+      expect(result).toEqual([
+        "/test/.rulesync/rules/duplicate.md",
+        "/test/.rulesync/rules/new-only.md",
+        "/test/.rulesync/legacy-only.md",
+      ]);
+    });
+
+    it("should handle non-existent directories gracefully", async () => {
+      mockReaddir.mockRejectedValue(new Error("Directory not found"));
+
+      const result = await findRuleFiles("/test/nonexistent");
+
+      expect(result).toEqual([]);
+    });
+
+    it("should only include .md files", async () => {
+      mockReaddir
+        .mockResolvedValueOnce(["rules.md", "rules.txt", "config.json"] as never) // rules directory
+        .mockResolvedValueOnce(["legacy.md", "legacy.txt"] as never); // main directory
+
+      const result = await findRuleFiles("/test/.rulesync");
+
+      expect(result).toEqual(["/test/.rulesync/rules/rules.md", "/test/.rulesync/legacy.md"]);
     });
   });
 

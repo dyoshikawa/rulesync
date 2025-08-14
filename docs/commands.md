@@ -39,18 +39,32 @@ npx rulesync init [options]
 ```
 
 **Options:**
+- `--legacy`: Use legacy directory structure (`.rulesync/*.md`)
 - `--verbose`, `-v`: Show detailed output during initialization
 
 **Examples:**
 ```bash
-# Basic initialization
+# Basic initialization (recommended: .rulesync/rules/)
 npx rulesync init
+
+# Initialize with legacy structure (.rulesync/*.md)
+npx rulesync init --legacy
 
 # Initialize with verbose output
 npx rulesync init --verbose
 ```
 
-**Generated Structure:**
+**Generated Structure (Default):**
+```
+.rulesync/
+├── rules/                   # Rule files (recommended)
+│   ├── overview.md         # Project overview (root rule)
+│   └── coding-standards.md # Example coding standards
+└── commands/               # Custom commands directory
+    └── example-command.md  # Example command
+```
+
+**Generated Structure (Legacy):**
 ```
 .rulesync/
 ├── overview.md              # Project overview (root rule)
@@ -186,14 +200,18 @@ npx rulesync import [options]
 - `--windsurf`: Import from Windsurf (`.windsurf/rules/`, `.windsurf-rules`)
 
 **General Options:**
+- `--legacy`: Import to legacy directory structure (`.rulesync/*.md`)
 - `--verbose`, `-v`: Show detailed import process
 - `--config <path>`: Use specific configuration file
 - `--base-dir <path>`: Import from specific directory
 
 **Examples:**
 ```bash
-# Import from Claude Code
+# Import from Claude Code (to .rulesync/rules/)
 npx rulesync import --claudecode
+
+# Import to legacy location (.rulesync/*.md)
+npx rulesync import --claudecode --legacy
 
 # Import from multiple tools (run separately)
 npx rulesync import --cursor
@@ -225,12 +243,16 @@ npx rulesync add <filename> [options]
 ```
 
 **Options:**
+- `--legacy`: Create in legacy directory structure (`.rulesync/*.md`)
 - `--verbose`, `-v`: Show detailed output
 
 **Examples:**
 ```bash
-# Add new rule file
+# Add new rule file (to .rulesync/rules/)
 npx rulesync add typescript-rules
+
+# Add to legacy location (.rulesync/*.md)
+npx rulesync add typescript-rules --legacy
 
 # Add with .md extension (handled automatically)
 npx rulesync add security-guidelines.md

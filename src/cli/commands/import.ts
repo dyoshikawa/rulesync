@@ -11,6 +11,7 @@ export interface ImportOptions {
   roo?: boolean;
   geminicli?: boolean;
   verbose?: boolean;
+  legacy?: boolean;
 }
 
 export async function importCommand(options: ImportOptions = {}): Promise<void> {
@@ -53,6 +54,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
     const result = await importConfiguration({
       tool,
       verbose: options.verbose ?? false,
+      useLegacyLocation: options.legacy ?? false,
     });
 
     if (result.success) {

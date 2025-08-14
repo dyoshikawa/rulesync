@@ -20,6 +20,7 @@ export interface ImportOptions {
   baseDir?: string;
   rulesDir?: string;
   verbose?: boolean;
+  useLegacyLocation?: boolean;
 }
 
 export interface ImportResult {
@@ -31,7 +32,13 @@ export interface ImportResult {
 }
 
 export async function importConfiguration(options: ImportOptions): Promise<ImportResult> {
-  const { tool, baseDir = process.cwd(), rulesDir = ".rulesync", verbose = false } = options;
+  const { 
+    tool, 
+    baseDir = process.cwd(), 
+    rulesDir = ".rulesync", 
+    verbose = false,
+    useLegacyLocation = false 
+  } = options;
   const errors: string[] = [];
   let rules: ParsedRule[] = [];
   let ignorePatterns: string[] | undefined;
@@ -141,6 +148,13 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         targetDir = join(rulesDirPath, "commands");
         const { mkdir } = await import("node:fs/promises");
         await mkdir(targetDir, { recursive: true });
+      } else {
+        // For regular rules, use legacy location or new location based on option
+        if (!useLegacyLocation) {
+          targetDir = join(rulesDirPath, "rules");
+          const { mkdir } = await import("node:fs/promises");
+          await mkdir(targetDir, { recursive: true });
+        }
       }
 
       const filePath = join(targetDir, `${baseFilename}.md`);

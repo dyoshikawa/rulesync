@@ -3,7 +3,7 @@
 [![CI](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml/badge.svg)](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/rulesync.svg)](https://www.npmjs.com/package/rulesync)
 
-A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files (`.rulesync/*.md`). Also imports existing AI tool configurations into the unified format.
+A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files (`.rulesync/rules/*.md`). Also imports existing AI tool configurations into the unified format.
 
 ## Installation
 
@@ -24,7 +24,7 @@ yarn global add rulesync
    npx rulesync init
    ```
 
-2. **Edit the generated rule files** in `.rulesync/` directory to match your project needs
+2. **Edit the generated rule files** in `.rulesync/rules/` directory to match your project needs
 
 3. **Generate tool-specific configuration files:**
    ```bash
@@ -86,20 +86,29 @@ Apply consistent rules across all AI tools, improving code quality and developme
 ## Quick Commands
 
 ```bash
-# Initialize new project
+# Initialize new project (recommended: rules in .rulesync/rules/)
 npx rulesync init
+
+# Initialize with legacy layout (.rulesync/*.md)
+npx rulesync init --legacy
 
 # Add new rule file
 npx rulesync add typescript-rules
+
+# Add rule file to legacy location
+npx rulesync add typescript-rules --legacy
+
+# Import existing configurations (to .rulesync/rules/ by default)
+npx rulesync import --cursor
+
+# Import to legacy location
+npx rulesync import --cursor --legacy
 
 # Validate rules
 npx rulesync validate
 
 # Generate configurations
 npx rulesync generate
-
-# Import from existing tools
-npx rulesync import --cursor
 
 # Watch for changes
 npx rulesync watch

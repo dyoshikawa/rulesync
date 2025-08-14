@@ -2,11 +2,11 @@ import { basename } from "node:path";
 import matter from "gray-matter";
 import { type ParsedRule, type RuleFrontmatter, RuleFrontmatterSchema } from "../types/index.js";
 import { filterIgnoredFiles, loadIgnorePatterns } from "../utils/ignore.js";
-import { findFiles, readFileContent } from "../utils/index.js";
+import { findRuleFiles, readFileContent } from "../utils/index.js";
 
 export async function parseRulesFromDirectory(aiRulesDir: string): Promise<ParsedRule[]> {
   const ignorePatterns = await loadIgnorePatterns();
-  const allRuleFiles = await findFiles(aiRulesDir, ".md");
+  const allRuleFiles = await findRuleFiles(aiRulesDir);
   const ruleFiles = filterIgnoredFiles(allRuleFiles, ignorePatterns.patterns);
   const rules: ParsedRule[] = [];
   const errors: string[] = [];

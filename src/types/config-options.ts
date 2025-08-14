@@ -28,6 +28,7 @@ export const ConfigOptionsSchema = z.object({
   verbose: z.optional(z.boolean()),
   delete: z.optional(z.boolean()),
   baseDir: z.optional(z.union([z.string(), z.array(z.string())])),
+  legacy: z.optional(z.boolean()),
 
   watch: z.optional(
     z.object({
@@ -64,6 +65,7 @@ export const MergedConfigSchema = z.object({
   delete: z.optional(z.boolean()),
   baseDir: z.optional(z.union([z.string(), z.array(z.string())])),
   configPath: z.optional(z.string()),
+  legacy: z.optional(z.boolean()),
 
   watch: z.optional(
     z.object({

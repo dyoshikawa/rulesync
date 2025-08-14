@@ -1,24 +1,36 @@
 import { join } from "node:path";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/index.js";
+import { loadConfig } from "../../utils/config-loader.js";
 
-export async function initCommand(): Promise<void> {
-  const aiRulesDir = ".rulesync";
+export async function initCommand(options: { legacy?: boolean } = {}): Promise<void> {
+  const configResult = await loadConfig();
+  const config = configResult.config;
+  const aiRulesDir = config.aiRulesDir;
 
   console.log("Initializing rulesync...");
 
   // Create .rulesync directory
   await ensureDir(aiRulesDir);
 
+  // Determine whether to use legacy location based on options and config
+  const useLegacy = options.legacy ?? config.legacy ?? false;
+  const rulesDir = useLegacy ? aiRulesDir : join(aiRulesDir, "rules");
+
+  // Create rules directory if using new location
+  if (!useLegacy) {
+    await ensureDir(rulesDir);
+  }
+
   // Create sample rule files
-  await createSampleFiles(aiRulesDir);
+  await createSampleFiles(rulesDir);
 
   console.log("✅ rulesync initialized successfully!");
   console.log("\nNext steps:");
-  console.log("1. Edit rule files in .rulesync/");
+  console.log(`1. Edit rule files in ${rulesDir}/`);
   console.log("2. Run 'rulesync generate' to create configuration files");
 }
 
-async function createSampleFiles(aiRulesDir: string): Promise<void> {
+async function createSampleFiles(rulesDir: string): Promise<void> {
   const sampleFile = {
     filename: "overview.md",
     content: `---
@@ -55,7 +67,7 @@ globs: ["**/*"]
 `,
   };
 
-  const filepath = join(aiRulesDir, sampleFile.filename);
+  const filepath = join(rulesDir, sampleFile.filename);
   if (!(await fileExists(filepath))) {
     await writeFileContent(filepath, sampleFile.content);
     console.log(`Created ${filepath}`);

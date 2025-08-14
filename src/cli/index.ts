@@ -18,9 +18,17 @@ const program = new Command();
 
 program.name("rulesync").description("Unified AI rules management CLI tool").version("0.61.0");
 
-program.command("init").description("Initialize rulesync in current directory").action(initCommand);
+program
+  .command("init")
+  .description("Initialize rulesync in current directory")
+  .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
+  .action(initCommand);
 
-program.command("add <filename>").description("Add a new rule file").action(addCommand);
+program
+  .command("add <filename>")
+  .description("Add a new rule file")
+  .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
+  .action(addCommand);
 
 program
   .command("gitignore")
@@ -40,6 +48,7 @@ program
   .option("--geminicli", "Import from Gemini CLI (GEMINI.md)")
   .option("--junie", "Import from JetBrains Junie (.junie/guidelines.md)")
   .option("-v, --verbose", "Verbose output")
+  .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
   .action(importCommand);
 
 program

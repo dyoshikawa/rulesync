@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
-import { getDefaultConfig } from "../../utils/config.js";
+import { loadConfig } from "../../utils/config-loader.js";
 
 /**
  * Remove .md extension from filename
@@ -29,14 +29,19 @@ Add your rules here.
 /**
  * Implementation of add command
  */
-export async function addCommand(filename: string): Promise<void> {
+export async function addCommand(filename: string, options: { legacy?: boolean } = {}): Promise<void> {
   try {
-    const config = getDefaultConfig();
+    const configResult = await loadConfig();
+    const config = configResult.config;
     const sanitizedFilename = sanitizeFilename(filename);
-    const rulesDir = config.aiRulesDir;
+    const aiRulesDir = config.aiRulesDir;
+    
+    // Determine whether to use legacy location based on options and config
+    const useLegacy = options.legacy ?? config.legacy ?? false;
+    const rulesDir = useLegacy ? aiRulesDir : path.join(aiRulesDir, "rules");
     const filePath = path.join(rulesDir, `${sanitizedFilename}.md`);
 
-    // Create .rulesync directory if it doesn't exist
+    // Create directory if it doesn't exist
     await mkdir(rulesDir, { recursive: true });
 
     // Generate template content

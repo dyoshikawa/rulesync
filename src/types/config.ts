@@ -9,6 +9,7 @@ const ConfigSchema = z.object({
   defaultTargets: ToolTargetsSchema,
   claudecodeCommands: z.optional(z.string()),
   geminicliCommands: z.optional(z.string()),
+  legacy: z.optional(z.boolean()),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
