@@ -44,5 +44,5 @@ export async function setupTestDirectory(): Promise<{
   return { testDir, cleanup };
 }
 
-export * from "./mock-config.js";
 export * from "./logger-mock.js";
+export * from "./mock-config.js";

@@ -58,10 +58,10 @@ describe("config command", () => {
       await configCommand();
 
       expect(mockLoadConfig).toHaveBeenCalled();
-      expect(console.log).toHaveBeenCalledWith(
+      expect(mockLogger.log).toHaveBeenCalledWith(
         "No configuration file found. Using default configuration.\n",
       );
-      expect(console.log).toHaveBeenCalledWith("Current configuration:");
+      expect(mockLogger.log).toHaveBeenCalledWith("Current configuration:");
     });
 
     it("should display excluded targets when present", async () => {
@@ -77,7 +77,7 @@ describe("config command", () => {
 
       await configCommand();
 
-      expect(console.log).toHaveBeenCalledWith("Excluded Targets: roo, cline");
+      expect(mockLogger.log).toHaveBeenCalledWith("Excluded Targets: roo, cline");
     });
 
     it("should display base directories when present", async () => {
@@ -93,7 +93,7 @@ describe("config command", () => {
 
       await configCommand();
 
-      expect(console.log).toHaveBeenCalledWith(
+      expect(mockLogger.log).toHaveBeenCalledWith(
         "\nBase Directories: ./packages/frontend, ./packages/backend",
       );
     });
@@ -115,10 +115,10 @@ describe("config command", () => {
 
       await configCommand();
 
-      expect(console.log).toHaveBeenCalledWith("\nWatch Configuration:");
-      expect(console.log).toHaveBeenCalledWith("  Enabled: true");
-      expect(console.log).toHaveBeenCalledWith("  Interval: 2000ms");
-      expect(console.log).toHaveBeenCalledWith("  Ignore patterns: node_modules/**, dist/**");
+      expect(mockLogger.log).toHaveBeenCalledWith("\nWatch Configuration:");
+      expect(mockLogger.log).toHaveBeenCalledWith("  Enabled: true");
+      expect(mockLogger.log).toHaveBeenCalledWith("  Interval: 2000ms");
+      expect(mockLogger.log).toHaveBeenCalledWith("  Ignore patterns: node_modules/**, dist/**");
     });
 
     it("should handle errors during config loading", async () => {
@@ -127,7 +127,7 @@ describe("config command", () => {
       // Don't test process.exit, just test that error is logged
       await configCommand().catch(() => {});
 
-      expect(console.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         "❌ Failed to load configuration:",
         "Config loading failed",
       );
@@ -143,8 +143,8 @@ describe("config command", () => {
         expect.stringContaining('"targets"'),
         "utf-8",
       );
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("✅ Created configuration file:"),
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        expect.stringContaining("Created configuration file:"),
       );
     });
 
@@ -203,7 +203,7 @@ describe("config command", () => {
         "process.exit called",
       );
 
-      expect(console.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         "❌ Invalid format: invalid. Valid formats are: jsonc, ts",
       );
       spy.mockRestore();
@@ -218,7 +218,7 @@ describe("config command", () => {
         "process.exit called",
       );
 
-      expect(console.error).toHaveBeenCalledWith("❌ Invalid target: invalid-target");
+      expect(mockLogger.error).toHaveBeenCalledWith("❌ Invalid target: invalid-target");
       spy.mockRestore();
     });
 
@@ -231,7 +231,7 @@ describe("config command", () => {
         "process.exit called",
       );
 
-      expect(console.error).toHaveBeenCalledWith("❌ Invalid exclude target: invalid-exclude");
+      expect(mockLogger.error).toHaveBeenCalledWith("❌ Invalid exclude target: invalid-exclude");
       spy.mockRestore();
     });
 
@@ -246,7 +246,7 @@ describe("config command", () => {
 
       await expect(configCommand({ init: true })).rejects.toThrow("process.exit called");
 
-      expect(console.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         "❌ Failed to create configuration file: Permission denied",
       );
       spy.mockRestore();

@@ -3,7 +3,7 @@ import { generateCommands } from "../../core/command-generator.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
-import { createMockConfig } from "../../test-utils/index.js";
+import { createMockConfig, mockLogger } from "../../test-utils/index.js";
 import type { ToolTarget } from "../../types/index.js";
 import {
   fileExists,
@@ -21,6 +21,9 @@ vi.mock("../../core/mcp-generator.js");
 vi.mock("../../core/mcp-parser.js");
 vi.mock("../../core/command-generator.js");
 vi.mock("../../utils/index.js");
+vi.mock("../../utils/logger.js", () => ({
+  logger: mockLogger,
+}));
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);
@@ -113,7 +116,7 @@ describe("generateCommand", () => {
     mockFileExists.mockResolvedValue(false);
 
     await expect(generateCommand()).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith(
+    expect(mockLogger.error).toHaveBeenCalledWith(
       "❌ .rulesync directory not found. Run 'rulesync init' first.",
     );
   });
@@ -123,7 +126,7 @@ describe("generateCommand", () => {
 
     await generateCommand();
 
-    expect(console.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
+    expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
   });
 
   it("should warn if no configurations generated", async () => {
@@ -131,14 +134,14 @@ describe("generateCommand", () => {
 
     await generateCommand();
 
-    expect(console.warn).toHaveBeenCalledWith("⚠️  No configurations generated");
+    expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No configurations generated");
   });
 
   it("should handle verbose mode", async () => {
     await generateCommand({ verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("Parsing rules from .rulesync...");
-    expect(console.log).toHaveBeenCalledWith("Found 1 rule(s)");
+    expect(mockLogger.info).toHaveBeenCalledWith("Parsing rules from .rulesync...");
+    expect(mockLogger.info).toHaveBeenCalledWith("Found 1 rule(s)");
   });
 
   it("should handle specific tools option", async () => {
@@ -159,7 +162,7 @@ describe("generateCommand", () => {
     mockParseRulesFromDirectory.mockRejectedValue(new Error("Parse error"));
 
     await expect(generateCommand()).rejects.toThrow("process.exit called");
-    expect(console.error).toHaveBeenCalledWith(
+    expect(mockLogger.error).toHaveBeenCalledWith(
       "❌ Failed to generate configurations:",
       expect.any(Error),
     );
@@ -186,8 +189,8 @@ describe("generateCommand", () => {
   it("should show verbose output when deleting directories", async () => {
     await generateCommand({ delete: true, verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("Deleting existing output directories...");
-    expect(console.log).toHaveBeenCalledWith("Deleted existing output directories");
+    expect(mockLogger.info).toHaveBeenCalledWith("Deleting existing output directories...");
+    expect(mockLogger.info).toHaveBeenCalledWith("Deleted existing output directories");
   });
 
   it("should warn when CLI tools differ from config targets", async () => {
@@ -205,17 +208,19 @@ describe("generateCommand", () => {
 
     await generateCommand({ tools: ["claudecode", "geminicli"] });
 
-    expect(console.warn).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       "⚠️  Warning: CLI tool selection differs from configuration!",
     );
-    expect(console.warn).toHaveBeenCalledWith("   Config targets: copilot, cursor, claudecode");
-    expect(console.warn).toHaveBeenCalledWith("   CLI specified: claudecode, geminicli");
-    expect(console.warn).toHaveBeenCalledWith("   Tools specified but not in config: geminicli");
-    expect(console.warn).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith("   Config targets: copilot, cursor, claudecode");
+    expect(mockLogger.warn).toHaveBeenCalledWith("   CLI specified: claudecode, geminicli");
+    expect(mockLogger.warn).toHaveBeenCalledWith("   Tools specified but not in config: geminicli");
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       "   Tools in config but not specified: copilot, cursor",
     );
-    expect(console.warn).toHaveBeenCalledWith("\n   The configuration file targets will be used.");
-    expect(console.warn).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      "\n   The configuration file targets will be used.",
+    );
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       "   To change targets, update your rulesync config file.",
     );
 
@@ -245,7 +250,7 @@ describe("generateCommand", () => {
     await generateCommand({ tools: ["copilot", "cursor"] });
 
     // Should not warn
-    expect(console.warn).not.toHaveBeenCalledWith(
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
       "⚠️  Warning: CLI tool selection differs from configuration!",
     );
 
@@ -264,10 +269,10 @@ describe("generateCommand", () => {
 
     await generateCommand({ baseDirs, verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith(
+    expect(mockLogger.info).toHaveBeenCalledWith(
       "\nGenerating configurations for base directory: ./package1",
     );
-    expect(console.log).toHaveBeenCalledWith(
+    expect(mockLogger.info).toHaveBeenCalledWith(
       "\nGenerating configurations for base directory: ./package2",
     );
     expect(mockGenerateConfigurations).toHaveBeenCalledTimes(2);
@@ -298,7 +303,7 @@ describe("generateCommand", () => {
 
     await generateCommand({ verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("Loaded configuration from: /path/to/config.json");
+    expect(mockLogger.info).toHaveBeenCalledWith("Loaded configuration from: /path/to/config.json");
   });
 
   it("should handle baseDir from config", async () => {
@@ -314,7 +319,7 @@ describe("generateCommand", () => {
 
     await generateCommand({ verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("Base directories: ./src, ./lib");
+    expect(mockLogger.info).toHaveBeenCalledWith("Base directories: ./src, ./lib");
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
       mockRules,
       expect.objectContaining({
@@ -361,7 +366,7 @@ describe("generateCommand", () => {
 
     await generateCommand({ baseDirs: ["./empty-dir"], verbose: true });
 
-    expect(console.warn).toHaveBeenCalledWith("⚠️  No configurations generated for ./empty-dir");
+    expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No configurations generated for ./empty-dir");
   });
 
   it("should handle MCP configuration generation", async () => {
@@ -379,9 +384,9 @@ describe("generateCommand", () => {
 
     await generateCommand({ verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("\nGenerating MCP configurations...");
-    expect(console.log).toHaveBeenCalledWith(
-      "✅ Generated copilot MCP configuration: .vscode/mcp.json",
+    expect(mockLogger.info).toHaveBeenCalledWith("\nGenerating MCP configurations...");
+    expect(mockLogger.success).toHaveBeenCalledWith(
+      "Generated copilot MCP configuration: .vscode/mcp.json",
     );
   });
 
@@ -418,7 +423,7 @@ describe("generateCommand", () => {
 
     await generateCommand();
 
-    expect(console.log).toHaveBeenCalledWith(
+    expect(mockLogger.success).toHaveBeenCalledWith(
       "\n🎉 All done! Generated 2 file(s) total (1 configurations + 1 MCP configurations)",
     );
   });
@@ -428,7 +433,7 @@ describe("generateCommand", () => {
 
     await generateCommand({ verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("No MCP configuration found for " + process.cwd());
+    expect(mockLogger.info).toHaveBeenCalledWith("No MCP configuration found for " + process.cwd());
   });
 
   it("should generate MCP configurations for claudecode tool", async () => {
@@ -454,9 +459,9 @@ describe("generateCommand", () => {
     await generateCommand({ tools: ["claudecode"] });
 
     // Verify that MCP configuration was generated
-    expect(console.log).toHaveBeenCalledWith(
-      "✅ Generated claudecode MCP configuration: ./.mcp.json",
+    expect(mockLogger.success).toHaveBeenCalledWith(
+      "Generated claudecode MCP configuration: ./.mcp.json",
     );
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("1 MCP configuration"));
+    expect(mockLogger.success).toHaveBeenCalledWith(expect.stringContaining("1 MCP configuration"));
   });
 });

@@ -1,15 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as importer from "../../core/importer.js";
+import { mockLogger } from "../../test-utils/index.js";
 import { importCommand } from "./import.js";
 
 vi.mock("../../core/importer");
+vi.mock("../../utils/logger.js", () => ({
+  logger: mockLogger,
+}));
 
 describe("import command", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
@@ -21,14 +22,14 @@ describe("import command", () => {
 
   it("should require at least one tool to be specified", async () => {
     await expect(importCommand({})).rejects.toThrow("process.exit");
-    expect(console.error).toHaveBeenCalledWith(
+    expect(mockLogger.error).toHaveBeenCalledWith(
       "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
     );
   });
 
   it("should reject multiple tools being specified", async () => {
     await expect(importCommand({ claudecode: true, cursor: true })).rejects.toThrow("process.exit");
-    expect(console.error).toHaveBeenCalledWith(
+    expect(mockLogger.error).toHaveBeenCalledWith(
       "❌ Only one tool can be specified at a time. Please run the import command separately for each tool.",
     );
   });
@@ -48,8 +49,8 @@ describe("import command", () => {
       verbose: false,
       useLegacyLocation: false,
     });
-    expect(console.log).toHaveBeenCalledWith("Importing configuration files from claudecode...");
-    expect(console.log).toHaveBeenCalledWith("✅ Imported 3 rule(s) from claudecode");
+    expect(mockLogger.log).toHaveBeenCalledWith("Importing configuration files from claudecode...");
+    expect(mockLogger.success).toHaveBeenCalledWith("Imported 3 rule(s) from claudecode");
   });
 
   it("should display ignore file creation message", async () => {
@@ -63,8 +64,8 @@ describe("import command", () => {
 
     await importCommand({ cursor: true });
 
-    expect(console.log).toHaveBeenCalledWith(
-      "✅ Created .rulesyncignore file from ignore patterns",
+    expect(mockLogger.success).toHaveBeenCalledWith(
+      "Created .rulesyncignore file from ignore patterns",
     );
   });
 
@@ -79,8 +80,8 @@ describe("import command", () => {
 
     await importCommand({ claudecode: true });
 
-    expect(console.log).toHaveBeenCalledWith(
-      "✅ Created .rulesync/.mcp.json file from MCP configuration",
+    expect(mockLogger.success).toHaveBeenCalledWith(
+      "Created .rulesync/.mcp.json file from MCP configuration",
     );
   });
 
@@ -94,7 +95,7 @@ describe("import command", () => {
 
     await importCommand({ copilot: true });
 
-    expect(console.warn).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       "⚠️  Failed to import from copilot: Failed to parse configuration",
     );
   });
@@ -109,17 +110,17 @@ describe("import command", () => {
 
     await importCommand({ cline: true, verbose: true });
 
-    expect(console.log).toHaveBeenCalledWith("\nDetailed errors:");
-    expect(console.log).toHaveBeenCalledWith("  - Error 1");
-    expect(console.log).toHaveBeenCalledWith("  - Error 2");
-    expect(console.log).toHaveBeenCalledWith("  - Error 3");
+    expect(mockLogger.info).toHaveBeenCalledWith("\nDetailed errors:");
+    expect(mockLogger.info).toHaveBeenCalledWith("  - Error 1");
+    expect(mockLogger.info).toHaveBeenCalledWith("  - Error 2");
+    expect(mockLogger.info).toHaveBeenCalledWith("  - Error 3");
   });
 
   it("should handle exceptions during import", async () => {
     vi.spyOn(importer, "importConfiguration").mockRejectedValueOnce(new Error("Unexpected error"));
 
     await expect(importCommand({ roo: true })).rejects.toThrow("process.exit");
-    expect(console.error).toHaveBeenCalledWith("❌ Error importing from roo: Unexpected error");
+    expect(mockLogger.error).toHaveBeenCalledWith("❌ Error importing from roo: Unexpected error");
   });
 
   it("should support all tool types", async () => {
@@ -127,7 +128,7 @@ describe("import command", () => {
 
     for (const tool of tools) {
       vi.resetAllMocks();
-      vi.spyOn(console, "log").mockImplementation(() => {});
+      // Logger is already mocked globally
 
       const mockResult = {
         success: true,
