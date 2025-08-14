@@ -77,7 +77,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 
 # Aliases
 RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
-RUN echo "alias dangerous-claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
+RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
 
 # Install mise
 RUN curl https://mise.run | sh
