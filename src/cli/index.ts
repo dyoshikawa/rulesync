@@ -56,6 +56,7 @@ program
   .option("--geminicli", "Generate only for Gemini CLI")
   .option("--junie", "Generate only for JetBrains Junie")
   .option("--kiro", "Generate only for Kiro IDE")
+  .option("--windsurf", "Generate only for Windsurf")
   .option("--delete", "Delete all existing files in output directories before generating")
   .option(
     "-b, --base-dir <paths>",
@@ -77,6 +78,7 @@ program
     if (options.geminicli) tools.push("geminicli");
     if (options.junie) tools.push("junie");
     if (options.kiro) tools.push("kiro");
+    if (options.windsurf) tools.push("windsurf");
 
     const generateOptions: {
       verbose?: boolean;

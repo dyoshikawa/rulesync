@@ -29,7 +29,9 @@ export async function generateCommands(
   const outputDir = baseDir || projectRoot;
 
   // Filter targets to only those that support commands
-  const supportedTargets = targets.filter((target) => ["claudecode", "geminicli"].includes(target));
+  const supportedTargets = targets.filter((target) =>
+    ["claudecode", "geminicli", "roo"].includes(target),
+  );
 
   // Generate command files for each supported target
   for (const target of supportedTargets) {
