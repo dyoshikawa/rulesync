@@ -29,13 +29,16 @@ Add your rules here.
 /**
  * Implementation of add command
  */
-export async function addCommand(filename: string, options: { legacy?: boolean } = {}): Promise<void> {
+export async function addCommand(
+  filename: string,
+  options: { legacy?: boolean } = {},
+): Promise<void> {
   try {
     const configResult = await loadConfig();
     const config = configResult.config;
     const sanitizedFilename = sanitizeFilename(filename);
     const aiRulesDir = config.aiRulesDir;
-    
+
     // Determine whether to use legacy location based on options and config
     const useLegacy = options.legacy ?? config.legacy ?? false;
     const rulesDir = useLegacy ? aiRulesDir : path.join(aiRulesDir, "rules");

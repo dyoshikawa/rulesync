@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { ensureDir, fileExists, writeFileContent } from "../../utils/index.js";
 import { loadConfig } from "../../utils/config-loader.js";
+import { ensureDir, fileExists, writeFileContent } from "../../utils/index.js";
 
 export async function initCommand(options: { legacy?: boolean } = {}): Promise<void> {
   const configResult = await loadConfig();

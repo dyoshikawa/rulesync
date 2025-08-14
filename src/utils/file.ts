@@ -99,18 +99,18 @@ export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {
   const rulesDir = join(aiRulesDir, "rules");
   const newLocationFiles = await findFiles(rulesDir, ".md");
   const legacyLocationFiles = await findFiles(aiRulesDir, ".md");
-  
+
   // Get basenames from new location files for deduplication
   const newLocationBasenames = new Set(
-    newLocationFiles.map(file => file.split("/").pop()?.replace(/\.md$/, ""))
+    newLocationFiles.map((file) => file.split("/").pop()?.replace(/\.md$/, "")),
   );
-  
+
   // Filter legacy files to exclude those that exist in new location
-  const filteredLegacyFiles = legacyLocationFiles.filter(file => {
+  const filteredLegacyFiles = legacyLocationFiles.filter((file) => {
     const basename = file.split("/").pop()?.replace(/\.md$/, "");
     return !newLocationBasenames.has(basename);
   });
-  
+
   // Return combined list with new location files first
   return [...newLocationFiles, ...filteredLegacyFiles];
 }

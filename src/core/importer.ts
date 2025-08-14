@@ -32,12 +32,12 @@ export interface ImportResult {
 }
 
 export async function importConfiguration(options: ImportOptions): Promise<ImportResult> {
-  const { 
-    tool, 
-    baseDir = process.cwd(), 
-    rulesDir = ".rulesync", 
+  const {
+    tool,
+    baseDir = process.cwd(),
+    rulesDir = ".rulesync",
     verbose = false,
-    useLegacyLocation = false 
+    useLegacyLocation = false,
   } = options;
   const errors: string[] = [];
   let rules: ParsedRule[] = [];

@@ -1,6 +1,6 @@
-import { beforeEach, afterEach, describe, it, expect } from "vitest";
-import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { parseRulesFromDirectory } from "./parser.js";
 
@@ -19,7 +19,7 @@ describe("parseRulesFromDirectory with new rules directory structure", () => {
   it("should parse rules from new location (.rulesync/rules/*.md)", async () => {
     const rulesDir = join(testDir, "rules");
     await mkdir(rulesDir, { recursive: true });
-    
+
     const rule1Content = `---
 root: false
 targets: ["copilot"]
@@ -101,9 +101,9 @@ This is the legacy version of the rule.`;
     const rules = await parseRulesFromDirectory(testDir);
 
     expect(rules).toHaveLength(2);
-    
+
     // Find the duplicate rule and verify it comes from the new location
-    const duplicateRule = rules.find(rule => rule.filename === "duplicate");
+    const duplicateRule = rules.find((rule) => rule.filename === "duplicate");
     expect(duplicateRule).toBeDefined();
     if (duplicateRule) {
       expect(duplicateRule.frontmatter.description).toBe("New rule version");
@@ -111,7 +111,7 @@ This is the legacy version of the rule.`;
     }
 
     // Verify the legacy-only file is still included
-    const legacyOnlyRule = rules.find(rule => rule.filename === "legacy-only");
+    const legacyOnlyRule = rules.find((rule) => rule.filename === "legacy-only");
     expect(legacyOnlyRule).toBeDefined();
     if (legacyOnlyRule) {
       expect(legacyOnlyRule.frontmatter.description).toBe("Legacy rule version");
@@ -146,8 +146,8 @@ description: "Legacy location rule"
     const rules = await parseRulesFromDirectory(testDir);
 
     expect(rules).toHaveLength(2);
-    
-    const ruleFilenames = rules.map(r => r.filename).sort();
+
+    const ruleFilenames = rules.map((r) => r.filename).sort();
     expect(ruleFilenames).toEqual(["legacy-rule", "new-rule"]);
   });
 
