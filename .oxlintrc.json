@@ -36,7 +36,7 @@
       "files": ["**/*.test.ts"],
       "rules": {
         "typescript/no-explicit-any": "off",
-        "no-console": "off"
+        "no-console": "error"
       }
     }
   ]
