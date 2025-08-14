@@ -212,6 +212,7 @@
         "ENOENT",
         "namespacing",
         "roomodes",
-        "PYTHONPATH"
+        "PYTHONPATH",
+        "mattlewis"
     ]
 }
