@@ -4,12 +4,12 @@ const config: KnipConfig = {
   entry: ["src/cli/index.ts", "src/**/*.test.ts", "src/**/*.test-d.ts"],
   project: ["src/**/*.ts"],
   ignore: [
-    // ビルド出力とnode_modules
+    // Build output and node_modules
     "dist/**",
     "node_modules/**",
-    // テスト時の一時ファイル
+    // Temporary files during testing
     "**/test-temp/**",
-    // 設定ファイル
+    // Configuration files
     "tsconfig.json",
     "vitest.config.ts",
     "eslint.config.js",
@@ -17,11 +17,11 @@ const config: KnipConfig = {
     ".rulesync/**",
   ],
   ignoreDependencies: [
-    // 設定ファイルでのみ使用される依存関係
+    // Dependencies used only in configuration files
     "@secretlint/secretlint-rule-preset-recommend",
-    // MCP開発用
+    // For MCP development
     "o3-search-mcp",
-    // TypeScript設定のみで使用されるもの
+    // Used only in TypeScript configuration
     "typescript",
     "@types/node",
     "@types/js-yaml",

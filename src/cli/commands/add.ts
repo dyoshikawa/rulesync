@@ -39,10 +39,10 @@ export async function addCommand(filename: string): Promise<void> {
     // Create .rulesync directory if it doesn't exist
     await mkdir(rulesDir, { recursive: true });
 
-    // テンプレート内容を生成
+    // Generate template content
     const template = generateRuleTemplate(sanitizedFilename);
 
-    // ファイルを作成
+    // Create the file
     await writeFile(filePath, template, "utf8");
 
     console.log(`✅ Created rule file: ${filePath}`);
