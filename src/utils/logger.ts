@@ -3,12 +3,12 @@ import { consola } from "consola";
 // Global logger instance with configurable verbosity
 class Logger {
   private _verbose = false;
-  private console = consola.withTag("rulesync");
+  private console = consola.withDefaults({
+    tag: "rulesync",
+  });
 
   setVerbose(verbose: boolean): void {
     this._verbose = verbose;
-    // Set consola's log level based on verbose flag
-    this.console.level = verbose ? 1 : 2; // 1 = info, 2 = warn
   }
 
   get verbose(): boolean {
