@@ -1,5 +1,5 @@
 ---
-description: 'Refactor by similarity'
+description: 'Refactor'
 targets:
   - claudecode
 ---
