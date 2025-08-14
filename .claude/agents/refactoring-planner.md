@@ -11,5 +11,5 @@ model: inherit
 2. Execute `pnpm run knip` to detect dead codes.
   - knip is a tool installed via pnpm. It is already installed in this environment.
   - You can check usage with `pnpm run exec knip --help`.
-  - User is only interested in the results about dead codes.
+  - User is interested in the results about dead codes especially.
 3. Once you have the results of the above two commands, create a refactoring plan.
