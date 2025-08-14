@@ -1,17 +1,8 @@
 import { type KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  entry: [
-    // メインのCLIエントリーポイント
-    "src/cli/index.ts",
-    // テストファイル
-    "src/**/*.test.ts",
-    "src/**/*.test-d.ts",
-  ],
-  project: [
-    // TypeScriptファイルを対象にする
-    "src/**/*.ts",
-  ],
+  entry: ["src/cli/index.ts", "src/**/*.test.ts", "src/**/*.test-d.ts"],
+  project: ["src/**/*.ts"],
   ignore: [
     // ビルド出力とnode_modules
     "dist/**",
@@ -35,12 +26,12 @@ const config: KnipConfig = {
     "@types/node",
     "@types/js-yaml",
     "@types/micromatch",
+    // lint-staged is used in git hooks
+    "lint-staged",
   ],
   typescript: {
-    // TypeScript設定ファイルのパス
     config: "tsconfig.json",
   },
-  // 未使用の exports を検出
   includeEntryExports: true,
 };
 
