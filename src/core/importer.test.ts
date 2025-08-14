@@ -148,7 +148,7 @@ describe("importConfiguration", () => {
 
     expect(result.mcpFileCreated).toBe(true);
 
-    const mcpContent = await readFile(join(rulesDir, ".mcp.json"), "utf-8");
+    const mcpContent = await readFile(join(testDir, ".rulesync", ".mcp.json"), "utf-8");
     const parsed = JSON.parse(mcpContent);
     expect(parsed.mcpServers).toEqual(mcpServers);
   });
@@ -397,7 +397,7 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.success).toBe(true);
 
-    const createdFile = await readFile(join(rulesDir, "commands", "fix-issue.md"), "utf-8");
+    const createdFile = await readFile(join(testDir, ".rulesync", "commands", "fix-issue.md"), "utf-8");
     expect(createdFile).toContain("description: 'Command: fix-issue'");
     expect(createdFile).toContain("targets:");
     expect(createdFile).toContain("- claudecode");
@@ -435,7 +435,7 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.success).toBe(true);
 
-    const createdFile = await readFile(join(rulesDir, "commands", "optimize.md"), "utf-8");
+    const createdFile = await readFile(join(testDir, ".rulesync", "commands", "optimize.md"), "utf-8");
     expect(createdFile).toContain("description: 'Command: optimize'");
     expect(createdFile).toContain("targets:");
     expect(createdFile).toContain("- geminicli");
