@@ -397,7 +397,10 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.success).toBe(true);
 
-    const createdFile = await readFile(join(testDir, ".rulesync", "commands", "fix-issue.md"), "utf-8");
+    const createdFile = await readFile(
+      join(testDir, ".rulesync", "commands", "fix-issue.md"),
+      "utf-8",
+    );
     expect(createdFile).toContain("description: 'Command: fix-issue'");
     expect(createdFile).toContain("targets:");
     expect(createdFile).toContain("- claudecode");
@@ -435,7 +438,10 @@ describe("importConfiguration", () => {
     expect(result.rulesCreated).toBe(1);
     expect(result.success).toBe(true);
 
-    const createdFile = await readFile(join(testDir, ".rulesync", "commands", "optimize.md"), "utf-8");
+    const createdFile = await readFile(
+      join(testDir, ".rulesync", "commands", "optimize.md"),
+      "utf-8",
+    );
     expect(createdFile).toContain("description: 'Command: optimize'");
     expect(createdFile).toContain("targets:");
     expect(createdFile).toContain("- geminicli");
