@@ -119,6 +119,20 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
       const targetTools = config.defaultTargets;
       const deleteTasks = [];
 
+      // Check if .rulesync/commands directory has any command files
+      const commandsDir = join(config.aiRulesDir, "commands");
+      const hasCommands = await fileExists(commandsDir);
+      let hasCommandFiles = false;
+      if (hasCommands) {
+        const { readdir } = await import("node:fs/promises");
+        try {
+          const files = await readdir(commandsDir);
+          hasCommandFiles = files.some((file) => file.endsWith(".md"));
+        } catch {
+          hasCommandFiles = false;
+        }
+      }
+
       for (const tool of targetTools) {
         switch (tool) {
           case "augmentcode":
@@ -142,15 +156,24 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
           case "claudecode":
             // Use safe deletion for Claude Code files only
             deleteTasks.push(removeClaudeGeneratedFiles());
-            deleteTasks.push(removeDirectory(join(".claude", "commands")));
+            // Only delete commands directory if .rulesync/commands/*.md files exist
+            if (hasCommandFiles) {
+              deleteTasks.push(removeDirectory(join(".claude", "commands")));
+            }
             break;
           case "roo":
             deleteTasks.push(removeDirectory(config.outputPaths.roo));
-            deleteTasks.push(removeDirectory(join(".roo", "commands")));
+            // Only delete commands directory if .rulesync/commands/*.md files exist
+            if (hasCommandFiles) {
+              deleteTasks.push(removeDirectory(join(".roo", "commands")));
+            }
             break;
           case "geminicli":
             deleteTasks.push(removeDirectory(config.outputPaths.geminicli));
-            deleteTasks.push(removeDirectory(join(".gemini", "commands")));
+            // Only delete commands directory if .rulesync/commands/*.md files exist
+            if (hasCommandFiles) {
+              deleteTasks.push(removeDirectory(join(".gemini", "commands")));
+            }
             break;
           case "kiro":
             deleteTasks.push(removeDirectory(config.outputPaths.kiro));

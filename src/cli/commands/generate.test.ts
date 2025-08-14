@@ -24,6 +24,7 @@ vi.mock("../../utils/index.js");
 vi.mock("../../utils/logger.js", () => ({
   logger: mockLogger,
 }));
+vi.mock("node:fs/promises");
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);
@@ -63,7 +64,7 @@ const mockOutputs = [
 ];
 
 describe("generateCommand", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     mockGetDefaultConfig.mockReturnValue(mockConfig);
     mockFileExists.mockResolvedValue(true);
@@ -85,6 +86,11 @@ describe("generateCommand", () => {
       ...cliOptions,
       defaultTargets: cliOptions.tools || config.defaultTargets,
     }));
+
+    // Mock fs.promises.readdir
+    const { readdir } = await import("node:fs/promises");
+    const mockReaddir = vi.mocked(readdir);
+    mockReaddir.mockResolvedValue([]);
 
     // Mock console methods
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -426,6 +432,102 @@ describe("generateCommand", () => {
     expect(mockLogger.success).toHaveBeenCalledWith(
       "\n🎉 All done! Generated 2 file(s) total (1 configurations + 1 MCP configurations)",
     );
+  });
+
+  it("should not delete command directories when no .rulesync/commands/*.md files exist", async () => {
+    // Mock fs.promises.readdir - reset to default first
+    const { readdir } = await import("node:fs/promises");
+    const mockReaddir = vi.mocked(readdir);
+    vi.clearAllMocks();
+
+    // Set up all the standard mocks again
+    mockGetDefaultConfig.mockReturnValue(mockConfig);
+    mockFileExists.mockResolvedValue(true);
+    mockParseRulesFromDirectory.mockResolvedValue(mockRules);
+    mockGenerateConfigurations.mockResolvedValue(mockOutputs);
+    mockWriteFileContent.mockResolvedValue();
+    mockRemoveDirectory.mockResolvedValue();
+    mockRemoveClaudeGeneratedFiles.mockResolvedValue();
+    mockGenerateMcpConfigurations.mockResolvedValue([]);
+    mockParseMcpConfig.mockReturnValue(null);
+    mockGenerateCommands.mockResolvedValue([]);
+
+    mockLoadConfig.mockResolvedValue({
+      config: mockConfig,
+      isEmpty: true,
+    });
+
+    // Mock that commands directory exists but no .md files
+    mockFileExists.mockImplementation((path: string) => {
+      if (path.includes("commands")) {
+        return Promise.resolve(true); // commands directory exists
+      }
+      return Promise.resolve(true);
+    });
+
+    mockReaddir.mockResolvedValue([] as any[]); // No files in commands directory
+
+    const configWithCommands = {
+      ...mockConfig,
+      defaultTargets: ["claudecode", "roo", "geminicli"] as ToolTarget[],
+      delete: true,
+    };
+    mockMergeWithCliOptions.mockReturnValue(configWithCommands);
+
+    await generateCommand({ delete: true });
+
+    // Should not call removeDirectory for commands
+    expect(mockRemoveDirectory).not.toHaveBeenCalledWith(".claude/commands");
+    expect(mockRemoveDirectory).not.toHaveBeenCalledWith(".roo/commands");
+    expect(mockRemoveDirectory).not.toHaveBeenCalledWith(".gemini/commands");
+  });
+
+  it("should delete command directories only when .rulesync/commands/*.md files exist", async () => {
+    // Mock fs.promises.readdir - reset to default first
+    const { readdir } = await import("node:fs/promises");
+    const mockReaddir = vi.mocked(readdir);
+    vi.clearAllMocks();
+
+    // Set up all the standard mocks again
+    mockGetDefaultConfig.mockReturnValue(mockConfig);
+    mockFileExists.mockResolvedValue(true);
+    mockParseRulesFromDirectory.mockResolvedValue(mockRules);
+    mockGenerateConfigurations.mockResolvedValue(mockOutputs);
+    mockWriteFileContent.mockResolvedValue();
+    mockRemoveDirectory.mockResolvedValue();
+    mockRemoveClaudeGeneratedFiles.mockResolvedValue();
+    mockGenerateMcpConfigurations.mockResolvedValue([]);
+    mockParseMcpConfig.mockReturnValue(null);
+    mockGenerateCommands.mockResolvedValue([]);
+
+    mockLoadConfig.mockResolvedValue({
+      config: mockConfig,
+      isEmpty: true,
+    });
+
+    // Mock that commands directory exists with .md files
+    mockFileExists.mockImplementation((path: string) => {
+      if (path.includes("commands")) {
+        return Promise.resolve(true); // commands directory exists
+      }
+      return Promise.resolve(true);
+    });
+
+    mockReaddir.mockResolvedValue(["test-command.md", "other-file.txt"] as any[]);
+
+    const configWithCommands = {
+      ...mockConfig,
+      defaultTargets: ["claudecode", "roo", "geminicli"] as ToolTarget[],
+      delete: true,
+    };
+    mockMergeWithCliOptions.mockReturnValue(configWithCommands);
+
+    await generateCommand({ delete: true });
+
+    // Should call removeDirectory for commands since .md files exist
+    expect(mockRemoveDirectory).toHaveBeenCalledWith(".claude/commands");
+    expect(mockRemoveDirectory).toHaveBeenCalledWith(".roo/commands");
+    expect(mockRemoveDirectory).toHaveBeenCalledWith(".gemini/commands");
   });
 
   it("should handle case when no MCP configurations are found", async () => {
