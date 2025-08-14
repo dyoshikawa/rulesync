@@ -12,15 +12,6 @@ export const RuleFrontmatterSchema = z.object({
   tags: z.optional(z.array(z.string())),
 });
 
-// Schema for parsing (with optional fields)
-export const ParsedRuleSchema = z.object({
-  frontmatter: RuleFrontmatterSchema,
-  content: z.string(),
-  filename: z.string(),
-  filepath: z.string(),
-  type: z.optional(z.enum(["rule", "command"])),
-});
-
 // Type for processed rule (with defaults applied)
 export type ProcessedRule = {
   frontmatter: RuleFrontmatter;
@@ -30,13 +21,14 @@ export type ProcessedRule = {
   type?: "rule" | "command";
 };
 
-export const GeneratedOutputSchema = z.object({
+// Schemas for internal validation - not exported as they're unused externally
+const GeneratedOutputSchema = z.object({
   tool: ToolTargetSchema,
   filepath: z.string(),
   content: z.string(),
 });
 
-export const GenerateOptionsSchema = z.object({
+const GenerateOptionsSchema = z.object({
   targetTools: z.optional(ToolTargetsSchema),
   outputDir: z.optional(z.string()),
   watch: z.optional(z.boolean()),

@@ -105,14 +105,20 @@ This is a TypeScript project.
   });
 
   it("should handle missing instructions directory", async () => {
-    const { rm } = await import("node:fs/promises");
-    await rm(instructionsDir, { recursive: true, force: true });
+    // Create a fresh test directory without instructions directory
+    const { setupTestDirectory } = await import("../test-utils/index.js");
+    const { testDir: freshTestDir, cleanup: freshCleanup } = await setupTestDirectory();
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(join(freshTestDir, ".github"), { recursive: true });
 
-    await writeFile(copilotPath, "# Main Instructions");
+    const freshCopilotPath = join(freshTestDir, ".github", "copilot-instructions.md");
+    await writeFile(freshCopilotPath, "# Main Instructions");
 
-    const result = await parseCopilotConfiguration(testDir);
+    const result = await parseCopilotConfiguration(freshTestDir);
     expect(result.errors).toEqual([]);
     expect(result.rules).toHaveLength(1);
+
+    await freshCleanup();
   });
 
   it("should generate correct frontmatter for instruction files", async () => {

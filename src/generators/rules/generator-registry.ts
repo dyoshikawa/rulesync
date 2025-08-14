@@ -374,26 +374,3 @@ export async function generateFromRegistry(
     return generateComplexRules(rules, config, enhancedConfig, baseDir);
   }
 }
-
-/**
- * Get the configuration for a specific tool
- */
-export function getGeneratorConfig(tool: ToolTarget): GeneratorConfig | undefined {
-  return GENERATOR_REGISTRY[tool];
-}
-
-/**
- * Get all available tool targets from the registry
- */
-export function getAvailableTools(): ToolTarget[] {
-  return Object.keys(GENERATOR_REGISTRY).filter(
-    (key): key is ToolTarget => key in GENERATOR_REGISTRY,
-  );
-}
-
-/**
- * Add a new generator configuration to the registry
- */
-export function registerGenerator(tool: ToolTarget, config: GeneratorConfig): void {
-  GENERATOR_REGISTRY[tool] = config;
-}

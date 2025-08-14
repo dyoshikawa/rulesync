@@ -346,18 +346,9 @@ export function createMcpGenerator(toolName: ToolTarget) {
   };
 }
 
-// Pre-created MCP generators for common tools
+// Pre-created MCP generators for common tools (only those actually used)
 export const cursorMcpGenerator = createMcpGenerator("cursor");
 export const clineMcpGenerator = createMcpGenerator("cline");
-export const copilotMcpGenerator = createMcpGenerator("copilot");
-export const windsurfMcpGenerator = createMcpGenerator("windsurf");
-export const kiroMcpGenerator = createMcpGenerator("kiro");
-export const rooMcpGenerator = createMcpGenerator("roo");
-export const claudecodeMcpGenerator = createMcpGenerator("claudecode");
-export const augmentcodeMcpGenerator = createMcpGenerator("augmentcode");
-export const geminicliMcpGenerator = createMcpGenerator("geminicli");
-export const junieMcpGenerator = createMcpGenerator("junie");
-export const codexcliMcpGenerator = createMcpGenerator("codexcli");
 
 /**
  * Generate MCP configuration files using registry

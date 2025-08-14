@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../test-utils/index.js";
 import type { Config } from "../types/index.js";
 import { getDefaultConfig } from "../utils/config.js";
 import { generateConfigurations } from "./generator.js";
@@ -10,15 +10,16 @@ import { parseRulesFromDirectory } from "./parser.js";
 describe("generator integration tests", () => {
   let tempDir: string;
   let rulesDir: string;
+  let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "rulesync-test-"));
+    ({ testDir: tempDir, cleanup } = await setupTestDirectory());
     rulesDir = join(tempDir, ".rulesync");
     await mkdir(rulesDir, { recursive: true });
   });
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it("should generate configurations for targeted tools", async () => {
