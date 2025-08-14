@@ -16,8 +16,8 @@ describe("importConfiguration", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
-    rulesDir = join(testDir, ".rulesync");
-    commandsDir = join(rulesDir, "commands");
+    rulesDir = join(testDir, ".rulesync", "rules");
+    commandsDir = join(testDir, ".rulesync", "commands");
 
     const { mkdir } = await import("node:fs/promises");
     await mkdir(rulesDir, { recursive: true });

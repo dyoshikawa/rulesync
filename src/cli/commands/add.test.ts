@@ -2,22 +2,22 @@ import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockConfig } from "../../test-utils/index.js";
-import { getDefaultConfig } from "../../utils/config.js";
+import { loadConfig } from "../../utils/config-loader.js";
 import { addCommand } from "./add.js";
 
 vi.mock("node:fs/promises");
-vi.mock("../../utils/config.js");
+vi.mock("../../utils/config-loader.js");
 
 const mockMkdir = vi.mocked(mkdir);
 const mockWriteFile = vi.mocked(writeFile);
-const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
+const mockLoadConfig = vi.mocked(loadConfig);
 
 const mockConfig = createMockConfig();
 
 describe("addCommand", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetDefaultConfig.mockReturnValue(mockConfig);
+    mockLoadConfig.mockResolvedValue({ config: mockConfig, isEmpty: false });
     mockMkdir.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue();
 
@@ -32,14 +32,14 @@ describe("addCommand", () => {
   it("should create a rule file successfully", async () => {
     await addCommand("test-rule");
 
-    expect(mockMkdir).toHaveBeenCalledWith(".rulesync", { recursive: true });
+    expect(mockMkdir).toHaveBeenCalledWith(".rulesync/rules", { recursive: true });
     expect(mockWriteFile).toHaveBeenCalledWith(
-      path.join(".rulesync", "test-rule.md"),
+      path.join(".rulesync/rules", "test-rule.md"),
       expect.stringContaining("root: false"),
       "utf8",
     );
     expect(console.log).toHaveBeenCalledWith(
-      `✅ Created rule file: ${path.join(".rulesync", "test-rule.md")}`,
+      `✅ Created rule file: ${path.join(".rulesync/rules", "test-rule.md")}`,
     );
     expect(console.log).toHaveBeenCalledWith("📝 Edit the file to customize your rules.");
   });
@@ -48,7 +48,7 @@ describe("addCommand", () => {
     await addCommand("test-rule.md");
 
     expect(mockWriteFile).toHaveBeenCalledWith(
-      path.join(".rulesync", "test-rule.md"),
+      path.join(".rulesync/rules", "test-rule.md"),
       expect.stringContaining('description: "Rules for test-rule"'),
       "utf8",
     );
@@ -95,6 +95,31 @@ describe("addCommand", () => {
     expect(mockWriteFile).toHaveBeenCalledWith(
       expect.any(String),
       expect.stringContaining("# MyRule Rules"),
+      "utf8",
+    );
+  });
+
+  it("should use legacy location when --legacy option is provided", async () => {
+    await addCommand("test-rule", { legacy: true });
+
+    expect(mockMkdir).toHaveBeenCalledWith(".rulesync", { recursive: true });
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      path.join(".rulesync", "test-rule.md"),
+      expect.stringContaining("root: false"),
+      "utf8",
+    );
+  });
+
+  it("should use legacy location when config.legacy is true", async () => {
+    const legacyMockConfig = { ...mockConfig, legacy: true };
+    mockLoadConfig.mockResolvedValue({ config: legacyMockConfig, isEmpty: false });
+
+    await addCommand("test-rule");
+
+    expect(mockMkdir).toHaveBeenCalledWith(".rulesync", { recursive: true });
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      path.join(".rulesync", "test-rule.md"),
+      expect.stringContaining("root: false"),
       "utf8",
     );
   });

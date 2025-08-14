@@ -46,6 +46,7 @@ describe("import command", () => {
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "claudecode",
       verbose: false,
+      useLegacyLocation: false,
     });
     expect(console.log).toHaveBeenCalledWith("Importing configuration files from claudecode...");
     expect(console.log).toHaveBeenCalledWith("✅ Imported 3 rule(s) from claudecode");
@@ -141,6 +142,7 @@ describe("import command", () => {
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool,
         verbose: false,
+        useLegacyLocation: false,
       });
     }
   });
@@ -158,6 +160,24 @@ describe("import command", () => {
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "geminicli",
       verbose: true,
+      useLegacyLocation: false,
+    });
+  });
+
+  it("should pass legacy flag to import configuration", async () => {
+    const mockResult = {
+      success: true,
+      rulesCreated: 1,
+      errors: [],
+    };
+    vi.spyOn(importer, "importConfiguration").mockResolvedValueOnce(mockResult);
+
+    await importCommand({ geminicli: true, legacy: true });
+
+    expect(importer.importConfiguration).toHaveBeenCalledWith({
+      tool: "geminicli",
+      verbose: false,
+      useLegacyLocation: true,
     });
   });
 });
