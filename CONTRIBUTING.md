@@ -96,8 +96,20 @@ pnpm typecheck
 
 ### .rulesync Directory Structure
 
-The project uses a comprehensive `.rulesync` directory for internal rule management and tool specifications:
+Starting from v0.62.0, the project supports two directory structures for better organization:
 
+#### Recommended Structure (v0.62.0+)
+```
+.rulesync/
+├── rules/                                # Organized rule files (recommended)
+│   ├── overview.md                       # Project overview and architecture (root: true)
+│   ├── my-instructions.md                # Custom project instructions
+│   ├── precautions.md                   # Development precautions and guidelines
+│   └── specification-[tool]-[type].md   # Tool-specific specifications
+└── ...                                   # Other configuration files
+```
+
+#### Legacy Structure (backward compatible)
 ```
 .rulesync/
 ├── overview.md                           # Project overview and architecture (root: true)
@@ -106,18 +118,26 @@ The project uses a comprehensive `.rulesync` directory for internal rule managem
 └── specification-[tool]-[type].md       # Tool-specific specifications
     # Types: rules, mcp, ignore
     # Tools: augmentcode, claudecode, cline, codexcli, copilot, cursor,
-    #        geminicli, junie, kiro, roo, windsurf (NEW)
+    #        geminicli, junie, kiro, roo, windsurf
 ```
+
+**Directory Structure Selection:**
+- **New projects**: Automatically use the recommended `.rulesync/rules/` structure
+- **Existing projects**: Continue using legacy structure or migrate as needed
+- **CLI options**: Use `--legacy` flag for init, add, and import commands to use legacy structure
+- **Configuration**: Set `config.legacy: true` in `rulesync.config.js` for project-wide legacy mode
 
 **Comprehensive Specifications**: Each AI tool has detailed specifications covering:
 - **Rules format**: File structure, frontmatter (now optional with defaults), hierarchy patterns
 - **MCP configuration**: Server setup, transport types, environment handling
 - **Ignore patterns**: Security-focused exclusions and file access control
 
-**Recent Major Updates (v0.56.0)**:
-- **Optional Frontmatter**: All frontmatter fields now have sensible defaults
+**Recent Major Updates**:
+- **v0.62.0**: New organized directory structure (`.rulesync/rules/`) with backward compatibility
+- **v0.56.0**: Optional frontmatter with sensible defaults
 - **Registry Pattern**: Unified generator architecture for easier tool addition
 - **Enhanced Windsurf Support**: Complete integration with activation modes and output formats
+- **Legacy Support**: Full backward compatibility with existing `.rulesync/*.md` layouts
 
 ### Core Architecture - Registry Pattern Implementation
 
@@ -406,11 +426,21 @@ pnpm test src/generators/commands/windsurf  # Windsurf command configuration
 # Test command integration in rule processing
 pnpm test src/core/generator.integration   # End-to-end with commands
 
+# Test directory structure compatibility
+pnpm test src/cli/commands/init.legacy     # Test legacy initialization
+pnpm test src/cli/commands/import.legacy   # Test legacy import mode
+pnpm test src/utils/config.legacy          # Test legacy configuration
+
 # Test command generation in development environment
 pnpm dev generate --target cursor --commands  # Include command generation
 pnpm dev generate --target cline --commands   # Test with Cline
 pnpm dev generate --target roo --commands     # Test with Roo Cline
 pnpm dev generate --target windsurf --commands # Test with Windsurf
+
+# Test with legacy structure
+pnpm dev init --legacy                      # Test legacy initialization
+pnpm dev add typescript-rules --legacy      # Test legacy rule addition
+pnpm dev import --cursor --legacy           # Test legacy import
 ```
 
 #### Adding Command Support to New Tools
@@ -519,14 +549,15 @@ export async function generateNewToolCommands(
 
 1. Fork and create a feature branch
 2. Write your code and tests (including command generation if applicable)
-3. Run the full test suite: `pnpm test`
-4. Run code quality checks: `pnpm check`
-5. Check for secrets: `pnpm secretlint`
-6. Check spelling: `pnpm cspell`
-7. Test command generation functionality if applicable: `pnpm test src/generators/commands/`
-8. Set up git hooks: `npx simple-git-hooks` (first time only)
-9. Commit your changes with a clear message
-10. Push to your fork and create a pull request
+3. Test directory structure support: `pnpm test:directory-structure` (if applicable)
+4. Run the full test suite: `pnpm test`
+5. Run code quality checks: `pnpm check`
+6. Check for secrets: `pnpm secretlint`
+7. Check spelling: `pnpm cspell`
+8. Test command generation functionality if applicable: `pnpm test src/generators/commands/`
+9. Set up git hooks: `npx simple-git-hooks` (first time only)
+10. Commit your changes with a clear message
+11. Push to your fork and create a pull request
 
 #### Development Workflow for Command Features
 
@@ -536,9 +567,10 @@ When working on command generation features:
 2. **Implement Parser**: Add command detection to the tool's parser if importing is needed
 3. **Create Generator**: Implement the command generator following the established pattern
 4. **Add Validation**: Ensure command definitions are properly validated
-5. **Write Tests**: Cover parsing, generation, validation, and error scenarios
-6. **Integration Testing**: Test with real AI tool configurations
-7. **Documentation**: Update tool specifications with command format details
+5. **Test Directory Structures**: Ensure commands work with both recommended and legacy directory layouts
+6. **Write Tests**: Cover parsing, generation, validation, and error scenarios
+7. **Integration Testing**: Test with real AI tool configurations
+8. **Documentation**: Update tool specifications with command format details
 
 #### Commit Message Format
 
@@ -564,11 +596,14 @@ Types:
 Examples:
 - `feat(generators): add support for new AI tool`
 - `feat(commands): add command generation for Cursor integration`
+- `feat(structure): add organized directory support with legacy compatibility`
 - `fix(parser): handle missing frontmatter gracefully`
 - `fix(commands): resolve command deduplication issue`
+- `fix(legacy): ensure backward compatibility for existing projects`
 - `enhance(import): improve command detection during import`
 - `docs(readme): update installation instructions`
 - `test(commands): add comprehensive command generation tests`
+- `test(structure): add directory structure compatibility tests`
 
 ## Code Style
 
@@ -859,6 +894,8 @@ Create `src/generators/rules/newtool.ts` for advanced features:
 2. **Core Integration**: Update `src/core/generator.ts` and `src/core/importer.ts`
 3. **CLI Integration**: Update `src/cli/index.ts` for generate/import commands
 4. **Configuration**: Add output paths to `src/utils/config.ts`
+5. **Directory Structure Support**: Ensure tool supports both recommended and legacy layouts
+6. **Legacy Compatibility**: Test with `--legacy` flag for all applicable commands
 
 ### Step 4: Comprehensive Testing
 
@@ -875,6 +912,8 @@ Create `src/generators/rules/newtool.ts` for advanced features:
 - ✅ Basic rule generation
 - ✅ Frontmatter handling and transformation
 - ✅ File path resolution and directory structure
+- ✅ **Directory structure compatibility** (both recommended and legacy)
+- ✅ **Legacy flag support** for CLI commands
 - ✅ Error handling and edge cases
 - ✅ MCP transport types (stdio, SSE, HTTP)
 - ✅ Ignore pattern generation and security focus
@@ -902,6 +941,8 @@ Create `src/generators/rules/newtool.ts` for advanced features:
 - **Comprehensive Testing**: Shared test utilities speed up test development
 
 **Time to add a new tool**: Reduced from ~2-3 days to ~4-6 hours for simple tools!
+
+**Directory Structure Support**: All new tools automatically support both recommended (`.rulesync/rules/`) and legacy (`.rulesync/*.md`) directory structures through the registry pattern.
 
 ### Implementation Patterns
 

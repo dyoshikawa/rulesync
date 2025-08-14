@@ -3,7 +3,7 @@
 [![CI](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml/badge.svg)](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/rulesync.svg)](https://www.npmjs.com/package/rulesync)
 
-A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files (`.rulesync/rules/*.md`). Also imports existing AI tool configurations into the unified format.
+A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Uses the recommended `.rulesync/rules/*.md` structure, with backward compatibility for legacy `.rulesync/*.md` layouts. Also imports existing AI tool configurations into the unified format.
 
 ## Installation
 
@@ -21,11 +21,17 @@ yarn global add rulesync
 
 1. **Initialize your project:**
    ```bash
+   # Recommended: Use new organized structure
    npx rulesync init
+   
+   # Legacy: Use backward-compatible structure
+   npx rulesync init --legacy
    ```
 
-2. **Edit the generated rule files** in `.rulesync/rules/` directory to match your project needs
-
+2. **Edit the generated rule files:**
+   - **Recommended**: Edit files in `.rulesync/rules/` directory
+   - **Legacy**: Edit files in `.rulesync/` directory
+   
 3. **Generate tool-specific configuration files:**
    ```bash
    npx rulesync generate
@@ -36,10 +42,15 @@ yarn global add rulesync
 If you already have AI tool configurations:
 
 ```bash
-# Import existing configurations
+# Import existing configurations (to recommended structure)
 npx rulesync import --claudecode  # From CLAUDE.md
 npx rulesync import --cursor      # From .cursorrules
 npx rulesync import --copilot     # From .github/copilot-instructions.md
+
+# Import to legacy structure (for existing projects)
+npx rulesync import --claudecode --legacy
+npx rulesync import --cursor --legacy
+npx rulesync import --copilot --legacy
 
 # Generate unified configurations
 npx rulesync generate
@@ -83,25 +94,28 @@ Avoid vendor lock-in completely. If you decide to stop using rulesync, you can c
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
 
+### 📁 **Organized Structure**
+New organized directory structure (`.rulesync/rules/`) keeps rules well-organized, while maintaining full backward compatibility with legacy layouts (`.rulesync/*.md`) for existing projects.
+
 ## Quick Commands
 
 ```bash
-# Initialize new project (recommended: rules in .rulesync/rules/)
+# Initialize new project (recommended: organized rules structure)
 npx rulesync init
 
-# Initialize with legacy layout (.rulesync/*.md)
+# Initialize with legacy layout (backward compatibility)
 npx rulesync init --legacy
 
-# Add new rule file
+# Add new rule file to recommended location
 npx rulesync add typescript-rules
 
-# Add rule file to legacy location
+# Add rule file to legacy location (for existing projects)
 npx rulesync add typescript-rules --legacy
 
 # Import existing configurations (to .rulesync/rules/ by default)
 npx rulesync import --cursor
 
-# Import to legacy location
+# Import to legacy location (for existing projects)
 npx rulesync import --cursor --legacy
 
 # Validate rules
