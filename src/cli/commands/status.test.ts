@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "../../utils/logger.js";
 import { parseRulesFromDirectory } from "../../core/index.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import type { ParsedRule } from "../../types/index.js";
 import { fileExists, getDefaultConfig } from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
 import { statusCommand } from "./status.js";
 
 vi.mock("../../core/index.js");
@@ -130,7 +130,7 @@ describe("statusCommand", () => {
 
     await statusCommand();
 
-    expect(logger.error).toHaveBeenCalledWith("\n❌ Failed to get status:", error);
+    expect(logger.error).toHaveBeenCalledWith("\nFailed to get status:", error);
   });
 
   it("should handle rules with root field correctly", async () => {

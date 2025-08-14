@@ -1,21 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "../../utils/logger.js";
-import { generateCommands } from "../../core/command-generator.js";
-import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
-import { generateMcpConfigurations } from "../../core/mcp-generator.js";
-import { parseMcpConfig } from "../../core/mcp-parser.js";
 import { createMockConfig, mockLogger } from "../../test-utils/index.js";
-import type { ToolTarget } from "../../types/index.js";
-import {
-  fileExists,
-  getDefaultConfig,
-  loadConfig,
-  mergeWithCliOptions,
-  removeClaudeGeneratedFiles,
-  removeDirectory,
-  writeFileContent,
-} from "../../utils/index.js";
-import { generateCommand } from "./generate.js";
 
 vi.mock("../../core/index.js");
 vi.mock("../../core/mcp-generator.js");
@@ -26,6 +10,23 @@ vi.mock("../../utils/logger.js", () => ({
   logger: mockLogger,
 }));
 vi.mock("node:fs/promises");
+
+import { generateCommands } from "../../core/command-generator.js";
+import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
+import { generateMcpConfigurations } from "../../core/mcp-generator.js";
+import { parseMcpConfig } from "../../core/mcp-parser.js";
+import type { ToolTarget } from "../../types/index.js";
+import {
+  fileExists,
+  getDefaultConfig,
+  loadConfig,
+  mergeWithCliOptions,
+  removeClaudeGeneratedFiles,
+  removeDirectory,
+  writeFileContent,
+} from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
+import { generateCommand } from "./generate.js";
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);

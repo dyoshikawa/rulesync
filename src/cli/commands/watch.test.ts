@@ -1,9 +1,9 @@
 import type { FSWatcher } from "chokidar";
 import { watch } from "chokidar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "../../utils/logger.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import { getDefaultConfig } from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
 import { generateCommand } from "./generate.js";
 import { watchCommand } from "./watch.js";
 
@@ -82,6 +82,9 @@ describe("watchCommand", () => {
       return mockWatcher;
     });
 
+    // Mock logger.success
+    vi.spyOn(logger, "success").mockImplementation(() => {});
+
     const _watchPromise = watchCommand();
     await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -90,7 +93,7 @@ describe("watchCommand", () => {
 
     expect(logger.log).toHaveBeenCalledWith("\n📝 Detected change in test.md");
     expect(mockGenerateCommand).toHaveBeenCalledTimes(2); // Initial + change
-    expect(logger.log).toHaveBeenCalledWith("✅ Regenerated configuration files");
+    expect(logger.success).toHaveBeenCalledWith("Regenerated configuration files");
   });
 
   it("should handle file additions", async () => {
@@ -153,7 +156,7 @@ describe("watchCommand", () => {
     // Simulate file change with error
     await changeHandler!("test.md");
 
-    expect(logger.error).toHaveBeenCalledWith("❌ Failed to regenerate:", error);
+    expect(logger.error).toHaveBeenCalledWith("Failed to regenerate:", error);
   });
 
   it("should handle watcher errors", async () => {
@@ -175,7 +178,7 @@ describe("watchCommand", () => {
     // Simulate watcher error
     errorHandler!(error);
 
-    expect(logger.error).toHaveBeenCalledWith("❌ Watcher error:", error);
+    expect(logger.error).toHaveBeenCalledWith("Watcher error:", error);
   });
 
   it("should call generateCommand for initial generation", async () => {

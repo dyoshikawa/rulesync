@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as importer from "../../core/importer.js";
 import { mockLogger } from "../../test-utils/index.js";
-import { importCommand } from "./import.js";
 
 vi.mock("../../core/importer");
 vi.mock("../../utils/logger.js", () => ({
   logger: mockLogger,
 }));
+
+import * as importer from "../../core/importer.js";
+import { importCommand } from "./import.js";
 
 describe("import command", () => {
   beforeEach(() => {

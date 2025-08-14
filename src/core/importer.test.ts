@@ -366,7 +366,9 @@ describe("importConfiguration", () => {
 
     // Check that the ignore and MCP creation logs were called
     const successCalls = loggerSuccessSpy.mock.calls.map((call) => call[0]);
-    expect(successCalls.some((msg) => msg.includes("Created .rulesyncignore with 2 patterns"))).toBe(true);
+    expect(
+      successCalls.some((msg) => msg.includes("Created .rulesyncignore with 2 patterns")),
+    ).toBe(true);
     expect(successCalls.some((msg) => msg.includes("Created .mcp.json with 2 servers"))).toBe(true);
 
     loggerSpy.mockRestore();

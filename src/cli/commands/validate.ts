@@ -36,7 +36,7 @@ export async function validateCommand(): Promise<void> {
     }
 
     if (validation.errors.length > 0) {
-      logger.log("\n❌ Errors:");
+      logger.log("\nErrors:");
       for (const error of validation.errors) {
         logger.log(`  - ${error}`);
       }
@@ -45,7 +45,7 @@ export async function validateCommand(): Promise<void> {
     if (validation.isValid) {
       logger.success("\nAll rules are valid!");
     } else {
-      logger.error(`\nValidation failed with ${validation.errors.length} error(s)`);
+      logger.log(`\nValidation failed with ${validation.errors.length} error(s)`);
       process.exit(1);
     }
   } catch (error) {

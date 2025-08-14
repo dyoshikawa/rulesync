@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "../../utils/logger.js";
 import { parseRulesFromDirectory, validateRules } from "../../core/index.js";
 import { createMockConfig } from "../../test-utils/index.js";
 import { fileExists, getDefaultConfig } from "../../utils/index.js";
+import { logger } from "../../utils/logger.js";
 import { validateCommand } from "./validate.js";
 
 vi.mock("../../core/index.js");
@@ -41,10 +41,11 @@ describe("validateCommand", () => {
       warnings: [],
     });
 
-    // Mock console methods
+    // Mock logger methods
     vi.spyOn(logger, "log").mockImplementation(() => {});
     vi.spyOn(logger, "error").mockImplementation(() => {});
     vi.spyOn(logger, "warn").mockImplementation(() => {});
+    vi.spyOn(logger, "success").mockImplementation(() => {});
     vi.spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit called");
     });
@@ -55,7 +56,7 @@ describe("validateCommand", () => {
 
     expect(logger.log).toHaveBeenCalledWith("Validating rulesync configuration...");
     expect(logger.log).toHaveBeenCalledWith("Found 1 rule(s), validating...");
-    expect(logger.log).toHaveBeenCalledWith("\n✅ All rules are valid!");
+    expect(logger.success).toHaveBeenCalledWith("\nAll rules are valid!");
     expect(mockValidateRules).toHaveBeenCalledWith(mockRules);
   });
 
@@ -64,7 +65,7 @@ describe("validateCommand", () => {
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
     expect(logger.error).toHaveBeenCalledWith(
-      "❌ .rulesync directory not found. Run 'rulesync init' first.",
+      ".rulesync directory not found. Run 'rulesync init' first.",
     );
   });
 
@@ -73,7 +74,7 @@ describe("validateCommand", () => {
 
     await validateCommand();
 
-    expect(logger.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
+    expect(logger.warn).toHaveBeenCalledWith("No rules found in .rulesync directory");
     expect(mockValidateRules).not.toHaveBeenCalled();
   });
 
@@ -89,7 +90,7 @@ describe("validateCommand", () => {
     expect(logger.log).toHaveBeenCalledWith("\n⚠️  Warnings:");
     expect(logger.log).toHaveBeenCalledWith("  - Warning 1");
     expect(logger.log).toHaveBeenCalledWith("  - Warning 2");
-    expect(logger.log).toHaveBeenCalledWith("\n✅ All rules are valid!");
+    expect(logger.success).toHaveBeenCalledWith("\nAll rules are valid!");
   });
 
   it("should display errors and exit", async () => {
@@ -101,10 +102,10 @@ describe("validateCommand", () => {
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
 
-    expect(logger.log).toHaveBeenCalledWith("\n❌ Errors:");
+    expect(logger.log).toHaveBeenCalledWith("\nErrors:");
     expect(logger.log).toHaveBeenCalledWith("  - Error 1");
     expect(logger.log).toHaveBeenCalledWith("  - Error 2");
-    expect(logger.log).toHaveBeenCalledWith("\n❌ Validation failed with 2 error(s)");
+    expect(logger.log).toHaveBeenCalledWith("\nValidation failed with 2 error(s)");
   });
 
   it("should display both warnings and errors", async () => {
@@ -118,7 +119,7 @@ describe("validateCommand", () => {
 
     expect(logger.log).toHaveBeenCalledWith("\n⚠️  Warnings:");
     expect(logger.log).toHaveBeenCalledWith("  - Warning 1");
-    expect(logger.log).toHaveBeenCalledWith("\n❌ Errors:");
+    expect(logger.log).toHaveBeenCalledWith("\nErrors:");
     expect(logger.log).toHaveBeenCalledWith("  - Error 1");
   });
 
@@ -127,7 +128,7 @@ describe("validateCommand", () => {
     mockParseRulesFromDirectory.mockRejectedValue(error);
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
-    expect(logger.error).toHaveBeenCalledWith("❌ Failed to validate rules:", error);
+    expect(logger.error).toHaveBeenCalledWith("Failed to validate rules:", error);
   });
 
   it("should handle validation errors gracefully", async () => {
@@ -135,6 +136,6 @@ describe("validateCommand", () => {
     mockValidateRules.mockRejectedValue(error);
 
     await expect(validateCommand()).rejects.toThrow("process.exit called");
-    expect(logger.error).toHaveBeenCalledWith("❌ Failed to validate rules:", error);
+    expect(logger.error).toHaveBeenCalledWith("Failed to validate rules:", error);
   });
 });

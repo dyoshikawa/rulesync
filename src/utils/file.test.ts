@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockLogger } from "../test-utils/index.js";
 import {
   createPathResolver,
   directoryExists,
@@ -18,6 +19,9 @@ import {
 } from "./file.js";
 
 vi.mock("node:fs/promises");
+vi.mock("./logger.js", () => ({
+  logger: mockLogger,
+}));
 
 const mockStat = vi.mocked(stat);
 const mockMkdir = vi.mocked(mkdir);
@@ -29,6 +33,7 @@ const mockRm = vi.mocked(rm);
 describe("file utilities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockLogger.warn.mockClear();
   });
 
   afterEach(() => {
@@ -170,43 +175,31 @@ describe("file utilities", () => {
       mockStat.mockResolvedValue({} as never);
       mockRm.mockRejectedValue(new Error("Permission denied"));
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       await removeDirectory("/path/to/dir");
 
       expect(mockRm).toHaveBeenCalledWith("/path/to/dir", { recursive: true, force: true });
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "Failed to remove directory /path/to/dir:",
         expect.any(Error),
       );
-
-      consoleSpy.mockRestore();
     });
 
     it("should skip dangerous paths", async () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       await removeDirectory(".");
       await removeDirectory("/");
       await removeDirectory("src");
 
-      expect(consoleSpy).toHaveBeenCalledWith("Skipping deletion of dangerous path: .");
-      expect(consoleSpy).toHaveBeenCalledWith("Skipping deletion of dangerous path: /");
-      expect(consoleSpy).toHaveBeenCalledWith("Skipping deletion of dangerous path: src");
+      expect(mockLogger.warn).toHaveBeenCalledWith("Skipping deletion of dangerous path: .");
+      expect(mockLogger.warn).toHaveBeenCalledWith("Skipping deletion of dangerous path: /");
+      expect(mockLogger.warn).toHaveBeenCalledWith("Skipping deletion of dangerous path: src");
       expect(mockRm).not.toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
     });
 
     it("should skip empty path", async () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       await removeDirectory("");
 
-      expect(consoleSpy).toHaveBeenCalledWith("Skipping deletion of dangerous path: ");
+      expect(mockLogger.warn).toHaveBeenCalledWith("Skipping deletion of dangerous path: ");
       expect(mockRm).not.toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
     });
   });
 
@@ -234,17 +227,13 @@ describe("file utilities", () => {
       mockStat.mockResolvedValue({} as never);
       mockRm.mockRejectedValue(new Error("Permission denied"));
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       await removeFile("/path/to/file.txt");
 
       expect(mockRm).toHaveBeenCalledWith("/path/to/file.txt");
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "Failed to remove file /path/to/file.txt:",
         expect.any(Error),
       );
-
-      consoleSpy.mockRestore();
     });
   });
 
