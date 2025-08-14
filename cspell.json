@@ -215,6 +215,7 @@
         "namespacing",
         "roomodes",
         "PYTHONPATH",
-        "mattlewis"
+        "mattlewis",
+        "basenames"
     ]
 }
