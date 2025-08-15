@@ -2,8 +2,9 @@ import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
 import type { BaseMcpServer, KiroConfig } from "../../types/mcp-config.js";
 import { shouldIncludeServer } from "../../utils/mcp-helpers.js";
 
-type KiroServer = BaseMcpServer & {
+type KiroServer = Omit<BaseMcpServer, "transport"> & {
   // Allow additional properties that might be present in the server config
+  transport?: "stdio" | "sse" | "http" | "streamable-http" | undefined;
   [key: string]: unknown;
 };
 

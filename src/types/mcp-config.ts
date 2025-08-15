@@ -1,22 +1,12 @@
-export interface BaseMcpServer {
-  command?: string | undefined;
-  args?: string[] | undefined;
-  url?: string | undefined;
-  httpUrl?: string | undefined;
-  env?: Record<string, string> | undefined;
-  disabled?: boolean | undefined;
-  alwaysAllow?: string[] | undefined;
-  networkTimeout?: number | undefined;
-  timeout?: number | undefined;
-  type?: "stdio" | "sse" | "streamable-http" | "http" | undefined;
-  tools?: string[] | undefined;
-  headers?: Record<string, string> | undefined;
-  cwd?: string | undefined;
+import type { McpServerBase } from "./mcp.js";
+
+// Use the base MCP server type from mcp.ts and extend as needed
+export interface BaseMcpServer extends Omit<McpServerBase, "kiroAutoApprove" | "kiroAutoBlock"> {
+  // Additional fields specific to configuration generation
   autoApprove?: string[] | undefined;
   autoBlock?: string[] | undefined;
   autoapprove?: string[] | undefined;
   autoblock?: string[] | undefined;
-  trust?: boolean | undefined;
 }
 
 export interface BaseMcpConfig {
@@ -30,7 +20,15 @@ export type CursorConfig = BaseMcpConfig;
 
 export type RooConfig = BaseMcpConfig;
 
-export type KiroConfig = BaseMcpConfig;
+export interface KiroConfig {
+  mcpServers: Record<
+    string,
+    Omit<BaseMcpServer, "transport"> & {
+      transport?: "stdio" | "sse" | "http" | "streamable-http" | undefined;
+      [key: string]: unknown;
+    }
+  >;
+}
 
 export interface ClaudeSettings {
   mcpServers?: Record<string, BaseMcpServer>;

@@ -1,5 +1,6 @@
 import { z } from "zod/mini";
-import { RulesyncTargetsSchema, ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
+import { type Output } from "./shared.js";
+import { RulesyncTargetsSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 export const RuleFrontmatterSchema = z.object({
   root: z.optional(z.boolean()),
@@ -21,12 +22,7 @@ export type ProcessedRule = {
   type?: "rule" | "command";
 };
 
-// Schemas for internal validation - not exported as they're unused externally
-const GeneratedOutputSchema = z.object({
-  tool: ToolTargetSchema,
-  filepath: z.string(),
-  content: z.string(),
-});
+// Use shared output schema instead of defining our own
 
 const GenerateOptionsSchema = z.object({
   targetTools: z.optional(ToolTargetsSchema),
@@ -50,5 +46,5 @@ export type RuleFrontmatter = {
 };
 
 export type ParsedRule = ProcessedRule;
-export type GeneratedOutput = z.infer<typeof GeneratedOutputSchema>;
+export type GeneratedOutput = Output;
 export type GenerateOptions = z.infer<typeof GenerateOptionsSchema>;

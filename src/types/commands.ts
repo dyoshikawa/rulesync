@@ -1,21 +1,12 @@
 import { z } from "zod/mini";
-import type { ToolTarget } from "./tool-targets.js";
+import { BaseFrontmatterSchema, type Output, type ParsedContent } from "./shared.js";
 
-export const CommandFrontmatterSchema = z.object({
-  description: z.optional(z.string()),
-});
+export const CommandFrontmatterSchema = BaseFrontmatterSchema;
 
 export type CommandFrontmatter = z.infer<typeof CommandFrontmatterSchema>;
 
-export interface ParsedCommand {
+export interface ParsedCommand extends ParsedContent {
   frontmatter: CommandFrontmatter;
-  content: string;
-  filename: string;
-  filepath: string;
 }
 
-export interface CommandOutput {
-  tool: ToolTarget;
-  filepath: string;
-  content: string;
-}
+export type CommandOutput = Output;
