@@ -227,6 +227,18 @@ const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
     generateContent: (rule) => rule.content.trim(),
   },
 
+  opencode: {
+    type: "simple",
+    tool: "opencode",
+    fileExtension: ".md",
+    ignoreFileName: ".opencodeIgnore",
+    generateContent: (rule) => rule.content.trim(),
+    pathResolver: (rule, outputDir) => {
+      // OpenCode uses AGENTS.md as the primary file
+      return join(outputDir, "AGENTS.md");
+    },
+  },
+
   windsurf: {
     type: "simple",
     tool: "windsurf",

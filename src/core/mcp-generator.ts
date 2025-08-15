@@ -221,6 +221,11 @@ export async function generateMcpConfigurations(
       (await import("../generators/mcp/kiro.js")).generateKiroMcpConfiguration(servers, dir),
     junie: async (servers, dir) =>
       (await import("../generators/mcp/junie.js")).generateJunieMcpConfiguration(servers, dir),
+    opencode: async (servers, dir) =>
+      (await import("../generators/mcp/opencode.js")).generateOpencodeJsonMcpConfiguration(
+        servers,
+        dir,
+      ),
     windsurf: async (servers, dir) =>
       (await import("../generators/mcp/windsurf.js")).generateWindsurfMcpConfiguration(
         servers,

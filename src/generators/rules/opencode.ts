@@ -1,0 +1,1 @@
+export { generateOpencodeConfig } from "./generator-factory.js";

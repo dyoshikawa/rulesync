@@ -44,7 +44,7 @@ describe("config command", () => {
       );
       expect(mockLogger.log).toHaveBeenCalledWith("\nAI Rules Directory: .rulesync");
       expect(mockLogger.log).toHaveBeenCalledWith(
-        "\nDefault Targets: augmentcode, copilot, cursor, cline, claudecode, codexcli, roo, geminicli, kiro, junie, windsurf",
+        "\nDefault Targets: augmentcode, copilot, cursor, cline, claudecode, codexcli, opencode, roo, geminicli, kiro, junie, windsurf",
       );
     });
 

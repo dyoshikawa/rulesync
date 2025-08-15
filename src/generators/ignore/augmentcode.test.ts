@@ -11,6 +11,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
       claudecode: "output",
       cline: "output",
       codexcli: "output",
+      opencode: "output",
       copilot: "output",
       cursor: "output",
       geminicli: "output",

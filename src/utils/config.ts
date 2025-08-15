@@ -12,6 +12,7 @@ export function getDefaultConfig(): Config {
       cline: ".clinerules",
       claudecode: ".",
       codexcli: ".",
+      opencode: ".",
       roo: ".roo/rules",
       geminicli: ".gemini/memories",
       kiro: ".kiro/steering",
