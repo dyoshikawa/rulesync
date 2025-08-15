@@ -8,20 +8,6 @@
         "REASONING_EFFORT": "medium"
       },
       "targets": ["claudecode", "cursor"]
-    },
-    "github": {
-        "command": "docker",
-        "args": [
-          "run",
-          "-i",
-          "--rm",
-          "-e",
-          "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "-e",
-          "GITHUB_TOOLSETS=context,issues,pull_requests",
-          "ghcr.io/github/github-mcp-server"
-        ],
-        "targets": ["claudecode"]
     }
   }
 }
