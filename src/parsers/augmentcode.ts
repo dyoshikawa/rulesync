@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
-import matter from "gray-matter";
 import type { ParsedRule, RuleFrontmatter, ToolTarget } from "../types/index.js";
+import { extractArrayField, extractStringField, parseFrontmatter } from "../utils/frontmatter.js";
 import { fileExists, readFileContent } from "../utils/index.js";
 import {
   addError,
@@ -104,13 +104,12 @@ async function parseAugmentRules(
         const filePath = join(rulesDir, file);
         try {
           const rawContent = await readFileContent(filePath);
-          const parsed = matter(rawContent);
+          const parsed = parseFrontmatter(rawContent);
 
           // Parse frontmatter
-          const frontmatterData = parsed.data;
-          const ruleType = frontmatterData.type || "manual";
-          const description = frontmatterData.description || "";
-          const tags = Array.isArray(frontmatterData.tags) ? frontmatterData.tags : undefined;
+          const ruleType = extractStringField(parsed.data, "type", "manual");
+          const description = extractStringField(parsed.data, "description", "");
+          const tags = extractArrayField(parsed.data, "tags");
 
           // Determine if this should be a root rule based on type
           const isRoot = ruleType === "always"; // Always rules become root rules
@@ -121,7 +120,7 @@ async function parseAugmentRules(
             targets: [config.targetName],
             description: description,
             globs: ["**/*"], // AugmentCode doesn't use specific globs in the same way
-            ...(tags && { tags }),
+            ...(tags.length > 0 && { tags }),
           };
 
           rules.push({

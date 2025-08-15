@@ -1,19 +1,23 @@
-import { join } from "node:path";
 import type { CommandOutput, ParsedCommand } from "../../types/commands.js";
+import {
+  escapeTomlString,
+  getHierarchicalCommandPath,
+  syntaxConverters,
+} from "../../utils/command-generators.js";
 
 export class GeminiCliCommandGenerator {
   generate(command: ParsedCommand, outputDir: string): CommandOutput {
     const filepath = this.getOutputPath(command.filename, outputDir);
 
     // Convert content syntax from Claude Code to Gemini CLI
-    const convertedContent = this.convertSyntax(command.content);
+    const convertedContent = syntaxConverters.toGeminiCli(command.content);
 
     // Build TOML content
     const tomlLines: string[] = [];
 
     // Add description if present
     if (command.frontmatter.description) {
-      tomlLines.push(`description = "${this.escapeTomlString(command.frontmatter.description)}"`);
+      tomlLines.push(`description = "${escapeTomlString(command.frontmatter.description)}"`);
       tomlLines.push("");
     }
 
@@ -31,30 +35,6 @@ export class GeminiCliCommandGenerator {
 
   getOutputPath(filename: string, baseDir: string): string {
     // Preserve directory structure for namespacing
-    const tomlFilename = filename.replace(/\.md$/, ".toml");
-    const filenameWithExt = tomlFilename.endsWith(".toml") ? tomlFilename : `${tomlFilename}.toml`;
-    return join(baseDir, ".gemini", "commands", filenameWithExt);
-  }
-
-  private convertSyntax(content: string): string {
-    let converted = content;
-
-    // Convert $ARGUMENTS to {{args}}
-    converted = converted.replace(/\$ARGUMENTS/g, "{{args}}");
-
-    // Convert shell command injection: !`command` to !{command}
-    converted = converted.replace(/!`([^`]+)`/g, "!{$1}");
-
-    return converted.trim();
-  }
-
-  private escapeTomlString(str: string): string {
-    // Escape special characters for TOML strings
-    return str
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, "\\n")
-      .replace(/\r/g, "\\r")
-      .replace(/\t/g, "\\t");
+    return getHierarchicalCommandPath(filename, baseDir, ".gemini/commands", "toml");
   }
 }

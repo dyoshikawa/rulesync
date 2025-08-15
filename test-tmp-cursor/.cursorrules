@@ -1,0 +1,8 @@
+---
+alwaysApply: 'true'
+description: String true value test
+---
+
+# String True Test
+
+Testing alwaysApply as string 'true'.

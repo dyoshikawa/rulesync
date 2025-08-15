@@ -1,6 +1,6 @@
 import { basename } from "node:path";
-import matter from "gray-matter";
 import { CommandFrontmatterSchema, type ParsedCommand } from "../types/commands.js";
+import { parseFrontmatter } from "../utils/frontmatter.js";
 import { findFiles, readFileContent } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
 
@@ -28,7 +28,7 @@ export async function parseCommandsFromDirectory(commandsDir: string): Promise<P
 
 async function parseCommandFile(filepath: string): Promise<ParsedCommand> {
   const content = await readFileContent(filepath);
-  const parsed = matter(content);
+  const parsed = parseFrontmatter(content);
 
   try {
     const validatedData = CommandFrontmatterSchema.parse(parsed.data);

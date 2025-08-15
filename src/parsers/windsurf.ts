@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import matter from "gray-matter";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
+import { extractStringField, parseFrontmatter } from "../utils/frontmatter.js";
 import { logger } from "../utils/logger.js";
 
 export interface ImportOptions {
@@ -59,8 +59,7 @@ export async function importWindsurfRules(
 
 function parseWindsurfRule(content: string, filename: string, filepath: string): ParsedRule | null {
   try {
-    const parsed = matter(content);
-    const yamlFrontmatter = parsed.data;
+    const parsed = parseFrontmatter(content);
     const markdownContent = parsed.content;
 
     // Create default frontmatter
@@ -73,21 +72,29 @@ function parseWindsurfRule(content: string, filename: string, filepath: string):
     };
 
     // Parse Windsurf-specific frontmatter
-    if (yamlFrontmatter) {
+    if (parsed.data) {
       // Map activation modes to our frontmatter
-      if (yamlFrontmatter.activation) {
-        frontmatter.windsurfActivationMode = yamlFrontmatter.activation;
+      if (parsed.data.activation && typeof parsed.data.activation === "string") {
+        const validModes = ["always", "manual", "model-decision", "glob"] as const;
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        if (validModes.includes(parsed.data.activation as (typeof validModes)[number])) {
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
+          frontmatter.windsurfActivationMode = parsed.data
+            .activation as (typeof validModes)[number];
+        }
       }
 
       // Extract glob pattern from pattern field
-      if (yamlFrontmatter.pattern) {
-        frontmatter.globs = [yamlFrontmatter.pattern];
+      if (parsed.data.pattern && typeof parsed.data.pattern === "string") {
+        frontmatter.globs = [parsed.data.pattern];
       }
 
       // Set description if not already set
-      if (yamlFrontmatter.description) {
-        frontmatter.description = yamlFrontmatter.description;
-      }
+      frontmatter.description = extractStringField(
+        parsed.data,
+        "description",
+        filename.replace(/\.md$/, ""),
+      );
     }
 
     // Determine output format based on file location

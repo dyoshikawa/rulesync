@@ -1,10 +1,10 @@
 import { basename, join } from "node:path";
-import matter from "gray-matter";
 import { DEFAULT_SCHEMA, FAILSAFE_SCHEMA, load } from "js-yaml";
 import { z } from "zod/mini";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
+import { parseFrontmatter } from "../utils/frontmatter.js";
 import { fileExists, readFileContent } from "../utils/index.js";
 
 export interface CursorImportResult {
@@ -206,8 +206,8 @@ export async function parseCursorConfiguration(
   if (await fileExists(cursorFilePath)) {
     try {
       const rawContent = await readFileContent(cursorFilePath);
-      const parsed = matter(rawContent, customMatterOptions);
-      const content = parsed.content.trim();
+      const parsed = parseFrontmatter(rawContent, { matterOptions: customMatterOptions });
+      const content = parsed.content;
 
       if (content) {
         // Convert Cursor frontmatter format to rulesync format using unified function
@@ -241,8 +241,8 @@ export async function parseCursorConfiguration(
           const filePath = join(cursorRulesDir, file);
           try {
             const rawContent = await readFileContent(filePath);
-            const parsed = matter(rawContent, customMatterOptions);
-            const content = parsed.content.trim();
+            const parsed = parseFrontmatter(rawContent, { matterOptions: customMatterOptions });
+            const content = parsed.content;
 
             if (content) {
               const filename = basename(file, ".mdc");

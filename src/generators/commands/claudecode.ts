@@ -1,19 +1,10 @@
-import { join } from "node:path";
 import type { CommandOutput, ParsedCommand } from "../../types/commands.js";
+import { buildCommandContent, getFlattenedCommandPath } from "../../utils/command-generators.js";
 
 export class ClaudeCodeCommandGenerator {
   generate(command: ParsedCommand, outputDir: string): CommandOutput {
     const filepath = this.getOutputPath(command.filename, outputDir);
-
-    // Build frontmatter
-    const frontmatter: string[] = ["---"];
-    if (command.frontmatter.description) {
-      frontmatter.push(`description: ${command.frontmatter.description}`);
-    }
-    frontmatter.push("---");
-
-    // Combine frontmatter and content
-    const content = `${frontmatter.join("\n")}\n\n${command.content.trim()}\n`;
+    const content = buildCommandContent(command);
 
     return {
       tool: "claudecode",
@@ -23,8 +14,6 @@ export class ClaudeCodeCommandGenerator {
   }
 
   getOutputPath(filename: string, baseDir: string): string {
-    // Flatten subdirectory structure (git/commit.md -> git-commit.md)
-    const flattenedName = filename.replace(/\//g, "-");
-    return join(baseDir, ".claude", "commands", `${flattenedName}.md`);
+    return getFlattenedCommandPath(filename, baseDir, ".claude/commands");
   }
 }

@@ -1,6 +1,6 @@
 import { basename } from "node:path";
-import matter from "gray-matter";
 import { type ParsedRule, type RuleFrontmatter, RuleFrontmatterSchema } from "../types/index.js";
+import { parseFrontmatter } from "../utils/frontmatter.js";
 import { filterIgnoredFiles, loadIgnorePatterns } from "../utils/ignore.js";
 import { findRuleFiles, readFileContent } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
@@ -44,7 +44,7 @@ export async function parseRulesFromDirectory(aiRulesDir: string): Promise<Parse
 
 export async function parseRuleFile(filepath: string): Promise<ParsedRule> {
   const content = await readFileContent(filepath);
-  const parsed = matter(content);
+  const parsed = parseFrontmatter(content);
 
   // Validate frontmatter using zod schema
   try {

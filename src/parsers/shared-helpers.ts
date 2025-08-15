@@ -1,10 +1,10 @@
 import { basename, join } from "node:path";
-import matter from "gray-matter";
 import type { ParsedRule, RuleFrontmatter, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { getErrorMessage, safeAsyncOperation } from "../utils/error.js";
 import { fileExists, readFileContent, resolvePath } from "../utils/file.js";
+import { extractArrayField, extractStringField, parseFrontmatter } from "../utils/frontmatter.js";
 
 export interface ParserResult {
   rules: ParsedRule[];
@@ -58,17 +58,21 @@ export async function parseConfigurationFiles(
         let frontmatter: RuleFrontmatter;
 
         if (mainFile.useFrontmatter) {
-          const parsed = matter(rawContent);
-          content = parsed.content.trim();
+          const parsed = parseFrontmatter(rawContent);
+          content = parsed.content;
           // Extract additional frontmatter data if present
-          const parsedFrontmatter = parsed.data;
           frontmatter = {
             root: mainFile.isRoot ?? false,
             targets: [config.tool],
-            description: parsedFrontmatter.description || mainFile.description,
-            globs: Array.isArray(parsedFrontmatter.globs) ? parsedFrontmatter.globs : ["**/*"],
-            ...(parsedFrontmatter.tags && { tags: parsedFrontmatter.tags }),
+            description: extractStringField(parsed.data, "description", mainFile.description),
+            globs: extractArrayField(parsed.data, "globs", ["**/*"]),
           };
+
+          // Add tags only if they exist to avoid empty arrays
+          const tags = extractArrayField(parsed.data, "tags");
+          if (tags.length > 0) {
+            frontmatter.tags = tags;
+          }
         } else {
           content = rawContent.trim();
           frontmatter = {
@@ -116,19 +120,24 @@ export async function parseConfigurationFiles(
 
                 if (dirConfig.filePattern === ".instructions.md") {
                   // GitHub Copilot style with frontmatter
-                  const parsed = matter(rawContent);
-                  content = parsed.content.trim();
-                  const parsedFrontmatter = parsed.data;
+                  const parsed = parseFrontmatter(rawContent);
+                  content = parsed.content;
                   frontmatter = {
                     root: false,
                     targets: [config.tool],
-                    description:
-                      parsedFrontmatter.description || `${dirConfig.description}: ${filename}`,
-                    globs: Array.isArray(parsedFrontmatter.globs)
-                      ? parsedFrontmatter.globs
-                      : ["**/*"],
-                    ...(parsedFrontmatter.tags && { tags: parsedFrontmatter.tags }),
+                    description: extractStringField(
+                      parsed.data,
+                      "description",
+                      `${dirConfig.description}: ${filename}`,
+                    ),
+                    globs: extractArrayField(parsed.data, "globs", ["**/*"]),
                   };
+
+                  // Add tags only if they exist to avoid empty arrays
+                  const tags = extractArrayField(parsed.data, "tags");
+                  if (tags.length > 0) {
+                    frontmatter.tags = tags;
+                  }
                 } else {
                   content = rawContent.trim();
                   frontmatter = {
@@ -379,14 +388,13 @@ async function parseCommandsFiles(
 
           // Parse frontmatter if it exists
           try {
-            const parsed = matter(content);
-            ruleContent = parsed.content.trim();
-            const parsedFrontmatter = parsed.data;
+            const parsed = parseFrontmatter(content);
+            ruleContent = parsed.content;
             // Commands use simplified frontmatter with only description and targets
             frontmatter = {
               root: false,
               targets: [config.tool],
-              description: parsedFrontmatter.description || `Command: ${filename}`,
+              description: extractStringField(parsed.data, "description", `Command: ${filename}`),
               globs: ["**/*"],
             };
           } catch {
