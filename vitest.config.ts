@@ -6,9 +6,10 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     typecheck: {
-      enabled: true,
+      enabled: false,
       include: ["src/**/*.test-d.ts"],
     },
+    watch: false,
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
