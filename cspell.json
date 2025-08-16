@@ -1,4 +1,7 @@
 {
+    "cache": {
+        "useCache": true,
+    },
     "useGitignore": true,
     "ignorePaths": [
         "coverage/**",
