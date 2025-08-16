@@ -41,6 +41,33 @@ Please also reference the following documents as needed:
 @.claude/memories/specification-windsurf-rules.md description: "Windsurf AI code editor rules and memories configuration specification" globs: ""
 @.claude/memories/testing.md description: "Testing directory unification rules" globs: "**/*.test.ts"
 
+# Additional conventions beyond the built-in functions
+
+As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.
+
+## Simulated custom slash commands
+
+Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
+
+### Syntax
+
+Users can use following syntax to invoke a custom command.
+
+```txt
+s/<command> [arguments]
+```
+
+This syntax employs a double slash (`s/`) to prevent conflicts with built-in slash commands.  
+The `s` in `s/` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
+
+When users call a custom slash command, you have to look for the markdown file, `.claude/commands/{command}.md`, then execute the contents of that file as the block of operations.
+
+## Simulated subagents
+
+Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like simulated custom slash commands simply. Simulated subagents can be called by simulated custom slash commands.
+
+When users call a simulated subagent, it will look for the corresponding markdown file, `.claude/agents/{subagent}.md`, and execute its contents as the block of operations.
+
 # rulesync Project Overview
 
 This is rulesync, a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
