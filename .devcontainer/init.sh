@@ -1,7 +1,7 @@
 #!/bin/bash
 
-gh auth setup-git
 mise install
 pnpm i
 npm i -g @anthropic-ai/claude-code
-npm i -g opencode-ai@latest
+npm i -g opencode-ai
+gh auth setup-git
