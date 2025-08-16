@@ -41,11 +41,11 @@ Please also reference the following documents as needed:
 @.claude/memories/specification-windsurf-rules.md description: "Windsurf AI code editor rules and memories configuration specification" globs: ""
 @.claude/memories/testing.md description: "Testing directory unification rules" globs: "**/*.test.ts"
 
-# Additional conventions beyond the built-in functions
+# Additional Conventions Beyond the Built-in Functions
 
 As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.
 
-## Simulated custom slash commands
+## Simulated Custom Slash Commands
 
 Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
 
@@ -62,7 +62,7 @@ The `s` in `s/` stands for *simulate*. Because custom slash commands are not bui
 
 When users call a custom slash command, you have to look for the markdown file, `.claude/commands/{command}.md`, then execute the contents of that file as the block of operations.
 
-## Simulated subagents
+## Simulated Subagents
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like simulated custom slash commands simply. Simulated subagents can be called by simulated custom slash commands.
 
