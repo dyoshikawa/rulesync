@@ -4,7 +4,7 @@ targets:
   - claudecode
 ---
 
-Analyze this project's codebase and update .rulesync/overview.md files as needed.
+Analyze this project's codebase and update .rulesync/overview.md files as needed. Especially you should read `README.md`, `CONTRIBUTING.md` and `docs/**/*.md`.
 
 Please always define the following frontmatter in .rulesync/overview.md files.
 
