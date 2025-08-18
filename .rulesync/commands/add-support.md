@@ -20,16 +20,16 @@ Please complete all of the following tasks.
 
 Important: `.rulesync/*.md` files must include the required frontmatter. Refer to @README.md for frontmatter specification details.
 
-Use the context7 MCP to research the specifications and create the following files:
+Use the context7 MCP and web search to research the specifications and create the following files:
 
 1. `.rulesync/specification-{tool_name_in_rulesync}-rules.md`
-  - Research the specifications for rules or memories text files of target_tool_name using context7.
+  - Research the specifications for rules or memories text files of target_tool_name using context7 and web search.
 2. `.rulesync/specification-{tool_name_in_rulesync}-mcp.md`
-  - Research the specifications for MCP configuration text files of target_tool_name using context7.
+  - Research the specifications for MCP configuration text files of target_tool_name using context7 and web search.
 3. `.rulesync/specification-{tool_name_in_rulesync}-ignore.md`
-  - Research the specifications for ignore text files of target_tool_name using context7. Ignore files are configuration files used to specify files that should not be read or written by AI coding tools, such as files containing secret information.
+  - Research the specifications for ignore text files of target_tool_name using context7 and web search. Ignore files are configuration files used to specify files that should not be read or written by AI coding tools, such as files containing secret information.
 4. `.rulesync/specification-{tool_name_in_rulesync}-commands.md`
-  - Research the specifications for custom slash commands of target_tool_name using context7. Only part of the AI coding tools supports the custom slash commands function, so md files about only the tools that support this function should be created.
+  - Research the specifications for custom slash commands of target_tool_name using context7 and web search. Only part of the AI coding tools supports the custom slash commands function, so md files about only the tools that support this function should be created.
 
 For all files, research and document the specifications as comprehensively and thoroughly as possible without omissions.
 
