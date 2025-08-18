@@ -1,5 +1,5 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
@@ -12,9 +12,20 @@ export async function ensureDir(dirPath: string): Promise<void> {
 
 /**
  * Resolves a path relative to a base directory, handling both absolute and relative paths
+ * Includes protection against path traversal attacks
  */
 export function resolvePath(relativePath: string, baseDir?: string): string {
-  return baseDir ? join(baseDir, relativePath) : relativePath;
+  if (!baseDir) return relativePath;
+
+  const resolved = resolve(baseDir, relativePath);
+  const rel = relative(baseDir, resolved);
+
+  // Prevent path traversal attacks
+  if (rel.startsWith("..") || resolve(resolved) !== resolved) {
+    throw new Error(`Path traversal detected: ${relativePath}`);
+  }
+
+  return resolved;
 }
 
 /**

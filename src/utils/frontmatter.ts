@@ -25,37 +25,6 @@ export function parseFrontmatter(content: string, options?: FrontmatterOptions):
 }
 
 /**
- * Safe frontmatter parsing that handles errors gracefully
- */
-export function safeParseFrontmatter(
-  content: string,
-  options?: FrontmatterOptions,
-): { success: true; result: ParsedContent } | { success: false; error: string } {
-  try {
-    const result = parseFrontmatter(content, options);
-    return { success: true, result };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Type-safe frontmatter data extraction with default values
- */
-export function extractFrontmatterField<T>(
-  data: Record<string, unknown>,
-  key: string,
-  defaultValue: T,
-): T {
-  const value = data[key];
-  // eslint-disable-next-line no-type-assertion/no-type-assertion
-  return value !== undefined ? (value as T) : defaultValue;
-}
-
-/**
  * Extract array field from frontmatter with proper type checking
  */
 export function extractArrayField(

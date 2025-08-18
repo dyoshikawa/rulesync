@@ -1,4 +1,6 @@
+import { SCHEMA_URLS } from "../../constants/schemas.js";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
+import { createDefaultPermissions, mergePermissions } from "../../utils/permission-merger.js";
 
 export interface OpenCodePermissionConfig {
   permission?: {
@@ -17,8 +19,9 @@ export interface OpenCodePermissionConfig {
   };
 }
 
-export interface OpenCodeConfig extends OpenCodePermissionConfig {
+export interface OpenCodeConfig {
   $schema: string;
+  permission?: OpenCodePermissionConfig["permission"];
 }
 
 /**
@@ -66,91 +69,22 @@ function extractOpenCodePermissionPatterns(
  */
 function generateOpenCodeConfiguration(rules: ParsedRule[]): OpenCodeConfig {
   const config: OpenCodeConfig = {
-    $schema: "https://opencode.ai/config.json",
+    $schema: SCHEMA_URLS.OPENCODE,
   };
 
   // Extract permission configurations from rules
-  const allPermissions: OpenCodePermissionConfig["permission"] = {};
+  const allPermissions = createDefaultPermissions();
 
   for (const rule of rules) {
     const rulePermissions = extractOpenCodePermissionPatterns(rule.content);
     if (rulePermissions) {
-      // Merge read permissions
-      if (rulePermissions.read) {
-        allPermissions.read = allPermissions.read || {};
-        if (rulePermissions.read.default) {
-          allPermissions.read.default = rulePermissions.read.default;
-        }
-        if (rulePermissions.read.patterns) {
-          allPermissions.read.patterns = {
-            ...allPermissions.read.patterns,
-            ...rulePermissions.read.patterns,
-          };
-        }
-      }
-
-      // Merge write permissions
-      if (rulePermissions.write) {
-        allPermissions.write = allPermissions.write || {};
-        if (rulePermissions.write.default) {
-          allPermissions.write.default = rulePermissions.write.default;
-        }
-        if (rulePermissions.write.patterns) {
-          allPermissions.write.patterns = {
-            ...allPermissions.write.patterns,
-            ...rulePermissions.write.patterns,
-          };
-        }
-      }
-
-      // Merge run permissions
-      if (rulePermissions.run) {
-        allPermissions.run = allPermissions.run || {};
-        if (rulePermissions.run.default) {
-          allPermissions.run.default = rulePermissions.run.default;
-        }
-        if (rulePermissions.run.patterns) {
-          allPermissions.run.patterns = {
-            ...allPermissions.run.patterns,
-            ...rulePermissions.run.patterns,
-          };
-        }
-      }
+      mergePermissions(allPermissions, rulePermissions);
     }
   }
 
-  // Add default security permissions if none specified
-  if (Object.keys(allPermissions).length === 0) {
-    allPermissions.read = {
-      default: "allow",
-      patterns: {
-        "**/.env*": "deny",
-        "**/secrets/**": "deny",
-        "*.key": "deny",
-        "*.pem": "deny",
-        "~/.ssh/**": "deny",
-        "~/.aws/**": "deny",
-      },
-    };
-    allPermissions.write = {
-      default: "ask",
-      patterns: {
-        ".env*": "deny",
-        "config/production/**": "deny",
-        "secrets/**": "deny",
-      },
-    };
-    allPermissions.run = {
-      default: "ask",
-      patterns: {
-        "sudo *": "deny",
-        "rm -rf *": "deny",
-        "chmod 777 *": "deny",
-      },
-    };
+  if (allPermissions) {
+    config.permission = allPermissions;
   }
-
-  config.permission = allPermissions;
   return config;
 }
 

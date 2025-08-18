@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import type { CommandOutput, ParsedCommand } from "../types/commands.js";
-import type { ToolTarget } from "../types/tool-targets.js";
 
 /**
  * Common utilities for command generators
@@ -12,26 +11,28 @@ export interface FrontmatterOptions {
 }
 
 /**
- * Generate YAML frontmatter for command files
+ * Generate YAML frontmatter lines for commands
  */
 export function generateYamlFrontmatter(
   command: ParsedCommand,
-  options: FrontmatterOptions = {},
+  options?: FrontmatterOptions,
 ): string[] {
-  const frontmatter: string[] = ["---"];
+  const frontmatterLines: string[] = ["---"];
 
-  if (options.includeDescription !== false && command.frontmatter.description) {
-    frontmatter.push(`description: ${command.frontmatter.description}`);
+  // Add description if present and requested
+  if (options?.includeDescription && command.frontmatter.description) {
+    frontmatterLines.push(`description: ${command.frontmatter.description}`);
   }
 
-  if (options.additionalFields) {
+  // Add additional fields if provided
+  if (options?.additionalFields) {
     for (const field of options.additionalFields) {
-      frontmatter.push(`${field.key}: ${field.value}`);
+      frontmatterLines.push(`${field.key}: ${field.value}`);
     }
   }
 
-  frontmatter.push("---");
-  return frontmatter;
+  frontmatterLines.push("---");
+  return frontmatterLines;
 }
 
 /**
@@ -74,36 +75,6 @@ export function getHierarchicalCommandPath(
 export interface BaseCommandGenerator {
   generate(command: ParsedCommand, outputDir: string): CommandOutput;
   getOutputPath(filename: string, baseDir: string): string;
-}
-
-/**
- * Create a simple markdown command generator for tools that use YAML frontmatter
- */
-export function createMarkdownCommandGenerator(
-  tool: ToolTarget,
-  commandsSubdir: string,
-  useFlattened: boolean = true,
-): BaseCommandGenerator {
-  return {
-    generate(command: ParsedCommand, outputDir: string): CommandOutput {
-      const filepath = this.getOutputPath(command.filename, outputDir);
-      const content = buildCommandContent(command);
-
-      return {
-        tool,
-        filepath,
-        content,
-      };
-    },
-
-    getOutputPath(filename: string, baseDir: string): string {
-      if (useFlattened) {
-        return getFlattenedCommandPath(filename, baseDir, commandsSubdir);
-      } else {
-        return getHierarchicalCommandPath(filename, baseDir, commandsSubdir);
-      }
-    },
-  };
 }
 
 /**

@@ -75,10 +75,19 @@ Permission configuration:
     const config = JSON.parse(result[0]?.content || "{}");
 
     expect(config.permission.read?.patterns).toEqual({
+      "**/.env*": "deny",
+      "**/secrets/**": "deny",
+      "*.key": "deny",
+      "*.pem": "deny",
+      "~/.ssh/**": "deny",
+      "~/.aws/**": "deny",
       "config/production/**": "deny",
       "src/**/*.ts": "allow",
     });
     expect(config.permission.write?.patterns).toEqual({
+      ".env*": "deny",
+      "config/production/**": "deny",
+      "secrets/**": "deny",
       "*.md": "allow",
     });
   });
@@ -126,6 +135,12 @@ Permission configuration:
     const config = JSON.parse(result[0]?.content || "{}");
 
     expect(config.permission.read?.patterns).toEqual({
+      "**/.env*": "deny",
+      "**/secrets/**": "deny",
+      "*.key": "deny",
+      "*.pem": "deny",
+      "~/.ssh/**": "deny",
+      "~/.aws/**": "deny",
       "secrets/**": "deny",
       "config/**": "ask",
     });

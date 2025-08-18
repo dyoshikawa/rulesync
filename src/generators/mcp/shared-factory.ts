@@ -1,3 +1,4 @@
+import { SCHEMA_URLS } from "../../constants/schemas.js";
 import type { ToolTarget } from "../../types/index.js";
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../../types/mcp.js";
 import type { BaseMcpConfig, BaseMcpServer } from "../../types/mcp-config.js";
@@ -162,7 +163,7 @@ const serverTransforms = {
 /**
  * Common config wrappers
  */
-export const configWrappers = {
+const configWrappers = {
   /**
    * Standard mcpServers wrapper
    */
@@ -404,7 +405,7 @@ const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
       return opencodeServer;
     },
     configWrapper: (servers: Record<string, McpServerMapping>) => ({
-      $schema: "https://opencode.ai/config.json",
+      $schema: SCHEMA_URLS.OPENCODE,
       mcp: servers,
     }),
   },

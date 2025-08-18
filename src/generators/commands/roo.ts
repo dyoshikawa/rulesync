@@ -13,7 +13,7 @@ export class RooCommandGenerator extends BaseCommandGenerator {
   }
 
   processContent(command: ParsedCommand): string {
-    return buildCommandContent(command);
+    return buildCommandContent(command, { includeDescription: true });
   }
 
   // Uses flattened structure by default (supportsHierarchy returns false)

@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /**
- * Creates a unique test directory under /tmp/tests/
- * @returns Promise that resolves to the absolute path of the created directory
+ * Helper for test setup and cleanup
+ * Returns an object with testDir path and cleanup function
  */
-export async function createTestDirectory(): Promise<string> {
+export async function setupTestDirectory(): Promise<{
+  testDir: string;
+  cleanup: () => Promise<void>;
+}> {
   const testsDir = join(tmpdir(), "tests");
 
   // Ensure the tests directory exists
@@ -19,28 +22,8 @@ export async function createTestDirectory(): Promise<string> {
     }
   }
 
-  const tempDir = await mkdtemp(join(testsDir, "rulesync-test-"));
-  return tempDir;
-}
-
-/**
- * Removes a test directory and all its contents
- * @param testDir - The directory path to remove
- */
-export async function cleanupTestDirectory(testDir: string): Promise<void> {
-  await rm(testDir, { recursive: true, force: true });
-}
-
-/**
- * Helper for test setup and cleanup
- * Returns an object with testDir path and cleanup function
- */
-export async function setupTestDirectory(): Promise<{
-  testDir: string;
-  cleanup: () => Promise<void>;
-}> {
-  const testDir = await createTestDirectory();
-  const cleanup = () => cleanupTestDirectory(testDir);
+  const testDir = await mkdtemp(join(testsDir, "rulesync-test-"));
+  const cleanup = () => rm(testDir, { recursive: true, force: true });
   return { testDir, cleanup };
 }
 
