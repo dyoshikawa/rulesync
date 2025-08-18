@@ -6,6 +6,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
   const mockConfig: Config = {
     aiRulesDir: "rules",
     outputPaths: {
+      amazonqcli: "output",
       augmentcode: "output",
       "augmentcode-legacy": "output",
       claudecode: "output",

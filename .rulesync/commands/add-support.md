@@ -103,7 +103,7 @@ Call the pr-creator subagent to create a PR for the all implementations above.
 
 Please review and fix the all implementations above.
 
-1. Call the code-reviewer subagent and the security-reviewer subagent to review the all implementations above.
+1. Call the code-reviewer subagent, the security-reviewer subagent and the refactoring-planner subagent to review the all implementations above.
 2. Review the code by the aspect about @.rulesync/rules/precautions.md.
 3. You check the review results above and modify the code if necessary.
 4. Call the code-fixer subagent to stabilize the code after the fix.

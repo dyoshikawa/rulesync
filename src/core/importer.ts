@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import matter from "gray-matter";
 import {
+  parseAmazonqcliConfiguration,
   parseAugmentcodeConfiguration,
   parseAugmentcodeLegacyConfiguration,
   parseClaudeConfiguration,
@@ -53,6 +54,13 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   // Parse configuration based on tool
   try {
     switch (tool) {
+      case "amazonqcli": {
+        const amazonqResult = await parseAmazonqcliConfiguration(baseDir);
+        rules = amazonqResult.rules;
+        errors.push(...amazonqResult.errors);
+        mcpServers = amazonqResult.mcpServers;
+        break;
+      }
       case "augmentcode": {
         const augmentResult = await parseAugmentcodeConfiguration(baseDir);
         rules = augmentResult.rules;

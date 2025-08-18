@@ -6,6 +6,7 @@ describe("generateJunieConfig", () => {
   const mockConfig: Config = {
     aiRulesDir: ".rulesync",
     outputPaths: {
+      amazonqcli: ".amazonq/rules",
       augmentcode: ".",
       "augmentcode-legacy": ".",
       copilot: ".github/instructions",

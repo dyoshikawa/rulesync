@@ -15,6 +15,7 @@ describe("config utils", () => {
       expect(config.outputPaths.geminicli).toBe(".gemini/memories");
       expect(config.outputPaths.kiro).toBe(".kiro/steering");
       expect(config.defaultTargets).toEqual([
+        "amazonqcli",
         "augmentcode",
         "copilot",
         "cursor",
@@ -38,6 +39,7 @@ describe("config utils", () => {
     it("should resolve * to all default targets", () => {
       const targets = resolveTargets(["*"], config);
       expect(targets).toEqual([
+        "amazonqcli",
         "augmentcode",
         "copilot",
         "cursor",

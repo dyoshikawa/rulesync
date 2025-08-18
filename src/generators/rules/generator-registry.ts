@@ -98,6 +98,22 @@ export type GeneratorConfig = SimpleGeneratorConfig | ComplexGeneratorConfig;
  */
 const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
   // Simple generators - generate one file per rule
+  amazonqcli: {
+    type: "complex",
+    tool: "amazonqcli",
+    fileExtension: ".md",
+    // ignoreFileName omitted - Amazon Q CLI doesn't have native ignore file support yet
+    generateContent: (rule) => {
+      const lines: string[] = [];
+      if (rule.frontmatter.description) {
+        lines.push(`# ${rule.frontmatter.description}\n`);
+      }
+      lines.push(rule.content.trim());
+      return lines.join("\n");
+    },
+    // Complex generation handled by existing generator
+  },
+
   cline: {
     type: "simple",
     tool: "cline",

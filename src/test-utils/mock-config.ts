@@ -5,6 +5,7 @@ import type { ToolTarget } from "../types/tool-targets.js";
  * Standard output paths used in tests - matches the common pattern used across ignore generator tests
  */
 const STANDARD_TEST_OUTPUT_PATHS = {
+  amazonqcli: "./.amazonq/rules",
   augmentcode: "./.augment/rules",
   "augmentcode-legacy": "./.augment-guidelines",
   copilot: "./.github/copilot-instructions.md",
@@ -27,6 +28,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
   return {
     aiRulesDir: ".rulesync",
     outputPaths: {
+      amazonqcli: ".amazonq/rules",
       augmentcode: ".",
       "augmentcode-legacy": ".",
       copilot: ".github/instructions",
@@ -43,6 +45,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
     },
     watchEnabled: false,
     defaultTargets: [
+      "amazonqcli",
       "augmentcode",
       "copilot",
       "cursor",

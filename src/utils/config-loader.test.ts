@@ -138,6 +138,7 @@ describe("config-loader", () => {
     const baseConfig: MergedConfig = {
       aiRulesDir: ".rulesync",
       outputPaths: {
+        amazonqcli: ".amazonq/rules",
         copilot: ".github/instructions",
         cursor: ".cursor/rules",
         cline: ".clinerules",

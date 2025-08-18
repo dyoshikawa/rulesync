@@ -1,3 +1,4 @@
+export { generateAmazonqcliMcp, generateAmazonqcliMcpString } from "./amazonqcli.js";
 export { generateAugmentcodeMcp } from "./augmentcode.js";
 export { generateClaudeMcp } from "./claudecode.js";
 export { generateClineMcp } from "./cline.js";

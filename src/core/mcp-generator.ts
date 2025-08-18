@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import {
+  generateAmazonqcliMcpString,
   generateAugmentcodeMcp,
   generateClaudeMcp,
   generateClineMcp,
@@ -12,7 +13,7 @@ import {
   generateRooMcp,
   generateWindsurfMcp,
 } from "../generators/mcp/index.js";
-import { isToolTarget, type ToolTarget, type ToolTargets } from "../types/index.js";
+import { type Config, isToolTarget, type ToolTarget, type ToolTargets } from "../types/index.js";
 import type { RulesyncMcpConfig, RulesyncMcpServer } from "../types/mcp.js";
 import { writeFileContent } from "../utils/file.js";
 import { parseMcpConfig } from "./mcp-parser.js";
@@ -38,6 +39,11 @@ export async function generateMcpConfigs(
   }
 
   const generators = [
+    {
+      tool: "amazonqcli-project",
+      path: path.join(targetRoot, ".amazonq", "mcp.json"),
+      generate: () => generateAmazonqcliMcpString(config),
+    },
     {
       tool: "augmentcode-project",
       path: path.join(targetRoot, ".mcp.json"),
@@ -123,6 +129,7 @@ export async function generateMcpConfigs(
       const parsed = JSON.parse(content);
 
       if (
+        generator.tool.includes("amazonqcli") ||
         generator.tool.includes("augmentcode") ||
         generator.tool.includes("claude") ||
         generator.tool.includes("cline") ||
@@ -187,6 +194,35 @@ export async function generateMcpConfigurations(
       dir: string,
     ) => Promise<Array<{ filepath: string; content: string }>>
   > = {
+    amazonqcli: async (servers, dir) => {
+      const config: Config = {
+        aiRulesDir: ".rulesync",
+        outputPaths: {
+          amazonqcli: ".amazonq/rules",
+          augmentcode: ".",
+          "augmentcode-legacy": ".",
+          copilot: ".github/instructions",
+          cursor: ".cursor/rules",
+          cline: ".clinerules",
+          claudecode: ".",
+          codexcli: ".",
+          opencode: ".",
+          roo: ".roo/rules",
+          geminicli: ".gemini/memories",
+          kiro: ".kiro/steering",
+          junie: ".",
+          windsurf: ".",
+        },
+        watchEnabled: false,
+        defaultTargets: [],
+      };
+      const results = await (await import("../generators/mcp/amazonqcli.js")).generateAmazonqcliMcp(
+        servers,
+        config,
+        dir,
+      );
+      return results.map((result) => ({ filepath: result.filepath, content: result.content }));
+    },
     augmentcode: async (servers, dir) =>
       (await import("../generators/mcp/augmentcode.js")).generateAugmentcodeMcpConfiguration(
         servers,

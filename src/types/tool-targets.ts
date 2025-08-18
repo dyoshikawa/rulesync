@@ -1,6 +1,7 @@
 import { z } from "zod/mini";
 
 export const ALL_TOOL_TARGETS = [
+  "amazonqcli",
   "augmentcode",
   "augmentcode-legacy",
   "copilot",

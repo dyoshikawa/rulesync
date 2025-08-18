@@ -32,10 +32,11 @@ describe("generateMcpConfigurations", () => {
     // Should generate for all supported tools by default
     // AugmentCode and AugmentCode-legacy both map to same .mcp.json (deduplicated), Copilot generates 2 files, others generate 1 each
     // ClaudeCode now uses .mcp.json which conflicts with AugmentCode, so they're deduplicated
-    // Total: augmentcode+claudecode(1) + cursor(1) + cline(1) + codexcli(1) + opencode(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) + junie(1) + windsurf(1) = 12
-    expect(outputs).toHaveLength(12);
+    // Total: amazonqcli(1) + augmentcode+claudecode(1) + cursor(1) + cline(1) + codexcli(1) + opencode(1) + roo(1) + copilot(2) + geminicli(1) + kiro(1) + junie(1) + windsurf(1) = 13
+    expect(outputs).toHaveLength(13);
 
     const filepaths = outputs.map((o) => o.filepath);
+    expect(filepaths).toContain(join(testDir, ".amazonq/mcp.json")); // Amazon Q CLI
     expect(filepaths).toContain(join(testDir, ".mcp.json")); // AugmentCode + ClaudeCode
     expect(filepaths).toContain(join(testDir, ".vscode/mcp.json"));
     expect(filepaths).toContain(join(testDir, ".copilot/mcp.json"));
