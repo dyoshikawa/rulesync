@@ -67,7 +67,7 @@ rulesync supports both **generation** and **import** for **11 AI development too
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md` + **Custom Slash Commands** `.claude/commands/*.md`)
 - **OpenCode** (`AGENTS.md` + `opencode.json` + **🔐 Permission-Based Security** instead of traditional ignore files)
-- **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
+- **OpenAI Codex CLI** (`AGENTS.md` + **File Splitting with XML References** `.codex/memories/*.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md` + **Custom Slash Commands** `.gemini/commands/*.md`)
@@ -150,7 +150,7 @@ npx rulesync gitignore
 - **[GitHub Copilot](./docs/tools/copilot.md)** - Custom instructions
 - **[Cline](./docs/tools/cline.md)** - Plain Markdown rules
 - **[OpenCode](./docs/tools/opencode.md)** - Permission-based configuration and MCP integration
-- **[OpenAI Codex CLI](./docs/tools/codexcli.md)** - Hierarchical memory system
+- **[OpenAI Codex CLI](./docs/tools/codexcli.md)** - Advanced file splitting with XML document references and memory files
 - **[Gemini CLI](./docs/tools/geminicli.md)** - Memory and commands
 - **[Windsurf](./docs/tools/windsurf.md)** - Rules and Cascade AI
 - **[JetBrains Junie](./docs/tools/junie.md)** - Guidelines and IDE integration

@@ -13,6 +13,7 @@ rulesync provides comprehensive import functionality to convert existing AI tool
 | **GitHub Copilot** | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md` | `--copilot` |
 | **Cline** | `.cline/instructions.md`, `.clinerules/*.md` | `--cline` |
 | **OpenCode** | `AGENTS.md`, `opencode.json`, `~/.config/opencode/AGENTS.md` | `--opencode` |
+| **OpenAI Codex CLI** | `AGENTS.md`, `.codex/memories/*.md` (XML-referenced) | `--codexcli` |
 | **AugmentCode** | `.augment/rules/*.md`, `.augment-guidelines` (legacy) | `--augmentcode`, `--augmentcode-legacy` |
 | **Roo Code** | `.roo/instructions.md`, `.roo/rules/*.md` | `--roo` |
 | **Gemini CLI** | `GEMINI.md`, `.gemini/memories/*.md`, `.gemini/commands/*.md` | `--geminicli` |
@@ -29,6 +30,7 @@ npx rulesync import --cursor
 npx rulesync import --copilot
 npx rulesync import --cline
 npx rulesync import --opencode
+npx rulesync import --codexcli
 ```
 
 ### Enhanced Import Options
@@ -49,6 +51,7 @@ npx rulesync import --augmentcode-legacy
 npx rulesync import --claudecode
 npx rulesync import --cursor
 npx rulesync import --copilot
+npx rulesync import --codexcli
 
 # Review merged rules in .rulesync/ directory
 # Then generate unified configurations
@@ -86,6 +89,26 @@ npx rulesync import --claudecode
 - `.rulesync/claudecode-overview.md` (from CLAUDE.md)
 - `.rulesync/claudecode-[memory-name].md` (from memory files)
 - `.rulesync/commands/[command-name].md` (from command files)
+
+### OpenAI Codex CLI Import
+**Sources**:
+- `AGENTS.md` → Root rule with project overview and XML document references
+- `.codex/memories/*.md` → Individual memory files for detailed rules
+
+**Import Process**:
+```bash
+npx rulesync import --codexcli
+```
+
+**Generated Files**:
+- `.rulesync/codexcli-overview.md` (from AGENTS.md root content)
+- `.rulesync/codexcli-[memory-name].md` (from individual memory files)
+
+**File Splitting Features**:
+- **XML Reference Detection**: Parses XML `<Documents>` section in AGENTS.md
+- **Memory File Discovery**: Automatically discovers files in `.codex/memories/` directory
+- **Structured Import**: Maintains separation between root instructions and memory files
+- **Path Resolution**: Correctly resolves `@.codex/memories/` references to actual files
 
 ### Cursor Import
 **Sources**:

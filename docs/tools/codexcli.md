@@ -8,24 +8,27 @@ OpenAI Codex CLI supports a hierarchical memory system that provides persistent 
 
 | File Type | Output Path | Description |
 |-----------|-------------|-------------|
-| **Project Instructions** | `codex.md` | Main project-level instructions (root rules) |
-| **Detail Instructions** | `<filename>.md` | Additional instruction files (non-root rules) |
+| **Root Instructions** | `AGENTS.md` | Root instructions with XML document references |
+| **Memory Files** | `.codex/memories/<filename>.md` | Individual memory files for detail rules |
 | **MCP Configuration** | `.codex/mcp-config.json` | MCP server configuration |
 | **Ignore Rules** | `.codexignore` | File exclusion patterns (community tools) |
 
-## Hierarchical Memory System
+## File Splitting Architecture
 
-### Memory Hierarchy
-Codex CLI loads instructions in hierarchical order:
+### Advanced Multi-File System (Enhanced v0.62.0+)
+Codex CLI now implements advanced file splitting with XML document references for improved organization:
 
-1. **Global User Instructions** (`~/.codex/instructions.md`) - Personal preferences
-2. **Project-Level Instructions** (`codex.md`) - Project-specific guidelines
-3. **Directory-Specific Instructions** (`<cwd>/codex.md`) - Local rules
+1. **Root Instructions** (`AGENTS.md`) - Contains primary project context with XML `<Documents>` references
+2. **Memory Files** (`.codex/memories/*.md`) - Individual files for specific rule categories (auto-generated)
+3. **Global Instructions** (`~/.codex/instructions.md`) - Personal preferences (unchanged)
 
-### File Processing
-- **Root Rules** → `codex.md` (main project instructions)
-- **Non-Root Rules** → Individual `.md` files for specific categories
-- **Plain Markdown**: Clean, readable format without complex frontmatter
+### XML Document Reference System
+- **Automatic XML Generation**: Uses fast-xml-parser for structured document references
+- **Smart Path Resolution**: Auto-generated `@.codex/memories/{filename}.md` paths
+- **Metadata Integration**: Includes description and glob patterns from frontmatter
+- **Plain Markdown Output**: Clean memory files without YAML frontmatter complexity
+- **Directory Auto-Creation**: `.codex/memories/` directory created automatically
+- **Gitignore Integration**: Memory files excluded via `**/.codex/memories/` pattern
 
 ## Supported Models
 
@@ -58,8 +61,8 @@ npx rulesync generate --codexcli --base-dir ./packages/frontend
 npx rulesync import --codexcli
 
 # This imports from:
-# - codex.md (main instructions)
-# - Additional .md files (detail instructions)
+# - AGENTS.md (root instructions)
+# - .codex/memories/*.md (memory files)
 ```
 
 ## File Organization
@@ -67,18 +70,40 @@ npx rulesync import --codexcli
 ### Standard Structure
 ```
 project-root/
-├── codex.md                     # Main project instructions
-├── typescript-rules.md         # Language-specific rules
-├── testing-guidelines.md       # Testing requirements
-├── security-standards.md       # Security guidelines
-└── .codex/
-    └── mcp-config.json         # MCP server configuration
+├── AGENTS.md                    # Root instructions with XML references
+├── .codex/
+│   ├── memories/                # Memory files directory
+│   │   ├── typescript-rules.md   # Language-specific rules
+│   │   ├── testing-guidelines.md # Testing requirements
+│   │   └── security-standards.md # Security guidelines
+│   └── mcp-config.json         # MCP server configuration
+└── .codexignore                 # File exclusion patterns
 ```
 
 ### Content Examples
 
-**Main Instructions** (`codex.md`):
+**Root Instructions** (`AGENTS.md`) - Auto-generated with XML references:
 ```markdown
+Please also reference the following documents as needed. In this case, `@` stands for the project root directory.
+
+<Documents>
+  <Document>
+    <Path>@.codex/memories/typescript-rules.md</Path>
+    <Description>TypeScript development guidelines</Description>
+    <FilePatterns>**/*.ts, **/*.tsx</FilePatterns>
+  </Document>
+  <Document>
+    <Path>@.codex/memories/testing-guidelines.md</Path>
+    <Description>Testing requirements and practices</Description>
+    <FilePatterns>**/*.test.ts, **/*.spec.ts</FilePatterns>
+  </Document>
+  <Document>
+    <Path>@.codex/memories/security-standards.md</Path>
+    <Description>Security guidelines and best practices</Description>
+    <FilePatterns>**/*.js, **/*.ts, **/*.tsx</FilePatterns>
+  </Document>
+</Documents>
+
 # E-commerce Platform Development
 
 This is a modern e-commerce platform built with Next.js and TypeScript.
@@ -103,10 +128,8 @@ pnpm db:push
 - Always backup before schema changes
 ```
 
-**Detail Instructions** (`typescript-rules.md`):
+**Memory File** (`.codex/memories/typescript-rules.md`):
 ```markdown
-# TypeScript Development Rules
-
 ## Code Quality Standards
 - Use TypeScript strict mode
 - Write descriptive commit messages
@@ -159,6 +182,31 @@ rulesync can generate MCP server configurations for Codex CLI:
 npx rulesync generate --codexcli --base-dir ./packages/frontend,./packages/backend
 ```
 
+### XML Document Integration
+The file splitting system uses structured XML document references with enhanced features:
+
+```xml
+<Documents>
+  <Document>
+    <Path>@.codex/memories/component-guidelines.md</Path>
+    <Description>Component development guidelines and patterns</Description>
+    <FilePatterns>src/components/**/*.tsx, src/components/**/*.ts</FilePatterns>
+  </Document>
+  <Document>
+    <Path>@.codex/memories/api-standards.md</Path>
+    <Description>API development and testing standards</Description>
+    <FilePatterns>src/api/**/*.ts, **/*.test.ts</FilePatterns>
+  </Document>
+</Documents>
+```
+
+### Advanced XML Features
+- **Dynamic Path Resolution**: Automatically resolves `@` symbol to project root
+- **Conditional FilePatterns**: Only includes patterns when globs exist in frontmatter
+- **Auto-Generated Descriptions**: Uses frontmatter description or generates from filename
+- **Structured Formatting**: XML output properly formatted with fast-xml-parser
+- **Memory Organization**: Logical separation of concerns across multiple files
+
 ### Environment-Specific Rules
 ```markdown
 # Environment-Specific Guidelines
@@ -207,9 +255,12 @@ npx rulesync generate --codexcli --base-dir ./packages/frontend,./packages/backe
 
 ### Memory Management
 1. **Concise Content**: Keep under 2000 words per file for cost efficiency
-2. **Focused Topics**: One topic per instruction file
-3. **Hierarchical Organization**: Use project → detail instruction flow
-4. **Version Control**: Track instruction changes in Git
+2. **Focused Topics**: One topic per memory file for better organization
+3. **Auto-Generated XML**: XML references maintain structure without manual editing
+4. **Version Control**: Track AGENTS.md in Git, memory files auto-excluded via .gitignore
+5. **File Splitting**: Automatic separation of root and detail rules
+6. **Plain Markdown**: Memory files generated without frontmatter complexity
+7. **Directory Auto-Creation**: `.codex/memories/` created automatically during generation
 
 ### Team Workflow
 1. **Shared Standards**: Ensure all team members use same instructions
@@ -240,10 +291,13 @@ codex doctor
 ## Integration Benefits
 
 ### Development Experience
-- **Consistent Context**: Persistent project context across sessions
-- **Model Flexibility**: Choose appropriate model for task complexity
-- **Hierarchical Rules**: Local rules can override global settings
-- **Plain Markdown**: Easy to read and maintain instruction format
+- **Persistent Context**: Root instructions with organized memory references
+- **Model Flexibility**: Choose appropriate model for task complexity (GPT-4, o1-mini, etc.)
+- **Automatic Organization**: Memory files separated by topic/concern without manual effort
+- **XML Integration**: Structured document references for easy AI navigation
+- **Clean Output**: Plain Markdown memory files without YAML frontmatter
+- **File Splitting Benefits**: Improved token efficiency and context management
+- **Gitignore Integration**: Memory files automatically excluded from version control
 
 ### Team Collaboration
 - **Shared Knowledge**: Team members use consistent instruction set
@@ -274,10 +328,10 @@ codex doctor
 4. **Model Optimization**: Adjust content for OpenAI model characteristics
 
 ### From Manual Setup
-1. **Audit Existing**: Review current `codex.md` and instruction files
+1. **Audit Existing**: Review current instruction files
 2. **Categorize Content**: Organize into logical rule categories
 3. **rulesync Integration**: Import or recreate in `.rulesync/` format
-4. **Generate Configuration**: Use rulesync to create organized structure
+4. **Generate Configuration**: Use rulesync to create AGENTS.md + memory files structure
 
 ## See Also
 

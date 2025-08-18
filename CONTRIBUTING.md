@@ -22,7 +22,7 @@ rulesync now supports **11 AI development tools** with comprehensive rule, MCP, 
 - **Gemini CLI** (GEMINI.md + .gemini/memories/)
 - **JetBrains Junie** Guidelines (.junie/guidelines.md)
 - **Kiro IDE** Custom Steering Documents
-- **OpenAI Codex CLI** (hierarchical codex.md files)
+- **OpenAI Codex CLI** (AGENTS.md + **Advanced File Splitting** with XML document references + `.codex/memories/*.md`)
 - **Windsurf AI Code Editor** (.windsurf/rules/ + MCP + ignore files)
 
 ## Getting Started
@@ -169,6 +169,7 @@ rulesync/
 │   │   ├── mcp-parser.ts              # MCP configuration parsing
 │   │   ├── command-generator.ts       # ⭐ NEW: Orchestrate custom command generation
 │   │   └── command-parser.ts          # ⭐ NEW: Parse command definitions from rules
+│   └── xml-document-generator.ts   # ⭐ NEW: XML document reference system for file splitting
 │   ├── generators/                    # Organized by output type with shared patterns
 │   │   ├── rules/                     # Standard rule generators
 │   │   │   ├── generator-registry.ts  # ⭐ NEW: Registry pattern for rule generation
@@ -176,7 +177,7 @@ rulesync/
 │   │   │   ├── augmentcode.ts         # AugmentCode Rules (current + legacy)
 │   │   │   ├── claudecode.ts          # Claude Code Memory (complex hierarchy)
 │   │   │   ├── cline.ts               # Cline Rules (.cline/instructions.md)
-│   │   │   ├── codexcli.ts            # OpenAI Codex CLI (hierarchical codex.md)
+│   │   │   ├── codexcli.ts            # OpenAI Codex CLI (AGENTS.md + XML-based file splitting + memory files)
 │   │   │   ├── copilot.ts             # GitHub Copilot (.github/copilot-*.md)
 │   │   │   ├── cursor.ts              # Cursor Rules (4 activation types)
 │   │   │   ├── geminicli.ts           # Gemini CLI (GEMINI.md + memories)
@@ -202,7 +203,7 @@ rulesync/
 │   │   ├── augmentcode.ts             # Parse AugmentCode (.augmentcode + legacy)
 │   │   ├── claudecode.ts              # Parse Claude Code (CLAUDE.md + memories)
 │   │   ├── cline.ts                   # Parse Cline (.cline/instructions.md)
-│   │   ├── codexcli.ts                # Parse Codex CLI (hierarchical discovery)
+│   │   ├── codexcli.ts                # Parse Codex CLI (AGENTS.md + memory files)
 │   │   ├── copilot.ts                 # Parse GitHub Copilot (.github/copilot-*.md)
 │   │   ├── cursor.ts                  # Parse Cursor (.cursorrules + .cursor/rules/*.mdc)
 │   │   ├── geminicli.ts               # Parse Gemini CLI (GEMINI.md + memories)
@@ -231,6 +232,7 @@ rulesync/
 │       ├── rules.ts                   # Rule processing utilities
 │       ├── mcp-helpers.ts             # ⭐ NEW: MCP-specific utilities
 │       ├── parser-helpers.ts          # Parser utility functions
+│       ├── xml-document-generator.ts  # ⭐ NEW: XML document reference generation for file splitting
 │       └── error.ts                   # ⭐ NEW: Enhanced error handling
 ├── dist/                              # Build output (CJS + ESM + types)
 └── **/*.test.ts                       # Co-located test files (1,500+ lines)
@@ -325,9 +327,25 @@ pnpm test src/parsers/                    # All tool parsers
 pnpm test:import cursor                   # Test Cursor import with commands
 pnpm test:import cline                    # Test Cline import
 pnpm test:import roo                      # Test Roo Cline import
+pnpm test:import codexcli                 # Test CodexCLI XML-based import
 
 # Integration testing
 pnpm test:e2e import                      # End-to-end import testing
+```
+
+#### Testing File Splitting Features
+
+```bash
+# Test file splitting core functionality
+pnpm test src/utils/xml-document-generator  # XML document reference generation
+pnpm test src/generators/rules/codexcli     # CodexCLI file splitting implementation
+pnpm test src/parsers/codexcli              # CodexCLI XML parsing and import
+
+# Test XML document generation
+pnpm test src/generators/rules/shared-helpers # Test generateComplexRules function
+
+# Integration testing for file splitting
+pnpm dev generate --target codexcli --verbose # Test with detailed output
 ```
 
 ### Custom Command Generation Architecture (NEW)
@@ -441,6 +459,11 @@ pnpm dev generate --target cline --commands   # Test with Cline
 pnpm dev generate --target roo --commands     # Test with Roo Cline
 pnpm dev generate --target windsurf --commands # Test with Windsurf
 
+# Test file splitting functionality
+pnpm test src/generators/rules/codexcli       # Test CodexCLI file splitting
+pnpm test src/utils/xml-document-generator    # Test XML document generation
+pnpm dev generate --target codexcli           # Test CodexCLI generation with file splitting
+
 # Test with legacy structure
 pnpm dev init --legacy                      # Test legacy initialization
 pnpm dev add typescript-rules --legacy      # Test legacy rule addition
@@ -509,6 +532,12 @@ export async function generateNewToolCommands(
 - **Vitest**: Testing framework with coverage and snapshot testing
 - **cspell**: Spell checker for code and documentation
 
+#### File Splitting Dependencies
+- **fast-xml-parser**: XML document reference generation and parsing
+- **XMLBuilder**: Structured XML output for document references
+- **Path resolution utilities**: Dynamic path resolution for memory file references
+- **Directory management**: Auto-creation of memory file directories
+
 #### Command Generation Dependencies
 - **Command parsing utilities**: Enhanced frontmatter handling for command definitions
 - **Tool-specific formatters**: Custom formatting for each AI tool's command format
@@ -562,6 +591,19 @@ export async function generateNewToolCommands(
 9. Set up git hooks: `npx simple-git-hooks` (first time only)
 10. Commit your changes with a clear message
 11. Push to your fork and create a pull request
+
+#### Development Workflow for File Splitting Features
+
+When working on file splitting functionality:
+
+1. **XML Structure Design**: Define XML document reference structure for the target tool
+2. **Memory File Organization**: Plan directory structure and file naming conventions
+3. **Generator Implementation**: Use `generateComplexRules` helper with appropriate configuration
+4. **XML Generation**: Implement XML document references using `generateRootMarkdownWithXmlDocs`
+5. **Parser Integration**: Add XML parsing support for import functionality
+6. **Test Coverage**: Cover root/memory file generation, XML structure, and directory creation
+7. **Gitignore Integration**: Ensure memory directories are excluded from version control
+8. **Documentation**: Update specifications with file splitting architecture details
 
 #### Development Workflow for Command Features
 
