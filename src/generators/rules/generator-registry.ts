@@ -75,7 +75,7 @@ export interface ComplexGeneratorConfig {
   type: "complex";
   tool: ToolTarget;
   fileExtension: string;
-  ignoreFileName: string;
+  ignoreFileName?: string;
   generateContent: (rule: ParsedRule) => string;
   generateRootContent?: (
     rootRule: ParsedRule | undefined,
@@ -314,7 +314,7 @@ const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
     type: "complex",
     tool: "opencode",
     fileExtension: ".md",
-    ignoreFileName: ".opcodeignore",
+    // ignoreFileName omitted - OpenCode doesn't use dedicated ignore files
     generateContent: (rule) => {
       const lines: string[] = [];
       if (rule.frontmatter.description) {
@@ -372,8 +372,8 @@ export async function generateFromRegistry(
     const enhancedConfig: EnhancedRuleGeneratorConfig = {
       tool: generatorConfig.tool,
       fileExtension: generatorConfig.fileExtension,
-      ignoreFileName: generatorConfig.ignoreFileName,
       generateContent: generatorConfig.generateContent,
+      ...(generatorConfig.ignoreFileName && { ignoreFileName: generatorConfig.ignoreFileName }),
       ...(generatorConfig.generateRootContent && {
         generateRootContent: generatorConfig.generateRootContent,
       }),

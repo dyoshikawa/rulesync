@@ -10,7 +10,7 @@ export async function generateOpenCodeConfig(
   const generatorConfig: EnhancedRuleGeneratorConfig = {
     tool: "opencode",
     fileExtension: ".md",
-    ignoreFileName: ".opcodeignore",
+    // ignoreFileName omitted - OpenCode doesn't use dedicated ignore files
     generateContent: generateOpenCodeMarkdown,
     generateDetailContent: generateOpenCodeMarkdown,
     generateRootContent: generateOpenCodeRootMarkdown,

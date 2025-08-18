@@ -1,7 +1,6 @@
 import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
 import { generateJunieIgnoreFiles } from "../generators/ignore/junie.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
-import { generateOpenCodeIgnoreFiles } from "../generators/ignore/opencode.js";
 import { generateWindsurfIgnore } from "../generators/ignore/windsurf.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
 import { generateAugmentcodeLegacyConfig } from "../generators/rules/augmentcode-legacy.js";
@@ -109,11 +108,8 @@ async function generateForTool(
       const kiroIgnoreOutputs = await generateKiroIgnoreFiles(rules, config, baseDir);
       return [...kiroRulesOutputs, ...kiroIgnoreOutputs];
     }
-    case "opencode": {
-      const opencodeRulesOutputs = await generateOpenCodeConfig(rules, config, baseDir);
-      const opencodeIgnoreOutputs = await generateOpenCodeIgnoreFiles(rules, config, baseDir);
-      return [...opencodeRulesOutputs, ...opencodeIgnoreOutputs];
-    }
+    case "opencode":
+      return generateOpenCodeConfig(rules, config, baseDir);
     case "windsurf": {
       const windsurfRulesOutputs = await generateWindsurfConfig(rules, config, baseDir);
       const windsurfIgnoreOutputs = await generateWindsurfIgnore(rules, config, baseDir);
