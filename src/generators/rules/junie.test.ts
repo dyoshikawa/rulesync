@@ -1,29 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Config, ParsedRule } from "../../types/index.js";
+import { createMockConfigByTool } from "../../test-utils/index.js";
+import type { ParsedRule } from "../../types/index.js";
 import { generateJunieConfig } from "./junie.js";
 
 describe("generateJunieConfig", () => {
-  const mockConfig: Config = {
-    aiRulesDir: ".rulesync",
-    outputPaths: {
-      amazonqcli: ".amazonq/rules",
-      augmentcode: ".",
-      "augmentcode-legacy": ".",
-      copilot: ".github/instructions",
-      cursor: ".cursor/rules",
-      cline: ".clinerules",
-      claudecode: ".",
-      codexcli: ".",
-      opencode: ".",
-      roo: ".roo/rules",
-      geminicli: ".gemini/memories",
-      kiro: ".kiro/steering",
-      junie: ".",
-      windsurf: ".",
-    },
-    watchEnabled: false,
-    defaultTargets: ["junie"],
-  };
+  const mockConfig = createMockConfigByTool("junie");
 
   it("should generate guidelines.md with root rules first", async () => {
     const rules: ParsedRule[] = [

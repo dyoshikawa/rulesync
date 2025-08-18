@@ -1,29 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Config, ParsedRule } from "../../types/index.js";
+import { createMockConfigByTool } from "../../test-utils/index.js";
+import type { ParsedRule } from "../../types/index.js";
 import { generateAugmentCodeIgnoreFiles } from "./augmentcode.js";
 
 describe("generateAugmentCodeIgnoreFiles", () => {
-  const mockConfig: Config = {
-    aiRulesDir: "rules",
-    outputPaths: {
-      amazonqcli: "output",
-      augmentcode: "output",
-      "augmentcode-legacy": "output",
-      claudecode: "output",
-      cline: "output",
-      codexcli: "output",
-      copilot: "output",
-      cursor: "output",
-      geminicli: "output",
-      kiro: "output",
-      opencode: "output",
-      roo: "output",
-      junie: "output",
-      windsurf: "output",
-    },
-    watchEnabled: false,
-    defaultTargets: ["augmentcode"],
-  };
+  const mockConfig = createMockConfigByTool("augmentcode");
 
   it("should generate .augmentignore file with default patterns", async () => {
     const rules: ParsedRule[] = [];
