@@ -98,3 +98,11 @@ Call the code-fixer subagent to stabilize the all implementations above.
 ## 7. Create PR
 
 Call the pr-creator subagent to create a PR for the all implementations above.
+
+## 8. Self-review
+
+Please review the all implementations above.
+
+1. Call the code-reviewer subagent and the security-reviewer subagent to review the all implementations above.
+2. You check the review results and fix the code if necessary.
+3. Call the code-fixer subagent to stabilize the code after the fix.
