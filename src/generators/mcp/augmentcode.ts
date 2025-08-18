@@ -36,7 +36,10 @@ export function generateAugmentcodeMcp(config: RulesyncMcpConfig): string {
 
     // Handle STDIO transport
     if (server.command) {
-      augmentServer.command = server.command;
+      const command = Array.isArray(server.command) ? server.command[0] : server.command;
+      if (command) {
+        augmentServer.command = command;
+      }
       if (server.args) {
         augmentServer.args = server.args;
       }
@@ -113,7 +116,12 @@ export function generateAugmentcodeMcpConfiguration(
 
     // Handle STDIO transport
     if (serverConfig.command) {
-      augmentServer.command = serverConfig.command;
+      const command = Array.isArray(serverConfig.command)
+        ? serverConfig.command[0]
+        : serverConfig.command;
+      if (command) {
+        augmentServer.command = command;
+      }
       if (serverConfig.args) {
         augmentServer.args = serverConfig.args;
       }

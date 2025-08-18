@@ -376,18 +376,37 @@ const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
     target: "opencode",
     configPaths: ["opencode.json"],
     serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
-      // Clone server config and remove targets (preserve all other properties)
-      const { targets: _, ...serverConfig } = server;
-      const opencodeServer: McpServerMapping = { ...serverConfig };
+      const opencodeServer: McpServerMapping = {};
 
-      // Preserve environment variables as-is for OpenCode
-      if (server.env) {
-        opencodeServer.env = server.env;
+      // Handle local servers (STDIO transport)
+      if (server.command) {
+        opencodeServer.type = "local";
+        opencodeServer.command = Array.isArray(server.command) ? server.command : [server.command];
+        if (server.args) opencodeServer.args = server.args;
+        if (server.env) opencodeServer.environment = server.env;
+        if (server.cwd) opencodeServer.cwd = server.cwd;
+      }
+      // Handle remote servers
+      else if (server.url || server.httpUrl) {
+        opencodeServer.type = "remote";
+        const url = server.httpUrl || server.url;
+        if (url) opencodeServer.url = url;
+        if (server.headers) opencodeServer.headers = server.headers;
+      }
+
+      // Common fields
+      if (server.disabled !== undefined) {
+        opencodeServer.enabled = !server.disabled;
+      } else {
+        opencodeServer.enabled = true;
       }
 
       return opencodeServer;
     },
-    configWrapper: configWrappers.mcpServers,
+    configWrapper: (servers: Record<string, McpServerMapping>) => ({
+      $schema: "https://opencode.ai/config.json",
+      mcp: servers,
+    }),
   },
 };
 

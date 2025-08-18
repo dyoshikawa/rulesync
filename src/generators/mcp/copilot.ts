@@ -21,7 +21,10 @@ export function generateCopilotMcp(
     const copilotServer: CopilotServer = {};
 
     if (server.command) {
-      copilotServer.command = server.command;
+      const command = Array.isArray(server.command) ? server.command[0] : server.command;
+      if (command) {
+        copilotServer.command = command;
+      }
       if (server.args) copilotServer.args = server.args;
     } else if (server.url || server.httpUrl) {
       const url = server.httpUrl || server.url;

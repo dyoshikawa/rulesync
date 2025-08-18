@@ -4,7 +4,7 @@ import { RulesyncTargetsSchema } from "./tool-targets.js";
 export const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 
 export const McpServerBaseSchema = z.object({
-  command: z.optional(z.string()),
+  command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),
   url: z.optional(z.string()),
   httpUrl: z.optional(z.string()),
