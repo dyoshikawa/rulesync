@@ -34,7 +34,9 @@ function generateGeminiRootMarkdown(
 
   // Start with CLAUDE.md style introduction if memory files exist
   if (memoryRules.length > 0) {
-    lines.push("Please also reference the following documents as needed:");
+    lines.push(
+      "Please also reference the following documents as needed. In this case, `@` stands for the project root directory.",
+    );
     lines.push("");
     lines.push("| Document | Description | File Patterns |");
     lines.push("|----------|-------------|---------------|");
