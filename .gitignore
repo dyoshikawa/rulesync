@@ -225,3 +225,5 @@ pnpm-lock.yaml
 **/.codex/mcp-config.json
 
 .cspellcache
+
+.serena/memories/
