@@ -8,7 +8,7 @@ export class GeminiCliCommandGenerator extends BaseCommandGenerator {
     return "geminicli";
   }
 
-  getSubDirectory(): string {
+  getCommandsDirectory(): string {
     return ".gemini/commands";
   }
 

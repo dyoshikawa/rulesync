@@ -11,7 +11,7 @@ import {
  */
 export abstract class BaseCommandGenerator {
   abstract getToolName(): ToolTarget;
-  abstract getSubDirectory(): string;
+  abstract getCommandsDirectory(): string;
   abstract processContent(command: ParsedCommand): string;
 
   /**
@@ -37,11 +37,11 @@ export abstract class BaseCommandGenerator {
       return getHierarchicalCommandPath(
         filename,
         baseDir,
-        this.getSubDirectory(),
+        this.getCommandsDirectory(),
         this.getFileExtension(),
       );
     } else {
-      return getFlattenedCommandPath(filename, baseDir, this.getSubDirectory());
+      return getFlattenedCommandPath(filename, baseDir, this.getCommandsDirectory());
     }
   }
 

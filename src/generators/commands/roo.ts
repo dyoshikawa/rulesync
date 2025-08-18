@@ -8,7 +8,7 @@ export class RooCommandGenerator extends BaseCommandGenerator {
     return "roo";
   }
 
-  getSubDirectory(): string {
+  getCommandsDirectory(): string {
     return ".roo/commands";
   }
 

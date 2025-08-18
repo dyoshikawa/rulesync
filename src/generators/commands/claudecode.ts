@@ -8,7 +8,7 @@ export class ClaudeCodeCommandGenerator extends BaseCommandGenerator {
     return "claudecode";
   }
 
-  getSubDirectory(): string {
+  getCommandsDirectory(): string {
     return ".claude/commands";
   }
 
