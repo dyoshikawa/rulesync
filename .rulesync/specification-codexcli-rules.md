@@ -19,13 +19,13 @@ OpenAI Codex CLI uses a memory/instructions system to provide persistent context
 - **Priority**: Loaded first (lowest priority)
 
 ### 2. Project-Level Instructions  
-- **Location**: `<project-root>/codex.md`
+- **Location**: `<project-root>/AGENTS.md`
 - **Scope**: Specific to the current project/repository
 - **Purpose**: Project-specific guidelines, architecture patterns, and team standards
 - **Priority**: Loaded second (medium priority)
 
 ### 3. Directory-Specific Instructions
-- **Location**: `<current-working-directory>/codex.md`
+- **Location**: `<current-working-directory>/AGENTS.md`
 - **Scope**: Sub-package or folder-specific rules
 - **Purpose**: Module-specific guidelines, specialized rules for subdirectories
 - **Priority**: Loaded last (highest priority)
@@ -33,8 +33,8 @@ OpenAI Codex CLI uses a memory/instructions system to provide persistent context
 ### Priority and Merging Behavior
 Instructions are concatenated in the following order:
 1. `~/.codex/instructions.md` (global)
-2. `<project-root>/codex.md` (project)  
-3. `<cwd>/codex.md` (directory-specific)
+2. `<project-root>/AGENTS.md` (project)  
+3. `<cwd>/AGENTS.md` (directory-specific)
 
 Later files can override or add detail to earlier ones. The merged Markdown content is prepended to every message sent to the AI model.
 
@@ -167,7 +167,7 @@ codex doctor
 - Test edge cases and error conditions
 ```
 
-### Project Instructions (`codex.md`)
+### Project Instructions (`AGENTS.md`)
 ```markdown
 # E-commerce Platform
 
@@ -213,7 +213,7 @@ pnpm lint     # Check code quality
 - Follow atomic design principles
 ```
 
-### Directory-Specific Instructions (`src/components/codex.md`)
+### Directory-Specific Instructions (`src/components/AGENTS.md`)
 ```markdown
 # Component Library Guidelines
 
@@ -262,7 +262,7 @@ export const Button: React.FC<ButtonProps> = ({
 ## Integration with Other Tools
 
 ### Version Control
-- Commit `codex.md` files to repository for team sharing
+- Commit `AGENTS.md` files to repository for team sharing
 - Use `.gitignore` to exclude user-specific global instructions
 - Include instruction changes in code review process
 
@@ -314,7 +314,7 @@ When working on:
 ## Troubleshooting
 
 ### Common Issues
-1. **Instructions not applied**: Check file location and name (`codex.md`, not `codex.txt`)
+1. **Instructions not applied**: Check file location and name (`AGENTS.md`, not `codex.txt`)
 2. **Conflicting rules**: Review instruction hierarchy and priority
 3. **Performance issues**: Reduce instruction file size if responses are slow
 4. **Inconsistent behavior**: Clear instruction conflicts between files
@@ -328,18 +328,18 @@ When working on:
 ## Migration from Other AI Tools
 
 ### From Cursor Rules
-Convert `.cursorrules` content to `codex.md`:
+Convert `.cursorrules` content to `AGENTS.md`:
 ```bash
 # Copy and adapt existing rules
-cp .cursorrules codex.md
+cp .cursorrules AGENTS.md
 # Remove any YAML frontmatter if present
 # Adapt syntax to pure Markdown format
 ```
 
 ### From GitHub Copilot Instructions
-Convert `.github/copilot-instructions.md` to `codex.md`:
+Convert `.github/copilot-instructions.md` to `AGENTS.md`:
 - Remove YAML frontmatter
 - Adapt content structure to Codex format
-- Consolidate multiple instruction files into single `codex.md`
+- Consolidate multiple instruction files into single `AGENTS.md`
 
 This specification provides comprehensive guidance for configuring OpenAI Codex CLI instructions and memory files, enabling consistent and effective AI-assisted development workflows.
