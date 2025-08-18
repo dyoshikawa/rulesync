@@ -180,6 +180,7 @@ npx rulesync import --cursor
 npx rulesync import --copilot
 
 # Import from other tools
+npx rulesync import --opencode
 npx rulesync import --cline
 npx rulesync import --geminicli
 npx rulesync import --junie

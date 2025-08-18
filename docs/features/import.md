@@ -12,6 +12,7 @@ rulesync provides comprehensive import functionality to convert existing AI tool
 | **Cursor** | `.cursorrules`, `.cursor/rules/*.mdc`, `.cursorignore`, `.cursor/mcp.json` | `--cursor` |
 | **GitHub Copilot** | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md` | `--copilot` |
 | **Cline** | `.cline/instructions.md`, `.clinerules/*.md` | `--cline` |
+| **SST OpenCode** | `AGENTS.md`, `opencode.json`, `~/.config/opencode/AGENTS.md` | `--opencode` |
 | **AugmentCode** | `.augment/rules/*.md`, `.augment-guidelines` (legacy) | `--augmentcode`, `--augmentcode-legacy` |
 | **Roo Code** | `.roo/instructions.md`, `.roo/rules/*.md` | `--roo` |
 | **Gemini CLI** | `GEMINI.md`, `.gemini/memories/*.md`, `.gemini/commands/*.md` | `--geminicli` |
@@ -27,6 +28,7 @@ npx rulesync import --claudecode
 npx rulesync import --cursor
 npx rulesync import --copilot
 npx rulesync import --cline
+npx rulesync import --opencode
 ```
 
 ### Enhanced Import Options

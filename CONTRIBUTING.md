@@ -16,6 +16,7 @@ rulesync now supports **11 AI development tools** with comprehensive rule, MCP, 
 - **Cursor** Project Rules (4 rule types: always, manual, specificFiles, intelligently)
 - **Cline** Rules (.cline/instructions.md)
 - **Claude Code** Memory (CLAUDE.md + .claude/memories/)
+- **SST OpenCode** Permission-based configuration (AGENTS.md + opencode.json)
 - **AugmentCode** Rules (current + legacy formats)
 - **Roo Code** Rules (.roo/instructions.md)
 - **Gemini CLI** (GEMINI.md + .gemini/memories/)
@@ -118,7 +119,7 @@ Starting from v0.62.0, the project supports two directory structures for better 
 └── specification-[tool]-[type].md       # Tool-specific specifications
     # Types: rules, mcp, ignore
     # Tools: augmentcode, claudecode, cline, codexcli, copilot, cursor,
-    #        geminicli, junie, kiro, roo, windsurf
+    #        geminicli, junie, kiro, opencode, roo, windsurf
 ```
 
 **Directory Structure Selection:**
@@ -136,8 +137,9 @@ Starting from v0.62.0, the project supports two directory structures for better 
 - **v0.62.0**: New organized directory structure (`.rulesync/rules/`) with backward compatibility
 - **v0.56.0**: Optional frontmatter with sensible defaults
 - **Registry Pattern**: Unified generator architecture for easier tool addition
+- **SST OpenCode Support**: Permission-based configuration instead of traditional ignore files
 - **Enhanced Windsurf Support**: Complete integration with activation modes and output formats
-- **Legacy Support**: Full backward compatibility with existing `.rulesync/*.md` layouts
+- **Legacy Support**: Full backward compatibility with existing `.rulesync/.md` layouts
 
 ### Core Architecture - Registry Pattern Implementation
 
@@ -180,6 +182,7 @@ rulesync/
 │   │   │   ├── geminicli.ts           # Gemini CLI (GEMINI.md + memories)
 │   │   │   ├── junie.ts               # JetBrains Junie (.junie/guidelines.md)
 │   │   │   ├── kiro.ts                # Kiro IDE Custom Steering Documents
+│   │   │   ├── opencode.ts            # SST OpenCode (AGENTS.md + opencode.json)
 │   │   │   ├── roo.ts                 # Roo Code Rules (.roo/instructions.md)
 │   │   │   └── windsurf.ts            # ⭐ NEW: Windsurf (.windsurf/rules/ + memories)
 │   │   ├── mcp/                       # MCP configuration generators
@@ -204,6 +207,7 @@ rulesync/
 │   │   ├── cursor.ts                  # Parse Cursor (.cursorrules + .cursor/rules/*.mdc)
 │   │   ├── geminicli.ts               # Parse Gemini CLI (GEMINI.md + memories)
 │   │   ├── junie.ts                   # Parse Junie (.junie/guidelines.md)
+│   │   ├── opencode.ts                # Parse SST OpenCode (AGENTS.md + opencode.json)
 │   │   ├── roo.ts                     # Parse Roo (.roo/instructions.md)
 │   │   └── windsurf.ts                # ⭐ NEW: Parse Windsurf (.windsurf/rules/)
 │   ├── types/                         # Enhanced TypeScript definitions
@@ -213,7 +217,7 @@ rulesync/
 │   │   ├── mcp-config.ts              # ⭐ NEW: MCP configuration types
 │   │   ├── claudecode.ts              # ⭐ NEW: Claude Code specific types
 │   │   ├── commands.ts                # ⭐ NEW: Custom command types and interfaces
-│   │   ├── tool-targets.ts            # Updated tool target definitions (12 tools)
+│   │   ├── tool-targets.ts            # Updated tool target definitions (11 tools)
 │   │   └── config-options.ts          # Configuration option types
 │   ├── test-utils/                    # ⭐ NEW: Shared testing utilities
 │   │   ├── index.ts                   # Common test helpers
@@ -728,7 +732,7 @@ pnpm test src/generators/commands/         # All command generators
 
 - **cli/commands**: **Excellent** - All commands fully tested with edge cases
 - **core**: **High** - Parser, generator, importer, validator, command-parser, command-generator extensively tested
-- **generators/rules**: **High** - All 12 tools with 250-350 lines each
+- **generators/rules**: **High** - All 11 tools with 250-350 lines each
 - **generators/mcp**: **High** - All transport types and configurations
 - **generators/ignore**: **High** - Security patterns and factory functions
 - **generators/commands**: **High** - Command generation for supported tools (Cursor, Cline, Roo, Windsurf)
@@ -817,11 +821,12 @@ it("should report parsing errors with helpful messages", async () => { /* ... */
 - **Flexible Output**: Single-file (`.windsurf-rules`) or directory variant (`.windsurf/rules/`)
 - **Memory Integration**: Auto-generated memories and manual memory creation
 
-**Enhanced Tool Support** (12 total tools):
+**Enhanced Tool Support** (11 total tools):
 - **Comprehensive Coverage**: All major AI development tools supported
 - **Hierarchical Systems**: Multi-level rule precedence for complex tools (Codex CLI, Claude Code)
+- **Permission-based Configuration**: OpenCode uses permission controls instead of traditional ignore files
 - **Legacy Support**: AugmentCode legacy format maintained alongside current format
-- **Security Focus**: Advanced ignore patterns with security-first approach
+- **Security Focus**: Advanced ignore patterns and permission controls with security-first approach
 
 **Development Quality Improvements**:
 - **Comprehensive Testing**: 1,500+ lines of test code with 250-350 lines per tool

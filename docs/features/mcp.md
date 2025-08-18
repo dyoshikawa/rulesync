@@ -12,6 +12,7 @@ rulesync provides comprehensive support for Model Context Protocol (MCP) servers
 | **GitHub Copilot** | `.vscode/mcp.json` | VS Code MCP integration |
 | **Cursor** | `.cursor/mcp.json` | Cursor-specific MCP servers |
 | **Cline** | `.cline/mcp.json` | Cline MCP server configuration |
+| **SST OpenCode** | `opencode.json` | Permission-based MCP configuration |
 | **OpenAI Codex CLI** | `.codex/mcp-config.json` | Codex CLI MCP integration |
 | **Gemini CLI** | `.gemini/settings.json` | Gemini CLI MCP configuration |
 | **JetBrains Junie** | `.junie/mcp.json` | JetBrains IDE MCP servers |
@@ -41,7 +42,7 @@ Create a `.rulesync/.mcp.json` file in your project:
       "env": {
         "LOG_LEVEL": "info"
       },
-      "targets": ["claudecode", "cursor", "windsurf"]
+      "targets": ["claudecode", "cursor", "opencode", "windsurf"]
     },
     "database": {
       "command": "docker",

@@ -46,11 +46,13 @@ If you already have AI tool configurations:
 npx rulesync import --claudecode  # From CLAUDE.md
 npx rulesync import --cursor      # From .cursorrules
 npx rulesync import --copilot     # From .github/copilot-instructions.md
+npx rulesync import --opencode    # From AGENTS.md
 
 # Import to legacy structure (for existing projects)
 npx rulesync import --claudecode --legacy
 npx rulesync import --cursor --legacy
 npx rulesync import --copilot --legacy
+npx rulesync import --opencode --legacy
 
 # Generate unified configurations
 npx rulesync generate
@@ -64,6 +66,7 @@ rulesync supports both **generation** and **import** for the following AI develo
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md` + **Custom Slash Commands** `.claude/commands/*.md`)
+- **SST OpenCode** (`AGENTS.md` + `opencode.json` + **Permission-based Configuration**)
 - **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
@@ -145,6 +148,7 @@ npx rulesync gitignore
 - **[Cursor](./docs/tools/cursor.md)** - Rule types and MDC format
 - **[GitHub Copilot](./docs/tools/copilot.md)** - Custom instructions
 - **[Cline](./docs/tools/cline.md)** - Plain Markdown rules
+- **[SST OpenCode](./docs/tools/opencode.md)** - Permission-based configuration and MCP integration
 - **[OpenAI Codex CLI](./docs/tools/codexcli.md)** - Hierarchical memory system
 - **[Gemini CLI](./docs/tools/geminicli.md)** - Memory and commands
 - **[Windsurf](./docs/tools/windsurf.md)** - Rules and Cascade AI

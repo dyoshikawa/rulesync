@@ -138,6 +138,7 @@ targets: [
   "cursor",         # Cursor
   "copilot",        # GitHub Copilot
   "cline",          # Cline (formerly Claude Dev)
+  "opencode",       # SST OpenCode
   "codexcli",       # OpenAI Codex CLI
   "augmentcode",    # AugmentCode
   "roo",           # Roo Code
@@ -155,7 +156,7 @@ targets: [
 targets: ["*"]
 
 # Specific tools only
-targets: ["cursor", "claudecode"]
+targets: ["cursor", "claudecode", "opencode"]
 
 # Exclude specific tools (use multiple rules)
 # Rule 1: Most tools
