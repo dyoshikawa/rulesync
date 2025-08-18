@@ -227,4 +227,5 @@ pnpm-lock.yaml
 
 .cspellcache
 
+.serena/cache/
 .serena/memories/
