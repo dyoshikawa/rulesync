@@ -6,11 +6,11 @@ targets:
 
 pr_url = $ARGUMENTS
 
-pr_urlが渡されなかった場合、現在のブランチに紐づくPRを取得してください。
+If pr_url is not provided, please retrieve the PR associated with the current branch.
 
-reviewpromptは、GitHub PRのレビューコメントからあなたへの指示を抽出し、1つのプロンプトとして出力するNode.js製のCLIツールです。
+reviewprompt is a Node.js CLI tool that extracts instructions for you from GitHub PR review comments and outputs them as a single prompt.
 
-以下のように実行して、出力の指示に従って修正してください。
+Please execute as follows and make corrections according to the output instructions:
 
 ```bash
 npx reviewprompt --resolve --all $pr_url

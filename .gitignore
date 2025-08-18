@@ -210,6 +210,7 @@ pnpm-lock.yaml
 .pnpm-store
 
 .rulesync/my-instructions.md
+.rulesync/rules/my-instructions.md
 
 **/.aiignore
 **/.kiro/steering/
