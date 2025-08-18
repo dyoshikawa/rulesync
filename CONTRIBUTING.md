@@ -10,13 +10,13 @@ rulesync is a Node.js CLI tool that automatically generates configuration files 
 
 ### Supported AI Tools
 
-rulesync now supports **11 AI development tools** with comprehensive rule, MCP, and ignore file generation:
+rulesync now supports **11 AI development tools** with comprehensive rule, MCP, and ignore/permission file generation:
 
 - **GitHub Copilot** Custom Instructions (.github/copilot-*.md)
 - **Cursor** Project Rules (4 rule types: always, manual, specificFiles, intelligently)
 - **Cline** Rules (.cline/instructions.md)
 - **Claude Code** Memory (CLAUDE.md + .claude/memories/)
-- **SST OpenCode** Permission-based configuration (AGENTS.md + opencode.json)
+- **OpenCode** 🔐 **Permission-based configuration** (AGENTS.md + opencode.json with granular permissions)
 - **AugmentCode** Rules (current + legacy formats)
 - **Roo Code** Rules (.roo/instructions.md)
 - **Gemini CLI** (GEMINI.md + .gemini/memories/)
@@ -137,7 +137,7 @@ Starting from v0.62.0, the project supports two directory structures for better 
 - **v0.62.0**: New organized directory structure (`.rulesync/rules/`) with backward compatibility
 - **v0.56.0**: Optional frontmatter with sensible defaults
 - **Registry Pattern**: Unified generator architecture for easier tool addition
-- **SST OpenCode Support**: Permission-based configuration instead of traditional ignore files
+- **🔐 OpenCode Support**: Revolutionary permission-based configuration system - Uses granular read/write/execute permissions instead of traditional ignore files, providing superior security and flexibility
 - **Enhanced Windsurf Support**: Complete integration with activation modes and output formats
 - **Legacy Support**: Full backward compatibility with existing `.rulesync/.md` layouts
 
@@ -182,7 +182,7 @@ rulesync/
 │   │   │   ├── geminicli.ts           # Gemini CLI (GEMINI.md + memories)
 │   │   │   ├── junie.ts               # JetBrains Junie (.junie/guidelines.md)
 │   │   │   ├── kiro.ts                # Kiro IDE Custom Steering Documents
-│   │   │   ├── opencode.ts            # SST OpenCode (AGENTS.md + opencode.json)
+│   │   │   ├── opencode.ts            # 🔐 OpenCode (AGENTS.md + permission-based opencode.json)
 │   │   │   ├── roo.ts                 # Roo Code Rules (.roo/instructions.md)
 │   │   │   └── windsurf.ts            # ⭐ NEW: Windsurf (.windsurf/rules/ + memories)
 │   │   ├── mcp/                       # MCP configuration generators
@@ -191,7 +191,7 @@ rulesync/
 │   │   ├── ignore/                    # Ignore file generators
 │   │       ├── shared-factory.ts      # ⭐ NEW: Shared ignore file factory
 │   │       ├── shared-helpers.ts      # ⭐ NEW: Common ignore pattern utilities
-│   │       └── [tool].ts              # Security-focused ignore generators (6 tools)
+│   │       └── [tool].ts              # Security-focused ignore generators (Note: OpenCode uses permissions)
 │   │   └── commands/                  # ⭐ NEW: Custom command generators
 │   │       ├── cursor.ts              # Cursor command generation
 │   │       ├── cline.ts               # Cline command generation
@@ -207,7 +207,7 @@ rulesync/
 │   │   ├── cursor.ts                  # Parse Cursor (.cursorrules + .cursor/rules/*.mdc)
 │   │   ├── geminicli.ts               # Parse Gemini CLI (GEMINI.md + memories)
 │   │   ├── junie.ts                   # Parse Junie (.junie/guidelines.md)
-│   │   ├── opencode.ts                # Parse SST OpenCode (AGENTS.md + opencode.json)
+│   │   ├── opencode.ts                # Parse OpenCode (AGENTS.md + permission-based opencode.json)
 │   │   ├── roo.ts                     # Parse Roo (.roo/instructions.md)
 │   │   └── windsurf.ts                # ⭐ NEW: Parse Windsurf (.windsurf/rules/)
 │   ├── types/                         # Enhanced TypeScript definitions
@@ -824,9 +824,9 @@ it("should report parsing errors with helpful messages", async () => { /* ... */
 **Enhanced Tool Support** (11 total tools):
 - **Comprehensive Coverage**: All major AI development tools supported
 - **Hierarchical Systems**: Multi-level rule precedence for complex tools (Codex CLI, Claude Code)
-- **Permission-based Configuration**: OpenCode uses permission controls instead of traditional ignore files
+- **🔐 Revolutionary Permission System**: OpenCode introduces granular read/write/execute permissions instead of traditional ignore files - providing superior security, flexibility, and control over AI actions
 - **Legacy Support**: AugmentCode legacy format maintained alongside current format
-- **Security Focus**: Advanced ignore patterns and permission controls with security-first approach
+- **Security Focus**: Advanced ignore patterns and permission controls with security-first approach, with OpenCode leading innovation
 
 **Development Quality Improvements**:
 - **Comprehensive Testing**: 1,500+ lines of test code with 250-350 lines per tool

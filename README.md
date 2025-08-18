@@ -60,13 +60,13 @@ npx rulesync generate
 
 ## Supported Tools
 
-rulesync supports both **generation** and **import** for the following AI development tools:
+rulesync supports both **generation** and **import** for **11 AI development tools**:
 
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md` + **Custom Slash Commands** `.claude/commands/*.md`)
-- **SST OpenCode** (`AGENTS.md` + `opencode.json` + **Permission-based Configuration**)
+- **OpenCode** (`AGENTS.md` + `opencode.json` + **🔐 Permission-Based Security** instead of traditional ignore files)
 - **OpenAI Codex CLI** (`codex.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
@@ -89,6 +89,7 @@ Enable hybrid development workflows combining multiple AI tools:
 - Cursor for refactoring
 - Claude Code for architecture design
 - Cline for debugging assistance
+- **OpenCode** for secure terminal-based development with granular permission controls
 - Windsurf for comprehensive AI-assisted editing
 
 ### 🔓 **No Vendor Lock-in**
@@ -148,7 +149,7 @@ npx rulesync gitignore
 - **[Cursor](./docs/tools/cursor.md)** - Rule types and MDC format
 - **[GitHub Copilot](./docs/tools/copilot.md)** - Custom instructions
 - **[Cline](./docs/tools/cline.md)** - Plain Markdown rules
-- **[SST OpenCode](./docs/tools/opencode.md)** - Permission-based configuration and MCP integration
+- **[OpenCode](./docs/tools/opencode.md)** - Permission-based configuration and MCP integration
 - **[OpenAI Codex CLI](./docs/tools/codexcli.md)** - Hierarchical memory system
 - **[Gemini CLI](./docs/tools/geminicli.md)** - Memory and commands
 - **[Windsurf](./docs/tools/windsurf.md)** - Rules and Cascade AI

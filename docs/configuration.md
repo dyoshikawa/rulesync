@@ -138,7 +138,7 @@ targets: [
   "cursor",         # Cursor
   "copilot",        # GitHub Copilot
   "cline",          # Cline (formerly Claude Dev)
-  "opencode",       # SST OpenCode
+  "opencode",       # OpenCode
   "codexcli",       # OpenAI Codex CLI
   "augmentcode",    # AugmentCode
   "roo",           # Roo Code

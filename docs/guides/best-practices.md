@@ -367,6 +367,92 @@ build/
 node_modules/
 ```
 
+### Permission-Based Security (OpenCode)
+
+OpenCode revolutionizes AI security with granular permission controls instead of traditional ignore files:
+
+#### Permission Level Strategy
+```jsonc
+{
+  "permission": {
+    // Start restrictive, gradually relax
+    "read": {
+      "default": "ask",           // Require confirmation for reads
+      "patterns": {
+        "*.md": "allow",          // Documentation is safe
+        "src/**/*.ts": "allow",   // Source code allowed
+        ".env*": "deny",          // Secrets always denied
+        "secrets/**": "deny"      // Sensitive directories denied
+      }
+    },
+    "write": {
+      "default": "ask",           // Confirm all write operations
+      "patterns": {
+        "*.md": "allow",          // Documentation updates allowed
+        "package.json": "ask",    // Package changes need confirmation
+        "src/**/*.test.ts": "allow", // Test files safe to modify
+        ".env*": "deny",          // Never modify environment files
+        "dist/**": "deny"         // Never modify build outputs
+      }
+    },
+    "run": {
+      "default": "ask",           // Confirm all command execution
+      "patterns": {
+        "npm test": "allow",      // Test commands are safe
+        "npm run build": "allow", // Build commands allowed
+        "rm *": "deny",          // Destructive commands denied
+        "sudo *": "deny"         // Elevated commands denied
+      }
+    }
+  }
+}
+```
+
+#### Security Benefits over Traditional Ignore Files
+- **Granular Control**: Separate permissions for read, write, and execute operations
+- **Pattern-Based**: Fine-grained control over specific file patterns and commands
+- **Dynamic Security**: Permissions can be adjusted per operation type
+- **Audit Trail**: Clear visibility into what AI can and cannot access
+- **Future-Proof**: Extensible permission model for new security requirements
+
+#### Best Practices for Permission Configuration
+```jsonc
+{
+  "permission": {
+    // 1. Start with restrictive defaults
+    "read": { "default": "ask" },
+    "write": { "default": "ask" },
+    "run": { "default": "ask" },
+    
+    // 2. Allow safe, common operations
+    "patterns": {
+      "*.md": "allow",              // Documentation
+      "src/**/*.ts": "allow",       // Source code reading
+      "npm run test": "allow",      // Safe commands
+      "npm run lint": "allow"
+    },
+    
+    // 3. Explicitly deny dangerous operations
+    "patterns": {
+      ".env*": "deny",              // Environment files
+      "rm -rf *": "deny",           // Destructive commands
+      "sudo *": "deny",             // Elevated privileges
+      "production/**": "deny"       // Production code
+    },
+    
+    // 4. Use environment-specific configurations
+    "development": {
+      "write": { "default": "allow" }, // More permissive in dev
+      "run": { "default": "allow" }
+    },
+    "production": {
+      "write": { "default": "deny" },  // Restrictive in prod
+      "run": { "default": "deny" }
+    }
+  }
+}
+```
+
 ## Development Workflow Integration
 
 ### Continuous Integration

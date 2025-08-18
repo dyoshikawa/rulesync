@@ -1,8 +1,8 @@
-# SST OpenCode Integration
+# OpenCode Integration
 
 ## Overview
 
-SST OpenCode is an AI coding agent built for the terminal that uses a rule-based system to provide persistent context and project-specific instructions. OpenCode supports permission-based configuration, MCP (Model Context Protocol) integration, and hierarchical rules management.
+OpenCode is an AI coding agent built for the terminal that uses a rule-based system to provide persistent context and project-specific instructions. OpenCode supports permission-based configuration, MCP (Model Context Protocol) integration, and hierarchical rules management.
 
 ## What rulesync Generates
 

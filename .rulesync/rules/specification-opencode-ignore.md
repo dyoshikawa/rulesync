@@ -1,14 +1,14 @@
 ---
 root: false
 targets: ["*"]
-description: "SST OpenCode file exclusion and ignore patterns for controlling AI access to sensitive files"
+description: "OpenCode file exclusion and ignore patterns for controlling AI access to sensitive files"
 globs: []
 ---
 
-# SST OpenCode Ignore Files and Security Configuration Specification
+# OpenCode Ignore Files and Security Configuration Specification
 
 ## Overview
-SST OpenCode uses Git-based file exclusion patterns and security configurations to control which files the AI can access. The system relies primarily on `.gitignore` patterns and permission controls rather than dedicated ignore files.
+OpenCode uses Git-based file exclusion patterns and security configurations to control which files the AI can access. The system relies primarily on `.gitignore` patterns and permission controls rather than dedicated ignore files.
 
 ## File Exclusion Mechanisms
 
@@ -470,7 +470,7 @@ jobs:
 
 ## Summary
 
-SST OpenCode's security and ignore system provides comprehensive protection through:
+OpenCode's security and ignore system provides comprehensive protection through:
 
 - **Git Integration**: Automatic respect for `.gitignore` patterns
 - **Permission Controls**: Fine-grained file and command permissions

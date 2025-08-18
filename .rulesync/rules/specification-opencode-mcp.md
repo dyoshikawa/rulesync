@@ -1,14 +1,14 @@
 ---
 root: false
 targets: ["*"]
-description: "SST OpenCode MCP (Model Context Protocol) server configuration and integration specification"
+description: "OpenCode MCP (Model Context Protocol) server configuration and integration specification"
 globs: []
 ---
 
-# SST OpenCode MCP (Model Context Protocol) Configuration Specification
+# OpenCode MCP (Model Context Protocol) Configuration Specification
 
 ## Overview
-SST OpenCode supports Model Context Protocol (MCP) servers to extend its capabilities with external tools and services. MCP configuration is managed through the `opencode.json` file and supports both local and remote server types.
+OpenCode supports Model Context Protocol (MCP) servers to extend its capabilities with external tools and services. MCP configuration is managed through the `opencode.json` file and supports both local and remote server types.
 
 ## Configuration Location
 
@@ -392,7 +392,7 @@ SENTRY_MCP_TOKEN=xyz123 opencode
 
 ## Summary
 
-SST OpenCode's MCP integration provides powerful extensibility through:
+OpenCode's MCP integration provides powerful extensibility through:
 
 - **Dual Transport Support**: Both local STDIO and remote HTTP/WebSocket servers
 - **Flexible Configuration**: Project and global configuration files

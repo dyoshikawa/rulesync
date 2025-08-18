@@ -1,14 +1,14 @@
 ---
 root: false
 targets: ["*"]
-description: "SST OpenCode AI assistant rules and memory configuration using AGENTS.md and opencode.json files"
+description: "OpenCode AI assistant rules and memory configuration using AGENTS.md and opencode.json files"
 globs: []
 ---
 
-# SST OpenCode Rules and Memory Configuration Specification
+# OpenCode Rules and Memory Configuration Specification
 
 ## Overview
-SST OpenCode is an AI coding agent built for the terminal that uses a rule-based system to provide persistent context and project-specific instructions. The configuration system is based on markdown files and JSON configuration files.
+OpenCode is an AI coding agent built for the terminal that uses a rule-based system to provide persistent context and project-specific instructions. The configuration system is based on markdown files and JSON configuration files.
 
 ## File Placement and Hierarchy
 
@@ -250,7 +250,7 @@ echo "Review security patterns" | opencode
 
 ## Summary
 
-SST OpenCode's rule system provides comprehensive project context through:
+OpenCode's rule system provides comprehensive project context through:
 
 - **Hierarchical Configuration**: Project and global rules with clear precedence
 - **Flexible File Inclusion**: Support for additional instruction files

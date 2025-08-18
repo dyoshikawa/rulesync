@@ -784,7 +784,227 @@ class TestComponentName:
 - Documentation generation command saved hours per feature
 - Clear contribution guidelines attracted more contributors
 
-## Example 4: Microservices Architecture
+## Example 4: Secure Terminal Development (OpenCode)
+
+### Project Context
+- **Team Size**: 4-6 developers (security-focused team)
+- **Tech Stack**: Node.js, TypeScript, Docker, Kubernetes
+- **AI Tools**: **Primary: OpenCode** (terminal-based development)
+- **Focus**: Security-first development with granular permission controls
+
+### Why OpenCode for This Project
+- **Terminal-First Workflow**: Team prefers command-line development
+- **Security Requirements**: High-security environment requires granular access controls
+- **Permission-Based Approach**: Revolutionary permission system provides superior security over traditional ignore files
+- **Remote Deployment**: Secure development environment for distributed team
+
+### Configuration Structure
+```
+.rulesync/
+├── overview.md                    # Project overview and security principles
+├── security-permissions.md        # Permission configuration patterns
+├── terminal-workflow.md           # CLI development standards
+├── docker-deployment.md           # Containerized development rules
+└── commands/
+    ├── security-audit.md          # Security check commands
+    ├── deploy-secure.md           # Secure deployment procedures
+    └── permission-review.md       # Review and adjust permissions
+```
+
+### Permission-Based Security Configuration (opencode.json)
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": {
+      "default": "ask",
+      "patterns": {
+        "src/**/*.ts": "allow",          // Source code reading allowed
+        "docs/**/*.md": "allow",         // Documentation access allowed
+        "tests/**/*.test.ts": "allow",   // Test files allowed
+        ".env*": "deny",                 // Environment files denied
+        "secrets/**": "deny",            // Secrets directory denied
+        "config/production/**": "deny"   // Production configs denied
+      }
+    },
+    "write": {
+      "default": "ask",
+      "patterns": {
+        "src/**/*.ts": "allow",          // Source code modifications allowed
+        "docs/**/*.md": "allow",         // Documentation updates allowed
+        "tests/**/*.test.ts": "allow",   // Test file modifications allowed
+        "package.json": "ask",           // Package changes require confirmation
+        ".env*": "deny",                 // Never modify environment files
+        "config/production/**": "deny"   // Never modify production config
+      }
+    },
+    "run": {
+      "default": "ask",
+      "patterns": {
+        "npm test": "allow",             // Test commands allowed
+        "npm run build": "allow",        // Build commands allowed
+        "npm run lint": "allow",         // Linting allowed
+        "docker build": "ask",           // Docker builds require confirmation
+        "kubectl apply": "deny",         // Kubernetes deployments denied
+        "rm -rf *": "deny",             // Destructive commands denied
+        "sudo *": "deny"                 // Elevated commands denied
+      }
+    }
+  },
+  "mcp": {
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "enabled": true,
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxxxxxxxxxxxx"
+      }
+    },
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "./src"],
+      "enabled": true
+    },
+    "security-scanner": {
+      "type": "remote",
+      "url": "https://security-api.company.com/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer ${SECURITY_API_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+### Security-First Rules (security-permissions.md)
+```yaml
+---
+targets: ["opencode"]
+description: "Security-first development with permission-based controls"
+globs: ["**/*"]
+---
+
+# Security-First Development with OpenCode
+
+## Revolutionary Permission System
+OpenCode's permission-based approach provides superior security compared to traditional ignore files:
+
+### Core Security Principles
+1. **Deny by Default**: All operations require explicit permission
+2. **Granular Control**: Separate read, write, and execute permissions
+3. **Pattern-Based Access**: Fine-grained file and command pattern matching
+4. **Runtime Validation**: AI requests permission before each sensitive operation
+5. **Audit Trail**: Complete visibility into AI actions and permissions
+
+### Permission Configuration Strategy
+```json
+// Development Environment - More Permissive
+{
+  "permission": {
+    "read": { "default": "allow", "patterns": { ".env*": "deny" } },
+    "write": { "default": "ask" },
+    "run": { "default": "ask" }
+  }
+}
+
+// Staging Environment - Balanced Approach
+{
+  "permission": {
+    "read": { "default": "ask" },
+    "write": { "default": "ask" },
+    "run": { "default": "ask", "patterns": { "deploy *": "deny" } }
+  }
+}
+
+// Production Environment - Maximum Security
+{
+  "permission": {
+    "read": { "default": "deny", "patterns": { "logs/**": "allow" } },
+    "write": { "default": "deny" },
+    "run": { "default": "deny", "patterns": { "status": "allow" } }
+  }
+}
+```
+
+## Security Advantages over Traditional Ignore Files
+- **Dynamic Permissions**: Permissions can change based on context and operation
+- **Operation-Specific Control**: Different permissions for read, write, execute
+- **Command-Level Security**: Control over specific commands and arguments
+- **Real-Time Validation**: AI asks for permission before each sensitive action
+- **Environment Awareness**: Different permission sets for different environments
+```
+
+### Terminal Workflow Standards (terminal-workflow.md)
+```yaml
+---
+targets: ["opencode"]
+description: "CLI-first development workflow standards"
+globs: ["scripts/**/*", "bin/**/*"]
+---
+
+# Terminal-First Development Workflow
+
+## CLI Development Standards
+1. **Command Safety**: All destructive commands require confirmation
+2. **Script Security**: Review all scripts before execution
+3. **Environment Isolation**: Use containers for development environments
+4. **Permission Auditing**: Regular review of granted permissions
+
+## Secure Development Commands
+```bash
+# Safe operations (can be auto-allowed)
+npm test
+npm run build
+npm run lint
+git status
+git log
+
+# Operations requiring confirmation
+npm install <package>
+docker build
+docker run
+
+# Operations that should be denied
+rm -rf *
+sudo commands
+production deployments
+```
+
+## Container-Based Development
+- Use Docker containers for isolated development environments
+- Mount source code as volumes, not sensitive directories
+- Run AI assistance within containerized environment
+- Regular container image updates and security scanning
+```
+
+### Results and Metrics
+**Security Improvements**:
+- **Zero Security Incidents**: No accidental exposure of sensitive data
+- **Permission Awareness**: 100% team understanding of AI access patterns
+- **Audit Compliance**: Complete audit trail for security reviews
+- **Reduced Risk**: 95% reduction in potential security exposure points
+
+**Development Efficiency**:
+- **Smart Permissions**: AI learns safe operations and requests fewer confirmations
+- **Context Preservation**: Terminal-based workflow maintains full development context
+- **Team Consistency**: Unified permission patterns across all team members
+- **Flexible Security**: Easy adjustment of permissions for different environments
+
+### Key Lessons and Innovations
+**Revolutionary Security Model**:
+- **Permission-based approach** is far superior to traditional ignore files
+- **Granular operation control** (read/write/execute) provides unprecedented security
+- **Runtime permission requests** ensure AI never exceeds granted access
+- **Pattern-based access** allows precise control over file and command access
+
+**Team Adoption**:
+- Terminal-first teams adapted quickly to OpenCode's CLI-native approach
+- Permission system required initial setup but provided long-term security benefits
+- Team developed sophisticated permission patterns for different development phases
+- Security-first mindset improved overall development practices
+
+## Example 5: Microservices Architecture
 
 ### Project Context
 - **Team Size**: 20+ developers across 5 microservices
