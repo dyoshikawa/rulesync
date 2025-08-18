@@ -53,7 +53,7 @@ export type ConfigOptions = z.infer<typeof ConfigOptionsSchema>;
  * - Required fields like aiRulesDir, watchEnabled, defaultTargets
  * - Includes runtime fields like configPath
  */
-export const MergedConfigSchema = z.object({
+const MergedConfigSchema = z.object({
   aiRulesDir: z.string(),
   outputPaths: z.record(ToolTargetSchema, z.string()),
   watchEnabled: z.boolean(),

@@ -4,7 +4,7 @@ import type { ToolTarget } from "../types/tool-targets.js";
 /**
  * Standard output paths used in tests - matches the common pattern used across ignore generator tests
  */
-export const STANDARD_TEST_OUTPUT_PATHS = {
+const STANDARD_TEST_OUTPUT_PATHS = {
   augmentcode: "./.augment/rules",
   "augmentcode-legacy": "./.augment-guidelines",
   copilot: "./.github/copilot-instructions.md",

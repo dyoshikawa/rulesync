@@ -60,7 +60,7 @@ export function generateMcpConfigurationFiles(
 /**
  * Common server transformation utilities
  */
-export const serverTransforms = {
+const serverTransforms = {
   /**
    * Basic server transformation (command, args, env, url handling)
    */
@@ -182,7 +182,7 @@ export const configWrappers = {
  * MCP generator registry - Centralized configuration for supported tools
  * Note: Not all tools are in the registry - some have complex custom logic
  */
-export const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
+const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
   roo: {
     target: "roo",
     configPaths: [".roo/mcp.json"],
@@ -353,6 +353,24 @@ export const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> 
     serverTransform: serverTransforms.extended,
     configWrapper: configWrappers.mcpServers,
   },
+
+  geminicli: {
+    target: "geminicli",
+    configPaths: [".gemini/settings.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      // Clone server config and remove targets (preserve all other properties)
+      const { targets: _, ...serverConfig } = server;
+      const geminiServer: McpServerMapping = { ...serverConfig };
+
+      // Preserve environment variables as-is for Gemini CLI
+      if (server.env) {
+        geminiServer.env = server.env;
+      }
+
+      return geminiServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
 };
 
 /**
@@ -369,7 +387,7 @@ export function generateMcpFromRegistry(tool: ToolTarget, config: RulesyncMcpCon
 /**
  * Create simple MCP generator functions for tools that use the registry pattern
  */
-export function createMcpGenerator(toolName: ToolTarget) {
+function createMcpGenerator(toolName: ToolTarget) {
   return {
     generateMcp: (config: RulesyncMcpConfig): string => {
       return generateMcpFromRegistry(toolName, config);
@@ -406,7 +424,7 @@ export function generateMcpConfigurationFilesFromRegistry(
   }
 
   // Tools with complex custom logic that are not in the registry
-  const customTools = ["copilot", "augmentcode", "codexcli", "kiro", "geminicli"];
+  const customTools = ["copilot", "augmentcode", "codexcli", "kiro"];
   if (customTools.includes(tool)) {
     throw new Error(
       `Tool ${tool} uses custom configuration logic - use its specific generator function instead`,

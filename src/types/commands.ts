@@ -3,7 +3,7 @@ import { BaseFrontmatterSchema, type Output, type ParsedContent } from "./shared
 
 export const CommandFrontmatterSchema = BaseFrontmatterSchema;
 
-export type CommandFrontmatter = z.infer<typeof CommandFrontmatterSchema>;
+type CommandFrontmatter = z.infer<typeof CommandFrontmatterSchema>;
 
 export interface ParsedCommand extends ParsedContent {
   frontmatter: CommandFrontmatter;

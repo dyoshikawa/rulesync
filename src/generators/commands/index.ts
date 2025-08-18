@@ -8,7 +8,7 @@ export interface CommandGenerator {
   getOutputPath(filename: string, baseDir: string): string;
 }
 
-export const commandGenerators: Record<string, CommandGenerator> = {
+const commandGenerators: Record<string, CommandGenerator> = {
   claudecode: new ClaudeCodeCommandGenerator(),
   geminicli: new GeminiCliCommandGenerator(),
   roo: new RooCommandGenerator(),

@@ -40,5 +40,3 @@ export type McpServerBase = z.infer<typeof McpServerBaseSchema>;
 export type RulesyncMcpServer = z.infer<typeof RulesyncMcpServerSchema>;
 export type McpConfig = z.infer<typeof McpConfigSchema>;
 export type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
-export type ParsedRulesyncTargets = z.infer<typeof RulesyncTargetsSchema>;
-export type ParsedRulesyncMcpServer = z.infer<typeof RulesyncMcpServerSchema>;

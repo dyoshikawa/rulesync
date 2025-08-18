@@ -4,7 +4,7 @@ import { generateFromRegistry } from "./generator-registry.js";
 /**
  * Create a simple generator function for tools that use the registry pattern
  */
-export function createSimpleGenerator(toolName: ToolTarget) {
+function createSimpleGenerator(toolName: ToolTarget) {
   return async function (
     rules: ParsedRule[],
     config: Config,
