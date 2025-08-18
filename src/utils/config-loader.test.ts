@@ -148,6 +148,7 @@ describe("config-loader", () => {
         kiro: ".kiro/steering",
         augmentcode: ".",
         "augmentcode-legacy": ".",
+        opencode: ".",
         junie: ".",
         windsurf: ".",
       },

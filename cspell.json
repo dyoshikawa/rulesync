@@ -220,6 +220,7 @@
         "roomodes",
         "PYTHONPATH",
         "mattlewis",
-        "basenames"
+        "basenames",
+        "opcodeignore"
     ]
 }

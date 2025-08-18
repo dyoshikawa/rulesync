@@ -58,6 +58,7 @@ describe("types/index", () => {
         cline: ".clinerules",
         claudecode: ".",
         codexcli: ".",
+        opencode: ".",
         roo: ".roo/rules",
         geminicli: ".geminicli/rules",
         kiro: ".kiro/steering",

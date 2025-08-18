@@ -310,6 +310,22 @@ const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
     // Complex generation handled by existing generator
   },
 
+  opencode: {
+    type: "complex",
+    tool: "opencode",
+    fileExtension: ".md",
+    ignoreFileName: ".opcodeignore",
+    generateContent: (rule) => {
+      const lines: string[] = [];
+      if (rule.frontmatter.description) {
+        lines.push(`# ${rule.frontmatter.description}\n`);
+      }
+      lines.push(rule.content.trim());
+      return lines.join("\n");
+    },
+    // Complex generation handled by existing generator
+  },
+
   junie: {
     type: "complex",
     tool: "junie",

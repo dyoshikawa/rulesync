@@ -15,6 +15,7 @@ describe("generateAugmentCodeIgnoreFiles", () => {
       cursor: "output",
       geminicli: "output",
       kiro: "output",
+      opencode: "output",
       roo: "output",
       junie: "output",
       windsurf: "output",

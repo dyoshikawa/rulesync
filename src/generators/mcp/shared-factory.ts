@@ -371,6 +371,24 @@ const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
     },
     configWrapper: configWrappers.mcpServers,
   },
+
+  opencode: {
+    target: "opencode",
+    configPaths: ["opencode.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      // Clone server config and remove targets (preserve all other properties)
+      const { targets: _, ...serverConfig } = server;
+      const opencodeServer: McpServerMapping = { ...serverConfig };
+
+      // Preserve environment variables as-is for OpenCode
+      if (server.env) {
+        opencodeServer.env = server.env;
+      }
+
+      return opencodeServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
 };
 
 /**

@@ -7,5 +7,6 @@ export { generateCursorMcp } from "./cursor.js";
 export { generateGeminiCliMcp } from "./geminicli.js";
 export { generateJunieMcp } from "./junie.js";
 export { generateKiroMcp } from "./kiro.js";
+export { generateOpenCodeMcp } from "./opencode.js";
 export { generateRooMcp } from "./roo.js";
 export { generateWindsurfMcp } from "./windsurf.js";

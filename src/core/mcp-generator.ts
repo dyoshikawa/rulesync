@@ -210,6 +210,11 @@ export async function generateMcpConfigurations(
       (await import("../generators/mcp/cline.js")).generateClineMcpConfiguration(servers, dir),
     codexcli: async (servers, dir) =>
       (await import("../generators/mcp/codexcli.js")).generateCodexMcpConfiguration(servers, dir),
+    opencode: async (servers, dir) =>
+      (await import("../generators/mcp/opencode.js")).generateOpenCodeMcpConfiguration(
+        servers,
+        dir,
+      ),
     roo: async (servers, dir) =>
       (await import("../generators/mcp/roo.js")).generateRooMcpConfiguration(servers, dir),
     geminicli: async (servers, dir) =>
