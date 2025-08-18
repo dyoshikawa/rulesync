@@ -1,3 +1,4 @@
+import { XMLBuilder } from "fast-xml-parser";
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
 import { type EnhancedRuleGeneratorConfig, generateComplexRules } from "./shared-helpers.js";
 
@@ -38,15 +39,35 @@ function generateGeminiRootMarkdown(
       "Please also reference the following documents as needed. In this case, `@` stands for the project root directory.",
     );
     lines.push("");
-    lines.push("| Document | Description | File Patterns |");
-    lines.push("|----------|-------------|---------------|");
 
-    for (const rule of memoryRules) {
-      const relativePath = `@.gemini/memories/${rule.filename}.md`;
-      const filePatterns =
-        rule.frontmatter.globs.length > 0 ? rule.frontmatter.globs.join(", ") : "-";
-      lines.push(`| ${relativePath} | ${rule.frontmatter.description} | ${filePatterns} |`);
-    }
+    // Build XML structure using fast-xml-parser XMLBuilder
+    const documentsData = {
+      Documents: {
+        Document: memoryRules.map((rule) => {
+          const relativePath = `@.gemini/memories/${rule.filename}.md`;
+          const document: Record<string, string> = {
+            Path: relativePath,
+            Description: rule.frontmatter.description,
+          };
+
+          // Only include FilePatterns if globs exist
+          if (rule.frontmatter.globs.length > 0) {
+            document.FilePatterns = rule.frontmatter.globs.join(", ");
+          }
+
+          return document;
+        }),
+      },
+    };
+
+    const builder = new XMLBuilder({
+      format: true,
+      ignoreAttributes: false,
+      suppressEmptyNode: false,
+    });
+
+    const xmlContent = builder.build(documentsData);
+    lines.push(xmlContent);
     lines.push("");
     lines.push("");
   }

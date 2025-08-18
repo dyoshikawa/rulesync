@@ -57,19 +57,19 @@ describe("generateGeminiConfig", () => {
     expect(results[1]?.content).toContain(
       "Please also reference the following documents as needed",
     );
-    expect(results[1]?.content).toContain("| Document | Description | File Patterns |");
-    expect(results[1]?.content).toContain("@.gemini/memories/detail-rule.md");
+    expect(results[1]?.content).toContain("<Documents>");
+    expect(results[1]?.content).toContain("<Path>@.gemini/memories/detail-rule.md</Path>");
     expect(results[1]?.content).toContain("This is an overview rule content");
   });
 
-  it("should generate table of memory files in root file", async () => {
+  it("should generate XML format for memory files in root file", async () => {
     const results = await generateGeminiConfig(mockRules, mockConfig);
     const rootFile = results.find((r) => r.filepath === "GEMINI.md");
 
-    expect(rootFile?.content).toContain("| Document | Description | File Patterns |");
-    expect(rootFile?.content).toContain(
-      "| @.gemini/memories/detail-rule.md | Detail rule | **/*.md |",
-    );
+    expect(rootFile?.content).toContain("<Documents>");
+    expect(rootFile?.content).toContain("<Path>@.gemini/memories/detail-rule.md</Path>");
+    expect(rootFile?.content).toContain("<Description>Detail rule</Description>");
+    expect(rootFile?.content).toContain("<FilePatterns>**/*.md</FilePatterns>");
   });
 
   it("should handle only root rule", async () => {
@@ -125,7 +125,7 @@ describe("generateGeminiConfig", () => {
     expect(results[1]!.content).toContain(
       "Please also reference the following documents as needed",
     );
-    expect(results[1]!.content).toContain("| Document | Description | File Patterns |");
+    expect(results[1]!.content).toContain("<Documents>");
     expect(results[1]!.content).not.toContain("This is memory rule content");
   });
 

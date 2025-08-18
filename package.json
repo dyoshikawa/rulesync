@@ -63,6 +63,7 @@
 		"chokidar": "4.0.3",
 		"commander": "14.0.0",
 		"consola": "3.4.2",
+		"fast-xml-parser": "5.2.5",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.0",
 		"micromatch": "4.0.8",
