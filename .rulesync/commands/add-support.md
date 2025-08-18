@@ -95,11 +95,20 @@ Then, add the generated files for {tool_name_in_rulesync} to the output list of 
 
 Call the code-fixer subagent to stabilize the all implementations above.
 
-## 7. Create PR
+## 7. Update docs
+
+Call the docs-updater subagent to update the following documents in light of the changes above. All files should be processed at once in a single subagent execution.
+
+- README.md, docs/**/*.md
+  - For users of this tool. Focus on usage and specifications.
+- CONTRIBUTING.md
+  - For developers of this tool. Focus on project structure, dependencies, development environment setup, and testing methods.
+
+## 8. Create PR
 
 Call the pr-creator subagent to create a PR for the all implementations above.
 
-## 8. Self-review
+## 9. Self-review
 
 Please review and fix the all implementations above.
 

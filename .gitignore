@@ -234,3 +234,6 @@ pnpm-lock.yaml
 **/opencode.json
 **/.opencode/memories/
 **/.opencode/commands/
+
+**/.amazonq/rules/
+**/.amazonq/mcp.json
