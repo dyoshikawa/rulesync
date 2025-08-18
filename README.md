@@ -46,12 +46,14 @@ If you already have AI tool configurations:
 npx rulesync import --claudecode  # From CLAUDE.md
 npx rulesync import --cursor      # From .cursorrules
 npx rulesync import --copilot     # From .github/copilot-instructions.md
+npx rulesync import --amazonqcli  # From .amazonq/rules/*.md
 npx rulesync import --opencode    # From AGENTS.md
 
 # Import to legacy structure (for existing projects)
 npx rulesync import --claudecode --legacy
 npx rulesync import --cursor --legacy
 npx rulesync import --copilot --legacy
+npx rulesync import --amazonqcli --legacy
 npx rulesync import --opencode --legacy
 
 # Generate unified configurations
@@ -60,12 +62,13 @@ npx rulesync generate
 
 ## Supported Tools
 
-rulesync supports both **generation** and **import** for **11 AI development tools**:
+rulesync supports both **generation** and **import** for **12 AI development tools**:
 
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
 - **Cline Rules** (`.clinerules/*.md` + `.cline/instructions.md`)
 - **Claude Code Memory** (`./CLAUDE.md` + `.claude/memories/*.md` + **Custom Slash Commands** `.claude/commands/*.md`)
+- **Amazon Q Developer CLI** (`.amazonq/rules/*.md` + `.amazonq/mcp.json` + **Built-in Slash Commands** support + **Context Management**)
 - **OpenCode** (`AGENTS.md` + `opencode.json` + **🔐 Permission-Based Security** instead of traditional ignore files)
 - **OpenAI Codex CLI** (`AGENTS.md` + **File Splitting with XML References** `.codex/memories/*.md` + `.codex/mcp-config.json` + `.codexignore`)
 - **AugmentCode Rules** (`.augment/rules/*.md`)
@@ -89,6 +92,7 @@ Enable hybrid development workflows combining multiple AI tools:
 - Cursor for refactoring
 - Claude Code for architecture design
 - Cline for debugging assistance
+- **Amazon Q Developer CLI** for comprehensive chat-based development with built-in commands and MCP integration
 - **OpenCode** for secure terminal-based development with granular permission controls
 - Windsurf for comprehensive AI-assisted editing
 
@@ -118,9 +122,11 @@ npx rulesync add typescript-rules --legacy
 
 # Import existing configurations (to .rulesync/rules/ by default)
 npx rulesync import --cursor
+npx rulesync import --amazonqcli
 
 # Import to legacy location (for existing projects)
 npx rulesync import --cursor --legacy
+npx rulesync import --amazonqcli --legacy
 
 # Validate rules
 npx rulesync validate
@@ -149,6 +155,7 @@ npx rulesync gitignore
 - **[Cursor](./docs/tools/cursor.md)** - Rule types and MDC format
 - **[GitHub Copilot](./docs/tools/copilot.md)** - Custom instructions
 - **[Cline](./docs/tools/cline.md)** - Plain Markdown rules
+- **[Amazon Q Developer CLI](./docs/tools/amazonqcli.md)** - Rules, MCP, and built-in commands
 - **[OpenCode](./docs/tools/opencode.md)** - Permission-based configuration and MCP integration
 - **[OpenAI Codex CLI](./docs/tools/codexcli.md)** - Advanced file splitting with XML document references and memory files
 - **[Gemini CLI](./docs/tools/geminicli.md)** - Memory and commands

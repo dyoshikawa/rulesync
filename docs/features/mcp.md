@@ -12,6 +12,7 @@ rulesync provides comprehensive support for Model Context Protocol (MCP) servers
 | **GitHub Copilot** | `.vscode/mcp.json` | VS Code MCP integration |
 | **Cursor** | `.cursor/mcp.json` | Cursor-specific MCP servers |
 | **Cline** | `.cline/mcp.json` | Cline MCP server configuration |
+| **Amazon Q Developer CLI** | `.amazonq/mcp.json` | Amazon Q MCP server configuration |
 | **OpenCode** | `opencode.json` | Permission-based MCP configuration |
 | **OpenAI Codex CLI** | `.codex/mcp-config.json` | Codex CLI MCP integration |
 | **Gemini CLI** | `.gemini/settings.json` | Gemini CLI MCP configuration |
@@ -53,7 +54,7 @@ Create a `.rulesync/.mcp.json` file in your project:
         "-e", "PGPASSWORD=secret",
         "ghcr.io/modelcontextprotocol/postgres-mcp:latest"
       ],
-      "targets": ["codexcli", "geminicli"]
+      "targets": ["amazonqcli", "codexcli", "geminicli"]
     },
     "remote-api": {
       "url": "https://api.example.com/mcp/sse",
@@ -234,6 +235,46 @@ Generated in `.gemini/settings.json`:
 }
 ```
 
+### Amazon Q Developer CLI
+Amazon Q CLI uses `.amazonq/mcp.json` with support for all transport types and advanced features:
+
+```json
+{
+  "mcpServers": {
+    "aws-docs": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": ["search_documentation", "list_services"],
+      "timeout": 30000,
+      "disabled": false
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "timeout": 60000,
+      "autoApprove": ["read_file", "list_directory"]
+    },
+    "remote-service": {
+      "url": "https://analytics.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ANALYTICS_TOKEN}",
+        "X-Client-Version": "1.0.0"
+      }
+    }
+  }
+}
+```
+
+**Amazon Q CLI-specific features**:
+- **autoApprove**: Array of tool names to automatically approve without user confirmation
+- **timeout**: Request timeout in milliseconds (default: 30000)
+- **disabled**: Boolean to temporarily disable server without removing configuration
+- **Context Integration**: MCP tools work seamlessly with Amazon Q's context management system
+- **Agent Integration**: MCP servers can be configured for specific agent profiles
+
 ### OpenAI Codex CLI
 Codex CLI uses `.codex/mcp-config.json` for MCP wrapper servers:
 
@@ -274,6 +315,7 @@ npx rulesync generate --base-dir ./packages/frontend
 # Import MCP configurations from existing tools
 npx rulesync import --cursor        # Imports .cursor/mcp.json
 npx rulesync import --claudecode    # Imports .mcp.json
+npx rulesync import --amazonqcli    # Imports .amazonq/mcp.json
 npx rulesync import --geminicli     # Imports .gemini/settings.json
 ```
 
@@ -470,6 +512,7 @@ if __name__ == "__main__":
 ### Tool-Specific Debugging
 - **Claude Code**: Check `.mcp.json` loading in project settings
 - **Cursor**: Verify MCP server status in Cursor's MCP panel
+- **Amazon Q CLI**: Use `q mcp` subcommand to view server configuration and status
 - **Gemini CLI**: Use `/mcp` command to list available tools
 - **JetBrains**: Check MCP server status in IDE settings
 

@@ -12,6 +12,7 @@ rulesync provides comprehensive import functionality to convert existing AI tool
 | **Cursor** | `.cursorrules`, `.cursor/rules/*.mdc`, `.cursorignore`, `.cursor/mcp.json` | `--cursor` |
 | **GitHub Copilot** | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md` | `--copilot` |
 | **Cline** | `.cline/instructions.md`, `.clinerules/*.md` | `--cline` |
+| **Amazon Q Developer CLI** | `.amazonq/rules/*.md`, `.amazonq/mcp.json` | `--amazonqcli` |
 | **OpenCode** | `AGENTS.md`, `opencode.json`, `~/.config/opencode/AGENTS.md` | `--opencode` |
 | **OpenAI Codex CLI** | `AGENTS.md`, `.codex/memories/*.md` (XML-referenced) | `--codexcli` |
 | **AugmentCode** | `.augment/rules/*.md`, `.augment-guidelines` (legacy) | `--augmentcode`, `--augmentcode-legacy` |
@@ -29,6 +30,7 @@ npx rulesync import --claudecode
 npx rulesync import --cursor
 npx rulesync import --copilot
 npx rulesync import --cline
+npx rulesync import --amazonqcli
 npx rulesync import --opencode
 npx rulesync import --codexcli
 ```
@@ -103,6 +105,26 @@ npx rulesync import --codexcli
 **Generated Files**:
 - `.rulesync/codexcli-overview.md` (from AGENTS.md root content)
 - `.rulesync/codexcli-[memory-name].md` (from individual memory files)
+
+### Amazon Q Developer CLI Import
+**Sources**:
+- `.amazonq/rules/*.md` → Project-specific context and rules
+- `.amazonq/mcp.json` → MCP server configuration
+
+**Import Process**:
+```bash
+npx rulesync import --amazonqcli
+```
+
+**Generated Files**:
+- `.rulesync/amazonqcli-[rule-name].md` (from rule files)
+- `.rulesync/.mcp.json` (MCP configuration merged)
+
+**Features**:
+- **Context Management**: Imports all rule files from `.amazonq/rules/` directory
+- **MCP Integration**: Preserves Model Context Protocol server configurations
+- **Built-in Commands**: Documents comprehensive built-in slash command system
+- **Agent Configuration**: Maintains agent and profile configurations where applicable
 
 **File Splitting Features**:
 - **XML Reference Detection**: Parses XML `<Documents>` section in AGENTS.md

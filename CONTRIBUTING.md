@@ -10,12 +10,13 @@ rulesync is a Node.js CLI tool that automatically generates configuration files 
 
 ### Supported AI Tools
 
-rulesync now supports **11 AI development tools** with comprehensive rule, MCP, and ignore/permission file generation:
+rulesync now supports **12 AI development tools** with comprehensive rule, MCP, and ignore/permission file generation:
 
 - **GitHub Copilot** Custom Instructions (.github/copilot-*.md)
 - **Cursor** Project Rules (4 rule types: always, manual, specificFiles, intelligently)
 - **Cline** Rules (.cline/instructions.md)
 - **Claude Code** Memory (CLAUDE.md + .claude/memories/)
+- **Amazon Q Developer CLI** Rules (.amazonq/rules/*.md + MCP configuration + context management + built-in slash commands)
 - **OpenCode** 🔐 **Permission-based configuration** (AGENTS.md + opencode.json with granular permissions)
 - **AugmentCode** Rules (current + legacy formats)
 - **Roo Code** Rules (.roo/instructions.md)
@@ -32,6 +33,8 @@ rulesync now supports **11 AI development tools** with comprehensive rule, MCP, 
 3. Install dependencies: `pnpm install`
 4. Set up git hooks: `npx simple-git-hooks`
 5. Create a new branch: `git checkout -b feature/your-feature-name`
+
+**Adding Support for New AI Tools**: See the standardized **[9-step workflow](./add-support.md)** for adding new AI development tools to rulesync.
 
 ## Development Setup
 
@@ -139,6 +142,7 @@ Starting from v0.62.0, the project supports two directory structures for better 
 - **Registry Pattern**: Unified generator architecture for easier tool addition
 - **🔐 OpenCode Support**: Revolutionary permission-based configuration system - Uses granular read/write/execute permissions instead of traditional ignore files, providing superior security and flexibility
 - **Enhanced Windsurf Support**: Complete integration with activation modes and output formats
+- **Amazon Q Developer CLI Support**: Complete integration with context management, MCP configuration, and built-in slash commands
 - **Legacy Support**: Full backward compatibility with existing `.rulesync/.md` layouts
 
 ### Core Architecture - Registry Pattern Implementation
@@ -175,6 +179,7 @@ rulesync/
 │   │   │   ├── generator-registry.ts  # ⭐ NEW: Registry pattern for rule generation
 │   │   │   ├── shared-helpers.ts      # ⭐ NEW: Shared generation utilities
 │   │   │   ├── augmentcode.ts         # AugmentCode Rules (current + legacy)
+│   │   │   ├── amazonqcli.ts          # Amazon Q Developer CLI (.amazonq/rules/ + context management + built-in commands)
 │   │   │   ├── claudecode.ts          # Claude Code Memory (complex hierarchy)
 │   │   │   ├── cline.ts               # Cline Rules (.cline/instructions.md)
 │   │   │   ├── codexcli.ts            # OpenAI Codex CLI (AGENTS.md + XML-based file splitting + memory files)
@@ -863,10 +868,11 @@ it("should report parsing errors with helpful messages", async () => { /* ... */
 - **Flexible Output**: Single-file (`.windsurf-rules`) or directory variant (`.windsurf/rules/`)
 - **Memory Integration**: Auto-generated memories and manual memory creation
 
-**Enhanced Tool Support** (11 total tools):
+**Enhanced Tool Support** (12 total tools):
 - **Comprehensive Coverage**: All major AI development tools supported
-- **Hierarchical Systems**: Multi-level rule precedence for complex tools (Codex CLI, Claude Code)
+- **Hierarchical Systems**: Multi-level rule precedence for complex tools (Codex CLI, Claude Code, Amazon Q CLI)
 - **🔐 Revolutionary Permission System**: OpenCode introduces granular read/write/execute permissions instead of traditional ignore files - providing superior security, flexibility, and control over AI actions
+- **Advanced Command Systems**: Amazon Q CLI provides comprehensive built-in slash commands and context management
 - **Legacy Support**: AugmentCode legacy format maintained alongside current format
 - **Security Focus**: Advanced ignore patterns and permission controls with security-first approach, with OpenCode leading innovation
 
