@@ -1,6 +1,6 @@
 {
     "cache": {
-        "useCache": true,
+        "useCache": true
     },
     "useGitignore": true,
     "ignorePaths": [
@@ -17,6 +17,9 @@
         "agentrequested",
         "aiexclude",
         "aiignore",
+        "amazonq",
+        "amazonqcli",
+        "Amazonqcli",
         "apdisk",
         "argparse",
         "augmentcode",
