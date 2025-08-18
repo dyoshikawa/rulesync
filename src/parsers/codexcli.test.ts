@@ -8,12 +8,12 @@ import { parseCodexConfiguration } from "./codexcli.js";
 describe("parseCodexConfiguration", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let codexFilePath: string;
+  let agentsFilePath: string;
   let codexignorePath: string;
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
-    codexFilePath = join(testDir, "codex.md");
+    agentsFilePath = join(testDir, "AGENTS.md");
     codexignorePath = join(testDir, ".codexignore");
   });
 
@@ -21,7 +21,7 @@ describe("parseCodexConfiguration", () => {
     await cleanup();
   });
 
-  it("should parse codex.md file successfully", async () => {
+  it("should parse AGENTS.md file successfully", async () => {
     const codexContent = `# E-commerce Platform
 
 This is a modern e-commerce platform built with Next.js and TypeScript.
@@ -36,7 +36,7 @@ This is a modern e-commerce platform built with Next.js and TypeScript.
 2. Prefer functional components with hooks
 3. Always write unit tests for business logic`;
 
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     const result = await parseCodexConfiguration(testDir);
     expect(result.errors).toEqual([]);
@@ -55,7 +55,7 @@ This is a modern e-commerce platform built with Next.js and TypeScript.
 
   it("should parse additional instruction files", async () => {
     const codexContent = "# Main Project Instructions\nMain content here.";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     const instructionsFile = join(testDir, "api-instructions.md");
     const guidelinesFile = join(testDir, "component-guidelines.md");
@@ -93,11 +93,11 @@ This is a modern e-commerce platform built with Next.js and TypeScript.
     expect(testingRule?.frontmatter.description).toBe("Codex CLI instructions: testing-rules");
   });
 
-  it("should parse subdirectory codex.md files", async () => {
+  it("should parse subdirectory AGENTS.md files", async () => {
     const mainCodexContent = "# Main Instructions";
-    await writeFile(codexFilePath, mainCodexContent);
+    await writeFile(agentsFilePath, mainCodexContent);
 
-    // Create subdirectories with codex.md files
+    // Create subdirectories with AGENTS.md files
     const { mkdir } = await import("node:fs/promises");
     const srcDir = join(testDir, "src");
     const componentsDir = join(testDir, "components");
@@ -105,8 +105,8 @@ This is a modern e-commerce platform built with Next.js and TypeScript.
     await mkdir(srcDir);
     await mkdir(componentsDir);
 
-    const srcCodexPath = join(srcDir, "codex.md");
-    const componentsCodexPath = join(componentsDir, "codex.md");
+    const srcCodexPath = join(srcDir, "AGENTS.md");
+    const componentsCodexPath = join(componentsDir, "AGENTS.md");
 
     await writeFile(srcCodexPath, "# Source Code Guidelines\nSource specific content.");
     await writeFile(componentsCodexPath, "# Component Guidelines\nComponent specific content.");
@@ -115,13 +115,13 @@ This is a modern e-commerce platform built with Next.js and TypeScript.
     expect(result.errors).toEqual([]);
     expect(result.rules).toHaveLength(3); // main + 2 subdirectory files
 
-    const srcRule = result.rules.find((rule: ParsedRule) => rule.filename === "src-codex");
+    const srcRule = result.rules.find((rule: ParsedRule) => rule.filename === "src-agents");
     expect(srcRule?.content).toContain("# Source Code Guidelines");
     expect(srcRule?.frontmatter.description).toBe("Directory-specific Codex CLI instructions: src");
     expect(srcRule?.frontmatter.globs).toEqual(["src/**/*"]);
 
     const componentsRule = result.rules.find(
-      (rule: ParsedRule) => rule.filename === "components-codex",
+      (rule: ParsedRule) => rule.filename === "components-agents",
     );
     expect(componentsRule?.content).toContain("# Component Guidelines");
     expect(componentsRule?.frontmatter.description).toBe(
@@ -132,7 +132,7 @@ This is a modern e-commerce platform built with Next.js and TypeScript.
 
   it("should parse .codexignore file", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     const codexignoreContent = `# Comment line
 node_modules/
@@ -159,7 +159,7 @@ temp/**/*
 
   it("should ignore non-relevant .md files", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     // Create .md files that shouldn't be parsed as Codex instructions
     await writeFile(join(testDir, "README.md"), "# README\nThis is a readme file.");
@@ -167,13 +167,13 @@ temp/**/*
     await writeFile(join(testDir, "random-file.md"), "# Random\nNot related to Codex.");
 
     const result = await parseCodexConfiguration(testDir);
-    expect(result.rules).toHaveLength(1); // Only main codex.md should be parsed
+    expect(result.rules).toHaveLength(1); // Only main AGENTS.md should be parsed
     expect(result.rules[0]?.filename).toBe("project-instructions");
   });
 
   it("should include files with codex-related names", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     // Create files that should be included due to their names
     await writeFile(join(testDir, "codex-rules.md"), "# Codex Rules\nSpecific rules.");
@@ -203,24 +203,24 @@ temp/**/*
   it("should return error when no configuration files found", async () => {
     const result = await parseCodexConfiguration(testDir);
     expect(result.errors).toContain(
-      "No Codex CLI configuration files found. Expected to find codex.md in the project root or subdirectories.",
+      "No Codex CLI configuration files found. Expected to find AGENTS.md in the project root or subdirectories.",
     );
     expect(result.rules).toEqual([]);
   });
 
-  it("should handle empty codex.md file", async () => {
-    await writeFile(codexFilePath, "   \n\n  ");
+  it("should handle empty AGENTS.md file", async () => {
+    await writeFile(agentsFilePath, "   \n\n  ");
 
     const result = await parseCodexConfiguration(testDir);
     expect(result.errors).toContain(
-      "No Codex CLI configuration files found. Expected to find codex.md in the project root or subdirectories.",
+      "No Codex CLI configuration files found. Expected to find AGENTS.md in the project root or subdirectories.",
     );
     expect(result.rules).toEqual([]);
   });
 
   it("should handle file reading errors gracefully", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     // Create a directory instead of a file to cause read errors
     const { mkdir } = await import("node:fs/promises");
@@ -238,7 +238,7 @@ temp/**/*
 
   it("should handle .codexignore parsing errors gracefully", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     // Create a directory instead of a file to cause read errors
     const { mkdir } = await import("node:fs/promises");
@@ -254,7 +254,7 @@ temp/**/*
 
   it("should skip dot directories and node_modules", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     // Create directories that should be skipped
     const { mkdir } = await import("node:fs/promises");
@@ -264,18 +264,18 @@ temp/**/*
     await mkdir(dotDir);
     await mkdir(nodeModulesDir);
 
-    // Add codex.md files to these directories
-    await writeFile(join(dotDir, "codex.md"), "# Hidden Codex");
-    await writeFile(join(nodeModulesDir, "codex.md"), "# Node Modules Codex");
+    // Add AGENTS.md files to these directories
+    await writeFile(join(dotDir, "AGENTS.md"), "# Hidden Agents");
+    await writeFile(join(nodeModulesDir, "AGENTS.md"), "# Node Modules Agents");
 
     const result = await parseCodexConfiguration(testDir);
-    expect(result.rules).toHaveLength(1); // Only main codex.md should be parsed
+    expect(result.rules).toHaveLength(1); // Only main AGENTS.md should be parsed
     expect(result.rules[0]?.filename).toBe("project-instructions");
   });
 
   it("should handle subdirectory traversal errors gracefully", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     // This test ensures the parser doesn't crash when encountering permission issues or other filesystem errors
     const result = await parseCodexConfiguration(testDir);
@@ -291,14 +291,14 @@ temp/**/*
 
     const result = await parseCodexConfiguration(nonExistentDir);
     expect(result.errors).toContain(
-      "No Codex CLI configuration files found. Expected to find codex.md in the project root or subdirectories.",
+      "No Codex CLI configuration files found. Expected to find AGENTS.md in the project root or subdirectories.",
     );
     expect(result.rules).toEqual([]);
   });
 
   it("should filter out empty .codexignore patterns", async () => {
     const codexContent = "# Main Instructions";
-    await writeFile(codexFilePath, codexContent);
+    await writeFile(agentsFilePath, codexContent);
 
     const codexignoreContent = `# Comment line
 

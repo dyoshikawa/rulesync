@@ -13,8 +13,8 @@ export interface CodexImportResult {
  *
  * Codex CLI uses a hierarchical system:
  * 1. Global user instructions: ~/.codex/instructions.md (not parsed by rulesync - user-specific)
- * 2. Project-level instructions: <project-root>/codex.md
- * 3. Directory-specific instructions: <current-working-directory>/codex.md
+ * 2. Project-level instructions: <project-root>/AGENTS.md
+ * 3. Directory-specific instructions: <current-working-directory>/AGENTS.md
  *
  * For rulesync, we focus on project-level configuration that can be shared with teams.
  */
@@ -25,8 +25,8 @@ export async function parseCodexConfiguration(
   const rules: ParsedRule[] = [];
   let ignorePatterns: string[] | undefined;
 
-  // Parse project-level codex.md
-  const projectCodexPath = join(baseDir, "codex.md");
+  // Parse project-level AGENTS.md
+  const projectCodexPath = join(baseDir, "AGENTS.md");
   if (await fileExists(projectCodexPath)) {
     try {
       const content = await readFileContent(projectCodexPath);
@@ -47,7 +47,7 @@ export async function parseCodexConfiguration(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to parse codex.md: ${errorMessage}`);
+      errors.push(`Failed to parse AGENTS.md: ${errorMessage}`);
     }
   }
 
@@ -58,11 +58,11 @@ export async function parseCodexConfiguration(
     const files = await readdir(baseDir);
 
     for (const file of files) {
-      // Skip the main codex.md file as it's already processed above
-      if (file === "codex.md") continue;
+      // Skip the main AGENTS.md file as it's already processed above
+      if (file === "AGENTS.md") continue;
 
       // Look for files that might be Codex CLI instruction files
-      // This could include subdirectory codex.md files or other .md instruction files
+      // This could include subdirectory AGENTS.md files or other .md instruction files
       if (
         file.endsWith(".md") &&
         (file.includes("codex") ||
@@ -97,7 +97,7 @@ export async function parseCodexConfiguration(
       }
     }
 
-    // Look for subdirectories that might contain codex.md files
+    // Look for subdirectories that might contain AGENTS.md files
     for (const file of files) {
       const filePath = join(baseDir, file);
       try {
@@ -105,7 +105,7 @@ export async function parseCodexConfiguration(
         const stats = await stat(filePath);
 
         if (stats.isDirectory() && !file.startsWith(".") && file !== "node_modules") {
-          const subCodexPath = join(filePath, "codex.md");
+          const subCodexPath = join(filePath, "AGENTS.md");
           if (await fileExists(subCodexPath)) {
             try {
               const content = await readFileContent(subCodexPath);
@@ -120,7 +120,7 @@ export async function parseCodexConfiguration(
                 rules.push({
                   frontmatter,
                   content: content.trim(),
-                  filename: `${file}-codex`,
+                  filename: `${file}-agents`,
                   filepath: subCodexPath,
                 });
               }
@@ -161,7 +161,7 @@ export async function parseCodexConfiguration(
   // If no rules found, add an informative error
   if (rules.length === 0) {
     errors.push(
-      "No Codex CLI configuration files found. Expected to find codex.md in the project root or subdirectories.",
+      "No Codex CLI configuration files found. Expected to find AGENTS.md in the project root or subdirectories.",
     );
   }
 

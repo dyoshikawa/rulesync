@@ -12,7 +12,7 @@ describe("generateWindsurfIgnore", () => {
       cursor: "./.cursor/rules",
       cline: "./.clinerules",
       claudecode: "./CLAUDE.md",
-      codexcli: "./codex.md",
+      codexcli: "./AGENTS.md",
       roo: "./.roo/rules",
       geminicli: "./GEMINI.md",
       kiro: "./.kiro/steering",

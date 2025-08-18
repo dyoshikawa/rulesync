@@ -64,7 +64,7 @@ describe("gitignoreCommand", () => {
 CLAUDE.md
 .claude/memories/
 .claude/commands/
-codex.md
+AGENTS.md
 .codexignore
 .roo/rules/
 .rooignore
@@ -95,7 +95,7 @@ GEMINI.md
 **/CLAUDE.md
 **/.claude/memories/
 **/.claude/commands/
-**/codex.md
+**/AGENTS.md
 **/.codexignore
 **/.roo/rules/
 **/.rooignore

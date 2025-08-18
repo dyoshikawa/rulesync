@@ -40,7 +40,7 @@
     "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume"
   ],
   "remoteEnv": {
-    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "NODE_OPTIONS": "--max-old-space-size=6144",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
     "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",

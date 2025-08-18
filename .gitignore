@@ -219,7 +219,7 @@ pnpm-lock.yaml
 **/.noai
 
 **/.claude/commands/
-**/codex.md
+**/AGENTS.md
 **/.codexignore
 **/.gemini/commands/
 **/.codex/mcp-config.json

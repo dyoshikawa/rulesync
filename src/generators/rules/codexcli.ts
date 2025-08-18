@@ -25,10 +25,10 @@ export async function generateCodexConfig(
   // Generate concatenated content
   const concatenatedContent = generateConcatenatedCodexContent(sortedRules);
 
-  // Only generate codex.md file if we have content
+  // Only generate AGENTS.md file if we have content
   if (concatenatedContent.trim()) {
     const outputDir = resolveOutputDir(config, "codexcli", baseDir);
-    const filepath = `${outputDir}/codex.md`;
+    const filepath = `${outputDir}/AGENTS.md`;
 
     outputs.push({
       tool: "codexcli",
