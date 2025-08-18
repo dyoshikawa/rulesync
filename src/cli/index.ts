@@ -47,6 +47,7 @@ program
   .option("--roo", "Import from Roo Code (.roo/instructions.md)")
   .option("--geminicli", "Import from Gemini CLI (GEMINI.md)")
   .option("--junie", "Import from JetBrains Junie (.junie/guidelines.md)")
+  .option("--opencode", "Import from OpenCode (AGENTS.md)")
   .option("-v, --verbose", "Verbose output")
   .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
   .action(importCommand);
@@ -65,6 +66,7 @@ program
   .option("--geminicli", "Generate only for Gemini CLI")
   .option("--junie", "Generate only for JetBrains Junie")
   .option("--kiro", "Generate only for Kiro IDE")
+  .option("--opencode", "Generate only for OpenCode")
   .option("--windsurf", "Generate only for Windsurf")
   .option("--delete", "Delete all existing files in output directories before generating")
   .option(
@@ -87,6 +89,7 @@ program
     if (options.geminicli) tools.push("geminicli");
     if (options.junie) tools.push("junie");
     if (options.kiro) tools.push("kiro");
+    if (options.opencode) tools.push("opencode");
     if (options.windsurf) tools.push("windsurf");
 
     const generateOptions: {

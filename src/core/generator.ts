@@ -1,6 +1,7 @@
 import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
 import { generateJunieIgnoreFiles } from "../generators/ignore/junie.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
+import { generateOpenCodeIgnoreFiles } from "../generators/ignore/opencode.js";
 import { generateWindsurfIgnore } from "../generators/ignore/windsurf.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
 import { generateAugmentcodeLegacyConfig } from "../generators/rules/augmentcode-legacy.js";
@@ -12,6 +13,7 @@ import { generateCursorConfig } from "../generators/rules/cursor.js";
 import { generateGeminiConfig } from "../generators/rules/geminicli.js";
 import { generateJunieConfig } from "../generators/rules/junie.js";
 import { generateKiroConfig } from "../generators/rules/kiro.js";
+import { generateOpenCodeConfig } from "../generators/rules/opencode.js";
 import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
@@ -106,6 +108,11 @@ async function generateForTool(
       const kiroRulesOutputs = await generateKiroConfig(rules, config, baseDir);
       const kiroIgnoreOutputs = await generateKiroIgnoreFiles(rules, config, baseDir);
       return [...kiroRulesOutputs, ...kiroIgnoreOutputs];
+    }
+    case "opencode": {
+      const opencodeRulesOutputs = await generateOpenCodeConfig(rules, config, baseDir);
+      const opencodeIgnoreOutputs = await generateOpenCodeIgnoreFiles(rules, config, baseDir);
+      return [...opencodeRulesOutputs, ...opencodeIgnoreOutputs];
     }
     case "windsurf": {
       const windsurfRulesOutputs = await generateWindsurfConfig(rules, config, baseDir);

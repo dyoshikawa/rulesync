@@ -24,7 +24,7 @@ describe("import command", () => {
   it("should require at least one tool to be specified", async () => {
     await expect(importCommand({})).rejects.toThrow("process.exit");
     expect(mockLogger.error).toHaveBeenCalledWith(
-      "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
+      "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli, --opencode)",
     );
   });
 

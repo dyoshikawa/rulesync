@@ -178,6 +178,9 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
           case "kiro":
             deleteTasks.push(removeDirectory(config.outputPaths.kiro));
             break;
+          case "opencode":
+            deleteTasks.push(removeDirectory(config.outputPaths.opencode));
+            break;
           case "windsurf":
             deleteTasks.push(removeDirectory(config.outputPaths.windsurf));
             break;

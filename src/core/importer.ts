@@ -9,6 +9,7 @@ import {
   parseCursorConfiguration,
   parseGeminiConfiguration,
   parseJunieConfiguration,
+  parseOpenCodeConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
@@ -110,6 +111,14 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const junieResult = await parseJunieConfiguration(baseDir);
         rules = junieResult.rules;
         errors.push(...junieResult.errors);
+        break;
+      }
+      case "opencode": {
+        const opencodeResult = await parseOpenCodeConfiguration(baseDir);
+        rules = opencodeResult.rules;
+        errors.push(...opencodeResult.errors);
+        ignorePatterns = opencodeResult.ignorePatterns;
+        mcpServers = opencodeResult.mcpServers;
         break;
       }
       default:

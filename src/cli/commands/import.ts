@@ -11,6 +11,7 @@ export interface ImportOptions {
   cline?: boolean;
   roo?: boolean;
   geminicli?: boolean;
+  opencode?: boolean;
   verbose?: boolean;
   legacy?: boolean;
 }
@@ -30,11 +31,12 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
   if (options.cline) tools.push("cline");
   if (options.roo) tools.push("roo");
   if (options.geminicli) tools.push("geminicli");
+  if (options.opencode) tools.push("opencode");
 
   // Validate that exactly one tool is selected
   if (tools.length === 0) {
     logger.error(
-      "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli)",
+      "❌ Please specify one tool to import from (--augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli, --opencode)",
     );
     process.exit(1);
   }
