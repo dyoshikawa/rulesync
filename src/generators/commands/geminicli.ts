@@ -1,14 +1,18 @@
-import type { CommandOutput, ParsedCommand } from "../../types/commands.js";
-import {
-  escapeTomlString,
-  getHierarchicalCommandPath,
-  syntaxConverters,
-} from "../../utils/command-generators.js";
+import type { ParsedCommand } from "../../types/commands.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { escapeTomlString, syntaxConverters } from "../../utils/command-generators.js";
+import { BaseCommandGenerator } from "./base.js";
 
-export class GeminiCliCommandGenerator {
-  generate(command: ParsedCommand, outputDir: string): CommandOutput {
-    const filepath = this.getOutputPath(command.filename, outputDir);
+export class GeminiCliCommandGenerator extends BaseCommandGenerator {
+  getToolName(): ToolTarget {
+    return "geminicli";
+  }
 
+  getSubDirectory(): string {
+    return ".gemini/commands";
+  }
+
+  processContent(command: ParsedCommand): string {
     // Convert content syntax from Claude Code to Gemini CLI
     const convertedContent = syntaxConverters.toGeminiCli(command.content);
 
@@ -24,17 +28,14 @@ export class GeminiCliCommandGenerator {
     // Add prompt
     tomlLines.push(`prompt = """${convertedContent}"""`);
 
-    const content = tomlLines.join("\n") + "\n";
-
-    return {
-      tool: "geminicli",
-      filepath,
-      content,
-    };
+    return tomlLines.join("\n") + "\n";
   }
 
-  getOutputPath(filename: string, baseDir: string): string {
-    // Preserve directory structure for namespacing
-    return getHierarchicalCommandPath(filename, baseDir, ".gemini/commands", "toml");
+  protected supportsHierarchy(): boolean {
+    return true; // Preserve directory structure for namespacing
+  }
+
+  protected getFileExtension(): string {
+    return "toml";
   }
 }

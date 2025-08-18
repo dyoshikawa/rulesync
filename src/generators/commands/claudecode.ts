@@ -1,19 +1,20 @@
-import type { CommandOutput, ParsedCommand } from "../../types/commands.js";
-import { buildCommandContent, getFlattenedCommandPath } from "../../utils/command-generators.js";
+import type { ParsedCommand } from "../../types/commands.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { buildCommandContent } from "../../utils/command-generators.js";
+import { BaseCommandGenerator } from "./base.js";
 
-export class ClaudeCodeCommandGenerator {
-  generate(command: ParsedCommand, outputDir: string): CommandOutput {
-    const filepath = this.getOutputPath(command.filename, outputDir);
-    const content = buildCommandContent(command);
-
-    return {
-      tool: "claudecode",
-      filepath,
-      content,
-    };
+export class ClaudeCodeCommandGenerator extends BaseCommandGenerator {
+  getToolName(): ToolTarget {
+    return "claudecode";
   }
 
-  getOutputPath(filename: string, baseDir: string): string {
-    return getFlattenedCommandPath(filename, baseDir, ".claude/commands");
+  getSubDirectory(): string {
+    return ".claude/commands";
   }
+
+  processContent(command: ParsedCommand): string {
+    return buildCommandContent(command);
+  }
+
+  // Uses flattened structure by default (supportsHierarchy returns false)
 }

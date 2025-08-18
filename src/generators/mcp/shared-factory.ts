@@ -70,13 +70,43 @@ export const serverTransforms = {
     if (server.command) {
       result.command = server.command;
       if (server.args) result.args = server.args;
-    } else if (server.url || server.httpUrl) {
+    }
+
+    if (server.url || server.httpUrl) {
       const url = server.httpUrl || server.url;
       if (url) result.url = url;
     }
 
     if (server.env) {
       result.env = server.env;
+    }
+
+    return result;
+  },
+
+  /**
+   * Roo-specific server transformation (preserves httpUrl, transport, type, etc.)
+   */
+  roo: (server: RulesyncMcpServer): McpServerMapping => {
+    const result = serverTransforms.extended(server);
+
+    // Handle URL configuration specifically for Roo
+    if (server.httpUrl) {
+      if (!server.url) {
+        // Only httpUrl provided - preserve as httpUrl
+        result.httpUrl = server.httpUrl;
+        delete result.url;
+      }
+      // If both httpUrl and url are provided, basic transform already handles precedence
+      // by setting result.url to httpUrl value
+    }
+
+    if (server.transport) {
+      result.transport = server.transport;
+    }
+
+    if (server.type) {
+      result.type = server.type;
     }
 
     return result;
@@ -153,6 +183,13 @@ export const configWrappers = {
  * Note: Not all tools are in the registry - some have complex custom logic
  */
 export const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
+  roo: {
+    target: "roo",
+    configPaths: [".roo/mcp.json"],
+    serverTransform: serverTransforms.roo,
+    configWrapper: configWrappers.mcpServers,
+  },
+
   claudecode: {
     target: "claudecode",
     configPaths: [".mcp.json"],
@@ -369,7 +406,7 @@ export function generateMcpConfigurationFilesFromRegistry(
   }
 
   // Tools with complex custom logic that are not in the registry
-  const customTools = ["copilot", "augmentcode", "roo", "codexcli", "kiro", "geminicli"];
+  const customTools = ["copilot", "augmentcode", "codexcli", "kiro", "geminicli"];
   if (customTools.includes(tool)) {
     throw new Error(
       `Tool ${tool} uses custom configuration logic - use its specific generator function instead`,
