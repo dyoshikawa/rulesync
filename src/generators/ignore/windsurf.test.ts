@@ -1,25 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createMockConfigByTool } from "../../test-utils/mock-config.js";
+import { createMockConfigWithStandardPaths } from "../../test-utils/mock-config.js";
 import type { ParsedRule } from "../../types/index.js";
 import { generateWindsurfIgnore } from "./windsurf.js";
 
 describe("generateWindsurfIgnore", () => {
-  const mockConfig = createMockConfigByTool("windsurf", {
-    outputPaths: {
-      augmentcode: "./.augment/rules",
-      "augmentcode-legacy": "./.augment-guidelines",
-      copilot: "./.github/copilot-instructions.md",
-      cursor: "./.cursor/rules",
-      cline: "./.clinerules",
-      claudecode: "./CLAUDE.md",
-      codexcli: "./AGENTS.md",
-      roo: "./.roo/rules",
-      geminicli: "./GEMINI.md",
-      kiro: "./.kiro/steering",
-      junie: "./.junie/guidelines.md",
-      windsurf: "./.windsurf/rules",
-    },
-  });
+  const mockConfig = createMockConfigWithStandardPaths("windsurf");
 
   const mockRules: ParsedRule[] = [];
 
