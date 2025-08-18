@@ -61,36 +61,42 @@ describe("generateCodexConfig", () => {
     vi.mocked(loadIgnorePatterns).mockResolvedValue({ patterns: [] });
   });
 
-  it("should generate single concatenated AGENTS.md file with root rules first", async () => {
+  it("should generate AGENTS.md with XML document references and separate memory files", async () => {
     const results = await generateCodexConfig(mockRules, mockConfig);
 
-    expect(results).toHaveLength(1);
+    expect(results).toHaveLength(2); // AGENTS.md + component-guidelines.md
 
-    // Check single AGENTS.md file is generated
-    const codexFile = results.find((r) => r.filepath === "./AGENTS.md");
+    // Check AGENTS.md root file is generated
+    const codexFile = results.find((r) => r.filepath === "AGENTS.md");
     expect(codexFile).toBeDefined();
     expect(codexFile?.tool).toBe("codexcli");
 
-    // Should contain root rule content first
+    // Should contain XML document references
+    expect(codexFile?.content).toContain("Please also reference the following documents as needed");
+    expect(codexFile?.content).toContain("<Documents>");
+    expect(codexFile?.content).toContain("@.codex/memories/component-guidelines.md");
+    expect(codexFile?.content).toContain("Component development guidelines");
+
+    // Should contain root rule content
     expect(codexFile?.content).toContain("# E-commerce Platform");
     expect(codexFile?.content).toContain("## Tech Stack");
     expect(codexFile?.content).toContain("## Coding Standards");
 
-    // Should contain detail rule content after separator
-    expect(codexFile?.content).toContain("---");
-    expect(codexFile?.content).toContain("## Component Guidelines");
-    expect(codexFile?.content).toContain("### File Organization");
-
-    // Root rule should appear before detail rule
-    const rootIndex = codexFile?.content.indexOf("# E-commerce Platform") ?? -1;
-    const detailIndex = codexFile?.content.indexOf("## Component Guidelines") ?? -1;
-    expect(rootIndex).toBeLessThan(detailIndex);
+    // Check separate memory file is generated
+    const memoryFile = results.find(
+      (r) => r.filepath === ".codex/memories/component-guidelines.md",
+    );
+    expect(memoryFile).toBeDefined();
+    expect(memoryFile?.tool).toBe("codexcli");
+    expect(memoryFile?.content).toContain("## Component Guidelines");
+    expect(memoryFile?.content).toContain("### File Organization");
   });
 
   it("should generate plain Markdown without frontmatter", async () => {
     const results = await generateCodexConfig(mockRules, mockConfig);
 
-    const codexFile = results.find((r) => r.filepath === "./AGENTS.md");
+    const codexFile = results.find((r) => r.filepath === "AGENTS.md");
+    expect(codexFile).toBeDefined();
     // Should not contain YAML frontmatter (but may contain --- as separator)
     expect(codexFile?.content).not.toContain("targets:");
     expect(codexFile?.content).not.toContain("root:");
@@ -98,7 +104,7 @@ describe("generateCodexConfig", () => {
     expect(codexFile?.content).not.toContain("globs:");
   });
 
-  it("should concatenate content without HTML comments in merged file", async () => {
+  it("should generate separate memory files for non-root rules", async () => {
     const nonMainRule: ParsedRule[] = [
       {
         filename: "api-guidelines",
@@ -115,12 +121,20 @@ describe("generateCodexConfig", () => {
 
     const results = await generateCodexConfig(nonMainRule, mockConfig);
 
-    expect(results).toHaveLength(1);
-    expect(results[0]?.content).toContain("## API Guidelines");
-    expect(results[0]?.content).toContain("Use RESTful conventions");
-    expect(results[0]?.filepath).toBe("./AGENTS.md");
-    // In concatenated mode, we don't include HTML comments
-    expect(results[0]?.content).not.toContain("<!-- API development guidelines -->");
+    expect(results).toHaveLength(2); // AGENTS.md + api-guidelines.md
+
+    // Check root file with XML references
+    const rootFile = results.find((r) => r.filepath === "AGENTS.md");
+    expect(rootFile).toBeDefined();
+    expect(rootFile?.content).toContain("<Documents>");
+    expect(rootFile?.content).toContain("@.codex/memories/api-guidelines.md");
+    expect(rootFile?.content).toContain("API development guidelines");
+
+    // Check separate memory file
+    const memoryFile = results.find((r) => r.filepath === ".codex/memories/api-guidelines.md");
+    expect(memoryFile).toBeDefined();
+    expect(memoryFile?.content).toContain("## API Guidelines");
+    expect(memoryFile?.content).toContain("Use RESTful conventions");
   });
 
   it("should handle only root rules", async () => {
@@ -144,15 +158,15 @@ describe("generateCodexConfig", () => {
 
     const results = await generateCodexConfig(rootOnlyRules, mockConfig);
 
-    expect(results).toHaveLength(1);
-    expect(results[0]?.filepath).toBe("./AGENTS.md");
+    expect(results).toHaveLength(1); // Only AGENTS.md
+    expect(results[0]?.filepath).toBe("AGENTS.md");
     expect(results[0]?.content).toContain("# Project Instructions");
     expect(results[0]?.content).toContain("## Safety Rules");
-    // Should not include description comment for "Main instructions"
-    expect(results[0]?.content).not.toContain("<!-- Main instructions -->");
+    // Should not contain XML references when no memory files exist
+    expect(results[0]?.content).not.toContain("<Documents>");
   });
 
-  it("should handle only non-root rules in single concatenated file", async () => {
+  it("should handle only non-root rules with separate memory files", async () => {
     const nonRootRules: ParsedRule[] = [
       {
         filename: "testing-guidelines",
@@ -184,15 +198,23 @@ Use environment variables for secrets.`,
 
     const results = await generateCodexConfig(nonRootRules, mockConfig);
 
-    expect(results).toHaveLength(1);
+    expect(results).toHaveLength(3); // AGENTS.md + 2 memory files
 
-    const codexFile = results[0];
-    expect(codexFile?.filepath).toBe("./AGENTS.md");
-    expect(codexFile?.content).toContain("## Testing Guidelines");
-    expect(codexFile?.content).toContain("Write tests before implementing features");
-    expect(codexFile?.content).toContain("---");
-    expect(codexFile?.content).toContain("## Deployment Rules");
-    expect(codexFile?.content).toContain("Use environment variables for secrets");
+    // Check root file with XML references
+    const rootFile = results.find((r) => r.filepath === "AGENTS.md");
+    expect(rootFile).toBeDefined();
+    expect(rootFile?.content).toContain("<Documents>");
+    expect(rootFile?.content).toContain("@.codex/memories/testing-guidelines.md");
+    expect(rootFile?.content).toContain("@.codex/memories/deployment-rules.md");
+
+    // Check memory files
+    const testingFile = results.find((r) => r.filepath === ".codex/memories/testing-guidelines.md");
+    expect(testingFile?.content).toContain("## Testing Guidelines");
+
+    const deploymentFile = results.find(
+      (r) => r.filepath === ".codex/memories/deployment-rules.md",
+    );
+    expect(deploymentFile?.content).toContain("## Deployment Rules");
   });
 
   it("should generate .codexignore when .rulesyncignore exists", async () => {
@@ -202,7 +224,7 @@ Use environment variables for secrets.`,
 
     const results = await generateCodexConfig(mockRules, mockConfig);
 
-    expect(results).toHaveLength(2); // 1 concatenated AGENTS.md + 1 .codexignore
+    expect(results).toHaveLength(3); // AGENTS.md + component-guidelines.md + .codexignore
 
     const codexignoreFile = results.find((r) => r.filepath === ".codexignore");
     expect(codexignoreFile).toBeDefined();
@@ -228,8 +250,11 @@ Use environment variables for secrets.`,
     const baseDir = "/custom/project";
     const results = await generateCodexConfig(mockRules, mockConfig, baseDir);
 
-    expect(results).toHaveLength(1);
-    expect(results[0]?.filepath).toBe(`${baseDir}/AGENTS.md`);
+    expect(results).toHaveLength(2); // AGENTS.md + component-guidelines.md
+    expect(results.find((r) => r.filepath === `${baseDir}/AGENTS.md`)).toBeDefined();
+    expect(
+      results.find((r) => r.filepath === `${baseDir}/.codex/memories/component-guidelines.md`),
+    ).toBeDefined();
   });
 
   it("should respect baseDir parameter for .codexignore", async () => {
@@ -309,28 +334,22 @@ Use environment variables for secrets.`,
 
     const results = await generateCodexConfig(multipleRootRules, mockConfig);
 
-    expect(results).toHaveLength(1);
+    expect(results).toHaveLength(2); // AGENTS.md + testing-setup.md
 
-    const codexFile = results[0];
-    expect(codexFile?.filepath).toBe("./AGENTS.md");
+    const rootFile = results.find((r) => r.filepath === "AGENTS.md");
+    expect(rootFile).toBeDefined();
 
-    // Should contain all root rules first
-    expect(codexFile?.content).toContain("# Project Overview");
-    expect(codexFile?.content).toContain("# Security Guidelines");
-    expect(codexFile?.content).toContain("## Testing Setup");
+    // Should contain first root rule (only first root rule is used)
+    expect(rootFile?.content).toContain("# Project Overview");
+    // Should contain XML references to memory files
+    expect(rootFile?.content).toContain("@.codex/memories/testing-setup.md");
 
-    // Root rules should appear before detail rules
-    const projectIndex = codexFile?.content.indexOf("# Project Overview") ?? -1;
-    const securityIndex = codexFile?.content.indexOf("# Security Guidelines") ?? -1;
-    const testingIndex = codexFile?.content.indexOf("## Testing Setup") ?? -1;
-
-    expect(projectIndex).toBeGreaterThanOrEqual(0);
-    expect(securityIndex).toBeGreaterThanOrEqual(0);
-    expect(testingIndex).toBeGreaterThanOrEqual(0);
-    expect(testingIndex).toBeGreaterThan(Math.max(projectIndex, securityIndex));
+    // Check memory file
+    const memoryFile = results.find((r) => r.filepath === ".codex/memories/testing-setup.md");
+    expect(memoryFile?.content).toContain("## Testing Setup");
   });
 
-  it("should handle mixed content with separators", async () => {
+  it("should handle mixed content with root and memory files", async () => {
     const mixedRules: ParsedRule[] = [
       {
         filename: "main",
@@ -369,17 +388,21 @@ Use environment variables for secrets.`,
 
     const results = await generateCodexConfig(mixedRules, mockConfig);
 
-    expect(results).toHaveLength(1);
+    expect(results).toHaveLength(3); // AGENTS.md + 2 memory files
 
-    const content = results[0]?.content ?? "";
+    // Check root file
+    const rootFile = results.find((r) => r.filepath === "AGENTS.md");
+    expect(rootFile).toBeDefined();
+    expect(rootFile?.content).toContain("# Main Instructions");
+    expect(rootFile?.content).toContain("<Documents>");
+    expect(rootFile?.content).toContain("@.codex/memories/api.md");
+    expect(rootFile?.content).toContain("@.codex/memories/database.md");
 
-    // Should have separators between sections
-    const separatorCount = (content.match(/^---$/gm) || []).length;
-    expect(separatorCount).toBe(2); // Between 3 sections = 2 separators
+    // Check memory files
+    const apiFile = results.find((r) => r.filepath === ".codex/memories/api.md");
+    expect(apiFile?.content).toContain("## API Guidelines");
 
-    // Content should be properly structured
-    expect(content).toContain("# Main Instructions");
-    expect(content).toContain("## API Guidelines");
-    expect(content).toContain("## Database Rules");
+    const databaseFile = results.find((r) => r.filepath === ".codex/memories/database.md");
+    expect(databaseFile?.content).toContain("## Database Rules");
   });
 });

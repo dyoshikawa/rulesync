@@ -222,6 +222,7 @@ pnpm-lock.yaml
 **/.claude/commands/
 **/AGENTS.md
 **/.codexignore
+**/.codex/memories/
 **/.gemini/commands/
 **/.codex/mcp-config.json
 
