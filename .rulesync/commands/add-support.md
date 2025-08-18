@@ -22,13 +22,13 @@ Important: `.rulesync/*.md` files must include the required frontmatter. Refer t
 
 Use the context7 MCP and web search to research the specifications and create the following files:
 
-1. `.rulesync/specification-{tool_name_in_rulesync}-rules.md`
+1. `.rulesync/rules/specification-{tool_name_in_rulesync}-rules.md`
   - Research the specifications for rules or memories text files of target_tool_name using context7 and web search.
-2. `.rulesync/specification-{tool_name_in_rulesync}-mcp.md`
+2. `.rulesync/rules/specification-{tool_name_in_rulesync}-mcp.md`
   - Research the specifications for MCP configuration text files of target_tool_name using context7 and web search.
-3. `.rulesync/specification-{tool_name_in_rulesync}-ignore.md`
+3. `.rulesync/rules/specification-{tool_name_in_rulesync}-ignore.md`
   - Research the specifications for ignore text files of target_tool_name using context7 and web search. Ignore files are configuration files used to specify files that should not be read or written by AI coding tools, such as files containing secret information.
-4. `.rulesync/specification-{tool_name_in_rulesync}-commands.md`
+4. `.rulesync/rules/specification-{tool_name_in_rulesync}-commands.md`
   - Research the specifications for custom slash commands of target_tool_name using context7 and web search. Only part of the AI coding tools supports the custom slash commands function, so md files about only the tools that support this function should be created.
 
 For all files, research and document the specifications as comprehensively and thoroughly as possible without omissions.
@@ -49,45 +49,45 @@ Set root to `false`. Set targets to `*`. Write appropriate content for the descr
 
 Please complete the following tasks.
 
-Please refer to @.claude/memories/precautions.md and follow the instructions.
+Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
 ### rules generate implementation
 
-Based on the content of @.claude/memories/specification-{tool_name_in_rulesync}-rules.md, please add the implementation for generating {tool_name_in_rulesync} rules files.
+Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-rules.md, please add the implementation for generating {tool_name_in_rulesync} rules files.
 
 ### rules import implementation
 
-Based on the content of @.claude/memories/specification-{tool_name_in_rulesync}-rules.md, please add the implementation for importing {tool_name_in_rulesync} rules files.
+Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-rules.md, please add the implementation for importing {tool_name_in_rulesync} rules files.
 
 ## 3. Implement ignore generation
 
 Please complete the following tasks.
 
-Please refer to @.claude/memories/precautions.md and follow the instructions.
+Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
 ### ignore generate implementation
 
-Based on the content of @.claude/memories/specification-{tool_name_in_rulesync}-ignore.md, please add the implementation for generating {tool_name_in_rulesync} ignore files.
+Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-ignore.md, please add the implementation for generating {tool_name_in_rulesync} ignore files.
 
 ## 4. Implement mcp generation
 
 Please complete the following tasks.
 
-Please refer to @.claude/memories/precautions.md and follow the instructions.
+Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
 ### mcp generate implementation
 
-Based on the content of @.claude/memories/specification-{tool_name_in_rulesync}-mcp.md, please add the implementation for generating {tool_name_in_rulesync} mcp configuration files.
+Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-mcp.md, please add the implementation for generating {tool_name_in_rulesync} mcp configuration files.
 
 ## 5. Update gitignore command
 
 Please complete the following tasks.
 
-Please refer to @.claude/memories/precautions.md and follow the instructions.
+Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
 ## gitignore command update
 
-Please identify the generated files for {tool_name_in_rulesync} from the content of @.claude/memories/specification-*-{tool_name_in_rulesync}.md.
+Please identify the generated files for {tool_name_in_rulesync} from the content of @.rulesync/rules/specification-*-{tool_name_in_rulesync}.md.
 
 Then, add the generated files for {tool_name_in_rulesync} to the output list of the gitignore command.
 
