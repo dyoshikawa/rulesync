@@ -231,5 +231,5 @@ pnpm-lock.yaml
 .serena/memories/
 
 **/opencode.json
-
-**/.opencode/
+**/.opencode/memories/
+**/.opencode/commands/
