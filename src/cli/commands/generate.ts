@@ -51,29 +51,31 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
   // Ensure tools are specified (either from CLI or config)
   if (!config.defaultTargets || config.defaultTargets.length === 0) {
-    logger.error("❌ Error: At least one tool must be specified.");
-    logger.error("");
-    logger.error("Available tools:");
-    logger.error("  --augmentcode         Generate for AugmentCode");
-    logger.error("  --augmentcode-legacy  Generate for AugmentCode legacy format");
-    logger.error("  --copilot             Generate for GitHub Copilot");
-    logger.error("  --cursor              Generate for Cursor");
-    logger.error("  --cline               Generate for Cline");
-    logger.error("  --codexcli            Generate for OpenAI Codex CLI");
-    logger.error("  --claudecode          Generate for Claude Code");
-    logger.error("  --roo                 Generate for Roo Code");
-    logger.error("  --geminicli           Generate for Gemini CLI");
-    logger.error("  --junie               Generate for JetBrains Junie");
-    logger.error("  --qwencode            Generate for Qwen Code");
-    logger.error("  --kiro                Generate for Kiro IDE");
-    logger.error("  --opencode            Generate for OpenCode");
-    logger.error("  --windsurf            Generate for Windsurf");
-    logger.error("");
-    logger.error("Example:");
-    logger.error("  rulesync generate --copilot --cursor");
-    logger.error("");
-    logger.error("Or specify tools in rulesync.jsonc:");
-    logger.error('  "tools": ["copilot", "cursor"]');
+    const errorMessage = `❌ Error: At least one tool must be specified.
+
+Available tools:
+  --augmentcode         Generate for AugmentCode
+  --augmentcode-legacy  Generate for AugmentCode legacy format
+  --copilot             Generate for GitHub Copilot
+  --cursor              Generate for Cursor
+  --cline               Generate for Cline
+  --codexcli            Generate for OpenAI Codex CLI
+  --claudecode          Generate for Claude Code
+  --roo                 Generate for Roo Code
+  --geminicli           Generate for Gemini CLI
+  --junie               Generate for JetBrains Junie
+  --qwencode            Generate for Qwen Code
+  --kiro                Generate for Kiro IDE
+  --opencode            Generate for OpenCode
+  --windsurf            Generate for Windsurf
+
+Example:
+  rulesync generate --copilot --cursor
+
+Or specify tools in rulesync.jsonc:
+  "tools": ["copilot", "cursor"]`;
+
+    logger.error(errorMessage);
     process.exit(1);
   }
 
