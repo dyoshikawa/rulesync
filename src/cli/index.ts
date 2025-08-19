@@ -95,6 +95,32 @@ program
     if (options.opencode) tools.push("opencode");
     if (options.windsurf) tools.push("windsurf");
 
+    // Check if at least one tool is specified
+    if (tools.length === 0) {
+      const { logger } = await import("../utils/logger.js");
+      logger.error("❌ Error: At least one tool must be specified.");
+      logger.error("");
+      logger.error("Available tools:");
+      logger.error("  --augmentcode         Generate for AugmentCode");
+      logger.error("  --augmentcode-legacy  Generate for AugmentCode legacy format");
+      logger.error("  --copilot             Generate for GitHub Copilot");
+      logger.error("  --cursor              Generate for Cursor");
+      logger.error("  --cline               Generate for Cline");
+      logger.error("  --codexcli            Generate for OpenAI Codex CLI");
+      logger.error("  --claudecode          Generate for Claude Code");
+      logger.error("  --roo                 Generate for Roo Code");
+      logger.error("  --geminicli           Generate for Gemini CLI");
+      logger.error("  --junie               Generate for JetBrains Junie");
+      logger.error("  --qwencode            Generate for Qwen Code");
+      logger.error("  --kiro                Generate for Kiro IDE");
+      logger.error("  --opencode            Generate for OpenCode");
+      logger.error("  --windsurf            Generate for Windsurf");
+      logger.error("");
+      logger.error("Example:");
+      logger.error("  rulesync generate --copilot --cursor");
+      process.exit(1);
+    }
+
     const generateOptions: {
       verbose?: boolean;
       tools?: ToolTarget[];
@@ -104,14 +130,11 @@ program
       noConfig?: boolean;
     } = {
       verbose: options.verbose,
+      tools: tools,
       delete: options.delete,
       config: options.config,
       noConfig: options.noConfig,
     };
-
-    if (tools.length > 0) {
-      generateOptions.tools = tools;
-    }
 
     if (options.baseDir) {
       generateOptions.baseDirs = options.baseDir

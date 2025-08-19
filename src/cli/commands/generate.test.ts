@@ -104,14 +104,17 @@ describe("generateCommand", () => {
   });
 
   it("should generate configurations successfully", async () => {
-    await generateCommand();
+    await generateCommand({ tools: ["copilot"] });
 
     expect(mockFileExists).toHaveBeenCalledWith(".rulesync");
     expect(mockParseRulesFromDirectory).toHaveBeenCalledWith(".rulesync");
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
       mockRules,
-      mockConfig,
-      mockConfig.defaultTargets,
+      expect.objectContaining({
+        ...mockConfig,
+        defaultTargets: ["copilot"],
+      }),
+      ["copilot"],
       process.cwd(),
     );
     expect(mockWriteFileContent).toHaveBeenCalledWith(
@@ -120,10 +123,15 @@ describe("generateCommand", () => {
     );
   });
 
+  it("should exit if no tools are specified", async () => {
+    await expect(generateCommand()).rejects.toThrow("process.exit called");
+    expect(mockLogger.error).toHaveBeenCalledWith("❌ Error: At least one tool must be specified.");
+  });
+
   it("should exit if .rulesync directory does not exist", async () => {
     mockFileExists.mockResolvedValue(false);
 
-    await expect(generateCommand()).rejects.toThrow("process.exit called");
+    await expect(generateCommand({ tools: ["copilot"] })).rejects.toThrow("process.exit called");
     expect(mockLogger.error).toHaveBeenCalledWith(
       "❌ .rulesync directory not found. Run 'rulesync init' first.",
     );
@@ -132,7 +140,7 @@ describe("generateCommand", () => {
   it("should warn if no rules found", async () => {
     mockParseRulesFromDirectory.mockResolvedValue([]);
 
-    await generateCommand();
+    await generateCommand({ tools: ["copilot"] });
 
     expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
   });
@@ -140,13 +148,13 @@ describe("generateCommand", () => {
   it("should warn if no configurations generated", async () => {
     mockGenerateConfigurations.mockResolvedValue([]);
 
-    await generateCommand();
+    await generateCommand({ tools: ["copilot"] });
 
     expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No configurations generated");
   });
 
   it("should handle verbose mode", async () => {
-    await generateCommand({ verbose: true });
+    await generateCommand({ tools: ["copilot"], verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith("Parsing rules from .rulesync...");
     expect(mockLogger.info).toHaveBeenCalledWith("Found 1 rule(s)");
@@ -169,7 +177,7 @@ describe("generateCommand", () => {
   it("should handle errors gracefully", async () => {
     mockParseRulesFromDirectory.mockRejectedValue(new Error("Parse error"));
 
-    await expect(generateCommand()).rejects.toThrow("process.exit called");
+    await expect(generateCommand({ tools: ["copilot"] })).rejects.toThrow("process.exit called");
     expect(mockLogger.error).toHaveBeenCalledWith(
       "❌ Failed to generate configurations:",
       expect.any(Error),
@@ -177,7 +185,7 @@ describe("generateCommand", () => {
   });
 
   it("should delete output directories when --delete option is used", async () => {
-    await generateCommand({ delete: true });
+    await generateCommand({ tools: ["copilot", "cursor", "cline", "roo"], delete: true });
 
     expect(mockRemoveDirectory).toHaveBeenCalledWith(".github/instructions");
     expect(mockRemoveDirectory).toHaveBeenCalledWith(".cursor/rules");
@@ -195,13 +203,13 @@ describe("generateCommand", () => {
   });
 
   it("should show verbose output when deleting directories", async () => {
-    await generateCommand({ delete: true, verbose: true });
+    await generateCommand({ tools: ["copilot"], delete: true, verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith("Deleting existing output directories...");
     expect(mockLogger.info).toHaveBeenCalledWith("Deleted existing output directories");
   });
 
-  it("should warn when CLI tools differ from config targets", async () => {
+  it("should use CLI tools when specified", async () => {
     const configWithTargets = {
       ...mockConfig,
       defaultTargets: ["copilot", "cursor", "claudecode"] as ToolTarget[],
@@ -212,30 +220,21 @@ describe("generateCommand", () => {
       isEmpty: false,
     });
 
-    mockMergeWithCliOptions.mockImplementation((config) => config);
+    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => ({
+      ...config,
+      ...cliOptions,
+      defaultTargets: cliOptions.tools || config.defaultTargets,
+    }));
 
     await generateCommand({ tools: ["claudecode", "geminicli"] });
 
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "⚠️  Warning: CLI tool selection differs from configuration!",
-    );
-    expect(mockLogger.warn).toHaveBeenCalledWith("   Config targets: copilot, cursor, claudecode");
-    expect(mockLogger.warn).toHaveBeenCalledWith("   CLI specified: claudecode, geminicli");
-    expect(mockLogger.warn).toHaveBeenCalledWith("   Tools specified but not in config: geminicli");
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "   Tools in config but not specified: copilot, cursor",
-    );
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "\n   The configuration file targets will be used.",
-    );
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "   To change targets, update your rulesync config file.",
-    );
-
+    // CLI tools should override config targets
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
       mockRules,
-      configWithTargets,
-      ["copilot", "cursor", "claudecode"],
+      expect.objectContaining({
+        defaultTargets: ["claudecode", "geminicli"],
+      }),
+      ["claudecode", "geminicli"],
       process.cwd(),
     );
   });
@@ -275,7 +274,7 @@ describe("generateCommand", () => {
     const baseDirs = ["./package1", "./package2"];
     mockGenerateConfigurations.mockResolvedValue(mockOutputs);
 
-    await generateCommand({ baseDirs, verbose: true });
+    await generateCommand({ tools: ["copilot"], baseDirs, verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith(
       "\nGenerating configurations for base directory: ./package1",
@@ -287,7 +286,7 @@ describe("generateCommand", () => {
   });
 
   it("should handle config file path option", async () => {
-    await generateCommand({ config: "./custom-config.json" });
+    await generateCommand({ tools: ["copilot"], config: "./custom-config.json" });
 
     expect(mockLoadConfig).toHaveBeenCalledWith({
       configPath: "./custom-config.json",
@@ -295,7 +294,7 @@ describe("generateCommand", () => {
   });
 
   it("should handle noConfig option", async () => {
-    await generateCommand({ noConfig: true });
+    await generateCommand({ tools: ["copilot"], noConfig: true });
 
     expect(mockLoadConfig).toHaveBeenCalledWith({
       noConfig: true,
@@ -309,7 +308,7 @@ describe("generateCommand", () => {
       filepath: "/path/to/config.json",
     });
 
-    await generateCommand({ verbose: true });
+    await generateCommand({ tools: ["copilot"], verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith("Loaded configuration from: /path/to/config.json");
   });
@@ -318,6 +317,7 @@ describe("generateCommand", () => {
     const configWithBaseDir = {
       ...mockConfig,
       baseDir: ["./src", "./lib"],
+      defaultTargets: ["copilot"] as ToolTarget[],
     };
 
     mockLoadConfig.mockResolvedValue({
@@ -325,7 +325,14 @@ describe("generateCommand", () => {
       isEmpty: false,
     });
 
-    await generateCommand({ verbose: true });
+    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => ({
+      ...config,
+      ...cliOptions,
+      defaultTargets: cliOptions.tools || config.defaultTargets,
+      verbose: cliOptions.verbose || config.verbose,
+    }));
+
+    await generateCommand({ tools: ["copilot"], verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith("Base directories: ./src, ./lib");
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
@@ -333,8 +340,9 @@ describe("generateCommand", () => {
       expect.objectContaining({
         ...configWithBaseDir,
         verbose: true,
+        defaultTargets: ["copilot"],
       }),
-      configWithBaseDir.defaultTargets,
+      ["copilot"],
       "./src",
     );
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
@@ -342,8 +350,9 @@ describe("generateCommand", () => {
       expect.objectContaining({
         ...configWithBaseDir,
         verbose: true,
+        defaultTargets: ["copilot"],
       }),
-      configWithBaseDir.defaultTargets,
+      ["copilot"],
       "./lib",
     );
   });
@@ -359,12 +368,15 @@ describe("generateCommand", () => {
       isEmpty: false,
     });
 
-    await generateCommand();
+    await generateCommand({ tools: ["copilot"] });
 
     expect(mockGenerateConfigurations).toHaveBeenCalledWith(
       mockRules,
-      configWithBaseDir,
-      configWithBaseDir.defaultTargets,
+      expect.objectContaining({
+        ...configWithBaseDir,
+        defaultTargets: ["copilot"],
+      }),
+      ["copilot"],
       "./single-base",
     );
   });
@@ -372,7 +384,7 @@ describe("generateCommand", () => {
   it("should warn when no configurations generated for a specific base directory", async () => {
     mockGenerateConfigurations.mockResolvedValue([]);
 
-    await generateCommand({ baseDirs: ["./empty-dir"], verbose: true });
+    await generateCommand({ tools: ["copilot"], baseDirs: ["./empty-dir"], verbose: true });
 
     expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No configurations generated for ./empty-dir");
   });
@@ -390,7 +402,7 @@ describe("generateCommand", () => {
     mockParseMcpConfig.mockReturnValue(mcpConfig);
     mockGenerateMcpConfigurations.mockResolvedValue(mcpResults);
 
-    await generateCommand({ verbose: true });
+    await generateCommand({ tools: ["copilot"], verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith("\nGenerating MCP configurations...");
     expect(mockLogger.success).toHaveBeenCalledWith(
@@ -409,7 +421,10 @@ describe("generateCommand", () => {
       isEmpty: false,
     });
 
-    await generateCommand({ delete: true });
+    await generateCommand({
+      tools: ["augmentcode", "augmentcode-legacy", "claudecode", "junie"],
+      delete: true,
+    });
 
     expect(mockRemoveDirectory).toHaveBeenCalledWith(expect.stringContaining(".augment/rules"));
     expect(mockRemoveDirectory).toHaveBeenCalledWith(expect.stringContaining(".augment/ignore"));
@@ -429,7 +444,7 @@ describe("generateCommand", () => {
     mockParseMcpConfig.mockReturnValue(mcpConfig);
     mockGenerateMcpConfigurations.mockResolvedValue(mcpResults);
 
-    await generateCommand();
+    await generateCommand({ tools: ["copilot"] });
 
     expect(mockLogger.success).toHaveBeenCalledWith(
       "\n🎉 All done! Generated 2 file(s) total (1 configurations + 1 MCP configurations)",
@@ -476,7 +491,7 @@ describe("generateCommand", () => {
     };
     mockMergeWithCliOptions.mockReturnValue(configWithCommands);
 
-    await generateCommand({ delete: true });
+    await generateCommand({ tools: ["claudecode", "roo", "geminicli"], delete: true });
 
     // Should not call removeDirectory for commands
     expect(mockRemoveDirectory).not.toHaveBeenCalledWith(".claude/commands");
@@ -524,7 +539,7 @@ describe("generateCommand", () => {
     };
     mockMergeWithCliOptions.mockReturnValue(configWithCommands);
 
-    await generateCommand({ delete: true });
+    await generateCommand({ tools: ["claudecode", "roo", "geminicli"], delete: true });
 
     // Should call removeDirectory for commands since .md files exist
     expect(mockRemoveDirectory).toHaveBeenCalledWith(".claude/commands");
@@ -535,7 +550,7 @@ describe("generateCommand", () => {
   it("should handle case when no MCP configurations are found", async () => {
     mockParseMcpConfig.mockReturnValue(null);
 
-    await generateCommand({ verbose: true });
+    await generateCommand({ tools: ["copilot"], verbose: true });
 
     expect(mockLogger.info).toHaveBeenCalledWith("No MCP configuration found for " + process.cwd());
   });

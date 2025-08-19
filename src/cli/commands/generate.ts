@@ -32,6 +32,31 @@ interface CliOptions {
 }
 
 export async function generateCommand(options: GenerateOptions = {}): Promise<void> {
+  // Ensure tools are specified
+  if (!options.tools || options.tools.length === 0) {
+    logger.error("❌ Error: At least one tool must be specified.");
+    logger.error("");
+    logger.error("Available tools:");
+    logger.error("  --augmentcode         Generate for AugmentCode");
+    logger.error("  --augmentcode-legacy  Generate for AugmentCode legacy format");
+    logger.error("  --copilot             Generate for GitHub Copilot");
+    logger.error("  --cursor              Generate for Cursor");
+    logger.error("  --cline               Generate for Cline");
+    logger.error("  --codexcli            Generate for OpenAI Codex CLI");
+    logger.error("  --claudecode          Generate for Claude Code");
+    logger.error("  --roo                 Generate for Roo Code");
+    logger.error("  --geminicli           Generate for Gemini CLI");
+    logger.error("  --junie               Generate for JetBrains Junie");
+    logger.error("  --qwencode            Generate for Qwen Code");
+    logger.error("  --kiro                Generate for Kiro IDE");
+    logger.error("  --opencode            Generate for OpenCode");
+    logger.error("  --windsurf            Generate for Windsurf");
+    logger.error("");
+    logger.error("Example:");
+    logger.error("  rulesync generate --copilot --cursor");
+    process.exit(1);
+  }
+
   // Build config loader options with proper typing
   const configLoaderOptions: ConfigLoaderOptions = {
     ...(options.config !== undefined && { configPath: options.config }),
@@ -41,7 +66,7 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
   const configResult = await loadConfig(configLoaderOptions);
 
   const cliOptions: CliOptions = {
-    ...(options.tools !== undefined && { tools: options.tools }),
+    tools: options.tools,
     ...(options.verbose !== undefined && { verbose: options.verbose }),
     ...(options.delete !== undefined && { delete: options.delete }),
     ...(options.baseDirs !== undefined && { baseDirs: options.baseDirs }),
@@ -51,34 +76,6 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
   // Set logger verbosity based on config
   logger.setVerbose(config.verbose || false);
-
-  if (options.tools && options.tools.length > 0) {
-    const configTargets = config.defaultTargets;
-    const cliTools = options.tools;
-
-    const cliToolsSet = new Set(cliTools);
-    const configTargetsSet = new Set(configTargets);
-
-    const notInConfig = cliTools.filter((tool) => !configTargetsSet.has(tool));
-    const notInCli = configTargets.filter((tool) => !cliToolsSet.has(tool));
-
-    if (notInConfig.length > 0 || notInCli.length > 0) {
-      logger.warn("⚠️  Warning: CLI tool selection differs from configuration!");
-      logger.warn(`   Config targets: ${configTargets.join(", ")}`);
-      logger.warn(`   CLI specified: ${cliTools.join(", ")}`);
-
-      if (notInConfig.length > 0) {
-        logger.warn(`   Tools specified but not in config: ${notInConfig.join(", ")}`);
-      }
-      if (notInCli.length > 0) {
-        logger.warn(`   Tools in config but not specified: ${notInCli.join(", ")}`);
-      }
-
-      logger.warn("\n   The configuration file targets will be used.");
-      logger.warn("   To change targets, update your rulesync config file.");
-      logger.warn("");
-    }
-  }
 
   let baseDirs: string[];
   if (config.baseDir) {
