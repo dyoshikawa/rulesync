@@ -51,51 +51,65 @@ Please complete the following tasks.
 
 Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
-### rules generate implementation
+### Rules generate implementation
 
 Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-rules.md, please add the implementation for generating {tool_name_in_rulesync} rules files.
 
-### rules import implementation
+### Rules import implementation
 
 Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-rules.md, please add the implementation for importing {tool_name_in_rulesync} rules files.
 
-## 3. Implement ignore generation
+## 3. Implement commands generation and import
 
 Please complete the following tasks.
 
 Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
-### ignore generate implementation
+### Commands generate implementation
+
+Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-commands.md, please add the implementation for generating {tool_name_in_rulesync} commands files.
+
+### Commands import implementation
+
+Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-commands.md, please add the implementation for importing {tool_name_in_rulesync} commands files.
+
+## 4. Implement ignore generation
+
+Please complete the following tasks.
+
+Please refer to @.rulesync/rules/precautions.md and follow the instructions.
+
+### Ignore generate implementation
 
 Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-ignore.md, please add the implementation for generating {tool_name_in_rulesync} ignore files.
 
-## 4. Implement mcp generation
+## 5. Implement mcp generation
 
 Please complete the following tasks.
 
 Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
-### mcp generate implementation
+### MCP generate implementation
 
 Based on the content of @.rulesync/rules/specification-{tool_name_in_rulesync}-mcp.md, please add the implementation for generating {tool_name_in_rulesync} mcp configuration files.
 
-## 5. Update gitignore command
+## 6. Update gitignore command
 
 Please complete the following tasks.
 
 Please refer to @.rulesync/rules/precautions.md and follow the instructions.
 
-## gitignore command update
+### gitignore command update
 
 Please identify the generated files for {tool_name_in_rulesync} from the content of @.rulesync/rules/specification-*-{tool_name_in_rulesync}.md.
 
 Then, add the generated files for {tool_name_in_rulesync} to the output list of the gitignore command.
 
-## 6. Fix code
+## 7. Fix code
 
 Call the code-fixer subagent to stabilize the all implementations above.
 
-## 7. Update docs
+## 8. Update docs
 
 Call the docs-updater subagent to update the following documents in light of the changes above. All files should be processed at once in a single subagent execution.
 
@@ -104,11 +118,11 @@ Call the docs-updater subagent to update the following documents in light of the
 - CONTRIBUTING.md
   - For developers of this tool. Focus on project structure, dependencies, development environment setup, and testing methods.
 
-## 8. Create PR
+## 9. Create PR
 
 Call the pr-creator subagent to create a PR for the all implementations above.
 
-## 9. Self-review
+## 10. Self-review
 
 Please review and fix the all implementations above.
 
