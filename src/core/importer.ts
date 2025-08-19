@@ -11,6 +11,7 @@ import {
   parseGeminiConfiguration,
   parseJunieConfiguration,
   parseOpenCodeConfiguration,
+  parseQwenConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
@@ -127,6 +128,13 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         errors.push(...opencodeResult.errors);
         ignorePatterns = opencodeResult.ignorePatterns;
         mcpServers = opencodeResult.mcpServers;
+        break;
+      }
+      case "qwencode": {
+        const qwenResult = await parseQwenConfiguration(baseDir);
+        rules = qwenResult.rules;
+        errors.push(...qwenResult.errors);
+        mcpServers = qwenResult.mcpServers;
         break;
       }
       default:
