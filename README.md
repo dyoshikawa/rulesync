@@ -47,6 +47,7 @@ npx rulesync import --claudecode  # From CLAUDE.md
 npx rulesync import --cursor      # From .cursorrules
 npx rulesync import --copilot     # From .github/copilot-instructions.md
 npx rulesync import --amazonqcli  # From .amazonq/rules/*.md
+npx rulesync import --qwencode     # From QWEN.md
 npx rulesync import --opencode    # From AGENTS.md
 
 # Import to legacy structure (for existing projects)
@@ -54,6 +55,7 @@ npx rulesync import --claudecode --legacy
 npx rulesync import --cursor --legacy
 npx rulesync import --copilot --legacy
 npx rulesync import --amazonqcli --legacy
+npx rulesync import --qwencode --legacy
 npx rulesync import --opencode --legacy
 
 # Generate unified configurations
@@ -62,7 +64,7 @@ npx rulesync generate
 
 ## Supported Tools
 
-rulesync supports both **generation** and **import** for **12 AI development tools**:
+rulesync supports both **generation** and **import** for **13 AI development tools**:
 
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
@@ -74,6 +76,7 @@ rulesync supports both **generation** and **import** for **12 AI development too
 - **AugmentCode Rules** (`.augment/rules/*.md`)
 - **Roo Code Rules** (`.roo/rules/*.md` + `.roo/instructions.md`)
 - **Gemini CLI** (`GEMINI.md` + `.gemini/memories/*.md` + **Custom Slash Commands** `.gemini/commands/*.md`)
+- **Qwen Code** (`QWEN.md` + `.qwen/memories/*.md` + **Git-Aware Filtering** instead of traditional ignore files + `.qwen/settings.json` **MCP Configuration**)
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
 - **Windsurf AI Code Editor** (`.windsurf/rules/*.md` + `.windsurf/mcp.json` + `.codeiumignore`)
@@ -123,10 +126,12 @@ npx rulesync add typescript-rules --legacy
 # Import existing configurations (to .rulesync/rules/ by default)
 npx rulesync import --cursor
 npx rulesync import --amazonqcli
+npx rulesync import --qwencode
 
 # Import to legacy location (for existing projects)
 npx rulesync import --cursor --legacy
 npx rulesync import --amazonqcli --legacy
+npx rulesync import --qwencode --legacy
 
 # Validate rules
 npx rulesync validate
@@ -164,6 +169,7 @@ npx rulesync gitignore
 - **[Kiro IDE](./docs/tools/kiro.md)** - Custom steering documents
 - **[AugmentCode](./docs/tools/augmentcode.md)** - Rule types and configuration
 - **[Roo Code](./docs/tools/roo.md)** - Instructions and rules
+- **[Qwen Code](./docs/tools/qwencode.md)** - Memory system with git-aware filtering
 
 ### ⚡ Features
 - **[Custom Slash Commands](./docs/features/custom-commands.md)** - Create unified commands for Claude Code and Gemini CLI

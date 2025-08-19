@@ -181,6 +181,9 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
           case "opencode":
             deleteTasks.push(removeDirectory(config.outputPaths.opencode));
             break;
+          case "qwencode":
+            deleteTasks.push(removeDirectory(config.outputPaths.qwencode));
+            break;
           case "windsurf":
             deleteTasks.push(removeDirectory(config.outputPaths.windsurf));
             break;

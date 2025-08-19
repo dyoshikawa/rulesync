@@ -47,6 +47,7 @@ program
   .option("--roo", "Import from Roo Code (.roo/instructions.md)")
   .option("--geminicli", "Import from Gemini CLI (GEMINI.md)")
   .option("--junie", "Import from JetBrains Junie (.junie/guidelines.md)")
+  .option("--qwencode", "Import from Qwen Code (QWEN.md)")
   .option("--opencode", "Import from OpenCode (AGENTS.md)")
   .option("-v, --verbose", "Verbose output")
   .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
@@ -65,6 +66,7 @@ program
   .option("--roo", "Generate only for Roo Code")
   .option("--geminicli", "Generate only for Gemini CLI")
   .option("--junie", "Generate only for JetBrains Junie")
+  .option("--qwencode", "Generate only for Qwen Code")
   .option("--kiro", "Generate only for Kiro IDE")
   .option("--opencode", "Generate only for OpenCode")
   .option("--windsurf", "Generate only for Windsurf")
@@ -88,6 +90,7 @@ program
     if (options.roo) tools.push("roo");
     if (options.geminicli) tools.push("geminicli");
     if (options.junie) tools.push("junie");
+    if (options.qwencode) tools.push("qwencode");
     if (options.kiro) tools.push("kiro");
     if (options.opencode) tools.push("opencode");
     if (options.windsurf) tools.push("windsurf");

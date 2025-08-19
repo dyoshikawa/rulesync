@@ -12,6 +12,7 @@ export interface ImportOptions {
   cline?: boolean;
   roo?: boolean;
   geminicli?: boolean;
+  qwencode?: boolean;
   opencode?: boolean;
   verbose?: boolean;
   legacy?: boolean;
@@ -33,12 +34,13 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
   if (options.cline) tools.push("cline");
   if (options.roo) tools.push("roo");
   if (options.geminicli) tools.push("geminicli");
+  if (options.qwencode) tools.push("qwencode");
   if (options.opencode) tools.push("opencode");
 
   // Validate that exactly one tool is selected
   if (tools.length === 0) {
     logger.error(
-      "❌ Please specify one tool to import from (--amazonqcli, --augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli, --opencode)",
+      "❌ Please specify one tool to import from (--amazonqcli, --augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli, --qwencode, --opencode)",
     );
     process.exit(1);
   }

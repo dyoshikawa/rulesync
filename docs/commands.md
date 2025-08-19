@@ -99,6 +99,7 @@ npx rulesync generate [options]
 - `--roo`: Generate only for Roo Code
 - `--geminicli`: Generate only for Gemini CLI
 - `--junie`: Generate only for JetBrains Junie
+- `--qwencode`: Generate only for Qwen Code
 - `--kiro`: Generate only for Kiro IDE
 - `--windsurf`: Generate only for Windsurf
 
@@ -131,6 +132,7 @@ npx rulesync generate --dry-run --verbose
 | AugmentCode | `.augment/rules/*.md`, `.augmentignore` |
 | Roo Code | `.roo/instructions.md`, `.roo/rules/*.md`, `.rooignore` |
 | Gemini CLI | `GEMINI.md`, `.gemini/memories/*.md`, `.gemini/commands/*.md` |
+| Qwen Code | `QWEN.md`, `.qwen/memories/*.md`, `.qwen/settings.json` |
 | JetBrains Junie | `.junie/guidelines.md`, `.aiignore` |
 | Kiro IDE | `.kiro/steering/*.md`, `.aiignore` |
 | Windsurf | `.windsurf/rules/*.md`, `.codeiumignore` |
@@ -196,6 +198,7 @@ npx rulesync import [options]
 - `--augmentcode-legacy`: Import from legacy AugmentCode (`.augment-guidelines`)
 - `--roo`: Import from Roo Code (`.roo/instructions.md`, `.roo/rules/`)
 - `--geminicli`: Import from Gemini CLI (`GEMINI.md`, `.gemini/memories/`, `.gemini/commands/`)
+- `--qwencode`: Import from Qwen Code (`QWEN.md`, `.qwen/memories/`)
 - `--junie`: Import from JetBrains Junie (`.junie/guidelines.md`)
 - `--windsurf`: Import from Windsurf (`.windsurf/rules/`, `.windsurf-rules`)
 
