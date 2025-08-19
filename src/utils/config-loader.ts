@@ -232,7 +232,7 @@ export function generateSampleConfig(options?: Partial<ConfigOptions>): string {
 export function mergeWithCliOptions(
   config: MergedConfig,
   cliOptions: {
-    tools?: ToolTarget[];
+    tools?: ToolTarget[] | undefined;
     verbose?: boolean;
     delete?: boolean;
     baseDirs?: string[];

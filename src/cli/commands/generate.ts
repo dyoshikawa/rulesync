@@ -16,7 +16,7 @@ import {
 import { logger } from "../../utils/logger.js";
 
 export interface GenerateOptions {
-  tools?: ToolTarget[];
+  tools?: ToolTarget[] | undefined;
   verbose?: boolean;
   delete?: boolean;
   baseDirs?: string[];
@@ -25,15 +25,32 @@ export interface GenerateOptions {
 }
 
 interface CliOptions {
-  tools?: ToolTarget[];
+  tools?: ToolTarget[] | undefined;
   verbose?: boolean;
   delete?: boolean;
   baseDirs?: string[];
 }
 
 export async function generateCommand(options: GenerateOptions = {}): Promise<void> {
-  // Ensure tools are specified
-  if (!options.tools || options.tools.length === 0) {
+  // Build config loader options with proper typing
+  const configLoaderOptions: ConfigLoaderOptions = {
+    ...(options.config !== undefined && { configPath: options.config }),
+    ...(options.noConfig !== undefined && { noConfig: options.noConfig }),
+  };
+
+  const configResult = await loadConfig(configLoaderOptions);
+
+  const cliOptions: CliOptions = {
+    tools: options.tools,
+    ...(options.verbose !== undefined && { verbose: options.verbose }),
+    ...(options.delete !== undefined && { delete: options.delete }),
+    ...(options.baseDirs !== undefined && { baseDirs: options.baseDirs }),
+  };
+
+  const config = mergeWithCliOptions(configResult.config, cliOptions);
+
+  // Ensure tools are specified (either from CLI or config)
+  if (!config.defaultTargets || config.defaultTargets.length === 0) {
     logger.error("❌ Error: At least one tool must be specified.");
     logger.error("");
     logger.error("Available tools:");
@@ -54,25 +71,11 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
     logger.error("");
     logger.error("Example:");
     logger.error("  rulesync generate --copilot --cursor");
+    logger.error("");
+    logger.error("Or specify tools in rulesync.jsonc:");
+    logger.error('  "tools": ["copilot", "cursor"]');
     process.exit(1);
   }
-
-  // Build config loader options with proper typing
-  const configLoaderOptions: ConfigLoaderOptions = {
-    ...(options.config !== undefined && { configPath: options.config }),
-    ...(options.noConfig !== undefined && { noConfig: options.noConfig }),
-  };
-
-  const configResult = await loadConfig(configLoaderOptions);
-
-  const cliOptions: CliOptions = {
-    tools: options.tools,
-    ...(options.verbose !== undefined && { verbose: options.verbose }),
-    ...(options.delete !== undefined && { delete: options.delete }),
-    ...(options.baseDirs !== undefined && { baseDirs: options.baseDirs }),
-  };
-
-  const config = mergeWithCliOptions(configResult.config, cliOptions);
 
   // Set logger verbosity based on config
   logger.setVerbose(config.verbose || false);

@@ -124,6 +124,13 @@ describe("generateCommand", () => {
   });
 
   it("should exit if no tools are specified", async () => {
+    // Mock config with no default targets
+    mockMergeWithCliOptions.mockImplementationOnce((config, cliOptions) => ({
+      ...config,
+      ...cliOptions,
+      defaultTargets: cliOptions.tools || [],
+    }));
+
     await expect(generateCommand()).rejects.toThrow("process.exit called");
     expect(mockLogger.error).toHaveBeenCalledWith("❌ Error: At least one tool must be specified.");
   });
