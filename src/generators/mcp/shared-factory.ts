@@ -409,6 +409,24 @@ const MCP_GENERATOR_REGISTRY: Partial<Record<ToolTarget, McpToolConfig>> = {
       mcp: servers,
     }),
   },
+
+  qwencode: {
+    target: "qwencode",
+    configPaths: [".qwen/settings.json"],
+    serverTransform: (server: RulesyncMcpServer): McpServerMapping => {
+      // Clone server config and remove targets (preserve all other properties)
+      const { targets: _, ...serverConfig } = server;
+      const qwenServer: McpServerMapping = { ...serverConfig };
+
+      // Preserve environment variables as-is for Qwen Code
+      if (server.env) {
+        qwenServer.env = server.env;
+      }
+
+      return qwenServer;
+    },
+    configWrapper: configWrappers.mcpServers,
+  },
 };
 
 /**

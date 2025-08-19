@@ -10,6 +10,7 @@ export const ALL_TOOL_TARGETS = [
   "claudecode",
   "codexcli",
   "opencode",
+  "qwencode",
   "roo",
   "geminicli",
   "kiro",

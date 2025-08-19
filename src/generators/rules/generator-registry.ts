@@ -357,6 +357,22 @@ const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
     },
     // Complex generation handled by existing generator
   },
+
+  qwencode: {
+    type: "complex",
+    tool: "qwencode",
+    fileExtension: ".md",
+    // ignoreFileName omitted - Qwen Code uses git-aware filtering instead of dedicated ignore files
+    generateContent: (rule) => {
+      const lines: string[] = [];
+      if (rule.frontmatter.description) {
+        lines.push(`# ${rule.frontmatter.description}\n`);
+      }
+      lines.push(rule.content.trim());
+      return lines.join("\n");
+    },
+    // Complex generation handled by existing generator
+  },
 };
 
 /**

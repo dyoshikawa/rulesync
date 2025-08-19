@@ -11,6 +11,7 @@ export const OutputPathsSchema = z.object({
   claudecode: z.optional(z.string()),
   codexcli: z.optional(z.string()),
   opencode: z.optional(z.string()),
+  qwencode: z.optional(z.string()),
   roo: z.optional(z.string()),
   geminicli: z.optional(z.string()),
   kiro: z.optional(z.string()),

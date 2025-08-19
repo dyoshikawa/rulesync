@@ -224,6 +224,9 @@
         "PYTHONPATH",
         "mattlewis",
         "basenames",
-        "opcodeignore"
+        "opcodeignore",
+        "qwencode",
+        "qwen",
+        "QWEN"
     ]
 }

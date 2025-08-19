@@ -144,6 +144,7 @@ describe("config-loader", () => {
         cline: ".clinerules",
         claudecode: ".",
         codexcli: ".",
+        qwencode: ".qwen/memories",
         roo: ".roo/rules",
         geminicli: ".gemini/memories",
         kiro: ".kiro/steering",

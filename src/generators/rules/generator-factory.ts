@@ -21,3 +21,4 @@ export const generateCopilotConfig = createSimpleGenerator("copilot");
 export const generateWindsurfConfig = createSimpleGenerator("windsurf");
 export const generateKiroConfig = createSimpleGenerator("kiro");
 export const generateRooConfig = createSimpleGenerator("roo");
+export const generateQwencodeConfig = createSimpleGenerator("qwencode");

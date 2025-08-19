@@ -10,6 +10,7 @@ import {
   generateGeminiCliMcp,
   generateJunieMcp,
   generateKiroMcp,
+  generateQwenCodeMcp,
   generateRooMcp,
   generateWindsurfMcp,
 } from "../generators/mcp/index.js";
@@ -100,6 +101,11 @@ export async function generateMcpConfigs(
       generate: () => generateRooMcp(config),
     },
     {
+      tool: "qwencode-project",
+      path: path.join(targetRoot, ".qwen", "settings.json"),
+      generate: () => generateQwenCodeMcp(config),
+    },
+    {
       tool: "windsurf-project",
       path: path.join(targetRoot, "mcp_config.json"),
       generate: () => generateWindsurfMcp(config),
@@ -138,6 +144,7 @@ export async function generateMcpConfigs(
         generator.tool.includes("gemini") ||
         generator.tool.includes("junie") ||
         generator.tool.includes("kiro") ||
+        generator.tool.includes("qwencode") ||
         generator.tool.includes("roo") ||
         generator.tool.includes("windsurf")
       ) {
@@ -207,6 +214,7 @@ export async function generateMcpConfigurations(
           claudecode: ".",
           codexcli: ".",
           opencode: ".",
+          qwencode: ".qwen/memories",
           roo: ".roo/rules",
           geminicli: ".gemini/memories",
           kiro: ".kiro/steering",
@@ -262,6 +270,11 @@ export async function generateMcpConfigurations(
       (await import("../generators/mcp/kiro.js")).generateKiroMcpConfiguration(servers, dir),
     junie: async (servers, dir) =>
       (await import("../generators/mcp/junie.js")).generateJunieMcpConfiguration(servers, dir),
+    qwencode: async (servers, dir) =>
+      (await import("../generators/mcp/qwencode.js")).generateQwenCodeMcpConfiguration(
+        servers,
+        dir,
+      ),
     windsurf: async (servers, dir) =>
       (await import("../generators/mcp/windsurf.js")).generateWindsurfMcpConfiguration(
         servers,

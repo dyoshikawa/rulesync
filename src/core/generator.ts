@@ -1,6 +1,7 @@
 import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
 import { generateJunieIgnoreFiles } from "../generators/ignore/junie.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
+import { generateQwenCodeIgnoreFiles } from "../generators/ignore/qwencode.js";
 import { generateWindsurfIgnore } from "../generators/ignore/windsurf.js";
 import { generateAmazonqcliConfig } from "../generators/rules/amazonqcli.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
@@ -14,6 +15,7 @@ import { generateGeminiConfig } from "../generators/rules/geminicli.js";
 import { generateJunieConfig } from "../generators/rules/junie.js";
 import { generateKiroConfig } from "../generators/rules/kiro.js";
 import { generateOpenCodeConfig } from "../generators/rules/opencode.js";
+import { generateQwencodeConfig } from "../generators/rules/qwencode.js";
 import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
@@ -113,6 +115,11 @@ async function generateForTool(
     }
     case "opencode":
       return generateOpenCodeConfig(rules, config, baseDir);
+    case "qwencode": {
+      const qwenRulesOutputs = await generateQwencodeConfig(rules, config, baseDir);
+      const qwenIgnoreOutputs = await generateQwenCodeIgnoreFiles(rules, config, baseDir);
+      return [...qwenRulesOutputs, ...qwenIgnoreOutputs];
+    }
     case "windsurf": {
       const windsurfRulesOutputs = await generateWindsurfConfig(rules, config, baseDir);
       const windsurfIgnoreOutputs = await generateWindsurfIgnore(rules, config, baseDir);

@@ -26,6 +26,8 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/GEMINI.md",
     "**/.gemini/memories/",
     "**/.gemini/commands/",
+    "**/QWEN.md",
+    "**/.qwen/memories/",
     "**/.aiexclude",
     "**/.aiignore",
     "**/.augmentignore",
@@ -44,6 +46,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.vscode/mcp.json",
     "**/.codex/mcp-config.json",
     "**/.gemini/settings.json",
+    "**/.qwen/settings.json",
     "**/.roo/mcp.json",
   ];
 

@@ -60,6 +60,7 @@ describe("types/index", () => {
         claudecode: ".",
         codexcli: ".",
         opencode: ".",
+        qwencode: ".qwen/memories",
         roo: ".roo/rules",
         geminicli: ".geminicli/rules",
         kiro: ".kiro/steering",

@@ -14,6 +14,7 @@ export function getDefaultConfig(): Config {
       claudecode: ".",
       codexcli: ".",
       opencode: ".",
+      qwencode: ".qwen/memories",
       roo: ".roo/rules",
       geminicli: ".gemini/memories",
       kiro: ".kiro/steering",

@@ -8,5 +8,6 @@ export * from "./cursor.js";
 export * from "./geminicli.js";
 export * from "./junie.js";
 export * from "./opencode.js";
+export * from "./qwencode.js";
 export * from "./roo.js";
 export * from "./windsurf.js";
