@@ -2,5 +2,5 @@
 
 mise install
 pnpm i
-npm i -g @anthropic-ai/claude-code　opencode-ai　@byterover/cipher
+npm i -g @anthropic-ai/claude-code opencode-ai @byterover/cipher
 gh auth setup-git
