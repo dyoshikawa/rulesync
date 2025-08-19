@@ -237,3 +237,5 @@ pnpm-lock.yaml
 
 **/.amazonq/rules/
 **/.amazonq/mcp.json
+
+data

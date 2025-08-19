@@ -1,15 +1,6 @@
 {
   "mcpServers": {
-    "o3-search": {
-      "command": "npx",
-      "args": ["o3-search-mcp"],
-      "env": {
-        "SEARCH_CONTEXT_SIZE": "medium",
-        "REASONING_EFFORT": "medium"
-      },
-      "targets": ["claudecode", "cursor"]
-    },
-     "serena": {
+    "serena": {
       "command": "uvx",
       "args": [
         "--from",
@@ -31,6 +22,11 @@
         "-y",
         "@upstash/context7-mcp"
       ],
+      "env": {}
+    },
+    "cipher": {
+      "command": "cipher",
+      "args": ["--mode", "mcp"],
       "env": {}
     }
   }
