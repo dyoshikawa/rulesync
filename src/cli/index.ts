@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import type { ToolTarget } from "../types/index.js";
+import { ALL_TOOL_TARGETS, type ToolTarget } from "../types/index.js";
 import {
   addCommand,
   configCommand,
@@ -56,6 +56,7 @@ program
 program
   .command("generate")
   .description("Generate configuration files for AI tools")
+  .option("--all", "Generate for all supported AI tools")
   .option("--augmentcode", "Generate only for AugmentCode")
   .option("--augmentcode-legacy", "Generate only for AugmentCode legacy format")
   .option("--copilot", "Generate only for GitHub Copilot")
@@ -80,20 +81,26 @@ program
   .option("--no-config", "Disable configuration file loading")
   .action(async (options) => {
     const tools: ToolTarget[] = [];
-    if (options.augmentcode) tools.push("augmentcode");
-    if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
-    if (options.copilot) tools.push("copilot");
-    if (options.cursor) tools.push("cursor");
-    if (options.cline) tools.push("cline");
-    if (options.codexcli) tools.push("codexcli");
-    if (options.claudecode) tools.push("claudecode");
-    if (options.roo) tools.push("roo");
-    if (options.geminicli) tools.push("geminicli");
-    if (options.junie) tools.push("junie");
-    if (options.qwencode) tools.push("qwencode");
-    if (options.kiro) tools.push("kiro");
-    if (options.opencode) tools.push("opencode");
-    if (options.windsurf) tools.push("windsurf");
+    if (options.all) {
+      // Add all supported tools when --all is specified
+      tools.push(...ALL_TOOL_TARGETS);
+    } else {
+      // Add individual tools based on specific options
+      if (options.augmentcode) tools.push("augmentcode");
+      if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
+      if (options.copilot) tools.push("copilot");
+      if (options.cursor) tools.push("cursor");
+      if (options.cline) tools.push("cline");
+      if (options.codexcli) tools.push("codexcli");
+      if (options.claudecode) tools.push("claudecode");
+      if (options.roo) tools.push("roo");
+      if (options.geminicli) tools.push("geminicli");
+      if (options.junie) tools.push("junie");
+      if (options.qwencode) tools.push("qwencode");
+      if (options.kiro) tools.push("kiro");
+      if (options.opencode) tools.push("opencode");
+      if (options.windsurf) tools.push("windsurf");
+    }
 
     const generateOptions: {
       verbose?: boolean;
