@@ -75,13 +75,16 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 
 ### Customize ###
 
-# Aliases
-RUN echo "alias ccinstall=\"npm install -g @anthropic-ai/claude-code\"" >> "/home/node/.zshrc"
-RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
+# Install Claude Code
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH=$PATH:/home/node/.local/bin
 
 # Install mise
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
+
+# Aliases
+RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
 
 # Install init.sh
 ENV PATH=$PATH:/home/node/bin
