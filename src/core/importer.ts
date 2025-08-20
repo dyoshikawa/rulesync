@@ -60,7 +60,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const agentsmdResult = await parseAgentsMdConfiguration(baseDir);
         rules = agentsmdResult.rules;
         errors.push(...agentsmdResult.errors);
-        ignorePatterns = agentsmdResult.ignorePatterns;
         break;
       }
       case "amazonqcli": {

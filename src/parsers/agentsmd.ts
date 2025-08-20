@@ -5,7 +5,6 @@ import { fileExists, readFileContent } from "../utils/index.js";
 export interface AgentsMdImportResult {
   rules: ParsedRule[];
   errors: string[];
-  ignorePatterns?: string[];
 }
 
 /**
@@ -22,7 +21,6 @@ export async function parseAgentsMdConfiguration(
 ): Promise<AgentsMdImportResult> {
   const errors: string[] = [];
   const rules: ParsedRule[] = [];
-  let ignorePatterns: string[] | undefined;
 
   // Parse project-level AGENTS.md
   const projectAgentsPath = join(baseDir, "AGENTS.md");
@@ -181,25 +179,6 @@ export async function parseAgentsMdConfiguration(
     errors.push(`Failed to scan directory for AGENTS.md files: ${errorMessage}`);
   }
 
-  // Parse .agentsignore file if it exists
-  const agentsignorePath = join(baseDir, ".agentsignore");
-  if (await fileExists(agentsignorePath)) {
-    try {
-      const content = await readFileContent(agentsignorePath);
-      const patterns = content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"));
-
-      if (patterns.length > 0) {
-        ignorePatterns = patterns;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to parse .agentsignore: ${errorMessage}`);
-    }
-  }
-
   // If no rules found, add an informative error
   if (rules.length === 0) {
     errors.push(
@@ -210,6 +189,5 @@ export async function parseAgentsMdConfiguration(
   return {
     rules,
     errors,
-    ...(ignorePatterns && { ignorePatterns }),
   };
 }

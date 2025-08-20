@@ -86,19 +86,6 @@ describe("parseAgentsMdConfiguration", () => {
     expect(memoryRule?.filename).toBe("test-memory");
   });
 
-  it("should parse .agentsignore file", async () => {
-    const agentsContent = "# Project Guidelines";
-    await writeFile(join(testDir, "AGENTS.md"), agentsContent);
-
-    const ignoreContent = "node_modules/\n*.log\n# comment\n\nsecrets/";
-    await writeFile(join(testDir, ".agentsignore"), ignoreContent);
-
-    const result = await parseAgentsMdConfiguration(testDir);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.ignorePatterns).toEqual(["node_modules/", "*.log", "secrets/"]);
-  });
-
   it("should find subdirectory AGENTS.md files", async () => {
     // Create subdirectory with AGENTS.md
     const subDir = join(testDir, "backend");

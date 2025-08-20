@@ -1,7 +1,5 @@
 import type { Config, GeneratedOutput, ParsedRule } from "../../types/index.js";
 import { resolvePath } from "../../utils/file.js";
-import { loadIgnorePatterns } from "../../utils/ignore.js";
-import { generateIgnoreFile } from "./shared-helpers.js";
 
 export async function generateAgentsMdConfig(
   rules: ParsedRule[],
@@ -41,19 +39,6 @@ export async function generateAgentsMdConfig(
         content: memoryContent,
       });
     }
-  }
-
-  // Generate ignore file if patterns exist
-  const ignorePatterns = await loadIgnorePatterns(baseDir);
-  if (ignorePatterns.patterns.length > 0) {
-    const ignorePath = resolvePath(".agentsignore", baseDir);
-    const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, "agentsmd");
-
-    outputs.push({
-      tool: "agentsmd",
-      filepath: ignorePath,
-      content: ignoreContent,
-    });
   }
 
   return outputs;
