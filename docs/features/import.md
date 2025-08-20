@@ -20,6 +20,7 @@ rulesync provides comprehensive import functionality to convert existing AI tool
 | **Gemini CLI** | `GEMINI.md`, `.gemini/memories/*.md`, `.gemini/commands/*.md` | `--geminicli` |
 | **JetBrains Junie** | `.junie/guidelines.md` | `--junie` |
 | **Windsurf** | `.windsurf/rules/*.md`, `.windsurf-rules`, `.windsurf/mcp.json` | `--windsurf` |
+| **AgentsMd** | `AGENTS.md`, `.agents/memories/*.md` | `--agentsmd` |
 
 ## Import Commands
 
@@ -33,6 +34,7 @@ npx rulesync import --cline
 npx rulesync import --amazonqcli
 npx rulesync import --opencode
 npx rulesync import --codexcli
+npx rulesync import --agentsmd
 ```
 
 ### Enhanced Import Options
@@ -54,6 +56,7 @@ npx rulesync import --claudecode
 npx rulesync import --cursor
 npx rulesync import --copilot
 npx rulesync import --codexcli
+npx rulesync import --agentsmd
 
 # Review merged rules in .rulesync/ directory
 # Then generate unified configurations
@@ -212,6 +215,26 @@ npx rulesync import --geminicli
 - `.rulesync/geminicli-overview.md`
 - `.rulesync/geminicli-[memory-name].md`
 - `.rulesync/commands/[command-name].md`
+
+### AgentsMd Import
+**Sources**:
+- `AGENTS.md` → Root rule with project instructions and agent overview
+- `.agents/memories/*.md` → Detail rules organized by category
+
+**Import Process**:
+```bash
+npx rulesync import --agentsmd
+```
+
+**Generated Files**:
+- `.rulesync/agentsmd-overview.md` (from AGENTS.md)
+- `.rulesync/agentsmd-[memory-name].md` (from memory files)
+
+**Features**:
+- **Two-Level Rule System**: Separates root instructions from detailed rules
+- **Memory Organization**: Preserves categorical organization of memory files
+- **Standardized Format**: Maintains AgentsMd's standardized AI agent instruction format
+- **Cross-Tool Compatibility**: Enables AgentsMd configurations to work with other AI tools
 
 ## Import Workflow
 

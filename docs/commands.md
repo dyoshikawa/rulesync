@@ -102,6 +102,7 @@ npx rulesync generate [options]
 - `--qwencode`: Generate only for Qwen Code
 - `--kiro`: Generate only for Kiro IDE
 - `--windsurf`: Generate only for Windsurf
+- `--agentsmd`: Generate only for AgentsMd
 
 **Examples:**
 ```bash
@@ -136,6 +137,7 @@ npx rulesync generate --dry-run --verbose
 | JetBrains Junie | `.junie/guidelines.md`, `.aiignore` |
 | Kiro IDE | `.kiro/steering/*.md`, `.aiignore` |
 | Windsurf | `.windsurf/rules/*.md`, `.codeiumignore` |
+| AgentsMd | `AGENTS.md`, `.agents/memories/*.md` |
 
 ### `validate` - Validate Rules
 
@@ -201,6 +203,7 @@ npx rulesync import [options]
 - `--qwencode`: Import from Qwen Code (`QWEN.md`, `.qwen/memories/`)
 - `--junie`: Import from JetBrains Junie (`.junie/guidelines.md`)
 - `--windsurf`: Import from Windsurf (`.windsurf/rules/`, `.windsurf-rules`)
+- `--agentsmd`: Import from AgentsMd (`AGENTS.md`, `.agents/memories/*.md`)
 
 **General Options:**
 - `--legacy`: Import to legacy directory structure (`.rulesync/*.md`)
@@ -397,6 +400,8 @@ codex.md
 .kiro/steering/
 .windsurf/rules/
 .windsurf-rules
+AGENTS.md
+.agents/memories/
 
 # Generated ignore files
 .cursorignore
@@ -596,6 +601,7 @@ echo "Starting migration to rulesync..."
 npx rulesync import --claudecode --verbose
 npx rulesync import --cursor --verbose
 npx rulesync import --copilot --verbose
+npx rulesync import --agentsmd --verbose
 
 # Validate imported rules
 npx rulesync validate --verbose

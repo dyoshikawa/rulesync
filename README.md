@@ -49,6 +49,7 @@ npx rulesync import --copilot     # From .github/copilot-instructions.md
 npx rulesync import --amazonqcli  # From .amazonq/rules/*.md
 npx rulesync import --qwencode     # From QWEN.md
 npx rulesync import --opencode    # From AGENTS.md
+npx rulesync import --agentsmd    # From AGENTS.md + .agents/memories/*.md
 
 # Import to legacy structure (for existing projects)
 npx rulesync import --claudecode --legacy
@@ -57,6 +58,7 @@ npx rulesync import --copilot --legacy
 npx rulesync import --amazonqcli --legacy
 npx rulesync import --qwencode --legacy
 npx rulesync import --opencode --legacy
+npx rulesync import --agentsmd --legacy
 
 # Generate unified configurations
 npx rulesync generate
@@ -64,7 +66,7 @@ npx rulesync generate
 
 ## Supported Tools
 
-rulesync supports both **generation** and **import** for **13 AI development tools**:
+rulesync supports both **generation** and **import** for **15 AI development tools**:
 
 - **GitHub Copilot Custom Instructions** (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
 - **Cursor Project Rules** (`.cursor/rules/*.mdc` + `.cursorrules`) 
@@ -80,6 +82,7 @@ rulesync supports both **generation** and **import** for **13 AI development too
 - **JetBrains Junie Guidelines** (`.junie/guidelines.md`)
 - **Kiro IDE Custom Steering Documents** (`.kiro/steering/*.md`) + **AI Ignore Files** (`.aiignore`)
 - **Windsurf AI Code Editor** (`.windsurf/rules/*.md` + `.windsurf/mcp.json` + `.codeiumignore`)
+- **AgentsMd** (`AGENTS.md` + `.agents/memories/*.md` for standardized AI agent instructions)
 
 ## Why rulesync?
 
@@ -127,11 +130,13 @@ npx rulesync add typescript-rules --legacy
 npx rulesync import --cursor
 npx rulesync import --amazonqcli
 npx rulesync import --qwencode
+npx rulesync import --agentsmd
 
 # Import to legacy location (for existing projects)
 npx rulesync import --cursor --legacy
 npx rulesync import --amazonqcli --legacy
 npx rulesync import --qwencode --legacy
+npx rulesync import --agentsmd --legacy
 
 # Validate rules
 npx rulesync validate
@@ -170,6 +175,7 @@ npx rulesync gitignore
 - **[AugmentCode](./docs/tools/augmentcode.md)** - Rule types and configuration
 - **[Roo Code](./docs/tools/roo.md)** - Instructions and rules
 - **[Qwen Code](./docs/tools/qwencode.md)** - Memory system with git-aware filtering
+- **[AgentsMd](./docs/tools/agentsmd.md)** - Standardized AI agent instructions
 
 ### ⚡ Features
 - **[Custom Slash Commands](./docs/features/custom-commands.md)** - Create unified commands for Claude Code and Gemini CLI
