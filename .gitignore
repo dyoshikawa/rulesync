@@ -239,3 +239,8 @@ pnpm-lock.yaml
 **/.amazonq/mcp.json
 
 data
+
+**/.agents/
+**/QWEN.md
+**/.qwen/memories/
+**/.qwen/settings.json
