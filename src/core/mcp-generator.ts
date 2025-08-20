@@ -201,10 +201,12 @@ export async function generateMcpConfigurations(
       dir: string,
     ) => Promise<Array<{ filepath: string; content: string }>>
   > = {
+    agentsmd: async () => [],
     amazonqcli: async (servers, dir) => {
       const config: Config = {
         aiRulesDir: ".rulesync",
         outputPaths: {
+          agentsmd: ".agents/memories",
           amazonqcli: ".amazonq/rules",
           augmentcode: ".",
           "augmentcode-legacy": ".",

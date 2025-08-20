@@ -15,6 +15,8 @@
     ],
     "words": [
         "agentrequested",
+        "agentsignore",
+        "agentsmd",
         "aiexclude",
         "aiignore",
         "amazonq",

@@ -40,7 +40,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccusage statusline",
+    "command": "npx -y ccusage statusline --no-offline",
     "padding": 0
   },
   "env": {

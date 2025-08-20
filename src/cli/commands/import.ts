@@ -3,6 +3,7 @@ import type { ToolTarget } from "../../types/index.js";
 import { logger } from "../../utils/logger.js";
 
 export interface ImportOptions {
+  agentsmd?: boolean;
   amazonqcli?: boolean;
   augmentcode?: boolean;
   "augmentcode-legacy"?: boolean;
@@ -25,6 +26,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
   const tools: ToolTarget[] = [];
 
   // Collect selected tools
+  if (options.agentsmd) tools.push("agentsmd");
   if (options.amazonqcli) tools.push("amazonqcli");
   if (options.augmentcode) tools.push("augmentcode");
   if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
@@ -40,7 +42,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
   // Validate that exactly one tool is selected
   if (tools.length === 0) {
     logger.error(
-      "❌ Please specify one tool to import from (--amazonqcli, --augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli, --qwencode, --opencode)",
+      "❌ Please specify one tool to import from (--agentsmd, --amazonqcli, --augmentcode, --augmentcode-legacy, --claudecode, --cursor, --copilot, --cline, --roo, --geminicli, --qwencode, --opencode)",
     );
     process.exit(1);
   }

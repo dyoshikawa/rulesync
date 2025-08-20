@@ -98,6 +98,16 @@ export type GeneratorConfig = SimpleGeneratorConfig | ComplexGeneratorConfig;
  */
 const GENERATOR_REGISTRY: Record<ToolTarget, GeneratorConfig> = {
   // Simple generators - generate one file per rule
+  agentsmd: {
+    type: "complex",
+    tool: "agentsmd",
+    fileExtension: ".md",
+    ignoreFileName: ".agentsignore",
+    generateContent: (rule) => rule.content.trim(),
+    // NOTE: AGENTS.md specific logic is handled in the actual generator file
+    // Root rule goes to AGENTS.md, detail rules go to .agents/memories/
+  },
+
   amazonqcli: {
     type: "complex",
     tool: "amazonqcli",

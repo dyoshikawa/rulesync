@@ -1,4 +1,5 @@
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../../types/index.js";
+import { generateAgentsMdConfig } from "./agentsmd.js";
 import { generateFromRegistry } from "./generator-registry.js";
 
 /**
@@ -15,6 +16,7 @@ function createSimpleGenerator(toolName: ToolTarget) {
 }
 
 // Pre-created simple generators for common tools
+export { generateAgentsMdConfig };
 export const generateCursorConfig = createSimpleGenerator("cursor");
 export const generateClineConfig = createSimpleGenerator("cline");
 export const generateCopilotConfig = createSimpleGenerator("copilot");

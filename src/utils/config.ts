@@ -5,6 +5,7 @@ export function getDefaultConfig(): Config {
   return {
     aiRulesDir: ".rulesync",
     outputPaths: {
+      agentsmd: ".agents/memories",
       amazonqcli: ".amazonq/rules",
       augmentcode: ".",
       "augmentcode-legacy": ".",

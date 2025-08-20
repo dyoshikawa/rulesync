@@ -3,6 +3,7 @@ import { generateJunieIgnoreFiles } from "../generators/ignore/junie.js";
 import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
 import { generateQwenCodeIgnoreFiles } from "../generators/ignore/qwencode.js";
 import { generateWindsurfIgnore } from "../generators/ignore/windsurf.js";
+import { generateAgentsMdConfig } from "../generators/rules/agentsmd.js";
 import { generateAmazonqcliConfig } from "../generators/rules/amazonqcli.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
 import { generateAugmentcodeLegacyConfig } from "../generators/rules/augmentcode-legacy.js";
@@ -73,6 +74,8 @@ async function generateForTool(
   baseDir?: string,
 ): Promise<GeneratedOutput[] | null> {
   switch (tool) {
+    case "agentsmd":
+      return await generateAgentsMdConfig(rules, config, baseDir);
     case "amazonqcli":
       return await generateAmazonqcliConfig(rules, config, baseDir);
     case "augmentcode": {

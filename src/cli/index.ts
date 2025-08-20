@@ -38,6 +38,7 @@ program
 program
   .command("import")
   .description("Import configurations from AI tools to rulesync format")
+  .option("--agentsmd", "Import from AGENTS.md (AGENTS.md)")
   .option("--augmentcode", "Import from AugmentCode (.augment/rules/)")
   .option("--augmentcode-legacy", "Import from AugmentCode legacy format (.augment-guidelines)")
   .option("--claudecode", "Import from Claude Code (CLAUDE.md)")
@@ -57,6 +58,7 @@ program
   .command("generate")
   .description("Generate configuration files for AI tools")
   .option("--all", "Generate for all supported AI tools")
+  .option("--agentsmd", "Generate only for AGENTS.md")
   .option("--augmentcode", "Generate only for AugmentCode")
   .option("--augmentcode-legacy", "Generate only for AugmentCode legacy format")
   .option("--copilot", "Generate only for GitHub Copilot")
@@ -86,6 +88,7 @@ program
       tools.push(...ALL_TOOL_TARGETS);
     } else {
       // Add individual tools based on specific options
+      if (options.agentsmd) tools.push("agentsmd");
       if (options.augmentcode) tools.push("augmentcode");
       if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
       if (options.copilot) tools.push("copilot");

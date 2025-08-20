@@ -2,6 +2,7 @@ import { z } from "zod/mini";
 import { ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 export const OutputPathsSchema = z.object({
+  agentsmd: z.optional(z.string()),
   amazonqcli: z.optional(z.string()),
   augmentcode: z.optional(z.string()),
   "augmentcode-legacy": z.optional(z.string()),

@@ -1,3 +1,4 @@
+export * from "./agentsmd.js";
 export * from "./amazonqcli.js";
 export * from "./augmentcode.js";
 export * from "./claudecode.js";

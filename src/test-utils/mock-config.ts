@@ -5,6 +5,7 @@ import type { ToolTarget } from "../types/tool-targets.js";
  * Standard output paths used in tests - matches the common pattern used across ignore generator tests
  */
 const STANDARD_TEST_OUTPUT_PATHS = {
+  agentsmd: "./.agents/memories",
   amazonqcli: "./.amazonq/rules",
   augmentcode: "./.augment/rules",
   "augmentcode-legacy": "./.augment-guidelines",
@@ -29,6 +30,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
   return {
     aiRulesDir: ".rulesync",
     outputPaths: {
+      agentsmd: ".agents/memories",
       amazonqcli: ".amazonq/rules",
       augmentcode: ".",
       "augmentcode-legacy": ".",
@@ -47,6 +49,7 @@ export function createMockConfig(overrides: Partial<Config> = {}): Config {
     },
     watchEnabled: false,
     defaultTargets: [
+      "agentsmd",
       "amazonqcli",
       "augmentcode",
       "copilot",

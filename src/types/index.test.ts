@@ -51,6 +51,7 @@ describe("types/index", () => {
     const config: Config = {
       aiRulesDir: ".rulesync",
       outputPaths: {
+        agentsmd: ".agents/memories",
         amazonqcli: ".amazonq/rules",
         augmentcode: ".",
         "augmentcode-legacy": ".",
