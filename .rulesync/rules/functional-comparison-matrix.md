@@ -1,7 +1,7 @@
 ---
 root: false
 targets: ["*"]
-description: "A functional comparison matrix of AI coding tools""
+description: "A functional comparison matrix of AI coding tools"
 globs: []
 ---
 
