@@ -28,6 +28,8 @@ Use the context7 MCP and web search to research the specifications and create th
   - Research the specifications for ignore text files of target_tool_name using context7 and web search. Ignore files are configuration files used to specify files that should not be read or written by AI coding tools, such as files containing secret information.
 4. `.rulesync/rules/specification-{tool_name_in_rulesync}-commands.md`
   - Research the specifications for custom slash commands of target_tool_name using context7 and web search. Only part of the AI coding tools supports the custom slash commands function, so md files about only the tools that support this function should be created.
+5. `.rulesync/rules/specification-{tool_name_in_rulesync}-subagents.md`
+  - Research the specifications for subagents of target_tool_name using context7 and web search.
 
 For all files, research and document the specifications as comprehensively and thoroughly as possible without omissions.
 
