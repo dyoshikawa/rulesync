@@ -11,28 +11,16 @@ export async function generateOpenCodeConfig(
     tool: "opencode",
     fileExtension: ".md",
     // ignoreFileName omitted - OpenCode doesn't use dedicated ignore files
-    generateContent: generateOpenCodeMarkdown,
-    generateDetailContent: generateOpenCodeMarkdown,
-    generateRootContent: generateOpenCodeRootMarkdown,
+    generateContent: (rule) => rule.content.trim(),
+    generateDetailContent: (rule) => rule.content.trim(),
+    generateRootContent: (rootRule, memoryRules) =>
+      generateRootMarkdownWithXmlDocs(rootRule, memoryRules, {
+        memorySubDir: ".opencode/memories",
+        fallbackTitle: "OpenCode Configuration",
+      }),
     rootFilePath: "AGENTS.md",
     detailSubDir: ".opencode/memories",
   };
 
   return generateComplexRules(rules, config, generatorConfig, baseDir);
-}
-
-function generateOpenCodeMarkdown(rule: ParsedRule): string {
-  // Just return the content without description header and trim leading whitespace
-  return rule.content.trim();
-}
-
-function generateOpenCodeRootMarkdown(
-  rootRule: ParsedRule | undefined,
-  memoryRules: ParsedRule[],
-  _baseDir?: string,
-): string {
-  return generateRootMarkdownWithXmlDocs(rootRule, memoryRules, {
-    memorySubDir: ".opencode/memories",
-    fallbackTitle: "OpenCode Configuration",
-  });
 }
