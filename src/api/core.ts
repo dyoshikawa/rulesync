@@ -1,16 +1,19 @@
 import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import {
-  type GenerateOptions as CliGenerateOptions,
-  generateCommand,
-} from "../cli/commands/generate.js";
 import { importCommand } from "../cli/commands/import.js";
 // Import CLI commands
 import { validateCommand } from "../cli/commands/validate.js";
+// Import core functions
+import { generateCommands } from "../core/command-generator.js";
+import { generateConfigurations, parseRulesFromDirectory } from "../core/index.js";
+import { generateMcpConfigurations } from "../core/mcp-generator.js";
+import { parseMcpConfig } from "../core/mcp-parser.js";
 import type { Config as RulesyncConfig, ToolTarget } from "../types/index.js";
 // Import utilities
-import { loadConfig as loadConfigUtil } from "../utils/config-loader.js";
+import { loadConfig as loadConfigUtil, mergeWithCliOptions } from "../utils/config-loader.js";
+import { fileExists, writeFileContent } from "../utils/index.js";
+import { logger } from "../utils/logger.js";
 // Import errors
 import { ConfigError, GenerationError, IOError, ValidationError } from "./errors.js";
 // Import types
@@ -76,7 +79,7 @@ export async function initialize(options: InitializeOptions = {}): Promise<Initi
       const overviewPath = join(baseDir, rulesDir, "overview.md");
       const overviewContent = `---
 root: true
-targets: ["*"]
+targets: ["cursor", "claudecode", "copilot", "cline", "roo", "geminicli", "junie", "qwencode", "agentsmd", "augmentcode", "windsurf"]
 description: "Project overview and general development guidelines"
 ---
 
@@ -134,6 +137,108 @@ This project uses rulesync to manage AI development tool configurations.
 }
 
 // ============================================================================
+// Core Generation Function (without CLI process.exit behaviors)
+// ============================================================================
+
+/**
+ * Core generation logic extracted from CLI command but without process.exit calls
+ */
+async function generateCore(options: GenerateOptions, baseDir: string): Promise<void> {
+  // Build config loader options
+  const configLoaderOptions: Record<string, unknown> = {
+    ...(options.config !== undefined && { configPath: options.config }),
+    ...(options.noConfig !== undefined && { noConfig: options.noConfig }),
+  };
+
+  const configResult = await loadConfigUtil(configLoaderOptions);
+
+  // Build CLI-style options for merging
+  const cliStyleOptions: {
+    tools?: ToolTarget[] | undefined;
+    verbose?: boolean;
+    delete?: boolean;
+    baseDirs?: string[];
+  } = {
+    tools: options.tools || (options.all ? undefined : ["cursor", "claudecode"]),
+    ...(options.verbose !== undefined && { verbose: options.verbose }),
+    ...(options.delete !== undefined && { delete: options.delete }),
+    baseDirs: [baseDir],
+  };
+
+  const config = mergeWithCliOptions(configResult.config, cliStyleOptions);
+
+  // Ensure tools are specified (but don't process.exit, throw error instead)
+  if (!config.defaultTargets || config.defaultTargets.length === 0) {
+    throw new GenerationError("At least one tool must be specified for generation");
+  }
+
+  // Set logger verbosity based on config
+  const originalVerbose = logger.verbose;
+  if (config.verbose !== undefined) {
+    logger.setVerbose(config.verbose);
+  }
+
+  try {
+    // Check if .rulesync directory exists
+    const aiRulesDirPath = config.aiRulesDir.startsWith("/")
+      ? config.aiRulesDir
+      : join(baseDir, config.aiRulesDir);
+    if (!(await fileExists(aiRulesDirPath))) {
+      throw new GenerationError(".rulesync directory not found. Initialize project first.");
+    }
+
+    // Parse rules
+    const rules = await parseRulesFromDirectory(aiRulesDirPath);
+
+    if (rules.length === 0) {
+      // Don't throw error, just return - this is a valid case
+      return;
+    }
+
+    // Generate configurations
+    const outputs = await generateConfigurations(rules, config, config.defaultTargets, baseDir);
+
+    // Write output files
+    for (const output of outputs) {
+      await writeFileContent(output.filepath, output.content);
+    }
+
+    // Generate MCP configurations
+    try {
+      const mcpConfig = parseMcpConfig(baseDir);
+
+      if (mcpConfig && mcpConfig.mcpServers && Object.keys(mcpConfig.mcpServers).length > 0) {
+        const mcpResults = await generateMcpConfigurations(
+          mcpConfig,
+          baseDir === process.cwd() ? "." : baseDir,
+          config.defaultTargets,
+        );
+
+        for (const result of mcpResults) {
+          await writeFileContent(result.filepath, result.content);
+        }
+      }
+    } catch {
+      // Ignore MCP errors - MCP is optional
+    }
+
+    // Generate command files
+    try {
+      const commandResults = await generateCommands(baseDir, undefined, config.defaultTargets);
+
+      for (const result of commandResults) {
+        await writeFileContent(result.filepath, result.content);
+      }
+    } catch {
+      // Ignore command generation errors - commands are optional
+    }
+  } finally {
+    // Restore original logger verbosity
+    logger.setVerbose(originalVerbose);
+  }
+}
+
+// ============================================================================
 // Generate Function
 // ============================================================================
 
@@ -170,22 +275,8 @@ export async function generate(options: GenerateOptions = {}): Promise<GenerateR
         // Track files before generation
         const beforeFiles = await getGeneratedFiles(baseDir, config);
 
-        // Run CLI generate command
-        const generateCliOptions: CliGenerateOptions = {
-          ...(options.tools && { tools: options.tools }),
-          ...(options.verbose !== undefined && { verbose: options.verbose }),
-          ...(options.delete !== undefined && { delete: options.delete }),
-          baseDirs: [baseDir],
-          ...(options.config && { config: options.config }),
-          ...(options.noConfig !== undefined && { noConfig: options.noConfig }),
-        };
-
-        // If no tools specified and not using all, default to some tools
-        if (!options.tools && !options.all) {
-          generateCliOptions.tools = ["cursor", "claudecode"];
-        }
-
-        await generateCommand(generateCliOptions);
+        // Call core generation logic directly instead of CLI command
+        await generateCore(options, baseDir);
 
         // Track files after generation
         const afterFiles = await getGeneratedFiles(baseDir, config);
@@ -364,6 +455,27 @@ export async function validate(options: ValidateOptions = {}): Promise<ValidateR
         });
       }
 
+      // Also check for malformed config files directly
+      const configPaths = [join(baseDir, "rulesync.jsonc"), join(baseDir, "rulesync.json")];
+
+      for (const configPath of configPaths) {
+        if (existsSync(configPath)) {
+          try {
+            const content = await (await import("node:fs/promises")).readFile(configPath, "utf-8");
+            JSON.parse(content);
+            if (!validatedFiles.includes(configPath)) {
+              validatedFiles.push(configPath);
+            }
+          } catch (error) {
+            errors.push({
+              filePath: configPath,
+              message: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+              type: "syntax",
+            });
+          }
+        }
+      }
+
       // Validate rules files
       const rulesFiles = await getRulesFiles(baseDir);
       validatedFiles.push(...rulesFiles);
@@ -440,7 +552,7 @@ async function getGeneratedFiles(baseDir: string, _config: RulesyncConfig): Prom
 
   // Common generated file patterns
   const patterns = [
-    ".cursorrules",
+    ".cursor/rules/",
     "CLAUDE.md",
     ".github/copilot-instructions.md",
     ".cline/instructions.md",
@@ -508,7 +620,7 @@ async function determineGeneratedFiles(
 function determineToolFromFile(filePath: string): ToolTarget | undefined {
   const fileName = filePath.toLowerCase();
 
-  if (fileName.includes(".cursorrules")) return "cursor";
+  if (fileName.includes(".cursor")) return "cursor";
   if (fileName.includes("claude.md")) return "claudecode";
   if (fileName.includes("copilot-instructions")) return "copilot";
   if (fileName.includes(".cline")) return "cline";
@@ -557,7 +669,7 @@ async function findSourceFiles(baseDir: string, source: ToolTarget): Promise<str
   const sourceFiles: string[] = [];
 
   const patterns: Record<string, string[]> = {
-    cursor: [".cursorrules"],
+    cursor: [".cursor/rules/"],
     claudecode: ["CLAUDE.md"],
     copilot: [".github/copilot-instructions.md"],
     cline: [".cline/instructions.md"],
