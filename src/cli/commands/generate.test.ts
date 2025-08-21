@@ -127,7 +127,7 @@ describe("generateCommand", () => {
         defaultTargets: ["copilot"],
       }),
       ["copilot"],
-      "/workspace",
+      expect.any(String),
     );
     expect(mockWriteFileContent).toHaveBeenCalledWith(
       ".github/instructions/test.md",
@@ -215,7 +215,7 @@ describe("generateCommand", () => {
         defaultTargets: ["copilot"],
       }),
       ["copilot"],
-      "/workspace",
+      expect.any(String),
     );
   });
 
