@@ -24,7 +24,7 @@ export interface GenerateOptions {
 
 export async function generateCommand(options: GenerateOptions = {}): Promise<void> {
   try {
-    // CLI引数を解析（undefinedの値をフィルタアウト）
+    // Parse CLI arguments (filter out undefined values)
     const cliParser = new CliParser();
     const cliInputs: Partial<CliOptions> = {};
 
