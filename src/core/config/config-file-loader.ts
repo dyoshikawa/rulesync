@@ -3,7 +3,7 @@ import type { ConfigLoaderOptions, ConfigLoadResult } from "../../utils/config-l
 import { loadConfig } from "../../utils/config-loader.js";
 
 /**
- * 設定ファイルの読み込みを担当するクラス
+ * Class responsible for loading configuration files.
  */
 export class ConfigFileLoader {
   /**
