@@ -181,6 +181,11 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         targetDir = join(rulesDirPath, "commands");
         const { mkdir } = await import("node:fs/promises");
         await mkdir(targetDir, { recursive: true });
+      } else if (rule.type === "subagent") {
+        // Subagents go to .rulesync/subagents/ subdirectory
+        targetDir = join(rulesDirPath, "subagents");
+        const { mkdir } = await import("node:fs/promises");
+        await mkdir(targetDir, { recursive: true });
       } else {
         // For regular rules, use legacy location or new location based on option
         if (!useLegacyLocation) {
@@ -249,8 +254,8 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
 }
 
 function generateRuleFileContent(rule: ParsedRule): string {
-  // Commands use simplified frontmatter with only description and targets
-  if (rule.type === "command") {
+  // Commands and subagents use simplified frontmatter with only description and targets
+  if (rule.type === "command" || rule.type === "subagent") {
     const simplifiedFrontmatter = {
       description: rule.frontmatter.description,
       targets: rule.frontmatter.targets,

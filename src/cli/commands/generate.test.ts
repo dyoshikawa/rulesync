@@ -18,6 +18,7 @@ import { parseMcpConfig } from "../../core/mcp-parser.js";
 import type { ToolTarget } from "../../types/index.js";
 import {
   fileExists,
+  findFiles,
   getDefaultConfig,
   loadConfig,
   mergeWithCliOptions,
@@ -34,6 +35,7 @@ const mockGenerateMcpConfigurations = vi.mocked(generateMcpConfigurations);
 const mockParseMcpConfig = vi.mocked(parseMcpConfig);
 const mockGenerateCommands = vi.mocked(generateCommands);
 const mockFileExists = vi.mocked(fileExists);
+const mockFindFiles = vi.mocked(findFiles);
 const mockGetDefaultConfig = vi.mocked(getDefaultConfig);
 const mockLoadConfig = vi.mocked(loadConfig);
 const mockMergeWithCliOptions = vi.mocked(mergeWithCliOptions);
@@ -70,6 +72,7 @@ describe("generateCommand", () => {
     vi.clearAllMocks();
     mockGetDefaultConfig.mockReturnValue(mockConfig);
     mockFileExists.mockResolvedValue(true);
+    mockFindFiles.mockResolvedValue([]);
     mockParseRulesFromDirectory.mockResolvedValue(mockRules);
     mockGenerateConfigurations.mockResolvedValue(mockOutputs);
     mockWriteFileContent.mockResolvedValue();
@@ -83,11 +86,28 @@ describe("generateCommand", () => {
       config: mockConfig,
       isEmpty: true,
     });
-    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => ({
-      ...config,
-      ...cliOptions,
-      defaultTargets: cliOptions.tools || config.defaultTargets,
-    }));
+    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => {
+      const merged = { ...config };
+
+      if (cliOptions.verbose !== undefined) {
+        merged.verbose = cliOptions.verbose;
+      }
+
+      if (cliOptions.delete !== undefined) {
+        merged.delete = cliOptions.delete;
+      }
+
+      if (cliOptions.baseDirs && cliOptions.baseDirs.length > 0) {
+        merged.baseDir = cliOptions.baseDirs;
+      }
+
+      if (cliOptions.tools && cliOptions.tools.length > 0) {
+        merged.defaultTargets = cliOptions.tools;
+        merged.exclude = undefined;
+      }
+
+      return merged;
+    });
 
     // Mock fs.promises.readdir
     const { readdir } = await import("node:fs/promises");
@@ -232,11 +252,28 @@ describe("generateCommand", () => {
       isEmpty: false,
     });
 
-    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => ({
-      ...config,
-      ...cliOptions,
-      defaultTargets: cliOptions.tools || config.defaultTargets,
-    }));
+    mockMergeWithCliOptions.mockImplementation((config, cliOptions) => {
+      const merged = { ...config };
+
+      if (cliOptions.verbose !== undefined) {
+        merged.verbose = cliOptions.verbose;
+      }
+
+      if (cliOptions.delete !== undefined) {
+        merged.delete = cliOptions.delete;
+      }
+
+      if (cliOptions.baseDirs && cliOptions.baseDirs.length > 0) {
+        merged.baseDir = cliOptions.baseDirs;
+      }
+
+      if (cliOptions.tools && cliOptions.tools.length > 0) {
+        merged.defaultTargets = cliOptions.tools;
+        merged.exclude = undefined;
+      }
+
+      return merged;
+    });
 
     await generateCommand({ tools: ["claudecode", "geminicli"] });
 

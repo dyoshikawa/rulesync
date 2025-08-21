@@ -19,7 +19,7 @@ export type ProcessedRule = {
   content: string;
   filename: string;
   filepath: string;
-  type?: "rule" | "command";
+  type?: "rule" | "command" | "subagent";
 };
 
 // Use shared output schema instead of defining our own

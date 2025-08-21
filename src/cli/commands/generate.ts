@@ -3,6 +3,7 @@ import { generateCommands } from "../../core/command-generator.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { generateSubagents } from "../../core/subagent-generator.js";
 import type { ToolTarget } from "../../types/index.js";
 import type { ConfigLoaderOptions } from "../../utils/config-loader.js";
 import {
@@ -135,6 +136,20 @@ Or specify tools in rulesync.jsonc:
         }
       }
 
+      // Check if .rulesync/subagents directory has any subagent files
+      const subagentsDir = join(config.aiRulesDir, "subagents");
+      const hasSubagents = await fileExists(subagentsDir);
+      let hasSubagentFiles = false;
+      if (hasSubagents) {
+        const { readdir } = await import("node:fs/promises");
+        try {
+          const files = await readdir(subagentsDir);
+          hasSubagentFiles = files.some((file) => file.endsWith(".md"));
+        } catch {
+          hasSubagentFiles = false;
+        }
+      }
+
       for (const tool of targetTools) {
         switch (tool) {
           case "augmentcode":
@@ -161,6 +176,10 @@ Or specify tools in rulesync.jsonc:
             // Only delete commands directory if .rulesync/commands/*.md files exist
             if (hasCommandFiles) {
               deleteTasks.push(removeDirectory(join(".claude", "commands")));
+            }
+            // Only delete agents directory if .rulesync/subagents/*.md files exist
+            if (hasSubagentFiles) {
+              deleteTasks.push(removeDirectory(join(".claude", "agents")));
             }
             break;
           case "roo":
@@ -282,13 +301,38 @@ Or specify tools in rulesync.jsonc:
       }
     }
 
+    // Generate subagent files
+    logger.info("\nGenerating subagent files...");
+
+    let totalSubagentOutputs = 0;
+    for (const baseDir of baseDirs) {
+      const subagentResults = await generateSubagents(
+        process.cwd(),
+        baseDir === process.cwd() ? undefined : baseDir,
+        config.defaultTargets,
+      );
+
+      if (subagentResults.length === 0) {
+        logger.info(`No subagents found for ${baseDir}`);
+        continue;
+      }
+
+      for (const result of subagentResults) {
+        await writeFileContent(result.filepath, result.content);
+        logger.success(`Generated ${result.tool} subagent: ${result.filepath}`);
+        totalSubagentOutputs++;
+      }
+    }
+
     // Final success message
-    const totalGenerated = totalOutputs + totalMcpOutputs + totalCommandOutputs;
+    const totalGenerated =
+      totalOutputs + totalMcpOutputs + totalCommandOutputs + totalSubagentOutputs;
     if (totalGenerated > 0) {
       const parts = [];
       if (totalOutputs > 0) parts.push(`${totalOutputs} configurations`);
       if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP configurations`);
       if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
+      if (totalSubagentOutputs > 0) parts.push(`${totalSubagentOutputs} subagents`);
 
       logger.success(
         `\n🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,
