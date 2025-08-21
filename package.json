@@ -23,11 +23,24 @@
 	"license": "MIT",
 	"author": "dyoshikawa",
 	"type": "module",
-	"main": "dist/index.js",
-	"module": "dist/index.mjs",
-	"types": "dist/index.d.ts",
+	"main": "dist/api/index.js",
+	"module": "dist/api/index.mjs",
+	"types": "dist/api/index.d.ts",
 	"bin": {
 		"rulesync": "dist/index.js"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/api/index.d.ts",
+			"import": "./dist/api/index.mjs",
+			"require": "./dist/api/index.js"
+		},
+		"./cli": "./dist/index.js",
+		"./types": {
+			"types": "./dist/api/index.d.ts",
+			"import": "./dist/api/index.mjs",
+			"require": "./dist/api/index.js"
+		}
 	},
 	"files": [
 		"dist"
@@ -35,7 +48,7 @@
 	"scripts": {
 		"bcheck": "biome check src/",
 		"bcheck:fix": "biome check --write src/",
-		"build": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
+		"build": "tsup",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
 		"cspell": "cspell \"**/*\"",
 		"dev": "tsx src/cli/index.ts",

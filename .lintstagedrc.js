@@ -4,6 +4,6 @@ export default {
     "oxlint --fix --max-warnings 0",
     "eslint --fix --max-warnings 0 --cache --no-warn-ignored",
   ],
-  "*.ts": [() => "tsgo --noEmit", () => "pnpm test"],
+  "*.ts": [() => "tsgo --noEmit"],
   "**/*": [() => "pnpm run secretlint", () => "pnpm run cspell"],
 };

@@ -154,6 +154,45 @@ npx rulesync status
 npx rulesync gitignore
 ```
 
+## Programmatic API
+
+rulesyncの機能をNode.js/TypeScriptアプリケーションから直接利用できます。
+
+### 基本的な使用方法
+
+```typescript
+import { initialize, generate, getStatus, getSupportedTools } from 'rulesync';
+
+// プロジェクトの初期化
+const initResult = await initialize({
+  baseDir: './my-project'
+});
+
+// 設定ファイルの生成
+const generateResult = await generate({
+  baseDirs: ['./my-project'],
+  tools: ['cursor', 'claudecode', 'copilot']
+});
+
+// プロジェクトステータスの確認
+const status = await getStatus({
+  baseDir: './my-project'
+});
+```
+
+### 利用可能なAPI関数
+
+- **`initialize(options)`** - rulesyncプロジェクトの初期化
+- **`generate(options)`** - AI開発ツール向け設定ファイルの生成
+- **`importConfig(options)`** - 既存設定のrulesync形式へのインポート
+- **`validate(options)`** - 設定の検証
+- **`getStatus(options)`** - プロジェクトステータスの取得
+- **`parseRules(options)`** - ルールファイルの解析
+- **`loadConfig(options)`** - 設定ファイルの読み込み
+- **`getSupportedTools()`** - サポートツール一覧の取得
+
+完全なAPI仕様は [`tmp/rulesync-programmatic-api-specification.md`](./tmp/rulesync-programmatic-api-specification.md) を参照してください。
+
 ## Documentation
 
 ### 📖 Core Documentation
