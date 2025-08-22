@@ -519,10 +519,10 @@ File watching configuration for automatic regeneration.
 ### Usage
 ```bash
 # Development
-npx rulesync generate --config rulesync.dev.jsonc
+npx rulesync generate --targets * --config rulesync.dev.jsonc
 
 # Production
-npx rulesync generate --config rulesync.prod.jsonc
+npx rulesync generate --targets * --config rulesync.prod.jsonc
 ```
 
 ## Command Configuration

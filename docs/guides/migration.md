@@ -509,7 +509,7 @@ find .rulesync -name "*.md" -exec wc -w {} + | sort -n
 
 # Generate fresh configurations
 echo "Regenerating configurations..."
-npx rulesync generate --delete
+npx rulesync generate --targets * --delete
 
 echo "Maintenance complete!"
 ```

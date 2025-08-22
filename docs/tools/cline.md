@@ -53,13 +53,18 @@ Cline uses clean, plain Markdown files without complex frontmatter:
 ### Generate Cline Configuration
 
 ```bash
-# Generate only for Cline
+# Generate only for Cline (new preferred syntax)
+npx rulesync generate --targets cline
+
+# Generate with verbose output (new syntax)
+npx rulesync generate --targets cline --verbose
+
+# Generate in specific directory (new syntax)
+npx rulesync generate --targets cline --base-dir ./packages/frontend
+
+# Legacy syntax (still works with deprecation warning)
 npx rulesync generate --cline
-
-# Generate with verbose output
 npx rulesync generate --cline --verbose
-
-# Generate in specific directory
 npx rulesync generate --cline --base-dir ./packages/frontend
 ```
 

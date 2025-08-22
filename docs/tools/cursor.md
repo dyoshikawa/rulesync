@@ -94,14 +94,18 @@ npx rulesync import --cursor
 ### Generate Cursor Configuration
 
 ```bash
-# Generate only for Cursor
+# Generate only for Cursor (new preferred syntax)
+npx rulesync generate --targets cursor
+
+# Generate with clean build (new syntax)
+npx rulesync generate --targets cursor --delete
+
+# Generate in specific directory (new syntax)
+npx rulesync generate --targets cursor --base-dir ./packages/frontend
+
+# Legacy syntax (still works with deprecation warning)
 npx rulesync generate --cursor
-
-# Generate with clean build
 npx rulesync generate --cursor --delete
-
-# Generate in specific directory
-npx rulesync generate --cursor --base-dir ./packages/frontend
 ```
 
 ### Rule Examples
@@ -179,7 +183,7 @@ globs: ["**/*.tsx"]
 1. **Import Existing**: `npx rulesync import --cursor`
 2. **Review Generated Rules**: Check `.rulesync/` directory
 3. **Refine Rule Types**: Adjust `cursorRuleType` if needed
-4. **Generate New Config**: `npx rulesync generate --cursor`
+4. **Generate New Config**: `npx rulesync generate --targets cursor`
 
 ### From Other AI Tools
 1. **Import Multiple Sources**: Import from other tools first

@@ -389,7 +389,7 @@ if ! npx rulesync validate; then
 fi
 
 echo "🔄 Regenerating AI tool configurations..."
-if ! npx rulesync generate; then
+if ! npx rulesync generate --targets *; then
     echo "❌ Configuration generation failed."
     exit 1
 fi
@@ -429,12 +429,12 @@ jobs:
         run: npx rulesync validate
       
       - name: Generate configurations
-        run: npx rulesync generate
+        run: npx rulesync generate --targets *
       
       - name: Check for changes
         run: |
           if ! git diff --exit-code; then
-            echo "❌ Generated files are out of sync. Run 'npx rulesync generate' locally."
+            echo "❌ Generated files are out of sync. Run 'npx rulesync generate --targets *' locally."
             exit 1
           fi
 ```
@@ -567,14 +567,14 @@ nvm install 20  # If using nvm
 
 ### Generation Issues
 ```bash
-# Clear and regenerate
-npx rulesync generate --delete
+# Clear and regenerate (new syntax)
+npx rulesync generate --targets * --delete
 
 # Validate first
 npx rulesync validate
 
-# Check specific tool generation
-npx rulesync generate --cursor --verbose
+# Check specific tool generation (new syntax)
+npx rulesync generate --targets cursor --verbose
 ```
 
 ### Import Problems

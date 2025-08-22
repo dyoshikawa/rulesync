@@ -137,9 +137,11 @@ Starting from v0.62.0, the project supports two directory structures for better 
 - **Ignore patterns**: Security-focused exclusions and file access control
 
 **Recent Major Updates**:
+- **v0.59.0**: New `--targets` flag as primary interface with backward compatibility
 - **v0.62.0**: New organized directory structure (`.rulesync/rules/`) with backward compatibility
 - **v0.56.0**: Optional frontmatter with sensible defaults
 - **Registry Pattern**: Unified generator architecture for easier tool addition
+- **Enhanced CLI**: Improved error messages, validation, and user experience
 - **🔐 OpenCode Support**: Revolutionary permission-based configuration system - Uses granular read/write/execute permissions instead of traditional ignore files, providing superior security and flexibility
 - **Enhanced Windsurf Support**: Complete integration with activation modes and output formats
 - **Amazon Q Developer CLI Support**: Complete integration with context management, MCP configuration, and built-in slash commands
@@ -163,6 +165,8 @@ rulesync/
 │   │   │   ├── validate.ts             # Rule validation with detailed reporting
 │   │   │   ├── gitignore.ts            # Smart .gitignore management
 │   │   │   └── config.ts               # Configuration management
+│   │   ├── utils/                      # ⭐ NEW: CLI utility functions
+│   │   │   └── targets-parser.ts       # Target specification parsing with validation
 │   │   └── index.ts                   # CLI entry point (Commander.js)
 │   ├── core/
 │   │   ├── parser.ts                  # Parse .rulesync/*.md files
@@ -459,15 +463,24 @@ pnpm test src/cli/commands/import.legacy   # Test legacy import mode
 pnpm test src/utils/config.legacy          # Test legacy configuration
 
 # Test command generation in development environment
-pnpm dev generate --target cursor --commands  # Include command generation
-pnpm dev generate --target cline --commands   # Test with Cline
-pnpm dev generate --target roo --commands     # Test with Roo Cline
-pnpm dev generate --target windsurf --commands # Test with Windsurf
+pnpm dev generate --targets cursor --commands  # Include command generation
+pnpm dev generate --targets cline --commands   # Test with Cline
+pnpm dev generate --targets roo --commands     # Test with Roo Cline
+pnpm dev generate --targets windsurf --commands # Test with Windsurf
+
+# Test new targets syntax
+pnpm dev generate --targets *                 # All tools
+pnpm dev generate --targets copilot,cursor    # Multiple specific tools
+pnpm dev generate --targets claudecode        # Single tool
 
 # Test file splitting functionality
 pnpm test src/generators/rules/codexcli       # Test CodexCLI file splitting
 pnpm test src/utils/xml-document-generator    # Test XML document generation
-pnpm dev generate --target codexcli           # Test CodexCLI generation with file splitting
+pnpm dev generate --targets codexcli          # Test CodexCLI generation with file splitting
+
+# Test targets parser functionality
+pnpm test src/cli/utils/targets-parser        # Test target parsing logic
+pnpm test src/cli/commands/generate           # Test generate command with new syntax
 
 # Test with legacy structure
 pnpm dev init --legacy                      # Test legacy initialization
@@ -868,7 +881,7 @@ it("should report parsing errors with helpful messages", async () => { /* ... */
 - **Flexible Output**: Single-file (`.windsurf-rules`) or directory variant (`.windsurf/rules/`)
 - **Memory Integration**: Auto-generated memories and manual memory creation
 
-**Enhanced Tool Support** (12 total tools):
+**Enhanced Tool Support** (16 total tools):
 - **Comprehensive Coverage**: All major AI development tools supported
 - **Hierarchical Systems**: Multi-level rule precedence for complex tools (Codex CLI, Claude Code, Amazon Q CLI)
 - **🔐 Revolutionary Permission System**: OpenCode introduces granular read/write/execute permissions instead of traditional ignore files - providing superior security, flexibility, and control over AI actions
@@ -994,6 +1007,44 @@ Create `src/generators/rules/newtool.ts` for advanced features:
 - **Comprehensive Testing**: Shared test utilities speed up test development
 
 **Time to add a new tool**: Reduced from ~2-3 days to ~4-6 hours for simple tools!
+
+### CLI Interface Improvements (v0.59.0)
+
+**Enhanced Target Specification:**
+- **Primary Interface**: `--targets` flag replaces individual tool flags
+- **Unified Syntax**: `--targets copilot,cursor,cline` instead of `--copilot --cursor --cline`
+- **Wildcard Support**: `--targets *` for all tools
+- **Validation**: Comprehensive input validation with helpful error messages
+- **Backward Compatibility**: All legacy flags still work with deprecation warnings
+
+**Target Parser Implementation:**
+```typescript
+// src/cli/utils/targets-parser.ts
+export function parseTargets(targetsInput: string | string[]): ToolTarget[] {
+  // Parse comma-separated targets with validation
+  // Handle wildcard (*) and "all" keywords
+  // Validate against supported tool list
+  // Provide clear error messages for invalid input
+}
+
+export function checkDeprecatedFlags(options: Record<string, unknown>): ToolTarget[] {
+  // Check for deprecated individual flags
+  // Return corresponding tool targets
+  // Used for backward compatibility
+}
+
+export function getDeprecationWarning(deprecatedTools: ToolTarget[]): string {
+  // Generate helpful migration messages
+  // Show current vs. new syntax
+  // Guide users to modern interface
+}
+```
+
+**Enhanced Error Handling:**
+- Clear validation messages for invalid tool names
+- Prevention of conflicting target specifications
+- Helpful migration guidance for deprecated syntax
+- Improved user experience with actionable error messages
 
 **Directory Structure Support**: All new tools automatically support both recommended (`.rulesync/rules/`) and legacy (`.rulesync/*.md`) directory structures through the registry pattern.
 

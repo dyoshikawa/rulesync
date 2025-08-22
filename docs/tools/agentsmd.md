@@ -37,10 +37,14 @@ rulesync generates AgentsMd configurations from your unified rules:
 
 ### Generation Command
 ```bash
-# Generate AgentsMd configuration only
-npx rulesync generate --agentsmd
+# Generate AgentsMd configuration only (new syntax)
+npx rulesync generate --targets agentsmd
 
-# Generate all tools including AgentsMd
+# Generate all tools including AgentsMd (new syntax)
+npx rulesync generate --targets *
+
+# Legacy syntax (still works with deprecation warning)
+npx rulesync generate --agentsmd
 npx rulesync generate --all
 ```
 
@@ -282,10 +286,14 @@ npx rulesync generate --agentsmd
 Convert AgentsMd rules to other AI tool formats:
 
 ```bash
-# Generate for multiple tools
-npx rulesync generate --agentsmd --cursor --claudecode
+# Generate for multiple tools (new syntax)
+npx rulesync generate --targets agentsmd,cursor,claudecode
 
-# Or generate for all supported tools
+# Or generate for all supported tools (new syntax)
+npx rulesync generate --targets *
+
+# Legacy syntax (deprecated)
+npx rulesync generate --agentsmd --cursor --claudecode
 npx rulesync generate --all
 ```
 

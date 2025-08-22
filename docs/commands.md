@@ -90,17 +90,34 @@ npx rulesync generate [options]
 - `--no-config`: Disable configuration file loading
 - `--base-dir <paths>`: Generate in specific directories (comma-separated)
 
-**Target Specification:**
-Use the `--targets` flag to specify which tools to generate for:
+**Validation and Error Handling (Enhanced in v0.59.0):**
+- Validates that at least one target is specified
+- Prevents mixing `*` with specific tool names
+- Shows clear error messages for invalid tool names
+- Provides deprecation warnings for legacy syntax
+- Validates tool names against supported target list
+
+**Target Specification (New in v0.59.0):**
+The `--targets` flag is now the preferred way to specify which tools to generate for:
 - **Single tool**: `--targets copilot`
 - **Multiple tools**: `--targets copilot,cursor,cline`
-- **All tools**: `--targets *` (preferred) or `--targets all` (legacy)
+- **All tools**: `--targets *` (preferred) or `--targets all`
+- **Validation**: Cannot mix `*` with specific tools (e.g., `--targets *,copilot` is invalid)
 
-**Available Tools:**
+**Available Tools (16 total):**
 `agentsmd`, `amazonqcli`, `augmentcode`, `augmentcode-legacy`, `copilot`, `cursor`, `cline`, `claudecode`, `codexcli`, `opencode`, `qwencode`, `roo`, `geminicli`, `kiro`, `junie`, `windsurf`
 
-**⚠️ Deprecated Tool-Specific Flags:**
-The following individual flags are deprecated and will be removed in a future version. Use `--targets` instead:
+**Special Target Values:**
+- `*` - All supported tools (preferred syntax)
+- `all` - All supported tools (alternative syntax)
+
+**Validation Rules:**
+- Cannot combine `*` with specific tools
+- Tool names must be from the supported list above
+- At least one target must be specified
+
+**⚠️ Deprecated Tool-Specific Flags (v0.59.0+):**
+Individual tool flags are deprecated and show warnings. Use `--targets` instead for cleaner syntax:
 - `--agentsmd` → `--targets agentsmd`
 - `--amazonqcli` → `--targets amazonqcli`
 - `--augmentcode` → `--targets augmentcode`
@@ -123,9 +140,11 @@ The following individual flags are deprecated and will be removed in a future ve
 # Generate for all tools (new preferred syntax)
 npx rulesync generate --targets *
 
-# Generate for all tools (legacy but still works)
+# Generate for all tools (alternative syntax)
 npx rulesync generate --targets all
-npx rulesync generate --all  # Shows deprecation warning
+
+# Legacy syntax (deprecated, shows warning)
+npx rulesync generate --all
 
 # Generate for specific tools (recommended syntax)
 npx rulesync generate --targets copilot,cursor,cline
@@ -138,32 +157,41 @@ npx rulesync generate --targets copilot,cursor --delete --verbose
 # Generate for monorepo packages
 npx rulesync generate --targets * --base-dir ./packages/frontend,./packages/backend
 
-# Legacy syntax (deprecated but still works)
-npx rulesync generate --cursor --claudecode  # Shows deprecation warning
+# Legacy syntax (deprecated, shows warning)
+npx rulesync generate --cursor --claudecode
 
 # ❌ Invalid syntax (will show error)
 npx rulesync generate --targets *,copilot  # Error: cannot mix * with specific tools
 ```
 
-**Migration Examples:**
+**Migration Examples (v0.59.0+):**
 ```bash
-# Old syntax (deprecated)
+# Old syntax (deprecated, shows warning)
 npx rulesync generate --all
 
-# New syntax (recommended)
+# New syntax (preferred)
 npx rulesync generate --targets *
 
-# Old syntax (deprecated)
+# Old syntax (deprecated, shows warning)
 npx rulesync generate --copilot --cursor --cline
 
-# New syntax (recommended)
+# New syntax (preferred)
 npx rulesync generate --targets copilot,cursor,cline
 
-# Old syntax (deprecated)
+# Old syntax (deprecated, shows warning)
 npx rulesync generate --claudecode --verbose
 
-# New syntax (recommended)
+# New syntax (preferred)
 npx rulesync generate --targets claudecode --verbose
+
+# Backward compatibility maintained
+# All old syntax still works but shows deprecation warnings
+# Use --targets for clean output and future compatibility
+
+# Error examples (will show helpful error messages)
+npx rulesync generate --targets invalid-tool
+npx rulesync generate --targets *,cursor
+npx rulesync generate  # Error: no tools specified
 ```
 
 **Generated Output:**
