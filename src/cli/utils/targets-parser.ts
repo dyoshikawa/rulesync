@@ -107,14 +107,18 @@ export function checkDeprecatedFlags(options: Record<string, unknown>): ToolTarg
 /**
  * Generate a deprecation warning message for deprecated flags
  * @param deprecatedTools - Array of tools from deprecated flags
+ * @param command - Command name (generate or import)
  * @returns Formatted warning message
  */
-export function getDeprecationWarning(deprecatedTools: ToolTarget[]): string {
+export function getDeprecationWarning(
+  deprecatedTools: ToolTarget[],
+  command: string = "generate",
+): string {
   const toolsStr = deprecatedTools.join(",");
   return [
     "⚠️  DEPRECATED: Individual tool flags are deprecated and will be removed in a future version.",
-    `   Current: rulesync generate ${deprecatedTools.map((t) => `--${t}`).join(" ")}`,
-    `   New:     rulesync generate --targets ${toolsStr}`,
+    `   Current: rulesync ${command} ${deprecatedTools.map((t) => `--${t}`).join(" ")}`,
+    `   New:     rulesync ${command} --targets ${toolsStr}`,
     "   Please update your scripts to use the new --targets flag.",
   ].join("\n");
 }

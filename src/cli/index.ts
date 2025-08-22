@@ -10,6 +10,7 @@ import {
   configCommand,
   generateCommand,
   gitignoreCommand,
+  type ImportOptions,
   importCommand,
   initCommand,
   statusCommand,
@@ -47,21 +48,58 @@ program
 program
   .command("import")
   .description("Import configurations from AI tools to rulesync format")
-  .option("--agentsmd", "Import from AGENTS.md (AGENTS.md)")
-  .option("--augmentcode", "Import from AugmentCode (.augment/rules/)")
-  .option("--augmentcode-legacy", "Import from AugmentCode legacy format (.augment-guidelines)")
-  .option("--claudecode", "Import from Claude Code (CLAUDE.md)")
-  .option("--cursor", "Import from Cursor (.cursorrules)")
-  .option("--copilot", "Import from GitHub Copilot (.github/copilot-instructions.md)")
-  .option("--cline", "Import from Cline (.cline/instructions.md)")
-  .option("--roo", "Import from Roo Code (.roo/instructions.md)")
-  .option("--geminicli", "Import from Gemini CLI (GEMINI.md)")
-  .option("--junie", "Import from JetBrains Junie (.junie/guidelines.md)")
-  .option("--qwencode", "Import from Qwen Code (QWEN.md)")
-  .option("--opencode", "Import from OpenCode (AGENTS.md)")
+  .option("--all", "[DEPRECATED] Import from all available tools (use --targets * instead)")
+  .option(
+    "-t, --targets <tools>",
+    "Comma-separated list of tools to import from (e.g., 'copilot,cursor,cline' or '*' for all)",
+  )
+  .option("--agentsmd", "[DEPRECATED] Import from AGENTS.md (use --targets agentsmd)")
+  .option("--augmentcode", "[DEPRECATED] Import from AugmentCode (use --targets augmentcode)")
+  .option(
+    "--augmentcode-legacy",
+    "[DEPRECATED] Import from AugmentCode legacy format (use --targets augmentcode-legacy)",
+  )
+  .option("--claudecode", "[DEPRECATED] Import from Claude Code (use --targets claudecode)")
+  .option("--cursor", "[DEPRECATED] Import from Cursor (use --targets cursor)")
+  .option("--copilot", "[DEPRECATED] Import from GitHub Copilot (use --targets copilot)")
+  .option("--cline", "[DEPRECATED] Import from Cline (use --targets cline)")
+  .option("--roo", "[DEPRECATED] Import from Roo Code (use --targets roo)")
+  .option("--geminicli", "[DEPRECATED] Import from Gemini CLI (use --targets geminicli)")
+  .option("--junie", "[DEPRECATED] Import from JetBrains Junie (use --targets junie)")
+  .option("--qwencode", "[DEPRECATED] Import from Qwen Code (use --targets qwencode)")
+  .option("--opencode", "[DEPRECATED] Import from OpenCode (use --targets opencode)")
   .option("-v, --verbose", "Verbose output")
   .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
-  .action(importCommand);
+  .action(async (options) => {
+    try {
+      let tools: ToolTarget[] = [];
+
+      // Parse tools from --targets flag
+      const targetsTools: ToolTarget[] = options.targets ? parseTargets(options.targets) : [];
+
+      // Check for deprecated individual flags
+      const deprecatedTools: ToolTarget[] = checkDeprecatedFlags(options);
+
+      // Show deprecation warning if deprecated flags are used
+      if (deprecatedTools.length > 0) {
+        logger.warn(getDeprecationWarning(deprecatedTools, "import"));
+      }
+
+      // Merge and deduplicate tools from all sources
+      tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, options.all === true);
+
+      const importOptions: ImportOptions = {
+        ...(tools.length > 0 && { targets: tools }),
+        verbose: options.verbose,
+        legacy: options.legacy,
+      };
+
+      await importCommand(importOptions);
+    } catch (error) {
+      logger.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
 
 program
   .command("generate")
@@ -124,7 +162,7 @@ program
 
       // Show deprecation warning if deprecated flags are used
       if (deprecatedTools.length > 0) {
-        logger.warn(getDeprecationWarning(deprecatedTools));
+        logger.warn(getDeprecationWarning(deprecatedTools, "generate"));
       }
 
       // Merge and deduplicate tools from all sources
