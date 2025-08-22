@@ -229,6 +229,7 @@
         "opcodeignore",
         "qwencode",
         "qwen",
-        "QWEN"
+        "QWEN",
+        "smol"
     ]
 }

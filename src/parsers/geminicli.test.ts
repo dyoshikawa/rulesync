@@ -212,4 +212,67 @@ dist/
     expect(result.errors).toEqual(["GEMINI.md file not found"]);
     expect(result.rules).toEqual([]);
   });
+
+  it("should parse commands from .toml files", async () => {
+    const geminiContent = "# Main Config";
+    await writeFile(geminiFilePath, geminiContent);
+
+    const commandsDir = join(testDir, ".gemini", "commands");
+    await import("node:fs/promises").then(({ mkdir }) => mkdir(commandsDir, { recursive: true }));
+
+    // Create a simple TOML command file
+    const commandFile1 = join(commandsDir, "test-command.toml");
+    const tomlContent = `description = "Test command description"
+
+prompt = """Create a test file with the following content:
+- Basic test structure
+- Assertions for key functionality"""`;
+
+    await writeFile(commandFile1, tomlContent);
+
+    const result = await parseGeminiConfiguration(testDir);
+    expect(result.rules).toHaveLength(2); // main + 1 command
+
+    const commandRule = result.rules.find((rule: ParsedRule) => rule.filename === "test-command");
+    expect(commandRule).toBeDefined();
+    expect(commandRule?.frontmatter.description).toBe("Test command description");
+    expect(commandRule?.content).toContain("Create a test file");
+    expect(commandRule?.type).toBe("command");
+  });
+
+  it("should handle TOML commands without description", async () => {
+    const geminiContent = "# Main Config";
+    await writeFile(geminiFilePath, geminiContent);
+
+    const commandsDir = join(testDir, ".gemini", "commands");
+    await import("node:fs/promises").then(({ mkdir }) => mkdir(commandsDir, { recursive: true }));
+
+    const commandFile = join(commandsDir, "no-desc.toml");
+    const tomlContent = `prompt = """Simple prompt without description"""`;
+
+    await writeFile(commandFile, tomlContent);
+
+    const result = await parseGeminiConfiguration(testDir);
+    const commandRule = result.rules.find((rule: ParsedRule) => rule.filename === "no-desc");
+    expect(commandRule).toBeDefined();
+    expect(commandRule?.frontmatter.description).toBe("Command: no-desc");
+  });
+
+  it("should skip non-.toml files in commands directory", async () => {
+    const geminiContent = "# Main Config";
+    await writeFile(geminiFilePath, geminiContent);
+
+    const commandsDir = join(testDir, ".gemini", "commands");
+    await import("node:fs/promises").then(({ mkdir }) => mkdir(commandsDir, { recursive: true }));
+
+    // Create both .toml and .md files
+    await writeFile(join(commandsDir, "valid.toml"), 'prompt = """Valid command"""');
+    await writeFile(join(commandsDir, "invalid.md"), "# This should be ignored");
+
+    const result = await parseGeminiConfiguration(testDir);
+    // Should only have main + 1 .toml command (not the .md file)
+    expect(result.rules).toHaveLength(2);
+    expect(result.rules.find((rule: ParsedRule) => rule.filename === "valid")).toBeDefined();
+    expect(result.rules.find((rule: ParsedRule) => rule.filename === "invalid")).toBeUndefined();
+  });
 });
