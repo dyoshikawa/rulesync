@@ -21,40 +21,36 @@ describe("import command", () => {
     vi.restoreAllMocks();
   });
 
-  it("should require at least one tool to be specified", async () => {
+  it("should require exactly one tool to be specified", async () => {
     await expect(importCommand({})).rejects.toThrow("process.exit");
     expect(mockLogger.error).toHaveBeenCalledWith(
-      "❌ Please specify tools to import from using --targets <tool1,tool2> or --targets * for all supported tools.",
+      "❌ Please specify a tool to import from using --targets <tool>.",
     );
   });
 
-  // Legacy behavior tests
+  // Single target validation tests
   it("should reject multiple tools being specified via legacy flags", async () => {
-    // This test validates that the old behavior still works for legacy flags
-    // But with new implementation, multiple tools via targets should be allowed
-    const mockResult = {
-      success: true,
-      rulesCreated: 1,
-      errors: [],
-    };
-    vi.spyOn(importer, "importConfiguration").mockResolvedValue(mockResult);
+    await expect(importCommand({ claudecode: true, cursor: true })).rejects.toThrow("process.exit");
 
-    await importCommand({ claudecode: true, cursor: true });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("❌ Import command only supports a single target"),
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("You specified: claudecode, cursor"),
+    );
+  });
 
-    // Should now process both tools
-    expect(importer.importConfiguration).toHaveBeenCalledTimes(2);
-    expect(importer.importConfiguration).toHaveBeenNthCalledWith(1, {
-      tool: "claudecode",
-      features: ["rules", "commands", "mcp", "ignore"],
-      verbose: false,
-      useLegacyLocation: false,
-    });
-    expect(importer.importConfiguration).toHaveBeenNthCalledWith(2, {
-      tool: "cursor",
-      features: ["rules", "commands", "mcp", "ignore"],
-      verbose: false,
-      useLegacyLocation: false,
-    });
+  it("should reject multiple targets specified via --targets", async () => {
+    await expect(importCommand({ targets: ["cursor", "copilot", "cline"] })).rejects.toThrow(
+      "process.exit",
+    );
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("❌ Import command only supports a single target"),
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("You specified: cursor, copilot, cline"),
+    );
   });
 
   it("should import from claudecode successfully", async () => {
@@ -75,9 +71,7 @@ describe("import command", () => {
     });
     expect(mockLogger.log).toHaveBeenCalledWith("Importing configuration files from claudecode...");
     expect(mockLogger.success).toHaveBeenCalledWith("✅ Imported 3 rule(s) from claudecode");
-    expect(mockLogger.success).toHaveBeenCalledWith(
-      "\n🎉 Successfully imported from 1 tool(s): claudecode",
-    );
+    expect(mockLogger.success).toHaveBeenCalledWith("\n🎉 Successfully imported from claudecode");
   });
 
   it("should display ignore file creation message", async () => {
@@ -125,7 +119,7 @@ describe("import command", () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       "⚠️  Failed to import from copilot: Failed to parse configuration",
     );
-    expect(mockLogger.error).toHaveBeenCalledWith("\n❌ Failed to import from all 1 tool(s).");
+    expect(mockLogger.error).toHaveBeenCalledWith("\n❌ Failed to import from copilot.");
   });
 
   it("should show verbose errors when verbose flag is set", async () => {
@@ -234,106 +228,58 @@ describe("import command", () => {
       expect(mockLogger.success).toHaveBeenCalledWith("✅ Imported 2 rule(s) from cursor");
     });
 
-    it("should import from multiple tools using targets", async () => {
-      const mockResult = {
-        success: true,
-        rulesCreated: 1,
-        errors: [],
-      };
-      vi.spyOn(importer, "importConfiguration").mockResolvedValue(mockResult);
-
-      await importCommand({ targets: ["cursor", "copilot", "cline"] });
-
-      expect(importer.importConfiguration).toHaveBeenCalledTimes(3);
-      expect(importer.importConfiguration).toHaveBeenNthCalledWith(1, {
-        tool: "cursor",
-        features: ["rules", "commands", "mcp", "ignore"],
-        verbose: false,
-        useLegacyLocation: false,
-      });
-      expect(importer.importConfiguration).toHaveBeenNthCalledWith(2, {
-        tool: "copilot",
-        features: ["rules", "commands", "mcp", "ignore"],
-        verbose: false,
-        useLegacyLocation: false,
-      });
-      expect(importer.importConfiguration).toHaveBeenNthCalledWith(3, {
-        tool: "cline",
-        features: ["rules", "commands", "mcp", "ignore"],
-        verbose: false,
-        useLegacyLocation: false,
-      });
-    });
-
-    it("should show success summary when all tools succeed", async () => {
-      const mockResult = {
-        success: true,
-        rulesCreated: 1,
-        errors: [],
-      };
-      vi.spyOn(importer, "importConfiguration").mockResolvedValue(mockResult);
-
-      await importCommand({ targets: ["cursor", "copilot"] });
-
-      expect(mockLogger.success).toHaveBeenCalledWith(
-        "\n🎉 Successfully imported from 2 tool(s): cursor, copilot",
-      );
-    });
-
-    it("should handle partial failures gracefully", async () => {
-      const successResult = {
-        success: true,
-        rulesCreated: 1,
-        errors: [],
-      };
-      const failureResult = {
-        success: false,
-        rulesCreated: 0,
-        errors: ["Failed to parse configuration"],
-      };
-
-      vi.spyOn(importer, "importConfiguration")
-        .mockResolvedValueOnce(successResult)
-        .mockResolvedValueOnce(failureResult);
-
-      await importCommand({ targets: ["cursor", "copilot"] });
-
-      expect(mockLogger.success).toHaveBeenCalledWith(
-        "\n✅ Successfully imported from 1 tool(s): cursor",
-      );
-      expect(mockLogger.warn).toHaveBeenCalledWith("❌ Failed to import from 1 tool(s): copilot");
-    });
-
-    it("should exit with error when all tools fail", async () => {
-      const failureResult = {
-        success: false,
-        rulesCreated: 0,
-        errors: ["Failed to parse configuration"],
-      };
-      vi.spyOn(importer, "importConfiguration").mockResolvedValue(failureResult);
-
-      await expect(importCommand({ targets: ["cursor", "copilot"] })).rejects.toThrow(
+    it("should reject multiple tools using targets", async () => {
+      await expect(importCommand({ targets: ["cursor", "copilot", "cline"] })).rejects.toThrow(
         "process.exit",
       );
-      expect(mockLogger.error).toHaveBeenCalledWith("\n❌ Failed to import from all 2 tool(s).");
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("❌ Import command only supports a single target"),
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("You specified: cursor, copilot, cline"),
+      );
     });
 
-    it("should handle exceptions during multi-tool import", async () => {
-      const successResult = {
+    it("should show success summary for single tool", async () => {
+      const mockResult = {
         success: true,
         rulesCreated: 1,
         errors: [],
       };
+      vi.spyOn(importer, "importConfiguration").mockResolvedValue(mockResult);
 
-      vi.spyOn(importer, "importConfiguration")
-        .mockResolvedValueOnce(successResult)
-        .mockRejectedValueOnce(new Error("Unexpected error"));
+      await importCommand({ targets: ["cursor"] });
 
-      await importCommand({ targets: ["cursor", "copilot"] });
+      expect(mockLogger.success).toHaveBeenCalledWith("\n🎉 Successfully imported from cursor");
+    });
 
-      expect(mockLogger.success).toHaveBeenCalledWith("✅ Imported 1 rule(s) from cursor");
+    it("should handle import failure correctly", async () => {
+      const failureResult = {
+        success: false,
+        rulesCreated: 0,
+        errors: ["Failed to parse configuration"],
+      };
+
+      vi.spyOn(importer, "importConfiguration").mockResolvedValueOnce(failureResult);
+
+      await expect(importCommand({ targets: ["cursor"] })).rejects.toThrow("process.exit");
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "⚠️  Failed to import from cursor: Failed to parse configuration",
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith("\n❌ Failed to import from cursor.");
+    });
+
+    it("should handle exceptions during import", async () => {
+      vi.spyOn(importer, "importConfiguration").mockRejectedValueOnce(
+        new Error("Unexpected error"),
+      );
+
+      await expect(importCommand({ targets: ["cursor"] })).rejects.toThrow("process.exit");
+
       expect(mockLogger.error).toHaveBeenCalledWith(
-        "❌ Error importing from copilot: Unexpected error",
+        "❌ Error importing from cursor: Unexpected error",
       );
     });
 

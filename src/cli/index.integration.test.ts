@@ -392,10 +392,7 @@ describe("CLI Integration - Import Command", () => {
       .command("import")
       .description("Import configurations from AI tools to rulesync format")
       .option("--all", "[DEPRECATED] Import from all available tools (use --targets * instead)")
-      .option(
-        "-t, --targets <tools>",
-        "Comma-separated list of tools to import from (e.g., 'copilot,cursor,cline' or '*' for all)",
-      )
+      .option("-t, --targets <tool>", "Tool to import from (e.g., 'copilot', 'cursor', 'cline')")
       .option(
         "--features <features>",
         "Comma-separated list of features to import (rules,commands,mcp,ignore) or '*' for all",
@@ -446,6 +443,22 @@ describe("CLI Integration - Import Command", () => {
           process.exit(1);
         }
       });
+  });
+
+  describe("Single target validation", () => {
+    it("should reject multiple targets", async () => {
+      mockParseTargets.mockReturnValue(["cursor", "copilot"]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["cursor", "copilot"]);
+
+      await program.parseAsync(["node", "rulesync", "import", "--targets", "cursor,copilot"]);
+
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targets: ["cursor", "copilot"],
+        }),
+      );
+    });
   });
 
   describe("--features option", () => {
@@ -540,17 +553,17 @@ describe("CLI Integration - Import Command", () => {
   });
 
   describe("Combined options", () => {
-    it("should handle targets, features, and other options together", async () => {
-      mockParseTargets.mockReturnValue(["cursor", "copilot"]);
+    it("should handle single target, features, and other options together", async () => {
+      mockParseTargets.mockReturnValue(["cursor"]);
       mockCheckDeprecatedFlags.mockReturnValue([]);
-      mockMergeAndDeduplicateTools.mockReturnValue(["cursor", "copilot"]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["cursor"]);
 
       await program.parseAsync([
         "node",
         "rulesync",
         "import",
         "--targets",
-        "cursor,copilot",
+        "cursor",
         "--features",
         "rules,ignore",
         "--verbose",
@@ -559,7 +572,7 @@ describe("CLI Integration - Import Command", () => {
 
       expect(mockImportCommand).toHaveBeenCalledWith(
         expect.objectContaining({
-          targets: ["cursor", "copilot"],
+          targets: ["cursor"],
           features: ["rules", "ignore"],
           verbose: true,
           legacy: true,

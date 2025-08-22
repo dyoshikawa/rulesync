@@ -90,76 +90,67 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
     if (options.opencode) tools.push("opencode");
   }
 
-  // Validate that at least one tool is selected
+  // Validate that exactly one tool is selected
   if (tools.length === 0) {
-    logger.error(
-      "❌ Please specify tools to import from using --targets <tool1,tool2> or --targets * for all supported tools.",
-    );
-    logger.info("Example: rulesync import --targets cursor,copilot");
+    logger.error("❌ Please specify a tool to import from using --targets <tool>.");
+    logger.info("Example: rulesync import --targets cursor");
     process.exit(1);
   }
 
-  // Process each tool
-  const results: Array<{ tool: ToolTarget; success: boolean; error?: string }> = [];
-
-  for (const tool of tools) {
-    logger.log(`Importing configuration files from ${tool}...`);
-
-    try {
-      const result = await importConfiguration({
-        tool,
-        features: normalizedFeatures,
-        verbose: options.verbose ?? false,
-        useLegacyLocation: options.legacy ?? false,
-      });
-
-      if (result.success) {
-        logger.success(`✅ Imported ${result.rulesCreated} rule(s) from ${tool}`);
-        if (result.ignoreFileCreated) {
-          logger.success("  Created .rulesyncignore file from ignore patterns");
-        }
-        if (result.mcpFileCreated) {
-          logger.success("  Created .rulesync/.mcp.json file from MCP configuration");
-        }
-        results.push({ tool, success: true });
-      } else if (result.errors.length > 0) {
-        logger.warn(`⚠️  Failed to import from ${tool}: ${result.errors[0]}`);
-        if (result.errors.length > 1) {
-          logger.info("  Detailed errors:");
-          for (const error of result.errors) {
-            logger.info(`    - ${error}`);
-          }
-        }
-        results.push({ tool, success: false, error: result.errors[0] || "Unknown error" });
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`❌ Error importing from ${tool}: ${errorMessage}`);
-      results.push({ tool, success: false, error: errorMessage });
+  if (tools.length > 1) {
+    logger.error(
+      "❌ Import command only supports a single target.\n" +
+        `You specified: ${tools.join(", ")}\n\n` +
+        "Please run the command separately for each tool:",
+    );
+    for (const tool of tools) {
+      logger.info(`  rulesync import --targets ${tool}`);
     }
+    process.exit(1);
   }
 
-  // Summary
-  const successful = results.filter((r) => r.success);
-  const failed = results.filter((r) => !r.success);
+  // Process the single tool (we know it exists due to validation above)
+  const tool = tools[0];
+  if (!tool) {
+    // This should never happen due to validation above, but TypeScript requires this check
+    logger.error("❌ Unexpected error: No tool selected");
+    process.exit(1);
+  }
+  logger.log(`Importing configuration files from ${tool}...`);
 
-  if (successful.length > 0 && failed.length === 0) {
-    logger.success(
-      `\n🎉 Successfully imported from ${successful.length} tool(s): ${successful.map((r) => r.tool).join(", ")}`,
-    );
-    logger.log("You can now run 'rulesync generate' to create tool-specific configurations.");
-  } else if (successful.length > 0 && failed.length > 0) {
-    logger.success(
-      `\n✅ Successfully imported from ${successful.length} tool(s): ${successful.map((r) => r.tool).join(", ")}`,
-    );
-    logger.warn(
-      `❌ Failed to import from ${failed.length} tool(s): ${failed.map((r) => r.tool).join(", ")}`,
-    );
-    logger.log(
-      "You can still run 'rulesync generate' to create configurations for successfully imported tools.",
-    );
-  } else {
-    logger.error(`\n❌ Failed to import from all ${failed.length} tool(s).`);
+  try {
+    const result = await importConfiguration({
+      tool,
+      features: normalizedFeatures,
+      verbose: options.verbose ?? false,
+      useLegacyLocation: options.legacy ?? false,
+    });
+
+    if (result.success) {
+      logger.success(`✅ Imported ${result.rulesCreated} rule(s) from ${tool}`);
+      if (result.ignoreFileCreated) {
+        logger.success("  Created .rulesyncignore file from ignore patterns");
+      }
+      if (result.mcpFileCreated) {
+        logger.success("  Created .rulesync/.mcp.json file from MCP configuration");
+      }
+
+      logger.success(`\n🎉 Successfully imported from ${tool}`);
+      logger.log("You can now run 'rulesync generate' to create tool-specific configurations.");
+    } else if (result.errors.length > 0) {
+      logger.warn(`⚠️  Failed to import from ${tool}: ${result.errors[0]}`);
+      if (result.errors.length > 1) {
+        logger.info("  Detailed errors:");
+        for (const error of result.errors) {
+          logger.info(`    - ${error}`);
+        }
+      }
+      logger.error(`\n❌ Failed to import from ${tool}.`);
+      process.exit(1);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`❌ Error importing from ${tool}: ${errorMessage}`);
     process.exit(1);
   }
 }

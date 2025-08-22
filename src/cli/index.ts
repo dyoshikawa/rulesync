@@ -49,10 +49,7 @@ program
   .command("import")
   .description("Import configurations from AI tools to rulesync format")
   .option("--all", "[DEPRECATED] Import from all available tools (use --targets * instead)")
-  .option(
-    "-t, --targets <tools>",
-    "Comma-separated list of tools to import from (e.g., 'copilot,cursor,cline' or '*' for all)",
-  )
+  .option("-t, --targets <tool>", "Tool to import from (e.g., 'copilot', 'cursor', 'cline')")
   .option(
     "--features <features>",
     `Comma-separated list of features to import (${FEATURE_TYPES.join(",")}) or '*' for all`,
