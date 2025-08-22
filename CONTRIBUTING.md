@@ -2,8 +2,6 @@
 
 We welcome contributions to rulesync! This document outlines the process for contributing and how to get started.
 
-**English** | [日本語](./CONTRIBUTING.ja.md)
-
 ## Project Overview
 
 rulesync is a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
