@@ -1,6 +1,6 @@
 ---
 name: spec-planner
-description: This is the specification planner. The user asks the agent to create or modify a specification.
+description: This is the specification planner. The user asks the agent to create or modify a specification. This agent can be triggered by the user explicitly only.
 model: opus
 ---
 
