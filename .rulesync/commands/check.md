@@ -4,11 +4,9 @@ targets:
   - claudecode
 ---
 
-Execute the following commands and fix any failures until they PASS:
+Do the following actions and fix any failures if exists. Until all pass successfully, do the following actions again.
 
-- `pnpm fix`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm secretlint`
+1. Call the fix-planner subagent to get the plan to fix the code.
+2. Execute the plan while analyzing the related files.
 
 When finished, execute `git commit` and `git push`.

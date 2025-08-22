@@ -1,7 +1,8 @@
 ---
-description: 'Clean local branches'
+description: 'Clean branches'
 targets:
   - claudecode
 ---
 
-Delete all local branches except for current branch and main branch.
+1. Delete all local branches except for current branch and main branch.
+2. Run `git pull --prune`
