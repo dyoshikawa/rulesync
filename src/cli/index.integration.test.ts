@@ -279,6 +279,42 @@ describe("CLI Integration - Generate Command", () => {
     });
   });
 
+  describe("New --targets * syntax", () => {
+    it("should parse --targets * correctly", async () => {
+      mockParseTargets.mockReturnValue(["copilot", "cursor", "cline", "roo"]); // Mock ALL_TOOL_TARGETS subset
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["copilot", "cursor", "cline", "roo"]);
+
+      await program.parseAsync(["node", "rulesync", "generate", "--targets", "*"]);
+
+      expect(mockParseTargets).toHaveBeenCalledWith("*");
+      expect(mockGenerateCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools: ["copilot", "cursor", "cline", "roo"],
+        }),
+      );
+    });
+
+    it("should handle validation errors for mixed * and specific tools", async () => {
+      mockParseTargets.mockImplementation(() => {
+        throw new Error("Cannot use '*' (all tools) with specific tool targets");
+      });
+
+      const consoleSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit called");
+      });
+
+      await expect(
+        program.parseAsync(["node", "rulesync", "generate", "--targets", "*,copilot"]),
+      ).rejects.toThrow("process.exit called");
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        "Cannot use '*' (all tools) with specific tool targets",
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
   describe("Error handling", () => {
     it("should handle no tools specified", async () => {
       // When no tools are provided, it should pass an empty array to generateCommand

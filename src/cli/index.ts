@@ -64,10 +64,10 @@ program
 program
   .command("generate")
   .description("Generate configuration files for AI tools")
-  .option("--all", "Generate for all supported AI tools")
+  .option("--all", "[DEPRECATED] Generate for all supported AI tools (use --targets * instead)")
   .option(
     "-t, --targets <tools>",
-    "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or 'all')",
+    "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
   )
   .option("--agentsmd", "[DEPRECATED] Generate only for AGENTS.md (use --targets agentsmd)")
   .option(

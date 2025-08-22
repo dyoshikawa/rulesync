@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ALL_TOOL_TARGETS } from "../../types/index.js";
 import {
   checkDeprecatedFlags,
@@ -7,6 +7,13 @@ import {
   parseTargets,
   validateToolsNotEmpty,
 } from "./targets-parser.js";
+
+// Mock logger
+vi.mock("../../utils/logger.js", () => ({
+  logger: {
+    warn: vi.fn(),
+  },
+}));
 
 describe("parseTargets", () => {
   it("should parse comma-separated string", () => {
@@ -21,6 +28,11 @@ describe("parseTargets", () => {
 
   it("should handle 'all' keyword", () => {
     const result = parseTargets("all");
+    expect(result).toEqual([...ALL_TOOL_TARGETS]);
+  });
+
+  it("should handle '*' wildcard", () => {
+    const result = parseTargets("*");
     expect(result).toEqual([...ALL_TOOL_TARGETS]);
   });
 
@@ -39,9 +51,9 @@ describe("parseTargets", () => {
     expect(result).toEqual(["copilot", "cursor"]);
   });
 
-  it("should handle mix of tools and 'all'", () => {
-    const result = parseTargets("copilot,all,cursor");
-    // When 'all' is included, it should return all tools (order may vary due to Set)
+  it("should handle single 'all' tool correctly", () => {
+    const result = parseTargets("all");
+    // When 'all' is used alone, it should return all tools
     expect(result).toHaveLength(ALL_TOOL_TARGETS.length);
     expect(result).toEqual(expect.arrayContaining([...ALL_TOOL_TARGETS]));
   });
@@ -53,6 +65,8 @@ describe("parseTargets", () => {
 
   it("should throw error for invalid tool", () => {
     expect(() => parseTargets("invalid-tool")).toThrow("Invalid tool targets: invalid-tool");
+    expect(() => parseTargets("invalid-tool")).toThrow("Valid targets are:");
+    expect(() => parseTargets("invalid-tool")).toThrow("*, all");
   });
 
   it("should throw error for mixed valid and invalid tools", () => {
@@ -64,6 +78,24 @@ describe("parseTargets", () => {
   it("should filter empty strings", () => {
     const result = parseTargets("copilot,,cursor");
     expect(result).toEqual(["copilot", "cursor"]);
+  });
+
+  it("should throw error when * is combined with other tools", () => {
+    expect(() => parseTargets("*,copilot")).toThrow(
+      "Cannot use '*' (all tools) with specific tool targets",
+    );
+  });
+
+  it("should throw error when * is combined with other tools (different order)", () => {
+    expect(() => parseTargets("copilot,*,cursor")).toThrow(
+      "Cannot use '*' (all tools) with specific tool targets",
+    );
+  });
+
+  it("should throw error when all is combined with other tools", () => {
+    expect(() => parseTargets("all,copilot")).toThrow(
+      "Cannot use '*' (all tools) with specific tool targets",
+    );
   });
 });
 
@@ -175,6 +207,18 @@ describe("mergeAndDeduplicateTools", () => {
     expect(result).toEqual(ALL_TOOL_TARGETS);
   });
 
+  it("should show deprecation warning when allFlag is true", async () => {
+    const { logger } = await import("../../utils/logger.js");
+    const mockWarn = vi.mocked(logger.warn);
+
+    mergeAndDeduplicateTools(["copilot"], ["cursor"], true);
+
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining("DEPRECATED: The --all flag is deprecated"),
+    );
+    expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining("--targets *"));
+  });
+
   it("should merge targets and deprecated tools", () => {
     const result = mergeAndDeduplicateTools(["copilot", "cursor"], ["cline", "roo"], false);
     expect(result).toEqual(["copilot", "cursor", "cline", "roo"]);
@@ -208,7 +252,7 @@ describe("validateToolsNotEmpty", () => {
 
   it("should throw for empty array", () => {
     expect(() => validateToolsNotEmpty([])).toThrow(
-      "No tools specified. Use --targets <tool1,tool2> or --all to specify which tools to generate for.",
+      "No tools specified. Use --targets <tool1,tool2> or --targets * to specify which tools to generate for.",
     );
   });
 
@@ -256,6 +300,16 @@ describe("Integration tests", () => {
     const deprecatedTools = checkDeprecatedFlags({ cursor: true });
     const mergedTools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, true);
 
+    expect(mergedTools).toEqual([...ALL_TOOL_TARGETS]);
+    expect(() => validateToolsNotEmpty(mergedTools)).not.toThrow();
+  });
+
+  it("should handle new * wildcard syntax", () => {
+    const targetsTools = parseTargets("*");
+    const deprecatedTools = checkDeprecatedFlags({});
+    const mergedTools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, false);
+
+    expect(targetsTools).toEqual([...ALL_TOOL_TARGETS]);
     expect(mergedTools).toEqual([...ALL_TOOL_TARGETS]);
     expect(() => validateToolsNotEmpty(mergedTools)).not.toThrow();
   });

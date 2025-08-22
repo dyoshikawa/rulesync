@@ -1,4 +1,5 @@
 import { ALL_TOOL_TARGETS, type ToolTarget } from "../../types/index.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * Parse targets from a string or array of strings
@@ -24,10 +25,12 @@ export function parseTargets(targetsInput: string | string[]): ToolTarget[] {
 
   const results: ToolTarget[] = [];
   const errors: string[] = [];
+  let hasWildcard = false;
 
   for (const targetString of targetStrings) {
-    if (targetString === "all") {
-      // "all" keyword means all tools
+    if (targetString === "*" || targetString === "all") {
+      // "*" or "all" keyword means all tools
+      hasWildcard = true;
       results.push(...ALL_TOOL_TARGETS);
     } else if (isValidToolTarget(targetString)) {
       results.push(targetString);
@@ -36,10 +39,17 @@ export function parseTargets(targetsInput: string | string[]): ToolTarget[] {
     }
   }
 
+  // Validate that * is not used with other specific tools
+  if (hasWildcard && targetStrings.length > 1) {
+    throw new Error(
+      "Cannot use '*' (all tools) with specific tool targets. Use either '--targets *' for all tools, or specify individual tools.",
+    );
+  }
+
   if (errors.length > 0) {
     const validTargets = ALL_TOOL_TARGETS.join(", ");
     throw new Error(
-      `Invalid tool targets: ${errors.join(", ")}. Valid targets are: ${validTargets}, all`,
+      `Invalid tool targets: ${errors.join(", ")}. Valid targets are: ${validTargets}, *, all`,
     );
   }
 
@@ -122,6 +132,15 @@ export function mergeAndDeduplicateTools(
   allFlag: boolean,
 ): ToolTarget[] {
   if (allFlag) {
+    // Show deprecation warning for --all flag
+    logger.warn(
+      [
+        "⚠️  DEPRECATED: The --all flag is deprecated and will be removed in a future version.",
+        "   Current: rulesync generate --all",
+        "   New:     rulesync generate --targets *",
+        "   Please update your scripts to use the new --targets flag.",
+      ].join("\n"),
+    );
     return [...ALL_TOOL_TARGETS];
   }
 
@@ -137,7 +156,7 @@ export function mergeAndDeduplicateTools(
 export function validateToolsNotEmpty(tools: ToolTarget[]): void {
   if (tools.length === 0) {
     throw new Error(
-      "No tools specified. Use --targets <tool1,tool2> or --all to specify which tools to generate for.",
+      "No tools specified. Use --targets <tool1,tool2> or --targets * to specify which tools to generate for.",
     );
   }
 }

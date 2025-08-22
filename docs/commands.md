@@ -83,7 +83,7 @@ npx rulesync generate [options]
 
 **Options:**
 - `-t, --targets <tools>`: Comma-separated list of tools to generate for (recommended)
-- `--all`: Generate for all supported AI tools
+- `--all`: ⚠️ **[DEPRECATED]** Generate for all supported AI tools (use `--targets *` instead)
 - `--delete`: Remove existing generated files before creating new ones
 - `--verbose`, `-v`: Show detailed generation process
 - `--config <path>`: Use specific configuration file
@@ -94,7 +94,7 @@ npx rulesync generate [options]
 Use the `--targets` flag to specify which tools to generate for:
 - **Single tool**: `--targets copilot`
 - **Multiple tools**: `--targets copilot,cursor,cline`
-- **All tools**: `--targets all` (same as `--all`)
+- **All tools**: `--targets *` (preferred) or `--targets all` (legacy)
 
 **Available Tools:**
 `agentsmd`, `amazonqcli`, `augmentcode`, `augmentcode-legacy`, `copilot`, `cursor`, `cline`, `claudecode`, `codexcli`, `opencode`, `qwencode`, `roo`, `geminicli`, `kiro`, `junie`, `windsurf`
@@ -120,12 +120,14 @@ The following individual flags are deprecated and will be removed in a future ve
 
 **Examples:**
 ```bash
-# Generate for all tools
-npx rulesync generate --all
-# or
-npx rulesync generate --targets all
+# Generate for all tools (new preferred syntax)
+npx rulesync generate --targets *
 
-# Generate for specific tools (recommended new syntax)
+# Generate for all tools (legacy but still works)
+npx rulesync generate --targets all
+npx rulesync generate --all  # Shows deprecation warning
+
+# Generate for specific tools (recommended syntax)
 npx rulesync generate --targets copilot,cursor,cline
 npx rulesync generate --targets claudecode
 npx rulesync generate -t copilot,cursor
@@ -134,14 +136,23 @@ npx rulesync generate -t copilot,cursor
 npx rulesync generate --targets copilot,cursor --delete --verbose
 
 # Generate for monorepo packages
-npx rulesync generate --targets all --base-dir ./packages/frontend,./packages/backend
+npx rulesync generate --targets * --base-dir ./packages/frontend,./packages/backend
 
 # Legacy syntax (deprecated but still works)
 npx rulesync generate --cursor --claudecode  # Shows deprecation warning
+
+# ❌ Invalid syntax (will show error)
+npx rulesync generate --targets *,copilot  # Error: cannot mix * with specific tools
 ```
 
 **Migration Examples:**
 ```bash
+# Old syntax (deprecated)
+npx rulesync generate --all
+
+# New syntax (recommended)
+npx rulesync generate --targets *
+
 # Old syntax (deprecated)
 npx rulesync generate --copilot --cursor --cline
 
