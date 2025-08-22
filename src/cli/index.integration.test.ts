@@ -24,7 +24,6 @@ vi.mock("./utils/targets-parser.js", () => ({
   checkDeprecatedFlags: vi.fn(),
   getDeprecationWarning: vi.fn(),
   mergeAndDeduplicateTools: vi.fn(),
-  validateToolsNotEmpty: vi.fn(),
 }));
 
 import { generateCommand } from "./commands/index.js";
@@ -33,7 +32,6 @@ import {
   getDeprecationWarning,
   mergeAndDeduplicateTools,
   parseTargets,
-  validateToolsNotEmpty,
 } from "./utils/targets-parser.js";
 
 const mockGenerateCommand = vi.mocked(generateCommand);
@@ -41,7 +39,6 @@ const mockParseTargets = vi.mocked(parseTargets);
 const mockCheckDeprecatedFlags = vi.mocked(checkDeprecatedFlags);
 const mockGetDeprecationWarning = vi.mocked(getDeprecationWarning);
 const mockMergeAndDeduplicateTools = vi.mocked(mergeAndDeduplicateTools);
-const mockValidateToolsNotEmpty = vi.mocked(validateToolsNotEmpty);
 
 describe("CLI Integration - Generate Command", () => {
   let program: Command;
@@ -91,8 +88,7 @@ describe("CLI Integration - Generate Command", () => {
           // Merge and deduplicate tools from all sources
           tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, options.all === true);
 
-          // Validate that at least one tool is specified
-          validateToolsNotEmpty(tools);
+          // Don't validate here - let generateCommand handle validation
 
           const generateOptions = {
             verbose: options.verbose,
@@ -112,7 +108,6 @@ describe("CLI Integration - Generate Command", () => {
     mockCheckDeprecatedFlags.mockReturnValue([]);
     mockGetDeprecationWarning.mockReturnValue("Deprecation warning");
     mockMergeAndDeduplicateTools.mockReturnValue(["copilot", "cursor"]);
-    mockValidateToolsNotEmpty.mockReturnValue();
     mockGenerateCommand.mockResolvedValue();
   });
 
@@ -285,21 +280,20 @@ describe("CLI Integration - Generate Command", () => {
   });
 
   describe("Error handling", () => {
-    it("should handle validation errors", async () => {
-      mockValidateToolsNotEmpty.mockImplementation(() => {
-        throw new Error("No tools specified");
-      });
+    it("should handle no tools specified", async () => {
+      // When no tools are provided, it should pass an empty array to generateCommand
+      mockParseTargets.mockReturnValue([]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue([]);
 
-      const consoleSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit called");
-      });
+      await program.parseAsync(["node", "rulesync", "generate"]);
 
-      await expect(program.parseAsync(["node", "rulesync", "generate"])).rejects.toThrow(
-        "process.exit called",
+      // generateCommand should be called with undefined tools
+      expect(mockGenerateCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools: undefined,
+        }),
       );
-
-      expect(mockLogger.error).toHaveBeenCalledWith("No tools specified");
-      expect(consoleSpy).toHaveBeenCalledWith(1);
     });
 
     it("should handle parsing errors", async () => {

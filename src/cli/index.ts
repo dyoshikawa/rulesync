@@ -19,7 +19,6 @@ import {
   getDeprecationWarning,
   mergeAndDeduplicateTools,
   parseTargets,
-  validateToolsNotEmpty,
 } from "./utils/targets-parser.js";
 
 const program = new Command();
@@ -118,8 +117,9 @@ program
       // Merge and deduplicate tools from all sources
       tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, options.all === true);
 
-      // Validate that at least one tool is specified
-      validateToolsNotEmpty(tools);
+      // Don't validate here - let generateCommand handle validation
+      // after loading config file. This allows the config file's
+      // targets field to be used as the default.
 
       const generateOptions: {
         verbose?: boolean;

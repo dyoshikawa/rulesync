@@ -49,27 +49,22 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
     if (!config.defaultTargets || config.defaultTargets.length === 0) {
       const errorMessage = `❌ Error: At least one tool must be specified.
 
+You can specify tools in three ways:
+
+1. Use the --targets flag:
+   rulesync generate --targets copilot,cursor
+
+2. Use the --all flag to generate for all tools:
+   rulesync generate --all
+
+3. Set targets in rulesync.jsonc:
+   {
+     "targets": ["copilot", "cursor"]
+   }
+
 Available tools:
-  --augmentcode         Generate for AugmentCode
-  --augmentcode-legacy  Generate for AugmentCode legacy format
-  --copilot             Generate for GitHub Copilot
-  --cursor              Generate for Cursor
-  --cline               Generate for Cline
-  --codexcli            Generate for OpenAI Codex CLI
-  --claudecode          Generate for Claude Code
-  --roo                 Generate for Roo Code
-  --geminicli           Generate for Gemini CLI
-  --junie               Generate for JetBrains Junie
-  --qwencode            Generate for Qwen Code
-  --kiro                Generate for Kiro IDE
-  --opencode            Generate for OpenCode
-  --windsurf            Generate for Windsurf
-
-Example:
-  rulesync generate --copilot --cursor
-
-Or specify tools in rulesync.jsonc:
-  "tools": ["copilot", "cursor"]`;
+  agentsmd, amazonqcli, augmentcode, augmentcode-legacy, copilot, cursor, cline,
+  claudecode, codexcli, opencode, qwencode, roo, geminicli, kiro, junie, windsurf`;
 
       logger.error(errorMessage);
       process.exit(1);

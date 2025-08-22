@@ -154,9 +154,6 @@ describe("generateCommand", () => {
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining("❌ Error: At least one tool must be specified."),
     );
-    expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Available tools:"));
-    expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("--copilot"));
-    expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("--cursor"));
   });
 
   it("should exit if .rulesync directory does not exist", async () => {
