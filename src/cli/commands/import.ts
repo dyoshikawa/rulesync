@@ -1,9 +1,31 @@
 import { importConfiguration } from "../../core/importer.js";
+import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
+import { normalizeFeatures } from "../../utils/feature-validator.js";
 import { logger } from "../../utils/logger.js";
+
+/**
+ * Show backward compatibility warning when --features is not specified
+ */
+function showBackwardCompatibilityWarning(): void {
+  const yellow = "\x1b[33m";
+  const gray = "\x1b[90m";
+  const cyan = "\x1b[36m";
+  const reset = "\x1b[0m";
+
+  logger.warn(
+    `\n${yellow}⚠️  Warning: No --features option specified.${reset}\n` +
+      `${gray}Currently importing all features for backward compatibility.${reset}\n` +
+      `${gray}In future versions, this behavior may change.${reset}\n` +
+      `${gray}Please specify --features explicitly:${reset}\n` +
+      `${cyan}  rulesync import --targets cursor,copilot --features rules,mcp,ignore${reset}\n` +
+      `${gray}Or use --features * to import all features.${reset}\n`,
+  );
+}
 
 export interface ImportOptions {
   targets?: ToolTarget[];
+  features?: FeatureType[] | "*" | undefined;
   all?: boolean;
   agentsmd?: boolean;
   amazonqcli?: boolean;
@@ -25,6 +47,26 @@ export interface ImportOptions {
 export async function importCommand(options: ImportOptions = {}): Promise<void> {
   // Set logger verbosity based on options
   logger.setVerbose(options.verbose || false);
+
+  // Handle features option with backward compatibility
+  let resolvedFeatures: FeatureType[] | "*" | undefined;
+  let showWarning = false;
+
+  if (options.features !== undefined) {
+    resolvedFeatures = options.features;
+  } else {
+    // No features specified - default to all features for backward compatibility
+    resolvedFeatures = "*";
+    showWarning = true;
+  }
+
+  // Show backward compatibility warning if features are not specified
+  if (showWarning) {
+    showBackwardCompatibilityWarning();
+  }
+
+  // Normalize features for processing
+  const normalizedFeatures = normalizeFeatures(resolvedFeatures);
 
   let tools: ToolTarget[] = [];
 
@@ -66,6 +108,7 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
     try {
       const result = await importConfiguration({
         tool,
+        features: normalizedFeatures,
         verbose: options.verbose ?? false,
         useLegacyLocation: options.legacy ?? false,
       });

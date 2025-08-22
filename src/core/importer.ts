@@ -15,6 +15,7 @@ import {
   parseQwenConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
+import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { writeFileContent } from "../utils/index.js";
@@ -22,6 +23,7 @@ import { logger } from "../utils/logger.js";
 
 export interface ImportOptions {
   tool: ToolTarget;
+  features?: FeatureType[];
   baseDir?: string;
   rulesDir?: string;
   verbose?: boolean;
@@ -39,6 +41,7 @@ export interface ImportResult {
 export async function importConfiguration(options: ImportOptions): Promise<ImportResult> {
   const {
     tool,
+    features = ["rules", "commands", "mcp", "ignore"], // Default to all features for backward compatibility
     baseDir = process.cwd(),
     rulesDir = ".rulesync",
     verbose = false,
@@ -158,6 +161,18 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
+  // Check if no relevant features are enabled
+  const rulesEnabled = features.includes("rules") || features.includes("commands");
+  const ignoreEnabled = features.includes("ignore");
+  const mcpEnabled = features.includes("mcp");
+
+  if (!rulesEnabled && !ignoreEnabled && !mcpEnabled) {
+    if (verbose) {
+      logger.log("No relevant features enabled for import");
+    }
+    return { success: false, rulesCreated: 0, errors: ["No features enabled for import"] };
+  }
+
   // Ensure .rulesync directory exists
   const rulesDirPath = join(baseDir, rulesDir);
   try {
@@ -169,45 +184,59 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  // Write rule files
+  // Write rule files (only if rules or commands features are enabled)
   let rulesCreated = 0;
-  for (const rule of rules) {
-    try {
-      const baseFilename = rule.filename;
-      let targetDir = rulesDirPath;
+  if (rulesEnabled) {
+    for (const rule of rules) {
+      try {
+        const baseFilename = rule.filename;
+        let targetDir = rulesDirPath;
 
-      // Commands go to .rulesync/commands/ subdirectory
-      if (rule.type === "command") {
-        targetDir = join(rulesDirPath, "commands");
-        const { mkdir } = await import("node:fs/promises");
-        await mkdir(targetDir, { recursive: true });
-      } else {
-        // For regular rules, use legacy location or new location based on option
-        if (!useLegacyLocation) {
-          targetDir = join(rulesDirPath, "rules");
+        // Commands go to .rulesync/commands/ subdirectory
+        if (rule.type === "command") {
+          // Only process commands if commands feature is enabled
+          if (!features.includes("commands")) {
+            continue;
+          }
+          targetDir = join(rulesDirPath, "commands");
           const { mkdir } = await import("node:fs/promises");
           await mkdir(targetDir, { recursive: true });
+        } else {
+          // Only process regular rules if rules feature is enabled
+          if (!features.includes("rules")) {
+            continue;
+          }
+          // For regular rules, use legacy location or new location based on option
+          if (!useLegacyLocation) {
+            targetDir = join(rulesDirPath, "rules");
+            const { mkdir } = await import("node:fs/promises");
+            await mkdir(targetDir, { recursive: true });
+          }
         }
+
+        const filePath = join(targetDir, `${baseFilename}.md`);
+        const content = generateRuleFileContent(rule);
+
+        await writeFileContent(filePath, content);
+        rulesCreated++;
+
+        if (verbose) {
+          logger.success(`Created rule file: ${filePath}`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errors.push(`Failed to create rule file for ${rule.filename}: ${errorMessage}`);
       }
-
-      const filePath = join(targetDir, `${baseFilename}.md`);
-      const content = generateRuleFileContent(rule);
-
-      await writeFileContent(filePath, content);
-      rulesCreated++;
-
-      if (verbose) {
-        logger.success(`Created rule file: ${filePath}`);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to create rule file for ${rule.filename}: ${errorMessage}`);
+    }
+  } else {
+    if (verbose && rules.length > 0) {
+      logger.log(`Skipping ${rules.length} rule(s) (rules/commands features not enabled)`);
     }
   }
 
-  // Create .rulesyncignore file if ignore patterns exist
+  // Create .rulesyncignore file if ignore patterns exist and ignore feature is enabled
   let ignoreFileCreated = false;
-  if (ignorePatterns && ignorePatterns.length > 0) {
+  if (ignoreEnabled && ignorePatterns && ignorePatterns.length > 0) {
     try {
       const rulesyncignorePath = join(baseDir, ".rulesyncignore");
       const ignoreContent = `${ignorePatterns.join("\n")}\n`;
@@ -220,11 +249,13 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       const errorMessage = error instanceof Error ? error.message : String(error);
       errors.push(`Failed to create .rulesyncignore: ${errorMessage}`);
     }
+  } else if (verbose && ignorePatterns && ignorePatterns.length > 0 && !ignoreEnabled) {
+    logger.log(`Skipping ignore patterns (ignore feature not enabled)`);
   }
 
-  // Create .mcp.json file if MCP servers exist
+  // Create .mcp.json file if MCP servers exist and mcp feature is enabled
   let mcpFileCreated = false;
-  if (mcpServers && Object.keys(mcpServers).length > 0) {
+  if (mcpEnabled && mcpServers && Object.keys(mcpServers).length > 0) {
     try {
       const mcpPath = join(baseDir, rulesDir, ".mcp.json");
       const mcpContent = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
@@ -237,6 +268,8 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       const errorMessage = error instanceof Error ? error.message : String(error);
       errors.push(`Failed to create .mcp.json: ${errorMessage}`);
     }
+  } else if (verbose && mcpServers && Object.keys(mcpServers).length > 0 && !mcpEnabled) {
+    logger.log(`Skipping MCP configuration (mcp feature not enabled)`);
   }
 
   return {

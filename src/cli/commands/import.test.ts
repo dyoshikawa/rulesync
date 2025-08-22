@@ -45,11 +45,13 @@ describe("import command", () => {
     expect(importer.importConfiguration).toHaveBeenCalledTimes(2);
     expect(importer.importConfiguration).toHaveBeenNthCalledWith(1, {
       tool: "claudecode",
+      features: ["rules", "commands", "mcp", "ignore"],
       verbose: false,
       useLegacyLocation: false,
     });
     expect(importer.importConfiguration).toHaveBeenNthCalledWith(2, {
       tool: "cursor",
+      features: ["rules", "commands", "mcp", "ignore"],
       verbose: false,
       useLegacyLocation: false,
     });
@@ -67,6 +69,7 @@ describe("import command", () => {
 
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "claudecode",
+      features: ["rules", "commands", "mcp", "ignore"],
       verbose: false,
       useLegacyLocation: false,
     });
@@ -167,6 +170,7 @@ describe("import command", () => {
 
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool,
+        features: ["rules", "commands", "mcp", "ignore"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -185,6 +189,7 @@ describe("import command", () => {
 
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "geminicli",
+      features: ["rules", "commands", "mcp", "ignore"],
       verbose: true,
       useLegacyLocation: false,
     });
@@ -202,6 +207,7 @@ describe("import command", () => {
 
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "geminicli",
+      features: ["rules", "commands", "mcp", "ignore"],
       verbose: false,
       useLegacyLocation: true,
     });
@@ -221,6 +227,7 @@ describe("import command", () => {
 
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool: "cursor",
+        features: ["rules", "commands", "mcp", "ignore"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -240,16 +247,19 @@ describe("import command", () => {
       expect(importer.importConfiguration).toHaveBeenCalledTimes(3);
       expect(importer.importConfiguration).toHaveBeenNthCalledWith(1, {
         tool: "cursor",
+        features: ["rules", "commands", "mcp", "ignore"],
         verbose: false,
         useLegacyLocation: false,
       });
       expect(importer.importConfiguration).toHaveBeenNthCalledWith(2, {
         tool: "copilot",
+        features: ["rules", "commands", "mcp", "ignore"],
         verbose: false,
         useLegacyLocation: false,
       });
       expect(importer.importConfiguration).toHaveBeenNthCalledWith(3, {
         tool: "cline",
+        features: ["rules", "commands", "mcp", "ignore"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -341,6 +351,90 @@ describe("import command", () => {
       expect(importer.importConfiguration).toHaveBeenCalledTimes(1);
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool: "cursor",
+        features: ["rules", "commands", "mcp", "ignore"],
+        verbose: false,
+        useLegacyLocation: false,
+      });
+    });
+  });
+
+  // Features option tests
+  describe("--features option", () => {
+    it("should pass features array to import configuration", async () => {
+      const mockResult = {
+        success: true,
+        rulesCreated: 1,
+        errors: [],
+      };
+      vi.spyOn(importer, "importConfiguration").mockResolvedValueOnce(mockResult);
+
+      await importCommand({ targets: ["cursor"], features: ["rules", "mcp"] });
+
+      expect(importer.importConfiguration).toHaveBeenCalledWith({
+        tool: "cursor",
+        features: ["rules", "mcp"],
+        verbose: false,
+        useLegacyLocation: false,
+      });
+    });
+
+    it("should pass wildcard features to import configuration", async () => {
+      const mockResult = {
+        success: true,
+        rulesCreated: 1,
+        errors: [],
+      };
+      vi.spyOn(importer, "importConfiguration").mockResolvedValueOnce(mockResult);
+
+      await importCommand({ targets: ["cursor"], features: "*" });
+
+      expect(importer.importConfiguration).toHaveBeenCalledWith({
+        tool: "cursor",
+        features: ["rules", "commands", "mcp", "ignore"],
+        verbose: false,
+        useLegacyLocation: false,
+      });
+    });
+
+    it("should show backward compatibility warning when no features specified", async () => {
+      const mockResult = {
+        success: true,
+        rulesCreated: 1,
+        errors: [],
+      };
+      vi.spyOn(importer, "importConfiguration").mockResolvedValueOnce(mockResult);
+
+      await importCommand({ targets: ["cursor"] });
+
+      // Should show warning and default to all features
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("⚠️  Warning: No --features option specified"),
+      );
+      expect(importer.importConfiguration).toHaveBeenCalledWith({
+        tool: "cursor",
+        features: ["rules", "commands", "mcp", "ignore"],
+        verbose: false,
+        useLegacyLocation: false,
+      });
+    });
+
+    it("should not show warning when features are explicitly specified", async () => {
+      const mockResult = {
+        success: true,
+        rulesCreated: 1,
+        errors: [],
+      };
+      vi.spyOn(importer, "importConfiguration").mockResolvedValueOnce(mockResult);
+
+      await importCommand({ targets: ["cursor"], features: ["rules"] });
+
+      // Should not show warning
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("⚠️  Warning: No --features option specified"),
+      );
+      expect(importer.importConfiguration).toHaveBeenCalledWith({
+        tool: "cursor",
+        features: ["rules"],
         verbose: false,
         useLegacyLocation: false,
       });

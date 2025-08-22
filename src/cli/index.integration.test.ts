@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockLogger } from "../test-utils/index.js";
+import type { ToolTarget } from "../types/index.js";
 
 // Mock the dependencies
 vi.mock("../utils/logger.js", () => ({
@@ -26,7 +27,7 @@ vi.mock("./utils/targets-parser.js", () => ({
   mergeAndDeduplicateTools: vi.fn(),
 }));
 
-import { generateCommand } from "./commands/index.js";
+import { generateCommand, importCommand } from "./commands/index.js";
 import {
   checkDeprecatedFlags,
   getDeprecationWarning,
@@ -35,6 +36,7 @@ import {
 } from "./utils/targets-parser.js";
 
 const mockGenerateCommand = vi.mocked(generateCommand);
+const mockImportCommand = vi.mocked(importCommand);
 const mockParseTargets = vi.mocked(parseTargets);
 const mockCheckDeprecatedFlags = vi.mocked(checkDeprecatedFlags);
 const mockGetDeprecationWarning = vi.mocked(getDeprecationWarning);
@@ -369,6 +371,198 @@ describe("CLI Integration - Generate Command", () => {
           tools: ["copilot"],
           verbose: true,
           delete: true,
+        }),
+      );
+    });
+  });
+});
+
+describe("CLI Integration - Import Command", () => {
+  let program: Command;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    // Reset the program for each test
+    program = new Command();
+    program.name("rulesync").description("Unified AI rules management CLI tool").version("0.65.0");
+
+    // Add the import command (similar to the actual implementation)
+    program
+      .command("import")
+      .description("Import configurations from AI tools to rulesync format")
+      .option("--all", "[DEPRECATED] Import from all available tools (use --targets * instead)")
+      .option(
+        "-t, --targets <tools>",
+        "Comma-separated list of tools to import from (e.g., 'copilot,cursor,cline' or '*' for all)",
+      )
+      .option(
+        "--features <features>",
+        "Comma-separated list of features to import (rules,commands,mcp,ignore) or '*' for all",
+        (value) => {
+          if (value === "*") return "*";
+          return value
+            .split(",")
+            .map((f) => f.trim())
+            .filter(Boolean);
+        },
+      )
+      .option("--copilot", "[DEPRECATED] Import from GitHub Copilot (use --targets copilot)")
+      .option("--cursor", "[DEPRECATED] Import from Cursor (use --targets cursor)")
+      .option("--claudecode", "[DEPRECATED] Import from Claude Code (use --targets claudecode)")
+      .option("-v, --verbose", "Verbose output")
+      .option(
+        "--legacy",
+        "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)",
+      )
+      .action(async (options) => {
+        try {
+          let tools: ToolTarget[] = [];
+
+          // Parse tools from --targets flag
+          const targetsTools: ToolTarget[] = options.targets ? parseTargets(options.targets) : [];
+
+          // Check for deprecated individual flags
+          const deprecatedTools: ToolTarget[] = checkDeprecatedFlags(options);
+
+          // Show deprecation warning if deprecated flags are used
+          if (deprecatedTools.length > 0) {
+            mockLogger.warn(getDeprecationWarning(deprecatedTools, "import"));
+          }
+
+          // Merge and deduplicate tools from all sources
+          tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, options.all === true);
+
+          const importOptions = {
+            ...(tools.length > 0 && { targets: tools }),
+            ...(options.features && { features: options.features }),
+            verbose: options.verbose,
+            legacy: options.legacy,
+          };
+
+          await importCommand(importOptions);
+        } catch (error) {
+          mockLogger.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+      });
+  });
+
+  describe("--features option", () => {
+    it("should parse and pass features array to import command", async () => {
+      mockParseTargets.mockReturnValue(["cursor"]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["cursor"]);
+
+      await program.parseAsync([
+        "node",
+        "rulesync",
+        "import",
+        "--targets",
+        "cursor",
+        "--features",
+        "rules,mcp",
+      ]);
+
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targets: ["cursor"],
+          features: ["rules", "mcp"],
+        }),
+      );
+    });
+
+    it("should parse wildcard features correctly", async () => {
+      mockParseTargets.mockReturnValue(["claudecode"]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["claudecode"]);
+
+      await program.parseAsync([
+        "node",
+        "rulesync",
+        "import",
+        "--targets",
+        "claudecode",
+        "--features",
+        "*",
+      ]);
+
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targets: ["claudecode"],
+          features: "*",
+        }),
+      );
+    });
+
+    it("should handle single feature", async () => {
+      mockParseTargets.mockReturnValue(["copilot"]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["copilot"]);
+
+      await program.parseAsync([
+        "node",
+        "rulesync",
+        "import",
+        "--targets",
+        "copilot",
+        "--features",
+        "rules",
+      ]);
+
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targets: ["copilot"],
+          features: ["rules"],
+        }),
+      );
+    });
+
+    it("should not pass features when not specified", async () => {
+      mockParseTargets.mockReturnValue(["cursor"]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["cursor"]);
+
+      await program.parseAsync(["node", "rulesync", "import", "--targets", "cursor"]);
+
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targets: ["cursor"],
+          // features should be undefined when not specified
+        }),
+      );
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          features: expect.anything(),
+        }),
+      );
+    });
+  });
+
+  describe("Combined options", () => {
+    it("should handle targets, features, and other options together", async () => {
+      mockParseTargets.mockReturnValue(["cursor", "copilot"]);
+      mockCheckDeprecatedFlags.mockReturnValue([]);
+      mockMergeAndDeduplicateTools.mockReturnValue(["cursor", "copilot"]);
+
+      await program.parseAsync([
+        "node",
+        "rulesync",
+        "import",
+        "--targets",
+        "cursor,copilot",
+        "--features",
+        "rules,ignore",
+        "--verbose",
+        "--legacy",
+      ]);
+
+      expect(mockImportCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targets: ["cursor", "copilot"],
+          features: ["rules", "ignore"],
+          verbose: true,
+          legacy: true,
         }),
       );
     });
