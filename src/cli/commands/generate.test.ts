@@ -178,9 +178,12 @@ describe("generateCommand", () => {
 
     await generateCommand({ tools: ["copilot"] });
 
+    // Check that --features warning is shown
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      "⚠️  No rule configurations generated for /workspace",
+      expect.stringContaining("⚠️  Warning: No --features option specified"),
     );
+
+    // Check that no files generated warning is shown
     expect(mockLogger.warn).toHaveBeenCalledWith(
       "⚠️  No files generated for enabled features: rules, commands, mcp, ignore",
     );
