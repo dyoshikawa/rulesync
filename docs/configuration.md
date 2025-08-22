@@ -10,10 +10,10 @@ This comprehensive guide covers all aspects of rulesync configuration, from basi
 
 Rule files are Markdown documents with optional YAML frontmatter. Starting from v0.62.0, rules can be placed in two locations:
 
-- **Recommended**: `.rulesync/rules/*.md` (new organized structure)
-- **Legacy**: `.rulesync/*.md` (backward compatible)
+- **Recommended**: `.rulesync/rules/*.md` (organized structure for better project management)
+- **Legacy**: `.rulesync/*.md` (backward compatible for existing projects)
 
-When both locations contain files with the same name, the new location takes precedence.
+The system automatically detects which structure you're using and maintains compatibility. New projects default to the organized structure, while existing projects continue working with their current layout.
 
 ```markdown
 ---

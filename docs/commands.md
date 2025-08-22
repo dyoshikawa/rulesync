@@ -114,8 +114,8 @@ The `--features` flag allows selective generation of specific feature types:
 - **Validation**: Cannot mix `*` with specific features
 - **Backward compatibility**: Defaults to all features when not specified (shows warning)
 
-**Available Tools (16 total):**
-`agentsmd`, `amazonqcli`, `augmentcode`, `augmentcode-legacy`, `copilot`, `cursor`, `cline`, `claudecode`, `codexcli`, `opencode`, `qwencode`, `roo`, `geminicli`, `kiro`, `junie`, `windsurf`
+**Available Tools (19 total):**
+`agentsmd`, `amazonqcli`, `augmentcode`, `augmentcode-legacy`, `claudecode`, `cline`, `codexcli`, `copilot`, `cursor`, `geminicli`, `junie`, `kiro`, `opencode`, `qwencode`, `roo`, `windsurf`
 
 **Available Features (4 total):**
 - **`rules`**: Core AI assistant rules and instructions
@@ -303,19 +303,25 @@ Import existing AI tool configurations into rulesync format.
 npx rulesync import [options]
 ```
 
-**Tool-Specific Import Flags:**
-- `--claudecode`: Import from Claude Code (`CLAUDE.md`, `.claude/memories/`, `.claude/commands/`)
-- `--cursor`: Import from Cursor (`.cursorrules`, `.cursor/rules/`, `.cursor/mcp.json`)
-- `--copilot`: Import from GitHub Copilot (`.github/copilot-instructions.md`, `.github/instructions/`)
-- `--cline`: Import from Cline (`.cline/instructions.md`, `.clinerules/`)
-- `--augmentcode`: Import from AugmentCode (`.augment/rules/`)
-- `--augmentcode-legacy`: Import from legacy AugmentCode (`.augment-guidelines`)
-- `--roo`: Import from Roo Code (`.roo/instructions.md`, `.roo/rules/`)
-- `--geminicli`: Import from Gemini CLI (`GEMINI.md`, `.gemini/memories/`, `.gemini/commands/`)
-- `--qwencode`: Import from Qwen Code (`QWEN.md`, `.qwen/memories/`)
-- `--junie`: Import from JetBrains Junie (`.junie/guidelines.md`)
-- `--windsurf`: Import from Windsurf (`.windsurf/rules/`, `.windsurf-rules`)
-- `--agentsmd`: Import from AgentsMd (`AGENTS.md`, `.agents/memories/*.md`)
+**Options:**
+- `-t, --targets <tools>`: Comma-separated list of tools to import from (recommended)
+- `--features <features>`: Comma-separated list of features to import (rules, commands, mcp, ignore) or `*` for all
+- `--legacy`: Import to legacy directory structure (`.rulesync/*.md`)
+- `--verbose`, `-v`: Show detailed import process
+
+**⚠️ Deprecated Tool-Specific Import Flags (use --targets instead):**
+- `--claudecode` → `--targets claudecode`: Import from Claude Code (`CLAUDE.md`, `.claude/memories/`, `.claude/commands/`)
+- `--cursor` → `--targets cursor`: Import from Cursor (`.cursorrules`, `.cursor/rules/`, `.cursor/mcp.json`)
+- `--copilot` → `--targets copilot`: Import from GitHub Copilot (`.github/copilot-instructions.md`, `.github/instructions/`)
+- `--cline` → `--targets cline`: Import from Cline (`.cline/instructions.md`, `.clinerules/`)
+- `--augmentcode` → `--targets augmentcode`: Import from AugmentCode (`.augment/rules/`)
+- `--augmentcode-legacy` → `--targets augmentcode-legacy`: Import from legacy AugmentCode (`.augment-guidelines`)
+- `--roo` → `--targets roo`: Import from Roo Code (`.roo/instructions.md`, `.roo/rules/`)
+- `--geminicli` → `--targets geminicli`: Import from Gemini CLI (`GEMINI.md`, `.gemini/memories/`, `.gemini/commands/`)
+- `--qwencode` → `--targets qwencode`: Import from Qwen Code (`QWEN.md`, `.qwen/memories/`)
+- `--junie` → `--targets junie`: Import from JetBrains Junie (`.junie/guidelines.md`)
+- `--windsurf` → `--targets windsurf`: Import from Windsurf (`.windsurf/rules/`, `.windsurf-rules`)
+- `--agentsmd` → `--targets agentsmd`: Import from AgentsMd (`AGENTS.md`, `.agents/memories/*.md`)
 
 **General Options:**
 - `--legacy`: Import to legacy directory structure (`.rulesync/*.md`)
@@ -326,21 +332,26 @@ npx rulesync import [options]
 **Examples:**
 ```bash
 # Import from Claude Code (to .rulesync/rules/)
-npx rulesync import --claudecode
+npx rulesync import --targets claudecode
+
+# Import from multiple tools
+npx rulesync import --targets claudecode,cursor,copilot
+
+# Import specific features
+npx rulesync import --targets cursor --features rules,commands
 
 # Import to legacy location (.rulesync/*.md)
-npx rulesync import --claudecode --legacy
-
-# Import from multiple tools (run separately)
-npx rulesync import --cursor
-npx rulesync import --copilot
-npx rulesync import --cline
+npx rulesync import --targets claudecode --legacy
 
 # Import with verbose output
-npx rulesync import --claudecode --verbose
+npx rulesync import --targets claudecode --verbose --features *
 
 # Import legacy AugmentCode format
-npx rulesync import --augmentcode-legacy
+npx rulesync import --targets augmentcode-legacy
+
+# Legacy syntax (deprecated, shows warnings)
+npx rulesync import --claudecode
+npx rulesync import --cursor --copilot
 ```
 
 **Import Features (v0.58.0+):**

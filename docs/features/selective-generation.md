@@ -11,7 +11,7 @@ rulesync supports four distinct feature types:
 ### 1. `rules` - Core AI Assistant Rules
 - **What it generates**: Main rule files and instructions for AI assistants
 - **File examples**: `CLAUDE.md`, `.cursor/rules/*.mdc`, `.github/instructions/*.md`
-- **Support**: All 16 AI tools support rule generation
+- **Support**: All 19 AI tools support rule generation
 - **Use case**: Essential configuration files for AI behavior
 
 ### 2. `commands` - Custom Slash Commands

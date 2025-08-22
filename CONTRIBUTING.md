@@ -10,21 +10,31 @@ rulesync is a Node.js CLI tool that automatically generates configuration files 
 
 ### Supported AI Tools
 
-rulesync now supports **12 AI development tools** with comprehensive rule, MCP, and ignore/permission file generation:
+rulesync now supports **19+ AI development tools** with comprehensive rule, MCP, and ignore/permission file generation:
 
-- **GitHub Copilot** Custom Instructions (.github/copilot-*.md)
-- **Cursor** Project Rules (4 rule types: always, manual, specificFiles, intelligently)
-- **Cline** Rules (.cline/instructions.md)
-- **Claude Code** Memory (CLAUDE.md + .claude/memories/)
-- **Amazon Q Developer CLI** Rules (.amazonq/rules/*.md + MCP configuration + context management + built-in slash commands)
-- **OpenCode** 🔐 **Permission-based configuration** (AGENTS.md + opencode.json with granular permissions)
-- **AugmentCode** Rules (current + legacy formats)
-- **Roo Code** Rules (.roo/instructions.md)
-- **Gemini CLI** (GEMINI.md + .gemini/memories/)
-- **JetBrains Junie** Guidelines (.junie/guidelines.md)
-- **Kiro IDE** Custom Steering Documents
-- **OpenAI Codex CLI** (AGENTS.md + **Advanced File Splitting** with XML document references + `.codex/memories/*.md`)
-- **Windsurf AI Code Editor** (.windsurf/rules/ + MCP + ignore files)
+**Core AI Development Tools:**
+- **GitHub Copilot** - Custom Instructions (`.github/copilot-instructions.md` + `.github/instructions/`)
+- **Cursor** - Project Rules (4 rule types: always, manual, specificFiles, intelligently + custom commands)
+- **Cline** - Rules & Instructions (`.cline/instructions.md` + `.clinerules/`)
+- **Claude Code** - Memory System (`CLAUDE.md` + `.claude/memories/` + custom slash commands)
+- **Amazon Q Developer CLI** - Rules & Context (`.amazonq/rules/*.md` + MCP + built-in commands)
+- **Windsurf** - AI Code Editor (`.windsurf/rules/` + MCP + ignore files)
+
+**Specialized AI Tools:**
+- **OpenCode** - 🔐 **Permission-based Security** (`AGENTS.md` + `opencode.json` with granular permissions)
+- **OpenAI Codex CLI** - **Advanced File Splitting** (`AGENTS.md` + XML document references + `.codex/memories/`)
+- **AugmentCode** - IDE Integration (`.augment/rules/` + current & legacy formats)
+- **Roo Code** - VSCode Extension (`.roo/instructions.md` + `.roo/rules/`)
+- **Gemini CLI** - Google AI (`GEMINI.md` + `.gemini/memories/` + custom commands)
+- **Qwen Code** - Qwen Models (`QWEN.md` + `.qwen/memories/` + git-aware filtering)
+
+**IDE-Integrated AI:**
+- **JetBrains Junie** - IntelliJ Family (`.junie/guidelines.md`)
+- **Kiro IDE** - AWS IDE (`.kiro/steering/` + custom steering documents)
+
+**Standardized Formats:**
+- **AgentsMd** - Universal Format (`AGENTS.md` + `.agents/memories/`)
+- **AugmentCode Legacy** - Backward Compatibility (`.augment-guidelines` format)
 
 ## Getting Started
 
@@ -40,8 +50,9 @@ rulesync now supports **12 AI development tools** with comprehensive rule, MCP, 
 
 ### Prerequisites
 
-- Node.js 20+ (recommended: 24+)
+- Node.js 20+ (required, recommended: 24+)
 - pnpm (recommended) or npm/yarn
+- Git for version control
 
 ### MCP Connection Setup
 
@@ -94,6 +105,9 @@ pnpm cspell
 
 # Type checking
 pnpm typecheck
+
+# Update version (for maintainers)
+pnpm prepare
 ```
 
 ## Project Architecture

@@ -15,7 +15,8 @@ This comprehensive guide walks you through setting up rulesync from initial inst
 ### Development Environment
 - **Code Editor**: VS Code, Cursor, or your preferred editor
 - **Terminal**: Command line interface access
-- **AI Development Tools**: At least one supported AI tool installed
+- **AI Development Tools**: At least one supported AI tool (GitHub Copilot, Cursor, Cline, Claude Code, etc.)
+- **Knowledge**: Basic understanding of Markdown and YAML (helpful but not required)
 
 ## Installation
 
