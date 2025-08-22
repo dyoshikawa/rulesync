@@ -3,14 +3,6 @@ import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../../type
 import { resolvePath } from "../../utils/file.js";
 import { loadIgnorePatterns } from "../../utils/ignore.js";
 
-export interface RuleGeneratorConfig {
-  tool: ToolTarget;
-  fileExtension: string;
-  ignoreFileName?: string;
-  generateContent: (rule: ParsedRule) => string;
-  pathResolver?: (rule: ParsedRule, outputDir: string) => string;
-}
-
 /**
  * Resolve output directory for a given tool and base directory
  */
@@ -82,37 +74,76 @@ export interface EnhancedRuleGeneratorConfig {
 }
 
 /**
- * Generic generator for rule files that handles both simple and complex path generation
+ * Unified configuration interface that supports both simple and complex generation patterns
+ */
+export interface UnifiedRuleGeneratorConfig {
+  tool: ToolTarget;
+  fileExtension?: string;
+  fileName?: string;
+  ignoreFileName?: string;
+  generateContent: (rule: ParsedRule) => string;
+  pathResolver?: (rule: ParsedRule, outputDir: string) => string;
+  /** Generate combined content from all rules */
+  generateCombinedContent?: (rules: ParsedRule[]) => string;
+  /** Use single file mode instead of per-rule files */
+  singleFileMode?: boolean;
+}
+
+/**
+ * Unified generator for rule files that handles both simple and complex path generation
+ * Replaces both generateRulesConfig and generateBaseRulesConfig for consistency
  */
 export async function generateRulesConfig(
   rules: ParsedRule[],
   config: Config,
-  generatorConfig: RuleGeneratorConfig,
+  generatorConfig: UnifiedRuleGeneratorConfig,
   baseDir?: string,
 ): Promise<GeneratedOutput[]> {
   const outputs: GeneratedOutput[] = [];
 
-  // Generate rule files
-  for (const rule of rules) {
-    const content = generatorConfig.generateContent(rule);
-    const outputDir = resolveOutputDir(config, generatorConfig.tool, baseDir);
+  // Filter out empty rules
+  const nonEmptyRules = rules.filter((rule) => rule.content.trim().length > 0);
 
-    const filepath = generatorConfig.pathResolver
-      ? generatorConfig.pathResolver(rule, outputDir)
-      : join(outputDir, `${rule.filename}${generatorConfig.fileExtension}`);
+  if (nonEmptyRules.length === 0) {
+    return outputs;
+  }
+
+  if (
+    generatorConfig.singleFileMode &&
+    generatorConfig.fileName &&
+    generatorConfig.generateCombinedContent
+  ) {
+    // Single file mode (like old generateBaseRulesConfig)
+    const filepath = resolvePath(generatorConfig.fileName, baseDir);
+    const content = generatorConfig.generateCombinedContent(nonEmptyRules);
 
     outputs.push({
       tool: generatorConfig.tool,
       filepath,
       content,
     });
+  } else if (generatorConfig.fileExtension) {
+    // Multiple files mode (like old generateRulesConfig)
+    for (const rule of nonEmptyRules) {
+      const content = generatorConfig.generateContent(rule);
+      const outputDir = resolveOutputDir(config, generatorConfig.tool, baseDir);
+
+      const filepath = generatorConfig.pathResolver
+        ? generatorConfig.pathResolver(rule, outputDir)
+        : join(outputDir, `${rule.filename}${generatorConfig.fileExtension}`);
+
+      outputs.push({
+        tool: generatorConfig.tool,
+        filepath,
+        content,
+      });
+    }
   }
 
   // Generate ignore file if .rulesyncignore exists
   const ignorePatterns = await loadIgnorePatterns(baseDir);
   if (ignorePatterns.patterns.length > 0 && generatorConfig.ignoreFileName) {
     const ignorePath = resolvePath(generatorConfig.ignoreFileName, baseDir);
-
     const ignoreContent = generateIgnoreFile(ignorePatterns.patterns, generatorConfig.tool);
 
     outputs.push({

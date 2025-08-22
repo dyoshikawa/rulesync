@@ -9,7 +9,7 @@ import {
   type EnhancedRuleGeneratorConfig,
   generateComplexRules,
   generateRulesConfig,
-  type RuleGeneratorConfig,
+  type UnifiedRuleGeneratorConfig,
 } from "./shared-helpers.js";
 
 /**
@@ -401,7 +401,7 @@ export async function generateFromRegistry(
   }
 
   if (generatorConfig.type === "simple") {
-    const ruleConfig: RuleGeneratorConfig = {
+    const ruleConfig: UnifiedRuleGeneratorConfig = {
       tool: generatorConfig.tool,
       fileExtension: generatorConfig.fileExtension,
       ignoreFileName: generatorConfig.ignoreFileName,

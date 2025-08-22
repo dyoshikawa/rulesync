@@ -87,9 +87,7 @@ describe("generateKiroConfig", () => {
   it("should handle empty rules array", async () => {
     const outputs = await generateKiroConfig([], mockConfig);
 
-    expect(outputs).toHaveLength(1); // Only the ignore file
-    expect(outputs[0]?.tool).toBe("kiro");
-    expect(outputs[0]?.filepath).toBe(".kiroignore");
+    expect(outputs).toHaveLength(0); // No output for empty rules
   });
 
   it("should trim content whitespace", async () => {

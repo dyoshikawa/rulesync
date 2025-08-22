@@ -6,7 +6,7 @@ model: opus
 
 First, execute the following commands:
 
-- Execute `similarity-ts -t 0.85 --types --classes .` to detect similar code.
+- Execute `similarity-ts -t 0.85 --include-types --include-type-literals .` to detect similar code.
   - similarity-ts is a Rust-based tool installed via cargo. It is already installed in this environment.
   - You can check usage with `similarity -h`.
   - The threshold must always be 0.85 or higher. Targeting code with lower thresholds may result in excessive code consolidation.
@@ -18,4 +18,3 @@ First, execute the following commands:
 Once you have the results of the above two commands, create a refactoring plan. Attention, the results can includes false positives. So, you should also analyze the related files. Then, report the results of above commands and your plan.
 
 On the other hand, if the results did not find issues, please report such results simply.
-
