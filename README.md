@@ -34,7 +34,11 @@ yarn global add rulesync
    
 3. **Generate tool-specific configuration files:**
    ```bash
-   npx rulesync generate
+   # Generate for all tools
+   npx rulesync generate --all
+   
+   # Generate for specific tools (recommended)
+   npx rulesync generate --targets copilot,cursor,cline
    ```
 
 ### Existing Project
@@ -61,7 +65,7 @@ npx rulesync import --opencode --legacy
 npx rulesync import --agentsmd --legacy
 
 # Generate unified configurations
-npx rulesync generate
+npx rulesync generate --all
 ```
 
 ## Supported Tools
@@ -142,7 +146,7 @@ npx rulesync import --agentsmd --legacy
 npx rulesync validate
 
 # Generate configurations
-npx rulesync generate
+npx rulesync generate --all
 
 # Watch for changes
 npx rulesync watch

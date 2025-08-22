@@ -82,44 +82,77 @@ npx rulesync generate [options]
 ```
 
 **Options:**
+- `-t, --targets <tools>`: Comma-separated list of tools to generate for (recommended)
+- `--all`: Generate for all supported AI tools
 - `--delete`: Remove existing generated files before creating new ones
 - `--verbose`, `-v`: Show detailed generation process
-- `--dry-run`: Show what would be generated without creating files
 - `--config <path>`: Use specific configuration file
 - `--no-config`: Disable configuration file loading
 - `--base-dir <paths>`: Generate in specific directories (comma-separated)
 
-**Tool-Specific Flags:**
-- `--claudecode`: Generate only for Claude Code
-- `--cursor`: Generate only for Cursor
-- `--copilot`: Generate only for GitHub Copilot
-- `--cline`: Generate only for Cline
-- `--codexcli`: Generate only for OpenAI Codex CLI
-- `--augmentcode`: Generate only for AugmentCode
-- `--roo`: Generate only for Roo Code
-- `--geminicli`: Generate only for Gemini CLI
-- `--junie`: Generate only for JetBrains Junie
-- `--qwencode`: Generate only for Qwen Code
-- `--kiro`: Generate only for Kiro IDE
-- `--windsurf`: Generate only for Windsurf
-- `--agentsmd`: Generate only for AgentsMd
+**Target Specification:**
+Use the `--targets` flag to specify which tools to generate for:
+- **Single tool**: `--targets copilot`
+- **Multiple tools**: `--targets copilot,cursor,cline`
+- **All tools**: `--targets all` (same as `--all`)
+
+**Available Tools:**
+`agentsmd`, `amazonqcli`, `augmentcode`, `augmentcode-legacy`, `copilot`, `cursor`, `cline`, `claudecode`, `codexcli`, `opencode`, `qwencode`, `roo`, `geminicli`, `kiro`, `junie`, `windsurf`
+
+**⚠️ Deprecated Tool-Specific Flags:**
+The following individual flags are deprecated and will be removed in a future version. Use `--targets` instead:
+- `--agentsmd` → `--targets agentsmd`
+- `--amazonqcli` → `--targets amazonqcli`
+- `--augmentcode` → `--targets augmentcode`
+- `--augmentcode-legacy` → `--targets augmentcode-legacy`
+- `--claudecode` → `--targets claudecode`
+- `--cline` → `--targets cline`
+- `--codexcli` → `--targets codexcli`
+- `--copilot` → `--targets copilot`
+- `--cursor` → `--targets cursor`
+- `--geminicli` → `--targets geminicli`
+- `--junie` → `--targets junie`
+- `--kiro` → `--targets kiro`
+- `--opencode` → `--targets opencode`
+- `--qwencode` → `--targets qwencode`
+- `--roo` → `--targets roo`
+- `--windsurf` → `--targets windsurf`
 
 **Examples:**
 ```bash
 # Generate for all tools
-npx rulesync generate
+npx rulesync generate --all
+# or
+npx rulesync generate --targets all
 
-# Generate for specific tools
-npx rulesync generate --cursor --claudecode
+# Generate for specific tools (recommended new syntax)
+npx rulesync generate --targets copilot,cursor,cline
+npx rulesync generate --targets claudecode
+npx rulesync generate -t copilot,cursor
 
 # Clean generation (delete existing files first)
-npx rulesync generate --delete --verbose
+npx rulesync generate --targets copilot,cursor --delete --verbose
 
 # Generate for monorepo packages
-npx rulesync generate --base-dir ./packages/frontend,./packages/backend
+npx rulesync generate --targets all --base-dir ./packages/frontend,./packages/backend
 
-# Dry run to see what would be generated
-npx rulesync generate --dry-run --verbose
+# Legacy syntax (deprecated but still works)
+npx rulesync generate --cursor --claudecode  # Shows deprecation warning
+```
+
+**Migration Examples:**
+```bash
+# Old syntax (deprecated)
+npx rulesync generate --copilot --cursor --cline
+
+# New syntax (recommended)
+npx rulesync generate --targets copilot,cursor,cline
+
+# Old syntax (deprecated)
+npx rulesync generate --claudecode --verbose
+
+# New syntax (recommended)
+npx rulesync generate --targets claudecode --verbose
 ```
 
 **Generated Output:**

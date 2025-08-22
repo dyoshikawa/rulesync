@@ -219,6 +219,35 @@ describe("generateCommand", () => {
     );
   });
 
+  it("should handle tools specified via targets field in config", async () => {
+    const mockResolverInstance = {
+      resolve: vi.fn().mockResolvedValue({
+        value: {
+          ...mockConfig,
+          aiRulesDir: ".rulesync",
+          defaultTargets: ["copilot", "cursor"],
+          targets: ["copilot", "cursor"], // targets from config
+          watchEnabled: false,
+        },
+        source: "Configuration file",
+      }),
+    };
+    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
+
+    await generateCommand({ tools: ["copilot", "cursor"] });
+
+    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
+      mockRules,
+      expect.objectContaining({
+        aiRulesDir: ".rulesync",
+        defaultTargets: ["copilot", "cursor"],
+        targets: ["copilot", "cursor"],
+      }),
+      ["copilot", "cursor"],
+      expect.any(String),
+    );
+  });
+
   it("should handle errors gracefully", async () => {
     mockParseRulesFromDirectory.mockRejectedValue(new Error("Parse error"));
 

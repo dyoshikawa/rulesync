@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { ALL_TOOL_TARGETS, type ToolTarget } from "../types/index.js";
+import type { ToolTarget } from "../types/index.js";
+import { logger } from "../utils/logger.js";
 import {
   addCommand,
   configCommand,
@@ -13,6 +14,13 @@ import {
   validateCommand,
   watchCommand,
 } from "./commands/index.js";
+import {
+  checkDeprecatedFlags,
+  getDeprecationWarning,
+  mergeAndDeduplicateTools,
+  parseTargets,
+  validateToolsNotEmpty,
+} from "./utils/targets-parser.js";
 
 const program = new Command();
 
@@ -58,21 +66,32 @@ program
   .command("generate")
   .description("Generate configuration files for AI tools")
   .option("--all", "Generate for all supported AI tools")
-  .option("--agentsmd", "Generate only for AGENTS.md")
-  .option("--augmentcode", "Generate only for AugmentCode")
-  .option("--augmentcode-legacy", "Generate only for AugmentCode legacy format")
-  .option("--copilot", "Generate only for GitHub Copilot")
-  .option("--cursor", "Generate only for Cursor")
-  .option("--cline", "Generate only for Cline")
-  .option("--codexcli", "Generate only for OpenAI Codex CLI")
-  .option("--claudecode", "Generate only for Claude Code")
-  .option("--roo", "Generate only for Roo Code")
-  .option("--geminicli", "Generate only for Gemini CLI")
-  .option("--junie", "Generate only for JetBrains Junie")
-  .option("--qwencode", "Generate only for Qwen Code")
-  .option("--kiro", "Generate only for Kiro IDE")
-  .option("--opencode", "Generate only for OpenCode")
-  .option("--windsurf", "Generate only for Windsurf")
+  .option(
+    "-t, --targets <tools>",
+    "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or 'all')",
+  )
+  .option("--agentsmd", "[DEPRECATED] Generate only for AGENTS.md (use --targets agentsmd)")
+  .option(
+    "--amazonqcli",
+    "[DEPRECATED] Generate only for Amazon Q Developer CLI (use --targets amazonqcli)",
+  )
+  .option("--augmentcode", "[DEPRECATED] Generate only for AugmentCode (use --targets augmentcode)")
+  .option(
+    "--augmentcode-legacy",
+    "[DEPRECATED] Generate only for AugmentCode legacy format (use --targets augmentcode-legacy)",
+  )
+  .option("--copilot", "[DEPRECATED] Generate only for GitHub Copilot (use --targets copilot)")
+  .option("--cursor", "[DEPRECATED] Generate only for Cursor (use --targets cursor)")
+  .option("--cline", "[DEPRECATED] Generate only for Cline (use --targets cline)")
+  .option("--codexcli", "[DEPRECATED] Generate only for OpenAI Codex CLI (use --targets codexcli)")
+  .option("--claudecode", "[DEPRECATED] Generate only for Claude Code (use --targets claudecode)")
+  .option("--roo", "[DEPRECATED] Generate only for Roo Code (use --targets roo)")
+  .option("--geminicli", "[DEPRECATED] Generate only for Gemini CLI (use --targets geminicli)")
+  .option("--junie", "[DEPRECATED] Generate only for JetBrains Junie (use --targets junie)")
+  .option("--qwencode", "[DEPRECATED] Generate only for Qwen Code (use --targets qwencode)")
+  .option("--kiro", "[DEPRECATED] Generate only for Kiro IDE (use --targets kiro)")
+  .option("--opencode", "[DEPRECATED] Generate only for OpenCode (use --targets opencode)")
+  .option("--windsurf", "[DEPRECATED] Generate only for Windsurf (use --targets windsurf)")
   .option("--delete", "Delete all existing files in output directories before generating")
   .option(
     "-b, --base-dir <paths>",
@@ -82,52 +101,53 @@ program
   .option("-c, --config <path>", "Path to configuration file")
   .option("--no-config", "Disable configuration file loading")
   .action(async (options) => {
-    const tools: ToolTarget[] = [];
-    if (options.all) {
-      // Add all supported tools when --all is specified
-      tools.push(...ALL_TOOL_TARGETS);
-    } else {
-      // Add individual tools based on specific options
-      if (options.agentsmd) tools.push("agentsmd");
-      if (options.augmentcode) tools.push("augmentcode");
-      if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
-      if (options.copilot) tools.push("copilot");
-      if (options.cursor) tools.push("cursor");
-      if (options.cline) tools.push("cline");
-      if (options.codexcli) tools.push("codexcli");
-      if (options.claudecode) tools.push("claudecode");
-      if (options.roo) tools.push("roo");
-      if (options.geminicli) tools.push("geminicli");
-      if (options.junie) tools.push("junie");
-      if (options.qwencode) tools.push("qwencode");
-      if (options.kiro) tools.push("kiro");
-      if (options.opencode) tools.push("opencode");
-      if (options.windsurf) tools.push("windsurf");
+    try {
+      let tools: ToolTarget[] = [];
+
+      // Parse tools from --targets flag
+      const targetsTools: ToolTarget[] = options.targets ? parseTargets(options.targets) : [];
+
+      // Check for deprecated individual flags
+      const deprecatedTools: ToolTarget[] = checkDeprecatedFlags(options);
+
+      // Show deprecation warning if deprecated flags are used
+      if (deprecatedTools.length > 0) {
+        logger.warn(getDeprecationWarning(deprecatedTools));
+      }
+
+      // Merge and deduplicate tools from all sources
+      tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, options.all === true);
+
+      // Validate that at least one tool is specified
+      validateToolsNotEmpty(tools);
+
+      const generateOptions: {
+        verbose?: boolean;
+        tools?: ToolTarget[] | undefined;
+        delete?: boolean;
+        baseDirs?: string[];
+        config?: string;
+        noConfig?: boolean;
+      } = {
+        verbose: options.verbose,
+        tools: tools.length > 0 ? tools : undefined,
+        delete: options.delete,
+        config: options.config,
+        noConfig: options.noConfig,
+      };
+
+      if (options.baseDir) {
+        generateOptions.baseDirs = options.baseDir
+          .split(",")
+          .map((dir: string) => dir.trim())
+          .filter((dir: string) => dir.length > 0);
+      }
+
+      await generateCommand(generateOptions);
+    } catch (error) {
+      logger.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
     }
-
-    const generateOptions: {
-      verbose?: boolean;
-      tools?: ToolTarget[] | undefined;
-      delete?: boolean;
-      baseDirs?: string[];
-      config?: string;
-      noConfig?: boolean;
-    } = {
-      verbose: options.verbose,
-      tools: tools.length > 0 ? tools : undefined,
-      delete: options.delete,
-      config: options.config,
-      noConfig: options.noConfig,
-    };
-
-    if (options.baseDir) {
-      generateOptions.baseDirs = options.baseDir
-        .split(",")
-        .map((dir: string) => dir.trim())
-        .filter((dir: string) => dir.length > 0);
-    }
-
-    await generateCommand(generateOptions);
   });
 
 program.command("validate").description("Validate rulesync configuration").action(validateCommand);
