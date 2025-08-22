@@ -48,7 +48,6 @@ program
 program
   .command("import")
   .description("Import configurations from AI tools to rulesync format")
-  .option("--all", "[DEPRECATED] Import from all available tools (use --targets * instead)")
   .option("-t, --targets <tool>", "Tool to import from (e.g., 'copilot', 'cursor', 'cline')")
   .option(
     "--features <features>",
@@ -94,7 +93,7 @@ program
       }
 
       // Merge and deduplicate tools from all sources
-      tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, options.all === true);
+      tools = mergeAndDeduplicateTools(targetsTools, deprecatedTools, false);
 
       const importOptions: ImportOptions = {
         ...(tools.length > 0 && { targets: tools }),

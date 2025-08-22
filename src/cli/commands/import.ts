@@ -26,7 +26,6 @@ function showBackwardCompatibilityWarning(): void {
 export interface ImportOptions {
   targets?: ToolTarget[];
   features?: FeatureType[] | "*" | undefined;
-  all?: boolean;
   agentsmd?: boolean;
   amazonqcli?: boolean;
   augmentcode?: boolean;
