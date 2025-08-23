@@ -1,10 +1,7 @@
 import type { ProcessedRule } from "../../types/rules.js";
 import type { ParsedSubagent, SubagentOutput } from "../../types/subagent.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  formatSubagentsForOutput,
-  generateSubagentsFromRules,
-} from "../features/subagent-generator.js";
+import { logger } from "../../utils/logger.js";
 import { BaseSubagentGenerator } from "./base.js";
 
 export class ClaudeCodeSubagentGenerator extends BaseSubagentGenerator {
@@ -16,12 +13,36 @@ export class ClaudeCodeSubagentGenerator extends BaseSubagentGenerator {
     return ".claude/agents";
   }
 
-  generateFromRules(rules: ProcessedRule[]): SubagentOutput[] {
-    return generateSubagentsFromRules(rules);
+  generateFromRules(_rules: ProcessedRule[]): SubagentOutput[] {
+    // NOTE: This function was originally designed to convert regular rules to subagents,
+    // but this is not the intended behavior. Subagents should only come from
+    // the .rulesync/subagents/ directory. Returning empty array to prevent
+    // unintended file generation.
+    logger.debug("Skipping rule-to-subagent conversion (deprecated behavior)");
+    return [];
   }
 
   generateFromParsedSubagents(subagents: ParsedSubagent[]): SubagentOutput[] {
-    return formatSubagentsForOutput(subagents);
+    return subagents.map((subagent) => {
+      // Build frontmatter
+      const frontmatterLines: string[] = ["---"];
+      frontmatterLines.push(`name: ${subagent.frontmatter.name}`);
+      frontmatterLines.push(`description: ${subagent.frontmatter.description}`);
+
+      if (subagent.frontmatter.model) {
+        frontmatterLines.push(`model: ${subagent.frontmatter.model}`);
+      }
+
+      frontmatterLines.push("---");
+
+      // Combine frontmatter and content
+      const content = `${frontmatterLines.join("\n")}\n\n${subagent.content}`;
+
+      return {
+        filename: `${subagent.filename}.md`,
+        content,
+      };
+    });
   }
 
   processContent(subagent: ParsedSubagent): string {

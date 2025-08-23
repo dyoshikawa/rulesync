@@ -1,9 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
-import { type ParsedSubagent, SubagentFrontmatterSchema } from "../../types/subagent.js";
-import { fileExists } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import { type ParsedSubagent, SubagentFrontmatterSchema } from "../types/subagent.js";
+import { fileExists } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Parse a single subagent file
@@ -70,25 +70,4 @@ export async function parseSubagentsFromDirectory(agentsDir: string): Promise<Pa
     logger.error(`Error parsing subagents from directory ${agentsDir}:`, error);
     return [];
   }
-}
-
-/**
- * Convert a parsed subagent to Claude Code format
- */
-export function formatSubagentForClaudeCode(subagent: ParsedSubagent): string {
-  const frontmatterLines: string[] = ["---"];
-
-  // Always include name and description
-  frontmatterLines.push(`name: ${subagent.frontmatter.name}`);
-  frontmatterLines.push(`description: ${subagent.frontmatter.description}`);
-
-  // Optionally include model if specified
-  if (subagent.frontmatter.model) {
-    frontmatterLines.push(`model: ${subagent.frontmatter.model}`);
-  }
-
-  frontmatterLines.push("---");
-
-  // Combine frontmatter and content
-  return `${frontmatterLines.join("\n")}\n\n${subagent.content}`;
 }
