@@ -220,6 +220,7 @@ pnpm-lock.yaml
 **/.noai
 
 **/.claude/commands/
+**/.claude/agents/
 **/AGENTS.md
 **/.codexignore
 **/.codex/memories/
