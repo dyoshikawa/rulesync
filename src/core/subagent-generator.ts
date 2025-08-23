@@ -85,7 +85,7 @@ export async function generateSubagents(
       // Generate subagent files
       // Only pass rules if no parsed subagents are available
       const generatedOutputs = await generator.generate(
-        parsedSubagents.length > 0 ? [] : (rules || []),
+        parsedSubagents.length > 0 ? [] : rules || [],
         config,
         outputDir,
         parsedSubagents,
