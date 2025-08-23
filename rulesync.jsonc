@@ -1,6 +1,8 @@
 {
   // List of tools to generate configurations for
   "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
+
+  "features": ["rules", "ignore", "mcp", "commands", "subagents"],
   
   // Tools to exclude from generation (overrides targets)
   "exclude": [],
