@@ -122,7 +122,12 @@ Starting from v0.62.0, the project supports two directory structures for better 
 │   ├── my-instructions.md                # Custom project instructions
 │   ├── precautions.md                   # Development precautions and guidelines
 │   └── specification-[tool]-[type].md   # Tool-specific specifications
-└── ...                                   # Other configuration files
+├── subagents/                            # Specialized AI assistants (Claude Code only)
+│   ├── reviewer.md                       # Code review specialist
+│   ├── security.md                       # Security analysis expert
+│   └── documentation.md                 # Documentation writer
+└── commands/                             # Custom slash commands (optional)
+    └── example-command.md
 ```
 
 #### Legacy Structure (backward compatible)
@@ -132,7 +137,7 @@ Starting from v0.62.0, the project supports two directory structures for better 
 ├── my-instructions.md                    # Custom project instructions
 ├── precautions.md                       # Development precautions and guidelines
 └── specification-[tool]-[type].md       # Tool-specific specifications
-    # Types: rules, mcp, ignore
+    # Types: rules, mcp, ignore, subagents
     # Tools: augmentcode, claudecode, cline, codexcli, copilot, cursor,
     #        geminicli, junie, kiro, opencode, roo, windsurf
 ```
@@ -147,6 +152,63 @@ Starting from v0.62.0, the project supports two directory structures for better 
 - **Rules format**: File structure, frontmatter (now optional with defaults), hierarchy patterns
 - **MCP configuration**: Server setup, transport types, environment handling
 - **Ignore patterns**: Security-focused exclusions and file access control
+- **Subagents**: Specialized AI assistants with tool-specific configurations (Claude Code only)
+
+### Subagent Development Guidelines
+
+When working with subagent specifications and generation:
+
+**Core Concepts**:
+- **Purpose**: Subagents are specialized AI assistants with specific behaviors, personalities, and model configurations
+- **Current Support**: Only supported by Claude Code (`targets: ["claudecode"]`)
+- **Feature Type**: Subagents are the 5th core feature type (rules, commands, mcp, ignore, subagents)
+
+**Directory Structure**:
+- **Source**: `.rulesync/subagents/*.md` files containing subagent definitions
+- **Generated Output**: `.claude/subagents/*.md` files for Claude Code consumption
+- **Organization**: Each subagent should have a focused role (reviewer, security, documentation, etc.)
+
+**Configuration Format**:
+```yaml
+---
+type: subagent
+targets: ["claudecode"]
+description: "Code review specialist with security focus"
+# Enhanced frontmatter with nested tool-specific configs
+claudecode:
+  model: "claude-3-5-sonnet-20241022"  # Model for this subagent
+  temperature: 0.7                     # Generation temperature
+  maxTokens: 4000                      # Response length limit
+---
+
+You are a specialized code review assistant focused on security and best practices.
+Your role is to identify potential vulnerabilities, code quality issues, and suggest improvements.
+
+## Key Responsibilities
+- Security vulnerability detection
+- Code quality assessment
+- Best practice recommendations
+- Performance optimization suggestions
+```
+
+**Generation Commands**:
+```bash
+# Generate subagents only
+npx rulesync generate --targets claudecode --features subagents
+
+# Generate rules and subagents together
+npx rulesync generate --targets claudecode --features rules,subagents
+
+# Generate all features including subagents
+npx rulesync generate --targets claudecode --features *
+```
+
+**Best Practices**:
+- Use descriptive filenames that reflect the subagent's role
+- Provide clear role definitions and responsibilities
+- Configure appropriate model settings for the task complexity
+- Test generated output in `.claude/subagents/` directory
+- Maintain consistent personality and behavior patterns
 
 **Recent Major Updates**:
 - **v0.59.0**: New `--targets` flag as primary interface with backward compatibility
@@ -1044,7 +1106,7 @@ Create `src/generators/rules/newtool.ts` for advanced features:
 
 **Features System (v0.63.0):**
 - **Selective Generation**: `--features` flag allows choosing which types of files to generate
-- **Feature Types**: `rules`, `commands`, `mcp`, `ignore` - each can be generated independently
+- **Feature Types**: `rules`, `commands`, `mcp`, `ignore`, `subagents` - each can be generated independently
 - **Wildcard Support**: `--features *` for all features (default behavior)
 - **Configuration Support**: Features can be specified in configuration files
 - **Backward Compatibility**: Defaults to all features when not specified (with warning)

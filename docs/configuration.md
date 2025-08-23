@@ -63,6 +63,12 @@ windsurfOutputFormat: "directory"    # Options: single-file, directory
 
 # AugmentCode-specific type
 augmentCodeType: "always"      # Options: always, auto, manual
+
+# Claude Code-specific configurations (nested format)
+claudecode:
+  model: "claude-3-5-sonnet-20241022"  # Model for this rule/subagent
+  temperature: 0.7                     # Generation temperature
+  maxTokens: 4000                      # Response length limit
 ```
 
 #### Optional Fields
@@ -327,7 +333,7 @@ rulesync supports multiple configuration file formats:
   "targets": ["cursor", "claudecode", "copilot", "windsurf"],
   
   // Features to generate (new in v0.63.0)
-  "features": ["rules", "commands", "mcp"],  // or "*" for all
+  "features": ["rules", "ignore", "mcp", "commands", "subagents"],  // or "*" for all
   
   // Tools to exclude from generation (overrides targets)
   "exclude": ["roo"],
@@ -428,6 +434,7 @@ Array of features to generate, or `"*"` for all features.
 - `"commands"`: Custom slash commands for supported tools
 - `"mcp"`: Model Context Protocol server configurations
 - `"ignore"`: Ignore files for controlling AI file access
+- `"subagents"`: Specialized AI assistants with specific behaviors (Claude Code only)
 
 #### `exclude`
 Array of tools to exclude from generation (overrides `targets`).
@@ -478,6 +485,13 @@ Directory containing custom command files.
 ```jsonc
 "aiCommandsDir": ".rulesync/commands"  // Default
 "aiCommandsDir": ".commands"           // Custom directory
+```
+
+#### `aiSubagentsDir`
+Directory containing subagent files (Claude Code only).
+```jsonc
+"aiSubagentsDir": ".rulesync/subagents"  // Default
+"aiSubagentsDir": ".subagents"           // Custom directory
 ```
 
 #### `outputPaths`
@@ -837,6 +851,83 @@ npx rulesync validate --verbose
 # Validate specific directory
 npx rulesync validate --base-dir ./packages/frontend
 ```
+
+## Subagent Configuration
+
+### Overview
+Subagents are specialized AI assistants with specific behaviors, personalities, and model configurations. Currently supported by **Claude Code only**.
+
+### File Structure
+Subagent files are stored in `.rulesync/subagents/` and use the same Markdown format as rules:
+
+```
+.rulesync/
+├── subagents/
+│   ├── reviewer.md        # Code review specialist
+│   ├── security.md        # Security analysis expert
+│   └── documentation.md   # Documentation writer
+└── rules/
+    └── project-rules.md
+```
+
+### Subagent Format
+Subagent files use enhanced frontmatter with Claude Code-specific configurations:
+
+```markdown
+---
+root: false
+targets: ["claudecode"]
+description: "Security-focused code review specialist"
+globs: ["**/*"]
+claudecode:
+  model: "claude-3-5-sonnet-20241022"
+  temperature: 0.2
+  maxTokens: 4000
+---
+
+# Security Reviewer
+
+You are a security-focused code reviewer specializing in identifying vulnerabilities, security anti-patterns, and compliance issues.
+
+## Focus Areas
+- Authentication and authorization flaws
+- Input validation vulnerabilities
+- Data exposure risks
+- Cryptographic implementation issues
+
+## Review Process
+1. Scan for common security vulnerabilities
+2. Check for hardcoded secrets or credentials
+3. Validate input sanitization
+4. Review access control implementations
+```
+
+### Claude Code-Specific Options
+The `claudecode` section supports these nested configurations:
+
+```yaml
+claudecode:
+  model: "claude-3-5-sonnet-20241022"  # Model for this subagent
+  temperature: 0.7                     # Creativity level (0.0-1.0)
+  maxTokens: 4000                      # Response length limit
+```
+
+### Generation
+Subagents are generated to `.claude/subagents/` in Claude Code projects:
+
+```bash
+# Generate all features including subagents
+npx rulesync generate --features subagents
+
+# Generate subagents only
+npx rulesync generate --features subagents --targets claudecode
+```
+
+### Best Practices for Subagents
+1. **Specific Expertise**: Focus each subagent on a particular domain
+2. **Clear Instructions**: Provide detailed behavioral guidelines
+3. **Model Selection**: Choose appropriate models for the task complexity
+4. **Temperature Tuning**: Lower temperatures for analytical tasks, higher for creative tasks
 
 ## Best Practices
 

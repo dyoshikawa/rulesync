@@ -49,6 +49,16 @@ async function showConfig(): Promise<void> {
       logger.log(`Excluded Targets: ${config.exclude.join(", ")}`);
     }
 
+    if (config.features) {
+      const featuresDisplay =
+        config.features === "*"
+          ? "*"
+          : Array.isArray(config.features)
+            ? config.features.join(", ")
+            : String(config.features);
+      logger.log(`\nFeatures: ${featuresDisplay}`);
+    }
+
     logger.log("\nOutput Paths:");
     for (const [tool, outputPath] of Object.entries(config.outputPaths)) {
       logger.log(`  ${tool}: ${outputPath}`);
@@ -204,6 +214,10 @@ const config: ConfigOptions = {
   // Available: ${ALL_TOOL_TARGETS.join(", ")}
   targets: ${JSON.stringify(ALL_TOOL_TARGETS)},
   
+  // Features to generate (rules, commands, mcp, ignore, subagents)
+  // Use "*" to generate all features, or specify an array of features
+  features: ["rules", "commands", "mcp", "ignore", "subagents"],
+  
   // Custom output paths for specific tools
   // outputPaths: {
   //   copilot: ".github/copilot-instructions.md",
@@ -227,6 +241,10 @@ export default config;`;
 
   if (options.exclude) {
     configLines.push(`  exclude: ${JSON.stringify(options.exclude)}`);
+  }
+
+  if (options.features) {
+    configLines.push(`  features: ${JSON.stringify(options.features)}`);
   }
 
   if (options.aiRulesDir) {

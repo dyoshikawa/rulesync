@@ -125,6 +125,12 @@ export function generateMinimalConfig(options?: Partial<ConfigOptions>): string 
     lines.push(`  "exclude": ${JSON.stringify(options.exclude)}`);
   }
 
+  if (options.features) {
+    const comma = lines.length > 1 ? "," : "";
+    if (comma) lines[lines.length - 1] += comma;
+    lines.push(`  "features": ${JSON.stringify(options.features)}`);
+  }
+
   if (options.aiRulesDir) {
     const comma = lines.length > 1 ? "," : "";
     if (comma) lines[lines.length - 1] += comma;
@@ -178,6 +184,7 @@ export function generateMinimalConfig(options?: Partial<ConfigOptions>): string 
 export function generateSampleConfig(options?: Partial<ConfigOptions>): string {
   const targets = options?.targets || ALL_TOOL_TARGETS;
   const excludeValue = options?.exclude ? JSON.stringify(options.exclude) : null;
+  const featuresValue = options?.features || ["rules", "commands", "mcp", "ignore", "subagents"];
   const aiRulesDir = options?.aiRulesDir || null;
   const baseDir = options?.baseDir || null;
   const deleteFlag = options?.delete || false;
@@ -190,6 +197,10 @@ export function generateSampleConfig(options?: Partial<ConfigOptions>): string {
   
   // Tools to exclude from generation (overrides targets)
   ${excludeValue ? `"exclude": ${excludeValue},` : '// "exclude": ["roo"],'}
+  
+  // Features to generate (rules, commands, mcp, ignore, subagents)
+  // Use "*" to generate all features, or specify an array of features
+  "features": ${JSON.stringify(featuresValue)},
   ${
     aiRulesDir
       ? `

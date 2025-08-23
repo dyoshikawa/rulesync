@@ -83,7 +83,7 @@ npx rulesync generate [options]
 
 **Options:**
 - `-t, --targets <tools>`: Comma-separated list of tools to generate for (recommended)
-- `-f, --features <features>`: Comma-separated list of features to generate (rules, commands, mcp, ignore) or `*` for all
+- `-f, --features <features>`: Comma-separated list of features to generate (rules, commands, mcp, ignore, subagents) or `*` for all
 - `--all`: ⚠️ **[DEPRECATED]** Generate for all supported AI tools (use `--targets *` instead)
 - `--delete`: Remove existing generated files before creating new ones
 - `--verbose`, `-v`: Show detailed generation process
@@ -110,18 +110,19 @@ The `--features` flag allows selective generation of specific feature types:
 - **Single feature**: `--features rules`
 - **Multiple features**: `--features rules,commands,mcp`
 - **All features**: `--features *` (default when not specified)
-- **Available features**: `rules`, `commands`, `mcp`, `ignore`
+- **Available features**: `rules`, `commands`, `mcp`, `ignore`, `subagents`
 - **Validation**: Cannot mix `*` with specific features
 - **Backward compatibility**: Defaults to all features when not specified (shows warning)
 
 **Available Tools (19 total):**
 `agentsmd`, `amazonqcli`, `augmentcode`, `augmentcode-legacy`, `claudecode`, `cline`, `codexcli`, `copilot`, `cursor`, `geminicli`, `junie`, `kiro`, `opencode`, `qwencode`, `roo`, `windsurf`
 
-**Available Features (4 total):**
+**Available Features (5 total):**
 - **`rules`**: Core AI assistant rules and instructions
 - **`commands`**: Custom slash commands for supported tools
 - **`mcp`**: Model Context Protocol server configurations
 - **`ignore`**: Ignore files for controlling AI file access
+- **`subagents`**: Specialized AI assistants with specific behaviors (Claude Code only)
 
 **Special Target Values:**
 - `*` - All supported tools (preferred syntax)
@@ -179,6 +180,9 @@ npx rulesync generate --targets * --features rules  # Only rules, no MCP/ignore 
 npx rulesync generate --targets copilot,cursor,cline --features rules,commands
 npx rulesync generate --targets claudecode --features rules,mcp
 npx rulesync generate -t copilot,cursor -f rules
+# Generate subagents (Claude Code only)
+npx rulesync generate --targets claudecode --features subagents
+npx rulesync generate --targets claudecode --features rules,subagents,mcp
 
 # Generate only rules (fastest option)
 npx rulesync generate --targets * --features rules
@@ -237,7 +241,7 @@ npx rulesync generate  # Error: no tools specified
 **Generated Output:**
 | Tool | Generated Files |
 |------|----------------|
-| Claude Code | `CLAUDE.md`, `.claude/memories/*.md`, `.claude/commands/*.md` |
+| Claude Code | `CLAUDE.md`, `.claude/memories/*.md`, `.claude/commands/*.md`, `.claude/subagents/*.md` |
 | Cursor | `.cursor/rules/*.mdc`, `.cursorignore` |
 | GitHub Copilot | `.github/instructions/*.instructions.md`, `.copilotignore` |
 | Cline | `.cline/instructions.md`, `.clinerules/*.md`, `.clineignore` |
@@ -305,12 +309,12 @@ npx rulesync import [options]
 
 **Options:**
 - `-t, --targets <tools>`: Comma-separated list of tools to import from (recommended)
-- `--features <features>`: Comma-separated list of features to import (rules, commands, mcp, ignore) or `*` for all
+- `--features <features>`: Comma-separated list of features to import (rules, commands, mcp, ignore, subagents) or `*` for all
 - `--legacy`: Import to legacy directory structure (`.rulesync/*.md`)
 - `--verbose`, `-v`: Show detailed import process
 
 **⚠️ Deprecated Tool-Specific Import Flags (use --targets instead):**
-- `--claudecode` → `--targets claudecode`: Import from Claude Code (`CLAUDE.md`, `.claude/memories/`, `.claude/commands/`)
+- `--claudecode` → `--targets claudecode`: Import from Claude Code (`CLAUDE.md`, `.claude/memories/`, `.claude/commands/`, `.claude/subagents/`)
 - `--cursor` → `--targets cursor`: Import from Cursor (`.cursorrules`, `.cursor/rules/`, `.cursor/mcp.json`)
 - `--copilot` → `--targets copilot`: Import from GitHub Copilot (`.github/copilot-instructions.md`, `.github/instructions/`)
 - `--cline` → `--targets cline`: Import from Cline (`.cline/instructions.md`, `.clinerules/`)

@@ -210,6 +210,7 @@ describe("config-loader", () => {
       // Should contain expected fields
       expect(config).toContain("targets");
       expect(config).toContain("exclude");
+      expect(config).toContain("features");
       expect(config).toContain("outputPaths");
       expect(config).toContain("baseDir");
       expect(config).toContain("verbose");
@@ -222,10 +223,19 @@ describe("config-loader", () => {
       const parsed = JSON.parse(jsonWithoutComments);
 
       expect(parsed).toHaveProperty("targets");
+      expect(parsed).toHaveProperty("features");
       expect(parsed).toHaveProperty("outputPaths");
       expect(parsed).toHaveProperty("delete");
       expect(parsed).toHaveProperty("verbose");
       expect(parsed).toHaveProperty("watch");
+    });
+
+    it("should generate config with default features array", () => {
+      const config = generateSampleConfig();
+      const jsonWithoutComments = config.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const parsed = JSON.parse(jsonWithoutComments);
+
+      expect(parsed.features).toEqual(["rules", "commands", "mcp", "ignore", "subagents"]);
     });
   });
 });
