@@ -185,7 +185,7 @@ describe("generateCommand", () => {
 
     // Check that no files generated warning is shown
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      "⚠️  No files generated for enabled features: rules, commands, mcp, ignore",
+      "⚠️  No files generated for enabled features: rules, commands, mcp, ignore, subagents",
     );
   });
 

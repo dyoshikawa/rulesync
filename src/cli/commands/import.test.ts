@@ -65,7 +65,7 @@ describe("import command", () => {
 
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "claudecode",
-      features: ["rules", "commands", "mcp", "ignore"],
+      features: ["rules", "commands", "mcp", "ignore", "subagents"],
       verbose: false,
       useLegacyLocation: false,
     });
@@ -164,7 +164,7 @@ describe("import command", () => {
 
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool,
-        features: ["rules", "commands", "mcp", "ignore"],
+        features: ["rules", "commands", "mcp", "ignore", "subagents"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -183,7 +183,7 @@ describe("import command", () => {
 
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "geminicli",
-      features: ["rules", "commands", "mcp", "ignore"],
+      features: ["rules", "commands", "mcp", "ignore", "subagents"],
       verbose: true,
       useLegacyLocation: false,
     });
@@ -201,7 +201,7 @@ describe("import command", () => {
 
     expect(importer.importConfiguration).toHaveBeenCalledWith({
       tool: "geminicli",
-      features: ["rules", "commands", "mcp", "ignore"],
+      features: ["rules", "commands", "mcp", "ignore", "subagents"],
       verbose: false,
       useLegacyLocation: true,
     });
@@ -221,7 +221,7 @@ describe("import command", () => {
 
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool: "cursor",
-        features: ["rules", "commands", "mcp", "ignore"],
+        features: ["rules", "commands", "mcp", "ignore", "subagents"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -297,7 +297,7 @@ describe("import command", () => {
       expect(importer.importConfiguration).toHaveBeenCalledTimes(1);
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool: "cursor",
-        features: ["rules", "commands", "mcp", "ignore"],
+        features: ["rules", "commands", "mcp", "ignore", "subagents"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -336,7 +336,7 @@ describe("import command", () => {
 
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool: "cursor",
-        features: ["rules", "commands", "mcp", "ignore"],
+        features: ["rules", "commands", "mcp", "ignore", "subagents"],
         verbose: false,
         useLegacyLocation: false,
       });
@@ -358,7 +358,7 @@ describe("import command", () => {
       );
       expect(importer.importConfiguration).toHaveBeenCalledWith({
         tool: "cursor",
-        features: ["rules", "commands", "mcp", "ignore"],
+        features: ["rules", "commands", "mcp", "ignore", "subagents"],
         verbose: false,
         useLegacyLocation: false,
       });

@@ -29,7 +29,7 @@ describe("feature-validator", () => {
 
     it("should throw error for invalid feature", () => {
       expect(() => validateFeatures(["invalid"])).toThrow(
-        "Invalid feature types: invalid. Valid features are: rules, commands, mcp, ignore",
+        "Invalid feature types: invalid. Valid features are: rules, commands, mcp, ignore, subagents",
       );
     });
 
@@ -47,7 +47,7 @@ describe("feature-validator", () => {
 
     it("should handle mixed valid and invalid features", () => {
       expect(() => validateFeatures(["rules", "invalid1", "commands", "invalid2"])).toThrow(
-        "Invalid feature types: invalid1, invalid2. Valid features are: rules, commands, mcp, ignore",
+        "Invalid feature types: invalid1, invalid2. Valid features are: rules, commands, mcp, ignore, subagents",
       );
     });
   });
@@ -55,17 +55,23 @@ describe("feature-validator", () => {
   describe("expandWildcard", () => {
     it("should return all feature types", () => {
       const result = expandWildcard();
-      expect(result).toEqual(["rules", "commands", "mcp", "ignore"]);
+      expect(result).toEqual(["rules", "commands", "mcp", "ignore", "subagents"]);
     });
   });
 
   describe("normalizeFeatures", () => {
     it("should expand wildcard to all features", () => {
-      expect(normalizeFeatures("*")).toEqual(["rules", "commands", "mcp", "ignore"]);
+      expect(normalizeFeatures("*")).toEqual(["rules", "commands", "mcp", "ignore", "subagents"]);
     });
 
     it("should expand undefined to all features", () => {
-      expect(normalizeFeatures(undefined)).toEqual(["rules", "commands", "mcp", "ignore"]);
+      expect(normalizeFeatures(undefined)).toEqual([
+        "rules",
+        "commands",
+        "mcp",
+        "ignore",
+        "subagents",
+      ]);
     });
 
     it("should return feature array as-is", () => {
@@ -84,11 +90,11 @@ describe("feature-validator", () => {
     });
 
     it("should return true for array with all features", () => {
-      expect(isWildcard(["rules", "commands", "mcp", "ignore"])).toBe(true);
+      expect(isWildcard(["rules", "commands", "mcp", "ignore", "subagents"])).toBe(true);
     });
 
     it("should return true for array with all features in different order", () => {
-      expect(isWildcard(["ignore", "mcp", "rules", "commands"])).toBe(true);
+      expect(isWildcard(["ignore", "mcp", "rules", "commands", "subagents"])).toBe(true);
     });
 
     it("should return false for partial feature array", () => {

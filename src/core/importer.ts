@@ -18,6 +18,7 @@ import {
 import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
+import type { ParsedSubagent } from "../types/subagent.js";
 import { writeFileContent } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
 
@@ -36,12 +37,13 @@ export interface ImportResult {
   errors: string[];
   ignoreFileCreated?: boolean;
   mcpFileCreated?: boolean;
+  subagentsCreated?: number;
 }
 
 export async function importConfiguration(options: ImportOptions): Promise<ImportResult> {
   const {
     tool,
-    features = ["rules", "commands", "mcp", "ignore"], // Default to all features for backward compatibility
+    features = ["rules", "commands", "mcp", "ignore", "subagents"], // Default to all features for backward compatibility
     baseDir = process.cwd(),
     rulesDir = ".rulesync",
     verbose = false,
@@ -51,6 +53,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   let rules: ParsedRule[] = [];
   let ignorePatterns: string[] | undefined;
   let mcpServers: Record<string, RulesyncMcpServer> | undefined;
+  let subagents: ParsedSubagent[] | undefined;
 
   if (verbose) {
     logger.log(`Importing ${tool} configuration from ${baseDir}...`);
@@ -90,6 +93,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         errors.push(...claudeResult.errors);
         ignorePatterns = claudeResult.ignorePatterns;
         mcpServers = claudeResult.mcpServers;
+        subagents = claudeResult.subagents;
         break;
       }
       case "cursor": {
@@ -157,7 +161,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  if (rules.length === 0 && !ignorePatterns && !mcpServers) {
+  if (rules.length === 0 && !ignorePatterns && !mcpServers && !subagents) {
     return { success: false, rulesCreated: 0, errors };
   }
 
@@ -165,8 +169,9 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   const rulesEnabled = features.includes("rules") || features.includes("commands");
   const ignoreEnabled = features.includes("ignore");
   const mcpEnabled = features.includes("mcp");
+  const subagentsEnabled = features.includes("subagents");
 
-  if (!rulesEnabled && !ignoreEnabled && !mcpEnabled) {
+  if (!rulesEnabled && !ignoreEnabled && !mcpEnabled && !subagentsEnabled) {
     if (verbose) {
       logger.log("No relevant features enabled for import");
     }
@@ -272,13 +277,55 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     logger.log(`Skipping MCP configuration (mcp feature not enabled)`);
   }
 
-  return {
-    success: errors.length === 0 && (rulesCreated > 0 || ignoreFileCreated || mcpFileCreated),
+  // Create subagent files if subagents exist and subagents feature is enabled
+  let subagentsCreated = 0;
+  if (subagentsEnabled && subagents && subagents.length > 0) {
+    try {
+      const { mkdir } = await import("node:fs/promises");
+      const subagentsDir = join(baseDir, rulesDir, "subagents");
+      await mkdir(subagentsDir, { recursive: true });
+
+      for (const subagent of subagents) {
+        try {
+          const filename = `${subagent.filename}.md`;
+          const filepath = join(subagentsDir, filename);
+          const content = generateSubagentFileContent(subagent);
+          await writeFileContent(filepath, content);
+          subagentsCreated++;
+          if (verbose) {
+            logger.success(`Created subagent: ${filename}`);
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push(`Failed to create subagent ${subagent.filename}: ${errorMessage}`);
+        }
+      }
+      if (verbose && subagentsCreated > 0) {
+        logger.success(`Created ${subagentsCreated} subagent files`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to create subagents directory: ${errorMessage}`);
+    }
+  } else if (verbose && subagents && subagents.length > 0 && !subagentsEnabled) {
+    logger.log(`Skipping subagents (subagents feature not enabled)`);
+  }
+
+  const result: ImportResult = {
+    success:
+      errors.length === 0 &&
+      (rulesCreated > 0 || ignoreFileCreated || mcpFileCreated || subagentsCreated > 0),
     rulesCreated,
     errors,
     ignoreFileCreated,
     mcpFileCreated,
   };
+
+  if (subagentsCreated > 0) {
+    result.subagentsCreated = subagentsCreated;
+  }
+
+  return result;
 }
 
 function generateRuleFileContent(rule: ParsedRule): string {
@@ -294,4 +341,9 @@ function generateRuleFileContent(rule: ParsedRule): string {
 
   const frontmatter = matter.stringify("", rule.frontmatter);
   return frontmatter + rule.content;
+}
+
+function generateSubagentFileContent(subagent: ParsedSubagent): string {
+  const frontmatter = matter.stringify("", subagent.frontmatter);
+  return frontmatter + subagent.content;
 }

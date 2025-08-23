@@ -2,7 +2,7 @@ import { z } from "zod/mini";
 import { ToolTargetSchema, ToolTargetsSchema } from "./tool-targets.js";
 
 // Feature types for --features option
-export const FEATURE_TYPES = ["rules", "commands", "mcp", "ignore"] as const;
+export const FEATURE_TYPES = ["rules", "commands", "mcp", "ignore", "subagents"] as const;
 export type FeatureType = (typeof FEATURE_TYPES)[number];
 
 // Schema for features field

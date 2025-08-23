@@ -133,6 +133,9 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
       if (result.mcpFileCreated) {
         logger.success("  Created .rulesync/.mcp.json file from MCP configuration");
       }
+      if (result.subagentsCreated) {
+        logger.success(`  Created ${result.subagentsCreated} subagent files`);
+      }
 
       logger.success(`\n🎉 Successfully imported from ${tool}`);
       logger.log("You can now run 'rulesync generate' to create tool-specific configurations.");

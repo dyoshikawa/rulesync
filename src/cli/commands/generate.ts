@@ -4,6 +4,7 @@ import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/in
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { generateSubagents } from "../../core/subagent-generator.js";
 import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
 import { normalizeFeatures } from "../../utils/feature-validator.js";
@@ -200,6 +201,8 @@ Available tools:
               if (hasCommandFiles) {
                 deleteTasks.push(removeDirectory(join(".claude", "commands")));
               }
+              // Delete subagents directory if needed
+              deleteTasks.push(removeDirectory(join(".claude", "agents")));
               break;
             case "roo":
               deleteTasks.push(removeDirectory(config.outputPaths.roo));
@@ -347,9 +350,41 @@ Available tools:
         logger.info("\nSkipping ignore file generation (not in --features)");
       }
 
+      // Generate subagent files (subagents feature)
+      let totalSubagentOutputs = 0;
+      if (normalizedFeatures.includes("subagents")) {
+        logger.info("\nGenerating subagent files...");
+
+        for (const baseDir of baseDirs) {
+          const subagentResults = await generateSubagents(
+            config.aiRulesDir,
+            baseDir === process.cwd() ? undefined : baseDir,
+            config.defaultTargets,
+            rules,
+          );
+
+          if (subagentResults.length === 0) {
+            logger.info(`No subagents generated for ${baseDir}`);
+            continue;
+          }
+
+          for (const result of subagentResults) {
+            await writeFileContent(result.filepath, result.content);
+            logger.success(`Generated ${result.tool} subagent: ${result.filepath}`);
+            totalSubagentOutputs++;
+          }
+        }
+      } else {
+        logger.info("\nSkipping subagent file generation (not in --features)");
+      }
+
       // Check if any features generated content
       const totalGenerated =
-        totalOutputs + totalMcpOutputs + totalCommandOutputs + totalIgnoreOutputs;
+        totalOutputs +
+        totalMcpOutputs +
+        totalCommandOutputs +
+        totalIgnoreOutputs +
+        totalSubagentOutputs;
       if (totalGenerated === 0) {
         const enabledFeatures = normalizedFeatures.join(", ");
         logger.warn(`⚠️  No files generated for enabled features: ${enabledFeatures}`);
@@ -362,6 +397,7 @@ Available tools:
         if (totalOutputs > 0) parts.push(`${totalOutputs} configurations`);
         if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP configurations`);
         if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
+        if (totalSubagentOutputs > 0) parts.push(`${totalSubagentOutputs} subagents`);
 
         logger.success(
           `\n🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,

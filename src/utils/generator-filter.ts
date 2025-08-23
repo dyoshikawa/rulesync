@@ -108,6 +108,7 @@ export function groupGeneratorsByFeature(
     commands: [],
     mcp: [],
     ignore: [],
+    subagents: [],
     unmapped: [],
   };
 
