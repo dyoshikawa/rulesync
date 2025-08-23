@@ -177,58 +177,84 @@ Available tools:
         for (const tool of targetTools) {
           switch (tool) {
             case "augmentcode":
-              deleteTasks.push(removeDirectory(join(".augment", "rules")));
-              deleteTasks.push(removeDirectory(join(".augment", "ignore")));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(join(".augment", "rules")));
+              }
+              if (normalizedFeatures.includes("ignore")) {
+                deleteTasks.push(removeDirectory(join(".augment", "ignore")));
+              }
               break;
             case "augmentcode-legacy":
               // Legacy AugmentCode files are in the root directory
-              deleteTasks.push(removeClaudeGeneratedFiles());
-              deleteTasks.push(removeDirectory(join(".augment", "ignore")));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeClaudeGeneratedFiles());
+              }
+              if (normalizedFeatures.includes("ignore")) {
+                deleteTasks.push(removeDirectory(join(".augment", "ignore")));
+              }
               break;
             case "copilot":
-              deleteTasks.push(removeDirectory(config.outputPaths.copilot));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.copilot));
+              }
               break;
             case "cursor":
-              deleteTasks.push(removeDirectory(config.outputPaths.cursor));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.cursor));
+              }
               break;
             case "cline":
-              deleteTasks.push(removeDirectory(config.outputPaths.cline));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.cline));
+              }
               break;
             case "claudecode":
-              // Use safe deletion for Claude Code files only
-              deleteTasks.push(removeClaudeGeneratedFiles());
-              // Only delete commands directory if .rulesync/commands/*.md files exist
-              if (hasCommandFiles) {
+              // Delete only the features that are being regenerated
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeClaudeGeneratedFiles());
+              }
+              if (normalizedFeatures.includes("commands") && hasCommandFiles) {
                 deleteTasks.push(removeDirectory(join(".claude", "commands")));
               }
-              // Delete subagents directory if needed
-              deleteTasks.push(removeDirectory(join(".claude", "agents")));
+              if (normalizedFeatures.includes("subagents")) {
+                deleteTasks.push(removeDirectory(join(".claude", "agents")));
+              }
               break;
             case "roo":
-              deleteTasks.push(removeDirectory(config.outputPaths.roo));
-              // Only delete commands directory if .rulesync/commands/*.md files exist
-              if (hasCommandFiles) {
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.roo));
+              }
+              if (normalizedFeatures.includes("commands") && hasCommandFiles) {
                 deleteTasks.push(removeDirectory(join(".roo", "commands")));
               }
               break;
             case "geminicli":
-              deleteTasks.push(removeDirectory(config.outputPaths.geminicli));
-              // Only delete commands directory if .rulesync/commands/*.md files exist
-              if (hasCommandFiles) {
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.geminicli));
+              }
+              if (normalizedFeatures.includes("commands") && hasCommandFiles) {
                 deleteTasks.push(removeDirectory(join(".gemini", "commands")));
               }
               break;
             case "kiro":
-              deleteTasks.push(removeDirectory(config.outputPaths.kiro));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.kiro));
+              }
               break;
             case "opencode":
-              deleteTasks.push(removeDirectory(config.outputPaths.opencode));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.opencode));
+              }
               break;
             case "qwencode":
-              deleteTasks.push(removeDirectory(config.outputPaths.qwencode));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.qwencode));
+              }
               break;
             case "windsurf":
-              deleteTasks.push(removeDirectory(config.outputPaths.windsurf));
+              if (normalizedFeatures.includes("rules")) {
+                deleteTasks.push(removeDirectory(config.outputPaths.windsurf));
+              }
               break;
           }
         }
