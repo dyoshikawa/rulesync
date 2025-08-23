@@ -1,5 +1,6 @@
 ---
 name: code-fixer
+targets: ["*"]
 description: >-
   Use this agent when you need to systematically fix TypeScript type errors,
   linting issues, and test failures by running pnpm typecheck, pnpm fix, and

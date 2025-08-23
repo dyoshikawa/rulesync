@@ -1,5 +1,6 @@
 ---
 name: fix-planner
+targets: ["*"]
 description: >-
   This is the code fix planner. The user asks the agent to plan to fix and
   stabilize the code. This agent can be triggered by the user explicitly only.

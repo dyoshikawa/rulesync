@@ -1,5 +1,6 @@
 ---
 name: security-reviewer
+targets: ["*"]
 description: >-
   Use this agent when you need to perform security-focused code reviews,
   specifically looking for vulnerabilities and malicious code. This agent can be

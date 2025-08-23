@@ -20,10 +20,16 @@ export async function parseSubagentFile(filepath: string): Promise<ParsedSubagen
       return null;
     }
 
+    // Set default targets if not specified
+    const parsedFrontmatter = result.data;
+    if (!parsedFrontmatter.targets) {
+      parsedFrontmatter.targets = ["*"];
+    }
+
     const filename = path.basename(filepath, path.extname(filepath));
 
     return {
-      frontmatter: result.data,
+      frontmatter: parsedFrontmatter,
       content: content.trim(),
       filename,
       filepath,

@@ -9,6 +9,7 @@ export const ClaudeCodeConfigSchema = z.object({
 export const SubagentFrontmatterSchema = z.object({
   name: z.string(),
   description: z.string(),
+  targets: z.optional(z.array(z.string())),
   // Tool-specific configurations
   claudecode: z.optional(ClaudeCodeConfigSchema),
 });
