@@ -15,25 +15,7 @@ import {
   writeFileContent,
 } from "../../utils/index.js";
 import { logger } from "../../utils/logger.js";
-
-/**
- * Show backward compatibility warning when --features is not specified
- */
-function showBackwardCompatibilityWarning(): void {
-  const yellow = "\x1b[33m";
-  const gray = "\x1b[90m";
-  const cyan = "\x1b[36m";
-  const reset = "\x1b[0m";
-
-  logger.warn(
-    `\n${yellow}⚠️  Warning: No --features option specified.${reset}\n` +
-      `${gray}Currently generating all features for backward compatibility.${reset}\n` +
-      `${gray}In future versions, this behavior may change.${reset}\n` +
-      `${gray}Please specify --features explicitly:${reset}\n` +
-      `${cyan}  rulesync generate --features rules,commands,mcp,ignore${reset}\n` +
-      `${gray}Or use --features * to generate all features.${reset}\n`,
-  );
-}
+import { showBackwardCompatibilityWarning } from "./shared-utils.js";
 
 export interface GenerateOptions {
   tools?: ToolTarget[] | undefined;
@@ -86,7 +68,10 @@ export async function generateCommand(options: GenerateOptions = {}): Promise<vo
 
     // Show backward compatibility warning if features are not specified anywhere
     if (showWarning) {
-      showBackwardCompatibilityWarning();
+      showBackwardCompatibilityWarning(
+        "generating",
+        "rulesync generate --features rules,commands,mcp,ignore",
+      );
     }
 
     // Normalize features for processing

@@ -3,25 +3,7 @@ import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
 import { normalizeFeatures } from "../../utils/feature-validator.js";
 import { logger } from "../../utils/logger.js";
-
-/**
- * Show backward compatibility warning when --features is not specified
- */
-function showBackwardCompatibilityWarning(): void {
-  const yellow = "\x1b[33m";
-  const gray = "\x1b[90m";
-  const cyan = "\x1b[36m";
-  const reset = "\x1b[0m";
-
-  logger.warn(
-    `\n${yellow}⚠️  Warning: No --features option specified.${reset}\n` +
-      `${gray}Currently importing all features for backward compatibility.${reset}\n` +
-      `${gray}In future versions, this behavior may change.${reset}\n` +
-      `${gray}Please specify --features explicitly:${reset}\n` +
-      `${cyan}  rulesync import --targets cursor,copilot --features rules,mcp,ignore${reset}\n` +
-      `${gray}Or use --features * to import all features.${reset}\n`,
-  );
-}
+import { showBackwardCompatibilityWarning } from "./shared-utils.js";
 
 export interface ImportOptions {
   targets?: ToolTarget[];
@@ -61,7 +43,10 @@ export async function importCommand(options: ImportOptions = {}): Promise<void> 
 
   // Show backward compatibility warning if features are not specified
   if (showWarning) {
-    showBackwardCompatibilityWarning();
+    showBackwardCompatibilityWarning(
+      "importing",
+      "rulesync import --targets cursor,copilot --features rules,mcp,ignore",
+    );
   }
 
   // Normalize features for processing
