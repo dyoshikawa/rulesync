@@ -29,8 +29,9 @@ export class ClaudeCodeSubagentGenerator extends BaseSubagentGenerator {
       frontmatterLines.push(`name: ${subagent.frontmatter.name}`);
       frontmatterLines.push(`description: ${subagent.frontmatter.description}`);
 
-      if (subagent.frontmatter.model) {
-        frontmatterLines.push(`model: ${subagent.frontmatter.model}`);
+      // Check for claudecode-specific model configuration
+      if (subagent.frontmatter.claudecode?.model) {
+        frontmatterLines.push(`model: ${subagent.frontmatter.claudecode.model}`);
       }
 
       frontmatterLines.push("---");
@@ -51,8 +52,9 @@ export class ClaudeCodeSubagentGenerator extends BaseSubagentGenerator {
     frontmatterLines.push(`name: ${subagent.frontmatter.name}`);
     frontmatterLines.push(`description: ${subagent.frontmatter.description}`);
 
-    if (subagent.frontmatter.model) {
-      frontmatterLines.push(`model: ${subagent.frontmatter.model}`);
+    // Check for claudecode-specific model configuration
+    if (subagent.frontmatter.claudecode?.model) {
+      frontmatterLines.push(`model: ${subagent.frontmatter.claudecode.model}`);
     }
 
     frontmatterLines.push("---");

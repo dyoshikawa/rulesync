@@ -1,7 +1,8 @@
 ---
 name: pr-merger
 description: Use this agent when you need to merge GitHub pull requests.
-model: sonnet
+claudecode:
+  model: sonnet
 ---
 
 Use the `gh pr merge {Number} --admin --squash` command format as specified in project instructions.

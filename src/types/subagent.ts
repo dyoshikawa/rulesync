@@ -1,10 +1,16 @@
 import { z } from "zod/mini";
 
+// Tool-specific configuration schemas
+export const ClaudeCodeConfigSchema = z.object({
+  model: z.optional(z.string()),
+});
+
 // Schema for subagent frontmatter
 export const SubagentFrontmatterSchema = z.object({
   name: z.string(),
   description: z.string(),
-  model: z.optional(z.string()),
+  // Tool-specific configurations
+  claudecode: z.optional(ClaudeCodeConfigSchema),
 });
 
 // Raw frontmatter type from the schema
