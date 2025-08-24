@@ -34,7 +34,7 @@ export async function generateBaseRulesConfig(
 /**
  * Common pattern for categorizing rules by type
  */
-export function categorizeRules(rules: ParsedRule[]) {
+function categorizeRules(rules: ParsedRule[]) {
   return rules.reduce<{
     root: ParsedRule[];
     detail: ParsedRule[];

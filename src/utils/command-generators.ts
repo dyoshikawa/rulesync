@@ -13,10 +13,7 @@ export interface FrontmatterOptions {
 /**
  * Generate YAML frontmatter lines for commands
  */
-export function generateYamlFrontmatter(
-  command: ParsedCommand,
-  options?: FrontmatterOptions,
-): string[] {
+function generateYamlFrontmatter(command: ParsedCommand, options?: FrontmatterOptions): string[] {
   const frontmatterLines: string[] = ["---"];
 
   // Add description if present and requested

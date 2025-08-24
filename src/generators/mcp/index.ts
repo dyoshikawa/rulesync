@@ -1,4 +1,4 @@
-export { generateAmazonqcliMcp, generateAmazonqcliMcpString } from "./amazonqcli.js";
+export { generateAmazonqcliMcpString } from "./amazonqcli.js";
 export { generateAugmentcodeMcp } from "./augmentcode.js";
 export { generateClaudeMcp } from "./claudecode.js";
 export { generateClineMcp } from "./cline.js";
@@ -8,6 +8,6 @@ export { generateCursorMcp } from "./cursor.js";
 export { generateGeminiCliMcp } from "./geminicli.js";
 export { generateJunieMcp } from "./junie.js";
 export { generateKiroMcp } from "./kiro.js";
-export { generateQwenCodeMcp, generateQwenCodeMcpConfiguration } from "./qwencode.js";
+export { generateQwenCodeMcp } from "./qwencode.js";
 export { generateRooMcp } from "./roo.js";
 export { generateWindsurfMcp } from "./windsurf.js";
