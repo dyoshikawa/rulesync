@@ -31,6 +31,15 @@ interface Rule {
   getFileContent(): string
 }
 
+class RulesyncRule implements Rule {
+  static build(params: {filePath: string, fileContent: string}): RulesyncRule
+  static fromFilePath(filePath: string): Promise<RulesyncRule>
+  writeFile(): Promise<void>
+  validate(): ValidationResult
+  getFilePath(): string
+  getFileContent(): string
+}
+
 interface ToolRule extends Rule {
   static build(params: {filePath: string, fileContent: string}): ToolRule
   static fromFilePath(filePath: string): Promise<ToolRule>
@@ -41,21 +50,13 @@ interface ToolRule extends Rule {
   getFileContent(): string
 }
 
+// claudecode example:
 class ClaudecodeRule implements ToolRule {
   static build(params: {filePath: string, fileContent: string}): ClaudecodeRule
   static fromFilePath(filePath: string): Promise<ClaudecodeRule>
   writeFile(): Promise<void>
   toRulesyncRule(): RulesyncRule
   static fromRulesyncRule(rule: RulesyncRule): ClaudecodeRule
-  getFilePath(): string
-  getFileContent(): string
-}
-
-class RulesyncRule implements Rule {
-  static build(params: {filePath: string, fileContent: string}): RulesyncRule
-  static fromFilePath(filePath: string): Promise<RulesyncRule>
-  writeFile(): Promise<void>
-  validate(): ValidationResult
   getFilePath(): string
   getFileContent(): string
 }
