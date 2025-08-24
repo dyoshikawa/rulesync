@@ -93,6 +93,24 @@ export const agentsmdContentSchema = z
   .min(1, "AGENTS.md content cannot be empty")
   .refine((content) => content.trim().length > 0, "AGENTS.md content cannot be only whitespace");
 
+/**
+ * Amazon Q CLI rule schema
+ */
+export const amazonqcliFilePathSchema = z
+  .string()
+  .refine(
+    (path) => path.includes(".amazonq/rules/") && path.endsWith(".md"),
+    "Amazon Q CLI rule file must be in .amazonq/rules/ directory and have .md extension",
+  );
+
+export const amazonqcliContentSchema = z
+  .string()
+  .min(1, "Amazon Q CLI rule content cannot be empty")
+  .refine(
+    (content) => content.trim().length > 0,
+    "Amazon Q CLI rule content cannot be only whitespace",
+  );
+
 // Type exports
 export type RulesyncFrontmatter = z.infer<typeof rulesyncFrontmatterSchema>;
 export type RulesyncConstructorParams = z.infer<typeof rulesyncConstructorSchema>;
