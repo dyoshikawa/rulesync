@@ -13,44 +13,51 @@ So, we need to redesign the codebase to make it more consistent and easy to unde
 ### Rules
 
 ```ts
+type ValidationResult = {
+  success: true
+  error: null
+} | {
+  success: false
+  error: Error
+}
+
 interface Rule {
-  static buildFromFilePath(filePath: string): Promise<Rule>
-  writeFile(filePath: string): Promise<void>
+  static build(params: {filePath: string, fileContent: string}): Rule
+  // Read an actual file
+  static fromFilePath(filePath: string): Promise<Rule>
+  writeFile(): Promise<void>
+  validate(): ValidationResult
+  getFilePath(): string
+  getFileContent(): string
 }
 
 interface ToolRule extends Rule {
-  static buildFromFilePath(filePath: string): Promise<ToolRule>
-  writeFile(filePath: string): Promise<void>
-
+  static build(params: {filePath: string, fileContent: string}): ToolRule
+  static fromFilePath(filePath: string): Promise<ToolRule>
+  writeFile(): Promise<void>
   toRulesyncRule(): RulesyncRule
   static fromRulesyncRule(rule: RulesyncRule): ToolRule
+  getFilePath(): string
+  getFileContent(): string
 }
 
 class ClaudecodeRule implements ToolRule {
-  static buildFromFilePath(filePath: string): Promise<ClaudecodeRule>
+  static build(params: {filePath: string, fileContent: string}): ClaudecodeRule
+  static fromFilePath(filePath: string): Promise<ClaudecodeRule>
   writeFile(): Promise<void>
-
   toRulesyncRule(): RulesyncRule
-  static fromRulesyncRule(rule: RulesyncRule): ToolRule
-}
-
-interface RulesyncRuleData {
-  dataType: "rulesync_rule"
-  frontmatter: {
-    targets?: ToolTarget[]
-    description?: string
-  }
-  body: string
-  filePath: string
+  static fromRulesyncRule(rule: RulesyncRule): ClaudecodeRule
+  getFilePath(): string
+  getFileContent(): string
 }
 
 class RulesyncRule implements Rule {
-  private data: RulesyncRuleData
-
+  static build(params: {filePath: string, fileContent: string}): RulesyncRule
+  static fromFilePath(filePath: string): Promise<RulesyncRule>
+  writeFile(): Promise<void>
+  validate(): ValidationResult
   getFilePath(): string
   getFileContent(): string
-  static build(filePath: string, fileContent: string): RulesyncRule
-  toData(): RulesyncRuleData
 }
 ```
 
