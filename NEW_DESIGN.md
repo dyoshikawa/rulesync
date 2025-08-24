@@ -102,7 +102,6 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [ ] agentsmd
 - [ ] amazonqcli
 - [ ] augmentcode
-- [ ] augmentcode-legacy
 - [ ] copilot
 - [ ] cursor
 - [ ] cline
@@ -121,7 +120,6 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [ ] agentsmd
 - [ ] amazonqcli
 - [ ] augmentcode
-- [ ] augmentcode-legacy
 - [ ] copilot
 - [ ] cursor
 - [ ] cline

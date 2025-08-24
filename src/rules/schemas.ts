@@ -111,6 +111,24 @@ export const amazonqcliContentSchema = z
     "Amazon Q CLI rule content cannot be only whitespace",
   );
 
+/**
+ * AugmentCode rule schema
+ */
+export const augmentcodeFilePathSchema = z
+  .string()
+  .refine(
+    (path) => path.includes(".augment/rules/") && path.endsWith(".md"),
+    "AugmentCode rule file must be in .augment/rules/ directory and have .md extension",
+  );
+
+export const augmentcodeContentSchema = z
+  .string()
+  .min(1, "AugmentCode rule content cannot be empty")
+  .refine(
+    (content) => content.trim().length > 0,
+    "AugmentCode rule content cannot be only whitespace",
+  );
+
 // Type exports
 export type RulesyncFrontmatter = z.infer<typeof rulesyncFrontmatterSchema>;
 export type RulesyncConstructorParams = z.infer<typeof rulesyncConstructorSchema>;
