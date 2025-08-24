@@ -96,7 +96,6 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [ ] copilot
 - [ ] cursor
 - [ ] cline
-- [ ] claudecode
 - [ ] codexcli
 - [ ] opencode
 - [ ] qwencode
@@ -116,7 +115,6 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [ ] copilot
 - [ ] cursor
 - [ ] cline
-- [ ] claudecode
 - [ ] codexcli
 - [ ] opencode
 - [ ] qwencode
@@ -136,7 +134,6 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [ ] copilot
 - [ ] cursor
 - [ ] cline
-- [ ] claudecode
 - [ ] codexcli
 - [ ] opencode
 - [ ] qwencode
@@ -156,7 +153,6 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [ ] copilot
 - [ ] cursor
 - [ ] cline
-- [ ] claudecode
 - [ ] codexcli
 - [ ] opencode
 - [ ] qwencode
