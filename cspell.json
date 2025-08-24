@@ -230,6 +230,9 @@
         "qwencode",
         "qwen",
         "QWEN",
-        "smol"
+        "smol",
+        "agentic",
+        "PKCE",
+        "ovewview"
     ]
 }

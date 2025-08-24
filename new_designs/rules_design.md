@@ -1,26 +1,6 @@
-# About New Design of Rulesync
+# Rules of New Design
 
-## Overview, Background and Purpose
-
-This document describes the new design guidelines for the Rulesync project.
-
-The Conventional codebase does not have consistent structures, and the code is not easy to understand and maintain. Especially when the external contributors want to contribute to implement supports for new AI coding tools, they may not be able to understand how to implement them.
-
-So, we need to redesign the codebase to make it more consistent and easy to understand and maintain. Specifically, consistent interfaces and classes should be prepared to make it easier for external contributors to implement supports for new AI coding tools.
-
-## Immediate goals
-
-My immediate goal is replacing the rules generation logics.
-
-Others that are mcp, ignore, commands and subagents should not be replaced yet.
-
-Attention, the replacements must not break the existing behaviors.
-
-At key points, you should commit your changes actively.
-
-## New Design in Details
-
-### 
+## Rule interfaces and classes
 
 ```ts
 type ValidationResult = {
@@ -92,54 +72,27 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [x] junie
 - [x] windsurf
 
-### 
+## RulesProcessor class
 
-## TODO
+```ts
+interface RulesProcessor {
+  generate(): Promise<void>
+  // Load rules from files
+  load(paths: string[]): Promise<void>
+  // Import a rule from a file
+  importFrom(filePath: string): Promise<Rule>
+}
 
-Every time you complete each replacement of the codes, please update the TODO list below.
+interface ToolRulesProcessor extends RulesProcessor {
+  generate(): Promise<void>
+  load(paths: string[]): Promise<void>
+  importFrom(filePath: string): Promise<Rule>
+}
 
-## MCP
+class RulesyncRulesProcessor implements RulesProcessor {
+  generate(): Promise<void>
+  load(paths: string[]): Promise<void>
+  importFrom(filePath: string): Promise<Rule>
+}
+```
 
-- [ ] claudecode
-- [ ] agentsmd
-- [ ] amazonqcli
-- [ ] augmentcode
-- [ ] copilot
-- [ ] cursor
-- [ ] cline
-- [ ] codexcli
-- [ ] opencode
-- [ ] qwencode
-- [ ] roo
-- [ ] geminicli
-- [ ] kiro
-- [ ] junie
-- [ ] windsurf
-
-## Ignore
-
-- [ ] claudecode
-- [ ] agentsmd
-- [ ] amazonqcli
-- [ ] augmentcode
-- [ ] copilot
-- [ ] cursor
-- [ ] cline
-- [ ] codexcli
-- [ ] opencode
-- [ ] qwencode
-- [ ] roo
-- [ ] geminicli
-- [ ] kiro
-- [ ] junie
-- [ ] windsurf
-
-## Commands
-
-- [ ] claudecode
-- [ ] geminicli
-- [ ] roo
-
-## Subagents
-
-- [ ] claudecode
