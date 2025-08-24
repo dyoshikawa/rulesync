@@ -7,7 +7,7 @@
       "Bash(git remote set-url:*)",
       "Bash(npm publish:*)",
       "Bash(pnpm publish:*)",
-      "Read(tmp/**/*)"
+      "Read(confidentials/**)"
     ],
     "allow": [
       "Bash(git:*)",

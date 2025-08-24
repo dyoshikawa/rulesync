@@ -8,6 +8,12 @@ The Conventional codebase does not have consistent structures, and the code is n
 
 So, we need to redesign the codebase to make it more consistent and easy to understand and maintain. Specifically, consistent interfaces and classes should be prepared to make it easier for external contributors to implement supports for new AI coding tools.
 
+## Immediate goals
+
+My immediate goal is replacing the rules generation logics.
+
+Others that are mcp, ignore, commands and subagents should not be replaced yet.
+
 ## New Design in Details
 
 ### Rules
@@ -68,7 +74,7 @@ Every time you complete each replacement of the codes, please update the TODO li
 
 ### Rules
 
-- [ ] claudecode
+- [x] claudecode
 - [ ] agentsmd
 - [ ] amazonqcli
 - [ ] augmentcode
