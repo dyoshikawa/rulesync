@@ -14,6 +14,10 @@ My immediate goal is replacing the rules generation logics.
 
 Others that are mcp, ignore, commands and subagents should not be replaced yet.
 
+Attention, the replacements must not break the existing behaviors.
+
+At key points, you should commit your changes actively.
+
 ## New Design in Details
 
 ### Rules
@@ -133,37 +137,9 @@ Every time you complete each replacement of the codes, please update the TODO li
 ## Commands
 
 - [ ] claudecode
-- [ ] agentsmd
-- [ ] amazonqcli
-- [ ] augmentcode
-- [ ] augmentcode-legacy
-- [ ] copilot
-- [ ] cursor
-- [ ] cline
-- [ ] codexcli
-- [ ] opencode
-- [ ] qwencode
-- [ ] roo
 - [ ] geminicli
-- [ ] kiro
-- [ ] junie
-- [ ] windsurf
+- [ ] roo
 
 ## Subagents
 
 - [ ] claudecode
-- [ ] agentsmd
-- [ ] amazonqcli
-- [ ] augmentcode
-- [ ] augmentcode-legacy
-- [ ] copilot
-- [ ] cursor
-- [ ] cline
-- [ ] codexcli
-- [ ] opencode
-- [ ] qwencode
-- [ ] roo
-- [ ] geminicli
-- [ ] kiro
-- [ ] junie
-- [ ] windsurf
