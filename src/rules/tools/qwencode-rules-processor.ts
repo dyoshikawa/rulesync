@@ -11,7 +11,7 @@ export class QwencodeRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return QwencodeRule as unknown;
+    return QwencodeRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

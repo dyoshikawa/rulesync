@@ -11,7 +11,7 @@ export class JunieRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return JunieRule as unknown;
+    return JunieRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

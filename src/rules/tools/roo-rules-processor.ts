@@ -11,7 +11,7 @@ export class RooRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return RooRule as unknown;
+    return RooRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

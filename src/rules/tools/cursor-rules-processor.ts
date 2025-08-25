@@ -11,7 +11,7 @@ export class CursorRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return CursorRule as unknown;
+    return CursorRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

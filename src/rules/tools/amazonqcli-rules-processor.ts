@@ -11,7 +11,7 @@ export class AmazonqcliRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return AmazonqcliRule as unknown;
+    return AmazonqcliRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

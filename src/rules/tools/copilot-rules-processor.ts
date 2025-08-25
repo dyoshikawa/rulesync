@@ -11,7 +11,7 @@ export class CopilotRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return CopilotRule as unknown;
+    return CopilotRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

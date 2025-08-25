@@ -11,7 +11,7 @@ export class AugmentcodeRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return AugmentcodeRule as unknown;
+    return AugmentcodeRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

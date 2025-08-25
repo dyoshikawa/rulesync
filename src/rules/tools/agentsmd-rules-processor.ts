@@ -11,7 +11,7 @@ export class AgentsmdRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return AgentsmdRule as unknown;
+    return AgentsmdRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

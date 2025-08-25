@@ -11,7 +11,7 @@ export class ClineRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return ClineRule as unknown;
+    return ClineRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

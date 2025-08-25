@@ -11,7 +11,7 @@ export class KiroRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return KiroRule as unknown;
+    return KiroRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

@@ -11,7 +11,7 @@ export class WindsurfRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return WindsurfRule as unknown;
+    return WindsurfRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

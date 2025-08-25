@@ -11,7 +11,7 @@ export class GeminicliRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return GeminicliRule as unknown;
+    return GeminicliRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

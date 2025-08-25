@@ -11,7 +11,7 @@ export class CodexcliRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return CodexcliRule as unknown;
+    return CodexcliRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

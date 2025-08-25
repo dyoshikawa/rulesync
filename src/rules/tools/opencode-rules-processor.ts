@@ -11,7 +11,7 @@ export class OpencodeRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return OpencodeRule as unknown;
+    return OpencodeRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

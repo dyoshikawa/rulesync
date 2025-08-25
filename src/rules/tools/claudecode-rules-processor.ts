@@ -11,7 +11,7 @@ export class ClaudecodeRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return ClaudecodeRule as unknown;
+    return ClaudecodeRule as any;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {
