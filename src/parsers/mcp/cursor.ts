@@ -1,7 +1,6 @@
 import { join } from "node:path";
-import type { RulesyncMcpServer } from "../../types/mcp.js";
 import { RulesyncMcpConfigSchema } from "../../types/mcp.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { BaseMcpParser, type McpParseResult } from "./base.js";
 

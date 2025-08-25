@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
-import type { ParsedRule, RuleFrontmatter } from "../../types/index.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 
@@ -29,7 +29,9 @@ export class ClineRuleParser extends BaseRuleParser {
     await this.parseRulesDirectory(baseDir, result);
 
     if (result.rules.length === 0) {
-      result.errors.push("No Cline configuration files found (.cline/instructions.md or .clinerules/*.md)");
+      result.errors.push(
+        "No Cline configuration files found (.cline/instructions.md or .clinerules/*.md)",
+      );
     }
 
     return result;
@@ -43,7 +45,7 @@ export class ClineRuleParser extends BaseRuleParser {
 
     const parseResult = await safeAsyncOperation(async () => {
       const content = await readFileContent(instructionsPath);
-      
+
       if (content.trim()) {
         const frontmatter: RuleFrontmatter = {
           root: false,

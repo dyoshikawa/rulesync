@@ -4,8 +4,8 @@ import type { ParsedSubagent } from "../types/subagent.js";
 import { fileExists, resolvePath } from "../utils/file.js";
 import { getCommandParser } from "./commands/index.js";
 import { getIgnoreParser } from "./ignore/index.js";
-import { getRuleParser } from "./rules/index.js";
 import { getMcpParser } from "./mcp/index.js";
+import { getRuleParser } from "./rules/index.js";
 import { parseSubagentsFromDirectory } from "./subagents/shared.js";
 
 export interface ClaudeImportResult {

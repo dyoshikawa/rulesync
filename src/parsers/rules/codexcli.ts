@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import type { ParsedRule, RuleFrontmatter } from "../../types/index.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 
@@ -71,7 +71,10 @@ export class CodexCLIRuleParser extends BaseRuleParser {
     }
   }
 
-  private async parseSubdirectoryAgentsFiles(baseDir: string, result: RuleParseResult): Promise<void> {
+  private async parseSubdirectoryAgentsFiles(
+    baseDir: string,
+    result: RuleParseResult,
+  ): Promise<void> {
     const parseResult = await safeAsyncOperation(async () => {
       const { readdir, stat } = await import("node:fs/promises");
       const files = await readdir(baseDir);
@@ -83,7 +86,7 @@ export class CodexCLIRuleParser extends BaseRuleParser {
         }
 
         const filePath = join(baseDir, file);
-        
+
         try {
           const stats = await stat(filePath);
           if (stats.isDirectory()) {
@@ -124,7 +127,10 @@ export class CodexCLIRuleParser extends BaseRuleParser {
     }
   }
 
-  private async parseOtherInstructionFiles(baseDir: string, result: RuleParseResult): Promise<void> {
+  private async parseOtherInstructionFiles(
+    baseDir: string,
+    result: RuleParseResult,
+  ): Promise<void> {
     const parseResult = await safeAsyncOperation(async () => {
       const { readdir } = await import("node:fs/promises");
       const files = await readdir(baseDir);

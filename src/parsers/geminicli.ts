@@ -2,8 +2,8 @@ import type { ParsedRule } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { getCommandParser } from "./commands/index.js";
 import { getIgnoreParser } from "./ignore/index.js";
-import { getRuleParser } from "./rules/index.js";
 import { getMcpParser } from "./mcp/index.js";
+import { getRuleParser } from "./rules/index.js";
 
 export interface GeminiImportResult {
   rules: ParsedRule[];

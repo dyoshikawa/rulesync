@@ -1,8 +1,12 @@
 import { basename, join } from "node:path";
-import type { ParsedRule, RuleFrontmatter } from "../../types/index.js";
-import { extractArrayField, extractStringField, parseFrontmatter } from "../../utils/frontmatter.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import {
+  extractArrayField,
+  extractStringField,
+  parseFrontmatter,
+} from "../../utils/frontmatter.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 
 /**
@@ -95,7 +99,9 @@ export class AugmentCodeRuleParser extends BaseRuleParser {
   private async parseLegacyGuidelines(baseDir: string, result: RuleParseResult): Promise<void> {
     const guidelinesPath = join(baseDir, ".augment-guidelines");
     if (!(await fileExists(guidelinesPath))) {
-      result.errors.push("No AugmentCode configuration found. Expected .augment/rules directory or .augment-guidelines file.");
+      result.errors.push(
+        "No AugmentCode configuration found. Expected .augment/rules directory or .augment-guidelines file.",
+      );
       return;
     }
 

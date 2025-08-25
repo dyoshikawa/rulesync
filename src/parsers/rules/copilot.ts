@@ -1,8 +1,12 @@
 import { join } from "node:path";
-import type { RuleFrontmatter, ParsedRule } from "../../types/index.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { extractArrayField, extractStringField, parseFrontmatter } from "../../utils/frontmatter.js";
+import {
+  extractArrayField,
+  extractStringField,
+  parseFrontmatter,
+} from "../../utils/frontmatter.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 
 /**
@@ -41,7 +45,7 @@ export class CopilotRuleParser extends BaseRuleParser {
 
     const parseResult = await safeAsyncOperation(async () => {
       const content = await readFileContent(mainFilePath);
-      
+
       if (!content.trim()) {
         return;
       }
@@ -86,7 +90,7 @@ export class CopilotRuleParser extends BaseRuleParser {
 
             if (content) {
               const filename = file.replace(/\.instructions\.md$/, "");
-              
+
               const frontmatter: RuleFrontmatter = {
                 root: false,
                 targets: ["copilot"],

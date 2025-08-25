@@ -1,7 +1,7 @@
 import type { ParsedRule } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
-import { getRuleParser } from "./rules/index.js";
 import { getMcpParser } from "./mcp/index.js";
+import { getRuleParser } from "./rules/index.js";
 
 export interface AmazonqcliImportResult {
   rules: ParsedRule[];

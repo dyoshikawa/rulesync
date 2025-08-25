@@ -15,7 +15,7 @@ export async function importWindsurfRules(
   }
 
   const result = await ruleParser.parseRules(sourceDir);
-  
+
   if (!options.ignoreErrors && result.errors.length > 0) {
     throw new Error(`Failed to import Windsurf rules: ${result.errors.join(", ")}`);
   }

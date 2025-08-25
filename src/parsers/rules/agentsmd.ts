@@ -1,6 +1,7 @@
 import { join } from "node:path";
-import type { RuleFrontmatter, ParsedRule } from "../../types/index.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 
@@ -120,7 +121,10 @@ export class AgentsMdRuleParser extends BaseRuleParser {
     }
   }
 
-  private async parseDirectorySpecificFiles(baseDir: string, result: RuleParseResult): Promise<void> {
+  private async parseDirectorySpecificFiles(
+    baseDir: string,
+    result: RuleParseResult,
+  ): Promise<void> {
     const parseResult = await safeAsyncOperation(async () => {
       const { readdir, stat } = await import("node:fs/promises");
       const files = await readdir(baseDir);
@@ -216,11 +220,11 @@ export class AgentsMdRuleParser extends BaseRuleParser {
 /**
  * Create an AGENTS.md rule parser for a specific tool
  */
-export function createAgentsMdRuleParser(tool: string, description?: string): BaseRuleParser {
+export function createAgentsMdRuleParser(tool: ToolTarget, description?: string): BaseRuleParser {
   // For simple tools, return the simple AgentsMd parser
   class SimpleAgentsMdRuleParser extends BaseRuleParser {
     getToolName() {
-      return tool as any;
+      return tool;
     }
 
     getRuleFilesPattern(): string {
@@ -241,14 +245,14 @@ export function createAgentsMdRuleParser(tool: string, description?: string): Ba
 
       const parseResult = await safeAsyncOperation(async () => {
         const content = await readFileContent(agentsPath);
-        
+
         if (!content.trim()) {
           return;
         }
 
         const frontmatter: RuleFrontmatter = {
           root: false,
-          targets: [tool as any],
+          targets: [tool],
           description: description || "AGENTS.md configuration",
           globs: ["**/*"],
         };

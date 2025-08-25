@@ -1,5 +1,5 @@
 import type { ToolTarget } from "../../types/tool-targets.js";
-import { createAgentsMdRuleParser, AgentsMdRuleParser } from "./agentsmd.js";
+import { AgentsMdRuleParser, createAgentsMdRuleParser } from "./agentsmd.js";
 import { AmazonQCLIRuleParser } from "./amazonqcli.js";
 import { AugmentCodeRuleParser } from "./augmentcode.js";
 import type { BaseRuleParser } from "./base.js";

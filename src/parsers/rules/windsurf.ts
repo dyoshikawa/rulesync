@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ParsedRule, RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { extractStringField, parseFrontmatter } from "../../utils/frontmatter.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 
 /**
@@ -34,7 +34,7 @@ export class WindsurfRuleParser extends BaseRuleParser {
 
   private async parseSingleFileRules(baseDir: string, result: RuleParseResult): Promise<void> {
     const singleFilePath = join(baseDir, ".windsurf-rules");
-    
+
     const parseResult = await safeAsyncOperation(async () => {
       const content = await readFile(singleFilePath, "utf-8");
       const parsed = this.parseWindsurfRule(content, ".windsurf-rules", singleFilePath);
@@ -50,7 +50,7 @@ export class WindsurfRuleParser extends BaseRuleParser {
 
   private async parseDirectoryRules(baseDir: string, result: RuleParseResult): Promise<void> {
     const rulesDir = join(baseDir, ".windsurf", "rules");
-    
+
     const parseResult = await safeAsyncOperation(async () => {
       const { readdir } = await import("node:fs/promises");
       const files = await readdir(rulesDir);
@@ -78,7 +78,11 @@ export class WindsurfRuleParser extends BaseRuleParser {
     }
   }
 
-  private parseWindsurfRule(content: string, filename: string, filepath: string): ParsedRule | null {
+  private parseWindsurfRule(
+    content: string,
+    filename: string,
+    filepath: string,
+  ): ParsedRule | null {
     try {
       const parsed = parseFrontmatter(content);
       const markdownContent = parsed.content;
@@ -97,8 +101,11 @@ export class WindsurfRuleParser extends BaseRuleParser {
         // Map activation modes to our frontmatter
         if (parsed.data.activation && typeof parsed.data.activation === "string") {
           const validModes = ["always", "manual", "model-decision", "glob"] as const;
-          if (validModes.includes(parsed.data.activation as any)) {
-            frontmatter.windsurfActivationMode = parsed.data.activation as any;
+          if (
+            typeof parsed.data.activation === "string" &&
+            validModes.includes(parsed.data.activation as typeof validModes[number])
+          ) {
+            frontmatter.windsurfActivationMode = parsed.data.activation as typeof validModes[number];
           }
         }
 
@@ -128,7 +135,7 @@ export class WindsurfRuleParser extends BaseRuleParser {
         filename: filename.replace(/\.md$/, ""),
         filepath,
       };
-    } catch (error) {
+    } catch {
       return null;
     }
   }

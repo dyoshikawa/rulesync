@@ -1,8 +1,8 @@
 import { basename, join } from "node:path";
 import { DEFAULT_SCHEMA, FAILSAFE_SCHEMA, load } from "js-yaml";
 import { z } from "zod/mini";
-import type { RuleFrontmatter, ParsedRule } from "../../types/index.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
@@ -32,7 +32,9 @@ export class CursorRuleParser extends BaseRuleParser {
     await this.parseCursorMdcFiles(baseDir, result);
 
     if (result.rules.length === 0) {
-      result.errors.push("No Cursor configuration files found (.cursorrules or .cursor/rules/*.mdc)");
+      result.errors.push(
+        "No Cursor configuration files found (.cursorrules or .cursor/rules/*.mdc)",
+      );
     }
 
     return result;
@@ -85,7 +87,9 @@ export class CursorRuleParser extends BaseRuleParser {
           const filePath = join(cursorRulesDir, file);
           const fileResult = await safeAsyncOperation(async () => {
             const rawContent = await readFileContent(filePath);
-            const parsed = parseFrontmatter(rawContent, { matterOptions: this.customMatterOptions });
+            const parsed = parseFrontmatter(rawContent, {
+              matterOptions: this.customMatterOptions,
+            });
             const content = parsed.content;
 
             if (content) {
@@ -238,7 +242,10 @@ export class CursorRuleParser extends BaseRuleParser {
     }
     if (typeof value === "string" && value.trim()) {
       // Handle comma-separated globs
-      return value.split(",").map((glob) => glob.trim()).filter(Boolean);
+      return value
+        .split(",")
+        .map((glob) => glob.trim())
+        .filter(Boolean);
     }
     return [];
   }
