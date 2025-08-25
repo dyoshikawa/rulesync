@@ -75,24 +75,53 @@ Every time you complete each replacement of the codes, please update the TODO li
 ## RulesProcessor class
 
 ```ts
+type ValidationResult = {
+  success: true
+  errors: []
+} | {
+  success: false
+  errors: {
+    filePath: string
+    error: Error
+  }[]
+}
+
 interface RulesProcessor {
-  generate(): Promise<void>
-  // Load rules from files
-  load(paths: string[]): Promise<void>
-  // Import a rule from a file
-  importFrom(filePath: string): Promise<Rule>
+  validate(): Promise<ValidationResult>
 }
 
 interface ToolRulesProcessor extends RulesProcessor {
-  generate(): Promise<void>
-  load(paths: string[]): Promise<void>
-  importFrom(filePath: string): Promise<Rule>
+  // `rulesync generate --base-dir {dir}` option is used to set the base directory of generated rules.
+  // Example:
+  // `rulesync generate --targets claudecode --features rules --base-dir .` => `./CLAUDE.md` and `./.claude/memories/*.md`
+  // `rulesync generate --targets claudecode --features rules --base-dir ./a` => `./a/CLAUDE.md` and `./a/.claude/memories/*.md`
+  static build(params: { baseDir: string }): ToolRulesProcessor
+
+  // `rulesync generate` process. Load rulesync rule files, and then generate tool rule files.
+  generateAllFromRulesyncRuleFiles(): Promise<void>
+
+  // `rulesync import` process. Load tool rule files, and then generate rulesync rule files.
+  generateAllToRulesyncRuleFiles(): Promise<void>
+
+  validate(): Promise<ValidationResult>
+}
+
+// claudecode rules processor example
+class ClaudecodeRulesProcessor implements ToolRulesProcessor {
+  static build(params: { baseDir: string }): ClaudecodeRulesProcessor
+
+  generateAllFromRulesyncRuleFiles(): Promise<void>
+
+  generateAllToRulesyncRuleFiles(): Promise<void>
+
+  validate(): Promise<ValidationResult>
 }
 
 class RulesyncRulesProcessor implements RulesProcessor {
-  generate(): Promise<void>
-  load(paths: string[]): Promise<void>
-  importFrom(filePath: string): Promise<Rule>
+  // For `rulesync init` and `rulesync add` process. Create a single new rulesync rule file.
+  generate(rule: RuleSyncRule): Promise<void>
+
+  validate(): Promise<ValidationResult>
 }
 ```
 
