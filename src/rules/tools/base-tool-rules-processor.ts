@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { ToolRulesProcessor, ValidationResult } from "../../types/rules-processor.js";
-import { fileExists, findFiles } from "../../utils/file-utils.js";
+import { fileExists, findFiles } from "../../utils/file.js";
 import { RulesyncRule } from "../rulesync-rule.js";
 import { ToolRuleConstructor } from "../types.js";
 

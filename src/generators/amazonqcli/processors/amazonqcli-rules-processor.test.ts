@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import glob from "fast-glob";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AmazonqcliRule } from "../../../rules/tools/amazonqcli-rule.js";
 import { AmazonqcliRulesProcessor } from "../../../rules/tools/amazonqcli-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
-import { fileExists } from "../../../utils/file-utils.js";
-import { AmazonqcliRule } from "../rules/amazonqcli-rule.js";
+import { fileExists } from "../../../utils/file.js";
 
-vi.mock("../../../utils/file-utils.js", () => ({
+vi.mock("../../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -20,7 +20,9 @@ describe("AmazonqcliRulesProcessor", () => {
   let processor: AmazonqcliRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new AmazonqcliRulesProcessor({ baseDir: testDir });

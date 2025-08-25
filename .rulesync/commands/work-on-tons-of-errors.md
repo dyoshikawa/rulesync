@@ -11,8 +11,8 @@ work_guidelines: Optional
 Execute the following commands in order. If an error occurs, stop executing subsequent commands and focus on resolving the encountered error.
 
 ```bash
-pnpm fix | tail -n 100
 pnpm typecheck | tail -n 100
+pnpm fix | tail -n 100
 pnpm test | tail -n 100
 ```
 

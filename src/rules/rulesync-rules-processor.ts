@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { RulesProcessor, ValidationResult } from "../../types/rules-processor.js";
-import { fileExists } from "../../utils/file-utils.js";
+import { RulesProcessor, ValidationResult } from "../types/rules-processor.js";
+import { fileExists } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export class RulesyncRulesProcessor implements RulesProcessor {

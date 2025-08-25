@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import glob from "fast-glob";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ClaudecodeRule } from "../../../rules/tools/claudecode-rule.js";
 import { ClaudecodeRulesProcessor } from "../../../rules/tools/claudecode-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
-import { fileExists } from "../../../utils/file-utils.js";
-import { ClaudecodeRule } from "../rules/claudecode-rule.js";
+import { fileExists } from "../../../utils/file.js";
 
-vi.mock("../../../utils/file-utils.js", () => ({
+vi.mock("../../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -20,7 +20,9 @@ describe("ClaudecodeRulesProcessor", () => {
   let processor: ClaudecodeRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new ClaudecodeRulesProcessor({ baseDir: testDir });

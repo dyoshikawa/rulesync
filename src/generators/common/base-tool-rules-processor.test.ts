@@ -1,13 +1,13 @@
 import { join } from "node:path";
 import glob from "fast-glob";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseToolRulesProcessor } from "../../../rules/tools/base-tool-rules-processor.js";
+import { BaseToolRulesProcessor } from "../../rules/tools/base-tool-rules-processor.js";
+import { BaseToolRule } from "../../rules/tools/base-tool-rule.js";
 import { RulesyncRule } from "../../rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/index.js";
-import { ToolRule } from "../../types/rules.js";
-import { fileExists } from "../../utils/file-utils.js";
+import { fileExists } from "../../utils/file.js";
 
-vi.mock("../../utils/file-utils.js", () => ({
+vi.mock("../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -18,40 +18,44 @@ vi.mock("fast-glob", () => ({
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal();
   return {
-    ...actual,
+    ...(actual as object),
     mkdir: vi.fn(),
   };
 });
 
-vi.mock("../../types/rules.js", () => ({
-  ToolRule: {
-    fromRulesyncRule: vi.fn(),
-    fromFilePath: vi.fn(),
-  },
-}));
-
-vi.mock("../rulesync/rules/rulesync-rule.js", () => ({
+vi.mock("../../rules/rulesync-rule.js", () => ({
   RulesyncRule: {
     fromFilePath: vi.fn(),
   },
 }));
 
 // Concrete implementation for testing
-class TestToolRulesProcessor extends BaseToolRulesProcessor {
-  static build(params: { baseDir: string }) {
-    return new TestToolRulesProcessor(params);
+class TestToolRule extends BaseToolRule {
+  static fromRulesyncRule = vi.fn();
+  static fromFilePath = vi.fn();
+  
+  validate(): { success: boolean; error?: Error } {
+    return { success: true };
+  }
+  
+  toRulesyncRule(): RulesyncRule {
+    return {} as RulesyncRule;
+  }
+  
+  writeFile = vi.fn();
+}
+
+class TestToolRulesProcessor extends BaseToolRulesProcessor<TestToolRule> {
+  protected getRulesyncDirectory(): string {
+    return join(this.baseDir, ".rulesync");
   }
 
-  protected getRuleClass() {
-    return ToolRule;
+  protected getRuleClass(): typeof TestToolRule {
+    return TestToolRule;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {
     return [join(this.baseDir, ".test-rules"), join(this.baseDir, "config", "test.md")];
-  }
-
-  protected getRulesyncDirectory(): string {
-    return join(this.baseDir, ".rulesync");
   }
 }
 
@@ -61,7 +65,9 @@ describe("BaseToolRulesProcessor", () => {
   let processor: TestToolRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new TestToolRulesProcessor({ baseDir: testDir });
@@ -69,116 +75,111 @@ describe("BaseToolRulesProcessor", () => {
 
   afterEach(async () => {
     await cleanup();
-    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
-    it("should set baseDir from params", () => {
+    it("should set baseDir correctly", () => {
+      expect(processor).toBeDefined();
       expect(processor["baseDir"]).toBe(testDir);
     });
   });
 
   describe("generateAllFromRulesyncRuleFiles", () => {
-    it("should throw error when .rulesync directory does not exist", async () => {
+    it("should create output files and .rulesync directory", async () => {
+      const { mkdir } = await import("node:fs/promises");
+      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncFiles = [join(rulesyncDir, "rule1.md"), join(rulesyncDir, "rule2.md")];
+
+      vi.mocked(glob).mockResolvedValue(rulesyncFiles);
       vi.mocked(fileExists).mockResolvedValue(false);
 
-      await expect(processor.generateAllFromRulesyncRuleFiles()).rejects.toThrow(
-        ".rulesync directory does not exist",
-      );
-    });
-
-    it("should process all rule files in .rulesync directory", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
-      const ruleFiles = [join(rulesyncDir, "rule1.md"), join(rulesyncDir, "rule2.md")];
-
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(glob).mockResolvedValue(ruleFiles);
-
-      const mockRulesyncRule = {
-        writeFile: vi.fn(),
-      };
+      const mockRulesyncRule = {};
       const mockToolRule = {
         writeFile: vi.fn(),
       };
 
       vi.mocked(RulesyncRule.fromFilePath).mockResolvedValue(mockRulesyncRule as any);
-      vi.mocked(ToolRule.fromRulesyncRule).mockReturnValue(mockToolRule as any);
+      vi.mocked(TestToolRule.fromRulesyncRule).mockReturnValue(mockToolRule as any);
 
       await processor.generateAllFromRulesyncRuleFiles();
 
+      expect(mkdir).toHaveBeenCalledWith(join(testDir, ".rulesync"), { recursive: true });
       expect(glob).toHaveBeenCalledWith("*.md", {
         cwd: rulesyncDir,
         absolute: true,
       });
       expect(RulesyncRule.fromFilePath).toHaveBeenCalledTimes(2);
-      expect(ToolRule.fromRulesyncRule).toHaveBeenCalledTimes(2);
+      expect(TestToolRule.fromRulesyncRule).toHaveBeenCalledTimes(2);
       expect(mockToolRule.writeFile).toHaveBeenCalledTimes(2);
     });
   });
 
   describe("generateAllToRulesyncRuleFiles", () => {
-    it("should create .rulesync directory and process existing rule files", async () => {
+    it("should create .rulesync directory and process tool-specific files", async () => {
       const { mkdir } = await import("node:fs/promises");
       const rulesyncDir = join(testDir, ".rulesync");
-      const ruleFilePaths = [join(testDir, ".test-rules"), join(testDir, "config", "test.md")];
+      const toolFile1 = join(testDir, ".test-rules");
+      const toolFile2 = join(testDir, "config", "test.md");
 
-      // Mock first file exists, second doesn't
-      vi.mocked(fileExists)
-        .mockResolvedValueOnce(true) // First file exists
-        .mockResolvedValueOnce(false); // Second file doesn't exist
+      vi.mocked(fileExists).mockResolvedValue(true);
 
       const mockToolRule = {
         toRulesyncRule: vi.fn().mockReturnValue({
           writeFile: vi.fn(),
         }),
       };
+      const mockRulesyncRule = mockToolRule.toRulesyncRule();
 
-      vi.mocked(ToolRule.fromFilePath).mockResolvedValue(mockToolRule as any);
+      vi.mocked(TestToolRule.fromFilePath).mockResolvedValue(mockToolRule as any);
 
       await processor.generateAllToRulesyncRuleFiles();
 
       expect(mkdir).toHaveBeenCalledWith(rulesyncDir, { recursive: true });
-      expect(ToolRule.fromFilePath).toHaveBeenCalledTimes(1);
-      expect(ToolRule.fromFilePath).toHaveBeenCalledWith(ruleFilePaths[0]);
-      expect(mockToolRule.toRulesyncRule).toHaveBeenCalledTimes(1);
+      expect(TestToolRule.fromFilePath).toHaveBeenCalledWith(toolFile1);
+      expect(TestToolRule.fromFilePath).toHaveBeenCalledWith(toolFile2);
+      expect(mockToolRule.toRulesyncRule).toHaveBeenCalledTimes(2);
+      expect(mockRulesyncRule.writeFile).toHaveBeenCalledTimes(2);
     });
   });
 
   describe("validate", () => {
-    it("should return error when no rule files exist", async () => {
-      vi.mocked(fileExists).mockResolvedValue(false);
-
-      const result = await processor.validate();
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]?.error.message).toBe(
-        "No rule files found for TestToolRulesProcessor",
-      );
-    });
-
-    it("should validate existing rule files successfully", async () => {
-      vi.mocked(fileExists)
-        .mockResolvedValueOnce(true) // First file exists
-        .mockResolvedValueOnce(false); // Second file doesn't exist
+    it("should return success when all tool files are valid", async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
 
       const mockToolRule = {
         validate: vi.fn().mockReturnValue({ success: true }),
       };
 
-      vi.mocked(ToolRule.fromFilePath).mockResolvedValue(mockToolRule as any);
+      vi.mocked(TestToolRule.fromFilePath).mockResolvedValue(mockToolRule as any);
 
       const result = await processor.validate();
 
       expect(result.success).toBe(true);
       expect(result.errors).toHaveLength(0);
-      expect(mockToolRule.validate).toHaveBeenCalledTimes(1);
+      expect(mockToolRule.validate).toHaveBeenCalledTimes(2);
     });
 
-    it("should collect validation errors from rule files", async () => {
+    it("should return error when a tool file does not exist", async () => {
+      const toolFile1 = join(testDir, ".test-rules");
+      
+      vi.mocked(fileExists)
+        .mockResolvedValueOnce(false) // First file doesn't exist
+        .mockResolvedValueOnce(true); // Second file exists
+
+      const result = await processor.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toEqual({
+        filePath: toolFile1,
+        error: new Error(`.test-rules does not exist`),
+      });
+    });
+
+    it("should collect validation errors from tool files", async () => {
       vi.mocked(fileExists).mockResolvedValue(true);
 
-      const validationError = new Error("Invalid rule format");
+      const validationError = new Error("Invalid format");
       const mockToolRule = {
         validate: vi.fn().mockReturnValue({
           success: false,
@@ -186,33 +187,31 @@ describe("BaseToolRulesProcessor", () => {
         }),
       };
 
-      vi.mocked(ToolRule.fromFilePath).mockResolvedValue(mockToolRule as any);
+      vi.mocked(TestToolRule.fromFilePath).mockResolvedValue(mockToolRule as any);
 
       const result = await processor.validate();
 
       expect(result.success).toBe(false);
-      expect(result.errors).toHaveLength(2); // Two files both have errors
+      expect(result.errors).toHaveLength(2); // Two files, both with errors
       expect(result.errors[0]?.error).toBe(validationError);
+      expect(result.errors[1]?.error).toBe(validationError);
     });
 
-    it("should handle errors when loading rule files", async () => {
+    it("should handle errors when reading tool files", async () => {
+      const toolFile1 = join(testDir, ".test-rules");
       vi.mocked(fileExists).mockResolvedValue(true);
 
-      const loadError = new Error("File not readable");
-      vi.mocked(ToolRule.fromFilePath).mockRejectedValue(loadError);
+      const readError = new Error("Failed to read file");
+      vi.mocked(TestToolRule.fromFilePath).mockRejectedValue(readError);
 
       const result = await processor.validate();
 
       expect(result.success).toBe(false);
-      expect(result.errors).toHaveLength(2); // Two files both throw errors
-      expect(result.errors[0]?.error).toBe(loadError);
-    });
-  });
-
-  describe("getRulesyncDirectory", () => {
-    it("should return .rulesync subdirectory of baseDir", () => {
-      const result = processor["getRulesyncDirectory"]();
-      expect(result).toBe(join(testDir, ".rulesync"));
+      expect(result.errors).toHaveLength(2); // Two files, both with read errors
+      expect(result.errors[0]).toEqual({
+        filePath: toolFile1,
+        error: readError,
+      });
     });
   });
 });

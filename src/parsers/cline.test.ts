@@ -11,7 +11,9 @@ describe("parseClineConfiguration", () => {
   let clinerulesDirPath: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     clineInstructionsPath = join(testDir, ".cline", "instructions.md");
     clinerulesDirPath = join(testDir, ".clinerules");
 

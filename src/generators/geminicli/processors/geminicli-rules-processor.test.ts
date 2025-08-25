@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GeminicliRule } from "../../../rules/tools/geminicli-rule.js";
 import { GeminicliRulesProcessor } from "../../../rules/tools/geminicli-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
-import { fileExists } from "../../../utils/file-utils.js";
-import { GeminicliRule } from "../rules/geminicli-rule.js";
+import { fileExists } from "../../../utils/file.js";
 
-vi.mock("../../../utils/file-utils.js", () => ({
+vi.mock("../../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -15,7 +15,9 @@ describe("GeminicliRulesProcessor", () => {
   let processor: GeminicliRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new GeminicliRulesProcessor({ baseDir: testDir });

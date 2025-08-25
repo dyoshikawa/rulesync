@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ToolRulesProcessor } from "../../types/rules-processor.js";
-import { fileExists, findFiles } from "../../utils/file-utils.js";
+import { fileExists, findFiles } from "../../utils/file.js";
 import { ToolRuleConstructor } from "../types.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
 import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
@@ -11,7 +11,7 @@ export class AugmentcodeRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return AugmentcodeRule as any;
+    return AugmentcodeRule as unknown as ToolRuleConstructor;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

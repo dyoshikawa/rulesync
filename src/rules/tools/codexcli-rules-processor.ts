@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ToolRulesProcessor } from "../../types/rules-processor.js";
-import { fileExists } from "../../utils/file-utils.js";
+import { fileExists } from "../../utils/file.js";
 import { ToolRuleConstructor } from "../types.js";
 import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
 import { CodexcliRule } from "./codexcli-rule.js";
@@ -11,7 +11,7 @@ export class CodexcliRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return CodexcliRule as any;
+    return CodexcliRule as unknown as ToolRuleConstructor;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

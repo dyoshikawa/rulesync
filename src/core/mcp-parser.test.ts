@@ -10,7 +10,9 @@ describe("parseMcpConfig", () => {
   let mcpPath: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     mcpPath = path.join(testDir, ".rulesync", ".mcp.json");
     fs.mkdirSync(path.join(testDir, ".rulesync"), { recursive: true });
   });

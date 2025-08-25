@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import glob from "fast-glob";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CursorRule } from "../../../rules/tools/cursor-rule.js";
 import { CursorRulesProcessor } from "../../../rules/tools/cursor-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
-import { fileExists } from "../../../utils/file-utils.js";
-import { CursorRule } from "../rules/cursor-rule.js";
+import { fileExists } from "../../../utils/file.js";
 
-vi.mock("../../../utils/file-utils.js", () => ({
+vi.mock("../../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -20,7 +20,9 @@ describe("CursorRulesProcessor", () => {
   let processor: CursorRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new CursorRulesProcessor({ baseDir: testDir });

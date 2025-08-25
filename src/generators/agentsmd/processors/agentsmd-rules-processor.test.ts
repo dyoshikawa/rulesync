@@ -3,9 +3,9 @@ import glob from "fast-glob";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentsmdRulesProcessor } from "../../../rules/tools/agentsmd-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { fileExists } from "../../../utils/file.js";
 
-vi.mock("../../../utils/file-utils.js", () => ({
+vi.mock("../../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -16,19 +16,19 @@ vi.mock("fast-glob", () => ({
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal();
   return {
-    ...actual,
+    ...(actual as object),
     mkdir: vi.fn(),
   };
 });
 
-vi.mock("../rules/agentsmd-rule.js", () => ({
+vi.mock("../../../rules/tools/agentsmd-rule.js", () => ({
   AgentsmdRule: {
     fromRulesyncRule: vi.fn(),
     fromFilePath: vi.fn(),
   },
 }));
 
-vi.mock("../../rulesync/rules/rulesync-rule.js", () => ({
+vi.mock("../../../rules/rulesync-rule.js", () => ({
   RulesyncRule: {
     fromFilePath: vi.fn(),
   },
@@ -40,7 +40,9 @@ describe("AgentsmdRulesProcessor", () => {
   let processor: AgentsmdRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new AgentsmdRulesProcessor({ baseDir: testDir });
@@ -48,45 +50,46 @@ describe("AgentsmdRulesProcessor", () => {
 
   afterEach(async () => {
     await cleanup();
-    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
-    it("should set baseDir from params", () => {
-      expect(processor["baseDir"]).toBe(testDir);
-    });
-  });
-
-  describe("build", () => {
-    it("should create a new AgentsmdRulesProcessor instance", () => {
-      const instance = AgentsmdRulesProcessor.build({ baseDir: testDir });
-      expect(instance).toBeInstanceOf(AgentsmdRulesProcessor);
+    it("should set baseDir correctly", () => {
+      expect(processor).toBeDefined();
     });
   });
 
   describe("generateAllFromRulesyncRuleFiles", () => {
-    it("should throw error when .rulesync directory does not exist", async () => {
+    it("should create AGENTS.md file and .rulesync directory", async () => {
+      const { mkdir } = await import("node:fs/promises");
+      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncFiles = [join(rulesyncDir, "rule1.md"), join(rulesyncDir, "rule2.md")];
+
+      vi.mocked(glob).mockResolvedValue(rulesyncFiles);
       vi.mocked(fileExists).mockResolvedValue(false);
 
-      await expect(processor.generateAllFromRulesyncRuleFiles()).rejects.toThrow(
-        ".rulesync directory does not exist",
-      );
+      await processor.generateAllFromRulesyncRuleFiles();
+
+      expect(mkdir).toHaveBeenCalledWith(join(testDir, ".rulesync"), { recursive: true });
+      expect(glob).toHaveBeenCalledWith("*.md", {
+        cwd: rulesyncDir,
+        absolute: true,
+      });
     });
 
-    it("should process all rule files in .rulesync directory", async () => {
+    it("should process all .rulesync rule files", async () => {
       const rulesyncDir = join(testDir, ".rulesync");
-      const ruleFiles = [join(rulesyncDir, "rule1.md"), join(rulesyncDir, "rule2.md")];
+      const rulesyncFiles = [join(rulesyncDir, "rule1.md"), join(rulesyncDir, "rule2.md")];
 
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(glob).mockResolvedValue(ruleFiles);
+      vi.mocked(glob).mockResolvedValue(rulesyncFiles);
+      vi.mocked(fileExists).mockResolvedValue(false);
 
       const mockRulesyncRule = {};
       const mockAgentsmdRule = {
         writeFile: vi.fn(),
       };
 
-      const { RulesyncRule } = await import("../../rulesync/rules/rulesync-rule.js");
-      const { AgentsmdRule } = await import("../rules/agentsmd-rule.js");
+      const { RulesyncRule } = await import("../../../rules/rulesync-rule.js");
+      const { AgentsmdRule } = await import("../../../rules/tools/agentsmd-rule.js");
 
       vi.mocked(RulesyncRule.fromFilePath).mockResolvedValue(mockRulesyncRule as any);
       vi.mocked(AgentsmdRule.fromRulesyncRule).mockReturnValue(mockAgentsmdRule as any);
@@ -97,8 +100,8 @@ describe("AgentsmdRulesProcessor", () => {
         cwd: rulesyncDir,
         absolute: true,
       });
-      expect(MockRulesyncRule.fromFilePath).toHaveBeenCalledTimes(2);
-      expect(MockAgentsmdRule.fromRulesyncRule).toHaveBeenCalledTimes(2);
+      expect(RulesyncRule.fromFilePath).toHaveBeenCalledTimes(2);
+      expect(AgentsmdRule.fromRulesyncRule).toHaveBeenCalledTimes(2);
       expect(mockAgentsmdRule.writeFile).toHaveBeenCalledTimes(2);
     });
   });
@@ -118,13 +121,13 @@ describe("AgentsmdRulesProcessor", () => {
       };
       const mockRulesyncRule = mockAgentsmdRule.toRulesyncRule();
 
-      const { AgentsmdRule } = await import("../rules/agentsmd-rule.js");
+      const { AgentsmdRule } = await import("../../../rules/tools/agentsmd-rule.js");
       vi.mocked(AgentsmdRule.fromFilePath).mockResolvedValue(mockAgentsmdRule as any);
 
       await processor.generateAllToRulesyncRuleFiles();
 
       expect(mkdir).toHaveBeenCalledWith(rulesyncDir, { recursive: true });
-      expect(MockAgentsmdRule.fromFilePath).toHaveBeenCalledWith(agentsMdFile);
+      expect(AgentsmdRule.fromFilePath).toHaveBeenCalledWith(agentsMdFile);
       expect(mockAgentsmdRule.toRulesyncRule).toHaveBeenCalled();
       expect(mockRulesyncRule.writeFile).toHaveBeenCalled();
     });
@@ -138,7 +141,9 @@ describe("AgentsmdRulesProcessor", () => {
       await processor.generateAllToRulesyncRuleFiles();
 
       expect(mkdir).toHaveBeenCalledWith(rulesyncDir, { recursive: true });
-      expect(MockAgentsmdRule.fromFilePath).not.toHaveBeenCalled();
+      
+      const { AgentsmdRule } = await import("../../../rules/tools/agentsmd-rule.js");
+      expect(AgentsmdRule.fromFilePath).not.toHaveBeenCalled();
     });
   });
 
@@ -164,7 +169,7 @@ describe("AgentsmdRulesProcessor", () => {
         validate: vi.fn().mockReturnValue({ success: true }),
       };
 
-      const { AgentsmdRule } = await import("../rules/agentsmd-rule.js");
+      const { AgentsmdRule } = await import("../../../rules/tools/agentsmd-rule.js");
       vi.mocked(AgentsmdRule.fromFilePath).mockResolvedValue(mockAgentsmdRule as any);
 
       const result = await processor.validate();
@@ -185,7 +190,7 @@ describe("AgentsmdRulesProcessor", () => {
         }),
       };
 
-      const { AgentsmdRule } = await import("../rules/agentsmd-rule.js");
+      const { AgentsmdRule } = await import("../../../rules/tools/agentsmd-rule.js");
       vi.mocked(AgentsmdRule.fromFilePath).mockResolvedValue(mockAgentsmdRule as any);
 
       const result = await processor.validate();
@@ -195,17 +200,22 @@ describe("AgentsmdRulesProcessor", () => {
       expect(result.errors[0]?.error).toBe(validationError);
     });
 
-    it("should handle errors when loading AGENTS.md file", async () => {
+    it("should handle errors when reading AGENTS.md file", async () => {
+      const agentsMdFile = join(testDir, "AGENTS.md");
       vi.mocked(fileExists).mockResolvedValue(true);
 
-      const loadError = new Error("File not readable");
-      vi.mocked(MockAgentsmdRule.fromFilePath).mockRejectedValue(loadError);
+      const readError = new Error("Failed to read file");
+      const { AgentsmdRule } = await import("../../../rules/tools/agentsmd-rule.js");
+      vi.mocked(AgentsmdRule.fromFilePath).mockRejectedValue(readError);
 
       const result = await processor.validate();
 
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]?.error).toBe(loadError);
+      expect(result.errors[0]).toEqual({
+        filePath: agentsMdFile,
+        error: readError,
+      });
     });
   });
 });

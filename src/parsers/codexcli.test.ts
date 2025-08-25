@@ -12,7 +12,9 @@ describe("parseCodexConfiguration", () => {
   let codexignorePath: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     agentsFilePath = join(testDir, "AGENTS.md");
     codexignorePath = join(testDir, ".codexignore");
   });

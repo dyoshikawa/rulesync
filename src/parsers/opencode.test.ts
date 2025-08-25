@@ -14,7 +14,9 @@ describe("parseOpenCodeConfiguration", () => {
   let opcodeIgnorePath: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     agentsFilePath = join(testDir, "AGENTS.md");
     memoryDir = join(testDir, ".opencode", "memories");
     settingsPath = join(testDir, "opencode.json");

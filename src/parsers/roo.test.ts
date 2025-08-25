@@ -11,7 +11,9 @@ describe("parseRooConfiguration", () => {
   let rooRulesDir: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     rooInstructionsPath = join(testDir, ".roo", "instructions.md");
     rooRulesDir = join(testDir, ".roo", "rules");
 

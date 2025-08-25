@@ -12,7 +12,9 @@ describe("parseClaudeConfiguration", () => {
   let settingsPath: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     claudeFilePath = join(testDir, "CLAUDE.md");
     memoryDir = join(testDir, ".claude", "memories");
     settingsPath = join(testDir, ".claude", "settings.json");

@@ -16,7 +16,9 @@ describe("importConfiguration", () => {
   let commandsDir: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     rulesDir = join(testDir, ".rulesync", "rules");
     commandsDir = join(testDir, ".rulesync", "commands");
 

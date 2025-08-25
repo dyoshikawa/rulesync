@@ -11,7 +11,9 @@ describe("parseCopilotConfiguration", () => {
   let instructionsDir: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     copilotPath = join(testDir, ".github", "copilot-instructions.md");
     instructionsDir = join(testDir, ".github", "instructions");
 

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ToolRulesProcessor } from "../../types/rules-processor.js";
-import { fileExists, findFiles } from "../../utils/file-utils.js";
+import { fileExists, findFiles } from "../../utils/file.js";
 import { ToolRuleConstructor } from "../types.js";
 import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
 import { CursorRule } from "./cursor-rule.js";
@@ -11,7 +11,7 @@ export class CursorRulesProcessor extends BaseToolRulesProcessor {
   }
 
   protected getRuleClass(): ToolRuleConstructor {
-    return CursorRule as any;
+    return CursorRule as unknown as ToolRuleConstructor;
   }
 
   protected async getRuleFilePaths(): Promise<string[]> {

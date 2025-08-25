@@ -14,7 +14,9 @@ describe("parseGeminiConfiguration", () => {
   let aiexcludePath: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     geminiFilePath = join(testDir, "GEMINI.md");
     memoryDir = join(testDir, ".gemini", "memories");
     settingsPath = join(testDir, ".gemini", "settings.json");

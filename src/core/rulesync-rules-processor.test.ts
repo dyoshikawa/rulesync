@@ -1,22 +1,26 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RulesyncRule } from "../generators/rulesync/rules/rulesync-rule.js";
+import { RulesyncRule } from "../rules/rulesync-rule.js";
+import { RulesyncRulesProcessor } from "../rules/rulesync-rules-processor.js";
 import { setupTestDirectory } from "../test-utils/index.js";
-import { fileExists } from "../utils/file-utils.js";
-import { RulesyncRulesProcessor } from "./rulesync-rules-processor.js";
+import { fileExists } from "../utils/file.js";
 
-vi.mock("../utils/file-utils.js", () => ({
+vi.mock("../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal();
   return {
-    ...actual,
+    ...(actual as object),
     writeFile: vi.fn(),
     mkdir: vi.fn(),
   };
 });
+
+vi.mock("../rules/rulesync-rule.js", () => ({
+  RulesyncRule: vi.fn(),
+}));
 
 describe("RulesyncRulesProcessor", () => {
   let testDir: string;
@@ -24,7 +28,9 @@ describe("RulesyncRulesProcessor", () => {
   let processor: RulesyncRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     // Mock process.cwd to return our test directory

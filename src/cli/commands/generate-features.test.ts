@@ -10,7 +10,9 @@ describe("generate command with --features option", () => {
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
 
     // Setup basic rulesync structure
     const rulesDir = join(testDir, ".rulesync", "rules");

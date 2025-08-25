@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AugmentcodeLegacyRule } from "../../../rules/tools/augmentcode-legacy-rule.js";
 import { AugmentcodeLegacyRulesProcessor } from "../../../rules/tools/augmentcode-legacy-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
-import { fileExists } from "../../../utils/file-utils.js";
-import { AugmentcodeLegacyRule } from "../rules/augmentcode-legacy-rule.js";
+import { fileExists } from "../../../utils/file.js";
 
-vi.mock("../../../utils/file-utils.js", () => ({
+vi.mock("../../../utils/file.js", () => ({
   fileExists: vi.fn(),
 }));
 
@@ -15,7 +15,9 @@ describe("AugmentcodeLegacyRulesProcessor", () => {
   let processor: AugmentcodeLegacyRulesProcessor;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.clearAllMocks();
 
     processor = new AugmentcodeLegacyRulesProcessor({ baseDir: testDir });
