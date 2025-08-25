@@ -1,7 +1,8 @@
 import type { ParsedRule } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
-import { fileExists, readFileContent, resolvePath } from "../utils/index.js";
-import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
+import { getIgnoreParser } from "./ignore/index.js";
+import { getRuleParser } from "./rules/index.js";
+import { getMcpParser } from "./mcp/index.js";
 
 export interface OpenCodeImportResult {
   rules: ParsedRule[];
@@ -13,37 +14,37 @@ export interface OpenCodeImportResult {
 export async function parseOpenCodeConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<OpenCodeImportResult> {
-  const result = await parseMemoryBasedConfiguration(baseDir, {
-    tool: "opencode",
-    mainFileName: "AGENTS.md",
-    memoryDirPath: ".opencode/memories",
-    settingsPath: "opencode.json",
-    mainDescription: "Main OpenCode configuration",
-    memoryDescription: "Memory file",
-    filenamePrefix: "opencode",
-  });
+  const result: OpenCodeImportResult = {
+    rules: [],
+    errors: [],
+  };
 
-  // Also parse .opcodeignore file if it exists
-  const opcodeignorePath = resolvePath(".opcodeignore", baseDir);
-  if (await fileExists(opcodeignorePath)) {
-    try {
-      const content = await readFileContent(opcodeignorePath);
-      const patterns = content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"));
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("opencode");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
+  }
 
-      if (patterns.length > 0) {
-        // Merge patterns with any existing ones
-        if (result.ignorePatterns) {
-          result.ignorePatterns = [...result.ignorePatterns, ...patterns];
-        } else {
-          result.ignorePatterns = patterns;
-        }
-      }
-    } catch {
-      // Silently ignore errors reading .opcodeignore
+  // Parse MCP configuration using the new MCP parser
+  const mcpParser = getMcpParser("opencode");
+  if (mcpParser) {
+    const mcpResult = await mcpParser.parseMcp(baseDir);
+    if (Object.keys(mcpResult.mcpServers).length > 0) {
+      result.mcpServers = mcpResult.mcpServers;
     }
+    result.errors.push(...mcpResult.errors);
+  }
+
+  // Parse ignore patterns using the dedicated ignore parser
+  const ignoreParser = getIgnoreParser("opencode");
+  if (ignoreParser) {
+    const ignoreResult = await ignoreParser.parseIgnorePatterns(baseDir);
+    if (ignoreResult.patterns.length > 0) {
+      result.ignorePatterns = ignoreResult.patterns;
+    }
+    result.errors.push(...ignoreResult.errors);
   }
 
   return result;

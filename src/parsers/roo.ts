@@ -1,5 +1,5 @@
 import type { ParsedRule } from "../types/index.js";
-import { parseConfigurationFiles } from "./shared-helpers.js";
+import { getRuleParser } from "./rules/index.js";
 
 export interface RooImportResult {
   rules: ParsedRule[];
@@ -9,20 +9,18 @@ export interface RooImportResult {
 export async function parseRooConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<RooImportResult> {
-  return parseConfigurationFiles(baseDir, {
-    tool: "roo",
-    mainFile: {
-      path: ".roo/instructions.md",
-      useFrontmatter: false,
-      description: "Roo Code instructions",
-    },
-    directories: [
-      {
-        directory: ".roo/rules",
-        filePattern: ".md",
-        description: "Roo rule",
-      },
-    ],
-    errorMessage: "No Roo Code configuration files found (.roo/instructions.md or .roo/rules/*.md)",
-  });
+  const result: RooImportResult = {
+    rules: [],
+    errors: [],
+  };
+
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("roo");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
+  }
+
+  return result;
 }

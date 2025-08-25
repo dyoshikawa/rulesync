@@ -1,7 +1,8 @@
 import type { ParsedRule } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { getCommandParser } from "./commands/index.js";
-import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
+import { getRuleParser } from "./rules/index.js";
+import { getMcpParser } from "./mcp/index.js";
 
 export interface QwenImportResult {
   rules: ParsedRule[];
@@ -13,31 +14,27 @@ export interface QwenImportResult {
 export async function parseQwenConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<QwenImportResult> {
-  const memoryResult = await parseMemoryBasedConfiguration(baseDir, {
-    tool: "qwencode",
-    mainFileName: "QWEN.md",
-    memoryDirPath: ".qwen/memories",
-    settingsPath: ".qwen/settings.json",
-    mainDescription: "Main Qwen Code configuration",
-    memoryDescription: "Memory file",
-    filenamePrefix: "qwen",
-    // Qwen Code uses git-aware filtering instead of dedicated ignore files
-    // additionalIgnoreFile is omitted
-    // commandsDirPath removed - now using dedicated command parser
-  });
-
-  // Create the result with proper typing
   const result: QwenImportResult = {
-    rules: memoryResult.rules,
-    errors: memoryResult.errors,
+    rules: [],
+    errors: [],
   };
 
-  // Add optional fields if they exist
-  if (memoryResult.ignorePatterns) {
-    result.ignorePatterns = memoryResult.ignorePatterns;
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("qwencode");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
   }
-  if (memoryResult.mcpServers) {
-    result.mcpServers = memoryResult.mcpServers;
+
+  // Parse MCP configuration using the new MCP parser
+  const mcpParser = getMcpParser("qwencode");
+  if (mcpParser) {
+    const mcpResult = await mcpParser.parseMcp(baseDir);
+    if (Object.keys(mcpResult.mcpServers).length > 0) {
+      result.mcpServers = mcpResult.mcpServers;
+    }
+    result.errors.push(...mcpResult.errors);
   }
 
   // Parse commands using the new command parser

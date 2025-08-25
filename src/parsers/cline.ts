@@ -1,5 +1,5 @@
 import type { ParsedRule } from "../types/index.js";
-import { parseConfigurationFiles } from "./shared-helpers.js";
+import { getRuleParser } from "./rules/index.js";
 
 export interface ClineImportResult {
   rules: ParsedRule[];
@@ -9,20 +9,18 @@ export interface ClineImportResult {
 export async function parseClineConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<ClineImportResult> {
-  return parseConfigurationFiles(baseDir, {
-    tool: "cline",
-    mainFile: {
-      path: ".cline/instructions.md",
-      useFrontmatter: false,
-      description: "Cline instructions",
-    },
-    directories: [
-      {
-        directory: ".clinerules",
-        filePattern: ".md",
-        description: "Cline rule",
-      },
-    ],
-    errorMessage: "No Cline configuration files found (.cline/instructions.md or .clinerules/*.md)",
-  });
+  const result: ClineImportResult = {
+    rules: [],
+    errors: [],
+  };
+
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("cline");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
+  }
+
+  return result;
 }

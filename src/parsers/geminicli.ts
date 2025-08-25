@@ -2,7 +2,8 @@ import type { ParsedRule } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
 import { getCommandParser } from "./commands/index.js";
 import { getIgnoreParser } from "./ignore/index.js";
-import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
+import { getRuleParser } from "./rules/index.js";
+import { getMcpParser } from "./mcp/index.js";
 
 export interface GeminiImportResult {
   rules: ParsedRule[];
@@ -14,29 +15,27 @@ export interface GeminiImportResult {
 export async function parseGeminiConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<GeminiImportResult> {
-  const memoryResult = await parseMemoryBasedConfiguration(baseDir, {
-    tool: "geminicli",
-    mainFileName: "GEMINI.md",
-    memoryDirPath: ".gemini/memories",
-    settingsPath: ".gemini/settings.json",
-    mainDescription: "Main Gemini CLI configuration",
-    memoryDescription: "Memory file",
-    filenamePrefix: "gemini",
-    // commandsDirPath is removed - now using dedicated command parser
-  });
-
-  // Create the result with proper typing
   const result: GeminiImportResult = {
-    rules: memoryResult.rules,
-    errors: memoryResult.errors,
+    rules: [],
+    errors: [],
   };
 
-  // Add optional fields if they exist
-  if (memoryResult.ignorePatterns) {
-    result.ignorePatterns = memoryResult.ignorePatterns;
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("geminicli");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
   }
-  if (memoryResult.mcpServers) {
-    result.mcpServers = memoryResult.mcpServers;
+
+  // Parse MCP configuration using the new MCP parser
+  const mcpParser = getMcpParser("geminicli");
+  if (mcpParser) {
+    const mcpResult = await mcpParser.parseMcp(baseDir);
+    if (Object.keys(mcpResult.mcpServers).length > 0) {
+      result.mcpServers = mcpResult.mcpServers;
+    }
+    result.errors.push(...mcpResult.errors);
   }
 
   // Parse commands using the new command parser

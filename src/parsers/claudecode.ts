@@ -4,7 +4,8 @@ import type { ParsedSubagent } from "../types/subagent.js";
 import { fileExists, resolvePath } from "../utils/file.js";
 import { getCommandParser } from "./commands/index.js";
 import { getIgnoreParser } from "./ignore/index.js";
-import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
+import { getRuleParser } from "./rules/index.js";
+import { getMcpParser } from "./mcp/index.js";
 import { parseSubagentsFromDirectory } from "./subagents/shared.js";
 
 export interface ClaudeImportResult {
@@ -18,29 +19,28 @@ export interface ClaudeImportResult {
 export async function parseClaudeConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<ClaudeImportResult> {
-  const memoryResult = await parseMemoryBasedConfiguration(baseDir, {
-    tool: "claudecode",
-    mainFileName: "CLAUDE.md",
-    memoryDirPath: ".claude/memories",
-    settingsPath: ".claude/settings.json",
-    mainDescription: "Main Claude Code configuration",
-    memoryDescription: "Memory file",
-    filenamePrefix: "claude",
-    // commandsDirPath removed - now using dedicated command parser
-  });
-
-  // Create the result with proper typing
+  // Create the result
   const result: ClaudeImportResult = {
-    rules: memoryResult.rules,
-    errors: memoryResult.errors,
+    rules: [],
+    errors: [],
   };
 
-  // Add optional fields if they exist
-  if (memoryResult.ignorePatterns) {
-    result.ignorePatterns = memoryResult.ignorePatterns;
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("claudecode");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
   }
-  if (memoryResult.mcpServers) {
-    result.mcpServers = memoryResult.mcpServers;
+
+  // Parse MCP configuration using the new MCP parser
+  const mcpParser = getMcpParser("claudecode");
+  if (mcpParser) {
+    const mcpResult = await mcpParser.parseMcp(baseDir);
+    if (Object.keys(mcpResult.mcpServers).length > 0) {
+      result.mcpServers = mcpResult.mcpServers;
+    }
+    result.errors.push(...mcpResult.errors);
   }
 
   // Parse subagents if they exist

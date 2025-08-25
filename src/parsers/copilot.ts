@@ -1,5 +1,5 @@
 import type { ParsedRule } from "../types/index.js";
-import { parseConfigurationFiles } from "./shared-helpers.js";
+import { getRuleParser } from "./rules/index.js";
 
 export interface CopilotImportResult {
   rules: ParsedRule[];
@@ -9,21 +9,18 @@ export interface CopilotImportResult {
 export async function parseCopilotConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<CopilotImportResult> {
-  return parseConfigurationFiles(baseDir, {
-    tool: "copilot",
-    mainFile: {
-      path: ".github/copilot-instructions.md",
-      useFrontmatter: true,
-      description: "GitHub Copilot instructions",
-    },
-    directories: [
-      {
-        directory: ".github/instructions",
-        filePattern: ".instructions.md",
-        description: "Copilot instruction",
-      },
-    ],
-    errorMessage:
-      "No Copilot configuration files found (.github/copilot-instructions.md or .github/instructions/*.instructions.md)",
-  });
+  const result: CopilotImportResult = {
+    rules: [],
+    errors: [],
+  };
+
+  // Parse rules using the new rule parser
+  const ruleParser = getRuleParser("copilot");
+  if (ruleParser) {
+    const ruleResult = await ruleParser.parseRules(baseDir);
+    result.rules.push(...ruleResult.rules);
+    result.errors.push(...ruleResult.errors);
+  }
+
+  return result;
 }
