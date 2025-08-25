@@ -152,8 +152,10 @@ This is the real content after the table.`;
     await writeFile(settingsPath, "invalid json{");
 
     const result = await parseClaudeConfiguration(testDir);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("Failed to parse settings.json");
+    expect(result.errors.length).toBeGreaterThanOrEqual(1);
+    expect(result.errors.some((error) => error.includes("Failed to parse settings.json"))).toBe(
+      true,
+    );
     expect(result.rules).toHaveLength(1); // Main config should still be parsed
   });
 

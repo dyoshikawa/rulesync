@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { ParsedRule, RuleFrontmatter } from "../types/index.js";
 import { fileExists, readFileContent } from "../utils/index.js";
+import { getIgnoreParser } from "./ignore/index.js";
 
 export interface CodexImportResult {
   rules: ParsedRule[];
@@ -139,23 +140,14 @@ export async function parseCodexConfiguration(
     errors.push(`Failed to scan directory for Codex CLI files: ${errorMessage}`);
   }
 
-  // Parse .codexignore file if it exists (community/unofficial support)
-  const codexignorePath = join(baseDir, ".codexignore");
-  if (await fileExists(codexignorePath)) {
-    try {
-      const content = await readFileContent(codexignorePath);
-      const patterns = content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"));
-
-      if (patterns.length > 0) {
-        ignorePatterns = patterns;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to parse .codexignore: ${errorMessage}`);
+  // Parse ignore patterns using the dedicated ignore parser
+  const ignoreParser = getIgnoreParser("codexcli");
+  if (ignoreParser) {
+    const ignoreResult = await ignoreParser.parseIgnorePatterns(baseDir);
+    if (ignoreResult.patterns.length > 0) {
+      ignorePatterns = ignoreResult.patterns;
     }
+    errors.push(...ignoreResult.errors);
   }
 
   // If no rules found, add an informative error

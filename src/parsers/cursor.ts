@@ -6,6 +6,7 @@ import type { RulesyncMcpServer } from "../types/mcp.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
 import { fileExists, readFileContent } from "../utils/index.js";
+import { getIgnoreParser } from "./ignore/index.js";
 
 export interface CursorImportResult {
   rules: ParsedRule[];
@@ -272,22 +273,14 @@ export async function parseCursorConfiguration(
     errors.push("No Cursor configuration files found (.cursorrules or .cursor/rules/*.mdc)");
   }
 
-  // Check for .cursorignore file
-  const cursorIgnorePath = join(baseDir, ".cursorignore");
-  if (await fileExists(cursorIgnorePath)) {
-    try {
-      const content = await readFileContent(cursorIgnorePath);
-      const patterns = content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"));
-      if (patterns.length > 0) {
-        ignorePatterns = patterns;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to parse .cursorignore: ${errorMessage}`);
+  // Parse ignore patterns using the dedicated ignore parser
+  const ignoreParser = getIgnoreParser("cursor");
+  if (ignoreParser) {
+    const ignoreResult = await ignoreParser.parseIgnorePatterns(baseDir);
+    if (ignoreResult.patterns.length > 0) {
+      ignorePatterns = ignoreResult.patterns;
     }
+    errors.push(...ignoreResult.errors);
   }
 
   // Check for .cursor/mcp.json file

@@ -3,6 +3,7 @@ import type { RulesyncMcpServer } from "../types/mcp.js";
 import type { ParsedSubagent } from "../types/subagent.js";
 import { fileExists, resolvePath } from "../utils/file.js";
 import { getCommandParser } from "./commands/index.js";
+import { getIgnoreParser } from "./ignore/index.js";
 import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
 import { parseSubagentsFromDirectory } from "./subagents/shared.js";
 
@@ -57,6 +58,16 @@ export async function parseClaudeConfiguration(
     const commands = await commandParser.parseCommands(baseDir);
     // Add commands to rules array since they are rules with type="command"
     result.rules.push(...commands);
+  }
+
+  // Parse ignore patterns using the dedicated ignore parser
+  const ignoreParser = getIgnoreParser("claudecode");
+  if (ignoreParser) {
+    const ignoreResult = await ignoreParser.parseIgnorePatterns(baseDir);
+    if (ignoreResult.patterns.length > 0) {
+      result.ignorePatterns = ignoreResult.patterns;
+    }
+    result.errors.push(...ignoreResult.errors);
   }
 
   return result;

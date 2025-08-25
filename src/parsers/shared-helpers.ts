@@ -194,10 +194,6 @@ export interface MemoryBasedConfig {
   mainDescription: string;
   memoryDescription: string;
   filenamePrefix: string;
-  additionalIgnoreFile?: {
-    path: string;
-    parser: (filePath: string) => Promise<string[]>;
-  };
 }
 
 /**
@@ -246,19 +242,6 @@ export async function parseMemoryBasedConfiguration(
         mcpServers = settingsResult.mcpServers;
       }
       errors.push(...settingsResult.errors);
-    }
-
-    // Parse additional ignore file if specified (e.g., .aiexclude for Gemini)
-    if (config.additionalIgnoreFile) {
-      const additionalIgnorePath = resolvePath(config.additionalIgnoreFile.path, baseDir);
-      if (await fileExists(additionalIgnorePath)) {
-        const additionalPatterns = await config.additionalIgnoreFile.parser(additionalIgnorePath);
-        if (additionalPatterns.length > 0) {
-          ignorePatterns = ignorePatterns
-            ? [...ignorePatterns, ...additionalPatterns]
-            : additionalPatterns;
-        }
-      }
     }
   } catch (error) {
     errors.push(`Failed to parse ${config.tool} configuration: ${getErrorMessage(error)}`);

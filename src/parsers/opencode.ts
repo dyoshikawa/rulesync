@@ -1,6 +1,6 @@
 import type { ParsedRule } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
-import { readFileContent } from "../utils/index.js";
+import { fileExists, readFileContent, resolvePath } from "../utils/index.js";
 import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
 
 export interface OpenCodeImportResult {
@@ -10,23 +10,10 @@ export interface OpenCodeImportResult {
   mcpServers?: Record<string, RulesyncMcpServer>;
 }
 
-async function parseOpCodeIgnore(opcodeignorePath: string): Promise<string[]> {
-  try {
-    const content = await readFileContent(opcodeignorePath);
-    const patterns = content
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#"));
-    return patterns;
-  } catch {
-    return [];
-  }
-}
-
 export async function parseOpenCodeConfiguration(
   baseDir: string = process.cwd(),
 ): Promise<OpenCodeImportResult> {
-  return parseMemoryBasedConfiguration(baseDir, {
+  const result = await parseMemoryBasedConfiguration(baseDir, {
     tool: "opencode",
     mainFileName: "AGENTS.md",
     memoryDirPath: ".opencode/memories",
@@ -34,9 +21,30 @@ export async function parseOpenCodeConfiguration(
     mainDescription: "Main OpenCode configuration",
     memoryDescription: "Memory file",
     filenamePrefix: "opencode",
-    additionalIgnoreFile: {
-      path: ".opcodeignore",
-      parser: parseOpCodeIgnore,
-    },
   });
+
+  // Also parse .opcodeignore file if it exists
+  const opcodeignorePath = resolvePath(".opcodeignore", baseDir);
+  if (await fileExists(opcodeignorePath)) {
+    try {
+      const content = await readFileContent(opcodeignorePath);
+      const patterns = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"));
+
+      if (patterns.length > 0) {
+        // Merge patterns with any existing ones
+        if (result.ignorePatterns) {
+          result.ignorePatterns = [...result.ignorePatterns, ...patterns];
+        } else {
+          result.ignorePatterns = patterns;
+        }
+      }
+    } catch {
+      // Silently ignore errors reading .opcodeignore
+    }
+  }
+
+  return result;
 }
