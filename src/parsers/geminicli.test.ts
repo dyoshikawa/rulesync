@@ -235,9 +235,9 @@ prompt = """Create a test file with the following content:
 
     const commandRule = result.rules.find((rule: ParsedRule) => rule.filename === "test-command");
     expect(commandRule).toBeDefined();
-    expect(commandRule?.frontmatter.description).toBe("Test command description");
-    expect(commandRule?.content).toContain("Create a test file");
-    expect(commandRule?.type).toBe("command");
+    expect(commandRule!.frontmatter.description).toBe("Test command description");
+    expect(commandRule!.content).toContain("Create a test file");
+    expect(commandRule!.type).toBe("command");
   });
 
   it("should handle TOML commands without description", async () => {
@@ -255,7 +255,7 @@ prompt = """Create a test file with the following content:
     const result = await parseGeminiConfiguration(testDir);
     const commandRule = result.rules.find((rule: ParsedRule) => rule.filename === "no-desc");
     expect(commandRule).toBeDefined();
-    expect(commandRule?.frontmatter.description).toBe("Command: no-desc");
+    expect(commandRule!.frontmatter.description).toBe("Command: no-desc");
   });
 
   it("should skip non-.toml files in commands directory", async () => {
@@ -270,8 +270,8 @@ prompt = """Create a test file with the following content:
     await writeFile(join(commandsDir, "invalid.md"), "# This should be ignored");
 
     const result = await parseGeminiConfiguration(testDir);
-    // Should only have main + 1 .toml command (not the .md file)
-    expect(result.rules).toHaveLength(2);
+    // Should only have main rule + 1 .toml command (not the .md file)
+    expect(result.rules).toHaveLength(2); // main + 1 .toml command (not the .md file)
     expect(result.rules.find((rule: ParsedRule) => rule.filename === "valid")).toBeDefined();
     expect(result.rules.find((rule: ParsedRule) => rule.filename === "invalid")).toBeUndefined();
   });

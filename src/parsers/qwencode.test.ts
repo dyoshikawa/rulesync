@@ -193,7 +193,7 @@ Test: {{args}}`,
 
     const result = await parseQwenConfiguration(testDir);
 
-    expect(result.rules).toHaveLength(3);
+    expect(result.rules).toHaveLength(3); // QWEN.md + memory file + 1 command
     expect(result.mcpServers).toBeDefined();
     expect(result.errors).toEqual([]);
   });
