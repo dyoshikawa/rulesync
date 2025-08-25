@@ -1,86 +1,86 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
-import { OpencodeRulesProcessor } from "./opencode-rules-processor.js";
-import { OpencodeRule } from "../rules/opencode-rule.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { OpencodeRulesProcessor } from "../../../rules/tools/opencode-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
 import { fileExists } from "../../../utils/file-utils.js";
+import { OpencodeRule } from "../rules/opencode-rule.js";
 
 vi.mock("../../../utils/file-utils.js", () => ({
-	fileExists: vi.fn(),
+  fileExists: vi.fn(),
 }));
 
 describe("OpencodeRulesProcessor", () => {
-	let testDir: string;
-	let cleanup: () => Promise<void>;
-	let processor: OpencodeRulesProcessor;
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let processor: OpencodeRulesProcessor;
 
-	beforeEach(async () => {
-		({ testDir, cleanup } = await setupTestDirectory());
-		vi.clearAllMocks();
-		
-		processor = new OpencodeRulesProcessor({ baseDir: testDir });
-	});
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.clearAllMocks();
 
-	afterEach(async () => {
-		await cleanup();
-		vi.restoreAllMocks();
-	});
+    processor = new OpencodeRulesProcessor({ baseDir: testDir });
+  });
 
-	describe("build", () => {
-		it("should create a new OpencodeRulesProcessor instance", () => {
-			const instance = OpencodeRulesProcessor.build({ baseDir: testDir });
-			expect(instance).toBeInstanceOf(OpencodeRulesProcessor);
-		});
-	});
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
 
-	describe("getRuleClass", () => {
-		it("should return OpencodeRule class", () => {
-			const RuleClass = processor["getRuleClass"]();
-			expect(RuleClass).toBe(OpencodeRule);
-		});
-	});
+  describe("build", () => {
+    it("should create a new OpencodeRulesProcessor instance", () => {
+      const instance = OpencodeRulesProcessor.build({ baseDir: testDir });
+      expect(instance).toBeInstanceOf(OpencodeRulesProcessor);
+    });
+  });
 
-	describe("getRuleFilePaths", () => {
-		it("should return empty array when no rule files exist", async () => {
-			vi.mocked(fileExists).mockResolvedValue(false);
+  describe("getRuleClass", () => {
+    it("should return OpencodeRule class", () => {
+      const RuleClass = processor["getRuleClass"]();
+      expect(RuleClass).toBe(OpencodeRule);
+    });
+  });
 
-			const paths = await processor["getRuleFilePaths"]();
+  describe("getRuleFilePaths", () => {
+    it("should return empty array when no rule files exist", async () => {
+      vi.mocked(fileExists).mockResolvedValue(false);
 
-			expect(paths).toEqual([]);
-		});
+      const paths = await processor["getRuleFilePaths"]();
 
-		it("should include AGENTS.md file when it exists", async () => {
-			const agentsFile = join(testDir, "AGENTS.md");
-			
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === agentsFile;
-			});
+      expect(paths).toEqual([]);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include AGENTS.md file when it exists", async () => {
+      const agentsFile = join(testDir, "AGENTS.md");
 
-			expect(paths).toContain(agentsFile);
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === agentsFile;
+      });
 
-		it("should not include AGENTS.md when it does not exist", async () => {
-			vi.mocked(fileExists).mockResolvedValue(false);
+      const paths = await processor["getRuleFilePaths"]();
 
-			const paths = await processor["getRuleFilePaths"]();
+      expect(paths).toContain(agentsFile);
+    });
 
-			expect(paths).toEqual([]);
-		});
-	});
+    it("should not include AGENTS.md when it does not exist", async () => {
+      vi.mocked(fileExists).mockResolvedValue(false);
 
-	describe("validate", () => {
-		it("should inherit validation from BaseToolRulesProcessor", async () => {
-			// This test ensures the processor properly extends BaseToolRulesProcessor
-			// and inherits its validation behavior
-			vi.mocked(fileExists).mockResolvedValue(false);
+      const paths = await processor["getRuleFilePaths"]();
 
-			const result = await processor.validate();
+      expect(paths).toEqual([]);
+    });
+  });
 
-			expect(result.success).toBe(false);
-			expect(result.errors).toHaveLength(1);
-			expect(result.errors[0]?.error.message).toContain("No rule files found");
-		});
-	});
+  describe("validate", () => {
+    it("should inherit validation from BaseToolRulesProcessor", async () => {
+      // This test ensures the processor properly extends BaseToolRulesProcessor
+      // and inherits its validation behavior
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      const result = await processor.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error.message).toContain("No rule files found");
+    });
+  });
 });

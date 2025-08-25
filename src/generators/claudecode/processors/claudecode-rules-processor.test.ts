@@ -1,137 +1,131 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
-import { ClaudecodeRulesProcessor } from "./claudecode-rules-processor.js";
-import { ClaudecodeRule } from "../rules/claudecode-rule.js";
+import glob from "fast-glob";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ClaudecodeRulesProcessor } from "../../../rules/tools/claudecode-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
 import { fileExists } from "../../../utils/file-utils.js";
-import glob from "fast-glob";
+import { ClaudecodeRule } from "../rules/claudecode-rule.js";
 
 vi.mock("../../../utils/file-utils.js", () => ({
-	fileExists: vi.fn(),
+  fileExists: vi.fn(),
 }));
 
 vi.mock("fast-glob", () => ({
-	default: vi.fn(),
+  default: vi.fn(),
 }));
 
 describe("ClaudecodeRulesProcessor", () => {
-	let testDir: string;
-	let cleanup: () => Promise<void>;
-	let processor: ClaudecodeRulesProcessor;
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let processor: ClaudecodeRulesProcessor;
 
-	beforeEach(async () => {
-		({ testDir, cleanup } = await setupTestDirectory());
-		vi.clearAllMocks();
-		
-		processor = new ClaudecodeRulesProcessor({ baseDir: testDir });
-	});
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.clearAllMocks();
 
-	afterEach(async () => {
-		await cleanup();
-		vi.restoreAllMocks();
-	});
+    processor = new ClaudecodeRulesProcessor({ baseDir: testDir });
+  });
 
-	describe("build", () => {
-		it("should create a new ClaudecodeRulesProcessor instance", () => {
-			const instance = ClaudecodeRulesProcessor.build({ baseDir: testDir });
-			expect(instance).toBeInstanceOf(ClaudecodeRulesProcessor);
-		});
-	});
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
 
-	describe("getRuleClass", () => {
-		it("should return ClaudecodeRule class", () => {
-			const RuleClass = processor["getRuleClass"]();
-			expect(RuleClass).toBe(ClaudecodeRule);
-		});
-	});
+  describe("build", () => {
+    it("should create a new ClaudecodeRulesProcessor instance", () => {
+      const instance = ClaudecodeRulesProcessor.build({ baseDir: testDir });
+      expect(instance).toBeInstanceOf(ClaudecodeRulesProcessor);
+    });
+  });
 
-	describe("getRuleFilePaths", () => {
-		it("should return empty array when no rule files exist", async () => {
-			vi.mocked(fileExists).mockResolvedValue(false);
-			vi.mocked(glob).mockResolvedValue([]);
+  describe("getRuleClass", () => {
+    it("should return ClaudecodeRule class", () => {
+      const RuleClass = processor["getRuleClass"]();
+      expect(RuleClass).toBe(ClaudecodeRule);
+    });
+  });
 
-			const paths = await processor["getRuleFilePaths"]();
+  describe("getRuleFilePaths", () => {
+    it("should return empty array when no rule files exist", async () => {
+      vi.mocked(fileExists).mockResolvedValue(false);
+      vi.mocked(glob).mockResolvedValue([]);
 
-			expect(paths).toEqual([]);
-		});
+      const paths = await processor["getRuleFilePaths"]();
 
-		it("should include CLAUDE.md file when it exists", async () => {
-			const claudeFile = join(testDir, "CLAUDE.md");
-			
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === claudeFile;
-			});
+      expect(paths).toEqual([]);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include CLAUDE.md file when it exists", async () => {
+      const claudeFile = join(testDir, "CLAUDE.md");
 
-			expect(paths).toContain(claudeFile);
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === claudeFile;
+      });
 
-		it("should include .claude/memories/*.md files when directory exists", async () => {
-			const memoriesDir = join(testDir, ".claude", "memories");
-			const memoryFiles = [
-				join(memoriesDir, "memory1.md"),
-				join(memoriesDir, "memory2.md"),
-			];
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === memoriesDir;
-			});
-			vi.mocked(glob).mockResolvedValue(memoryFiles);
+      expect(paths).toContain(claudeFile);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include .claude/memories/*.md files when directory exists", async () => {
+      const memoriesDir = join(testDir, ".claude", "memories");
+      const memoryFiles = [join(memoriesDir, "memory1.md"), join(memoriesDir, "memory2.md")];
 
-			expect(glob).toHaveBeenCalledWith("*.md", {
-				cwd: memoriesDir,
-				absolute: true,
-			});
-			expect(paths).toEqual(expect.arrayContaining(memoryFiles));
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === memoriesDir;
+      });
+      vi.mocked(glob).mockResolvedValue(memoryFiles);
 
-		it("should include both CLAUDE.md and .claude/memories/*.md files when both exist", async () => {
-			const claudeFile = join(testDir, "CLAUDE.md");
-			const memoriesDir = join(testDir, ".claude", "memories");
-			const memoryFiles = [
-				join(memoriesDir, "memory1.md"),
-				join(memoriesDir, "memory2.md"),
-			];
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockResolvedValue(true);
-			vi.mocked(glob).mockResolvedValue(memoryFiles);
+      expect(glob).toHaveBeenCalledWith("*.md", {
+        cwd: memoriesDir,
+        absolute: true,
+      });
+      expect(paths).toEqual(expect.arrayContaining(memoryFiles));
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include both CLAUDE.md and .claude/memories/*.md files when both exist", async () => {
+      const claudeFile = join(testDir, "CLAUDE.md");
+      const memoriesDir = join(testDir, ".claude", "memories");
+      const memoryFiles = [join(memoriesDir, "memory1.md"), join(memoriesDir, "memory2.md")];
 
-			expect(paths).toContain(claudeFile);
-			expect(paths).toEqual(expect.arrayContaining(memoryFiles));
-			expect(paths).toHaveLength(3); // 1 CLAUDE.md + 2 memory files
-		});
+      vi.mocked(fileExists).mockResolvedValue(true);
+      vi.mocked(glob).mockResolvedValue(memoryFiles);
 
-		it("should not include .claude/memories/*.md files when directory does not exist", async () => {
-			const claudeFile = join(testDir, "CLAUDE.md");
-			const memoriesDir = join(testDir, ".claude", "memories");
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === claudeFile; // Only CLAUDE.md exists
-			});
+      expect(paths).toContain(claudeFile);
+      expect(paths).toEqual(expect.arrayContaining(memoryFiles));
+      expect(paths).toHaveLength(3); // 1 CLAUDE.md + 2 memory files
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should not include .claude/memories/*.md files when directory does not exist", async () => {
+      const claudeFile = join(testDir, "CLAUDE.md");
+      const _memoriesDir = join(testDir, ".claude", "memories");
 
-			expect(paths).toEqual([claudeFile]);
-			expect(glob).not.toHaveBeenCalled();
-		});
-	});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === claudeFile; // Only CLAUDE.md exists
+      });
 
-	describe("validate", () => {
-		it("should inherit validation from BaseToolRulesProcessor", async () => {
-			// This test ensures the processor properly extends BaseToolRulesProcessor
-			// and inherits its validation behavior
-			vi.mocked(fileExists).mockResolvedValue(false);
+      const paths = await processor["getRuleFilePaths"]();
 
-			const result = await processor.validate();
+      expect(paths).toEqual([claudeFile]);
+      expect(glob).not.toHaveBeenCalled();
+    });
+  });
 
-			expect(result.success).toBe(false);
-			expect(result.errors).toHaveLength(1);
-			expect(result.errors[0]?.error.message).toContain("No rule files found");
-		});
-	});
+  describe("validate", () => {
+    it("should inherit validation from BaseToolRulesProcessor", async () => {
+      // This test ensures the processor properly extends BaseToolRulesProcessor
+      // and inherits its validation behavior
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      const result = await processor.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error.message).toContain("No rule files found");
+    });
+  });
 });

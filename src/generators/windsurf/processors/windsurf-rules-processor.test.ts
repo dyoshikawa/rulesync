@@ -1,137 +1,131 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
-import { WindsurfRulesProcessor } from "./windsurf-rules-processor.js";
-import { WindsurfRule } from "../rules/windsurf-rule.js";
+import glob from "fast-glob";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WindsurfRulesProcessor } from "../../../rules/tools/windsurf-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
 import { fileExists } from "../../../utils/file-utils.js";
-import glob from "fast-glob";
+import { WindsurfRule } from "../rules/windsurf-rule.js";
 
 vi.mock("../../../utils/file-utils.js", () => ({
-	fileExists: vi.fn(),
+  fileExists: vi.fn(),
 }));
 
 vi.mock("fast-glob", () => ({
-	default: vi.fn(),
+  default: vi.fn(),
 }));
 
 describe("WindsurfRulesProcessor", () => {
-	let testDir: string;
-	let cleanup: () => Promise<void>;
-	let processor: WindsurfRulesProcessor;
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let processor: WindsurfRulesProcessor;
 
-	beforeEach(async () => {
-		({ testDir, cleanup } = await setupTestDirectory());
-		vi.clearAllMocks();
-		
-		processor = new WindsurfRulesProcessor({ baseDir: testDir });
-	});
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.clearAllMocks();
 
-	afterEach(async () => {
-		await cleanup();
-		vi.restoreAllMocks();
-	});
+    processor = new WindsurfRulesProcessor({ baseDir: testDir });
+  });
 
-	describe("build", () => {
-		it("should create a new WindsurfRulesProcessor instance", () => {
-			const instance = WindsurfRulesProcessor.build({ baseDir: testDir });
-			expect(instance).toBeInstanceOf(WindsurfRulesProcessor);
-		});
-	});
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
 
-	describe("getRuleClass", () => {
-		it("should return WindsurfRule class", () => {
-			const RuleClass = processor["getRuleClass"]();
-			expect(RuleClass).toBe(WindsurfRule);
-		});
-	});
+  describe("build", () => {
+    it("should create a new WindsurfRulesProcessor instance", () => {
+      const instance = WindsurfRulesProcessor.build({ baseDir: testDir });
+      expect(instance).toBeInstanceOf(WindsurfRulesProcessor);
+    });
+  });
 
-	describe("getRuleFilePaths", () => {
-		it("should return empty array when no rule files exist", async () => {
-			vi.mocked(fileExists).mockResolvedValue(false);
-			vi.mocked(glob).mockResolvedValue([]);
+  describe("getRuleClass", () => {
+    it("should return WindsurfRule class", () => {
+      const RuleClass = processor["getRuleClass"]();
+      expect(RuleClass).toBe(WindsurfRule);
+    });
+  });
 
-			const paths = await processor["getRuleFilePaths"]();
+  describe("getRuleFilePaths", () => {
+    it("should return empty array when no rule files exist", async () => {
+      vi.mocked(fileExists).mockResolvedValue(false);
+      vi.mocked(glob).mockResolvedValue([]);
 
-			expect(paths).toEqual([]);
-		});
+      const paths = await processor["getRuleFilePaths"]();
 
-		it("should include .windsurf-rules file when it exists", async () => {
-			const windsurfRulesFile = join(testDir, ".windsurf-rules");
-			
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === windsurfRulesFile;
-			});
+      expect(paths).toEqual([]);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include .windsurf-rules file when it exists", async () => {
+      const windsurfRulesFile = join(testDir, ".windsurf-rules");
 
-			expect(paths).toContain(windsurfRulesFile);
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === windsurfRulesFile;
+      });
 
-		it("should include .windsurf/rules/*.md files when directory exists", async () => {
-			const rulesDir = join(testDir, ".windsurf", "rules");
-			const ruleFiles = [
-				join(rulesDir, "rule1.md"),
-				join(rulesDir, "rule2.md"),
-			];
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === rulesDir;
-			});
-			vi.mocked(glob).mockResolvedValue(ruleFiles);
+      expect(paths).toContain(windsurfRulesFile);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include .windsurf/rules/*.md files when directory exists", async () => {
+      const rulesDir = join(testDir, ".windsurf", "rules");
+      const ruleFiles = [join(rulesDir, "rule1.md"), join(rulesDir, "rule2.md")];
 
-			expect(glob).toHaveBeenCalledWith("*.md", {
-				cwd: rulesDir,
-				absolute: true,
-			});
-			expect(paths).toEqual(expect.arrayContaining(ruleFiles));
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === rulesDir;
+      });
+      vi.mocked(glob).mockResolvedValue(ruleFiles);
 
-		it("should include both .windsurf-rules and .windsurf/rules/*.md files when both exist", async () => {
-			const windsurfRulesFile = join(testDir, ".windsurf-rules");
-			const rulesDir = join(testDir, ".windsurf", "rules");
-			const ruleFiles = [
-				join(rulesDir, "rule1.md"),
-				join(rulesDir, "rule2.md"),
-			];
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockResolvedValue(true);
-			vi.mocked(glob).mockResolvedValue(ruleFiles);
+      expect(glob).toHaveBeenCalledWith("*.md", {
+        cwd: rulesDir,
+        absolute: true,
+      });
+      expect(paths).toEqual(expect.arrayContaining(ruleFiles));
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include both .windsurf-rules and .windsurf/rules/*.md files when both exist", async () => {
+      const windsurfRulesFile = join(testDir, ".windsurf-rules");
+      const rulesDir = join(testDir, ".windsurf", "rules");
+      const ruleFiles = [join(rulesDir, "rule1.md"), join(rulesDir, "rule2.md")];
 
-			expect(paths).toContain(windsurfRulesFile);
-			expect(paths).toEqual(expect.arrayContaining(ruleFiles));
-			expect(paths).toHaveLength(3); // 1 .windsurf-rules + 2 rule files
-		});
+      vi.mocked(fileExists).mockResolvedValue(true);
+      vi.mocked(glob).mockResolvedValue(ruleFiles);
 
-		it("should not include .windsurf/rules/*.md files when directory does not exist", async () => {
-			const windsurfRulesFile = join(testDir, ".windsurf-rules");
-			const rulesDir = join(testDir, ".windsurf", "rules");
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === windsurfRulesFile; // Only .windsurf-rules exists
-			});
+      expect(paths).toContain(windsurfRulesFile);
+      expect(paths).toEqual(expect.arrayContaining(ruleFiles));
+      expect(paths).toHaveLength(3); // 1 .windsurf-rules + 2 rule files
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should not include .windsurf/rules/*.md files when directory does not exist", async () => {
+      const windsurfRulesFile = join(testDir, ".windsurf-rules");
+      const _rulesDir = join(testDir, ".windsurf", "rules");
 
-			expect(paths).toEqual([windsurfRulesFile]);
-			expect(glob).not.toHaveBeenCalled();
-		});
-	});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === windsurfRulesFile; // Only .windsurf-rules exists
+      });
 
-	describe("validate", () => {
-		it("should inherit validation from BaseToolRulesProcessor", async () => {
-			// This test ensures the processor properly extends BaseToolRulesProcessor
-			// and inherits its validation behavior
-			vi.mocked(fileExists).mockResolvedValue(false);
+      const paths = await processor["getRuleFilePaths"]();
 
-			const result = await processor.validate();
+      expect(paths).toEqual([windsurfRulesFile]);
+      expect(glob).not.toHaveBeenCalled();
+    });
+  });
 
-			expect(result.success).toBe(false);
-			expect(result.errors).toHaveLength(1);
-			expect(result.errors[0]?.error.message).toContain("No rule files found");
-		});
-	});
+  describe("validate", () => {
+    it("should inherit validation from BaseToolRulesProcessor", async () => {
+      // This test ensures the processor properly extends BaseToolRulesProcessor
+      // and inherits its validation behavior
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      const result = await processor.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error.message).toContain("No rule files found");
+    });
+  });
 });

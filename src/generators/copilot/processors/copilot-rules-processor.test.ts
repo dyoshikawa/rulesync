@@ -1,137 +1,137 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
-import { CopilotRulesProcessor } from "./copilot-rules-processor.js";
-import { CopilotRule } from "../rules/copilot-rule.js";
+import glob from "fast-glob";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CopilotRulesProcessor } from "../../../rules/tools/copilot-rules-processor.js";
 import { setupTestDirectory } from "../../../test-utils/index.js";
 import { fileExists } from "../../../utils/file-utils.js";
-import glob from "fast-glob";
+import { CopilotRule } from "../rules/copilot-rule.js";
 
 vi.mock("../../../utils/file-utils.js", () => ({
-	fileExists: vi.fn(),
+  fileExists: vi.fn(),
 }));
 
 vi.mock("fast-glob", () => ({
-	default: vi.fn(),
+  default: vi.fn(),
 }));
 
 describe("CopilotRulesProcessor", () => {
-	let testDir: string;
-	let cleanup: () => Promise<void>;
-	let processor: CopilotRulesProcessor;
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let processor: CopilotRulesProcessor;
 
-	beforeEach(async () => {
-		({ testDir, cleanup } = await setupTestDirectory());
-		vi.clearAllMocks();
-		
-		processor = new CopilotRulesProcessor({ baseDir: testDir });
-	});
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.clearAllMocks();
 
-	afterEach(async () => {
-		await cleanup();
-		vi.restoreAllMocks();
-	});
+    processor = new CopilotRulesProcessor({ baseDir: testDir });
+  });
 
-	describe("build", () => {
-		it("should create a new CopilotRulesProcessor instance", () => {
-			const instance = CopilotRulesProcessor.build({ baseDir: testDir });
-			expect(instance).toBeInstanceOf(CopilotRulesProcessor);
-		});
-	});
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
 
-	describe("getRuleClass", () => {
-		it("should return CopilotRule class", () => {
-			const RuleClass = processor["getRuleClass"]();
-			expect(RuleClass).toBe(CopilotRule);
-		});
-	});
+  describe("build", () => {
+    it("should create a new CopilotRulesProcessor instance", () => {
+      const instance = CopilotRulesProcessor.build({ baseDir: testDir });
+      expect(instance).toBeInstanceOf(CopilotRulesProcessor);
+    });
+  });
 
-	describe("getRuleFilePaths", () => {
-		it("should return empty array when no rule files exist", async () => {
-			vi.mocked(fileExists).mockResolvedValue(false);
-			vi.mocked(glob).mockResolvedValue([]);
+  describe("getRuleClass", () => {
+    it("should return CopilotRule class", () => {
+      const RuleClass = processor["getRuleClass"]();
+      expect(RuleClass).toBe(CopilotRule);
+    });
+  });
 
-			const paths = await processor["getRuleFilePaths"]();
+  describe("getRuleFilePaths", () => {
+    it("should return empty array when no rule files exist", async () => {
+      vi.mocked(fileExists).mockResolvedValue(false);
+      vi.mocked(glob).mockResolvedValue([]);
 
-			expect(paths).toEqual([]);
-		});
+      const paths = await processor["getRuleFilePaths"]();
 
-		it("should include .github/copilot-instructions.md file when it exists", async () => {
-			const copilotInstructionsFile = join(testDir, ".github", "copilot-instructions.md");
-			
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === copilotInstructionsFile;
-			});
+      expect(paths).toEqual([]);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include .github/copilot-instructions.md file when it exists", async () => {
+      const copilotInstructionsFile = join(testDir, ".github", "copilot-instructions.md");
 
-			expect(paths).toContain(copilotInstructionsFile);
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === copilotInstructionsFile;
+      });
 
-		it("should include .github/instructions/*.instructions.md files when directory exists", async () => {
-			const instructionsDir = join(testDir, ".github", "instructions");
-			const instructionFiles = [
-				join(instructionsDir, "rule1.instructions.md"),
-				join(instructionsDir, "rule2.instructions.md"),
-			];
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === instructionsDir;
-			});
-			vi.mocked(glob).mockResolvedValue(instructionFiles);
+      expect(paths).toContain(copilotInstructionsFile);
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include .github/instructions/*.instructions.md files when directory exists", async () => {
+      const instructionsDir = join(testDir, ".github", "instructions");
+      const instructionFiles = [
+        join(instructionsDir, "rule1.instructions.md"),
+        join(instructionsDir, "rule2.instructions.md"),
+      ];
 
-			expect(glob).toHaveBeenCalledWith("*.instructions.md", {
-				cwd: instructionsDir,
-				absolute: true,
-			});
-			expect(paths).toEqual(expect.arrayContaining(instructionFiles));
-		});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === instructionsDir;
+      });
+      vi.mocked(glob).mockResolvedValue(instructionFiles);
 
-		it("should include both copilot-instructions.md and instructions/*.instructions.md files when both exist", async () => {
-			const copilotInstructionsFile = join(testDir, ".github", "copilot-instructions.md");
-			const instructionsDir = join(testDir, ".github", "instructions");
-			const instructionFiles = [
-				join(instructionsDir, "rule1.instructions.md"),
-				join(instructionsDir, "rule2.instructions.md"),
-			];
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockResolvedValue(true);
-			vi.mocked(glob).mockResolvedValue(instructionFiles);
+      expect(glob).toHaveBeenCalledWith("*.instructions.md", {
+        cwd: instructionsDir,
+        absolute: true,
+      });
+      expect(paths).toEqual(expect.arrayContaining(instructionFiles));
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should include both copilot-instructions.md and instructions/*.instructions.md files when both exist", async () => {
+      const copilotInstructionsFile = join(testDir, ".github", "copilot-instructions.md");
+      const instructionsDir = join(testDir, ".github", "instructions");
+      const instructionFiles = [
+        join(instructionsDir, "rule1.instructions.md"),
+        join(instructionsDir, "rule2.instructions.md"),
+      ];
 
-			expect(paths).toContain(copilotInstructionsFile);
-			expect(paths).toEqual(expect.arrayContaining(instructionFiles));
-			expect(paths).toHaveLength(3); // 1 copilot-instructions.md + 2 instruction files
-		});
+      vi.mocked(fileExists).mockResolvedValue(true);
+      vi.mocked(glob).mockResolvedValue(instructionFiles);
 
-		it("should not include instructions/*.instructions.md files when directory does not exist", async () => {
-			const copilotInstructionsFile = join(testDir, ".github", "copilot-instructions.md");
-			const instructionsDir = join(testDir, ".github", "instructions");
+      const paths = await processor["getRuleFilePaths"]();
 
-			vi.mocked(fileExists).mockImplementation(async (path: string) => {
-				return path === copilotInstructionsFile; // Only copilot-instructions.md exists
-			});
+      expect(paths).toContain(copilotInstructionsFile);
+      expect(paths).toEqual(expect.arrayContaining(instructionFiles));
+      expect(paths).toHaveLength(3); // 1 copilot-instructions.md + 2 instruction files
+    });
 
-			const paths = await processor["getRuleFilePaths"]();
+    it("should not include instructions/*.instructions.md files when directory does not exist", async () => {
+      const copilotInstructionsFile = join(testDir, ".github", "copilot-instructions.md");
+      const _instructionsDir = join(testDir, ".github", "instructions");
 
-			expect(paths).toEqual([copilotInstructionsFile]);
-			expect(glob).not.toHaveBeenCalled();
-		});
-	});
+      vi.mocked(fileExists).mockImplementation(async (path: string) => {
+        return path === copilotInstructionsFile; // Only copilot-instructions.md exists
+      });
 
-	describe("validate", () => {
-		it("should inherit validation from BaseToolRulesProcessor", async () => {
-			// This test ensures the processor properly extends BaseToolRulesProcessor
-			// and inherits its validation behavior
-			vi.mocked(fileExists).mockResolvedValue(false);
+      const paths = await processor["getRuleFilePaths"]();
 
-			const result = await processor.validate();
+      expect(paths).toEqual([copilotInstructionsFile]);
+      expect(glob).not.toHaveBeenCalled();
+    });
+  });
 
-			expect(result.success).toBe(false);
-			expect(result.errors).toHaveLength(1);
-			expect(result.errors[0]?.error.message).toContain("No rule files found");
-		});
-	});
+  describe("validate", () => {
+    it("should inherit validation from BaseToolRulesProcessor", async () => {
+      // This test ensures the processor properly extends BaseToolRulesProcessor
+      // and inherits its validation behavior
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      const result = await processor.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error.message).toContain("No rule files found");
+    });
+  });
 });
