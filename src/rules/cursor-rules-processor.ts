@@ -1,16 +1,16 @@
 import { join } from "node:path";
-import glob from "fast-glob";
-import { ToolRulesProcessor } from "../../../types/rules-processor.js";
-import { BaseToolRulesProcessor } from "../../common/base-tool-rules-processor.js";
-import { CursorRule } from "../rules/cursor-rule.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { ToolRulesProcessor } from "../../types/rules-processor.js";
+import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
+import { CursorRule } from "./tools/CursorRule.js";
+import { ToolRuleConstructor } from "./types.js";
+import { fileExists, findFiles } from "../../utils/file-utils.js";
 
 export class CursorRulesProcessor extends BaseToolRulesProcessor {
 	static build(params: { baseDir: string }): ToolRulesProcessor {
 		return new CursorRulesProcessor(params);
 	}
 
-	protected getRuleClass(): typeof CursorRule {
+	protected getRuleClass(): ToolRuleConstructor {
 		return CursorRule as any;
 	}
 
@@ -26,10 +26,7 @@ export class CursorRulesProcessor extends BaseToolRulesProcessor {
 		// .cursor/rules/*.mdc
 		const cursorRulesDir = join(this.baseDir, ".cursor", "rules");
 		if (await fileExists(cursorRulesDir)) {
-			const ruleFiles = await glob("*.mdc", {
-				cwd: cursorRulesDir,
-				absolute: true,
-			});
+			const ruleFiles = await findFiles(cursorRulesDir, ".mdc");
 			paths.push(...ruleFiles);
 		}
 

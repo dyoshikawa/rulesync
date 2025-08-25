@@ -1,16 +1,16 @@
 import { join } from "node:path";
-import glob from "fast-glob";
-import { ToolRulesProcessor } from "../../../types/rules-processor.js";
-import { BaseToolRulesProcessor } from "../../common/base-tool-rules-processor.js";
-import { ClineRule } from "../rules/cline-rule.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { ToolRulesProcessor } from "../../types/rules-processor.js";
+import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
+import { ClineRule } from "./tools/ClineRule.js";
+import { ToolRuleConstructor } from "./types.js";
+import { fileExists, findFiles } from "../../utils/file-utils.js";
 
 export class ClineRulesProcessor extends BaseToolRulesProcessor {
 	static build(params: { baseDir: string }): ToolRulesProcessor {
 		return new ClineRulesProcessor(params);
 	}
 
-	protected getRuleClass(): typeof ClineRule {
+	protected getRuleClass(): ToolRuleConstructor {
 		return ClineRule as any;
 	}
 
@@ -26,10 +26,7 @@ export class ClineRulesProcessor extends BaseToolRulesProcessor {
 		// .clinerules/*.md
 		const clineRulesDir = join(this.baseDir, ".clinerules");
 		if (await fileExists(clineRulesDir)) {
-			const ruleFiles = await glob("*.md", {
-				cwd: clineRulesDir,
-				absolute: true,
-			});
+			const ruleFiles = await findFiles(clineRulesDir, ".md");
 			paths.push(...ruleFiles);
 		}
 

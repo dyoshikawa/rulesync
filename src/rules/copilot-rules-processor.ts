@@ -1,16 +1,16 @@
 import { join } from "node:path";
-import glob from "fast-glob";
-import { ToolRulesProcessor } from "../../../types/rules-processor.js";
-import { BaseToolRulesProcessor } from "../../common/base-tool-rules-processor.js";
-import { CopilotRule } from "../rules/copilot-rule.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { ToolRulesProcessor } from "../../types/rules-processor.js";
+import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
+import { CopilotRule } from "./tools/CopilotRule.js";
+import { ToolRuleConstructor } from "./types.js";
+import { fileExists, findFiles } from "../../utils/file-utils.js";
 
 export class CopilotRulesProcessor extends BaseToolRulesProcessor {
 	static build(params: { baseDir: string }): ToolRulesProcessor {
 		return new CopilotRulesProcessor(params);
 	}
 
-	protected getRuleClass(): typeof CopilotRule {
+	protected getRuleClass(): ToolRuleConstructor {
 		return CopilotRule as any;
 	}
 
@@ -26,10 +26,7 @@ export class CopilotRulesProcessor extends BaseToolRulesProcessor {
 		// .github/instructions/*.instructions.md
 		const instructionsDir = join(this.baseDir, ".github", "instructions");
 		if (await fileExists(instructionsDir)) {
-			const instructionFiles = await glob("*.instructions.md", {
-				cwd: instructionsDir,
-				absolute: true,
-			});
+			const instructionFiles = await findFiles(instructionsDir, ".instructions.md");
 			paths.push(...instructionFiles);
 		}
 

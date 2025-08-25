@@ -1,16 +1,16 @@
 import { join } from "node:path";
-import glob from "fast-glob";
-import { ToolRulesProcessor } from "../../../types/rules-processor.js";
-import { BaseToolRulesProcessor } from "../../common/base-tool-rules-processor.js";
-import { AmazonqcliRule } from "../rules/amazonqcli-rule.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { ToolRulesProcessor } from "../../types/rules-processor.js";
+import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
+import { AmazonqcliRule } from "./tools/AmazonqcliRule.js";
+import { ToolRuleConstructor } from "./types.js";
+import { fileExists, findFiles } from "../../utils/file-utils.js";
 
 export class AmazonqcliRulesProcessor extends BaseToolRulesProcessor {
 	static build(params: { baseDir: string }): ToolRulesProcessor {
 		return new AmazonqcliRulesProcessor(params);
 	}
 
-	protected getRuleClass(): typeof AmazonqcliRule {
+	protected getRuleClass(): ToolRuleConstructor {
 		return AmazonqcliRule as any;
 	}
 
@@ -20,10 +20,7 @@ export class AmazonqcliRulesProcessor extends BaseToolRulesProcessor {
 		// .amazonq/rules/*.md
 		const amazonqRulesDir = join(this.baseDir, ".amazonq", "rules");
 		if (await fileExists(amazonqRulesDir)) {
-			const ruleFiles = await glob("*.md", {
-				cwd: amazonqRulesDir,
-				absolute: true,
-			});
+			const ruleFiles = await findFiles(amazonqRulesDir, ".md");
 			paths.push(...ruleFiles);
 		}
 

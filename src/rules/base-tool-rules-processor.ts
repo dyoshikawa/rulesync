@@ -1,10 +1,9 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
-import glob from "fast-glob";
 import { ToolRulesProcessor, ValidationResult } from "../../types/rules-processor.js";
-import { ToolRule } from "../../types/rules.js";
-import { RulesyncRule } from "../rulesync/rules/rulesync-rule.js";
-import { fileExists } from "../../utils/file-utils.js";
+import { ToolRuleConstructor } from "./types.js";
+import { RulesyncRule } from "./RulesyncRule.js";
+import { fileExists, findFiles } from "../../utils/file-utils.js";
 
 export abstract class BaseToolRulesProcessor implements ToolRulesProcessor {
 	protected baseDir: string;
@@ -17,9 +16,8 @@ export abstract class BaseToolRulesProcessor implements ToolRulesProcessor {
 		throw new Error("Subclass must implement static build method");
 	}
 
-	protected abstract getRuleClass(): typeof ToolRule;
+	protected abstract getRuleClass(): ToolRuleConstructor;
 	protected abstract getRuleFilePaths(): Promise<string[]>;
-	protected abstract getRulesyncDirectory(): string;
 
 	async generateAllFromRulesyncRuleFiles(): Promise<void> {
 		// Load rulesync rule files from .rulesync directory
@@ -28,10 +26,7 @@ export abstract class BaseToolRulesProcessor implements ToolRulesProcessor {
 			throw new Error(".rulesync directory does not exist");
 		}
 
-		const ruleFiles = await glob("*.md", {
-			cwd: rulesyncDir,
-			absolute: true,
-		});
+		const ruleFiles = await findFiles(rulesyncDir, ".md");
 
 		const RuleClass = this.getRuleClass();
 

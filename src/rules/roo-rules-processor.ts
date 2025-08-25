@@ -1,16 +1,16 @@
 import { join } from "node:path";
-import glob from "fast-glob";
-import { ToolRulesProcessor } from "../../../types/rules-processor.js";
-import { BaseToolRulesProcessor } from "../../common/base-tool-rules-processor.js";
-import { RooRule } from "../rules/roo-rule.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { ToolRulesProcessor } from "../../types/rules-processor.js";
+import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
+import { RooRule } from "./tools/RooRule.js";
+import { ToolRuleConstructor } from "./types.js";
+import { fileExists, findFiles } from "../../utils/file-utils.js";
 
 export class RooRulesProcessor extends BaseToolRulesProcessor {
 	static build(params: { baseDir: string }): ToolRulesProcessor {
 		return new RooRulesProcessor(params);
 	}
 
-	protected getRuleClass(): typeof RooRule {
+	protected getRuleClass(): ToolRuleConstructor {
 		return RooRule as any;
 	}
 
@@ -26,20 +26,14 @@ export class RooRulesProcessor extends BaseToolRulesProcessor {
 		// .roo/rules/*.md
 		const rooRulesDir = join(this.baseDir, ".roo", "rules");
 		if (await fileExists(rooRulesDir)) {
-			const ruleFiles = await glob("*.md", {
-				cwd: rooRulesDir,
-				absolute: true,
-			});
+			const ruleFiles = await findFiles(rooRulesDir, ".md");
 			paths.push(...ruleFiles);
 		}
 
 		// .roo/memories/*.md
 		const rooMemoriesDir = join(this.baseDir, ".roo", "memories");
 		if (await fileExists(rooMemoriesDir)) {
-			const memoryFiles = await glob("*.md", {
-				cwd: rooMemoriesDir,
-				absolute: true,
-			});
+			const memoryFiles = await findFiles(rooMemoriesDir, ".md");
 			paths.push(...memoryFiles);
 		}
 

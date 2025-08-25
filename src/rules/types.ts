@@ -58,6 +58,15 @@ export interface ToolRule extends Rule {
 }
 
 /**
+ * Constructor type for ToolRule classes
+ */
+export interface ToolRuleConstructor {
+  new (params: { filePath: string; fileContent: string }): ToolRule;
+  fromFilePath(filePath: string): Promise<ToolRule>;
+  fromRulesyncRule(rule: RulesyncRule): ToolRule;
+}
+
+/**
  * Type guard to check if a rule implements ToolRule
  */
 export function isToolRule(rule: Rule): rule is ToolRule {

@@ -1,15 +1,16 @@
 import { join } from "node:path";
-import { ToolRulesProcessor } from "../../../types/rules-processor.js";
-import { BaseToolRulesProcessor } from "../../common/base-tool-rules-processor.js";
-import { GeminicliRule } from "../rules/geminicli-rule.js";
-import { fileExists } from "../../../utils/file-utils.js";
+import { ToolRulesProcessor } from "../../types/rules-processor.js";
+import { BaseToolRulesProcessor } from "./base-tool-rules-processor.js";
+import { GeminicliRule } from "./tools/GeminicliRule.js";
+import { ToolRuleConstructor } from "./types.js";
+import { fileExists } from "../../utils/file-utils.js";
 
 export class GeminicliRulesProcessor extends BaseToolRulesProcessor {
 	static build(params: { baseDir: string }): ToolRulesProcessor {
 		return new GeminicliRulesProcessor(params);
 	}
 
-	protected getRuleClass(): typeof GeminicliRule {
+	protected getRuleClass(): ToolRuleConstructor {
 		return GeminicliRule as any;
 	}
 
