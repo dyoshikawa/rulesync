@@ -3,7 +3,7 @@ import type { RulesyncMcpServer } from "../types/mcp.js";
 import type { ParsedSubagent } from "../types/subagent.js";
 import { fileExists, resolvePath } from "../utils/file.js";
 import { parseMemoryBasedConfiguration } from "./shared-helpers.js";
-import { parseSubagentsFromDirectory } from "./subagent-parser.js";
+import { parseSubagentsFromDirectory } from "./subagents/shared.js";
 
 export interface ClaudeImportResult {
   rules: ParsedRule[];

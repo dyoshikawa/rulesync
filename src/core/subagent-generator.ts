@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ClaudeCodeSubagentGenerator } from "../generators/subagents/claudecode.js";
-import { parseSubagentsFromDirectory } from "../parsers/subagent-parser.js";
+import { parseSubagentsFromDirectory } from "../parsers/subagents/shared.js";
 import type { Config } from "../types/config.js";
 import type { ProcessedRule } from "../types/rules.js";
 import type { ParsedSubagent } from "../types/subagent.js";

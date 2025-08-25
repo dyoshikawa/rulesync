@@ -1,9 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
-import { type ParsedSubagent, SubagentFrontmatterSchema } from "../types/subagent.js";
-import { fileExists } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import { type ParsedSubagent, SubagentFrontmatterSchema } from "../../types/subagent.js";
+import { fileExists } from "../../utils/file.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * Parse a single subagent file
