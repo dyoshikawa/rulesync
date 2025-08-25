@@ -72,7 +72,7 @@ Every time you complete each replacement of the codes, please update the TODO li
 - [x] junie
 - [x] windsurf
 
-## RulesProcessor class
+## RulesProcessor interfaces and classes
 
 ```ts
 type ValidationResult = {
@@ -125,3 +125,22 @@ class RulesyncRulesProcessor implements RulesProcessor {
 }
 ```
 
+Every time you complete each replacement of the codes, please update the TODO list below.
+
+- [ ] claudecode
+- [ ] agentsmd
+- [ ] amazonqcli
+- [ ] augmentcode
+- [ ] augmentcode-legacy
+- [ ] copilot
+- [ ] cursor
+- [ ] cline
+- [ ] claudecode
+- [ ] codexcli
+- [ ] opencode
+- [ ] qwencode
+- [ ] roo
+- [ ] geminicli
+- [ ] kiro
+- [ ] junie
+- [ ] windsurf
