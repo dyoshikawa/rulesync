@@ -13,3 +13,4 @@ globs: ["**/*.ts"]
     - `zod/mini` is a subset of `zod` to minimize the bundle size.
 - To import codes, you should always use static imports. You should not use dynamic imports.
     - Because static imports are easier to analyze and optimize by bundlers such as tree-shaking.
+- TypeScript file names should be in kebab-case, even for class implementation files.

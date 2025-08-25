@@ -118,6 +118,8 @@ class ClaudecodeRulesProcessor implements ToolRulesProcessor {
 }
 
 class RulesyncRulesProcessor implements RulesProcessor {
+  static build(): RulesyncRulesProcessor
+  
   // For `rulesync init` and `rulesync add` process. Create a single new rulesync rule file.
   generate(rule: RuleSyncRule): Promise<void>
 
@@ -127,20 +129,19 @@ class RulesyncRulesProcessor implements RulesProcessor {
 
 Every time you complete each replacement of the codes, please update the TODO list below.
 
-- [ ] claudecode
-- [ ] agentsmd
-- [ ] amazonqcli
-- [ ] augmentcode
-- [ ] augmentcode-legacy
-- [ ] copilot
-- [ ] cursor
-- [ ] cline
-- [ ] claudecode
-- [ ] codexcli
-- [ ] opencode
-- [ ] qwencode
-- [ ] roo
-- [ ] geminicli
-- [ ] kiro
-- [ ] junie
-- [ ] windsurf
+- [x] claudecode
+- [x] agentsmd
+- [x] amazonqcli
+- [x] augmentcode
+- [x] augmentcode-legacy
+- [x] copilot
+- [x] cursor
+- [x] cline
+- [x] codexcli
+- [x] opencode
+- [x] qwencode
+- [x] roo
+- [x] geminicli
+- [x] kiro
+- [x] junie
+- [x] windsurf
