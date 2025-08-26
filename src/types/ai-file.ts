@@ -18,12 +18,9 @@ export interface AiFileParams {
   validate?: boolean;
 }
 
-export interface AiFileFromFilePathParams {
-  baseDir?: string;
-  relativeDirPath: string;
-  relativeFilePath: string;
+export type AiFileFromFilePathParams = Omit<AiFileParams, "fileContent"> & {
   filePath: string;
-}
+};
 
 export abstract class AiFile {
   /**
@@ -64,6 +61,14 @@ export abstract class AiFile {
 
   static fromFilePath(_params: AiFileFromFilePathParams): AiFile {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  getRelativeDirPath(): string {
+    return this.relativeDirPath;
+  }
+
+  getRelativeFilePath(): string {
+    return this.relativeFilePath;
   }
 
   getFilePath(): string {

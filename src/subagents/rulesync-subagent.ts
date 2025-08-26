@@ -7,6 +7,11 @@ export const RulesyncSubagentFrontmatterSchema = z.object({
   targets: ToolTargetsSchema,
   title: z.string(),
   description: z.string(),
+  claudecode: z.optional(
+    z.object({
+      model: z.optional(z.enum(["opus", "sonnet", "haiku", "inherit"])),
+    }),
+  ),
 });
 
 export type RulesyncSubagentFrontmatter = z.infer<typeof RulesyncSubagentFrontmatterSchema>;

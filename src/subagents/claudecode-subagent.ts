@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import { ToolSubagent } from "./tool-subagent.js";
+import { ToolSubagent, ToolSubagentFromRulesyncSubagentParams } from "./tool-subagent.js";
 
 export const ClaudecodeSubagentFrontmatterSchema = z.object({
   name: z.string(),
@@ -50,8 +50,26 @@ export class ClaudecodeSubagent extends ToolSubagent {
     });
   }
 
-  fromRulesyncSubagent(_rulesyncSubagent: RulesyncSubagent): ToolSubagent {
-    throw new Error("Method not implemented.");
+  static fromRulesyncSubagent({
+    rulesyncSubagent,
+    relativeDirPath,
+    validate = true,
+  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
+    const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
+    const claudecodeFrontmatter: ClaudecodeSubagentFrontmatter = {
+      name: rulesyncFrontmatter.title,
+      description: rulesyncFrontmatter.description,
+      model: rulesyncFrontmatter.claudecode?.model,
+    };
+
+    return new ClaudecodeSubagent({
+      frontmatter: claudecodeFrontmatter,
+      body: rulesyncSubagent.getBody(),
+      relativeDirPath,
+      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      fileContent: rulesyncSubagent.getBody(),
+      validate,
+    });
   }
 
   validate(): ValidationResult {
