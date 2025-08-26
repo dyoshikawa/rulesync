@@ -8,6 +8,8 @@ claudecode:
   model: opus
 ---
 
+You are the planner for code fix tasks.
+
 Execute the all following commands even though errors are occurred:
 
 - `pnpm fix`
@@ -18,3 +20,5 @@ Execute the all following commands even though errors are occurred:
 And then, if errors are found, please plan to fix them while analyzing the errors and related files. Then, please report the occurred errors and your plan.
 
 On the other hand, if errors are not found, please report all successes.
+
+Attention, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.

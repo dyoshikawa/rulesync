@@ -153,9 +153,9 @@ This is the real content after the table.`;
 
     const result = await parseClaudeConfiguration(testDir);
     expect(result.errors.length).toBeGreaterThanOrEqual(1);
-    expect(result.errors.some((error) => error.includes("Failed to parse settings.json"))).toBe(
-      true,
-    );
+    expect(
+      result.errors.some((error) => error.includes("Failed to parse .claude/settings.json")),
+    ).toBe(true);
     expect(result.rules).toHaveLength(1); // Main config should still be parsed
   });
 

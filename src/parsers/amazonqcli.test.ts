@@ -43,7 +43,7 @@ These are the main rules for Amazon Q.`;
 
     const result = await parseAmazonqcliConfiguration(testDir);
 
-    expect(result.rules).toHaveLength(2); // main.md parsed twice (main + memory)
+    expect(result.rules).toHaveLength(1); // main.md parsed once
     expect(result.rules.some((r) => r.content.includes("# Main Configuration"))).toBe(true);
     expect(result.rules[0]?.frontmatter?.targets).toContain("amazonqcli");
     expect(result.errors).toEqual([]);
@@ -62,7 +62,7 @@ These are the main rules for Amazon Q.`;
 
     const result = await parseAmazonqcliConfiguration(testDir);
 
-    expect(result.rules).toHaveLength(4); // main.md + security.md + performance.md (main.md parsed twice)
+    expect(result.rules).toHaveLength(3); // main.md + security.md + performance.md
     expect(result.rules.map((r) => r.filename)).toContain("main");
     expect(result.rules.map((r) => r.filename)).toContain("security");
     expect(result.rules.map((r) => r.filename)).toContain("performance");
@@ -115,7 +115,7 @@ These are the main rules for Amazon Q.`;
 
     expect(result.mcpServers).toBeUndefined();
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("Failed to parse settings.json");
+    expect(result.errors[0]).toContain("Failed to parse .amazonq/mcp.json");
   });
 
   it("should use default baseDir when not provided", async () => {

@@ -102,10 +102,10 @@ export class WindsurfRuleParser extends BaseRuleParser {
         if (parsed.data.activation && typeof parsed.data.activation === "string") {
           const validModes = ["always", "manual", "model-decision", "glob"] as const;
           const activation = parsed.data.activation;
-          if (
-            typeof activation === "string" &&
-            (validModes as readonly string[]).includes(activation)
-          ) {
+          const isValidMode = (mode: string): mode is (typeof validModes)[number] =>
+            validModes.some((validMode) => validMode === mode);
+
+          if (isValidMode(activation)) {
             frontmatter.windsurfActivationMode = activation;
           }
         }

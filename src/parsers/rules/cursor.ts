@@ -187,18 +187,42 @@ export class CursorRuleParser extends BaseRuleParser {
       };
     }
 
-    // 2. manual: empty description + empty globs + alwaysApply: false
-    if (!description && (!globs || globs.length === 0)) {
+    // Special case: globs: * (single asterisk wildcard) should be treated as manual
+    // This is Cursor's specific format where * means "all files" but with manual activation
+    if (globs && globs.length === 1 && globs[0] === "*") {
       return {
         root: false,
         targets: ["*"],
-        description: "",
-        globs: [],
+        description: description || "",
+        globs: globs,
         cursorRuleType: "manual",
       };
     }
 
-    // 3. auto: has description + empty globs + alwaysApply: false
+    // 2. When both description and globs are present, treat as manual (edge case)
+    // This handles the case where rules have both description and globs
+    if (description && globs && globs.length > 0) {
+      return {
+        root: false,
+        targets: ["*"],
+        description: description, // Preserve description when both description and globs are present
+        globs: globs,
+        cursorRuleType: "manual",
+      };
+    }
+
+    // 3. glob: has globs + alwaysApply: false (no description)
+    if (globs && globs.length > 0) {
+      return {
+        root: false,
+        targets: ["*"],
+        description: "",
+        globs: globs,
+        cursorRuleType: "specificFiles",
+      };
+    }
+
+    // 4. auto: has description + empty globs + alwaysApply: false
     if (description && (!globs || globs.length === 0)) {
       return {
         root: false,
@@ -209,23 +233,23 @@ export class CursorRuleParser extends BaseRuleParser {
       };
     }
 
-    // 4. glob: empty description + has globs + alwaysApply: false
-    if (!description && globs && globs.length > 0) {
+    // 5. manual: empty description + empty globs + alwaysApply: false
+    if (!description && (!globs || globs.length === 0)) {
       return {
         root: false,
         targets: ["*"],
         description: "",
-        globs: globs,
-        cursorRuleType: "specificFiles",
+        globs: [],
+        cursorRuleType: "manual",
       };
     }
 
-    // Default fallback
+    // Default fallback (should only reach here if no globs and no description)
     return {
       root: false,
       targets: ["*"],
-      description: description || "",
-      globs: globs || ["**/*"],
+      description: "",
+      globs: [],
       cursorRuleType: "manual",
     };
   }

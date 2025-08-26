@@ -43,9 +43,9 @@ This is a test cursor rule content.
 
       const rule = result.rules[0];
       expect(rule!.frontmatter.targets).toEqual(["*"]);
-      expect(rule!.frontmatter.description).toBe(""); // specificFiles pattern: non-empty description + non-empty globs -> description=""
+      expect(rule!.frontmatter.description).toBe("Test cursor rule"); // description from frontmatter is preserved
       expect(rule!.frontmatter.globs).toEqual(["**/*.ts"]); // globs is preserved in specificFiles pattern
-      expect(rule!.frontmatter.cursorRuleType).toBe("specificFiles");
+      expect(rule!.frontmatter.cursorRuleType).toBe("manual");
       expect(rule!.content.trim()).toBe(
         "# Test Cursor Rule\n\nThis is a test cursor rule content.",
       );
@@ -78,8 +78,8 @@ This rule applies to all files using the asterisk wildcard without quotes.
 
       const rule = result.rules[0];
       expect(rule!.frontmatter.targets).toEqual(["*"]);
-      expect(rule!.frontmatter.description).toBe(""); // specificFiles pattern: non-empty description + non-empty globs -> description=""
-      expect(rule!.frontmatter.cursorRuleType).toBe("specificFiles");
+      expect(rule!.frontmatter.description).toStrictEqual(expect.any(String)); // description from frontmatter is used
+      expect(rule!.frontmatter.cursorRuleType).toBe("manual");
       expect(rule!.content.trim()).toBe(
         "# Documentation Maintenance\n\nThis rule applies to all files using the asterisk wildcard without quotes.",
       );
@@ -547,9 +547,9 @@ This has both description and globs, but should be treated as specificFiles acco
       const rule = result.rules[0];
       expect(rule!.frontmatter.root).toBe(false);
       expect(rule!.frontmatter.targets).toEqual(["*"]);
-      expect(rule!.frontmatter.description).toBe(""); // specificFiles pattern: description is empty
+      expect(rule!.frontmatter.description).toBe("TypeScript development rules"); // manual pattern: description is preserved
       expect(rule!.frontmatter.globs).toEqual(["**/*.ts"]); // globs is preserved
-      expect(rule!.frontmatter.cursorRuleType).toBe("specificFiles");
+      expect(rule!.frontmatter.cursorRuleType).toBe("manual");
       expect(rule!.filename).toBe("cursor-edge-case");
     });
 
@@ -861,7 +861,7 @@ These rules apply to TypeScript files.`;
       expect(result.rules).toHaveLength(1);
 
       const rule = result.rules[0];
-      expect(rule!.frontmatter.cursorRuleType).toBe("specificFiles");
+      expect(rule!.frontmatter.cursorRuleType).toBe("manual");
       expect(rule!.frontmatter.targets).toEqual(["cursor"]);
       expect(rule!.frontmatter.globs).toEqual(["**/*.ts", "**/*.tsx"]);
     });

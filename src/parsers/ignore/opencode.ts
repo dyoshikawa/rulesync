@@ -1,10 +1,11 @@
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { fileExists, readFileContent, resolvePath } from "../../utils/file.js";
+import { parseIgnoreFile } from "../../utils/ignore.js";
 import { BaseIgnoreParser, type IgnoreParseResult } from "./base.js";
 
 /**
  * Parser for OpenCode ignore patterns
- * Handles opencode.json configuration files
+ * Handles both .opcodeignore files and opencode.json configuration files
  */
 export class OpenCodeIgnoreParser extends BaseIgnoreParser {
   getToolName(): ToolTarget {
@@ -12,11 +13,33 @@ export class OpenCodeIgnoreParser extends BaseIgnoreParser {
   }
 
   getIgnoreFileName(): string {
-    return "opencode.json";
+    return ".opcodeignore";
   }
 
   async parseIgnorePatterns(baseDir: string = process.cwd()): Promise<IgnoreParseResult> {
-    const configPath = resolvePath(this.getIgnoreFileName(), baseDir);
+    // First, try to parse .opcodeignore file
+    const opcodeignorePath = resolvePath(".opcodeignore", baseDir);
+
+    if (await fileExists(opcodeignorePath)) {
+      try {
+        const content = await readFileContent(opcodeignorePath);
+        const patterns = parseIgnoreFile(content);
+        return {
+          patterns,
+          errors: [],
+          source: ".opcodeignore",
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+          patterns: [],
+          errors: [`Failed to parse .opcodeignore file: ${errorMessage}`],
+        };
+      }
+    }
+
+    // Fallback to opencode.json configuration
+    const configPath = resolvePath("opencode.json", baseDir);
 
     if (!(await fileExists(configPath))) {
       return {

@@ -159,7 +159,9 @@ dist/
     const result = await parseGeminiConfiguration(testDir);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(
-      result.errors.some((error: string) => error.includes("Failed to parse settings.json")),
+      result.errors.some((error: string) =>
+        error.includes("Failed to parse .gemini/settings.json"),
+      ),
     ).toBe(true);
   });
 

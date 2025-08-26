@@ -28,9 +28,9 @@ describe("parseOpenCodeConfiguration", () => {
     await cleanup();
   });
 
-  it("should return error when AGENTS.md is not found", async () => {
+  it("should return empty result when AGENTS.md is not found", async () => {
     const result = await parseOpenCodeConfiguration(testDir);
-    expect(result.errors).toContain("AGENTS.md file not found");
+    expect(result.errors).toEqual([]); // No error - AGENTS.md is optional
     expect(result.rules).toEqual([]);
   });
 
@@ -50,9 +50,9 @@ This is the main OpenCode configuration.
     expect(result.rules).toHaveLength(1);
 
     const rule = result.rules[0] as ParsedRule;
-    expect(rule.filename).toBe("main");
+    expect(rule.filename).toBe("agents");
     expect(rule.filepath).toBe(agentsFilePath);
-    expect(rule.frontmatter.description).toBe("Main OpenCode configuration");
+    expect(rule.frontmatter.description).toBe("OpenCode configuration");
     expect(rule.frontmatter.root).toBe(false);
     expect(rule.content.trim()).toContain("This is the main OpenCode configuration.");
   });

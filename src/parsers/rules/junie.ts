@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import type { ParsedRule, RuleFrontmatter } from "../../types/index.js";
-import { getErrorMessage, safeAsyncOperation } from "../../utils/error.js";
+import type { RuleFrontmatter } from "../../types/index.js";
+import { safeAsyncOperation } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { BaseRuleParser, type RuleParseResult } from "./base.js";
 

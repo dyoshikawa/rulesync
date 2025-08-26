@@ -24,12 +24,10 @@ describe("parseCopilotConfiguration", () => {
     await cleanup();
   });
 
-  it("should return error when no configuration files found", async () => {
+  it("should return empty result when no configuration files found", async () => {
     const result = await parseCopilotConfiguration(testDir);
-    expect(result.errors).toContain(
-      "No Copilot configuration files found (.github/copilot-instructions.md or .github/instructions/*.instructions.md)",
-    );
     expect(result.rules).toEqual([]);
+    // New parser doesn't generate error for missing files, just returns empty result
   });
 
   it("should parse copilot-instructions.md file", async () => {
@@ -50,7 +48,7 @@ This is a TypeScript project.
     expect(result.rules[0]!.frontmatter).toEqual({
       root: false,
       targets: ["copilot"],
-      description: "GitHub Copilot instructions",
+      description: "GitHub Copilot custom instructions",
       globs: ["**/*"],
     });
     expect(result.rules[0]!.content).toContain("This is a TypeScript project");
@@ -71,9 +69,9 @@ This is a TypeScript project.
     expect(result.rules).toHaveLength(2);
 
     const filenames = result.rules.map((r) => r.filename);
-    expect(filenames).toContain("typescript");
-    expect(filenames).toContain("testing");
-    expect(filenames).not.toContain("not-instructions");
+    expect(filenames).toContain("copilot-typescript");
+    expect(filenames).toContain("copilot-testing");
+    expect(filenames).not.toContain("copilot-not-instructions");
   });
 
   it("should parse both main file and instructions", async () => {
@@ -128,9 +126,9 @@ This is a TypeScript project.
     expect(result.rules[0]!.frontmatter).toEqual({
       root: false,
       targets: ["copilot"],
-      description: "Copilot instruction: api-design",
+      description: "GitHub Copilot instruction: api-design",
       globs: ["**/*"],
     });
-    expect(result.rules[0]!.filename).toBe("api-design");
+    expect(result.rules[0]!.filename).toBe("copilot-api-design");
   });
 });

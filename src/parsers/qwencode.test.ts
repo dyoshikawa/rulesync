@@ -151,7 +151,7 @@ Analyze this code for issues: {{args}}`,
 
     expect(result.mcpServers).toBeUndefined();
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("Failed to parse settings.json");
+    expect(result.errors[0]).toContain("Failed to parse .qwen/settings.json");
   });
 
   it("should use default baseDir when not provided", async () => {
