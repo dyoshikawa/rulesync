@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { WindsurfIgnore } from "./windsurf-ignore.js";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { WindsurfIgnore } from "./windsurf-ignore.js";
 
 describe("WindsurfIgnore", () => {
   let testDir: string;
@@ -23,6 +23,7 @@ describe("WindsurfIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
+        fileContent: "",
       });
 
       const patterns = windsurfIgnore.getPatterns();
@@ -39,6 +40,7 @@ describe("WindsurfIgnore", () => {
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         patterns: customPatterns,
+        fileContent: customPatterns.join("\n"),
       });
 
       expect(windsurfIgnore.getPatterns()).toEqual(customPatterns);
@@ -51,6 +53,7 @@ describe("WindsurfIgnore", () => {
           relativeDirPath: ".",
           relativeFilePath: ".codeiumignore",
           patterns: null as any,
+          fileContent: "",
         });
       }).toThrow("Patterns must be defined");
     });
@@ -139,14 +142,7 @@ ${patterns.join("\n")}`,
 
       const loadedPatterns = windsurfIgnore.getPatterns();
       // Comments and empty lines should be filtered out
-      expect(loadedPatterns).toEqual([
-        "dist/",
-        "build/",
-        ".env",
-        ".env.*",
-        "*.log",
-        "logs/",
-      ]);
+      expect(loadedPatterns).toEqual(["dist/", "build/", ".env", ".env.*", "*.log", "logs/"]);
     });
 
     it("should handle empty file", async () => {
@@ -164,13 +160,7 @@ ${patterns.join("\n")}`,
     });
 
     it("should handle file with only comments and blank lines", async () => {
-      const content = [
-        "# This is a comment",
-        "",
-        "# Another comment",
-        "   ",
-        "# Final comment",
-      ];
+      const content = ["# This is a comment", "", "# Another comment", "   ", "# Final comment"];
       const filePath = join(testDir, ".codeiumignore");
       await writeFile(filePath, content.join("\n"));
 
@@ -195,26 +185,26 @@ ${patterns.join("\n")}`,
   describe("getDefaultPatterns", () => {
     it("should return comprehensive default patterns", () => {
       const patterns = WindsurfIgnore.getDefaultPatterns();
-      
+
       // Check for important security patterns
       expect(patterns).toContain(".env");
       expect(patterns).toContain("*.key");
       expect(patterns).toContain("*.pem");
-      
+
       // Check for build artifacts
       expect(patterns).toContain("dist/");
       expect(patterns).toContain("build/");
       expect(patterns).toContain("out/");
-      
+
       // Check for development files
       expect(patterns).toContain("*.log");
       expect(patterns).toContain(".cache/");
-      
+
       // Check for large files
       expect(patterns).toContain("*.mp4");
       expect(patterns).toContain("*.zip");
       expect(patterns).toContain("*.csv");
-      
+
       // Check for infrastructure
       expect(patterns).toContain("*.tfstate");
       expect(patterns).toContain(".terraform/");
@@ -222,7 +212,7 @@ ${patterns.join("\n")}`,
 
     it("should include proper section headers", () => {
       const patterns = WindsurfIgnore.getDefaultPatterns();
-      
+
       expect(patterns).toContain("# ───── Secrets & Credentials ─────");
       expect(patterns).toContain("# ───── Build Artifacts & Dependencies ─────");
       expect(patterns).toContain("# ───── Development Files ─────");
@@ -238,6 +228,7 @@ ${patterns.join("\n")}`,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         patterns: [".env", "*.log"],
+        fileContent: ".env\n*.log",
       });
 
       const result = windsurfIgnore.validate();
@@ -251,6 +242,7 @@ ${patterns.join("\n")}`,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         patterns: null as any,
+        fileContent: "",
         validate: false, // Skip validation during construction
       });
 
@@ -264,22 +256,22 @@ ${patterns.join("\n")}`,
   describe("integration with git ignore patterns", () => {
     it("should include negation patterns for re-inclusion", () => {
       const patterns = WindsurfIgnore.getDefaultPatterns();
-      
+
       // Should have negation patterns for important files
       expect(patterns).toContain("!.env.example");
     });
 
     it("should follow gitignore syntax conventions", () => {
       const patterns = WindsurfIgnore.getDefaultPatterns();
-      
+
       // Directory patterns should end with /
-      const directoryPatterns = patterns.filter(p => p.endsWith("/") && !p.startsWith("#"));
+      const directoryPatterns = patterns.filter((p) => p.endsWith("/") && !p.startsWith("#"));
       expect(directoryPatterns.length).toBeGreaterThan(0);
       expect(directoryPatterns).toContain("dist/");
       expect(directoryPatterns).toContain("build/");
-      
+
       // Glob patterns should use proper syntax
-      const globPatterns = patterns.filter(p => p.includes("**"));
+      const globPatterns = patterns.filter((p) => p.includes("**"));
       expect(globPatterns).toContain("**/apikeys/");
       expect(globPatterns).toContain("**/*_token*");
     });

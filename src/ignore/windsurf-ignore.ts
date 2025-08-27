@@ -1,17 +1,12 @@
-import { basename } from "node:path";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore } from "./tool-ignore.js";
-import type { ToolIgnoreFromRulesyncIgnoreParams } from "../types/ignore.js";
-import type { AiFileFromFilePathParams } from "../types/ai-file.js";
 import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
+import type { AiFileFromFilePathParams } from "../types/ai-file.js";
+import { RulesyncIgnore } from "./rulesync-ignore.js";
+import type { ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
+import { ToolIgnore } from "./tool-ignore.js";
 
-export interface WindsurfIgnoreParams {
-  baseDir?: string;
-  relativeDirPath: string;
-  relativeFilePath?: string;
+export interface WindsurfIgnoreParams extends Omit<ToolIgnoreParams, "patterns"> {
   patterns?: string[];
-  fileContent?: string;
-  validate?: boolean;
 }
 
 /**
@@ -154,7 +149,12 @@ export class WindsurfIgnore extends ToolIgnore {
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): WindsurfIgnore {
     const frontmatter = rulesyncIgnore.getFrontmatter();
-    const patterns = frontmatter.patterns || rulesyncIgnore.getBody().split("\n").filter(line => line.trim());
+    const patterns =
+      frontmatter.patterns ||
+      rulesyncIgnore
+        .getBody()
+        .split("\n")
+        .filter((line) => line.trim());
 
     return new WindsurfIgnore({
       baseDir,
@@ -178,8 +178,8 @@ export class WindsurfIgnore extends ToolIgnore {
     const fileContent = await readFile(filePath, "utf-8");
     const patterns = fileContent
       .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#"));
+      .map((line: string) => line.trim())
+      .filter((line: string) => line && !line.startsWith("#"));
 
     return new WindsurfIgnore({
       baseDir,
