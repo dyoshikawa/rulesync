@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
+import type { RulesyncMcpServer } from "../types/mcp.js";
 import { Processor } from "../types/processor.js";
 import { directoryExists, fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -545,6 +546,35 @@ export class McpProcessor extends Processor {
     } catch (error) {
       logger.warn(`Failed to load Windsurf MCP config:`, error);
       return [];
+    }
+  }
+
+  /**
+   * Write MCP servers from import data (during import process)
+   * This method writes MCP servers directly to .rulesync/.mcp.json
+   */
+  async writeRulesyncMcpFromImport(mcpServers: Record<string, RulesyncMcpServer>): Promise<void> {
+    if (!mcpServers || Object.keys(mcpServers).length === 0) {
+      logger.debug("No MCP servers to write during import");
+      return;
+    }
+
+    const mcpPath = join(this.baseDir, ".rulesync", ".mcp.json");
+    const mcpContent = JSON.stringify({ mcpServers }, null, 2) + "\n";
+
+    try {
+      const { writeFile, mkdir } = await import("node:fs/promises");
+
+      // Ensure .rulesync directory exists
+      await mkdir(join(this.baseDir, ".rulesync"), { recursive: true });
+
+      // Write MCP config file
+      await writeFile(mcpPath, mcpContent, "utf8");
+
+      logger.info(`Created .mcp.json with ${Object.keys(mcpServers).length} servers`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to write MCP configuration during import: ${errorMessage}`);
     }
   }
 

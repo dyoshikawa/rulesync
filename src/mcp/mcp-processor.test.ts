@@ -411,6 +411,100 @@ Test content`;
     });
   });
 
+  describe("writeRulesyncMcpFromImport", () => {
+    it("should write MCP servers to .rulesync/.mcp.json", async () => {
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const mcpServers = {
+        "test-server": {
+          command: "npx",
+          args: ["test-server"],
+          env: { API_KEY: "test-key" },
+        },
+        "another-server": {
+          command: "node",
+          args: ["server.js"],
+        },
+      };
+
+      await processor.writeRulesyncMcpFromImport(mcpServers);
+
+      // Verify file was created
+      const { readFile } = await import("node:fs/promises");
+      const mcpContent = await readFile(join(testDir, ".rulesync", ".mcp.json"), "utf-8");
+      const parsed = JSON.parse(mcpContent);
+
+      expect(parsed.mcpServers).toEqual(mcpServers);
+    });
+
+    it("should create .rulesync directory if it doesn't exist", async () => {
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const mcpServers = {
+        "test-server": {
+          command: "test-command",
+        },
+      };
+
+      await processor.writeRulesyncMcpFromImport(mcpServers);
+
+      // Verify directory and file were created
+      const { access } = await import("node:fs/promises");
+      await expect(access(join(testDir, ".rulesync"))).resolves.not.toThrow();
+      await expect(access(join(testDir, ".rulesync", ".mcp.json"))).resolves.not.toThrow();
+    });
+
+    it("should handle empty MCP servers gracefully", async () => {
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.writeRulesyncMcpFromImport({});
+
+      // Should not create file for empty servers
+      const { access } = await import("node:fs/promises");
+      await expect(access(join(testDir, ".rulesync", ".mcp.json"))).rejects.toThrow();
+    });
+
+    it("should handle null/undefined MCP servers gracefully", async () => {
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.writeRulesyncMcpFromImport(null as any);
+      await processor.writeRulesyncMcpFromImport(undefined as any);
+
+      // Should not create file for null/undefined servers
+      const { access } = await import("node:fs/promises");
+      await expect(access(join(testDir, ".rulesync", ".mcp.json"))).rejects.toThrow();
+    });
+
+    it("should throw error on write failures", async () => {
+      const processor = new McpProcessor({
+        baseDir: "/invalid/path/that/does/not/exist",
+        toolTarget: "claudecode",
+      });
+
+      const mcpServers = {
+        "test-server": {
+          command: "test-command",
+        },
+      };
+
+      await expect(processor.writeRulesyncMcpFromImport(mcpServers)).rejects.toThrow(
+        "Failed to write MCP configuration during import",
+      );
+    });
+  });
+
   describe("writeRulesyncMcpFromToolMcp", () => {
     it("should throw error as conversion is not yet implemented", async () => {
       const processor = new McpProcessor({

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import matter from "gray-matter";
+import { McpProcessor, type McpProcessorToolTarget } from "../mcp/mcp-processor.js";
 import {
   parseAgentsMdConfiguration,
   parseAmazonqcliConfiguration,
@@ -263,12 +264,43 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   let mcpFileCreated = false;
   if (mcpEnabled && mcpServers && Object.keys(mcpServers).length > 0) {
     try {
-      const mcpPath = join(baseDir, rulesDir, ".mcp.json");
-      const mcpContent = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
-      await writeFileContent(mcpPath, mcpContent);
-      mcpFileCreated = true;
-      if (verbose) {
-        logger.success(`Created .mcp.json with ${Object.keys(mcpServers).length} servers`);
+      // Map tool names to MCP processor tool targets
+      const toolTargetMapping: Partial<Record<ToolTarget, McpProcessorToolTarget>> = {
+        amazonqcli: "amazonqcli",
+        augmentcode: "augmentcode",
+        "augmentcode-legacy": "augmentcode",
+        claudecode: "claudecode",
+        cline: "cline",
+        codexcli: "codexcli",
+        copilot: "copilot",
+        cursor: "cursor",
+        geminicli: "geminicli",
+        junie: "junie",
+        kiro: "kiro",
+        opencode: "opencode",
+        qwencode: "qwencode",
+        roo: "roo",
+        windsurf: "windsurf",
+      };
+
+      const mcpToolTarget = toolTargetMapping[tool];
+      if (mcpToolTarget) {
+        const mcpProcessor = new McpProcessor({
+          baseDir,
+          toolTarget: mcpToolTarget,
+        });
+        await mcpProcessor.writeRulesyncMcpFromImport(mcpServers);
+        mcpFileCreated = true;
+        // Note: McpProcessor already logs the success message
+      } else {
+        // Fallback to original behavior for tools not yet supported by McpProcessor
+        const mcpPath = join(baseDir, rulesDir, ".mcp.json");
+        const mcpContent = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
+        await writeFileContent(mcpPath, mcpContent);
+        mcpFileCreated = true;
+        if (verbose) {
+          logger.success(`Created .mcp.json with ${Object.keys(mcpServers).length} servers`);
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

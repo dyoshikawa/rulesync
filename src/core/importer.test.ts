@@ -8,6 +8,13 @@ import { logger } from "../utils/logger.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
+vi.mock("../mcp/mcp-processor.js", () => {
+  return {
+    McpProcessor: vi.fn().mockImplementation(() => ({
+      writeRulesyncMcpFromImport: vi.fn().mockResolvedValue(undefined),
+    })),
+  };
+});
 
 describe("importConfiguration", () => {
   let testDir: string;
@@ -142,16 +149,22 @@ describe("importConfiguration", () => {
       mcpServers,
     });
 
+    const { McpProcessor } = await import("../mcp/mcp-processor.js");
+    const mockWriteRulesyncMcpFromImport = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(McpProcessor).mockImplementation(
+      () =>
+        ({
+          writeRulesyncMcpFromImport: mockWriteRulesyncMcpFromImport,
+        }) as any,
+    );
+
     const result = await importConfiguration({
       tool: "claudecode",
       baseDir: testDir,
     });
 
     expect(result.mcpFileCreated).toBe(true);
-
-    const mcpContent = await readFile(join(testDir, ".rulesync", ".mcp.json"), "utf-8");
-    const parsed = JSON.parse(mcpContent);
-    expect(parsed.mcpServers).toEqual(mcpServers);
+    expect(mockWriteRulesyncMcpFromImport).toHaveBeenCalledWith(mcpServers);
   });
 
   it("should handle parser errors", async () => {
@@ -281,11 +294,22 @@ describe("importConfiguration", () => {
   });
 
   it("should return success when only MCP file is created", async () => {
+    const mcpServers = { server: { command: "test" } };
+
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
-      mcpServers: { server: { command: "test" } },
+      mcpServers,
     });
+
+    const { McpProcessor } = await import("../mcp/mcp-processor.js");
+    const mockWriteRulesyncMcpFromImport = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(McpProcessor).mockImplementation(
+      () =>
+        ({
+          writeRulesyncMcpFromImport: mockWriteRulesyncMcpFromImport,
+        }) as any,
+    );
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -295,6 +319,7 @@ describe("importConfiguration", () => {
     expect(result.success).toBe(true);
     expect(result.rulesCreated).toBe(0);
     expect(result.mcpFileCreated).toBe(true);
+    expect(mockWriteRulesyncMcpFromImport).toHaveBeenCalledWith(mcpServers);
   });
 
   it("should handle error creating .rulesyncignore", async () => {
@@ -319,15 +344,23 @@ describe("importConfiguration", () => {
   });
 
   it("should handle error creating .mcp.json", async () => {
+    const mcpServers = { server: { command: "test" } };
+
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
-      mcpServers: { server: { command: "test" } },
+      mcpServers,
     });
 
-    // Mock writeFileContent to throw an error for .mcp.json
-    vi.spyOn(await import("../utils/index.js"), "writeFileContent").mockRejectedValueOnce(
-      new Error("Permission denied"),
+    const { McpProcessor } = await import("../mcp/mcp-processor.js");
+    const mockWriteRulesyncMcpFromImport = vi
+      .fn()
+      .mockRejectedValue(new Error("Permission denied"));
+    vi.mocked(McpProcessor).mockImplementation(
+      () =>
+        ({
+          writeRulesyncMcpFromImport: mockWriteRulesyncMcpFromImport,
+        }) as any,
     );
 
     const result = await importConfiguration({
@@ -337,21 +370,34 @@ describe("importConfiguration", () => {
 
     expect(result.mcpFileCreated).toBe(false);
     expect(result.errors.some((e) => e.includes("Failed to create .mcp.json"))).toBe(true);
+    expect(mockWriteRulesyncMcpFromImport).toHaveBeenCalledWith(mcpServers);
   });
 
   it("should handle verbose mode for ignore and MCP files", async () => {
     const loggerSpy = vi.spyOn(logger, "log").mockImplementation(() => {});
+    const loggerInfoSpy = vi.spyOn(logger, "info").mockImplementation(() => {});
     const loggerSuccessSpy = vi.spyOn(logger, "success").mockImplementation(() => {});
+
+    const mcpServers = {
+      server1: { command: "test1" },
+      server2: { command: "test2" },
+    };
 
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
       ignorePatterns: ["*.log", "temp/*"],
-      mcpServers: {
-        server1: { command: "test1" },
-        server2: { command: "test2" },
-      },
+      mcpServers,
     });
+
+    const { McpProcessor } = await import("../mcp/mcp-processor.js");
+    const mockWriteRulesyncMcpFromImport = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(McpProcessor).mockImplementation(
+      () =>
+        ({
+          writeRulesyncMcpFromImport: mockWriteRulesyncMcpFromImport,
+        }) as any,
+    );
 
     await importConfiguration({
       tool: "claudecode",
@@ -364,14 +410,17 @@ describe("importConfiguration", () => {
       expect.stringContaining("Importing claudecode configuration from"),
     );
 
-    // Check that the ignore and MCP creation logs were called
+    // Check that the ignore creation log was called
     const successCalls = loggerSuccessSpy.mock.calls.map((call) => call[0]);
     expect(
       successCalls.some((msg) => msg.includes("Created .rulesyncignore with 2 patterns")),
     ).toBe(true);
-    expect(successCalls.some((msg) => msg.includes("Created .mcp.json with 2 servers"))).toBe(true);
+
+    // MCP processor handles its own logging through logger.info
+    expect(mockWriteRulesyncMcpFromImport).toHaveBeenCalledWith(mcpServers);
 
     loggerSpy.mockRestore();
+    loggerInfoSpy.mockRestore();
     loggerSuccessSpy.mockRestore();
   });
 
@@ -455,5 +504,23 @@ describe("importConfiguration", () => {
     expect(createdFile).not.toContain("root:");
     expect(createdFile).not.toContain("globs:");
     expect(createdFile).toContain("Optimize the code by following");
+  });
+
+  it("should handle tools without MCP support gracefully", async () => {
+    // agentsmd doesn't support MCP, so no mcpServers field
+    vi.spyOn(parsers, "parseAgentsMdConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "agentsmd",
+      baseDir: testDir,
+    });
+
+    // Should succeed but no MCP file created
+    expect(result.success).toBe(false); // No rules or MCP files created
+    expect(result.mcpFileCreated).toBeFalsy();
+    expect(result.rulesCreated).toBe(0);
   });
 });
