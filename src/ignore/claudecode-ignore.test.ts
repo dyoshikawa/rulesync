@@ -1,11 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
-import { ClaudeCodeIgnore } from "./claudecode-ignore.js";
+import { ClaudecodeIgnore, ClaudecodePermissions } from "./claudecode-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
-describe("ClaudeCodeIgnore", () => {
+describe("ClaudecodeIgnore", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -18,174 +18,322 @@ describe("ClaudeCodeIgnore", () => {
   });
 
   describe("constructor", () => {
-    it("should create instance with patterns", () => {
-      const patterns = ["node_modules/", "*.log", ".env*"];
-      const claudeCodeIgnore = new ClaudeCodeIgnore({
+    it("should create ClaudecodeIgnore with permissions", () => {
+      const permissions: ClaudecodePermissions = {
+        deny: ["Edit(*.env)", "Bash(rm:*)"],
+        allow: ["Edit(public/**)", "Bash(npm test)"],
+        defaultMode: "acceptEdits",
+      };
+
+      const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
-        patterns,
-        fileContent: patterns.join("\n"),
+        permissions,
+        fileContent: JSON.stringify({ permissions }, null, 2),
       });
 
-      expect(claudeCodeIgnore.getPatterns()).toEqual(patterns);
+      expect(claudecodeIgnore.getPermissions()).toEqual(permissions);
+      expect(claudecodeIgnore.getPatterns()).toEqual(["*.env"]); // Extracted file patterns
+    });
+
+    it("should create ClaudecodeIgnore with empty permissions", () => {
+      const claudecodeIgnore = new ClaudecodeIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: "{}",
+      });
+
+      expect(claudecodeIgnore.getPermissions()).toEqual({});
+      expect(claudecodeIgnore.getPatterns()).toEqual([]);
+    });
+
+    it("should extract file patterns from permission rules", () => {
+      const permissions: ClaudecodePermissions = {
+        deny: ["Edit(src/**)", "Read(secrets/**)", "Bash(rm:*)", "WebFetch", "mcp__server__tool"],
+      };
+
+      const claudecodeIgnore = new ClaudecodeIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        permissions,
+        fileContent: JSON.stringify({ permissions }, null, 2),
+      });
+
+      expect(claudecodeIgnore.getPatterns()).toEqual(["src/**", "secrets/**"]);
     });
   });
 
   describe("toRulesyncIgnore", () => {
-    it("should convert to RulesyncIgnore with correct frontmatter", () => {
-      const patterns = ["node_modules/", "*.log"];
-      const claudeCodeIgnore = new ClaudeCodeIgnore({
+    it("should convert ClaudecodeIgnore to RulesyncIgnore", () => {
+      const permissions: ClaudecodePermissions = {
+        deny: ["Edit(*.env)", "Read(secrets/**)", "Bash(sudo:*)", "WebFetch"],
+        defaultMode: "acceptEdits",
+      };
+
+      const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
         relativeDirPath: ".claude",
-        relativeFilePath: ".claudecode.ignore",
-        patterns,
-        fileContent: patterns.join("\n"),
+        relativeFilePath: "settings.json",
+        permissions,
+        fileContent: JSON.stringify({ permissions }, null, 2),
       });
 
-      const rulesyncIgnore = claudeCodeIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = claudecodeIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getFrontmatter()).toEqual({
         targets: ["claudecode"],
-        description: "Generated from Claude Code ignore file: .claudecode.ignore",
+        description: "Generated from Claude Code settings: settings.json",
       });
-      expect(rulesyncIgnore.getBody()).toBe("node_modules/\n*.log");
+
+      const body = rulesyncIgnore.getBody();
+      expect(body).toContain("# Generated from Claude Code permissions");
+      expect(body).toContain("# File access restrictions");
+      expect(body).toContain("*.env");
+      expect(body).toContain("secrets/**");
+      expect(body).toContain("# Other restrictions (not file patterns):");
+      expect(body).toContain("# Bash(sudo:*)");
+      expect(body).toContain("# WebFetch");
     });
 
-    it("should handle empty patterns", () => {
-      const claudeCodeIgnore = new ClaudeCodeIgnore({
+    it("should handle empty permissions", () => {
+      const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
         relativeDirPath: ".claude",
-        relativeFilePath: ".claudecode.ignore",
-        patterns: [],
-        fileContent: "",
+        relativeFilePath: "settings.json",
+        fileContent: "{}",
       });
 
-      const rulesyncIgnore = claudeCodeIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = claudecodeIgnore.toRulesyncIgnore();
+      const body = rulesyncIgnore.getBody();
 
-      expect(rulesyncIgnore.getBody()).toBe("");
+      expect(body).toContain("# Generated from Claude Code permissions");
+      expect(body).not.toContain("# File access restrictions");
     });
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should convert from RulesyncIgnore with patterns", () => {
+    it("should create ClaudecodeIgnore from RulesyncIgnore", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["claudecode"],
-          description: "Test ignore file",
+          description: "Test ignore rules",
         },
-        body: "node_modules/\n*.log\n# comment\n\n.env*",
-        fileContent: "",
+        body: "*.env\nsecrets/**\nnode_modules/",
+        fileContent: "Test content",
       });
 
-      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore({
+      const claudecodeIgnore = ClaudecodeIgnore.fromRulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".claude",
         rulesyncIgnore,
       });
 
-      expect(claudeCodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
+      const permissions = claudecodeIgnore.getPermissions();
+      expect(permissions.deny).toContain("Edit(*.env)");
+      expect(permissions.deny).toContain("Edit(secrets/**)");
+      expect(permissions.deny).toContain("Edit(node_modules/)");
+
+      // Should include default deny rules
+      expect(permissions.deny).toContain("Edit(.env*)");
+      expect(permissions.deny).toContain("Bash(rm -rf /*)");
+      expect(permissions.deny).toContain("WebFetch");
     });
 
-    it("should handle empty body", () => {
+    it("should handle empty patterns", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "empty.md",
         frontmatter: {
           targets: ["claudecode"],
-          description: "Empty ignore file",
+          description: "Empty ignore rules",
         },
         body: "",
         fileContent: "",
       });
 
-      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore({
+      const claudecodeIgnore = ClaudecodeIgnore.fromRulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".claude",
         rulesyncIgnore,
       });
 
-      expect(claudeCodeIgnore.getPatterns()).toEqual([]);
-    });
-
-    it("should filter out comments and empty lines", () => {
-      const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/ignore",
-        relativeFilePath: "commented.md",
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "File with comments",
-        },
-        body: "# This is a comment\nnode_modules/\n\n*.log\n# Another comment\n.env*\n\n",
-        fileContent: "",
-      });
-
-      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
-        relativeDirPath: ".claude",
-        rulesyncIgnore,
-      });
-
-      expect(claudeCodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
+      const permissions = claudecodeIgnore.getPermissions();
+      // Should still include default deny rules
+      expect(permissions.deny).toContain("Edit(.env*)");
+      expect(permissions.deny).toContain("Bash(rm -rf /*)");
     });
   });
 
   describe("fromFilePath", () => {
-    it("should load from file with patterns", async () => {
-      const claudeDir = join(testDir, ".claude");
-      await mkdir(claudeDir, { recursive: true });
+    it("should load ClaudecodeIgnore from valid settings.json", async () => {
+      const permissions = {
+        deny: ["Edit(*.env)", "Bash(rm:*)", "WebFetch"],
+        allow: ["Bash(npm test)"],
+        defaultMode: "acceptEdits",
+      };
 
-      const filePath = join(claudeDir, ".claudecode.ignore");
-      const fileContent = `node_modules/
-*.log
-.env*
-# This is a comment
-*.tmp`;
+      const settings = { permissions };
+      const filePath = join(testDir, "settings.json");
+      await writeFile(filePath, JSON.stringify(settings, null, 2));
 
-      await writeFile(filePath, fileContent, "utf-8");
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFilePath({ filePath });
 
-      const claudeCodeIgnore = await ClaudeCodeIgnore.fromFilePath({ filePath });
-
-      expect(claudeCodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*", "*.tmp"]);
+      expect(claudecodeIgnore.getPermissions()).toEqual(permissions);
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
     });
 
-    it("should handle empty file", async () => {
-      const claudeDir = join(testDir, ".claude");
-      await mkdir(claudeDir, { recursive: true });
+    it("should handle settings.json without permissions", async () => {
+      const settings = {
+        someOtherConfig: "value",
+      };
 
-      const filePath = join(claudeDir, "empty.ignore");
-      await writeFile(filePath, "", "utf-8");
+      const filePath = join(testDir, "settings.json");
+      await writeFile(filePath, JSON.stringify(settings, null, 2));
 
-      const claudeCodeIgnore = await ClaudeCodeIgnore.fromFilePath({ filePath });
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFilePath({ filePath });
 
-      expect(claudeCodeIgnore.getPatterns()).toEqual([]);
+      expect(claudecodeIgnore.getPermissions()).toEqual({});
     });
 
-    it("should filter comments and blank lines", async () => {
-      const claudeDir = join(testDir, ".claude");
-      await mkdir(claudeDir, { recursive: true });
+    it("should throw error for invalid JSON", async () => {
+      const filePath = join(testDir, "invalid.json");
+      await writeFile(filePath, "{ invalid json }");
 
-      const filePath = join(claudeDir, "complex.ignore");
-      const fileContent = `# Header comment
-node_modules/
+      await expect(ClaudecodeIgnore.fromFilePath({ filePath })).rejects.toThrow(/Invalid JSON/);
+    });
 
-# Another comment
-*.log
+    it("should throw error for invalid permissions", async () => {
+      const settings = {
+        permissions: {
+          deny: "not-an-array", // Invalid: should be array
+        },
+      };
 
-.env*
+      const filePath = join(testDir, "invalid-permissions.json");
+      await writeFile(filePath, JSON.stringify(settings, null, 2));
 
-# Final comment`;
+      await expect(ClaudecodeIgnore.fromFilePath({ filePath })).rejects.toThrow(
+        /Invalid permissions/,
+      );
+    });
+  });
 
-      await writeFile(filePath, fileContent, "utf-8");
+  describe("generateSettingsJson", () => {
+    it("should generate valid settings.json", () => {
+      const permissions: ClaudecodePermissions = {
+        deny: ["Edit(*.env)", "Bash(sudo:*)"],
+        allow: ["Bash(npm test)"],
+        defaultMode: "acceptEdits",
+      };
 
-      const claudeCodeIgnore = await ClaudeCodeIgnore.fromFilePath({ filePath });
+      const claudecodeIgnore = new ClaudecodeIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        permissions,
+        fileContent: "",
+      });
 
-      expect(claudeCodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
+      const json = claudecodeIgnore.generateSettingsJson();
+      const parsed = JSON.parse(json);
+
+      expect(parsed.permissions).toEqual(permissions);
+    });
+  });
+
+  describe("getDefaultDenyRules", () => {
+    it("should return security-focused default deny rules", () => {
+      const defaultRules = ClaudecodeIgnore.getDefaultDenyRules();
+
+      expect(defaultRules).toContain("Edit(.env*)");
+      expect(defaultRules).toContain("Read(.env*)");
+      expect(defaultRules).toContain("Edit(*.key)");
+      expect(defaultRules).toContain("Bash(rm -rf /*)");
+      expect(defaultRules).toContain("Bash(sudo:*)");
+      expect(defaultRules).toContain("WebFetch");
+      expect(defaultRules).toContain("WebSearch");
+      expect(defaultRules.length).toBeGreaterThan(10);
+    });
+  });
+
+  describe("createWithDefaultRules", () => {
+    it("should create ClaudecodeIgnore with default security rules", () => {
+      const claudecodeIgnore = ClaudecodeIgnore.createWithDefaultRules({
+        baseDir: testDir,
+      });
+
+      const permissions = claudecodeIgnore.getPermissions();
+      expect(permissions.deny).toContain("Edit(.env*)");
+      expect(permissions.deny).toContain("Bash(rm -rf /*)");
+      expect(permissions.defaultMode).toBe("acceptEdits");
+    });
+
+    it("should use default parameters if none provided", () => {
+      const claudecodeIgnore = ClaudecodeIgnore.createWithDefaultRules();
+
+      expect(claudecodeIgnore.getRelativeDirPath()).toBe(".claude");
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
+    });
+  });
+
+  describe("getSupportedFileNames", () => {
+    it("should return supported Claude Code settings filenames", () => {
+      const supportedNames = ClaudecodeIgnore.getSupportedFileNames();
+
+      expect(supportedNames).toContain("settings.json");
+      expect(supportedNames).toContain("settings.local.json");
+      expect(supportedNames).toContain("managed-settings.json");
+      expect(supportedNames.length).toBe(3);
+    });
+  });
+
+  describe("permission rule parsing", () => {
+    it("should extract file patterns correctly", () => {
+      const patterns = [
+        "Edit(src/**)",
+        "Read(*.env)",
+        "Bash(rm:*)",
+        "WebFetch",
+        "mcp__server__tool",
+      ];
+
+      const filePatterns = ClaudecodeIgnore["extractFilePatterns"](patterns);
+
+      expect(filePatterns).toEqual(["src/**", "*.env"]);
+    });
+
+    it("should parse permission rules correctly", () => {
+      const parseRule = ClaudecodeIgnore["parsePermissionRule"];
+
+      expect(parseRule("Edit(src/**)")).toEqual({ type: "edit", pattern: "src/**" });
+      expect(parseRule("Read(*.env)")).toEqual({ type: "read", pattern: "*.env" });
+      expect(parseRule("Bash(sudo:*)")).toEqual({ type: "bash", pattern: "sudo:*" });
+      expect(parseRule("WebFetch(domain:example.com)")).toEqual({
+        type: "webfetch",
+        pattern: "domain:example.com",
+      });
+      expect(parseRule("mcp__server__tool")).toEqual({
+        type: "mcp",
+        pattern: "mcp__server__tool",
+      });
+      expect(parseRule("SomeTool")).toEqual({ type: "tool", pattern: "SomeTool" });
+    });
+
+    it("should identify file operation rules correctly", () => {
+      const isFileOp = ClaudecodeIgnore["isFileOperationRule"];
+
+      expect(isFileOp("Edit(src/**)")).toBe(true);
+      expect(isFileOp("Read(*.env)")).toBe(true);
+      expect(isFileOp("Bash(sudo:*)")).toBe(false);
+      expect(isFileOp("WebFetch")).toBe(false);
+      expect(isFileOp("mcp__server__tool")).toBe(false);
     });
   });
 });

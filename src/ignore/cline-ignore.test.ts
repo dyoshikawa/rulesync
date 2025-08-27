@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -138,7 +139,7 @@ describe("ClineIgnore", () => {
           description: "Test ignore rules",
         },
         body,
-        fileContent: `---\ntargets: [\"cline\"]\ndescription: \"Test ignore rules\"\n---\n${body}`,
+        fileContent: `---\ntargets: ["cline"]\ndescription: "Test ignore rules"\n---\n${body}`,
       });
 
       const clineIgnore = ClineIgnore.fromRulesyncIgnore({
@@ -164,7 +165,7 @@ describe("ClineIgnore", () => {
           description: "Test ignore rules",
         },
         body,
-        fileContent: `---\ntargets: [\"cline\"]\ndescription: \"Test ignore rules\"\n---\n${body}`,
+        fileContent: `---\ntargets: ["cline"]\ndescription: "Test ignore rules"\n---\n${body}`,
       });
 
       const clineIgnore = ClineIgnore.fromRulesyncIgnore({
@@ -186,7 +187,7 @@ describe("ClineIgnore", () => {
           description: "Empty ignore rules",
         },
         body: "",
-        fileContent: `---\ntargets: [\"cline\"]\ndescription: \"Empty ignore rules\"\n---\n`,
+        fileContent: `---\ntargets: ["cline"]\ndescription: "Empty ignore rules"\n---\n`,
       });
 
       const clineIgnore = ClineIgnore.fromRulesyncIgnore({

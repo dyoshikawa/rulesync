@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
-import { ClaudeCodeIgnore } from "./claudecode-ignore.js";
+import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { IgnoreProcessor } from "./ignore-processor.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
@@ -239,12 +239,18 @@ description: Invalid ignore file
         toolTarget: "claudecode",
       });
 
-      const claudeCodeIgnore = new ClaudeCodeIgnore({
+      const claudeCodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
         relativeDirPath: ".claude",
-        relativeFilePath: ".claudecode.ignore",
-        patterns: ["node_modules/", "*.log", ".env*"],
-        fileContent: "node_modules/\n*.log\n.env*",
+        relativeFilePath: "settings.json",
+        permissions: {
+          deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+        },
+        fileContent: JSON.stringify({
+          permissions: {
+            deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+          },
+        }, null, 2),
       });
 
       await processor.writeRulesyncIgnoresFromToolIgnores([claudeCodeIgnore]);

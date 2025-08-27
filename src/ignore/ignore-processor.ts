@@ -5,7 +5,7 @@ import { Processor } from "../types/processor.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { ClaudeCodeIgnore } from "./claudecode-ignore.js";
+import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
@@ -40,7 +40,7 @@ export class IgnoreProcessor extends Processor {
       .map((rulesyncIgnore) => {
         switch (this.toolTarget) {
           case "claudecode":
-            return ClaudeCodeIgnore.fromRulesyncIgnore({
+            return ClaudecodeIgnore.fromRulesyncIgnore({
               baseDir: this.baseDir,
               relativeDirPath: ".claude",
               rulesyncIgnore,
@@ -101,13 +101,13 @@ export class IgnoreProcessor extends Processor {
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     switch (this.toolTarget) {
       case "claudecode":
-        return await this.loadClaudeCodeIgnores();
+        return await this.loadClaudecodeIgnores();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
   }
 
-  private async loadClaudeCodeIgnores(): Promise<ToolIgnore[]> {
+  private async loadClaudecodeIgnores(): Promise<ToolIgnore[]> {
     const claudeDir = join(this.baseDir, ".claude");
 
     // Check if directory exists
@@ -121,7 +121,7 @@ export class IgnoreProcessor extends Processor {
     const ignoreFilePath = join(claudeDir, ".claudecode.ignore");
 
     try {
-      const claudeCodeIgnore = await ClaudeCodeIgnore.fromFilePath({
+      const claudeCodeIgnore = await ClaudecodeIgnore.fromFilePath({
         filePath: ignoreFilePath,
       });
 

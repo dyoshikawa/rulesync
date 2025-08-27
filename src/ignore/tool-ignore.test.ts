@@ -1,14 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreParams } from "./tool-ignore.js";
+import { ToolIgnore } from "./tool-ignore.js";
 
 // Create a concrete test implementation of the abstract ToolIgnore class
 class TestToolIgnore extends ToolIgnore {
-  constructor(params: ToolIgnoreParams) {
-    super(params);
-  }
-
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
       frontmatter: {
