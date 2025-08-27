@@ -15,6 +15,7 @@ import {
   parseQwenConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
+import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
@@ -278,28 +279,20 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   }
 
   // Create subagent files if subagents exist and subagents feature is enabled
-  let subagentsCreated = 0;
+  const subagentsCreated = 0;
   if (subagentsEnabled && subagents && subagents.length > 0) {
     try {
-      const { mkdir } = await import("node:fs/promises");
-      const subagentsDir = join(baseDir, rulesDir, "subagents");
-      await mkdir(subagentsDir, { recursive: true });
+      // Use SubagentsProcessor for supported tools
+      if (tool === "claudecode") {
+        const subagentsProcessor = new SubagentsProcessor({
+          baseDir,
+          toolTarget: "claudecode",
+        });
 
-      for (const subagent of subagents) {
-        try {
-          const filename = `${subagent.filename}.md`;
-          const filepath = join(subagentsDir, filename);
-          const content = generateSubagentFileContent(subagent);
-          await writeFileContent(filepath, content);
-          subagentsCreated++;
-          if (verbose) {
-            logger.success(`Created subagent: ${filename}`);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          errors.push(`Failed to create subagent ${subagent.filename}: ${errorMessage}`);
-        }
+        const toolSubagents = await subagentsProcessor.loadToolSubagents();
+        await subagentsProcessor.writeRulesyncSubagentsFromToolSubagents(toolSubagents);
       }
+
       if (verbose && subagentsCreated > 0) {
         logger.success(`Created ${subagentsCreated} subagent files`);
       }
@@ -341,9 +334,4 @@ function generateRuleFileContent(rule: ParsedRule): string {
 
   const frontmatter = matter.stringify("", rule.frontmatter);
   return frontmatter + rule.content;
-}
-
-function generateSubagentFileContent(subagent: ParsedSubagent): string {
-  const frontmatter = matter.stringify("", subagent.frontmatter);
-  return frontmatter + subagent.content;
 }
