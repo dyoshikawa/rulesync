@@ -5,6 +5,7 @@ export * from "./cline-mcp.js";
 export * from "./codexcli-mcp.js";
 export * from "./copilot-mcp.js";
 export * from "./cursor-mcp.js";
+export * from "./geminicli-mcp.js";
 export * from "./opencode-mcp.js";
 export * from "./qwencode-mcp.js";
 export * from "./roo-mcp.js";
