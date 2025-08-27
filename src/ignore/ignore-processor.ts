@@ -40,7 +40,11 @@ export class IgnoreProcessor extends Processor {
       .map((rulesyncIgnore) => {
         switch (this.toolTarget) {
           case "claudecode":
-            return ClaudeCodeIgnore.fromRulesyncIgnore(rulesyncIgnore);
+            return ClaudeCodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".claude",
+              rulesyncIgnore,
+            });
           default:
             throw new Error(`Unsupported tool target: ${this.toolTarget}`);
         }
