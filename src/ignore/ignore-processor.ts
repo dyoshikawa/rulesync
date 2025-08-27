@@ -6,10 +6,11 @@ import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
+import { CodexcliIgnore } from "./codexcli-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-export const IgnoreProcessorToolTargetSchema = z.enum(["claudecode"]);
+export const IgnoreProcessorToolTargetSchema = z.enum(["claudecode", "codexcli"]);
 
 export type IgnoreProcessorToolTarget = z.infer<typeof IgnoreProcessorToolTargetSchema>;
 
@@ -102,6 +103,8 @@ export class IgnoreProcessor extends Processor {
     switch (this.toolTarget) {
       case "claudecode":
         return await this.loadClaudecodeIgnores();
+      case "codexcli":
+        return await this.loadCodexcliIgnores();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -131,6 +134,32 @@ export class IgnoreProcessor extends Processor {
       logger.warn(`Failed to load Claude Code ignore file ${ignoreFilePath}:`, error);
       return [];
     }
+  }
+
+  private async loadCodexcliIgnores(): Promise<ToolIgnore[]> {
+    // OpenAI Codex CLI doesn't have native ignore file support yet
+    // Look for proposed .codexignore or .aiexclude files in project root
+    const supportedFiles = CodexcliIgnore.getSupportedIgnoreFileNames();
+    
+    for (const filename of supportedFiles) {
+      const ignoreFilePath = join(this.baseDir, filename);
+      
+      try {
+        const codexcliIgnore = await CodexcliIgnore.fromFilePath({
+          filePath: ignoreFilePath,
+        });
+
+        logger.info(`Successfully loaded Codex CLI ignore file: ${ignoreFilePath}`);
+        return [codexcliIgnore];
+      } catch (error) {
+        // Continue to next file if this one fails
+        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
+      }
+    }
+
+    // If no ignore files found, return empty array (common case)
+    logger.debug("No Codex CLI ignore files found, which is expected since .codexignore is not yet implemented");
+    return [];
   }
 
   async writeRulesyncIgnoresFromToolIgnores(toolIgnores: ToolIgnore[]): Promise<void> {
