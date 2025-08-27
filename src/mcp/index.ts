@@ -6,5 +6,6 @@ export * from "./codexcli-mcp.js";
 export * from "./copilot-mcp.js";
 export * from "./cursor-mcp.js";
 export * from "./opencode-mcp.js";
+export * from "./qwencode-mcp.js";
 export * from "./rulesync-mcp.js";
 export * from "./tool-mcp.js";
