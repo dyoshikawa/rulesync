@@ -372,10 +372,8 @@ Available tools:
             try {
               // Check if rulesync subagent source directory exists
               const rulesyncSubagentsDir = join(".rulesync", "subagents");
-              const fullPath = join(
-                baseDir === process.cwd() ? "." : baseDir,
-                rulesyncSubagentsDir,
-              );
+              // The rulesync dir can not be influenced by baseDir
+              const fullPath = join(process.cwd(), rulesyncSubagentsDir);
 
               if (!(await fileExists(fullPath))) {
                 logger.info(`No rulesync subagents directory found at ${fullPath}`);
