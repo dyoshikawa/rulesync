@@ -3,6 +3,7 @@ export * from "./augmentcode-ignore.js";
 export * from "./claudecode-ignore.js";
 export * from "./cline-ignore.js";
 export * from "./cursor-ignore.js";
+export * from "./geminicli-ignore.js";
 export * from "./ignore-processor.js";
 export * from "./qwencode-ignore.js";
 export * from "./roo-ignore.js";
