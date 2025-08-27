@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
@@ -166,8 +165,8 @@ ${geminiFrontmatter.prompt}
     // Process {{args}} placeholder
     processedContent = this.processArgumentPlaceholder(processedContent, args);
 
-    // Process shell commands with !{ } syntax
-    processedContent = await this.expandShellCommands(processedContent);
+    // NOTE: Shell command execution feature removed for security reasons
+    // Commands with !{ } syntax will be left as-is in the output
 
     return processedContent;
   }
@@ -184,31 +183,5 @@ ${geminiFrontmatter.prompt}
     }
 
     return content;
-  }
-
-  protected async expandShellCommands(content: string): Promise<string> {
-    // Match shell command pattern: !{ command }
-    const shellCommandPattern = /!\{\s*([^}]+)\s*\}/g;
-    let processedContent = content;
-    let match: RegExpExecArray | null;
-
-    while ((match = shellCommandPattern.exec(content)) !== null) {
-      const command = match[1]?.trim();
-      if (!command) continue;
-      try {
-        const output = execSync(command, {
-          encoding: "utf8",
-          cwd: process.cwd(),
-          timeout: 10000, // 10 second timeout
-        });
-        processedContent = processedContent.replace(match[0], output.trim());
-      } catch (error) {
-        // Replace with error message if command fails
-        const errorMessage = `Error executing command '${command}': ${error}`;
-        processedContent = processedContent.replace(match[0], errorMessage);
-      }
-    }
-
-    return processedContent;
   }
 }

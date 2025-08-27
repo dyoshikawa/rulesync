@@ -142,62 +142,20 @@ prompt = "This is a test prompt"
     });
   });
 
-  describe("expandShellCommands", () => {
-    it("should expand shell commands with !{ } syntax", async () => {
-      const command = createCommand("prompt = 'dummy'");
-      const content = "Current directory: !{ echo 'test' }";
+  describe("security: shell command execution disabled", () => {
+    it("should leave shell command syntax unchanged in body", () => {
+      const command = createCommand('prompt = "Test command: !{ echo hello }"');
+      const body = command.getBody();
 
-      const result = await command["expandShellCommands"](content);
-
-      expect(result).toBe("Current directory: test");
+      expect(body).toBe("Test command: !{ echo hello }");
     });
 
-    it("should handle multiple shell commands", async () => {
-      const command = createCommand("prompt = 'dummy'");
-      const content = "Echo: !{ echo 'hello' } and Echo2: !{ echo 'world' }";
+    it("should preserve shell command syntax in converted rulesync command", () => {
+      const command = createCommand('prompt = "Process data: !{ ls -la }"');
+      const rulesyncCommand = command.toRulesyncCommand();
+      const body = rulesyncCommand.getBody();
 
-      const result = await command["expandShellCommands"](content);
-
-      expect(result).toBe("Echo: hello and Echo2: world");
-    });
-
-    it("should handle command errors gracefully", async () => {
-      const command = createCommand("prompt = 'dummy'");
-      const content = "Error test: !{ invalid-command-xyz }";
-
-      const result = await command["expandShellCommands"](content);
-
-      expect(result).toContain("Error executing command 'invalid-command-xyz'");
-    });
-
-    it("should return content unchanged when no shell commands", async () => {
-      const command = createCommand("prompt = 'dummy'");
-      const content = "No shell commands here.";
-
-      const result = await command["expandShellCommands"](content);
-
-      expect(result).toBe("No shell commands here.");
-    });
-
-    it("should handle shell commands with spaces", async () => {
-      const command = createCommand("prompt = 'dummy'");
-      const content = "Echo test: !{  echo 'spaced'  }";
-
-      const result = await command["expandShellCommands"](content);
-
-      expect(result).toBe("Echo test: spaced");
-    });
-  });
-
-  describe("processContent", () => {
-    it("should process both arguments and shell commands", async () => {
-      const command = createCommand("prompt = 'dummy'");
-      const content = "Create tests for {{args}}. Files: !{ echo 'test.ts' }";
-      const args = "authentication module";
-
-      const result = await command["processContent"](content, args);
-
-      expect(result).toBe("Create tests for authentication module. Files: test.ts");
+      expect(body).toBe("Process data: !{ ls -la }");
     });
   });
 
@@ -241,7 +199,7 @@ prompt = "Generate a commit message for: {{args}}. Current status: !{ echo 'M  t
       );
 
       expect(processedContent).toBe(
-        "Generate a commit message for: feature implementation. Current status: M  test.ts",
+        "Generate a commit message for: feature implementation. Current status: !{ echo 'M  test.ts' }",
       );
     });
   });

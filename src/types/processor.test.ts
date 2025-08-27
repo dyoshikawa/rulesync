@@ -57,7 +57,7 @@ class TestAiFile extends AiFile {
 describe("Processor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let mockWriteFileContent: any;
+  let mockWriteFileContent: ReturnType<typeof vi.mocked<typeof writeFileContent>>;
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
