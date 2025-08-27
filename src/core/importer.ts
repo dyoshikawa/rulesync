@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import matter from "gray-matter";
 import {
+  CommandsProcessor,
+  type CommandsProcessorToolTarget,
+} from "../commands/commands-processor.js";
+import {
   parseAgentsMdConfiguration,
   parseAmazonqcliConfiguration,
   parseAugmentcodeConfiguration,
@@ -38,7 +42,8 @@ export interface ImportResult {
   errors: string[];
   ignoreFileCreated?: boolean;
   mcpFileCreated?: boolean;
-  subagentsCreated?: number;
+  subagentsCreated?: number | undefined;
+  commandsCreated?: number | undefined;
 }
 
 export async function importConfiguration(options: ImportOptions): Promise<ImportResult> {
@@ -162,9 +167,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  if (rules.length === 0 && !ignorePatterns && !mcpServers && !subagents) {
-    return { success: false, rulesCreated: 0, errors };
-  }
+  // Note: We don't return early here as CommandsProcessor may still create files
 
   // Check if no relevant features are enabled
   const rulesEnabled = features.includes("rules") || features.includes("commands");
@@ -190,34 +193,22 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  // Write rule files (only if rules or commands features are enabled)
+  // Write rule files (only if rules feature is enabled, commands handled separately by CommandsProcessor)
   let rulesCreated = 0;
-  if (rulesEnabled) {
-    for (const rule of rules) {
+  if (features.includes("rules")) {
+    // Filter out commands as they are now handled by CommandsProcessor
+    const regularRules = rules.filter((rule) => rule.type !== "command");
+
+    for (const rule of regularRules) {
       try {
         const baseFilename = rule.filename;
         let targetDir = rulesDirPath;
 
-        // Commands go to .rulesync/commands/ subdirectory
-        if (rule.type === "command") {
-          // Only process commands if commands feature is enabled
-          if (!features.includes("commands")) {
-            continue;
-          }
-          targetDir = join(rulesDirPath, "commands");
+        // For regular rules, use legacy location or new location based on option
+        if (!useLegacyLocation) {
+          targetDir = join(rulesDirPath, "rules");
           const { mkdir } = await import("node:fs/promises");
           await mkdir(targetDir, { recursive: true });
-        } else {
-          // Only process regular rules if rules feature is enabled
-          if (!features.includes("rules")) {
-            continue;
-          }
-          // For regular rules, use legacy location or new location based on option
-          if (!useLegacyLocation) {
-            targetDir = join(rulesDirPath, "rules");
-            const { mkdir } = await import("node:fs/promises");
-            await mkdir(targetDir, { recursive: true });
-          }
         }
 
         const filePath = join(targetDir, `${baseFilename}.md`);
@@ -235,8 +226,10 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       }
     }
   } else {
-    if (verbose && rules.length > 0) {
-      logger.log(`Skipping ${rules.length} rule(s) (rules/commands features not enabled)`);
+    if (verbose && rules.filter((rule) => rule.type !== "command").length > 0) {
+      logger.log(
+        `Skipping ${rules.filter((rule) => rule.type !== "command").length} rule(s) (rules feature not enabled)`,
+      );
     }
   }
 
@@ -307,34 +300,55 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     logger.log(`Skipping subagents (subagents feature not enabled)`);
   }
 
+  // Create command files using CommandsProcessor if commands feature is enabled
+  let commandsCreated = 0;
+  if (features.includes("commands")) {
+    try {
+      // Use CommandsProcessor for supported tools
+      if (tool === "claudecode" || tool === "geminicli" || tool === "roo") {
+        const toolTarget: CommandsProcessorToolTarget = tool;
+        const commandsProcessor = new CommandsProcessor({
+          baseDir,
+          toolTarget,
+        });
+
+        const toolCommands = await commandsProcessor.loadToolCommands();
+        if (toolCommands.length > 0) {
+          await commandsProcessor.writeRulesyncCommandsFromToolCommands(toolCommands);
+          commandsCreated = toolCommands.length;
+        }
+      }
+
+      if (verbose && commandsCreated > 0) {
+        logger.success(`Created ${commandsCreated} command files`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to create commands directory: ${errorMessage}`);
+    }
+  }
+
   const result: ImportResult = {
     success:
       errors.length === 0 &&
-      (rulesCreated > 0 || ignoreFileCreated || mcpFileCreated || subagentsCreated > 0),
+      (rulesCreated > 0 ||
+        ignoreFileCreated ||
+        mcpFileCreated ||
+        subagentsCreated > 0 ||
+        commandsCreated > 0),
     rulesCreated,
     errors,
     ignoreFileCreated,
     mcpFileCreated,
+    subagentsCreated: subagentsCreated > 0 ? subagentsCreated : undefined,
+    commandsCreated: commandsCreated > 0 ? commandsCreated : undefined,
   };
-
-  if (subagentsCreated > 0) {
-    result.subagentsCreated = subagentsCreated;
-  }
 
   return result;
 }
 
 function generateRuleFileContent(rule: ParsedRule): string {
-  // Commands use simplified frontmatter with only description and targets
-  if (rule.type === "command") {
-    const simplifiedFrontmatter = {
-      description: rule.frontmatter.description,
-      targets: rule.frontmatter.targets,
-    };
-    const frontmatter = matter.stringify("", simplifiedFrontmatter);
-    return frontmatter + rule.content;
-  }
-
+  // Commands are now handled by CommandsProcessor, this function only handles regular rules
   const frontmatter = matter.stringify("", rule.frontmatter);
   return frontmatter + rule.content;
 }
