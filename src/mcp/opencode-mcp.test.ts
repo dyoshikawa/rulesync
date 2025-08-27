@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { McpConfig } from "../types/mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
@@ -337,7 +337,7 @@ describe("OpencodeMcp", () => {
       // Check that JSON is formatted with 2-space indentation
       expect(content).toContain('{\n  "$schema"');
       expect(content).toContain('  "mcp": {');
-      
+
       // Verify it's valid JSON
       expect(() => JSON.parse(content)).not.toThrow();
     });

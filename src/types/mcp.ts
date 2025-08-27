@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 import { RulesyncTargetsSchema } from "./tool-targets.js";
 
-export const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
+export const McpTransportTypeSchema = z.enum(["stdio", "sse", "http", "streamable-http"]);
 
 export const McpServerBaseSchema = z.object({
   command: z.optional(z.union([z.string(), z.array(z.string())])),
@@ -20,10 +20,33 @@ export const McpServerBaseSchema = z.object({
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
+  autoApprove: z.optional(z.array(z.string())),
+  autoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
 });
 
-export const RulesyncMcpServerSchema = z.extend(McpServerBaseSchema, {
+export const RulesyncMcpServerSchema = z.object({
+  // All fields from McpServerBaseSchema
+  command: z.optional(z.union([z.string(), z.array(z.string())])),
+  args: z.optional(z.array(z.string())),
+  url: z.optional(z.string()),
+  httpUrl: z.optional(z.string()),
+  env: z.optional(z.record(z.string(), z.string())),
+  disabled: z.optional(z.boolean()),
+  networkTimeout: z.optional(z.number()),
+  timeout: z.optional(z.number()),
+  trust: z.optional(z.boolean()),
+  cwd: z.optional(z.string()),
+  transport: z.optional(z.enum(["stdio", "sse", "http", "streamable-http"])),
+  type: z.optional(z.enum(["sse", "streamable-http"])),
+  alwaysAllow: z.optional(z.array(z.string())),
+  tools: z.optional(z.array(z.string())),
+  kiroAutoApprove: z.optional(z.array(z.string())),
+  kiroAutoBlock: z.optional(z.array(z.string())),
+  autoApprove: z.optional(z.array(z.string())),
+  autoBlock: z.optional(z.array(z.string())),
+  headers: z.optional(z.record(z.string(), z.string())),
+  // Additional field for Rulesync
   targets: z.optional(RulesyncTargetsSchema),
 });
 

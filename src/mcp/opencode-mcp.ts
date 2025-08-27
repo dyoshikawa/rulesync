@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { AiFileFromFilePathParams, AiFileParams } from "../types/ai-file.js";
-import type { McpServerBase, McpConfig } from "../types/mcp.js";
+import type { McpConfig, McpServerBase } from "../types/mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
 
 export interface OpencodeMcpParams extends AiFileParams {
@@ -176,16 +176,18 @@ export class OpencodeMcp extends ToolMcp {
   }: AiFileFromFilePathParams): Promise<OpencodeMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     const rawConfig = await this.loadJsonConfig(filePath);
-    
+
     let config: McpConfig | undefined;
 
     // Validate and convert OpenCode format to standard MCP format
-    if (this.isValidOpenCodeConfig(rawConfig) && 
-        typeof rawConfig === "object" && 
-        rawConfig !== null && 
-        "mcp" in rawConfig &&
-        typeof rawConfig.mcp === "object" &&
-        rawConfig.mcp !== null) {
+    if (
+      this.isValidOpenCodeConfig(rawConfig) &&
+      typeof rawConfig === "object" &&
+      rawConfig !== null &&
+      "mcp" in rawConfig &&
+      typeof rawConfig.mcp === "object" &&
+      rawConfig.mcp !== null
+    ) {
       config = {
         mcpServers: this.convertFromOpenCodeFormat(rawConfig.mcp as Record<string, unknown>),
       };
@@ -224,7 +226,9 @@ export class OpencodeMcp extends ToolMcp {
   /**
    * Convert OpenCode format back to standard MCP format.
    */
-  private static convertFromOpenCodeFormat(opencodeMcp: Record<string, unknown>): Record<string, McpServerBase> {
+  private static convertFromOpenCodeFormat(
+    opencodeMcp: Record<string, unknown>,
+  ): Record<string, McpServerBase> {
     const servers: Record<string, McpServerBase> = {};
 
     for (const [serverName, serverConfig] of Object.entries(opencodeMcp)) {
@@ -285,7 +289,7 @@ export class OpencodeMcp extends ToolMcp {
     if (typeof obj !== "object" || obj === null) {
       return false;
     }
-    
+
     return Object.values(obj).every((value) => typeof value === "string");
   }
 }

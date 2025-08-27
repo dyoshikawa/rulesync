@@ -6,10 +6,10 @@ import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
 
 /**
- * Schema for Claude Code MCP server configuration
- * Claude Code supports STDIO, SSE, and HTTP transport types
+ * Schema for Kiro MCP server configuration
+ * Kiro supports STDIO, SSE, and streamable-HTTP transport types with AWS integration
  */
-export const ClaudecodeMcpServerSchema = z.object({
+export const KiroMcpServerSchema = z.object({
   // STDIO transport fields
   command: z.optional(z.string()),
   args: z.optional(z.array(z.string())),
@@ -17,45 +17,51 @@ export const ClaudecodeMcpServerSchema = z.object({
   // Remote transport fields (SSE/HTTP)
   url: z.optional(z.string()),
   transport: z.optional(McpTransportTypeSchema),
-  headers: z.optional(z.record(z.string(), z.string())),
 
   // Common optional fields
   env: z.optional(z.record(z.string(), z.string())),
   timeout: z.optional(z.number()),
   disabled: z.optional(z.boolean()),
+
+  // Kiro-specific security configuration
+  autoApprove: z.optional(z.array(z.string())),
+  autoBlock: z.optional(z.array(z.string())),
+  // Alternative spellings also accepted
+  autoapprove: z.optional(z.array(z.string())),
+  autoblock: z.optional(z.array(z.string())),
 });
 
 /**
- * Schema for Claude Code MCP configuration
- * Claude Code uses `.mcp.json` files with mcpServers object
+ * Schema for Kiro MCP configuration
+ * Kiro uses `.kiro/mcp.json` files with mcpServers object
  */
-export const ClaudecodeMcpConfigSchema = z.object({
-  mcpServers: z.record(z.string(), ClaudecodeMcpServerSchema),
+export const KiroMcpConfigSchema = z.object({
+  mcpServers: z.record(z.string(), KiroMcpServerSchema),
 });
 
-export type ClaudecodeMcpServer = z.infer<typeof ClaudecodeMcpServerSchema>;
-export type ClaudecodeMcpConfig = z.infer<typeof ClaudecodeMcpConfigSchema>;
+export type KiroMcpServer = z.infer<typeof KiroMcpServerSchema>;
+export type KiroMcpConfig = z.infer<typeof KiroMcpConfigSchema>;
 
-export interface ClaudecodeMcpParams extends AiFileParams {
-  config: ClaudecodeMcpConfig;
+export interface KiroMcpParams extends AiFileParams {
+  config: KiroMcpConfig;
 }
 
 /**
- * MCP configuration generator for Claude Code
+ * MCP configuration generator for Kiro IDE
  *
- * Generates `.mcp.json` files for MCP server configuration in Claude Code.
- * Supports both project-scoped and global configurations following
- * Claude Code's MCP specification.
+ * Generates `.kiro/mcp.json` files for MCP server configuration in Kiro IDE.
+ * Supports both workspace-specific and global configurations following
+ * Kiro's MCP specification with AWS integration features.
  *
- * @see https://docs.anthropic.com/en/docs/claude-code/mcp
+ * @see https://docs.kiro.ai/mcp-configuration
  */
-export class ClaudecodeMcp extends ToolMcp {
-  private readonly config: ClaudecodeMcpConfig;
+export class KiroMcp extends ToolMcp {
+  private readonly config: KiroMcpConfig;
 
-  constructor({ config, ...rest }: ClaudecodeMcpParams) {
+  constructor({ config, ...rest }: KiroMcpParams) {
     // Validate configuration before calling super
     if (rest.validate !== false) {
-      const result = ClaudecodeMcpConfigSchema.safeParse(config);
+      const result = KiroMcpConfigSchema.safeParse(config);
       if (!result.success) {
         throw result.error;
       }
@@ -69,101 +75,104 @@ export class ClaudecodeMcp extends ToolMcp {
   }
 
   getFileName(): string {
-    return ".mcp.json";
+    return ".kiro/mcp.json";
   }
 
   async generateContent(): Promise<string> {
     return this.serializeToJson(this.config);
   }
 
-  getConfig(): ClaudecodeMcpConfig {
+  getConfig(): KiroMcpConfig {
     return this.config;
   }
 
   /**
-   * Convert a RulesyncMcp instance to ClaudecodeMcp
-   * Maps RulesyncMcp servers to Claude Code format, handling Claude Code-specific fields
+   * Convert a RulesyncMcp instance to KiroMcp
+   * Maps RulesyncMcp servers to Kiro format, handling Kiro-specific fields
    */
   static fromRulesyncMcp(
     rulesyncMcp: RulesyncMcp,
     baseDir: string = ".",
     relativeDirPath: string = ".",
-  ): ClaudecodeMcp {
+  ): KiroMcp {
     const rulesyncConfig = rulesyncMcp.toMcpConfig();
-    const claudecodeConfig: ClaudecodeMcpConfig = { mcpServers: {} };
+    const kiroConfig: KiroMcpConfig = { mcpServers: {} };
 
     // Convert server configurations
     for (const [serverName, rulesyncServer] of Object.entries(rulesyncConfig.mcpServers)) {
-      // Check if this server should be included for claudecode
-      if (!rulesyncMcp.shouldIncludeServerForTarget(serverName, "claudecode")) {
+      // Check if this server should be included for kiro
+      if (!rulesyncMcp.shouldIncludeServerForTarget(serverName, "kiro")) {
         continue;
       }
 
-      const claudecodeServer: ClaudecodeMcpServer = {};
+      const kiroServer: KiroMcpServer = {};
 
       // Map based on transport type
       if (rulesyncServer.command !== undefined) {
         // STDIO transport
         if (Array.isArray(rulesyncServer.command)) {
-          // Take the first element as command for Claude Code
-          claudecodeServer.command = rulesyncServer.command[0];
+          // Take the first element as command for Kiro
+          kiroServer.command = rulesyncServer.command[0];
           // Add remaining elements to args
           const restArgs = rulesyncServer.command.slice(1);
           if (restArgs.length > 0) {
-            claudecodeServer.args = [...restArgs, ...(rulesyncServer.args || [])];
+            kiroServer.args = [...restArgs, ...(rulesyncServer.args || [])];
           } else if (rulesyncServer.args !== undefined) {
-            claudecodeServer.args = rulesyncServer.args;
+            kiroServer.args = rulesyncServer.args;
           }
         } else {
-          claudecodeServer.command = rulesyncServer.command;
+          kiroServer.command = rulesyncServer.command;
           if (rulesyncServer.args !== undefined) {
-            claudecodeServer.args = rulesyncServer.args;
+            kiroServer.args = rulesyncServer.args;
           }
         }
       } else if (rulesyncServer.url !== undefined) {
         // Remote transport (SSE/HTTP)
-        claudecodeServer.url = rulesyncServer.url;
+        kiroServer.url = rulesyncServer.url;
 
-        // Map transport type - Claude Code doesn't support streamable-http
+        // Map transport type - handle Kiro's streamable-http
         if (rulesyncServer.transport !== undefined) {
-          if (rulesyncServer.transport === "streamable-http") {
-            // Map streamable-http to http for Claude Code
-            claudecodeServer.transport = "http";
+          if (rulesyncServer.transport === "http") {
+            // Map http to streamable-http for Kiro
+            kiroServer.transport = "streamable-http";
           } else {
-            claudecodeServer.transport = rulesyncServer.transport;
+            kiroServer.transport = rulesyncServer.transport;
           }
-        }
-
-        // Map headers for remote transport
-        if (rulesyncServer.headers !== undefined) {
-          claudecodeServer.headers = rulesyncServer.headers;
         }
       }
 
       // Map common optional fields
       if (rulesyncServer.env !== undefined) {
-        claudecodeServer.env = rulesyncServer.env;
+        kiroServer.env = rulesyncServer.env;
       }
 
-      // Map Claude Code-specific fields
+      // Map Kiro-specific fields
       if (rulesyncServer.timeout !== undefined) {
-        claudecodeServer.timeout = rulesyncServer.timeout;
+        kiroServer.timeout = rulesyncServer.timeout;
       }
       if (rulesyncServer.disabled !== undefined) {
-        claudecodeServer.disabled = rulesyncServer.disabled;
+        kiroServer.disabled = rulesyncServer.disabled;
       }
 
-      claudecodeConfig.mcpServers[serverName] = claudecodeServer;
+      // Map Kiro security configuration (autoApprove/autoBlock)
+      if (rulesyncServer.autoApprove !== undefined) {
+        kiroServer.autoApprove = rulesyncServer.autoApprove;
+      }
+      if (rulesyncServer.autoBlock !== undefined) {
+        kiroServer.autoBlock = rulesyncServer.autoBlock;
+      }
+
+      kiroConfig.mcpServers[serverName] = kiroServer;
     }
 
-    const fileContent = JSON.stringify(claudecodeConfig, null, 2);
+    const fileContent = JSON.stringify(kiroConfig, null, 2);
 
-    return new ClaudecodeMcp({
+    return new KiroMcp({
       baseDir,
       relativeDirPath,
-      relativeFilePath: ".mcp.json",
+      relativeFilePath: ".kiro/mcp.json",
       fileContent,
-      config: claudecodeConfig,
+      config: kiroConfig,
     });
   }
 
@@ -180,7 +189,7 @@ export class ClaudecodeMcp extends ToolMcp {
         return { success: true, error: null };
       }
 
-      const result = ClaudecodeMcpConfigSchema.safeParse(this.config);
+      const result = KiroMcpConfigSchema.safeParse(this.config);
       if (result.success) {
         // Additional validation: ensure at least one server exists
         const serverCount = Object.keys(this.config.mcpServers).length;
@@ -248,27 +257,27 @@ export class ClaudecodeMcp extends ToolMcp {
     relativeFilePath,
     filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<ClaudecodeMcp> {
+  }: AiFileFromFilePathParams): Promise<KiroMcp> {
     // Read and parse JSON content
     const rawConfig = await this.loadJsonConfig(filePath);
 
     // Validate the configuration
     if (validate) {
-      const result = ClaudecodeMcpConfigSchema.safeParse(rawConfig);
+      const result = KiroMcpConfigSchema.safeParse(rawConfig);
       if (!result.success) {
         throw new Error(
-          `Invalid Claude Code MCP configuration in ${filePath}: ${result.error.message}`,
+          `Invalid Kiro MCP configuration in ${filePath}: ${result.error.message}`,
         );
       }
     }
 
     // Use the raw config (validated if validate=true)
     // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const config = rawConfig as ClaudecodeMcpConfig;
+    const config = rawConfig as KiroMcpConfig;
 
     const fileContent = await readFile(filePath, "utf-8");
 
-    return new ClaudecodeMcp({
+    return new KiroMcp({
       baseDir,
       relativeDirPath,
       relativeFilePath,
