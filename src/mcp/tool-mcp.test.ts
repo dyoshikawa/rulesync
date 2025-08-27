@@ -84,8 +84,7 @@ describe("ToolMcp", () => {
 
     it("should throw error when validation fails", () => {
       expect(() => {
-         
-        new MockToolMcp({
+        const instance = new MockToolMcp({
           baseDir: testDir,
           relativeDirPath: "", // Invalid: empty directory path
           relativeFilePath: "config.json",
@@ -93,6 +92,7 @@ describe("ToolMcp", () => {
           fileName: "config.json",
           configContent: {},
         });
+        void instance;
       }).toThrow("relativeDirPath is required for ToolMcp");
     });
 
