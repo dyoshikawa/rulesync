@@ -7,9 +7,6 @@ import { ToolCommand, ToolCommandFromRulesyncCommandParams } from "./tool-comman
 
 export const ClaudecodeCommandFrontmatterSchema = z.object({
   description: z.string(),
-  "argument-hint": z.optional(z.string()),
-  "allowed-tools": z.optional(z.string()),
-  model: z.optional(z.string()),
 });
 
 export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFrontmatterSchema>;
@@ -52,24 +49,6 @@ export class ClaudecodeCommand extends ToolCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["claudecode"],
       description: this.frontmatter.description,
-      ...(this.frontmatter["allowed-tools"] && {
-        claudecode: {
-          "allowed-tools": this.frontmatter["allowed-tools"],
-          ...(this.frontmatter.model && { model: this.frontmatter.model }),
-          ...(this.frontmatter["argument-hint"] && {
-            "argument-hint": this.frontmatter["argument-hint"],
-          }),
-        },
-      }),
-      ...(!this.frontmatter["allowed-tools"] &&
-        (this.frontmatter.model || this.frontmatter["argument-hint"]) && {
-          claudecode: {
-            ...(this.frontmatter.model && { model: this.frontmatter.model }),
-            ...(this.frontmatter["argument-hint"] && {
-              "argument-hint": this.frontmatter["argument-hint"],
-            }),
-          },
-        }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
@@ -93,13 +72,9 @@ export class ClaudecodeCommand extends ToolCommand {
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const claudecodeOptions = rulesyncFrontmatter.claudecode || {};
 
     const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
-      "allowed-tools": claudecodeOptions["allowed-tools"],
-      model: claudecodeOptions.model,
-      "argument-hint": claudecodeOptions["argument-hint"],
     };
 
     // Generate proper file content with Claude Code specific frontmatter
