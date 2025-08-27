@@ -6,25 +6,30 @@ import { ToolMcp } from "./tool-mcp.js";
 
 /**
  * Schema for OpenAI Codex CLI MCP server configuration
- * Codex CLI uses wrapper servers (Python/Node.js) that expose MCP functionality
+ * Codex CLI supports both local (STDIO) and remote (HTTP/SSE) transport types
+ * through MCP wrapper servers
  */
 export const CodexcliMcpServerSchema = z.object({
-  // Local MCP server configuration (STDIO transport)
+  // Transport type
   type: z.optional(z.enum(["local", "remote"])),
-  command: z.optional(z.union([z.string(), z.array(z.string())])),
-  args: z.optional(z.array(z.string())),
+
+  // STDIO transport fields (for wrapper servers)
+  command: z.optional(z.array(z.string())),
   enabled: z.optional(z.boolean()),
   environment: z.optional(z.record(z.string(), z.string())),
   cwd: z.optional(z.string()),
 
-  // Remote MCP server configuration (HTTP/WebSocket transport)
+  // Remote transport fields (HTTP/SSE)
   url: z.optional(z.string()),
   headers: z.optional(z.record(z.string(), z.string())),
+
+  // Common optional fields
+  timeout: z.optional(z.number()),
 });
 
 /**
  * Schema for OpenAI Codex CLI MCP configuration
- * Configuration structure based on opencode.json format
+ * Uses opencode.json format with "mcp" object containing server configurations
  */
 export const CodexcliMcpConfigSchema = z.object({
   $schema: z.optional(z.string()),
@@ -41,21 +46,12 @@ export interface CodexcliMcpParams extends AiFileParams {
 /**
  * MCP configuration generator for OpenAI Codex CLI
  *
- * Generates MCP configuration for OpenAI Codex CLI in opencode.json format.
- * Since Codex CLI doesn't natively support MCP servers, this configuration
- * is for wrapper servers that expose Codex CLI functionality via MCP.
+ * Generates `opencode.json` files for MCP server configuration in Codex CLI environments.
+ * Codex CLI uses MCP wrapper servers to expose functionality through the Model Context Protocol.
+ * Supports both local wrapper servers (Python/Node.js) and remote HTTP/SSE endpoints.
  *
- * Supports:
- * - Python MCP servers (agency-ai-solutions/openai-codex-mcp)
- * - Node.js/TypeScript MCP servers (rmulligan/mcp-openai-codex)
- * - Docker-based MCP servers
- *
- * Configuration can be placed in:
- * - Global: ~/.config/opencode/opencode.json
- * - Project: opencode.json in project root
- * - Custom: Set via OPENCODE_CONFIG environment variable
- *
- * @see OpenAI Codex CLI documentation
+ * @see https://github.com/agency-ai-solutions/openai-codex-mcp
+ * @see https://github.com/rmulligan/mcp-openai-codex
  */
 export class CodexcliMcp extends ToolMcp {
   private readonly config: CodexcliMcpConfig;
@@ -90,7 +86,7 @@ export class CodexcliMcp extends ToolMcp {
 
   /**
    * Convert a RulesyncMcp instance to CodexcliMcp
-   * Maps RulesyncMcp servers to Codex CLI wrapper server format
+   * Maps RulesyncMcp servers to Codex CLI format, handling Codex CLI-specific fields
    */
   static fromRulesyncMcp(
     rulesyncMcp: RulesyncMcp,
@@ -98,10 +94,10 @@ export class CodexcliMcp extends ToolMcp {
     relativeDirPath: string = ".",
   ): CodexcliMcp {
     const rulesyncConfig = rulesyncMcp.toMcpConfig();
-    const codexcliConfig: CodexcliMcpConfig = { mcp: {} };
-
-    // Add schema reference
-    codexcliConfig["$schema"] = "https://opencode.ai/config.json";
+    const codexcliConfig: CodexcliMcpConfig = {
+      $schema: "https://opencode.ai/config.json",
+      mcp: {},
+    };
 
     // Convert server configurations
     for (const [serverName, rulesyncServer] of Object.entries(rulesyncConfig.mcpServers)) {
@@ -114,34 +110,19 @@ export class CodexcliMcp extends ToolMcp {
 
       // Map based on transport type
       if (rulesyncServer.command !== undefined) {
-        // Local MCP server (STDIO transport)
+        // STDIO transport - map to local type
         codexcliServer.type = "local";
 
-        // Handle command array or string
         if (Array.isArray(rulesyncServer.command)) {
           codexcliServer.command = rulesyncServer.command;
         } else {
           codexcliServer.command = [rulesyncServer.command];
+          if (rulesyncServer.args !== undefined) {
+            codexcliServer.command = [...codexcliServer.command, ...rulesyncServer.args];
+          }
         }
-
-        if (rulesyncServer.args !== undefined) {
-          codexcliServer.args = rulesyncServer.args;
-        }
-
-        // Map environment variables
-        if (rulesyncServer.env !== undefined) {
-          codexcliServer.environment = rulesyncServer.env;
-        }
-
-        // Map working directory
-        if (rulesyncServer.cwd !== undefined) {
-          codexcliServer.cwd = rulesyncServer.cwd;
-        }
-
-        // Map enabled status (defaults to true if not specified)
-        codexcliServer.enabled = rulesyncServer.disabled !== true;
       } else if (rulesyncServer.url !== undefined) {
-        // Remote MCP server (HTTP/WebSocket transport)
+        // Remote transport (SSE/HTTP)
         codexcliServer.type = "remote";
         codexcliServer.url = rulesyncServer.url;
 
@@ -149,9 +130,26 @@ export class CodexcliMcp extends ToolMcp {
         if (rulesyncServer.headers !== undefined) {
           codexcliServer.headers = rulesyncServer.headers;
         }
+      }
 
-        // Map enabled status
-        codexcliServer.enabled = rulesyncServer.disabled !== true;
+      // Map environment variables to Codex CLI format
+      if (rulesyncServer.env !== undefined) {
+        codexcliServer.environment = rulesyncServer.env;
+      }
+
+      // Map working directory
+      if (rulesyncServer.cwd !== undefined) {
+        codexcliServer.cwd = rulesyncServer.cwd;
+      }
+
+      // Map Codex CLI-specific fields
+      if (rulesyncServer.timeout !== undefined) {
+        codexcliServer.timeout = rulesyncServer.timeout;
+      }
+      if (rulesyncServer.disabled !== undefined) {
+        codexcliServer.enabled = !rulesyncServer.disabled;
+      } else {
+        codexcliServer.enabled = true;
       }
 
       codexcliConfig.mcp[serverName] = codexcliServer;
@@ -195,8 +193,8 @@ export class CodexcliMcp extends ToolMcp {
         // Validate each server has correct transport configuration
         for (const [serverName, serverConfig] of Object.entries(this.config.mcp)) {
           const hasLocalConfig =
-            serverConfig.command !== undefined || serverConfig.type === "local";
-          const hasRemoteConfig = serverConfig.url !== undefined || serverConfig.type === "remote";
+            serverConfig.command !== undefined && serverConfig.command.length > 0;
+          const hasRemoteConfig = serverConfig.url !== undefined;
 
           if (!hasLocalConfig && !hasRemoteConfig) {
             return {
@@ -216,20 +214,39 @@ export class CodexcliMcp extends ToolMcp {
             };
           }
 
-          // Validate that local servers have command defined
-          if (serverConfig.type === "local" && !serverConfig.command) {
-            return {
-              success: false,
-              error: new Error(`Local server "${serverName}" must have 'command' defined`),
-            };
+          // Validate type field if present
+          if (serverConfig.type !== undefined) {
+            if (hasLocalConfig && serverConfig.type !== "local") {
+              return {
+                success: false,
+                error: new Error(
+                  `Server "${serverName}" has local configuration but type is not "local"`,
+                ),
+              };
+            }
+            if (hasRemoteConfig && serverConfig.type !== "remote") {
+              return {
+                success: false,
+                error: new Error(
+                  `Server "${serverName}" has remote configuration but type is not "remote"`,
+                ),
+              };
+            }
           }
 
-          // Validate that remote servers have url defined
-          if (serverConfig.type === "remote" && !serverConfig.url) {
-            return {
-              success: false,
-              error: new Error(`Remote server "${serverName}" must have 'url' defined`),
-            };
+          // Validate timeout range if present
+          if (serverConfig.timeout !== undefined) {
+            const timeout = serverConfig.timeout;
+            const minTimeout = 1000; // 1 second
+            const maxTimeout = 10 * 60 * 1000; // 10 minutes
+            if (timeout < minTimeout || timeout > maxTimeout) {
+              return {
+                success: false,
+                error: new Error(
+                  `Server "${serverName}" timeout must be between 1 second (1000) and 10 minutes (600000)`,
+                ),
+              };
+            }
           }
         }
 
@@ -255,46 +272,19 @@ export class CodexcliMcp extends ToolMcp {
     // Read and parse JSON content
     const rawConfig = await this.loadJsonConfig(filePath);
 
-    // Extract MCP section if it's a full opencode.json file
-    let mcpConfig: CodexcliMcpConfig;
-    if (rawConfig.mcp && typeof rawConfig.mcp === "object") {
-      // This is the expected format with MCP section
-      mcpConfig = {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        $schema: rawConfig["$schema"] as string | undefined,
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        mcp: rawConfig.mcp as Record<string, CodexcliMcpServer>,
-      };
-    } else if (rawConfig["$schema"] || Object.keys(rawConfig).some((key) => key !== "mcp")) {
-      // This might be a full opencode.json, extract only MCP section
-      mcpConfig = {
-        $schema: rawConfig["$schema"] !== undefined ? String(rawConfig["$schema"]) : undefined,
-        mcp:
-          rawConfig.mcp && typeof rawConfig.mcp === "object"
-            ? // eslint-disable-next-line no-type-assertion/no-type-assertion
-              (rawConfig.mcp as Record<string, CodexcliMcpServer>)
-            : {},
-      };
-    } else {
-      // Assume the entire config is the MCP section
-      mcpConfig = {
-        mcp:
-          typeof rawConfig === "object" && rawConfig !== null
-            ? // eslint-disable-next-line no-type-assertion/no-type-assertion
-              (rawConfig as Record<string, CodexcliMcpServer>)
-            : {},
-      };
-    }
-
     // Validate the configuration
     if (validate) {
-      const result = CodexcliMcpConfigSchema.safeParse(mcpConfig);
+      const result = CodexcliMcpConfigSchema.safeParse(rawConfig);
       if (!result.success) {
         throw new Error(
-          `Invalid OpenAI Codex CLI MCP configuration in ${filePath}: ${result.error.message}`,
+          `Invalid Codex CLI MCP configuration in ${filePath}: ${result.error.message}`,
         );
       }
     }
+
+    // Use the raw config (validated if validate=true)
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    const config = rawConfig as CodexcliMcpConfig;
 
     const fileContent = await readFile(filePath, "utf-8");
 
@@ -303,7 +293,7 @@ export class CodexcliMcp extends ToolMcp {
       relativeDirPath,
       relativeFilePath,
       fileContent,
-      config: mcpConfig,
+      config,
       validate,
     });
   }

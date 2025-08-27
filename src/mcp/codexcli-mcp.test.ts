@@ -2,7 +2,6 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
-import type { RulesyncMcpServer } from "../types/mcp.js";
 import { CodexcliMcp, CodexcliMcpConfig } from "./codexcli-mcp.js";
 import { RulesyncMcp, RulesyncMcpFrontmatter } from "./rulesync-mcp.js";
 
@@ -11,22 +10,22 @@ describe("CodexcliMcp", () => {
   let cleanup: () => Promise<void>;
 
   describe("constructor", () => {
-    it("should create an instance with valid local (STDIO) configuration", async () => {
+    it("should create an instance with valid local STDIO configuration", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
         const config: CodexcliMcpConfig = {
           $schema: "https://opencode.ai/config.json",
           mcp: {
-            "python-tools": {
+            "local-server": {
               type: "local",
-              command: ["python", "-m", "my_mcp_server"],
-              args: ["--port", "8080"],
+              command: ["python", "-m", "codex_server"],
+              enabled: true,
               environment: {
-                OPENAI_API_KEY: "sk-test",
+                OPENAI_API_KEY: "test-key",
                 CODEX_DEFAULT_MODEL: "gpt-4o-mini",
               },
-              enabled: true,
+              timeout: 30000,
             },
           },
         };
@@ -46,7 +45,7 @@ describe("CodexcliMcp", () => {
       }
     });
 
-    it("should create an instance with valid remote configuration", async () => {
+    it("should create an instance with valid remote HTTP configuration", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
@@ -54,11 +53,12 @@ describe("CodexcliMcp", () => {
           mcp: {
             "remote-server": {
               type: "remote",
-              url: "https://mcp.example.com/codex",
+              url: "http://localhost:8000/mcp",
+              enabled: true,
               headers: {
                 Authorization: "Bearer test-token",
               },
-              enabled: true,
+              timeout: 60000,
             },
           },
         };
@@ -86,13 +86,11 @@ describe("CodexcliMcp", () => {
           mcp: {
             "docker-server": {
               type: "local",
-              command: ["docker", "run", "-i", "--rm", "codex-mcp:latest"],
+              command: ["docker", "run", "-i", "--rm", "-e", "OPENAI_API_KEY", "codex-mcp:latest"],
+              enabled: true,
               environment: {
                 OPENAI_API_KEY: "${OPENAI_API_KEY}",
-                DATABASE_URL: "${DATABASE_URL}",
               },
-              cwd: "/workspace",
-              enabled: true,
             },
           },
         };
@@ -112,33 +110,34 @@ describe("CodexcliMcp", () => {
       }
     });
 
-    it("should throw error for invalid configuration when validation enabled", async () => {
+    it("should validate configuration during construction", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const invalidConfig = {
+        // Invalid config - missing both command and url
+        const config: CodexcliMcpConfig = {
           mcp: {
             "invalid-server": {
-              // Missing both command and url
-              args: ["arg1"],
+              type: "local",
+              enabled: true,
+              // Missing required command field for local type
             },
           },
         };
 
-        // Create instance with validation disabled first
         const codexcliMcp = new CodexcliMcp({
           baseDir: testDir,
           relativeDirPath: ".",
           relativeFilePath: "opencode.json",
-          fileContent: JSON.stringify(invalidConfig, null, 2),
-          config: invalidConfig as CodexcliMcpConfig,
-          validate: false,
+          fileContent: JSON.stringify(config, null, 2),
+          config,
+          validate: false, // Skip validation during construction
         });
 
         // Validation should fail when called explicitly
-        const validationResult = codexcliMcp.validate();
-        expect(validationResult.success).toBe(false);
-        expect(validationResult.error?.message).toContain(
+        const result = codexcliMcp.validate();
+        expect(result.success).toBe(false);
+        expect(result.error?.message).toContain(
           "must have either 'command' (for local) or 'url' (for remote)",
         );
       } finally {
@@ -148,13 +147,17 @@ describe("CodexcliMcp", () => {
   });
 
   describe("getFileName", () => {
-    it("should return 'opencode.json'", async () => {
+    it("should return correct filename", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
         const config: CodexcliMcpConfig = {
           mcp: {
-            test: { type: "local", command: "test" },
+            "test-server": {
+              type: "local",
+              command: ["node", "server.js"],
+              enabled: true,
+            },
           },
         };
 
@@ -181,14 +184,16 @@ describe("CodexcliMcp", () => {
         const config: CodexcliMcpConfig = {
           $schema: "https://opencode.ai/config.json",
           mcp: {
-            "node-server": {
+            "python-server": {
               type: "local",
-              command: ["node", "server.js"],
-              args: ["--verbose"],
-              environment: {
-                NODE_ENV: "development",
-              },
+              command: ["python", "-m", "codex_server"],
               enabled: true,
+              environment: {
+                OPENAI_API_KEY: "test-key",
+                DEBUG: "true",
+              },
+              cwd: "/path/to/server",
+              timeout: 45000,
             },
           },
         };
@@ -197,13 +202,21 @@ describe("CodexcliMcp", () => {
           baseDir: testDir,
           relativeDirPath: ".",
           relativeFilePath: "opencode.json",
-          fileContent: "",
+          fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
         const content = await codexcliMcp.generateContent();
         const parsedContent = JSON.parse(content);
+
         expect(parsedContent).toEqual(config);
+        expect(parsedContent.$schema).toBe("https://opencode.ai/config.json");
+        expect(parsedContent.mcp["python-server"].type).toBe("local");
+        expect(parsedContent.mcp["python-server"].command).toEqual([
+          "python",
+          "-m",
+          "codex_server",
+        ]);
       } finally {
         await cleanup();
       }
@@ -211,182 +224,169 @@ describe("CodexcliMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should convert RulesyncMcp to CodexcliMcp correctly", async () => {
+    it("should convert from RulesyncMcp with STDIO server", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const rulesyncServer: RulesyncMcpServer = {
-          command: "python",
-          args: ["-m", "test_server"],
-          env: {
-            API_KEY: "test-key",
-          },
-        };
-
-        const rulesyncFrontmatter: RulesyncMcpFrontmatter = {
-          name: "Test MCP Server",
-          description: "Test MCP server configuration",
+        const frontmatter: RulesyncMcpFrontmatter = {
+          name: "test-mcp",
+          description: "Test Codex CLI MCP configuration",
           targets: ["codexcli"],
           servers: {
-            "test-server": rulesyncServer,
+            "python-codex": {
+              targets: ["codexcli"],
+              command: "python",
+              args: ["-m", "codex_wrapper"],
+              env: {
+                OPENAI_API_KEY: "test-key",
+                CODEX_DEFAULT_MODEL: "gpt-4o",
+              },
+              timeout: 30000,
+              disabled: false,
+            },
           },
         };
-
-        const rulesyncContent = `---
-targets:
-  - codexcli
----
-
-## MCP Server Configuration
-
-\`\`\`json
-{
-  "mcpServers": {
-    "test-server": ${JSON.stringify(rulesyncServer, null, 2)}
-  }
-}
-\`\`\`
-`;
 
         const rulesyncMcp = new RulesyncMcp({
           baseDir: testDir,
           relativeDirPath: ".",
-          relativeFilePath: "mcp.md",
-          fileContent: rulesyncContent,
-          body: rulesyncContent,
-          frontmatter: rulesyncFrontmatter,
+          relativeFilePath: "rulesync-mcp.md",
+          fileContent: "test content",
+          frontmatter,
+          body: "# Test MCP Configuration\n\nTest body content",
         });
 
         const codexcliMcp = CodexcliMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
 
-        expect(codexcliMcp).toBeDefined();
-        expect(codexcliMcp.getFileName()).toBe("opencode.json");
-
         const config = codexcliMcp.getConfig();
-        expect(config["$schema"]).toBe("https://opencode.ai/config.json");
-        const server = config.mcp["test-server"];
-        expect(server).toBeDefined();
-        expect(server?.type).toBe("local");
-        expect(server?.command).toEqual(["python"]);
-        expect(server?.args).toEqual(["-m", "test_server"]);
-        expect(server?.environment).toEqual({ API_KEY: "test-key" });
-        expect(server?.enabled).toBe(true);
+        expect(config.$schema).toBe("https://opencode.ai/config.json");
+        expect(config.mcp["python-codex"]).toBeDefined();
+        expect(config.mcp["python-codex"]?.type).toBe("local");
+        expect(config.mcp["python-codex"]?.command).toEqual(["python", "-m", "codex_wrapper"]);
+        expect(config.mcp["python-codex"]?.environment).toEqual({
+          OPENAI_API_KEY: "test-key",
+          CODEX_DEFAULT_MODEL: "gpt-4o",
+        });
+        expect(config.mcp["python-codex"]?.enabled).toBe(true);
       } finally {
         await cleanup();
       }
     });
 
-    it("should convert remote server configuration correctly", async () => {
+    it("should convert from RulesyncMcp with remote SSE server", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const rulesyncServer: RulesyncMcpServer = {
-          url: "https://api.example.com/mcp",
-          headers: {
-            Authorization: "Bearer token",
-            "X-Custom-Header": "value",
-          },
-        };
-
-        const rulesyncFrontmatter: RulesyncMcpFrontmatter = {
-          name: "Remote MCP Server",
-          description: "Remote MCP server configuration",
+        const frontmatter: RulesyncMcpFrontmatter = {
+          name: "remote-mcp",
+          description: "Remote Codex CLI MCP configuration",
           targets: ["codexcli"],
           servers: {
-            "remote-api": rulesyncServer,
+            "remote-codex": {
+              targets: ["codexcli"],
+              url: "https://codex.example.com/sse",
+              transport: "sse",
+              headers: {
+                Authorization: "Bearer token123",
+              },
+              timeout: 60000,
+              disabled: false,
+            },
           },
         };
-
-        const rulesyncContent = `---
-targets:
-  - codexcli
----
-
-## MCP Server Configuration
-
-\`\`\`json
-{
-  "mcpServers": {
-    "remote-api": ${JSON.stringify(rulesyncServer, null, 2)}
-  }
-}
-\`\`\`
-`;
 
         const rulesyncMcp = new RulesyncMcp({
           baseDir: testDir,
           relativeDirPath: ".",
-          relativeFilePath: "mcp.md",
-          fileContent: rulesyncContent,
-          body: rulesyncContent,
-          frontmatter: rulesyncFrontmatter,
+          relativeFilePath: "rulesync-mcp.md",
+          fileContent: "test content",
+          frontmatter,
+          body: "# Test MCP Configuration\n\nTest body content",
         });
 
         const codexcliMcp = CodexcliMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
-        const config = codexcliMcp.getConfig();
 
-        const server = config.mcp["remote-api"];
-        expect(server).toBeDefined();
-        expect(server?.type).toBe("remote");
-        expect(server?.url).toBe("https://api.example.com/mcp");
-        expect(server?.headers).toEqual({
-          Authorization: "Bearer token",
-          "X-Custom-Header": "value",
+        const config = codexcliMcp.getConfig();
+        expect(config.mcp["remote-codex"]).toBeDefined();
+        expect(config.mcp["remote-codex"]?.type).toBe("remote");
+        expect(config.mcp["remote-codex"]?.url).toBe("https://codex.example.com/sse");
+        expect(config.mcp["remote-codex"]?.headers).toEqual({
+          Authorization: "Bearer token123",
         });
-        expect(server?.enabled).toBe(true);
+        expect(config.mcp["remote-codex"]?.enabled).toBe(true);
       } finally {
         await cleanup();
       }
     });
 
-    it("should handle disabled servers correctly", async () => {
+    it("should handle array command conversion", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const rulesyncServer: RulesyncMcpServer = {
-          command: "test",
-          disabled: true,
-        };
-
-        const rulesyncFrontmatter: RulesyncMcpFrontmatter = {
-          name: "Disabled MCP Server",
-          description: "Disabled MCP server configuration",
+        const frontmatter: RulesyncMcpFrontmatter = {
+          name: "array-command-mcp",
+          description: "Array command test",
           targets: ["codexcli"],
           servers: {
-            "disabled-server": rulesyncServer,
+            "node-codex": {
+              targets: ["codexcli"],
+              command: ["node", "index.js", "--verbose"],
+              env: {
+                NODE_ENV: "development",
+              },
+            },
           },
         };
-
-        const rulesyncContent = `---
-targets:
-  - codexcli
----
-
-## MCP Server Configuration
-
-\`\`\`json
-{
-  "mcpServers": {
-    "disabled-server": ${JSON.stringify(rulesyncServer, null, 2)}
-  }
-}
-\`\`\`
-`;
 
         const rulesyncMcp = new RulesyncMcp({
           baseDir: testDir,
           relativeDirPath: ".",
-          relativeFilePath: "mcp.md",
-          fileContent: rulesyncContent,
-          body: rulesyncContent,
-          frontmatter: rulesyncFrontmatter,
+          relativeFilePath: "rulesync-mcp.md",
+          fileContent: "test content",
+          frontmatter,
+          body: "# Test MCP Configuration\n\nTest body content",
         });
 
         const codexcliMcp = CodexcliMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
-        const config = codexcliMcp.getConfig();
 
-        const server = config.mcp["disabled-server"];
-        expect(server?.enabled).toBe(false);
+        const config = codexcliMcp.getConfig();
+        expect(config.mcp["node-codex"]?.command).toEqual(["node", "index.js", "--verbose"]);
+        expect(config.mcp["node-codex"]?.type).toBe("local");
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should skip servers not targeted for codexcli", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const frontmatter: RulesyncMcpFrontmatter = {
+          name: "mixed-targets-mcp",
+          description: "Mixed targets test",
+          targets: ["claudecode"],
+          servers: {
+            "other-server": {
+              targets: ["claudecode"],
+              command: "python",
+              args: ["-m", "other_server"],
+            },
+          },
+        };
+
+        const rulesyncMcp = new RulesyncMcp({
+          baseDir: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "rulesync-mcp.md",
+          fileContent: "test content",
+          frontmatter,
+          body: "# Test MCP Configuration\n\nTest body content",
+        });
+
+        const codexcliMcp = CodexcliMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
+
+        const config = codexcliMcp.getConfig();
+        expect(Object.keys(config.mcp)).toHaveLength(0);
       } finally {
         await cleanup();
       }
@@ -402,9 +402,9 @@ targets:
           mcp: {
             "valid-server": {
               type: "local",
-              command: "python",
-              args: ["-m", "server"],
+              command: ["python", "-m", "server"],
               enabled: true,
+              timeout: 30000,
             },
           },
         };
@@ -439,7 +439,7 @@ targets:
           relativeFilePath: "opencode.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
-          validate: false,
+          validate: false, // Skip validation during construction
         });
 
         const result = codexcliMcp.validate();
@@ -450,15 +450,15 @@ targets:
       }
     });
 
-    it("should fail validation for server with both local and remote config", async () => {
+    it("should fail validation for server with neither command nor url", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
         const config: CodexcliMcpConfig = {
           mcp: {
-            "invalid-server": {
-              command: "python",
-              url: "https://example.com",
+            "incomplete-server": {
+              type: "local",
+              enabled: true,
             },
           },
         };
@@ -474,7 +474,107 @@ targets:
 
         const result = codexcliMcp.validate();
         expect(result.success).toBe(false);
-        expect(result.error?.message).toContain("cannot have both local ('command') and remote");
+        expect(result.error?.message).toContain(
+          "must have either 'command' (for local) or 'url' (for remote)",
+        );
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should fail validation for server with both command and url", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const config: CodexcliMcpConfig = {
+          mcp: {
+            "conflicting-server": {
+              type: "local",
+              command: ["python", "server.py"],
+              url: "http://localhost:8000",
+              enabled: true,
+            },
+          },
+        };
+
+        const codexcliMcp = new CodexcliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "opencode.json",
+          fileContent: JSON.stringify(config, null, 2),
+          config,
+          validate: false,
+        });
+
+        const result = codexcliMcp.validate();
+        expect(result.success).toBe(false);
+        expect(result.error?.message).toContain(
+          "cannot have both local ('command') and remote ('url')",
+        );
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should fail validation for timeout out of range", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const config: CodexcliMcpConfig = {
+          mcp: {
+            "timeout-server": {
+              command: ["node", "server.js"],
+              timeout: 500, // Too low
+              enabled: true,
+            },
+          },
+        };
+
+        const codexcliMcp = new CodexcliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "opencode.json",
+          fileContent: JSON.stringify(config, null, 2),
+          config,
+          validate: false,
+        });
+
+        const result = codexcliMcp.validate();
+        expect(result.success).toBe(false);
+        expect(result.error?.message).toContain(
+          "timeout must be between 1 second (1000) and 10 minutes (600000)",
+        );
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should fail validation for type mismatch", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const config: CodexcliMcpConfig = {
+          mcp: {
+            "type-mismatch-server": {
+              type: "remote",
+              command: ["python", "server.py"], // Should be url for remote
+              enabled: true,
+            },
+          },
+        };
+
+        const codexcliMcp = new CodexcliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "opencode.json",
+          fileContent: JSON.stringify(config, null, 2),
+          config,
+          validate: false,
+        });
+
+        const result = codexcliMcp.validate();
+        expect(result.success).toBe(false);
+        expect(result.error?.message).toContain('has local configuration but type is not "local"');
       } finally {
         await cleanup();
       }
@@ -482,7 +582,7 @@ targets:
   });
 
   describe("fromFilePath", () => {
-    it("should load configuration from file path", async () => {
+    it("should load valid configuration from file", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
@@ -491,17 +591,17 @@ targets:
           mcp: {
             "file-server": {
               type: "local",
-              command: ["python", "-m", "server"],
-              environment: {
-                API_KEY: "test",
-              },
+              command: ["bun", "run", "server.ts"],
               enabled: true,
+              environment: {
+                NODE_ENV: "test",
+              },
             },
           },
         };
 
         const filePath = join(testDir, "opencode.json");
-        await writeFile(filePath, JSON.stringify(config, null, 2));
+        await writeFile(filePath, JSON.stringify(config, null, 2), "utf-8");
 
         const codexcliMcp = await CodexcliMcp.fromFilePath({
           baseDir: testDir,
@@ -510,78 +610,57 @@ targets:
           filePath,
         });
 
-        expect(codexcliMcp).toBeDefined();
         expect(codexcliMcp.getConfig()).toEqual(config);
+        expect(codexcliMcp.getFileName()).toBe("opencode.json");
       } finally {
         await cleanup();
       }
     });
 
-    it("should handle full opencode.json file with MCP section", async () => {
+    it("should throw error for invalid JSON file", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const fullConfig = {
-          $schema: "https://opencode.ai/config.json",
-          instructions: ["CONTRIBUTING.md", "docs/*-guidelines.md"],
-          provider: "openai",
-          model: "gpt-4",
-          mcp: {
-            "test-server": {
-              type: "local",
-              command: "test",
-              enabled: true,
-            },
-          },
-        };
+        const filePath = join(testDir, "invalid.json");
+        await writeFile(filePath, "{ invalid json", "utf-8");
 
-        const filePath = join(testDir, "opencode.json");
-        await writeFile(filePath, JSON.stringify(fullConfig, null, 2));
-
-        const codexcliMcp = await CodexcliMcp.fromFilePath({
-          baseDir: testDir,
-          relativeDirPath: ".",
-          relativeFilePath: "opencode.json",
-          filePath,
-        });
-
-        const config = codexcliMcp.getConfig();
-        expect(config["$schema"]).toBe("https://opencode.ai/config.json");
-        const server = config.mcp["test-server"];
-        expect(server).toBeDefined();
-        expect(server?.type).toBe("local");
+        await expect(
+          CodexcliMcp.fromFilePath({
+            baseDir: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "invalid.json",
+            filePath,
+          }),
+        ).rejects.toThrow();
       } finally {
         await cleanup();
       }
     });
 
-    it("should throw error for invalid configuration file", async () => {
+    it("should throw validation error for invalid configuration file", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
         const invalidConfig = {
-          mcp: {
-            invalid: {
+          // Invalid structure - missing mcp field
+          servers: {
+            "invalid-server": {
               // Missing required fields
             },
           },
         };
 
-        const filePath = join(testDir, "opencode.json");
-        await writeFile(filePath, JSON.stringify(invalidConfig, null, 2));
+        const filePath = join(testDir, "invalid-config.json");
+        await writeFile(filePath, JSON.stringify(invalidConfig, null, 2), "utf-8");
 
-        // Create instance with validation disabled first
-        const codexcliMcp = await CodexcliMcp.fromFilePath({
-          baseDir: testDir,
-          relativeDirPath: ".",
-          relativeFilePath: "opencode.json",
-          filePath,
-          validate: false,
-        });
-
-        // Validation should fail
-        const result = codexcliMcp.validate();
-        expect(result.success).toBe(false);
+        await expect(
+          CodexcliMcp.fromFilePath({
+            baseDir: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "invalid-config.json",
+            filePath,
+          }),
+        ).rejects.toThrow("Invalid Codex CLI MCP configuration");
       } finally {
         await cleanup();
       }
