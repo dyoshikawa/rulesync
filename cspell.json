@@ -232,6 +232,15 @@
         "QWEN",
         "QCLI",
         "smol",
-        "testignore"
+        "testignore",
+        "nomodel",
+        "withoptions",
+        "notargets",
+        "frompath",
+        "fromfile",
+        "skipvalidation",
+        "typetest",
+        "üñíçødé",
+        "émøjî"
     ]
 }

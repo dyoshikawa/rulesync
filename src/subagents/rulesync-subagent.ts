@@ -24,16 +24,17 @@ export class RulesyncSubagent extends RulesyncFile {
   private readonly frontmatter: RulesyncSubagentFrontmatter;
 
   constructor({ frontmatter, ...rest }: RulesyncSubagentParams) {
-    super({
-      ...rest,
-    });
-
-    if (rest.validate) {
+    // Validate frontmatter before calling super to avoid validation order issues
+    if (rest.validate !== false) {
       const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
       }
     }
+
+    super({
+      ...rest,
+    });
 
     this.frontmatter = frontmatter;
   }
@@ -43,6 +44,11 @@ export class RulesyncSubagent extends RulesyncFile {
   }
 
   validate(): ValidationResult {
+    // Check if frontmatter is set (may be undefined during construction)
+    if (!this.frontmatter) {
+      return { success: true, error: null };
+    }
+
     const result = RulesyncSubagentFrontmatterSchema.safeParse(this.frontmatter);
 
     if (result.success) {

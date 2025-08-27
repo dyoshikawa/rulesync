@@ -21,16 +21,17 @@ export class ClaudecodeSubagent extends ToolSubagent {
   private readonly body: string;
 
   constructor({ frontmatter, body, ...rest }: ClaudecodeSubagentParams) {
-    super({
-      ...rest,
-    });
-
-    if (rest.validate) {
+    // Set properties before calling super to ensure they're available for validation
+    if (rest.validate !== false) {
       const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
       }
     }
+
+    super({
+      ...rest,
+    });
 
     this.frontmatter = frontmatter;
     this.body = body;
@@ -47,6 +48,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent: this.fileContent,
+      validate: false,
     });
   }
 
@@ -75,6 +77,11 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   validate(): ValidationResult {
+    // Check if frontmatter is set (may be undefined during construction)
+    if (!this.frontmatter) {
+      return { success: true, error: null };
+    }
+
     const result = ClaudecodeSubagentFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
