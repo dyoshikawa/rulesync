@@ -5,6 +5,7 @@ export * from "./cline-ignore.js";
 export * from "./cursor-ignore.js";
 export * from "./geminicli-ignore.js";
 export * from "./ignore-processor.js";
+export * from "./junie-ignore.js";
 export * from "./kiro-ignore.js";
 export * from "./qwencode-ignore.js";
 export * from "./roo-ignore.js";
