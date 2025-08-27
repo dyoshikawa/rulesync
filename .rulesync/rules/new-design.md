@@ -26,10 +26,26 @@ I think, finally, src/cli will depend on src/subagents, src/rules, src/mcp, src/
 
 ## Current status and immediate goals
 
-My immediate goal is replacing the subagents logics.
+Until now, I completed subagents replacement.
 
-Others that are mcp, ignore, commands and rules should not be replaced yet.
+My immediate goal is replacing the custom slash command generation logics.
+
+Others that are mcp, ignore and rules should not be replaced yet.
 
 Attention, the replacements must not break the existing behaviors.
 
 At key points, you should commit your changes actively.
+
+## Reference implementations
+
+I recommend you to refer to the following implementations when you are implementing new logics.
+
+- Shareds
+    - src/types/ai-file.ts
+    - src/types/processor.ts
+    - src/types/rulesync-file.ts
+- Subagents
+    - src/subagents/tool-subagent.ts
+    - src/subagents/subagents-processor.ts
+    - src/subagents/rulesync-subagent.ts
+    - src/subagents/claudecode-subagent.ts
