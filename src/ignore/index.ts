@@ -11,3 +11,4 @@ export * from "./qwencode-ignore.js";
 export * from "./roo-ignore.js";
 export * from "./rulesync-ignore.js";
 export * from "./tool-ignore.js";
+export * from "./windsurf-ignore.js";
