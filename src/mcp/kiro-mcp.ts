@@ -265,9 +265,7 @@ export class KiroMcp extends ToolMcp {
     if (validate) {
       const result = KiroMcpConfigSchema.safeParse(rawConfig);
       if (!result.success) {
-        throw new Error(
-          `Invalid Kiro MCP configuration in ${filePath}: ${result.error.message}`,
-        );
+        throw new Error(`Invalid Kiro MCP configuration in ${filePath}: ${result.error.message}`);
       }
     }
 

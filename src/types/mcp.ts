@@ -26,7 +26,7 @@ export const McpServerBaseSchema = z.object({
 });
 
 export const RulesyncMcpServerSchema = z.object({
-  // All fields from McpServerBaseSchema
+  // All fields from McpServerBaseSchema plus Rulesync-specific
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),
   url: z.optional(z.string()),
@@ -37,7 +37,7 @@ export const RulesyncMcpServerSchema = z.object({
   timeout: z.optional(z.number()),
   trust: z.optional(z.boolean()),
   cwd: z.optional(z.string()),
-  transport: z.optional(z.enum(["stdio", "sse", "http", "streamable-http"])),
+  transport: z.optional(McpTransportTypeSchema),
   type: z.optional(z.enum(["sse", "streamable-http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),

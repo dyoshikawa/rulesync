@@ -379,7 +379,7 @@ describe("KiroMcp", () => {
         const rulesyncServer: RulesyncMcpServer = {
           targets: ["kiro"] as const,
           url: "http://localhost:4000/mcp",
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
+
           transport: "streamable-http" as any,
           timeout: 60000,
         };

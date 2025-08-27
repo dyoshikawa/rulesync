@@ -189,6 +189,7 @@ export class OpencodeMcp extends ToolMcp {
       rawConfig.mcp !== null
     ) {
       config = {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
         mcpServers: this.convertFromOpenCodeFormat(rawConfig.mcp as Record<string, unknown>),
       };
     }
@@ -236,6 +237,7 @@ export class OpencodeMcp extends ToolMcp {
         continue;
       }
 
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
       const config = serverConfig as Record<string, unknown>;
       const server: McpServerBase = {};
 
@@ -244,8 +246,10 @@ export class OpencodeMcp extends ToolMcp {
       }
 
       if (Array.isArray(config.args)) {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
         const argsArray = config.args as unknown[];
         if (argsArray.every((arg: unknown) => typeof arg === "string")) {
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           server.args = argsArray as string[];
         }
       }

@@ -3,7 +3,11 @@ import { basename } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
-import { RulesyncMcpConfigSchema, type RulesyncMcpServer } from "../types/mcp.js";
+import {
+  McpTransportTypeSchema,
+  RulesyncMcpConfigSchema,
+  type RulesyncMcpServer,
+} from "../types/mcp.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 
@@ -22,7 +26,7 @@ export const RulesyncMcpServerFrontmatterSchema = z.object({
   timeout: z.optional(z.number()),
   trust: z.optional(z.boolean()),
   cwd: z.optional(z.string()),
-  transport: z.optional(z.enum(["stdio", "sse", "http"])),
+  transport: z.optional(McpTransportTypeSchema),
   type: z.optional(z.enum(["sse", "streamable-http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),
