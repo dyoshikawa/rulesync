@@ -372,8 +372,11 @@ Available tools:
             try {
               // Check if rulesync subagent source directory exists
               const rulesyncSubagentsDir = join(".rulesync", "subagents");
-              const fullPath = join(baseDir === process.cwd() ? "." : baseDir, rulesyncSubagentsDir);
-              
+              const fullPath = join(
+                baseDir === process.cwd() ? "." : baseDir,
+                rulesyncSubagentsDir,
+              );
+
               if (!(await fileExists(fullPath))) {
                 logger.info(`No rulesync subagents directory found at ${fullPath}`);
                 continue;
@@ -387,17 +390,23 @@ Available tools:
 
               const rulesyncSubagents = await processor.loadRulesyncSubagents();
               await processor.writeToolSubagentsFromRulesyncSubagents(rulesyncSubagents);
-              
+
               // Count the generated files
-              const outputDir = join(baseDir === process.cwd() ? "." : baseDir, ".claude", "agents");
+              const outputDir = join(
+                baseDir === process.cwd() ? "." : baseDir,
+                ".claude",
+                "agents",
+              );
               if (await fileExists(outputDir)) {
                 const { readdir } = await import("node:fs/promises");
                 const files = await readdir(outputDir);
                 const generatedCount = files.filter((file) => file.endsWith(".md")).length;
                 totalSubagentOutputs += generatedCount;
-                
+
                 if (generatedCount > 0) {
-                  logger.success(`Generated ${generatedCount} Claude Code subagent(s) in ${outputDir}`);
+                  logger.success(
+                    `Generated ${generatedCount} Claude Code subagent(s) in ${outputDir}`,
+                  );
                 }
               }
             } catch (error) {

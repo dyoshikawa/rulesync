@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/mini";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -56,7 +56,7 @@ describe("SubagentsProcessor", () => {
       // Create a mock rulesync subagent file
       const rulesyncDir = join(testDir, ".rulesync", "subagents");
       await mkdir(rulesyncDir, { recursive: true });
-      
+
       const fileContent = `---
 targets: ["claudecode"]
 name: "Test Planner"
@@ -66,7 +66,7 @@ claudecode:
 ---
 
 You are a helpful planning agent.`;
-      
+
       await writeFile(join(rulesyncDir, "planner.md"), fileContent);
 
       const rulesyncSubagents = await processor.loadRulesyncSubagents();
@@ -87,7 +87,7 @@ You are a helpful planning agent.`;
       await mkdir(rulesyncDir, { recursive: true });
 
       await expect(processor.loadRulesyncSubagents()).rejects.toThrow(
-        "No markdown files found in rulesync subagents directory"
+        "No markdown files found in rulesync subagents directory",
       );
     });
 
@@ -97,9 +97,7 @@ You are a helpful planning agent.`;
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncSubagents()).rejects.toThrow(
-        "ENOENT"
-      );
+      await expect(processor.loadRulesyncSubagents()).rejects.toThrow("ENOENT");
     });
   });
 
@@ -162,7 +160,7 @@ You are a helpful planning agent.`;
       const subagent2 = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          name: "Reviewer", 
+          name: "Reviewer",
           description: "Review agent",
         },
         body: "Review content",
@@ -184,7 +182,6 @@ You are a helpful planning agent.`;
       // Verify the write was called twice (once for each subagent)
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
-
   });
 
   describe("writeRulesyncSubagentsFromToolSubagents", () => {
@@ -274,7 +271,6 @@ You are a helpful planning agent.`,
       expect(() => z.enum(["claudecode"]).parse(invalidTarget)).toThrow();
     });
   });
-
 
   describe("integration tests", () => {
     it("should perform round-trip conversion rulesync -> claude code -> rulesync", async () => {
