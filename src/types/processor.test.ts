@@ -174,11 +174,11 @@ describe("Processor", () => {
 
       await expect(processor.testWriteAiFiles(files)).rejects.toThrow("Write failed");
 
-      // Should have attempted all three calls before failing
-      expect(mockWriteFileContent).toHaveBeenCalledTimes(2);
+      // Should have attempted all three calls before failing (parallel execution)
+      expect(mockWriteFileContent).toHaveBeenCalledTimes(3);
     });
 
-    it("should preserve file order during sequential writing", async () => {
+    it("should process all files in parallel", async () => {
       const processor = new TestProcessor(testDir);
       const files = [
         new TestAiFile(".test", "first.md", "First content"),
@@ -190,11 +190,12 @@ describe("Processor", () => {
 
       expect(mockWriteFileContent).toHaveBeenCalledTimes(3);
 
-      // Verify the order of calls
+      // Verify all files were called (order not guaranteed in parallel execution)
       const calls = mockWriteFileContent.mock.calls;
-      expect(calls[0]?.[1]).toBe("First content");
-      expect(calls[1]?.[1]).toBe("Second content");
-      expect(calls[2]?.[1]).toBe("Third content");
+      const contents = calls.map((call: unknown[]) => call[1]);
+      expect(contents).toContain("First content");
+      expect(contents).toContain("Second content");
+      expect(contents).toContain("Third content");
     });
   });
 

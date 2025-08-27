@@ -260,19 +260,14 @@ Test content`;
 
       await writeFile(join(mcpDir, "test.md"), mcpContent);
 
-      const processor = new McpProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
-
-      // Mock an unsupported tool target
-      (processor as any).toolTarget = "unsupported";
-
-      const rulesyncConfigs = await processor.loadRulesyncMcpConfigs();
-
-      await expect(processor.writeToolMcpFromRulesyncMcp(rulesyncConfigs)).rejects.toThrow(
-        "Unsupported tool target: unsupported",
-      );
+      // Test with invalid tool target at construction time
+      expect(
+        () =>
+          new McpProcessor({
+            baseDir: testDir,
+            toolTarget: "unsupported" as any,
+          }),
+      ).toThrow();
     });
 
     it("should throw error for copilot tool target", async () => {

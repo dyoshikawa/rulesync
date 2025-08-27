@@ -9,8 +9,9 @@ export abstract class Processor {
   }
 
   protected async writeAiFiles(aiFiles: AiFile[]): Promise<void> {
-    for (const aiFile of aiFiles) {
-      await writeFileContent(aiFile.getFilePath(), aiFile.getFileContent());
-    }
+    // 並列処理でパフォーマンスを改善
+    await Promise.all(
+      aiFiles.map((aiFile) => writeFileContent(aiFile.getFilePath(), aiFile.getFileContent())),
+    );
   }
 }

@@ -85,8 +85,28 @@ export class McpProcessor extends Processor {
           return RooMcp.fromRulesyncMcp(rulesyncMcp, this.baseDir, ".roo");
         case "windsurf":
           return WindsurfMcp.fromRulesyncMcp(rulesyncMcp, this.baseDir, ".");
-        default:
-          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        default: {
+          const validTargets = [
+            "amazonqcli",
+            "augmentcode",
+            "claudecode",
+            "cline",
+            "codexcli",
+            "copilot",
+            "cursor",
+            "geminicli",
+            "junie",
+            "kiro",
+            "opencode",
+            "qwencode",
+            "roo",
+            "windsurf",
+          ];
+          throw new Error(
+            `Unsupported tool target: "${this.toolTarget}". ` +
+              `Supported targets are: ${validTargets.join(", ")}`,
+          );
+        }
       }
     });
 
@@ -144,6 +164,7 @@ export class McpProcessor extends Processor {
   /**
    * Load tool-specific MCP configurations and parse them into ToolMcp instances
    */
+
   async loadToolMcpConfigs(): Promise<ToolMcp[]> {
     switch (this.toolTarget) {
       case "amazonqcli":
