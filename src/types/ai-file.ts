@@ -62,7 +62,7 @@ export abstract class AiFile {
     }
   }
 
-  static fromFilePath(_params: AiFileFromFilePathParams): AiFile {
+  static async fromFilePath(_params: AiFileFromFilePathParams): Promise<AiFile> {
     throw new Error("Please implement this method in the subclass.");
   }
 

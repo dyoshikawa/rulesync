@@ -1,15 +1,20 @@
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
+import matter from "gray-matter";
 import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
-import { ToolTargetsSchema } from "../types/tool-targets.js";
+import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+
+export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "inherit"]);
 
 export const RulesyncSubagentFrontmatterSchema = z.object({
-  targets: ToolTargetsSchema,
+  targets: RulesyncTargetsSchema,
   title: z.string(),
   description: z.string(),
   claudecode: z.optional(
     z.object({
-      model: z.optional(z.enum(["opus", "sonnet", "haiku", "inherit"])),
+      model: RulesyncSubagentModelSchema,
     }),
   ),
 });
@@ -56,5 +61,28 @@ export class RulesyncSubagent extends RulesyncFile {
     } else {
       return { success: false, error: result.error };
     }
+  }
+
+  static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncSubagent> {
+    // Read file content
+    const fileContent = await readFile(filePath, "utf-8");
+    const { data: frontmatter, content } = matter(fileContent);
+
+    // Validate frontmatter using SubagentFrontmatterSchema
+    const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+    }
+
+    const filename = basename(filePath);
+
+    return new RulesyncSubagent({
+      baseDir: ".",
+      relativeDirPath: ".rulesync/subagents",
+      relativeFilePath: filename,
+      frontmatter: result.data,
+      body: content.trim(),
+      fileContent,
+    });
   }
 }

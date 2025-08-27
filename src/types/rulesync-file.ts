@@ -14,7 +14,7 @@ export abstract class RulesyncFile extends AiFile {
     this.body = body;
   }
 
-  static fromFilePath(_params: AiFileFromFilePathParams): RulesyncFile {
+  static async fromFilePath(_params: AiFileFromFilePathParams): Promise<RulesyncFile> {
     throw new Error("Please implement this method in the subclass.");
   }
 
