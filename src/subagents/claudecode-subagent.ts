@@ -1,9 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, relative } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { RulesyncSubagent } from "./rulesync-subagent.js";
+import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import { ToolSubagent, ToolSubagentFromRulesyncSubagentParams } from "./tool-subagent.js";
 
 export const ClaudecodeSubagentFrontmatterSchema = z.object({
@@ -41,16 +40,26 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
+    const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+      targets: ["claudecode"] as const,
+      name: this.frontmatter.name,
+      description: this.frontmatter.description,
+      ...(this.frontmatter.model && {
+        claudecode: {
+          model: this.frontmatter.model,
+        },
+      }),
+    };
+
+    // Generate proper file content with Rulesync specific frontmatter
+    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
+
     return new RulesyncSubagent({
-      frontmatter: {
-        targets: ["claudecode"],
-        name: this.frontmatter.name,
-        description: this.frontmatter.description,
-      },
+      frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: this.relativeDirPath,
+      relativeDirPath: ".rulesync/subagents",
       relativeFilePath: this.relativeFilePath,
-      fileContent: this.fileContent,
+      fileContent,
       validate: false,
     });
   }
@@ -102,7 +111,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static async fromFilePath({
-    baseDir,
+    baseDir = ".",
     relativeDirPath,
     relativeFilePath,
     filePath,
@@ -119,9 +128,9 @@ export class ClaudecodeSubagent extends ToolSubagent {
     }
 
     return new ClaudecodeSubagent({
-      baseDir: baseDir || ".",
-      relativeDirPath: relativeDirPath || dirname(relative(baseDir || ".", filePath)),
-      relativeFilePath: relativeFilePath || basename(filePath),
+      baseDir: baseDir,
+      relativeDirPath: relativeDirPath,
+      relativeFilePath: relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       fileContent,

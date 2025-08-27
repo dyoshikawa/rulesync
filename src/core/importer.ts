@@ -278,9 +278,9 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     logger.log(`Skipping MCP configuration (mcp feature not enabled)`);
   }
 
-  // Create subagent files if subagents exist and subagents feature is enabled
-  const subagentsCreated = 0;
-  if (subagentsEnabled && subagents && subagents.length > 0) {
+  // Create subagent files if subagents feature is enabled
+  let subagentsCreated = 0;
+  if (subagentsEnabled) {
     try {
       // Use SubagentsProcessor for supported tools
       if (tool === "claudecode") {
@@ -290,7 +290,10 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         });
 
         const toolSubagents = await subagentsProcessor.loadToolSubagents();
-        await subagentsProcessor.writeRulesyncSubagentsFromToolSubagents(toolSubagents);
+        if (toolSubagents.length > 0) {
+          await subagentsProcessor.writeRulesyncSubagentsFromToolSubagents(toolSubagents);
+          subagentsCreated = toolSubagents.length;
+        }
       }
 
       if (verbose && subagentsCreated > 0) {
@@ -300,7 +303,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       const errorMessage = error instanceof Error ? error.message : String(error);
       errors.push(`Failed to create subagents directory: ${errorMessage}`);
     }
-  } else if (verbose && subagents && subagents.length > 0 && !subagentsEnabled) {
+  } else if (verbose && subagents && subagents.length > 0) {
     logger.log(`Skipping subagents (subagents feature not enabled)`);
   }
 

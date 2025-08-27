@@ -197,6 +197,9 @@ You are a helpful planning agent.`,
         targets: ["claudecode"],
         name: "Test Planner",
         description: "A test planning agent",
+        claudecode: {
+          model: "sonnet",
+        },
       });
       expect(rulesyncSubagent.getBody()).toBe("You are a helpful planning agent.");
     });
