@@ -17,7 +17,7 @@ const runClaudeCode = async (task: string) => {
   }
 };
 
-const filePaths = globSync(join(process.cwd(), "tasks", "*.md"));
+const filePaths = globSync(join(process.cwd(), "tmp", "tasks", "*.md"));
 
 for (const filePath of filePaths) {
   const fileContent = readFileSync(filePath, "utf-8");
