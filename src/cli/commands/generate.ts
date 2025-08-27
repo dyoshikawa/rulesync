@@ -4,6 +4,7 @@ import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/in
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
@@ -350,13 +351,68 @@ Available tools:
         logger.info("\nSkipping command file generation (not in --features)");
       }
 
-      // Generate ignore files (ignore feature) - placeholder for future implementation
-      const totalIgnoreOutputs = 0;
+      // Generate ignore files (ignore feature)
+      let totalIgnoreOutputs = 0;
       if (normalizedFeatures.includes("ignore")) {
         logger.info("\nGenerating ignore files...");
-        logger.info("Ignore file generation is not yet implemented");
-        // TODO: Implement ignore file generation
-        // This would generate .cursorignore, .cline-ignore, etc.
+
+        // Check if rulesync ignore source directory exists
+        const rulesyncIgnoresDir = join(".rulesync", "ignore");
+        const fullPath = join(process.cwd(), rulesyncIgnoresDir);
+
+        if (!(await fileExists(fullPath))) {
+          logger.info(`No rulesync ignore directory found at ${fullPath}`);
+        } else {
+          // Generate ignore files for each supported tool target
+          const supportedToolTargets = [
+            "augmentcode",
+            "claudecode",
+            "cline",
+            "codexcli",
+            "copilot",
+            "cursor",
+            "geminicli",
+            "junie",
+            "kiro",
+            "opencode",
+            "qwencode",
+            "roo",
+            "windsurf",
+          ] as const;
+
+          for (const toolTarget of supportedToolTargets) {
+            // Only generate ignore files for tools that are in the target list
+            if (!config.defaultTargets.includes(toolTarget)) {
+              logger.debug(`Skipping ignore files for ${toolTarget} (not in target list)`);
+              continue;
+            }
+
+            for (const baseDir of baseDirs) {
+              try {
+                const processor = new IgnoreProcessor({
+                  baseDir: baseDir === process.cwd() ? "." : baseDir,
+                  toolTarget,
+                });
+
+                const rulesyncIgnores = await processor.loadRulesyncIgnores();
+                await processor.writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores);
+
+                // Count the generated files by checking the tool's expected output location
+                // This is a simplified counting approach
+                totalIgnoreOutputs += rulesyncIgnores.length;
+                logger.success(
+                  `Generated ${toolTarget} ignore files from ${rulesyncIgnores.length} source(s)`,
+                );
+              } catch (error) {
+                logger.warn(
+                  `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
+                  error instanceof Error ? error.message : String(error),
+                );
+                continue;
+              }
+            }
+          }
+        }
       } else {
         logger.info("\nSkipping ignore file generation (not in --features)");
       }

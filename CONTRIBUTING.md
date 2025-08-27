@@ -861,7 +861,7 @@ pnpm test src/generators/                  # All generator tests
 pnpm test src/parsers/                     # All parser tests  
 pnpm test src/generators/rules/windsurf    # Windsurf rule generator
 pnpm test src/generators/mcp/              # All MCP generators
-pnpm test src/generators/ignore/           # All ignore generators
+pnpm test src/ignore/                     # All ignore processors
 
 # Integration tests
 pnpm test src/core/generator.integration   # End-to-end generation
@@ -881,7 +881,7 @@ pnpm test src/generators/commands/         # All command generators
 - **core**: **High** - Parser, generator, importer, validator, command-parser, command-generator extensively tested
 - **generators/rules**: **High** - All 11 tools with 250-350 lines each
 - **generators/mcp**: **High** - All transport types and configurations
-- **generators/ignore**: **High** - Security patterns and factory functions
+- **ignore**: **High** - Ignore processor and tool-specific ignore implementations
 - **generators/commands**: **High** - Command generation for supported tools (Cursor, Cline, Roo, Windsurf)
 - **parsers**: **High** - Discovery patterns and error handling for all tools
 - **utils**: **High** - File operations, config loading, error handling
@@ -1022,12 +1022,12 @@ Create `src/generators/rules/newtool.ts` for advanced features:
    }
    ```
 
-2. **Ignore File Generator** (if applicable):
+2. **Ignore File Implementation** (if applicable):
    ```typescript
-   // src/generators/ignore/newtool.ts
-   import { generateIgnoreFile, ignoreConfigs } from "./shared-factory.js";
+   // src/ignore/newtool-ignore.ts
+   import { ToolIgnore } from "./tool-ignore.js";
    
-   export async function generateNewToolIgnoreFile(/* ... */) {
+   export class NewtoolIgnore extends ToolIgnore {
      return generateIgnoreFile(rules, config, ignoreConfigs.newTool, baseDir);
    }
    ```
@@ -1057,7 +1057,7 @@ Create `src/generators/rules/newtool.ts` for advanced features:
 ```typescript
 // src/generators/rules/newtool.test.ts
 // src/generators/mcp/newtool.test.ts
-// src/generators/ignore/newtool.test.ts
+// src/ignore/newtool-ignore.test.ts
 // src/parsers/newtool.test.ts
 ```
 
@@ -1218,10 +1218,10 @@ export async function generateNewToolMcpConfig(
   }, baseDir);
 }
 
-// src/generators/ignore/newtool.ts
-import { generateIgnoreFile, type IgnoreFileConfig } from "./shared-factory.js";
+// src/ignore/newtool-ignore.ts  
+import { ToolIgnore } from "./tool-ignore.js";
 
-const newtoolIgnoreConfig: IgnoreFileConfig = {
+export class NewtoolIgnore extends ToolIgnore {
   tool: "newtool",
   filename: ".newtoolignore",
   header: [

@@ -517,6 +517,12 @@ export class IgnoreProcessor extends Processor {
     return [];
   }
 
+  private async loadAmazonqcliIgnores(): Promise<ToolIgnore[]> {
+    // Amazon Q Developer CLI currently doesn't have native ignore file support
+    logger.debug("Amazon Q Developer CLI doesn't have native ignore file support");
+    return [];
+  }
+
   async writeRulesyncIgnoresFromToolIgnores(toolIgnores: ToolIgnore[]): Promise<void> {
     const rulesyncIgnores = toolIgnores.map((toolIgnore) => {
       return toolIgnore.toRulesyncIgnore();
