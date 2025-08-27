@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreParams, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
 export interface ClaudeCodeIgnoreParams extends ToolIgnoreParams {
   patterns: string[];
@@ -29,10 +29,10 @@ export class ClaudeCodeIgnore extends ToolIgnore {
     });
   }
 
-  static fromRulesyncIgnore({ 
-    baseDir = ".", 
+  static fromRulesyncIgnore({
+    baseDir = ".",
     relativeDirPath,
-    rulesyncIgnore 
+    rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): ClaudeCodeIgnore {
     const body = rulesyncIgnore.getBody();
 

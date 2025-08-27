@@ -50,7 +50,7 @@ ${this.patterns.join("\n")}`,
   }): TestToolIgnore {
     const frontmatter = params.rulesyncIgnore.getFrontmatter();
     const patterns = frontmatter.patterns || [];
-    
+
     return new TestToolIgnore({
       baseDir: params.baseDir || ".",
       relativeDirPath: params.relativeDirPath,
