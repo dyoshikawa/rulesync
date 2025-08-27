@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IgnoreProcessor, IgnoreProcessorToolTargetSchema } from "../ignore/ignore-processor.js";
 import * as parsers from "../parsers/index.js";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { ToolTarget } from "../types/index.js";
@@ -8,6 +9,12 @@ import { logger } from "../utils/logger.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
+vi.mock("../ignore/ignore-processor.js", () => ({
+  IgnoreProcessor: vi.fn(),
+  IgnoreProcessorToolTargetSchema: {
+    safeParse: vi.fn(),
+  },
+}));
 
 describe("importConfiguration", () => {
   let testDir: string;
@@ -24,6 +31,21 @@ describe("importConfiguration", () => {
     await mkdir(rulesDir, { recursive: true });
     await mkdir(commandsDir, { recursive: true });
     vi.resetAllMocks();
+
+    // Set up default IgnoreProcessor mock
+    const defaultIgnoreProcessor = {
+      loadToolIgnores: vi.fn().mockResolvedValue([]),
+      writeRulesyncIgnoresFromToolIgnores: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(IgnoreProcessor).mockImplementation(() => defaultIgnoreProcessor as any);
+
+    // Mock IgnoreProcessorToolTargetSchema.safeParse to return success for supported tools
+    vi.mocked(IgnoreProcessorToolTargetSchema.safeParse).mockImplementation((tool) => {
+      const isSupported = tool === "claudecode" || tool === "cursor" || tool === "geminicli";
+      return isSupported
+        ? { success: true as const, data: tool as any }
+        : { success: false as const, error: { issues: [], addIssue: vi.fn() } as any };
+    });
   });
 
   afterEach(async () => {
@@ -48,7 +70,6 @@ describe("importConfiguration", () => {
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: mockRules,
       errors: [],
-      ignorePatterns: [],
       mcpServers: {},
     });
 
@@ -110,12 +131,22 @@ describe("importConfiguration", () => {
     expect(file).not.toContain("Content 1");
   });
 
-  it("should create .rulesyncignore file when ignore patterns exist", async () => {
+  it("should process ignore files when ignore feature is enabled", async () => {
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
-      ignorePatterns: ["node_modules/**", "*.env", "dist/**"],
     });
+
+    const mockIgnoreProcessor = {
+      loadToolIgnores: vi.fn().mockResolvedValue([
+        {
+          toRulesyncIgnore: vi.fn(),
+        },
+      ]),
+      writeRulesyncIgnoresFromToolIgnores: vi.fn().mockResolvedValue(undefined),
+    };
+
+    vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -123,9 +154,12 @@ describe("importConfiguration", () => {
     });
 
     expect(result.ignoreFileCreated).toBe(true);
-
-    const ignoreContent = await readFile(join(testDir, ".rulesyncignore"), "utf-8");
-    expect(ignoreContent).toBe("node_modules/**\n*.env\ndist/**\n");
+    expect(IgnoreProcessor).toHaveBeenCalledWith({
+      baseDir: testDir,
+      toolTarget: "claudecode",
+    });
+    expect(mockIgnoreProcessor.loadToolIgnores).toHaveBeenCalled();
+    expect(mockIgnoreProcessor.writeRulesyncIgnoresFromToolIgnores).toHaveBeenCalled();
   });
 
   it("should create .mcp.json file when MCP servers exist", async () => {
@@ -267,8 +301,14 @@ describe("importConfiguration", () => {
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
-      ignorePatterns: ["*.log"],
     });
+
+    const mockIgnoreProcessor = {
+      loadToolIgnores: vi.fn().mockResolvedValue([{ toRulesyncIgnore: vi.fn() }]),
+      writeRulesyncIgnoresFromToolIgnores: vi.fn().mockResolvedValue(undefined),
+    };
+
+    vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -297,17 +337,18 @@ describe("importConfiguration", () => {
     expect(result.mcpFileCreated).toBe(true);
   });
 
-  it("should handle error creating .rulesyncignore", async () => {
+  it("should handle error processing ignore files", async () => {
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
-      ignorePatterns: ["*.log"],
     });
 
-    // Mock writeFileContent to throw an error for .rulesyncignore
-    vi.spyOn(await import("../utils/index.js"), "writeFileContent").mockRejectedValueOnce(
-      new Error("Permission denied"),
-    );
+    const mockIgnoreProcessor = {
+      loadToolIgnores: vi.fn().mockRejectedValue(new Error("Permission denied")),
+      writeRulesyncIgnoresFromToolIgnores: vi.fn(),
+    };
+
+    vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -315,7 +356,7 @@ describe("importConfiguration", () => {
     });
 
     expect(result.ignoreFileCreated).toBe(false);
-    expect(result.errors.some((e) => e.includes("Failed to create .rulesyncignore"))).toBe(true);
+    expect(result.errors.some((e) => e.includes("Failed to process ignore files"))).toBe(true);
   });
 
   it("should handle error creating .mcp.json", async () => {
@@ -346,12 +387,20 @@ describe("importConfiguration", () => {
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
       errors: [],
-      ignorePatterns: ["*.log", "temp/*"],
       mcpServers: {
         server1: { command: "test1" },
         server2: { command: "test2" },
       },
     });
+
+    const mockIgnoreProcessor = {
+      loadToolIgnores: vi
+        .fn()
+        .mockResolvedValue([{ toRulesyncIgnore: vi.fn() }, { toRulesyncIgnore: vi.fn() }]),
+      writeRulesyncIgnoresFromToolIgnores: vi.fn().mockResolvedValue(undefined),
+    };
+
+    vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
 
     await importConfiguration({
       tool: "claudecode",
@@ -367,7 +416,9 @@ describe("importConfiguration", () => {
     // Check that the ignore and MCP creation logs were called
     const successCalls = loggerSuccessSpy.mock.calls.map((call) => call[0]);
     expect(
-      successCalls.some((msg) => msg.includes("Created .rulesyncignore with 2 patterns")),
+      successCalls.some((msg) =>
+        msg.includes("Created ignore files from 2 tool ignore configurations"),
+      ),
     ).toBe(true);
     expect(successCalls.some((msg) => msg.includes("Created .mcp.json with 2 servers"))).toBe(true);
 
@@ -455,5 +506,28 @@ describe("importConfiguration", () => {
     expect(createdFile).not.toContain("root:");
     expect(createdFile).not.toContain("globs:");
     expect(createdFile).toContain("Optimize the code by following");
+  });
+
+  it("should not create ignore files when no tool ignores are found", async () => {
+    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const mockIgnoreProcessor = {
+      loadToolIgnores: vi.fn().mockResolvedValue([]), // Empty array
+      writeRulesyncIgnoresFromToolIgnores: vi.fn(),
+    };
+
+    vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
+
+    const result = await importConfiguration({
+      tool: "claudecode",
+      baseDir: testDir,
+    });
+
+    expect(result.ignoreFileCreated).toBe(false);
+    expect(mockIgnoreProcessor.loadToolIgnores).toHaveBeenCalled();
+    expect(mockIgnoreProcessor.writeRulesyncIgnoresFromToolIgnores).not.toHaveBeenCalled();
   });
 });
