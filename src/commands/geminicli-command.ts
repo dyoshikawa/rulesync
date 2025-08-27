@@ -1,11 +1,13 @@
 import { execSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import matter from "gray-matter";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
-import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
+import type { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { ParsedCommand } from "../types/commands.js";
-import type { RulesyncCommand } from "./rulesync-command.js";
-import { ToolCommand } from "./tool-command.js";
+import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import { ToolCommand, ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
 
 export const GeminiCliCommandFrontmatterSchema = z.object({
   description: z.optional(z.string()),
@@ -83,7 +85,70 @@ export class GeminiCliCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    throw new Error("toRulesyncCommand not implemented yet");
+    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+      targets: ["geminicli"],
+      description: this.frontmatter.description,
+    };
+
+    // Generate proper file content with Rulesync specific frontmatter
+    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
+
+    return new RulesyncCommand({
+      baseDir: this.baseDir,
+      frontmatter: rulesyncFrontmatter,
+      body: this.body,
+      relativeDirPath: ".rulesync/commands",
+      relativeFilePath: this.relativeFilePath,
+      fileContent,
+      validate: false,
+    });
+  }
+
+  static fromRulesyncCommand({
+    baseDir = ".",
+    rulesyncCommand,
+    relativeDirPath,
+    validate = true,
+  }: ToolCommandFromRulesyncCommandParams): GeminiCliCommand {
+    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
+
+    const geminiFrontmatter: GeminiCliCommandFrontmatter = {
+      description: rulesyncFrontmatter.description,
+      prompt: rulesyncCommand.getBody(),
+    };
+
+    // Generate proper file content with TOML format
+    const tomlContent = `description = "${geminiFrontmatter.description}"
+prompt = """
+${geminiFrontmatter.prompt}
+"""`;
+
+    return new GeminiCliCommand({
+      baseDir: baseDir,
+      relativeDirPath,
+      relativeFilePath: rulesyncCommand.getRelativeFilePath().replace(".md", ".toml"),
+      fileContent: tomlContent,
+      validate,
+    });
+  }
+
+  static async fromFilePath({
+    baseDir = ".",
+    relativeDirPath,
+    relativeFilePath,
+    filePath,
+    validate = true,
+  }: AiFileFromFilePathParams): Promise<GeminiCliCommand> {
+    // Read file content
+    const fileContent = await readFile(filePath, "utf-8");
+
+    return new GeminiCliCommand({
+      baseDir: baseDir,
+      relativeDirPath: relativeDirPath,
+      relativeFilePath: relativeFilePath,
+      fileContent,
+      validate,
+    });
   }
 
   validate(): ValidationResult {
