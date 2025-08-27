@@ -2,10 +2,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
-import { ClineMcp, ClineMcpConfig } from "./cline-mcp.js";
+import { ClaudecodeMcp, ClaudecodeMcpConfig } from "./claudecode-mcp.js";
 import { RulesyncMcp, RulesyncMcpFrontmatter } from "./rulesync-mcp.js";
 
-describe("ClineMcp", () => {
+describe("ClaudecodeMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -14,7 +14,7 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "stdio-server": {
               command: "python",
@@ -22,22 +22,22 @@ describe("ClineMcp", () => {
               env: {
                 API_KEY: "test-key",
               },
-              alwaysAllow: ["tool1", "tool2"],
+              timeout: 30000,
               disabled: false,
             },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        expect(clineMcp).toBeDefined();
-        expect(clineMcp.getConfig()).toEqual(config);
+        expect(claudecodeMcp).toBeDefined();
+        expect(claudecodeMcp.getConfig()).toEqual(config);
       } finally {
         await cleanup();
       }
@@ -47,58 +47,58 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "sse-server": {
               url: "https://mcp-example.com/endpoint",
+              transport: "sse",
               headers: {
                 Authorization: "Bearer test-token",
               },
-              alwaysAllow: [],
               disabled: false,
             },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        expect(clineMcp).toBeDefined();
-        expect(clineMcp.getConfig()).toEqual(config);
+        expect(claudecodeMcp).toBeDefined();
+        expect(claudecodeMcp.getConfig()).toEqual(config);
       } finally {
         await cleanup();
       }
     });
 
-    it("should create an instance with networkTimeout configuration", async () => {
+    it("should create an instance with HTTP configuration", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
-            "timeout-server": {
-              command: "node",
-              args: ["server.js"],
-              networkTimeout: 60000, // 1 minute
+            "http-server": {
+              url: "http://localhost:4000/mcp",
+              transport: "http",
+              timeout: 60000,
             },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        expect(clineMcp).toBeDefined();
-        expect(clineMcp.getConfig()).toEqual(config);
+        expect(claudecodeMcp).toBeDefined();
+        expect(claudecodeMcp.getConfig()).toEqual(config);
       } finally {
         await cleanup();
       }
@@ -118,17 +118,16 @@ describe("ClineMcp", () => {
         };
 
         // Schema validation is passed, but transport validation occurs in validate()
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(invalidConfig, null, 2),
-
-          config: invalidConfig as ClineMcpConfig,
+          config: invalidConfig as ClaudecodeMcpConfig,
           validate: false, // Skip validation during construction
         });
 
-        expect(clineMcp).toBeDefined();
+        expect(claudecodeMcp).toBeDefined();
       } finally {
         await cleanup();
       }
@@ -136,192 +135,27 @@ describe("ClineMcp", () => {
   });
 
   describe("getFileName", () => {
-    it("should return '.cline/mcp.json'", async () => {
+    it("should return '.mcp.json'", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             test: { command: "test" },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        expect(clineMcp.getFileName()).toBe(".cline/mcp.json");
+        expect(claudecodeMcp.getFileName()).toBe(".mcp.json");
       } finally {
         await cleanup();
-      }
-    });
-  });
-
-  describe("getGlobalConfigPath", () => {
-    it("should return correct path for macOS", () => {
-      const originalPlatform = process.platform;
-      const originalHome = process.env.HOME;
-
-      // Mock macOS environment
-      Object.defineProperty(process, "platform", {
-        value: "darwin",
-        configurable: true,
-      });
-      process.env.HOME = "/Users/testUser";
-
-      try {
-        const path = ClineMcp.getGlobalConfigPath();
-        expect(path).toBe(
-          "/Users/testUser/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-        );
-      } finally {
-        // Restore original values
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
-        process.env.HOME = originalHome;
-      }
-    });
-
-    it("should return correct path for Windows", () => {
-      const originalPlatform = process.platform;
-      const originalAppData = process.env.APPDATA;
-
-      // Mock Windows environment
-      Object.defineProperty(process, "platform", {
-        value: "win32",
-        configurable: true,
-      });
-      process.env.APPDATA = "C:\\Users\\testUser\\AppData\\Roaming";
-
-      try {
-        const path = ClineMcp.getGlobalConfigPath();
-        expect(path).toBe(
-          "C:\\Users\\testUser\\AppData\\Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-        );
-      } finally {
-        // Restore original values
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
-        process.env.APPDATA = originalAppData;
-      }
-    });
-
-    it("should return correct path for Linux", () => {
-      const originalPlatform = process.platform;
-      const originalHome = process.env.HOME;
-      const originalVscodeAgent = process.env.VSCODE_AGENT_FOLDER;
-
-      // Mock Linux environment
-      Object.defineProperty(process, "platform", {
-        value: "linux",
-        configurable: true,
-      });
-      process.env.HOME = "/home/testUser";
-      delete process.env.VSCODE_AGENT_FOLDER;
-
-      try {
-        const path = ClineMcp.getGlobalConfigPath();
-        expect(path).toBe(
-          "/home/testUser/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-        );
-      } finally {
-        // Restore original values
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
-        process.env.HOME = originalHome;
-        if (originalVscodeAgent) {
-          process.env.VSCODE_AGENT_FOLDER = originalVscodeAgent;
-        }
-      }
-    });
-
-    it("should return VS Code Server path for Linux when VSCODE_AGENT_FOLDER is set", () => {
-      const originalPlatform = process.platform;
-      const originalHome = process.env.HOME;
-      const originalVscodeAgent = process.env.VSCODE_AGENT_FOLDER;
-
-      // Mock Linux VS Code Server environment
-      Object.defineProperty(process, "platform", {
-        value: "linux",
-        configurable: true,
-      });
-      process.env.HOME = "/home/testUser";
-      process.env.VSCODE_AGENT_FOLDER = "/some/path";
-
-      try {
-        const path = ClineMcp.getGlobalConfigPath();
-        expect(path).toBe(
-          "/home/testUser/.vscode-server/data/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
-        );
-      } finally {
-        // Restore original values
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
-        process.env.HOME = originalHome;
-        if (originalVscodeAgent) {
-          process.env.VSCODE_AGENT_FOLDER = originalVscodeAgent;
-        } else {
-          delete process.env.VSCODE_AGENT_FOLDER;
-        }
-      }
-    });
-
-    it("should return null for unsupported platform", () => {
-      const originalPlatform = process.platform;
-
-      // Mock unsupported platform
-      Object.defineProperty(process, "platform", {
-        value: "freebsd",
-        configurable: true,
-      });
-
-      try {
-        const path = ClineMcp.getGlobalConfigPath();
-        expect(path).toBeNull();
-      } finally {
-        // Restore original value
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
-      }
-    });
-
-    it("should return null when HOME or APPDATA is not set", () => {
-      const originalPlatform = process.platform;
-      const originalHome = process.env.HOME;
-      const originalAppData = process.env.APPDATA;
-
-      // Test macOS without HOME
-      Object.defineProperty(process, "platform", {
-        value: "darwin",
-        configurable: true,
-      });
-      delete process.env.HOME;
-
-      try {
-        const path = ClineMcp.getGlobalConfigPath();
-        expect(path).toBeNull();
-      } finally {
-        // Restore original values
-        Object.defineProperty(process, "platform", {
-          value: originalPlatform,
-          configurable: true,
-        });
-        if (originalHome) process.env.HOME = originalHome;
-        if (originalAppData) process.env.APPDATA = originalAppData;
       }
     });
   });
@@ -331,27 +165,29 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "test-server": {
               command: "python",
               args: ["-m", "server"],
-              alwaysAllow: ["tool1"],
+              env: {
+                DEBUG: "true",
+              },
+              timeout: 45000,
               disabled: false,
-              networkTimeout: 45000,
             },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        const content = await clineMcp.generateContent();
+        const content = await claudecodeMcp.generateContent();
         const parsed = JSON.parse(content);
 
         expect(parsed).toEqual(config);
@@ -367,18 +203,18 @@ describe("ClineMcp", () => {
 
       try {
         const rulesyncServer: RulesyncMcpServer = {
-          targets: ["cline"] as const,
+          targets: ["claudecode"] as const,
           command: "python",
           args: ["-m", "server"],
           env: {
             API_KEY: "test-key",
           },
-          alwaysAllow: ["tool1", "tool2"],
+          timeout: 30000,
           disabled: false,
         };
 
         const frontmatter: RulesyncMcpFrontmatter = {
-          targets: ["cline"],
+          targets: ["claudecode"],
           name: "Test MCP Config",
           description: "Test configuration",
           servers: {
@@ -396,17 +232,17 @@ describe("ClineMcp", () => {
           validate: false,
         });
 
-        const clineMcp = ClineMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".cline");
+        const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
 
-        expect(clineMcp.getFileName()).toBe(".cline/mcp.json");
-        const config = clineMcp.getConfig();
+        expect(claudecodeMcp.getFileName()).toBe(".mcp.json");
+        const config = claudecodeMcp.getConfig();
         expect(config.mcpServers["test-server"]).toEqual({
           command: "python",
           args: ["-m", "server"],
           env: {
             API_KEY: "test-key",
           },
-          alwaysAllow: ["tool1", "tool2"],
+          timeout: 30000,
           disabled: false,
         });
       } finally {
@@ -419,18 +255,18 @@ describe("ClineMcp", () => {
 
       try {
         const rulesyncServer: RulesyncMcpServer = {
-          targets: ["cline"] as const,
+          targets: ["claudecode"] as const,
           url: "https://mcp-example.com/endpoint",
+          transport: "sse",
           headers: {
             Authorization: "Bearer token",
           },
-          alwaysAllow: [],
           disabled: true,
-          networkTimeout: 120000,
+          timeout: 120000,
         };
 
         const frontmatter: RulesyncMcpFrontmatter = {
-          targets: ["cline"],
+          targets: ["claudecode"],
           name: "SSE MCP Config",
           description: "SSE server configuration",
           servers: {
@@ -448,17 +284,60 @@ describe("ClineMcp", () => {
           validate: false,
         });
 
-        const clineMcp = ClineMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".cline");
+        const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
 
-        const config = clineMcp.getConfig();
+        const config = claudecodeMcp.getConfig();
         expect(config.mcpServers["remote-server"]).toEqual({
           url: "https://mcp-example.com/endpoint",
+          transport: "sse",
           headers: {
             Authorization: "Bearer token",
           },
-          alwaysAllow: [],
           disabled: true,
-          networkTimeout: 120000,
+          timeout: 120000,
+        });
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should convert HTTP server configuration", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const rulesyncServer: RulesyncMcpServer = {
+          targets: ["claudecode"] as const,
+          url: "http://localhost:4000/mcp",
+          transport: "http",
+          timeout: 60000,
+        };
+
+        const frontmatter: RulesyncMcpFrontmatter = {
+          targets: ["claudecode"],
+          name: "HTTP MCP Config",
+          description: "HTTP server configuration",
+          servers: {
+            "http-server": rulesyncServer,
+          },
+        };
+
+        const rulesyncMcp = new RulesyncMcp({
+          baseDir: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "mcp.yaml",
+          fileContent: "test",
+          frontmatter,
+          body: "test body",
+          validate: false,
+        });
+
+        const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
+
+        const config = claudecodeMcp.getConfig();
+        expect(config.mcpServers["http-server"]).toEqual({
+          url: "http://localhost:4000/mcp",
+          transport: "http",
+          timeout: 60000,
         });
       } finally {
         await cleanup();
@@ -470,13 +349,13 @@ describe("ClineMcp", () => {
 
       try {
         const rulesyncServer: RulesyncMcpServer = {
-          targets: ["cline"] as const,
+          targets: ["claudecode"] as const,
           command: ["node", "server.js", "--verbose"],
           args: ["--port", "3000"],
         };
 
         const frontmatter: RulesyncMcpFrontmatter = {
-          targets: ["cline"],
+          targets: ["claudecode"],
           name: "Command Array MCP Config",
           description: "Configuration with command arrays",
           servers: {
@@ -494,9 +373,9 @@ describe("ClineMcp", () => {
           validate: false,
         });
 
-        const clineMcp = ClineMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".cline");
+        const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
 
-        const config = clineMcp.getConfig();
+        const config = claudecodeMcp.getConfig();
         expect(config.mcpServers["node-server"]).toEqual({
           command: "node",
           args: ["server.js", "--verbose", "--port", "3000"],
@@ -506,12 +385,12 @@ describe("ClineMcp", () => {
       }
     });
 
-    it("should skip servers not targeting cline", async () => {
+    it("should skip servers not targeting claudecode", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
         const frontmatter: RulesyncMcpFrontmatter = {
-          targets: ["cline"],
+          targets: ["claudecode"],
           name: "Multi-target MCP Config",
           description: "Configuration with multiple targets",
           servers: {
@@ -519,8 +398,8 @@ describe("ClineMcp", () => {
               targets: ["cursor"],
               command: "test",
             },
-            "cline-server": {
-              targets: ["cline"],
+            "claudecode-server": {
+              targets: ["claudecode"],
               command: "test",
             },
           },
@@ -536,10 +415,10 @@ describe("ClineMcp", () => {
           validate: false,
         });
 
-        const clineMcp = ClineMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".cline");
+        const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp(rulesyncMcp, testDir, ".");
 
-        const config = clineMcp.getConfig();
-        expect(Object.keys(config.mcpServers)).toEqual(["cline-server"]);
+        const config = claudecodeMcp.getConfig();
+        expect(Object.keys(config.mcpServers)).toEqual(["claudecode-server"]);
         expect(config.mcpServers["cursor-only"]).toBeUndefined();
       } finally {
         await cleanup();
@@ -552,7 +431,7 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "stdio-server": {
               command: "python",
@@ -561,15 +440,15 @@ describe("ClineMcp", () => {
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(true);
         expect(result.error).toBeNull();
       } finally {
@@ -581,10 +460,11 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "sse-server": {
               url: "https://example.com/mcp",
+              transport: "sse",
               headers: {
                 Authorization: "Bearer token",
               },
@@ -592,15 +472,45 @@ describe("ClineMcp", () => {
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
+        expect(result.success).toBe(true);
+        expect(result.error).toBeNull();
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should pass validation for valid HTTP configuration", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const config: ClaudecodeMcpConfig = {
+          mcpServers: {
+            "http-server": {
+              url: "http://localhost:4000/mcp",
+              transport: "http",
+              timeout: 60000,
+            },
+          },
+        };
+
+        const claudecodeMcp = new ClaudecodeMcp({
+          baseDir: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(config, null, 2),
+          config,
+        });
+
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(true);
         expect(result.error).toBeNull();
       } finally {
@@ -612,7 +522,7 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "invalid-server": {
               // Missing both command and url
@@ -621,19 +531,19 @@ describe("ClineMcp", () => {
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
           validate: false, // Skip constructor validation
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(false);
         expect(result.error?.message).toContain(
-          "Server \"invalid-server\" must have either 'command' (for STDIO) or 'url' (for SSE) transport configuration",
+          "Server \"invalid-server\" must have either 'command' (for STDIO) or 'url' (for remote) transport configuration",
         );
       } finally {
         await cleanup();
@@ -644,7 +554,7 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "invalid-server": {
               command: "python",
@@ -653,19 +563,19 @@ describe("ClineMcp", () => {
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
           validate: false, // Skip constructor validation
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(false);
         expect(result.error?.message).toContain(
-          "Server \"invalid-server\" cannot have both STDIO ('command') and SSE ('url') transport configuration",
+          "Server \"invalid-server\" cannot have both STDIO ('command') and remote ('url') transport configuration",
         );
       } finally {
         await cleanup();
@@ -676,20 +586,20 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {},
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
           validate: false,
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(false);
         expect(result.error?.message).toBe("At least one MCP server must be defined");
       } finally {
@@ -697,60 +607,60 @@ describe("ClineMcp", () => {
       }
     });
 
-    it("should fail validation for networkTimeout outside valid range", async () => {
+    it("should fail validation for timeout outside valid range", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "invalid-timeout": {
               command: "python",
-              networkTimeout: 15000, // Less than 30 seconds
+              timeout: 500, // Less than 1 second
             },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
           validate: false,
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(false);
         expect(result.error?.message).toContain(
-          'Server "invalid-timeout" networkTimeout must be between 30 seconds (30000) and 1 hour (3600000)',
+          'Server "invalid-timeout" timeout must be between 1 second (1000) and 10 minutes (600000)',
         );
       } finally {
         await cleanup();
       }
     });
 
-    it("should pass validation for networkTimeout in valid range", async () => {
+    it("should pass validation for timeout in valid range", async () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "valid-timeout": {
               command: "python",
-              networkTimeout: 60000, // 1 minute - valid
+              timeout: 60000, // 1 minute - valid
             },
           },
         };
 
-        const clineMcp = new ClineMcp({
+        const claudecodeMcp = new ClaudecodeMcp({
           baseDir: testDir,
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
+          relativeDirPath: ".",
+          relativeFilePath: ".mcp.json",
           fileContent: JSON.stringify(config, null, 2),
           config,
         });
 
-        const result = clineMcp.validate();
+        const result = claudecodeMcp.validate();
         expect(result.success).toBe(true);
         expect(result.error).toBeNull();
       } finally {
@@ -764,29 +674,29 @@ describe("ClineMcp", () => {
       ({ testDir, cleanup } = await setupTestDirectory());
 
       try {
-        const config: ClineMcpConfig = {
+        const config: ClaudecodeMcpConfig = {
           mcpServers: {
             "file-server": {
               command: "node",
               args: ["server.js"],
-              alwaysAllow: ["read_file"],
+              timeout: 30000,
             },
           },
         };
 
-        const filePath = join(testDir, "cline_mcp_settings.json");
+        const filePath = join(testDir, ".mcp.json");
         await import("node:fs/promises").then((fs) =>
           fs.writeFile(filePath, JSON.stringify(config, null, 2)),
         );
 
-        const clineMcp = await ClineMcp.fromFilePath({
+        const claudecodeMcp = await ClaudecodeMcp.fromFilePath({
           baseDir: testDir,
           relativeDirPath: ".",
-          relativeFilePath: "cline_mcp_settings.json",
+          relativeFilePath: ".mcp.json",
           filePath,
         });
 
-        expect(clineMcp.getConfig()).toEqual(config);
+        expect(claudecodeMcp.getConfig()).toEqual(config);
       } finally {
         await cleanup();
       }
@@ -800,7 +710,7 @@ describe("ClineMcp", () => {
         await import("node:fs/promises").then((fs) => fs.writeFile(filePath, "{ invalid json"));
 
         await expect(
-          ClineMcp.fromFilePath({
+          ClaudecodeMcp.fromFilePath({
             baseDir: testDir,
             relativeDirPath: ".",
             relativeFilePath: "invalid.json",
@@ -826,14 +736,41 @@ describe("ClineMcp", () => {
         );
 
         await expect(
-          ClineMcp.fromFilePath({
+          ClaudecodeMcp.fromFilePath({
             baseDir: testDir,
             relativeDirPath: ".",
             relativeFilePath: "invalid-schema.json",
             filePath,
             validate: true,
           }),
-        ).rejects.toThrow("Invalid Cline MCP configuration");
+        ).rejects.toThrow("Invalid Claude Code MCP configuration");
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should load without validation when validate is false", async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+
+      try {
+        const invalidConfig = {
+          invalidField: "invalid",
+        };
+
+        const filePath = join(testDir, "invalid-schema.json");
+        await import("node:fs/promises").then((fs) =>
+          fs.writeFile(filePath, JSON.stringify(invalidConfig, null, 2)),
+        );
+
+        const claudecodeMcp = await ClaudecodeMcp.fromFilePath({
+          baseDir: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "invalid-schema.json",
+          filePath,
+          validate: false,
+        });
+
+        expect(claudecodeMcp).toBeDefined();
       } finally {
         await cleanup();
       }
