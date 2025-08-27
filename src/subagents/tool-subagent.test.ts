@@ -6,7 +6,7 @@ import { ToolSubagent, ToolSubagentFromRulesyncSubagentParams } from "./tool-sub
 
 // Concrete implementation for testing the abstract ToolSubagent class
 class TestToolSubagent extends ToolSubagent {
-  static fromFilePath(params: AiFileFromFilePathParams): ToolSubagent {
+  static async fromFilePath(params: AiFileFromFilePathParams): Promise<ToolSubagent> {
     return new TestToolSubagent({
       baseDir: params.baseDir || ".",
       relativeDirPath: params.relativeDirPath,
@@ -123,8 +123,8 @@ describe("ToolSubagent", () => {
   });
 
   describe("fromFilePath", () => {
-    it("should create instance from file path through concrete implementation", () => {
-      const toolSubagent = TestToolSubagent.fromFilePath({
+    it("should create instance from file path through concrete implementation", async () => {
+      const toolSubagent = await TestToolSubagent.fromFilePath({
         baseDir: testDir,
         relativeDirPath: ".tool/agents",
         relativeFilePath: "frompath.md",

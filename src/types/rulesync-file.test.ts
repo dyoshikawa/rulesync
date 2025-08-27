@@ -5,7 +5,7 @@ import { RulesyncFile, RulesyncFileParams } from "./rulesync-file.js";
 
 // Concrete implementation for testing the abstract RulesyncFile class
 class TestRulesyncFile extends RulesyncFile {
-  static fromFilePath(params: AiFileFromFilePathParams): TestRulesyncFile {
+  static async fromFilePath(params: AiFileFromFilePathParams): Promise<TestRulesyncFile> {
     return new TestRulesyncFile({
       baseDir: params.baseDir || ".",
       relativeDirPath: params.relativeDirPath,
@@ -212,8 +212,8 @@ describe("RulesyncFile", () => {
   });
 
   describe("fromFilePath", () => {
-    it("should create instance from file path through concrete implementation", () => {
-      const rulesyncFile = TestRulesyncFile.fromFilePath({
+    it("should create instance from file path through concrete implementation", async () => {
+      const rulesyncFile = await TestRulesyncFile.fromFilePath({
         baseDir: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "frompath.md",
@@ -237,8 +237,8 @@ describe("RulesyncFile", () => {
       }).toThrow("Please implement this method in the subclass.");
     });
 
-    it("should handle optional parameters with defaults", () => {
-      const rulesyncFile = TestRulesyncFile.fromFilePath({
+    it("should handle optional parameters with defaults", async () => {
+      const rulesyncFile = await TestRulesyncFile.fromFilePath({
         relativeDirPath: ".rulesync",
         relativeFilePath: "defaults.md",
         filePath: "/some/path/defaults.md",
@@ -395,11 +395,11 @@ Line 5 with empty line above`;
       expect(result).not.toBeNull();
     });
 
-    it("should enforce fromFilePath static method implementation", () => {
+    it("should enforce fromFilePath static method implementation", async () => {
       // Verify the static method exists and works
       expect(typeof TestRulesyncFile.fromFilePath).toBe("function");
 
-      const result = TestRulesyncFile.fromFilePath({
+      const result = await TestRulesyncFile.fromFilePath({
         baseDir: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "static.md",

@@ -9,7 +9,7 @@ export type ToolSubagentFromRulesyncSubagentParams = Omit<
 };
 
 export abstract class ToolSubagent extends AiFile {
-  static fromFilePath(_params: AiFileFromFilePathParams): ToolSubagent {
+  static async fromFilePath(_params: AiFileFromFilePathParams): Promise<ToolSubagent> {
     throw new Error("Please implement this method in the subclass.");
   }
 

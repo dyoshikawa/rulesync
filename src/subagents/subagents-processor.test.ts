@@ -1,13 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readdir } from "node:fs/promises";
 import { z } from "zod/mini";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SubagentsProcessor, SubagentsProcessorToolTarget } from "./subagents-processor.js";
 
-// Mock the file utility to avoid actual file system operations in isolated tests
+// Mock the file utilities and file system operations
 vi.mock("../utils/file.js", () => ({
   writeFileContent: vi.fn().mockResolvedValue(undefined),
+  directoryExists: vi.fn().mockResolvedValue(true),
+  readFileContent: vi.fn().mockResolvedValue(""),
+}));
+
+vi.mock("node:fs/promises", () => ({
+  readdir: vi.fn(),
+  readFile: vi.fn(),
+  mkdtemp: vi.fn(),
+  rm: vi.fn(),
+}));
+
+vi.mock("./rulesync-subagent.js", () => ({
+  RulesyncSubagent: vi.fn().mockImplementation((args) => ({
+    getFrontmatter: vi.fn().mockReturnValue(args.frontmatter),
+    getBody: vi.fn().mockReturnValue(args.body),
+    ...args,
+  })),
 }));
 
 describe("SubagentsProcessor", () => {
@@ -49,10 +67,14 @@ describe("SubagentsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const rulesyncSubagent = new RulesyncSubagent({
+      // Mock the file system to return markdown files
+      (readdir as any).mockResolvedValue(["planner.md"]);
+      
+      // Mock RulesyncSubagent.fromFilePath to return a mock subagent
+      const mockSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Test Planner",
+          title: "Test Planner", 
           description: "A test planning agent",
           claudecode: {
             model: "sonnet",
@@ -73,11 +95,14 @@ claudecode:
 You are a helpful planning agent.`,
         validate: false,
       });
+      
+      (RulesyncSubagent.fromFilePath as any).mockResolvedValue(mockSubagent);
 
-      await processor.writeToolSubagentsFromRulesyncSubagents([rulesyncSubagent]);
+      await processor.writeToolSubagentsFromRulesyncSubagents();
 
       // The method should complete without throwing
-      expect(true).toBe(true);
+      expect(readdir).toHaveBeenCalled();
+      expect(RulesyncSubagent.fromFilePath).toHaveBeenCalled();
     });
 
     it("should handle multiple rulesync subagents", async () => {
@@ -85,6 +110,9 @@ You are a helpful planning agent.`,
         baseDir: testDir,
         toolTarget: "claudecode",
       });
+
+      // Mock the file system to return multiple markdown files
+      (readdir as any).mockResolvedValue(["planner.md", "reviewer.md"]);
 
       const subagent1 = new RulesyncSubagent({
         frontmatter: {
@@ -104,7 +132,7 @@ You are a helpful planning agent.`,
       const subagent2 = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Reviewer",
+          title: "Reviewer", 
           description: "Review agent",
         },
         body: "Review content",
@@ -116,49 +144,44 @@ You are a helpful planning agent.`,
         validate: false,
       });
 
-      await processor.writeToolSubagentsFromRulesyncSubagents([subagent1, subagent2]);
+      // Mock multiple calls to fromFilePath
+      (RulesyncSubagent.fromFilePath as any)
+        .mockResolvedValueOnce(subagent1)
+        .mockResolvedValueOnce(subagent2);
 
-      expect(true).toBe(true);
+      await processor.writeToolSubagentsFromRulesyncSubagents();
+
+      expect(readdir).toHaveBeenCalled();
+      expect(RulesyncSubagent.fromFilePath).toHaveBeenCalledTimes(2);
     });
 
-    it("should handle empty array", async () => {
+    it("should throw error when no markdown files found", async () => {
       const processor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      await processor.writeToolSubagentsFromRulesyncSubagents([]);
+      // Mock empty directory
+      (readdir as any).mockResolvedValue([]);
 
-      expect(true).toBe(true);
+      await expect(processor.writeToolSubagentsFromRulesyncSubagents()).rejects.toThrow(
+        "No markdown files found in rulesync subagents directory"
+      );
     });
 
-    it("should throw error for unsupported tool target", async () => {
-      // Modify the internal toolTarget to simulate unsupported target
-      // Since toolTarget is private, we'll test by creating a modified version
-      const mockProcessor = Object.create(SubagentsProcessor.prototype);
-      mockProcessor.baseDir = testDir;
-      mockProcessor.toolTarget = "unsupported";
-      mockProcessor.writeAiFiles = vi.fn().mockResolvedValue(undefined);
-
-      const rulesyncSubagent = new RulesyncSubagent({
-        frontmatter: {
-          targets: ["claudecode"],
-          title: "Test",
-          description: "Test description",
-        },
-        body: "Test body",
+    it("should throw error when subagents directory does not exist", async () => {
+      const processor = new SubagentsProcessor({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test.md",
-        fileContent: "Test content",
-        validate: false,
+        toolTarget: "claudecode",
       });
 
-      await expect(
-        SubagentsProcessor.prototype.writeToolSubagentsFromRulesyncSubagents.call(mockProcessor, [
-          rulesyncSubagent,
-        ]),
-      ).rejects.toThrow("Unsupported tool target: unsupported");
+      // Mock directory not existing
+      const { directoryExists } = await import("../utils/file.js");
+      (directoryExists as any).mockResolvedValue(false);
+
+      await expect(processor.writeToolSubagentsFromRulesyncSubagents()).rejects.toThrow(
+        "Rulesync subagents directory not found"
+      );
     });
   });
 
@@ -251,31 +274,20 @@ You are a helpful planning agent.`,
   });
 
   describe("error handling", () => {
-    it("should handle file write errors gracefully", async () => {
+    it("should handle file parsing errors gracefully", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: "/invalid/path",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      const rulesyncSubagent = new RulesyncSubagent({
-        frontmatter: {
-          targets: ["claudecode"],
-          title: "Test",
-          description: "Test description",
-        },
-        body: "Test body",
-        baseDir: "/invalid/path",
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test.md",
-        fileContent: "Test content",
-        validate: false,
-      });
+      // Mock file system
+      (readdir as any).mockResolvedValue(["invalid.md"]);
+      (RulesyncSubagent.fromFilePath as any).mockRejectedValue(new Error("Invalid frontmatter"));
 
-      // Since we're mocking writeFileContent, this should not throw
-      // In real scenarios, it would throw due to invalid path
-      await expect(
-        processor.writeToolSubagentsFromRulesyncSubagents([rulesyncSubagent]),
-      ).resolves.not.toThrow();
+      // Should throw when no valid subagents found
+      await expect(processor.writeToolSubagentsFromRulesyncSubagents()).rejects.toThrow(
+        "No valid subagents found"
+      );
     });
   });
 

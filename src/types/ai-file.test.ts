@@ -5,7 +5,7 @@ import { AiFile, AiFileFromFilePathParams, ValidationResult } from "./ai-file.js
 
 // Concrete implementation for testing the abstract AiFile class
 class TestAiFile extends AiFile {
-  static fromFilePath(params: AiFileFromFilePathParams): TestAiFile {
+  static async fromFilePath(params: AiFileFromFilePathParams): Promise<TestAiFile> {
     return new TestAiFile({
       baseDir: params.baseDir || ".",
       relativeDirPath: params.relativeDirPath,
@@ -110,8 +110,8 @@ describe("AiFile", () => {
   });
 
   describe("fromFilePath", () => {
-    it("should create instance from file path parameters", () => {
-      const aiFile = TestAiFile.fromFilePath({
+    it("should create instance from file path parameters", async () => {
+      const aiFile = await TestAiFile.fromFilePath({
         baseDir: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "test.md",
