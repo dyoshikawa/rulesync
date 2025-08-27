@@ -1,3 +1,4 @@
+import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -65,13 +66,21 @@ export class ClaudecodeSubagent extends ToolSubagent {
       model: rulesyncFrontmatter.claudecode?.model,
     };
 
+    // Generate proper file content with Claude Code specific frontmatter
+    const body = rulesyncSubagent.getBody();
+    // Remove undefined values to avoid YAML dump errors
+    const cleanFrontmatter = Object.fromEntries(
+      Object.entries(claudecodeFrontmatter).filter(([, value]) => value !== undefined)
+    );
+    const fileContent = matter.stringify(body, cleanFrontmatter);
+
     return new ClaudecodeSubagent({
       baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
-      body: rulesyncSubagent.getBody(),
+      body,
       relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent: rulesyncSubagent.getFileContent(),
+      fileContent,
       validate,
     });
   }
