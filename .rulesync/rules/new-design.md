@@ -24,13 +24,7 @@ The replacement is conducted while coexisting with the existing codebase.
 
 I think, finally, src/cli will depend on src/subagents, src/rules, src/mcp, src/commands and src/ignore. Then, src/core, src/generators and src/parsers will be abolished. Others that are src/constants, src/test-utils, src/types and src/utils will be used in the future too.
 
-## Current status and immediate goals
-
-Until now, I completed subagents replacement.
-
-My immediate goal is replacing the custom slash command generation logics.
-
-Others that are mcp, ignore and rules should not be replaced yet.
+## Attention points
 
 Attention, the replacements must not break the existing behaviors.
 

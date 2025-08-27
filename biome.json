@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
   "assist": {
     "enabled": true,
     "actions": {
@@ -28,6 +28,6 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["src/**/*", "tests/**/*", "*.js", "*.mjs", "*.ts"]
+    "includes": ["src/**/*", "tests/**/*", "*.js", "*.mjs", "*.ts", "scripts/**/*"]
   }
 }
