@@ -51,6 +51,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
+    baseDir = ".",
     rulesyncSubagent,
     relativeDirPath,
     validate = true,
@@ -63,11 +64,12 @@ export class ClaudecodeSubagent extends ToolSubagent {
     };
 
     return new ClaudecodeSubagent({
+      baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
       body: rulesyncSubagent.getBody(),
       relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent: rulesyncSubagent.getBody(),
+      fileContent: rulesyncSubagent.getFileContent(),
       validate,
     });
   }

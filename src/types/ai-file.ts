@@ -37,6 +37,9 @@ export abstract class AiFile {
    */
   protected readonly relativeFilePath: string;
 
+  /**
+   * Whole raw file content
+   */
   protected readonly fileContent: string;
 
   constructor({

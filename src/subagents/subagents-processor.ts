@@ -1,6 +1,5 @@
 import { z } from "zod/mini";
 import { Processor } from "../types/processor.js";
-import { writeFileContent } from "../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
@@ -17,7 +16,7 @@ export class SubagentsProcessor extends Processor {
     toolTarget,
   }: { baseDir: string; toolTarget: SubagentsProcessorToolTarget }) {
     super({ baseDir });
-    this.toolTarget = toolTarget;
+    this.toolTarget = SubagentsProcessorToolTargetSchema.parse(toolTarget);
   }
 
   async writeToolSubagentsFromRulesyncSubagents(
@@ -27,9 +26,8 @@ export class SubagentsProcessor extends Processor {
       switch (this.toolTarget) {
         case "claudecode":
           return ClaudecodeSubagent.fromRulesyncSubagent({
-            ...rulesyncSubagent,
+            baseDir: this.baseDir,
             relativeDirPath: ".claude/agents",
-            relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
             rulesyncSubagent: rulesyncSubagent,
           });
         default:
@@ -37,17 +35,14 @@ export class SubagentsProcessor extends Processor {
       }
     });
 
-    writeFileContent(
-      path.join(this.baseDir, "subagents", "tool-subagents.json"),
-      JSON.stringify(toolSubagents, null, 2),
-    );
+    await this.writeAiFiles(toolSubagents);
   }
 
-  writeRulesyncSubagentsFromToolSubagents(toolSubagents: ToolSubagent[]): {
-    subagents: RulesyncSubagent[];
-  } {
-    return {
-      subagents: [],
-    };
+  async writeRulesyncSubagentsFromToolSubagents(toolSubagents: ToolSubagent[]): Promise<void> {
+    const rulesyncSubagents = toolSubagents.map((toolSubagent) => {
+      return toolSubagent.toRulesyncSubagent();
+    });
+
+    await this.writeAiFiles(rulesyncSubagents);
   }
 }
