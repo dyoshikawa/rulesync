@@ -30,7 +30,7 @@ class TestToolSubagent extends ToolSubagent {
     return new RulesyncSubagent({
       frontmatter: {
         targets: ["claudecode"],
-        title: "Test Tool Subagent",
+        name: "Test Tool Subagent",
         description: "Converted from tool subagent",
       },
       body: "Converted body content",
@@ -153,7 +153,7 @@ describe("ToolSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Source Agent",
+          name: "Source Agent",
           description: "Source agent description",
         },
         body: "Source body content",
@@ -180,7 +180,7 @@ describe("ToolSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Test Agent",
+          name: "Test Agent",
           description: "Test description",
         },
         body: "Test body",
@@ -204,7 +204,7 @@ describe("ToolSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Default Test",
+          name: "Default Test",
           description: "Test with defaults",
         },
         body: "Default body",
@@ -236,7 +236,7 @@ describe("ToolSubagent", () => {
       const rulesyncSubagent = toolSubagent.toRulesyncSubagent();
 
       expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
-      expect(rulesyncSubagent.getFrontmatter().title).toBe("Test Tool Subagent");
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("Test Tool Subagent");
       expect(rulesyncSubagent.getFrontmatter().description).toBe("Converted from tool subagent");
       expect(rulesyncSubagent.getBody()).toBe("Converted body content");
     });
@@ -282,7 +282,7 @@ describe("ToolSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Static Test",
+          name: "Static Test",
           description: "Testing static method",
         },
         body: "Static test body",
@@ -363,7 +363,7 @@ describe("ToolSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Type Test",
+          name: "Type Test",
           description: "Testing types",
         },
         body: "Type test body",

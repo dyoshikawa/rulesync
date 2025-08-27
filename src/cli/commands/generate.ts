@@ -4,7 +4,7 @@ import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/in
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
-import { generateSubagents } from "../../core/subagent-generator.js";
+import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
 import { normalizeFeatures } from "../../utils/feature-validator.js";
@@ -366,24 +366,49 @@ Available tools:
       if (normalizedFeatures.includes("subagents")) {
         logger.info("\nGenerating subagent files...");
 
-        for (const baseDir of baseDirs) {
-          const subagentResults = await generateSubagents(
-            config.aiRulesDir,
-            baseDir === process.cwd() ? undefined : baseDir,
-            config.defaultTargets,
-            rules,
-          );
+        // Check if claudecode is in the target tools
+        if (config.defaultTargets.includes("claudecode")) {
+          for (const baseDir of baseDirs) {
+            try {
+              // Check if rulesync subagent source directory exists
+              const rulesyncSubagentsDir = join(".rulesync", "subagents");
+              const fullPath = join(baseDir === process.cwd() ? "." : baseDir, rulesyncSubagentsDir);
+              
+              if (!(await fileExists(fullPath))) {
+                logger.info(`No rulesync subagents directory found at ${fullPath}`);
+                continue;
+              }
 
-          if (subagentResults.length === 0) {
-            logger.info(`No subagents generated for ${baseDir}`);
-            continue;
-          }
+              // Use SubagentsProcessor to generate subagent files
+              const processor = new SubagentsProcessor({
+                baseDir: baseDir === process.cwd() ? "." : baseDir,
+                toolTarget: "claudecode",
+              });
 
-          for (const result of subagentResults) {
-            await writeFileContent(result.filepath, result.content);
-            logger.success(`Generated ${result.tool} subagent: ${result.filepath}`);
-            totalSubagentOutputs++;
+              const rulesyncSubagents = await processor.loadRulesyncSubagents();
+              await processor.writeToolSubagentsFromRulesyncSubagents(rulesyncSubagents);
+              
+              // Count the generated files
+              const outputDir = join(baseDir === process.cwd() ? "." : baseDir, ".claude", "agents");
+              if (await fileExists(outputDir)) {
+                const { readdir } = await import("node:fs/promises");
+                const files = await readdir(outputDir);
+                const generatedCount = files.filter((file) => file.endsWith(".md")).length;
+                totalSubagentOutputs += generatedCount;
+                
+                if (generatedCount > 0) {
+                  logger.success(`Generated ${generatedCount} Claude Code subagent(s) in ${outputDir}`);
+                }
+              }
+            } catch (error) {
+              logger.warn(
+                `Failed to generate subagents for ${baseDir}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+              continue;
+            }
           }
+        } else {
+          logger.info("Skipping subagent generation (claudecode not in target tools)");
         }
       } else {
         logger.info("\nSkipping subagent file generation (not in --features)");

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod/mini";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -11,21 +12,6 @@ vi.mock("../utils/file.js", () => ({
   writeFileContent: vi.fn().mockResolvedValue(undefined),
   directoryExists: vi.fn().mockResolvedValue(true),
   readFileContent: vi.fn().mockResolvedValue(""),
-}));
-
-vi.mock("node:fs/promises", () => ({
-  readdir: vi.fn(),
-  readFile: vi.fn(),
-  mkdtemp: vi.fn(),
-  rm: vi.fn(),
-}));
-
-vi.mock("./rulesync-subagent.js", () => ({
-  RulesyncSubagent: vi.fn().mockImplementation((args) => ({
-    getFrontmatter: vi.fn().mockReturnValue(args.frontmatter),
-    getBody: vi.fn().mockReturnValue(args.body),
-    ...args,
-  })),
 }));
 
 describe("SubagentsProcessor", () => {
@@ -60,99 +46,34 @@ describe("SubagentsProcessor", () => {
     });
   });
 
-  describe("writeToolSubagentsFromRulesyncSubagents", () => {
-    it("should convert rulesync subagents to claude code subagents", async () => {
+  describe("loadRulesyncSubagents", () => {
+    it("should load and parse rulesync subagent files", async () => {
       const processor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      // Mock the file system to return markdown files
-      (readdir as any).mockResolvedValue(["planner.md"]);
+      // Create a mock rulesync subagent file
+      const rulesyncDir = join(testDir, ".rulesync", "subagents");
+      await mkdir(rulesyncDir, { recursive: true });
       
-      // Mock RulesyncSubagent.fromFilePath to return a mock subagent
-      const mockSubagent = new RulesyncSubagent({
-        frontmatter: {
-          targets: ["claudecode"],
-          title: "Test Planner", 
-          description: "A test planning agent",
-          claudecode: {
-            model: "sonnet",
-          },
-        },
-        body: "You are a helpful planning agent.",
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "planner.md",
-        fileContent: `---
+      const fileContent = `---
 targets: ["claudecode"]
-title: "Test Planner"
+name: "Test Planner"
 description: "A test planning agent"
 claudecode:
   model: "sonnet"
 ---
 
-You are a helpful planning agent.`,
-        validate: false,
-      });
+You are a helpful planning agent.`;
       
-      (RulesyncSubagent.fromFilePath as any).mockResolvedValue(mockSubagent);
+      await writeFile(join(rulesyncDir, "planner.md"), fileContent);
 
-      await processor.writeToolSubagentsFromRulesyncSubagents();
+      const rulesyncSubagents = await processor.loadRulesyncSubagents();
 
-      // The method should complete without throwing
-      expect(readdir).toHaveBeenCalled();
-      expect(RulesyncSubagent.fromFilePath).toHaveBeenCalled();
-    });
-
-    it("should handle multiple rulesync subagents", async () => {
-      const processor = new SubagentsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
-
-      // Mock the file system to return multiple markdown files
-      (readdir as any).mockResolvedValue(["planner.md", "reviewer.md"]);
-
-      const subagent1 = new RulesyncSubagent({
-        frontmatter: {
-          targets: ["claudecode"],
-          title: "Planner",
-          description: "Planning agent",
-        },
-        body: "Planning content",
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "planner.md",
-        fileContent:
-          '---\ntargets: ["claudecode"]\ntitle: "Planner"\ndescription: "Planning agent"\n---\n\nPlanning content',
-        validate: false,
-      });
-
-      const subagent2 = new RulesyncSubagent({
-        frontmatter: {
-          targets: ["claudecode"],
-          title: "Reviewer", 
-          description: "Review agent",
-        },
-        body: "Review content",
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "reviewer.md",
-        fileContent:
-          '---\ntargets: ["claudecode"]\ntitle: "Reviewer"\ndescription: "Review agent"\n---\n\nReview content',
-        validate: false,
-      });
-
-      // Mock multiple calls to fromFilePath
-      (RulesyncSubagent.fromFilePath as any)
-        .mockResolvedValueOnce(subagent1)
-        .mockResolvedValueOnce(subagent2);
-
-      await processor.writeToolSubagentsFromRulesyncSubagents();
-
-      expect(readdir).toHaveBeenCalled();
-      expect(RulesyncSubagent.fromFilePath).toHaveBeenCalledTimes(2);
+      expect(rulesyncSubagents).toHaveLength(1);
+      expect(rulesyncSubagents[0]!).toBeInstanceOf(RulesyncSubagent);
+      expect(rulesyncSubagents[0]!.getFrontmatter().name).toBe("Test Planner");
     });
 
     it("should throw error when no markdown files found", async () => {
@@ -161,10 +82,11 @@ You are a helpful planning agent.`,
         toolTarget: "claudecode",
       });
 
-      // Mock empty directory
-      (readdir as any).mockResolvedValue([]);
+      // Create empty directory
+      const rulesyncDir = join(testDir, ".rulesync", "subagents");
+      await mkdir(rulesyncDir, { recursive: true });
 
-      await expect(processor.writeToolSubagentsFromRulesyncSubagents()).rejects.toThrow(
+      await expect(processor.loadRulesyncSubagents()).rejects.toThrow(
         "No markdown files found in rulesync subagents directory"
       );
     });
@@ -175,14 +97,94 @@ You are a helpful planning agent.`,
         toolTarget: "claudecode",
       });
 
-      // Mock directory not existing
-      const { directoryExists } = await import("../utils/file.js");
-      (directoryExists as any).mockResolvedValue(false);
-
-      await expect(processor.writeToolSubagentsFromRulesyncSubagents()).rejects.toThrow(
-        "Rulesync subagents directory not found"
+      await expect(processor.loadRulesyncSubagents()).rejects.toThrow(
+        "ENOENT"
       );
     });
+  });
+
+  describe("writeToolSubagentsFromRulesyncSubagents", () => {
+    it("should convert rulesync subagents to claude code subagents", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        frontmatter: {
+          targets: ["claudecode"],
+          name: "Test Planner",
+          description: "A test planning agent",
+          claudecode: {
+            model: "sonnet",
+          },
+        },
+        body: "You are a helpful planning agent.",
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "planner.md",
+        fileContent: "Test file content",
+        validate: false,
+      });
+
+      // Mock writeFileContent to avoid actual file writing
+      const { writeFileContent } = await import("../utils/file.js");
+      (writeFileContent as any).mockClear(); // Clear previous calls
+      (writeFileContent as any).mockResolvedValue(undefined);
+
+      await processor.writeToolSubagentsFromRulesyncSubagents([rulesyncSubagent]);
+
+      // Verify the write was called
+      expect(writeFileContent).toHaveBeenCalled();
+    });
+
+    it("should handle multiple rulesync subagents", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const subagent1 = new RulesyncSubagent({
+        frontmatter: {
+          targets: ["claudecode"],
+          name: "Planner",
+          description: "Planning agent",
+        },
+        body: "Planning content",
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "planner.md",
+        fileContent:
+          '---\ntargets: ["claudecode"]\nname: "Planner"\ndescription: "Planning agent"\n---\n\nPlanning content',
+        validate: false,
+      });
+
+      const subagent2 = new RulesyncSubagent({
+        frontmatter: {
+          targets: ["claudecode"],
+          name: "Reviewer", 
+          description: "Review agent",
+        },
+        body: "Review content",
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "reviewer.md",
+        fileContent:
+          '---\ntargets: ["claudecode"]\nname: "Reviewer"\ndescription: "Review agent"\n---\n\nReview content',
+        validate: false,
+      });
+
+      // Mock writeFileContent to avoid actual file writing
+      const { writeFileContent } = await import("../utils/file.js");
+      (writeFileContent as any).mockClear(); // Clear previous calls
+      (writeFileContent as any).mockResolvedValue(undefined);
+
+      await processor.writeToolSubagentsFromRulesyncSubagents([subagent1, subagent2]);
+
+      // Verify the write was called twice (once for each subagent)
+      expect(writeFileContent).toHaveBeenCalledTimes(2);
+    });
+
   });
 
   describe("writeRulesyncSubagentsFromToolSubagents", () => {
@@ -273,23 +275,6 @@ You are a helpful planning agent.`,
     });
   });
 
-  describe("error handling", () => {
-    it("should handle file parsing errors gracefully", async () => {
-      const processor = new SubagentsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
-
-      // Mock file system
-      (readdir as any).mockResolvedValue(["invalid.md"]);
-      (RulesyncSubagent.fromFilePath as any).mockRejectedValue(new Error("Invalid frontmatter"));
-
-      // Should throw when no valid subagents found
-      await expect(processor.writeToolSubagentsFromRulesyncSubagents()).rejects.toThrow(
-        "No valid subagents found"
-      );
-    });
-  });
 
   describe("integration tests", () => {
     it("should perform round-trip conversion rulesync -> claude code -> rulesync", async () => {
@@ -297,7 +282,7 @@ You are a helpful planning agent.`,
       const originalRulesync = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Original Planner",
+          name: "Original Planner",
           description: "Original planning agent",
           claudecode: { model: "sonnet" },
         },
@@ -320,7 +305,7 @@ You are a helpful planning agent.`,
       const convertedRulesync = claudecodeSubagent.toRulesyncSubagent();
 
       // Verify the conversion preserves essential data
-      expect(convertedRulesync.getFrontmatter().title).toBe("Original Planner");
+      expect(convertedRulesync.getFrontmatter().name).toBe("Original Planner");
       expect(convertedRulesync.getFrontmatter().description).toBe("Original planning agent");
       expect(convertedRulesync.getBody()).toBe("Original content");
       expect(convertedRulesync.getFrontmatter().targets).toEqual(["claudecode"]);

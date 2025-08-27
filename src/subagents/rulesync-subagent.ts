@@ -10,7 +10,7 @@ export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "i
 
 export const RulesyncSubagentFrontmatterSchema = z.object({
   targets: RulesyncTargetsSchema,
-  title: z.string(),
+  name: z.string(),
   description: z.string(),
   claudecode: z.optional(
     z.object({

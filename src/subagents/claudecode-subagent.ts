@@ -41,7 +41,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     return new RulesyncSubagent({
       frontmatter: {
         targets: ["claudecode"],
-        title: this.frontmatter.name,
+        name: this.frontmatter.name,
         description: this.frontmatter.description,
       },
       body: this.body,
@@ -60,7 +60,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const claudecodeFrontmatter: ClaudecodeSubagentFrontmatter = {
-      name: rulesyncFrontmatter.title,
+      name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       model: rulesyncFrontmatter.claudecode?.model,
     };

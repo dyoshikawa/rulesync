@@ -195,7 +195,7 @@ You are a helpful planning agent.`,
       expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
       expect(rulesyncSubagent.getFrontmatter()).toEqual({
         targets: ["claudecode"],
-        title: "Test Planner",
+        name: "Test Planner",
         description: "A test planning agent",
       });
       expect(rulesyncSubagent.getBody()).toBe("You are a helpful planning agent.");
@@ -220,7 +220,7 @@ You are a helpful planning agent.`,
 
       expect(rulesyncSubagent.getFrontmatter()).toEqual({
         targets: ["claudecode"],
-        title: "Simple Agent",
+        name: "Simple Agent",
         description: "A simple agent",
       });
     });
@@ -231,7 +231,7 @@ You are a helpful planning agent.`,
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Test Reviewer",
+          name: "Test Reviewer",
           description: "A test review agent",
           claudecode: {
             model: "opus",
@@ -259,7 +259,7 @@ You are a helpful planning agent.`,
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "No Model Agent",
+          name: "No Model Agent",
           description: "Agent without model specification",
         },
         body: "Agent content",
@@ -285,7 +285,7 @@ You are a helpful planning agent.`,
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "Default Test",
+          name: "Default Test",
           description: "Test with defaults",
         },
         body: "Default content",
@@ -309,7 +309,7 @@ You are a helpful planning agent.`,
       const rulesyncSubagent = new RulesyncSubagent({
         frontmatter: {
           targets: ["claudecode"],
-          title: "", // Empty title would be invalid
+          name: "", // Empty title would be invalid
           description: "", // Empty description would be invalid
         },
         body: "Content",
@@ -443,7 +443,7 @@ You are a helpful planning agent.`,
 
       // Verify data preservation
       const convertedRulesync = convertedSubagent.toRulesyncSubagent();
-      expect(convertedRulesync.getFrontmatter().title).toBe("Round Trip Agent");
+      expect(convertedRulesync.getFrontmatter().name).toBe("Round Trip Agent");
       expect(convertedRulesync.getFrontmatter().description).toBe("Agent for round trip testing");
       expect(convertedRulesync.getBody()).toBe("Round trip content");
     });

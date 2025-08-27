@@ -19,7 +19,7 @@ describe("RulesyncSubagent", () => {
     it("should create instance with valid frontmatter", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: "Test Planner",
+        name: "Test Planner",
         description: "A test planning agent",
       };
 
@@ -31,7 +31,7 @@ describe("RulesyncSubagent", () => {
         relativeFilePath: "planner.md",
         fileContent: `---
 targets: ["claudecode"]
-title: "Test Planner"
+name: "Test Planner"
 description: "A test planning agent"
 ---
 
@@ -47,7 +47,7 @@ You are a helpful planning agent.`,
     it("should create instance with multiple targets", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode", "cursor", "cline"],
-        title: "Multi-target Agent",
+        name: "Multi-target Agent",
         description: "Agent for multiple tools",
       };
 
@@ -66,7 +66,7 @@ You are a helpful planning agent.`,
     it("should create instance with claudecode options", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: "Agent with Options",
+        name: "Agent with Options",
         description: "Agent with Claude Code specific options",
         claudecode: {
           model: "sonnet",
@@ -88,7 +88,7 @@ You are a helpful planning agent.`,
     it("should validate frontmatter by default", () => {
       const invalidFrontmatter = {
         targets: ["invalid-target"], // not a valid target
-        title: "Invalid Agent",
+        name: "Invalid Agent",
         description: "Agent with invalid target",
       } as unknown as RulesyncSubagentFrontmatter;
 
@@ -107,7 +107,7 @@ You are a helpful planning agent.`,
     it("should skip validation when validate=false", () => {
       const invalidFrontmatter = {
         targets: ["invalid-target"],
-        title: "Invalid Agent",
+        name: "Invalid Agent",
         description: "Agent with invalid target",
       } as unknown as RulesyncSubagentFrontmatter;
 
@@ -129,7 +129,7 @@ You are a helpful planning agent.`,
     it("should return the frontmatter object", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode", "cursor"],
-        title: "Test Agent",
+        name: "Test Agent",
         description: "Test agent description",
         claudecode: {
           model: "opus",
@@ -156,7 +156,7 @@ You are a helpful planning agent.`,
     it("should return success for valid frontmatter", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: "Valid Agent",
+        name: "Valid Agent",
         description: "Valid agent description",
       };
 
@@ -178,7 +178,7 @@ You are a helpful planning agent.`,
     it("should return error for invalid frontmatter", () => {
       const invalidFrontmatter = {
         targets: ["invalid-target"],
-        title: "Invalid Agent",
+        name: "Invalid Agent",
         description: "Invalid agent description",
       } as unknown as RulesyncSubagentFrontmatter;
 
@@ -220,7 +220,7 @@ You are a helpful planning agent.`,
       validTargets.forEach((target) => {
         const frontmatter: RulesyncSubagentFrontmatter = {
           targets: [target as any],
-          title: `Agent for ${target}`,
+          name: `Agent for ${target}`,
           description: `Agent targeting ${target}`,
         };
 
@@ -245,7 +245,7 @@ You are a helpful planning agent.`,
       validModels.forEach((model) => {
         const frontmatter: RulesyncSubagentFrontmatter = {
           targets: ["claudecode"],
-          title: `Agent with ${model}`,
+          name: `Agent with ${model}`,
           description: `Agent using ${model} model`,
           claudecode: {
             model: model as any,
@@ -272,13 +272,13 @@ You are a helpful planning agent.`,
     it("should validate RulesyncSubagentFrontmatterSchema with required fields", () => {
       const validFrontmatter = {
         targets: ["claudecode"],
-        title: "Valid Agent",
+        name: "Valid Agent",
         description: "Valid description",
       };
 
       const invalidFrontmatter1 = {
         // missing targets
-        title: "Invalid Agent",
+        name: "Invalid Agent",
         description: "Invalid description",
       };
 
@@ -290,7 +290,7 @@ You are a helpful planning agent.`,
 
       const invalidFrontmatter3 = {
         targets: ["claudecode"],
-        title: "Invalid Agent",
+        name: "Invalid Agent",
         // missing description
       };
 
@@ -298,7 +298,7 @@ You are a helpful planning agent.`,
       expect(() => {
         z.object({
           targets: z.array(z.string()),
-          title: z.string(),
+          name: z.string(),
           description: z.string(),
         }).parse(validFrontmatter);
       }).not.toThrow();
@@ -309,7 +309,7 @@ You are a helpful planning agent.`,
           () => {
             z.object({
               targets: z.array(z.string()),
-              title: z.string(),
+              name: z.string(),
               description: z.string(),
             }).parse(invalid);
           },
@@ -321,7 +321,7 @@ You are a helpful planning agent.`,
     it("should validate optional claudecode field", () => {
       const validWithClaudecode = {
         targets: ["claudecode"],
-        title: "Agent",
+        name: "Agent",
         description: "Description",
         claudecode: {
           model: "sonnet",
@@ -330,13 +330,13 @@ You are a helpful planning agent.`,
 
       const validWithoutClaudecode = {
         targets: ["claudecode"],
-        title: "Agent",
+        name: "Agent",
         description: "Description",
       };
 
       const invalidClaudecode = {
         targets: ["claudecode"],
-        title: "Agent",
+        name: "Agent",
         description: "Description",
         claudecode: {
           model: "invalid-model",
@@ -346,7 +346,7 @@ You are a helpful planning agent.`,
       expect(() => {
         z.object({
           targets: z.array(z.string()),
-          title: z.string(),
+          name: z.string(),
           description: z.string(),
           claudecode: z.optional(
             z.object({
@@ -359,7 +359,7 @@ You are a helpful planning agent.`,
       expect(() => {
         z.object({
           targets: z.array(z.string()),
-          title: z.string(),
+          name: z.string(),
           description: z.string(),
           claudecode: z.optional(
             z.object({
@@ -372,7 +372,7 @@ You are a helpful planning agent.`,
       expect(() => {
         z.object({
           targets: z.array(z.string()),
-          title: z.string(),
+          name: z.string(),
           description: z.string(),
           claudecode: z.optional(
             z.object({
@@ -388,7 +388,7 @@ You are a helpful planning agent.`,
     it("should handle empty body", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: "Empty Body Agent",
+        name: "Empty Body Agent",
         description: "Agent with empty body",
       };
 
@@ -407,7 +407,7 @@ You are a helpful planning agent.`,
     it("should handle empty targets array", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: [],
-        title: "No Targets Agent",
+        name: "No Targets Agent",
         description: "Agent with no targets",
       };
 
@@ -427,7 +427,7 @@ You are a helpful planning agent.`,
     it("should handle special characters in title and description", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: "Agent with Special Chars!@#$%^&*()",
+        name: "Agent with Special Chars!@#$%^&*()",
         description: "Description with üñíçødé and émøjî 🤖",
       };
 
@@ -442,7 +442,7 @@ You are a helpful planning agent.`,
 
       const result = subagent.validate();
       expect(result.success).toBe(true);
-      expect(subagent.getFrontmatter().title).toBe("Agent with Special Chars!@#$%^&*()");
+      expect(subagent.getFrontmatter().name).toBe("Agent with Special Chars!@#$%^&*()");
       expect(subagent.getFrontmatter().description).toBe("Description with üñíçødé and émøjî 🤖");
     });
 
@@ -450,7 +450,7 @@ You are a helpful planning agent.`,
       // Test with future potential claudecode options
       const frontmatter = {
         targets: ["claudecode"],
-        title: "Future Options Agent",
+        name: "Future Options Agent",
         description: "Agent with potential future options",
         claudecode: {
           model: "sonnet",
@@ -475,7 +475,7 @@ You are a helpful planning agent.`,
       const longString = "x".repeat(1000);
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: `Long Title ${longString}`,
+        name: `Long Title ${longString}`,
         description: `Long Description ${longString}`,
       };
 
@@ -490,7 +490,7 @@ You are a helpful planning agent.`,
 
       const result = subagent.validate();
       expect(result.success).toBe(true);
-      expect(subagent.getFrontmatter().title.length).toBeGreaterThan(1000);
+      expect(subagent.getFrontmatter().name.length).toBeGreaterThan(1000);
     });
   });
 
@@ -498,7 +498,7 @@ You are a helpful planning agent.`,
     it("should properly extend RulesyncFile", () => {
       const frontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
-        title: "Inheritance Test",
+        name: "Inheritance Test",
         description: "Testing inheritance",
       };
 

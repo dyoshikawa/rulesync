@@ -23,10 +23,7 @@ export class SubagentsProcessor extends Processor {
     this.toolTarget = SubagentsProcessorToolTargetSchema.parse(toolTarget);
   }
 
-  async writeToolSubagentsFromRulesyncSubagents(): Promise<void> {
-    // Read and parse subagent files from .claude/rulesync/subagents/
-    const rulesyncSubagents = await this.loadRulesyncSubagents();
-    
+  async writeToolSubagentsFromRulesyncSubagents(rulesyncSubagents: RulesyncSubagent[]): Promise<void> {
     const toolSubagents = rulesyncSubagents.map((rulesyncSubagent) => {
       switch (this.toolTarget) {
         case "claudecode":
@@ -44,10 +41,10 @@ export class SubagentsProcessor extends Processor {
   }
 
   /**
-   * Load and parse rulesync subagent files from .claude/rulesync/subagents/ directory
+   * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
-  private async loadRulesyncSubagents(): Promise<RulesyncSubagent[]> {
-    const subagentsDir = join(this.baseDir, ".claude", "rulesync", "subagents");
+  async loadRulesyncSubagents(): Promise<RulesyncSubagent[]> {
+    const subagentsDir = join(this.baseDir, ".rulesync", "subagents");
     
     // Check if directory exists
     if (!(await directoryExists(subagentsDir))) {
