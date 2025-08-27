@@ -81,7 +81,11 @@ describe("ClaudeCodeIgnore", () => {
         fileContent: "",
       });
 
-      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore(rulesyncIgnore);
+      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        rulesyncIgnore,
+      });
 
       expect(claudeCodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
     });
@@ -117,7 +121,11 @@ describe("ClaudeCodeIgnore", () => {
         fileContent: "",
       });
 
-      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore(rulesyncIgnore);
+      const claudeCodeIgnore = ClaudeCodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        rulesyncIgnore,
+      });
 
       expect(claudeCodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
     });

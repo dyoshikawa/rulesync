@@ -5,6 +5,13 @@ export interface ToolIgnoreParams extends AiFileParams {
   patterns: string[];
 }
 
+export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
+  AiFileParams,
+  "fileContent" | "relativeFilePath"
+> & {
+  rulesyncIgnore: RulesyncIgnore;
+};
+
 export abstract class ToolIgnore extends AiFile {
   protected readonly patterns: string[];
 
@@ -42,6 +49,10 @@ export abstract class ToolIgnore extends AiFile {
   abstract toRulesyncIgnore(): RulesyncIgnore;
 
   static async fromFilePath(_params: { filePath: string }): Promise<ToolIgnore> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  static fromRulesyncIgnore(_params: ToolIgnoreFromRulesyncIgnoreParams): ToolIgnore {
     throw new Error("Please implement this method in the subclass.");
   }
 }
