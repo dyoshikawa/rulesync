@@ -28,6 +28,33 @@ describe("IgnoreProcessor", () => {
       expect(processor).toBeInstanceOf(IgnoreProcessor);
     });
 
+    it("should create instance with all supported tool targets", () => {
+      const supportedTargets = [
+        "augmentcode",
+        "claudecode",
+        "cline",
+        "codexcli",
+        "copilot",
+        "cursor",
+        "geminicli",
+        "junie",
+        "kiro",
+        "opencode",
+        "qwencode",
+        "roo",
+        "windsurf",
+      ];
+
+      for (const target of supportedTargets) {
+        const processor = new IgnoreProcessor({
+          baseDir: testDir,
+          toolTarget: target as any,
+        });
+
+        expect(processor).toBeInstanceOf(IgnoreProcessor);
+      }
+    });
+
     it("should throw error with invalid tool target", () => {
       expect(() => {
         return new IgnoreProcessor({
@@ -223,6 +250,63 @@ description: Invalid ignore file
       expect(toolIgnores[0]?.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
     });
 
+    it("should load Cursor ignore files", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const ignoreFilePath = join(testDir, ".cursorignore");
+      const ignoreContent = `node_modules/
+*.log
+.env*
+!.env.example`;
+
+      await writeFile(ignoreFilePath, ignoreContent, "utf-8");
+
+      const toolIgnores = await processor.loadToolIgnores();
+
+      expect(toolIgnores).toHaveLength(1);
+      expect(toolIgnores[0]?.getPatterns()).toEqual([
+        "node_modules/",
+        "*.log",
+        ".env*",
+        "!.env.example",
+      ]);
+    });
+
+    it("should load Cline ignore files", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "cline",
+      });
+
+      const ignoreFilePath = join(testDir, ".clineignore");
+      const ignoreContent = `# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+dist/
+build/
+
+# Environment files
+.env*`;
+
+      await writeFile(ignoreFilePath, ignoreContent, "utf-8");
+
+      const toolIgnores = await processor.loadToolIgnores();
+
+      expect(toolIgnores).toHaveLength(1);
+      expect(toolIgnores[0]?.getPatterns()).toEqual([
+        "node_modules/",
+        ".pnpm-store/",
+        "dist/",
+        "build/",
+        ".env*",
+      ]);
+    });
+
     it("should return empty array when directory doesn't exist", async () => {
       const processor = new IgnoreProcessor({
         baseDir: testDir,
@@ -232,6 +316,20 @@ description: Invalid ignore file
       const toolIgnores = await processor.loadToolIgnores();
 
       expect(toolIgnores).toEqual([]);
+    });
+
+    it("should return empty array for tools without ignore files", async () => {
+      const toolsWithoutFiles = ["augmentcode", "copilot", "junie", "kiro", "windsurf"];
+
+      for (const tool of toolsWithoutFiles) {
+        const processor = new IgnoreProcessor({
+          baseDir: testDir,
+          toolTarget: tool as any,
+        });
+
+        const toolIgnores = await processor.loadToolIgnores();
+        expect(toolIgnores).toEqual([]);
+      }
     });
   });
 

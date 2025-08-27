@@ -244,6 +244,7 @@
         "émøjî",
         "amazonqignore",
         "dylib",
-        "webfetch"
+        "webfetch",
+        "reinclusion"
     ]
 }
