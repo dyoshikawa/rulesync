@@ -1,1 +1,2 @@
 export * from "./rulesync-rule.js";
+export * from "./tool-rule.js";
