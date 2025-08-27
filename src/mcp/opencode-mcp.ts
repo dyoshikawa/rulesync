@@ -1,19 +1,10 @@
 import { readFile } from "node:fs/promises";
 import type { AiFileFromFilePathParams, AiFileParams } from "../types/ai-file.js";
-import type { McpServerBase } from "../types/mcp.js";
+import type { McpServerBase, McpConfig } from "../types/mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
 
-interface TestMcpServer extends McpServerBase {
-  name: string;
-}
-
-export interface OpencodeMcpConfig extends Record<string, unknown> {
-  $schema: string;
-  mcp: Record<string, unknown>;
-}
-
 export interface OpencodeMcpParams extends AiFileParams {
-  config?: OpencodeMcpConfig;
+  config?: McpConfig;
 }
 
 /**
@@ -23,16 +14,14 @@ export interface OpencodeMcpParams extends AiFileParams {
  * Supports both local STDIO servers and remote HTTP/SSE servers.
  *
  * Configuration file format: opencode.json
- * Location: Project root
+ * Location: Project root or ~/.config/opencode/opencode.json
  */
 export class OpencodeMcp extends ToolMcp {
-  readonly toolName = "OpenCode";
-  private readonly config: OpencodeMcpConfig | undefined;
-  mcpServers: McpServerBase[] = [];
+  private readonly mcpConfig: McpConfig | undefined;
 
-  constructor({ config, ...rest }: OpencodeMcpParams) {
-    super(rest);
-    this.config = config;
+  constructor(params: OpencodeMcpParams) {
+    super(params);
+    this.mcpConfig = params.config;
   }
 
   getFileName(): string {
@@ -40,48 +29,37 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   async generateContent(): Promise<string> {
-    // Use config if provided, otherwise generate from mcpServers
-    const finalConfig = this.config ?? (await this.generateConfig(this.mcpServers));
-    return this.serializeToJson(finalConfig, 2);
+    const config = this.mcpConfig || this.getDefaultMcpConfig();
+    return this.formatMcpConfig(config);
   }
 
   /**
-   * Generate OpenCode MCP configuration from MCP servers.
-   *
-   * OpenCode supports:
-   * - Local servers (STDIO transport) with type: "local"
-   * - Remote servers (SSE/HTTP transport) with type: "remote"
-   * - Environment variable substitution using ${VAR} format
-   *
-   * @param servers Array of MCP server configurations
-   * @returns OpenCode-compatible configuration object
+   * Format MCP configuration for OpenCode.
+   * OpenCode uses a specific JSON schema with "mcp" property instead of "mcpServers".
    */
-  private async generateConfig(servers: McpServerBase[]): Promise<OpencodeMcpConfig> {
-    const config: OpencodeMcpConfig = {
+  private formatMcpConfig(config: McpConfig): string {
+    const opencodeConfig = {
       $schema: "https://opencode.ai/config.json",
-      mcp: {},
+      mcp: this.convertToOpenCodeFormat(config.mcpServers),
     };
 
-    const mcpConfig = config.mcp;
+    return this.serializeToJson(opencodeConfig, 2);
+  }
 
-    // Convert from array to object format expected by MCP processing
-    const serverMap: Record<string, McpServerBase> = {};
-    for (const server of servers) {
-      // Use server name from a name property or generate one
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      const testServer = server as TestMcpServer & McpServerBase;
-      const serverName = testServer.name || `server-${Object.keys(serverMap).length}`;
-      serverMap[serverName] = server;
-    }
+  /**
+   * Convert standard MCP server configuration to OpenCode format.
+   */
+  private convertToOpenCodeFormat(servers: Record<string, McpServerBase>): Record<string, unknown> {
+    const converted: Record<string, unknown> = {};
 
-    for (const [serverName, server] of Object.entries(serverMap)) {
+    for (const [serverName, server] of Object.entries(servers)) {
       const serverConfig: Record<string, unknown> = {};
 
       if (server.command) {
         // Local STDIO server configuration
         serverConfig.type = "local";
         serverConfig.command = this.formatCommand(server.command, server.args);
-        serverConfig.enabled = true;
+        serverConfig.enabled = server.disabled === undefined ? true : !server.disabled;
 
         if (server.cwd) {
           serverConfig.cwd = server.cwd;
@@ -91,20 +69,41 @@ export class OpencodeMcp extends ToolMcp {
           serverConfig.environment = this.formatEnvironmentVariables(server.env);
         }
       } else if (server.url) {
-        // Remote server configuration (SSE/HTTP)
+        // Remote server configuration
         serverConfig.type = "remote";
         serverConfig.url = server.url;
-        serverConfig.enabled = true;
+        serverConfig.enabled = server.disabled === undefined ? true : !server.disabled;
 
         if (server.env && Object.keys(server.env).length > 0) {
           serverConfig.headers = this.formatHeaders(server.env);
         }
       }
 
-      mcpConfig[serverName] = serverConfig;
+      converted[serverName] = serverConfig;
     }
 
-    return config;
+    return converted;
+  }
+
+  /**
+   * Get default MCP configuration for OpenCode.
+   */
+  private getDefaultMcpConfig(): McpConfig {
+    return {
+      mcpServers: {
+        "filesystem-tools": {
+          command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+          disabled: false,
+        },
+        "github-integration": {
+          command: ["npx", "-y", "@modelcontextprotocol/server-github"],
+          env: {
+            GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+          },
+          disabled: false,
+        },
+      },
+    };
   }
 
   /**
@@ -175,11 +174,43 @@ export class OpencodeMcp extends ToolMcp {
     filePath,
     validate = true,
   }: AiFileFromFilePathParams): Promise<OpencodeMcp> {
-    // Read and parse JSON content
+    const fileContent = await readFile(filePath, "utf-8");
     const rawConfig = await this.loadJsonConfig(filePath);
+    
+    let config: McpConfig | undefined;
 
-    // Validate the structure of the raw config
-    if (
+    // Validate and convert OpenCode format to standard MCP format
+    if (this.isValidOpenCodeConfig(rawConfig) && 
+        typeof rawConfig === "object" && 
+        rawConfig !== null && 
+        "mcp" in rawConfig &&
+        typeof rawConfig.mcp === "object" &&
+        rawConfig.mcp !== null) {
+      config = {
+        mcpServers: this.convertFromOpenCodeFormat(rawConfig.mcp as Record<string, unknown>),
+      };
+    }
+
+    const params: OpencodeMcpParams = {
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent,
+      validate,
+    };
+
+    if (config) {
+      params.config = config;
+    }
+
+    return new OpencodeMcp(params);
+  }
+
+  /**
+   * Check if the raw configuration is a valid OpenCode MCP format.
+   */
+  private static isValidOpenCodeConfig(rawConfig: unknown): boolean {
+    return (
       typeof rawConfig === "object" &&
       rawConfig !== null &&
       "$schema" in rawConfig &&
@@ -187,26 +218,74 @@ export class OpencodeMcp extends ToolMcp {
       typeof rawConfig.$schema === "string" &&
       typeof rawConfig.mcp === "object" &&
       rawConfig.mcp !== null
-    ) {
-      const config: OpencodeMcpConfig = {
-        $schema: rawConfig.$schema,
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        mcp: rawConfig.mcp as Record<string, unknown>,
-      };
-      const fileContent = await readFile(filePath, "utf-8");
+    );
+  }
 
-      return new OpencodeMcp({
-        baseDir,
-        relativeDirPath,
-        relativeFilePath,
-        fileContent,
-        config,
-        validate,
-      });
+  /**
+   * Convert OpenCode format back to standard MCP format.
+   */
+  private static convertFromOpenCodeFormat(opencodeMcp: Record<string, unknown>): Record<string, McpServerBase> {
+    const servers: Record<string, McpServerBase> = {};
+
+    for (const [serverName, serverConfig] of Object.entries(opencodeMcp)) {
+      if (typeof serverConfig !== "object" || serverConfig === null) {
+        continue;
+      }
+
+      const config = serverConfig as Record<string, unknown>;
+      const server: McpServerBase = {};
+
+      if (typeof config.command === "string" || Array.isArray(config.command)) {
+        server.command = config.command;
+      }
+
+      if (Array.isArray(config.args)) {
+        const argsArray = config.args as unknown[];
+        if (argsArray.every((arg: unknown) => typeof arg === "string")) {
+          server.args = argsArray as string[];
+        }
+      }
+
+      if (typeof config.url === "string") {
+        server.url = config.url;
+      }
+
+      if (typeof config.cwd === "string") {
+        server.cwd = config.cwd;
+      }
+
+      if (typeof config.environment === "object" && config.environment !== null) {
+        const environment = config.environment;
+        if (this.isStringRecord(environment)) {
+          server.env = environment;
+        }
+      }
+
+      if (typeof config.headers === "object" && config.headers !== null) {
+        const headers = config.headers;
+        if (this.isStringRecord(headers)) {
+          server.env = headers;
+        }
+      }
+
+      if (typeof config.enabled === "boolean") {
+        server.disabled = !config.enabled;
+      }
+
+      servers[serverName] = server;
     }
 
-    throw new Error(
-      `Invalid OpenCode MCP configuration in ${filePath}: missing required properties`,
-    );
+    return servers;
+  }
+
+  /**
+   * Type guard to check if an object is a Record<string, string>.
+   */
+  private static isStringRecord(obj: unknown): obj is Record<string, string> {
+    if (typeof obj !== "object" || obj === null) {
+      return false;
+    }
+    
+    return Object.values(obj).every((value) => typeof value === "string");
   }
 }
