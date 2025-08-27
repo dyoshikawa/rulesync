@@ -45,29 +45,29 @@ describe("ClineIgnore", () => {
     });
 
     it("should validate patterns array", () => {
-      expect(() => {
-        // eslint-disable-next-line no-new
-        new ClineIgnore({
-          baseDir: testDir,
-          relativeDirPath: ".",
-          relativeFilePath: ".clineignore",
-          patterns: null as any,
-          fileContent: "",
-        });
-      }).toThrow("Patterns must be defined");
+      expect(
+        () =>
+          new ClineIgnore({
+            baseDir: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: ".clineignore",
+            patterns: null as any,
+            fileContent: "",
+          }),
+      ).toThrow("Patterns must be defined");
     });
 
     it("should validate patterns is array", () => {
-      expect(() => {
-        // eslint-disable-next-line no-new
-        new ClineIgnore({
-          baseDir: testDir,
-          relativeDirPath: ".",
-          relativeFilePath: ".clineignore",
-          patterns: "not-array" as any,
-          fileContent: "",
-        });
-      }).toThrow("Patterns must be an array");
+      expect(
+        () =>
+          new ClineIgnore({
+            baseDir: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: ".clineignore",
+            patterns: "not-array" as any,
+            fileContent: "",
+          }),
+      ).toThrow("Patterns must be an array");
     });
   });
 

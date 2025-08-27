@@ -1,32 +1,32 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
+import { basename } from "node:path";
+
+import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import type { ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
+import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-export interface GeminiCliIgnoreParams extends ToolIgnoreParams {
-  patterns: string[];
+export interface GeminiCliIgnoreParams extends AiFileParams {
+  patterns?: string[];
   useGitignore?: boolean;
   supportsNegation?: boolean;
 }
 
 /**
- * GeminiCliIgnore represents ignore patterns for the Gemini CLI Coding Assistant.
+ * Represents Gemini CLI Coding Assistant ignore configuration
  *
- * Based on the Gemini CLI specification:
- * - Primary file: .aiexclude (recommended) - can be placed in any directory
- * - Secondary file: .gitignore (preview feature) - only at root
- * - Syntax: Same as .gitignore with wildcards and patterns
- * - Multiple placement: Possible with hierarchical precedence
- * - Negation patterns: Support varies by environment (Firebase Studio/IDX doesn't support)
- * - Special case: Empty .aiexclude may block everything in some environments
+ * Gemini CLI supports two types of ignore files:
+ * 1. .aiexclude (recommended) - Can be placed in any directory, affects subdirectories
+ * 2. .gitignore (preview feature) - Only at root working folder
+ *
+ * When conflicts occur in the same file, .aiexclude takes precedence over .gitignore
  */
 export class GeminiCliIgnore extends ToolIgnore {
   private readonly useGitignore: boolean;
   private readonly supportsNegation: boolean;
 
   constructor({
-    patterns,
+    patterns = [],
     useGitignore = false,
     supportsNegation = true,
     ...rest
@@ -48,16 +48,14 @@ export class GeminiCliIgnore extends ToolIgnore {
     return this.supportsNegation;
   }
 
-  /**
-   * Convert GeminiCliIgnore to RulesyncIgnore format
-   */
   toRulesyncIgnore(): RulesyncIgnore {
-    const body = this.generateIgnorePatterns();
+    // Convert Gemini CLI ignore patterns to unified ignore format
+    const body = this.generateAiexcludeContent();
 
     return new RulesyncIgnore({
-      baseDir: ".",
+      baseDir: this.baseDir,
       relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: "geminicli.md",
+      relativeFilePath: `${basename(this.relativeFilePath, ".aiexclude")}.md`,
       frontmatter: {
         targets: ["geminicli"],
         description: `Generated from Gemini CLI ignore file: ${this.relativeFilePath}`,
@@ -67,9 +65,6 @@ export class GeminiCliIgnore extends ToolIgnore {
     });
   }
 
-  /**
-   * Create GeminiCliIgnore from RulesyncIgnore
-   */
   static fromRulesyncIgnore({
     baseDir = ".",
     relativeDirPath,
@@ -77,280 +72,286 @@ export class GeminiCliIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): GeminiCliIgnore {
     const body = rulesyncIgnore.getBody();
 
-    // Extract patterns from body (split by lines and filter comments/empty lines)
+    // Extract patterns from body
     const patterns = body
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
 
-    // Determine if gitignore support is mentioned
-    const useGitignore = body.includes("gitignore") || body.includes(".gitignore");
-
-    // Check for negation patterns to determine support
-    const supportsNegation = patterns.some((pattern) => pattern.startsWith("!"));
+    // Check if patterns contain negation and set supportsNegation accordingly
+    const hasNegationPatterns = patterns.some((pattern) =>
+      GeminiCliIgnore.isNegationPattern(pattern),
+    );
 
     return new GeminiCliIgnore({
       baseDir,
       relativeDirPath,
       relativeFilePath: ".aiexclude",
       patterns,
-      useGitignore,
-      supportsNegation,
+      supportsNegation: hasNegationPatterns,
       fileContent: patterns.join("\n"),
+      validate: false, // Skip validation in conversion
     });
   }
 
-  /**
-   * Load GeminiCliIgnore from .aiexclude or .gitignore file
-   */
   static async fromFilePath({ filePath }: { filePath: string }): Promise<GeminiCliIgnore> {
     const fileContent = await readFile(filePath, "utf-8");
     const filename = basename(filePath);
-    const dirPath = dirname(filePath);
 
-    // Parse patterns from file content (same as gitignore syntax)
+    // Parse ignore patterns from file
     const patterns = fileContent
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
 
-    // Determine file type
     const useGitignore = filename === ".gitignore";
+    const supportsNegation = !filename.endsWith(".gitignore") || filename === ".gitignore";
 
-    // Check for negation patterns
-    const supportsNegation = patterns.some((pattern) => pattern.startsWith("!"));
+    // Check if patterns contain negation and adjust supportsNegation accordingly
+    const hasNegationPatterns = patterns.some((pattern) =>
+      GeminiCliIgnore.isNegationPattern(pattern),
+    );
+
+    // If file contains negation patterns, assume environment supports them
+    const finalSupportsNegation = hasNegationPatterns || supportsNegation;
 
     return new GeminiCliIgnore({
       baseDir: ".",
-      relativeDirPath: dirPath === "." ? "." : dirPath,
+      relativeDirPath: ".",
       relativeFilePath: filename,
       patterns,
       useGitignore,
-      supportsNegation,
+      supportsNegation: finalSupportsNegation,
       fileContent,
+      validate: false, // Skip validation in fromFilePath as patterns may have negation
     });
   }
 
-  /**
-   * Generate .aiexclude content
-   */
   generateAiexcludeContent(): string {
     const lines: string[] = [];
 
     // Add header comment
-    lines.push("# Gemini CLI Ignore File (.aiexclude)");
-    lines.push("# Syntax: Same as .gitignore");
-
-    if (!this.supportsNegation) {
-      lines.push("# Note: Negation patterns (!) may not be supported in all environments");
-    }
-
+    lines.push("# Gemini CLI Coding Assistant Ignore File");
+    lines.push("# Exclude files and directories from AI context");
+    lines.push("# Syntax: same as .gitignore");
     lines.push("");
 
-    // Group patterns by type
-    const secretPatterns = this.patterns.filter(
-      (p) => p.includes("key") || p.includes("secret") || p.includes(".env"),
-    );
-    const buildPatterns = this.patterns.filter(
-      (p) => p.includes("build") || p.includes("dist") || p.includes("node_modules"),
-    );
-    const negationPatterns = this.patterns.filter((p) => p.startsWith("!"));
-    const otherPatterns = this.patterns.filter(
-      (p) =>
-        !secretPatterns.includes(p) && !buildPatterns.includes(p) && !negationPatterns.includes(p),
+    // Filter patterns based on negation support
+    const effectivePatterns = this.filterPatterns();
+
+    if (effectivePatterns.length === 0) {
+      lines.push("# No patterns specified");
+      lines.push("");
+      return lines.join("\n");
+    }
+
+    // Group patterns by type for better organization
+    const securityPatterns = effectivePatterns.filter((pattern) => this.isSecurityPattern(pattern));
+    const buildPatterns = effectivePatterns.filter((pattern) => this.isBuildPattern(pattern));
+    const dataPatterns = effectivePatterns.filter((pattern) => this.isDataPattern(pattern));
+    const otherPatterns = effectivePatterns.filter(
+      (pattern) =>
+        !this.isSecurityPattern(pattern) &&
+        !this.isBuildPattern(pattern) &&
+        !this.isDataPattern(pattern),
     );
 
-    if (secretPatterns.length > 0) {
-      lines.push("# Secret keys and API keys");
-      lines.push(...secretPatterns);
+    // Add security patterns
+    if (securityPatterns.length > 0) {
+      lines.push("# Security and Secrets");
+      lines.push(...securityPatterns);
       lines.push("");
     }
 
+    // Add build patterns
     if (buildPatterns.length > 0) {
-      lines.push("# Build artifacts and dependencies");
+      lines.push("# Build Artifacts and Dependencies");
       lines.push(...buildPatterns);
       lines.push("");
     }
 
+    // Add data patterns
+    if (dataPatterns.length > 0) {
+      lines.push("# Data Files and Large Assets");
+      lines.push(...dataPatterns);
+      lines.push("");
+    }
+
+    // Add other patterns
     if (otherPatterns.length > 0) {
-      lines.push("# Other exclusions");
+      lines.push("# Other Exclusions");
       lines.push(...otherPatterns);
       lines.push("");
     }
 
-    if (negationPatterns.length > 0 && this.supportsNegation) {
-      lines.push("# Negation patterns (exclusion removal)");
-      lines.push(...negationPatterns);
-      lines.push("");
-    }
-
-    return lines.join("\n").trimEnd();
-  }
-
-  /**
-   * Generate patterns for RulesyncIgnore body
-   */
-  private generateIgnorePatterns(): string {
-    const lines: string[] = [];
-
-    lines.push("# Generated from Gemini CLI ignore configuration");
-
-    if (this.useGitignore) {
-      lines.push("# Using .gitignore patterns (preview feature)");
-    }
-
-    if (!this.supportsNegation && this.patterns.some((p) => p.startsWith("!"))) {
-      lines.push("# Warning: Negation patterns detected but may not be supported");
-    }
-
-    lines.push("");
-
-    // Add all patterns
-    lines.push(...this.patterns);
-
     return lines.join("\n");
   }
 
-  /**
-   * Get default patterns commonly used for Gemini CLI projects
-   * Based on best practices from the specification
-   */
+  private filterPatterns(): string[] {
+    if (this.supportsNegation) {
+      return this.patterns;
+    }
+
+    // Filter out negation patterns for Firebase Studio/IDX compatibility
+    return this.patterns.filter((pattern) => !GeminiCliIgnore.isNegationPattern(pattern));
+  }
+
+  private isSecurityPattern(pattern: string): boolean {
+    const securityKeywords = [
+      ".env",
+      "secret",
+      "key",
+      "pem",
+      "crt",
+      "p12",
+      "pfx",
+      "api",
+      "token",
+      "credential",
+      "password",
+      "auth",
+      ".aws",
+    ];
+    const lowerPattern = pattern.toLowerCase();
+    return securityKeywords.some((keyword) => lowerPattern.includes(keyword));
+  }
+
+  private isBuildPattern(pattern: string): boolean {
+    const buildKeywords = [
+      "node_modules",
+      "dist",
+      "build",
+      "out",
+      "target",
+      ".cache",
+      "*.log",
+      "logs",
+      ".tmp",
+      "temp",
+    ];
+    const lowerPattern = pattern.toLowerCase();
+    return buildKeywords.some((keyword) => lowerPattern.includes(keyword));
+  }
+
+  private isDataPattern(pattern: string): boolean {
+    const dataKeywords = [
+      "*.csv",
+      "*.xlsx",
+      "*.db",
+      "*.sqlite",
+      "*.mp4",
+      "*.avi",
+      "*.png",
+      "*.jpg",
+      "*.gif",
+      "*.zip",
+      "*.tar",
+      "data",
+      "datasets",
+    ];
+    const lowerPattern = pattern.toLowerCase();
+    return dataKeywords.some((keyword) => lowerPattern.includes(keyword));
+  }
+
+  static isNegationPattern(pattern: string): boolean {
+    return pattern.startsWith("!");
+  }
+
   static getDefaultPatterns(): string[] {
     return [
-      // Secret keys and API keys (Security First principle)
-      "apikeys.txt",
+      "# Secret keys and API keys",
       "*.key",
       "*.pem",
       "*.crt",
       "*.p12",
       "*.pfx",
-      "/secret.env",
-      ".env*",
-      "!.env.example",
-      "secrets/",
-      "credentials/",
-
-      // Dependencies and build artifacts (Performance Optimization)
+      ".env",
+      ".env.*",
+      "apikeys.txt",
+      "secret.env",
+      "**/secrets/",
+      "**/apikeys/",
+      "**/*_token*",
+      "**/*_secret*",
+      "**/*api_key*",
+      "",
+      "# Build artifacts and dependencies",
       "node_modules/",
       ".pnpm-store/",
       ".yarn/",
-      "vendor/",
-      "build/",
       "dist/",
+      "build/",
       "out/",
       "target/",
-      ".next/",
-      ".nuxt/",
-      "*.o",
-      "*.so",
-      "*.dll",
-      "*.exe",
-
-      // Large files and datasets
-      "*.csv",
-      "*.xlsx",
-      "*.sqlite",
-      "*.db",
-      "data/",
-      "datasets/",
-
-      // Media files
-      "*.mp4",
-      "*.avi",
-      "*.mov",
-      "*.png",
-      "*.jpg",
-      "*.jpeg",
-      "*.gif",
-
-      // Archives
-      "*.zip",
-      "*.tar.gz",
-      "*.rar",
-
-      // Logs and temporary files
       "*.log",
       "logs/",
-      "temp/",
-      "tmp/",
       ".cache/",
-      ".temp/",
-      "*.tmp",
+      ".tmp/",
+      "temp/",
+      "",
+      "# Data files and large assets",
+      "*.csv",
+      "*.xlsx",
+      "*.db",
+      "*.sqlite",
+      "*.mp4",
+      "*.avi",
+      "*.png",
+      "*.jpg",
+      "*.gif",
+      "*.zip",
+      "*.tar.gz",
+      "data/",
+      "datasets/",
+      "",
+      "# IDE and OS files",
+      ".vscode/settings.json",
+      ".idea/",
       "*.swp",
       "*.swo",
-      "*~",
-
-      // IDE and system files
-      ".vscode/",
-      ".idea/",
       ".DS_Store",
       "Thumbs.db",
-      "desktop.ini",
-
-      // Version control
-      ".git/",
-      ".svn/",
-      ".hg/",
-
-      // Test fixtures and coverage (Performance Optimization)
-      "**/test-fixtures/**",
-      "**/*.snap",
-      "coverage/",
-      ".nyc_output/",
     ];
   }
 
-  /**
-   * Create GeminiCliIgnore with default patterns
-   */
-  static createWithDefaultPatterns({
-    baseDir = ".",
-    relativeDirPath = ".",
-    relativeFilePath = ".aiexclude",
-    useGitignore = false,
-    supportsNegation = true,
-  }: {
-    baseDir?: string;
-    relativeDirPath?: string;
-    relativeFilePath?: string;
-    useGitignore?: boolean;
-    supportsNegation?: boolean;
-  } = {}): GeminiCliIgnore {
-    const patterns = this.getDefaultPatterns();
-    const fileContent = patterns.join("\n");
+  static createWithDefaultPatterns(params: Partial<GeminiCliIgnoreParams> = {}): GeminiCliIgnore {
+    const defaultPatterns = this.getDefaultPatterns();
 
     return new GeminiCliIgnore({
-      baseDir,
-      relativeDirPath,
-      relativeFilePath,
-      patterns,
-      useGitignore,
-      supportsNegation,
-      fileContent,
+      baseDir: params.baseDir || ".",
+      relativeDirPath: params.relativeDirPath || ".",
+      relativeFilePath: params.relativeFilePath || ".aiexclude",
+      patterns: defaultPatterns,
+      fileContent: defaultPatterns.join("\n"),
+      ...params,
     });
   }
 
-  /**
-   * Get supported ignore file names for Gemini CLI
-   */
-  static getSupportedIgnoreFileNames(): string[] {
-    return [".aiexclude", ".gitignore"];
+  static getSupportedFileNames(): readonly string[] {
+    return [".aiexclude", ".gitignore"] as const;
   }
 
-  /**
-   * Check if a pattern uses negation
-   */
-  static isNegationPattern(pattern: string): boolean {
-    return pattern.startsWith("!");
-  }
-
-  /**
-   * Filter out negation patterns if not supported
-   */
-  filterPatterns(): string[] {
-    if (this.supportsNegation) {
-      return this.patterns;
+  validate(): ValidationResult {
+    const baseValidation = super.validate();
+    if (!baseValidation.success) {
+      return baseValidation;
     }
-    return this.patterns.filter((pattern) => !GeminiCliIgnore.isNegationPattern(pattern));
+
+    // Validate Gemini CLI specific constraints
+    if (!this.supportsNegation) {
+      const hasNegation = this.patterns.some((pattern) =>
+        GeminiCliIgnore.isNegationPattern(pattern),
+      );
+      if (hasNegation) {
+        return {
+          success: false,
+          error: new Error(
+            "Negation patterns are not supported in Firebase Studio/IDX environment",
+          ),
+        };
+      }
+    }
+
+    return { success: true, error: null };
   }
 }

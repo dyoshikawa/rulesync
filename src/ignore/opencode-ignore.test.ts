@@ -229,7 +229,7 @@ secrets/`,
       const ignore = OpencodeIgnore.fromRulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-         
+
         rulesyncIgnore: mockRulesyncIgnore as any,
       });
 

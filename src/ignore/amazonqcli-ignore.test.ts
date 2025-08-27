@@ -290,16 +290,16 @@ describe("AmazonqcliIgnore", () => {
     });
 
     it("should fail validation with invalid patterns", () => {
-      expect(() => {
-        // eslint-disable-next-line no-new
-        new AmazonqcliIgnore({
-          baseDir: testDir,
-          relativeDirPath: ".amazonq",
-          relativeFilePath: ".q-ignore",
-          patterns: null as any,
-          fileContent: "",
-        });
-      }).toThrow();
+      expect(
+        () =>
+          new AmazonqcliIgnore({
+            baseDir: testDir,
+            relativeDirPath: ".amazonq",
+            relativeFilePath: ".q-ignore",
+            patterns: null as any,
+            fileContent: "",
+          }),
+      ).toThrow();
     });
   });
 

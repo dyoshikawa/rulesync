@@ -45,29 +45,29 @@ describe("RooIgnore", () => {
     });
 
     it("should validate patterns array", () => {
-      expect(() => {
-         
-        new RooIgnore({
-          baseDir: testDir,
-          relativeDirPath: ".",
-          relativeFilePath: ".rooignore",
-          patterns: null as any,
-          fileContent: "",
-        });
-      }).toThrow("Patterns must be defined");
+      expect(
+        () =>
+          new RooIgnore({
+            baseDir: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: ".rooignore",
+            patterns: null as any,
+            fileContent: "",
+          }),
+      ).toThrow("Patterns must be defined");
     });
 
     it("should validate patterns is array", () => {
-      expect(() => {
-         
-        new RooIgnore({
-          baseDir: testDir,
-          relativeDirPath: ".",
-          relativeFilePath: ".rooignore",
-          patterns: "not-array" as any,
-          fileContent: "",
-        });
-      }).toThrow("Patterns must be an array");
+      expect(
+        () =>
+          new RooIgnore({
+            baseDir: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: ".rooignore",
+            patterns: "not-array" as any,
+            fileContent: "",
+          }),
+      ).toThrow("Patterns must be an array");
     });
   });
 
