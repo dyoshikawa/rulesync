@@ -207,16 +207,19 @@ description: Invalid ignore file
       const claudeDir = join(testDir, ".claude");
       await mkdir(claudeDir, { recursive: true });
 
-      const ignoreFilePath = join(claudeDir, ".claudecode.ignore");
-      const ignoreContent = `node_modules/
-*.log
-.env*`;
+      const ignoreFilePath = join(claudeDir, "settings.json");
+      const settingsContent = {
+        permissions: {
+          deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+        },
+      };
 
-      await writeFile(ignoreFilePath, ignoreContent, "utf-8");
+      await writeFile(ignoreFilePath, JSON.stringify(settingsContent, null, 2), "utf-8");
 
       const toolIgnores = await processor.loadToolIgnores();
 
       expect(toolIgnores).toHaveLength(1);
+      // ClaudecodeIgnore extracts file patterns from permissions deny rules
       expect(toolIgnores[0]?.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
     });
 
@@ -246,11 +249,15 @@ description: Invalid ignore file
         permissions: {
           deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
         },
-        fileContent: JSON.stringify({
-          permissions: {
-            deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+        fileContent: JSON.stringify(
+          {
+            permissions: {
+              deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+            },
           },
-        }, null, 2),
+          null,
+          2,
+        ),
       });
 
       await processor.writeRulesyncIgnoresFromToolIgnores([claudeCodeIgnore]);

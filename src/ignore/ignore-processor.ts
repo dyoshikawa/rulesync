@@ -7,10 +7,11 @@ import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
+import { OpencodeIgnore } from "./opencode-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-export const IgnoreProcessorToolTargetSchema = z.enum(["claudecode", "codexcli"]);
+export const IgnoreProcessorToolTargetSchema = z.enum(["claudecode", "codexcli", "opencode"]);
 
 export type IgnoreProcessorToolTarget = z.infer<typeof IgnoreProcessorToolTargetSchema>;
 
@@ -44,6 +45,18 @@ export class IgnoreProcessor extends Processor {
             return ClaudecodeIgnore.fromRulesyncIgnore({
               baseDir: this.baseDir,
               relativeDirPath: ".claude",
+              rulesyncIgnore,
+            });
+          case "codexcli":
+            return CodexcliIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "opencode":
+            return OpencodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
               rulesyncIgnore,
             });
           default:
@@ -105,45 +118,46 @@ export class IgnoreProcessor extends Processor {
         return await this.loadClaudecodeIgnores();
       case "codexcli":
         return await this.loadCodexcliIgnores();
+      case "opencode":
+        return await this.loadOpencodeIgnores();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
   }
 
   private async loadClaudecodeIgnores(): Promise<ToolIgnore[]> {
-    const claudeDir = join(this.baseDir, ".claude");
+    // Claude Code uses settings.json files for configuration
+    const supportedFiles = ClaudecodeIgnore.getSupportedFileNames();
 
-    // Check if directory exists
-    if (!(await directoryExists(claudeDir))) {
-      logger.warn(`Claude Code directory not found: ${claudeDir}`);
-      return [];
+    for (const filename of supportedFiles) {
+      const ignoreFilePath = join(this.baseDir, ".claude", filename);
+
+      try {
+        const claudeCodeIgnore = await ClaudecodeIgnore.fromFilePath({
+          filePath: ignoreFilePath,
+        });
+
+        logger.info(`Successfully loaded Claude Code ignore file: ${ignoreFilePath}`);
+        return [claudeCodeIgnore];
+      } catch (error) {
+        // Continue to next file if this one fails
+        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
+      }
     }
 
-    // For now, we'll look for a simple ignore file pattern
-    // In a complete implementation, this would parse settings.json
-    const ignoreFilePath = join(claudeDir, ".claudecode.ignore");
-
-    try {
-      const claudeCodeIgnore = await ClaudecodeIgnore.fromFilePath({
-        filePath: ignoreFilePath,
-      });
-
-      logger.info(`Successfully loaded Claude Code ignore file: ${ignoreFilePath}`);
-      return [claudeCodeIgnore];
-    } catch (error) {
-      logger.warn(`Failed to load Claude Code ignore file ${ignoreFilePath}:`, error);
-      return [];
-    }
+    // If no ignore files found, return empty array
+    logger.debug("No Claude Code configuration files found");
+    return [];
   }
 
   private async loadCodexcliIgnores(): Promise<ToolIgnore[]> {
     // OpenAI Codex CLI doesn't have native ignore file support yet
     // Look for proposed .codexignore or .aiexclude files in project root
     const supportedFiles = CodexcliIgnore.getSupportedIgnoreFileNames();
-    
+
     for (const filename of supportedFiles) {
       const ignoreFilePath = join(this.baseDir, filename);
-      
+
       try {
         const codexcliIgnore = await CodexcliIgnore.fromFilePath({
           filePath: ignoreFilePath,
@@ -158,7 +172,36 @@ export class IgnoreProcessor extends Processor {
     }
 
     // If no ignore files found, return empty array (common case)
-    logger.debug("No Codex CLI ignore files found, which is expected since .codexignore is not yet implemented");
+    logger.debug(
+      "No Codex CLI ignore files found, which is expected since .codexignore is not yet implemented",
+    );
+    return [];
+  }
+
+  private async loadOpencodeIgnores(): Promise<ToolIgnore[]> {
+    // OpenCode uses .gitignore primarily, but may have opencode.json with permission controls
+    const supportedFiles = OpencodeIgnore.getSupportedFileNames();
+
+    for (const filename of supportedFiles) {
+      const ignoreFilePath = join(this.baseDir, filename);
+
+      try {
+        const opencodeIgnore = await OpencodeIgnore.fromFilePath({
+          filePath: ignoreFilePath,
+        });
+
+        logger.info(`Successfully loaded OpenCode ignore file: ${ignoreFilePath}`);
+        return [opencodeIgnore];
+      } catch (error) {
+        // Continue to next file if this one fails
+        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
+      }
+    }
+
+    // If no ignore files found, return empty array (common case for OpenCode)
+    logger.debug(
+      "No OpenCode configuration files found, which is expected as OpenCode primarily relies on .gitignore",
+    );
     return [];
   }
 
