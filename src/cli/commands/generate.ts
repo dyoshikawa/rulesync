@@ -2,8 +2,7 @@ import { join } from "node:path";
 import { generateCommands } from "../../core/command-generator.js";
 import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/index.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
-import { generateMcpConfigurations } from "../../core/mcp-generator.js";
-import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { McpProcessor, McpProcessorToolTargetSchema } from "../../mcp/mcp-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
@@ -285,38 +284,49 @@ Available tools:
         logger.info("\nGenerating MCP configurations...");
 
         for (const baseDir of baseDirs) {
-          try {
-            const mcpConfig = parseMcpConfig(process.cwd());
-
-            if (
-              !mcpConfig ||
-              !mcpConfig.mcpServers ||
-              Object.keys(mcpConfig.mcpServers).length === 0
-            ) {
-              logger.info(`No MCP configuration found for ${baseDir}`);
+          // Process each target tool
+          for (const tool of config.defaultTargets) {
+            // Skip tools that don't support MCP
+            if (tool === "agentsmd" || tool === "augmentcode-legacy") {
               continue;
             }
 
-            const mcpResults = await generateMcpConfigurations(
-              mcpConfig,
-              baseDir === process.cwd() ? "." : baseDir,
-              config.defaultTargets,
-            );
+            try {
+              // Check if tool is supported for MCP generation
+              if (!McpProcessorToolTargetSchema.safeParse(tool).success) {
+                logger.info(`Skipping ${tool}: not supported for MCP generation`);
+                continue;
+              }
 
-            if (mcpResults.length === 0) {
-              logger.info(`No MCP configurations generated for ${baseDir}`);
-              continue;
-            }
+              const processor = new McpProcessor({
+                baseDir: baseDir === process.cwd() ? "." : baseDir,
+                toolTarget: tool,
+              });
 
-            for (const result of mcpResults) {
-              await writeFileContent(result.filepath, result.content);
-              logger.success(`Generated ${result.tool} MCP configuration: ${result.filepath}`);
-              totalMcpOutputs++;
+              // Check if rulesync MCP directory exists
+              const fullPath = join(baseDir, ".rulesync", "mcp");
+              if (!(await fileExists(fullPath))) {
+                logger.info(`No rulesync MCP directory found at ${fullPath}`);
+                continue;
+              }
+
+              // Load and process MCP configurations
+              const rulesyncMcpConfigs = await processor.loadRulesyncMcpConfigs();
+              await processor.writeToolMcpFromRulesyncMcp(rulesyncMcpConfigs);
+
+              // Count generated files for reporting
+              totalMcpOutputs += rulesyncMcpConfigs.length;
+
+              logger.success(`Generated ${rulesyncMcpConfigs.length} ${tool} MCP configuration(s)`);
+            } catch (error) {
+              // Handle specific errors (e.g., unsupported tools)
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              if (errorMessage.includes("not supported")) {
+                logger.info(`Skipping ${tool}: ${errorMessage}`);
+              } else {
+                logger.warn(`Failed to generate MCP for ${tool}: ${errorMessage}`);
+              }
             }
-          } catch (error) {
-            logger.error(
-              `❌ Failed to generate MCP configurations: ${error instanceof Error ? error.message : String(error)}`,
-            );
           }
         }
       } else {

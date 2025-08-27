@@ -3,9 +3,8 @@ import { createMockConfig, mockLogger } from "../../test-utils/index.js";
 
 vi.mock("../../core/index.js");
 vi.mock("../../core/config/index.js");
-vi.mock("../../core/mcp-generator.js");
-vi.mock("../../core/mcp-parser.js");
 vi.mock("../../core/command-generator.js");
+vi.mock("../../mcp/mcp-processor.js");
 vi.mock("../../utils/index.js");
 vi.mock("../../utils/logger.js", () => ({
   logger: mockLogger,
@@ -15,8 +14,7 @@ vi.mock("node:fs/promises");
 import { generateCommands } from "../../core/command-generator.js";
 import { CliParser, ConfigResolver } from "../../core/config/index.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
-import { generateMcpConfigurations } from "../../core/mcp-generator.js";
-import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { McpProcessor, McpProcessorToolTargetSchema } from "../../mcp/mcp-processor.js";
 import type { ToolTarget } from "../../types/index.js";
 import {
   fileExists,
@@ -29,8 +27,8 @@ import { generateCommand } from "./generate.js";
 
 const mockGenerateConfigurations = vi.mocked(generateConfigurations);
 const mockParseRulesFromDirectory = vi.mocked(parseRulesFromDirectory);
-const mockGenerateMcpConfigurations = vi.mocked(generateMcpConfigurations);
-const mockParseMcpConfig = vi.mocked(parseMcpConfig);
+const mockMcpProcessor = vi.mocked(McpProcessor);
+const mockMcpProcessorToolTargetSchema = vi.mocked(McpProcessorToolTargetSchema);
 const mockGenerateCommands = vi.mocked(generateCommands);
 const mockFileExists = vi.mocked(fileExists);
 const mockWriteFileContent = vi.mocked(writeFileContent);
@@ -72,9 +70,17 @@ describe("generateCommand", () => {
     mockWriteFileContent.mockResolvedValue();
     mockRemoveDirectory.mockResolvedValue();
     mockRemoveClaudeGeneratedFiles.mockResolvedValue();
-    mockGenerateMcpConfigurations.mockResolvedValue([]);
-    mockParseMcpConfig.mockReturnValue(null);
     mockGenerateCommands.mockResolvedValue([]);
+
+    // Mock McpProcessor
+    const mockProcessorInstance = {
+      loadRulesyncMcpConfigs: vi.fn().mockResolvedValue([]),
+      writeToolMcpFromRulesyncMcp: vi.fn().mockResolvedValue(undefined),
+    };
+    mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
+
+    // Mock McpProcessorToolTargetSchema
+    mockMcpProcessorToolTargetSchema.safeParse = vi.fn().mockReturnValue({ success: true });
 
     // Mock the new config system
     const mockResolutionResult = {
@@ -284,5 +290,194 @@ describe("generateCommand", () => {
     expect(mockRemoveDirectory).toHaveBeenCalledWith(".cursor/rules");
     expect(mockRemoveDirectory).toHaveBeenCalledWith(".clinerules");
     expect(mockRemoveDirectory).toHaveBeenCalledWith(".roo/rules");
+  });
+
+  it("should generate MCP configurations using McpProcessor", async () => {
+    // Mock that MCP directory exists
+    mockFileExists.mockImplementation((path: string) => {
+      if (typeof path === "string" && path.includes(".rulesync/mcp")) {
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(true);
+    });
+
+    // Mock rulesync MCP configs
+    const mockRulesyncMcpConfigs = [{ filename: "test-mcp", content: "test mcp config" }];
+
+    const mockProcessorInstance = {
+      loadRulesyncMcpConfigs: vi.fn().mockResolvedValue(mockRulesyncMcpConfigs),
+      writeToolMcpFromRulesyncMcp: vi.fn().mockResolvedValue(undefined),
+    };
+    mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
+
+    // Mock config with specific targets
+    const mockResolverInstance = {
+      resolve: vi.fn().mockResolvedValue({
+        value: {
+          ...mockConfig,
+          aiRulesDir: ".rulesync",
+          defaultTargets: ["claudecode"] as ToolTarget[],
+          watchEnabled: false,
+        },
+        source: "CLI arguments",
+      }),
+    };
+    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
+
+    await generateCommand({ tools: ["claudecode"], features: ["mcp"] });
+
+    expect(mockMcpProcessor).toHaveBeenCalledWith({
+      baseDir: ".",
+      toolTarget: "claudecode",
+    });
+    expect(mockProcessorInstance.loadRulesyncMcpConfigs).toHaveBeenCalled();
+    expect(mockProcessorInstance.writeToolMcpFromRulesyncMcp).toHaveBeenCalledWith(
+      mockRulesyncMcpConfigs,
+    );
+    expect(mockLogger.success).toHaveBeenCalledWith("Generated 1 claudecode MCP configuration(s)");
+  });
+
+  it("should skip MCP generation when no rulesync MCP directory found", async () => {
+    // Mock that MCP directory doesn't exist
+    mockFileExists.mockImplementation((path: string) => {
+      if (typeof path === "string" && path.includes(".rulesync/mcp")) {
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    });
+
+    const mockProcessorInstance = {
+      loadRulesyncMcpConfigs: vi.fn(),
+      writeToolMcpFromRulesyncMcp: vi.fn(),
+    };
+    mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
+
+    // Mock config with specific targets
+    const mockResolverInstance = {
+      resolve: vi.fn().mockResolvedValue({
+        value: {
+          ...mockConfig,
+          aiRulesDir: ".rulesync",
+          defaultTargets: ["claudecode"] as ToolTarget[],
+          watchEnabled: false,
+        },
+        source: "CLI arguments",
+      }),
+    };
+    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
+
+    await generateCommand({ tools: ["claudecode"], features: ["mcp"] });
+
+    // McpProcessor is created, but the methods should not be called due to directory check
+    expect(mockMcpProcessor).toHaveBeenCalledWith({
+      baseDir: ".",
+      toolTarget: "claudecode",
+    });
+    expect(mockProcessorInstance.loadRulesyncMcpConfigs).not.toHaveBeenCalled();
+    expect(mockProcessorInstance.writeToolMcpFromRulesyncMcp).not.toHaveBeenCalled();
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining("No rulesync MCP directory found"),
+    );
+  });
+
+  it("should handle unsupported MCP tools gracefully", async () => {
+    mockFileExists.mockImplementation((path: string) => {
+      if (typeof path === "string" && path.includes(".rulesync/mcp")) {
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(true);
+    });
+
+    // Mock schema validation to return false for unsupported tools
+    mockMcpProcessorToolTargetSchema.safeParse = vi.fn().mockReturnValue({ success: false });
+
+    const mockProcessorInstance = {
+      loadRulesyncMcpConfigs: vi.fn(),
+      writeToolMcpFromRulesyncMcp: vi.fn(),
+    };
+    mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
+
+    // Mock config with specific targets
+    const mockResolverInstance = {
+      resolve: vi.fn().mockResolvedValue({
+        value: {
+          ...mockConfig,
+          aiRulesDir: ".rulesync",
+          defaultTargets: ["copilot"] as ToolTarget[],
+          watchEnabled: false,
+        },
+        source: "CLI arguments",
+      }),
+    };
+    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
+
+    await generateCommand({ tools: ["copilot"], features: ["mcp"] });
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping copilot: not supported for MCP generation"),
+    );
+    expect(mockMcpProcessor).not.toHaveBeenCalled();
+  });
+
+  it("should skip agentsmd and augmentcode-legacy tools for MCP generation", async () => {
+    mockFileExists.mockImplementation((path: string) => {
+      if (typeof path === "string" && path.includes(".rulesync/mcp")) {
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(true);
+    });
+
+    // Mock config with specific targets
+    const mockResolverInstance = {
+      resolve: vi.fn().mockResolvedValue({
+        value: {
+          ...mockConfig,
+          aiRulesDir: ".rulesync",
+          defaultTargets: ["agentsmd", "augmentcode-legacy"] as ToolTarget[],
+          watchEnabled: false,
+        },
+        source: "CLI arguments",
+      }),
+    };
+    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
+
+    await generateCommand({ tools: ["agentsmd", "augmentcode-legacy"], features: ["mcp"] });
+
+    expect(mockMcpProcessor).not.toHaveBeenCalled();
+  });
+
+  it("should handle MCP generation errors", async () => {
+    mockFileExists.mockImplementation((path: string) => {
+      if (typeof path === "string" && path.includes(".rulesync/mcp")) {
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(true);
+    });
+
+    const mockProcessorInstance = {
+      loadRulesyncMcpConfigs: vi.fn().mockRejectedValue(new Error("Failed to load MCP configs")),
+      writeToolMcpFromRulesyncMcp: vi.fn(),
+    };
+    mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
+
+    // Mock config with specific targets
+    const mockResolverInstance = {
+      resolve: vi.fn().mockResolvedValue({
+        value: {
+          ...mockConfig,
+          aiRulesDir: ".rulesync",
+          defaultTargets: ["claudecode"] as ToolTarget[],
+          watchEnabled: false,
+        },
+        source: "CLI arguments",
+      }),
+    };
+    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
+
+    await generateCommand({ tools: ["claudecode"], features: ["mcp"] });
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to generate MCP for claudecode: Failed to load MCP configs"),
+    );
   });
 });
