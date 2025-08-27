@@ -9,6 +9,13 @@ import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 export const RulesyncCommandFrontmatterSchema = z.object({
   targets: RulesyncTargetsSchema,
   description: z.string(),
+  claudecode: z.optional(
+    z.object({
+      "allowed-tools": z.optional(z.string()),
+      model: z.optional(z.string()),
+      "argument-hint": z.optional(z.string()),
+    }),
+  ),
 });
 
 export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatterSchema>;
