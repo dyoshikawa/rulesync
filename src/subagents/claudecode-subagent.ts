@@ -1,6 +1,8 @@
+import { readFile } from "node:fs/promises";
+import { basename, dirname, relative } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
-import { AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { ToolSubagent, ToolSubagentFromRulesyncSubagentParams } from "./tool-subagent.js";
 
@@ -97,5 +99,33 @@ export class ClaudecodeSubagent extends ToolSubagent {
     } else {
       return { success: false, error: result.error };
     }
+  }
+
+  static async fromFilePath({
+    baseDir,
+    relativeDirPath,
+    relativeFilePath,
+    filePath,
+    validate = true,
+  }: AiFileFromFilePathParams): Promise<ClaudecodeSubagent> {
+    // Read file content
+    const fileContent = await readFile(filePath, "utf-8");
+    const { data: frontmatter, content } = matter(fileContent);
+
+    // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
+    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+    }
+
+    return new ClaudecodeSubagent({
+      baseDir: baseDir || ".",
+      relativeDirPath: relativeDirPath || dirname(relative(baseDir || ".", filePath)),
+      relativeFilePath: relativeFilePath || basename(filePath),
+      frontmatter: result.data,
+      body: content.trim(),
+      fileContent,
+      validate,
+    });
   }
 }
