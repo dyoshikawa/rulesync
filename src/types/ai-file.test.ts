@@ -123,14 +123,14 @@ describe("AiFile", () => {
       expect(aiFile.getFileContent()).toBe("test content from file path");
     });
 
-    it("should throw error for abstract base class", () => {
-      expect(() => {
+    it("should throw error for abstract base class", async () => {
+      await expect(
         AiFile.fromFilePath({
           relativeDirPath: ".claude",
           relativeFilePath: "test.md",
           filePath: "/some/path/test.md",
-        });
-      }).toThrow("Please implement this method in the subclass.");
+        }),
+      ).rejects.toThrow("Please implement this method in the subclass.");
     });
   });
 

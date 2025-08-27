@@ -137,14 +137,14 @@ describe("ToolSubagent", () => {
       expect(toolSubagent.getFileContent()).toBe("test content from file path");
     });
 
-    it("should throw error for abstract base class fromFilePath", () => {
-      expect(() => {
+    it("should throw error for abstract base class fromFilePath", async () => {
+      await expect(
         ToolSubagent.fromFilePath({
           relativeDirPath: ".tool/agents",
           relativeFilePath: "test.md",
           filePath: "/some/path/test.md",
-        });
-      }).toThrow("Please implement this method in the subclass.");
+        }),
+      ).rejects.toThrow("Please implement this method in the subclass.");
     });
   });
 
@@ -302,11 +302,11 @@ describe("ToolSubagent", () => {
       expect(result).toBeInstanceOf(TestToolSubagent);
     });
 
-    it("should enforce fromFilePath static method implementation", () => {
+    it("should enforce fromFilePath static method implementation", async () => {
       // Verify the static method exists and works
       expect(typeof TestToolSubagent.fromFilePath).toBe("function");
 
-      const result = TestToolSubagent.fromFilePath({
+      const result = await TestToolSubagent.fromFilePath({
         baseDir: testDir,
         relativeDirPath: ".tool/agents",
         relativeFilePath: "fromfile.md",

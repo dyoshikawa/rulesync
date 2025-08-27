@@ -70,7 +70,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
     // Remove undefined values to avoid YAML dump errors
     const cleanFrontmatter = Object.fromEntries(
-      Object.entries(claudecodeFrontmatter).filter(([, value]) => value !== undefined)
+      Object.entries(claudecodeFrontmatter).filter(([, value]) => value !== undefined),
     );
     const fileContent = matter.stringify(body, cleanFrontmatter);
 

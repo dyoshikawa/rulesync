@@ -227,14 +227,14 @@ describe("RulesyncFile", () => {
       expect(rulesyncFile.getBody()).toBe("test body from file path");
     });
 
-    it("should throw error for abstract base class fromFilePath", () => {
-      expect(() => {
+    it("should throw error for abstract base class fromFilePath", async () => {
+      await expect(
         RulesyncFile.fromFilePath({
           relativeDirPath: ".rulesync",
           relativeFilePath: "test.md",
           filePath: "/some/path/test.md",
-        });
-      }).toThrow("Please implement this method in the subclass.");
+        }),
+      ).rejects.toThrow("Please implement this method in the subclass.");
     });
 
     it("should handle optional parameters with defaults", async () => {
