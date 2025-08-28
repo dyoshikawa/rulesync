@@ -20,6 +20,7 @@ import { generateQwencodeConfig } from "../generators/rules/qwencode.js";
 import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
+import { getRulesProcessor } from "../rules/rules-processor-factory.js";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../types/index.js";
 import { resolveTargets } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
@@ -73,6 +74,19 @@ async function generateForTool(
   config: Config,
   baseDir?: string,
 ): Promise<GeneratedOutput[] | null> {
+  // Log which tool-specific processor is being used
+  logger.debug(`Generating configuration for tool: ${tool}`);
+
+  // Get RulesProcessor instance for this tool if available
+  const resolvedBaseDir = baseDir || process.cwd();
+  const rulesProcessor = getRulesProcessor(tool, resolvedBaseDir);
+
+  if (rulesProcessor) {
+    logger.debug(`Using RulesProcessor for tool: ${tool}`);
+  } else {
+    logger.debug(`Using legacy generator for tool: ${tool}`);
+  }
+
   switch (tool) {
     case "agentsmd":
       return await generateAgentsMdConfig(rules, config, baseDir);
