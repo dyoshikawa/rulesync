@@ -12,11 +12,20 @@ export const RooRuleFrontmatterSchema = z.object({
 
 export type RooRuleFrontmatter = z.infer<typeof RooRuleFrontmatterSchema>;
 
-export interface RooRuleParams extends AiFileParams {
+export interface RooRuleParamsBase extends AiFileParams {
   frontmatter: RooRuleFrontmatter;
   body: string;
-  mode: string | undefined; // Mode extracted from path, can be undefined
 }
+
+export interface RooRuleParamsWithMode extends RooRuleParamsBase {
+  mode: string; // Mode is present
+}
+
+export interface RooRuleParamsWithoutMode extends RooRuleParamsBase {
+  mode?: undefined; // Mode is explicitly undefined
+}
+
+export type RooRuleParams = RooRuleParamsWithMode | RooRuleParamsWithoutMode;
 
 /**
  * Rule generator for Roo Code AI assistant
@@ -30,7 +39,8 @@ export class RooRule extends ToolRule {
   private readonly frontmatter: RooRuleFrontmatter;
   private readonly mode: string | undefined;
 
-  constructor({ frontmatter, body, mode, ...rest }: RooRuleParams) {
+  constructor(params: RooRuleParams) {
+    const { frontmatter, body, mode, ...rest } = params;
     // Set properties before calling super to ensure they're available for validation
     if (rest.validate !== false) {
       const result = RooRuleFrontmatterSchema.safeParse(frontmatter);
@@ -93,7 +103,7 @@ export class RooRule extends ToolRule {
 
     // Extract description from rulesync rule frontmatter
     const description = rulesyncRule.getFrontmatter().description;
-    
+
     // Extract mode from file path if it's mode-specific
     const mode = RooRule.extractModeFromPath(rulesyncRule.getRelativeFilePath());
 
@@ -114,7 +124,7 @@ export class RooRule extends ToolRule {
   static extractModeFromPath(filePath: string): string | undefined {
     // Check for mode-specific patterns:
     // .roo/rules-{mode}/ or .roorules-{mode} or .clinerules-{mode}
-    
+
     // Directory pattern: .roo/rules-{mode}/
     const directoryMatch = filePath.match(/\.roo\/rules-([a-zA-Z0-9-]+)\//);
     if (directoryMatch) {
@@ -158,7 +168,7 @@ export class RooRule extends ToolRule {
     if (!result.success) {
       return { success: false, error: result.error };
     }
-      
+
     // Validate mode slug if present
     if (this.mode && !/^[a-zA-Z0-9-]+$/.test(this.mode)) {
       return {
@@ -219,21 +229,21 @@ export class RooRule extends ToolRule {
    */
   getRuleType(): string {
     const parts: string[] = [];
-    
+
     if (this.isDirectoryBased()) {
       parts.push("directory");
     } else {
       parts.push("single-file");
     }
-    
+
     if (this.isModeSpecific()) {
       parts.push(`mode:${this.mode}`);
     }
-    
+
     if (this.isLegacyRule()) {
       parts.push("legacy");
     }
-    
+
     return parts.join(" ");
   }
 }
