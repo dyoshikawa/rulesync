@@ -7,5 +7,6 @@ export * from "./cline-rule.js";
 export * from "./codexcli-rule.js";
 export * from "./copilot-rule.js";
 export * from "./cursor-rule.js";
+export * from "./opencode-rule.js";
 export * from "./rulesync-rule.js";
 export * from "./tool-rule.js";
