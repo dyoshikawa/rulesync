@@ -64,7 +64,7 @@ export class ClaudecodeRule extends ToolRule {
     return new ClaudecodeRule({
       ...rest,
       fileContent: rulesyncRule.getFileContent(),
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      relativeFilePath: "CLAUDE.md",
       frontmatter: { description },
       body: rulesyncRule.getBody(),
     });

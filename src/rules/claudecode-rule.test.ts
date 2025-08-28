@@ -89,7 +89,7 @@ Content`;
       });
 
       expect(rule).toBeInstanceOf(ClaudecodeRule);
-      expect(rule.getRelativeFilePath()).toBe("test.md");
+      expect(rule.getRelativeFilePath()).toBe("CLAUDE.md");
     });
   });
 

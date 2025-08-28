@@ -60,7 +60,7 @@ export class AgentsMdRule extends ToolRule {
     return new AgentsMdRule({
       baseDir,
       relativeDirPath,
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      relativeFilePath: "AGENTS.md",
       body,
       fileContent,
       validate,
