@@ -1,10 +1,10 @@
-import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
+import { RuleFrontmatter } from "../types/rules.js";
 import { RooRule, RooRuleFrontmatter } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { RuleFrontmatter } from "../types/rules.js";
 
 describe("RooRule", () => {
   let testDir: string;
@@ -412,94 +412,94 @@ Content`;
   describe("helper methods", () => {
     it("should identify directory-based rules", async () => {
       const content = "content";
-      
+
       // Directory-based
       const filePath1 = join(testDir, ".roo/rules/test.md");
       await mkdir(join(testDir, ".roo/rules"), { recursive: true });
       await writeFile(filePath1, content, "utf-8");
-      
+
       const rule1 = await RooRule.fromFilePath({
         filePath: filePath1,
         baseDir: testDir,
         relativeDirPath: ".roo/rules",
         relativeFilePath: ".roo/rules/test.md",
       });
-      
+
       expect(rule1.isDirectoryBased()).toBe(true);
 
       // Single-file
       const filePath2 = join(testDir, ".roorules");
       await writeFile(filePath2, content, "utf-8");
-      
+
       const rule2 = await RooRule.fromFilePath({
         filePath: filePath2,
         baseDir: testDir,
         relativeDirPath: "",
         relativeFilePath: ".roorules",
       });
-      
+
       expect(rule2.isDirectoryBased()).toBe(false);
     });
 
     it("should identify mode-specific rules", async () => {
       const content = "content";
-      
+
       // Mode-specific
       await mkdir(join(testDir, ".roo/rules-code"), { recursive: true });
       const filePath1 = join(testDir, ".roo/rules-code/test.md");
       await writeFile(filePath1, content, "utf-8");
-      
+
       const rule1 = await RooRule.fromFilePath({
         filePath: filePath1,
         baseDir: testDir,
         relativeDirPath: ".roo/rules-code",
         relativeFilePath: ".roo/rules-code/test.md",
       });
-      
+
       expect(rule1.isModeSpecific()).toBe(true);
 
       // General
       await mkdir(join(testDir, ".roo/rules"), { recursive: true });
       const filePath2 = join(testDir, ".roo/rules/test.md");
       await writeFile(filePath2, content, "utf-8");
-      
+
       const rule2 = await RooRule.fromFilePath({
         filePath: filePath2,
         baseDir: testDir,
         relativeDirPath: ".roo/rules",
         relativeFilePath: ".roo/rules/test.md",
       });
-      
+
       expect(rule2.isModeSpecific()).toBe(false);
     });
 
     it("should identify legacy rules", async () => {
       const content = "content";
-      
+
       // Legacy
       const filePath1 = join(testDir, ".clinerules");
       await writeFile(filePath1, content, "utf-8");
-      
+
       const rule1 = await RooRule.fromFilePath({
         filePath: filePath1,
         baseDir: testDir,
         relativeDirPath: "",
         relativeFilePath: ".clinerules",
       });
-      
+
       expect(rule1.isLegacyRule()).toBe(true);
 
       // Modern
       const filePath2 = join(testDir, ".roorules");
       await writeFile(filePath2, content, "utf-8");
-      
+
       const rule2 = await RooRule.fromFilePath({
         filePath: filePath2,
         baseDir: testDir,
         relativeDirPath: "",
         relativeFilePath: ".roorules",
       });
-      
+
       expect(rule2.isLegacyRule()).toBe(false);
     });
 
@@ -510,27 +510,27 @@ Content`;
       await mkdir(join(testDir, ".roo/rules-code"), { recursive: true });
       const filePath1 = join(testDir, ".roo/rules-code/test.md");
       await writeFile(filePath1, content, "utf-8");
-      
+
       const rule1 = await RooRule.fromFilePath({
         filePath: filePath1,
         baseDir: testDir,
         relativeDirPath: ".roo/rules-code",
         relativeFilePath: ".roo/rules-code/test.md",
       });
-      
+
       expect(rule1.getRuleType()).toBe("directory mode:code");
 
       // Single-file legacy
       const filePath2 = join(testDir, ".clinerules-ask");
       await writeFile(filePath2, content, "utf-8");
-      
+
       const rule2 = await RooRule.fromFilePath({
         filePath: filePath2,
         baseDir: testDir,
         relativeDirPath: "",
         relativeFilePath: ".clinerules-ask",
       });
-      
+
       expect(rule2.getRuleType()).toBe("single-file mode:ask legacy");
     });
   });
