@@ -36,8 +36,7 @@ describe("CursorRule", () => {
       };
 
       expect(() => {
-         
-        new CursorRule({
+        const _rule = new CursorRule({
           baseDir: ".",
           relativeDirPath: ".cursor/rules",
           relativeFilePath: "test-rule.mdc",
@@ -56,8 +55,7 @@ describe("CursorRule", () => {
       };
 
       expect(() => {
-         
-        new CursorRule({
+        const _rule = new CursorRule({
           baseDir: ".",
           relativeDirPath: ".cursor/rules",
           relativeFilePath: "test-rule.mdc",

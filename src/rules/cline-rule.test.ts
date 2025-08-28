@@ -1,9 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import matter from "gray-matter";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
-import type { ToolTargets } from "../types/tool-targets.js";
 import { ClineRule, type ClineRuleFrontmatter } from "./cline-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -20,487 +18,403 @@ describe("ClineRule", () => {
   });
 
   describe("constructor", () => {
-    it("should create an instance with valid frontmatter", () => {
+    it("should create instance with valid parameters", () => {
+      const frontmatter: ClineRuleFrontmatter = {
+        description: "Test rule",
+      };
+
+      const rule = new ClineRule({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "test-rule.md",
+        frontmatter,
+        body: "This is a test rule",
+        fileContent: "This is a test rule",
+      });
+
+      expect(rule).toBeInstanceOf(ClineRule);
+      expect(rule.getFrontmatter()).toEqual(frontmatter);
+      expect(rule.getBody()).toBe("This is a test rule");
+    });
+
+    it("should validate frontmatter by default", () => {
+      expect(() => {
+        const _rule = new ClineRule({
+          baseDir: testDir,
+          relativeDirPath: ".clinerules",
+          relativeFilePath: "test-rule.md",
+          frontmatter: {} as ClineRuleFrontmatter, // Invalid frontmatter
+          body: "This is a test rule",
+          fileContent: "This is a test rule",
+        });
+      }).toThrow();
+    });
+
+    it("should skip validation when validate=false", () => {
+      const rule = new ClineRule({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {} as ClineRuleFrontmatter, // Invalid frontmatter
+        body: "This is a test rule",
+        fileContent: "This is a test rule",
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(ClineRule);
+    });
+  });
+
+  describe("toRulesyncRule", () => {
+    it("should convert to RulesyncRule correctly", () => {
       const frontmatter: ClineRuleFrontmatter = {
         description: "Test rule for Cline",
       };
 
       const rule = new ClineRule({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
         relativeFilePath: "test-rule.md",
         frontmatter,
-        body: "# Test Rule\n\nThis is a test rule for Cline",
-        fileContent: "# Test Rule\n\nThis is a test rule for Cline",
+        body: "This is a test rule",
+        fileContent: "This is a test rule",
       });
 
-      expect(rule).toBeInstanceOf(ClineRule);
-      expect(rule.getFrontmatter()).toEqual(frontmatter);
-      expect(rule.getBody()).toBe("# Test Rule\n\nThis is a test rule for Cline");
-    });
+      const rulesyncRule = rule.toRulesyncRule();
 
-    it("should create an instance without description", () => {
-      const frontmatter: ClineRuleFrontmatter = {};
-
-      const rule = new ClineRule({
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "coding-standards.md",
-        frontmatter,
-        body: "# Coding Standards\n\nUse TypeScript for all new code",
-        fileContent: "# Coding Standards\n\nUse TypeScript for all new code",
+      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
+      expect(rulesyncRule.getFrontmatter()).toEqual({
+        targets: ["cline"],
+        root: false,
+        description: "Test rule for Cline",
+        globs: [],
       });
-
-      expect(rule.getFrontmatter()).toEqual(frontmatter);
-    });
-
-    it("should not throw error when validation disabled", () => {
-      const frontmatter = {
-        description: "Test rule",
-        invalidField: "should be ignored",
-      } as any;
-
-      expect(() => {
-        const rule = new ClineRule({
-          relativeDirPath: ".clinerules",
-          relativeFilePath: "test.md",
-          frontmatter,
-          body: "Test content",
-          fileContent: "Test content",
-          validate: false,
-        });
-        return rule;
-      }).not.toThrow();
-    });
-  });
-
-  describe("fromFilePath", () => {
-    it("should create rule from plain Markdown file", async () => {
-      const content = "# Coding Standards\n\nAlways use TypeScript strict mode";
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "coding-standards.md");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "coding-standards.md",
-        filePath,
-      });
-
-      expect(rule).toBeInstanceOf(ClineRule);
-      expect(rule.getBody()).toBe(content);
-      expect(rule.getFrontmatter().description).toBe("Coding Standards");
-    });
-
-    it("should handle files with numeric prefixes", async () => {
-      const content = "# API Design\n\nRESTful principles";
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "01-api-design.md");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "01-api-design.md",
-        filePath,
-      });
-
-      // Description should come from content, not filename
-      expect(rule.getFrontmatter().description).toBe("API Design");
-    });
-
-    it("should handle files without headings", async () => {
-      const content = "Use consistent naming conventions across the codebase";
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "naming-conventions.md");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "naming-conventions.md",
-        filePath,
-      });
-
-      expect(rule.getFrontmatter().description).toBe(
-        "Use consistent naming conventions across the codebase",
-      );
-    });
-
-    it("should handle .mdx files", async () => {
-      const content = "# Component Guidelines\n\nUse functional components";
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "components.mdx");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "components.mdx",
-        filePath,
-      });
-
-      expect(rule.getBody()).toBe(content);
-      expect(rule.getFrontmatter().description).toBe("Component Guidelines");
-    });
-
-    it("should ignore accidental frontmatter in Cline files", async () => {
-      // Cline files shouldn't have frontmatter, but handle gracefully if they do
-      const content = matter.stringify("# Test Rule\n\nContent", { type: "manual" });
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "accidental-frontmatter.md");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "accidental-frontmatter.md",
-        filePath,
-      });
-
-      // Should treat the entire file as body since Cline doesn't use frontmatter
-      expect(rule.getBody()).toBe(content);
-    });
-
-    it("should extract description from kebab-case filename", async () => {
-      // Use empty content to force fallback to filename
-      const content = "";
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "database-migrations.md");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "database-migrations.md",
-        filePath,
-      });
-
-      expect(rule.getFrontmatter().description).toBe("Database Migrations");
-    });
-
-    it("should extract description from snake_case filename", async () => {
-      // Use empty content to force fallback to filename
-      const content = "";
-      const dirPath = join(testDir, ".clinerules");
-      await mkdir(dirPath, { recursive: true });
-      const filePath = join(dirPath, "test_coverage.md");
-      await writeFile(filePath, content);
-
-      const rule = await ClineRule.fromFilePath({
-        baseDir: testDir,
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "test_coverage.md",
-        filePath,
-      });
-
-      expect(rule.getFrontmatter().description).toBe("Test Coverage");
+      expect(rulesyncRule.getBody()).toBe("This is a test rule");
     });
   });
 
   describe("fromRulesyncRule", () => {
-    it("should convert from RulesyncRule", () => {
-      const rulesyncFrontmatter = {
-        targets: ["cline"] as ToolTargets,
-        root: false,
-        description: "Test rule",
-        globs: [],
-      };
-
+    it("should create ClineRule from RulesyncRule", () => {
+      // Create a RulesyncRule first
       const rulesyncRule = new RulesyncRule({
-        frontmatter: rulesyncFrontmatter,
-        body: "# Test Rule\n\nRule content",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/rules",
-        relativeFilePath: "test.md",
-        fileContent: matter.stringify("# Test Rule\n\nRule content", rulesyncFrontmatter),
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          targets: ["cline"],
+          root: false,
+          description: "Test rule from Rulesync",
+          globs: [],
+        },
+        body: "This is a converted rule",
+        fileContent:
+          "---\ntargets: [cline]\ndescription: Test rule from Rulesync\n---\nThis is a converted rule",
         validate: false,
       });
 
       const clineRule = ClineRule.fromRulesyncRule({
-        baseDir: ".",
+        baseDir: testDir,
         rulesyncRule,
         relativeDirPath: ".clinerules",
-      });
+      }) as ClineRule;
 
       expect(clineRule).toBeInstanceOf(ClineRule);
-      expect(clineRule.getFrontmatter().description).toBe("Test rule");
-      expect(clineRule.getBody()).toBe("# Test Rule\n\nRule content");
-    });
-
-    it("should handle RulesyncRule without description", () => {
-      const rulesyncFrontmatter = {
-        targets: ["cline"] as ToolTargets,
-        root: false,
-        description: "",
-        globs: [],
-      };
-
-      const rulesyncRule = new RulesyncRule({
-        frontmatter: rulesyncFrontmatter,
-        body: "Rule content",
-        relativeDirPath: ".rulesync/rules",
-        relativeFilePath: "test.md",
-        fileContent: matter.stringify("Rule content", rulesyncFrontmatter),
-        validate: false,
+      expect(clineRule.getFrontmatter()).toEqual({
+        description: "Test rule from Rulesync",
       });
-
-      const clineRule = ClineRule.fromRulesyncRule({
-        baseDir: ".",
-        rulesyncRule,
-        relativeDirPath: ".clinerules",
-      });
-
-      expect(clineRule.getFrontmatter().description).toBe("");
-    });
-
-    it("should not validate when validate is false", () => {
-      const rulesyncFrontmatter = {
-        targets: ["cline"] as ToolTargets,
-        root: false,
-        description: "Test",
-        globs: [],
-      };
-
-      const rulesyncRule = new RulesyncRule({
-        frontmatter: rulesyncFrontmatter,
-        body: "Content",
-        relativeDirPath: ".rulesync/rules",
-        relativeFilePath: "test.md",
-        fileContent: matter.stringify("Content", rulesyncFrontmatter),
-        validate: false,
-      });
-
-      expect(() => {
-        ClineRule.fromRulesyncRule({
-          baseDir: ".",
-          rulesyncRule,
-          relativeDirPath: ".clinerules",
-          validate: false,
-        });
-      }).not.toThrow();
-    });
-  });
-
-  describe("toRulesyncRule", () => {
-    it("should convert to RulesyncRule with description", () => {
-      const frontmatter: ClineRuleFrontmatter = {
-        description: "Custom description",
-      };
-
-      const clineRule = new ClineRule({
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
-        frontmatter,
-        body: "# Different Heading\n\nContent",
-        fileContent: "# Different Heading\n\nContent",
-      });
-
-      const rulesyncRule = clineRule.toRulesyncRule();
-
-      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getFrontmatter().targets).toEqual(["cline"]);
-      expect(rulesyncRule.getFrontmatter().description).toBe("Custom description");
-      expect(rulesyncRule.getFrontmatter().globs).toEqual([]);
-      expect(rulesyncRule.getBody()).toBe("# Different Heading\n\nContent");
-    });
-
-    it("should extract description from heading when not provided", () => {
-      const frontmatter: ClineRuleFrontmatter = {};
-
-      const clineRule = new ClineRule({
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
-        frontmatter,
-        body: "# Testing Guidelines\n\nWrite tests first",
-        fileContent: "# Testing Guidelines\n\nWrite tests first",
-      });
-
-      const rulesyncRule = clineRule.toRulesyncRule();
-
-      expect(rulesyncRule.getFrontmatter().description).toBe("Testing Guidelines");
-    });
-
-    it("should extract description from filename when no heading", () => {
-      const frontmatter: ClineRuleFrontmatter = {};
-
-      const clineRule = new ClineRule({
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "security-best-practices.md",
-        frontmatter,
-        body: "Always validate user input",
-        fileContent: "Always validate user input",
-      });
-
-      const rulesyncRule = clineRule.toRulesyncRule();
-
-      expect(rulesyncRule.getFrontmatter().description).toBe("Security Best Practices");
-    });
-
-    it("should use default description as last resort", () => {
-      const frontmatter: ClineRuleFrontmatter = {};
-
-      const clineRule = new ClineRule({
-        relativeDirPath: ".clinerules",
-        relativeFilePath: ".md", // Edge case: invalid filename
-        frontmatter,
-        body: "", // Empty content
-        fileContent: "",
-      });
-
-      const rulesyncRule = clineRule.toRulesyncRule();
-
-      expect(rulesyncRule.getFrontmatter().description).toBe("Cline rule");
+      expect(clineRule.getBody()).toBe("This is a converted rule");
     });
   });
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const frontmatter: ClineRuleFrontmatter = {
-        description: "Test rule",
+        description: "Valid test rule",
       };
 
       const rule = new ClineRule({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
+        relativeFilePath: "test-rule.md",
         frontmatter,
-        body: "Content",
-        fileContent: "Content",
+        body: "This is a test rule",
+        fileContent: "This is a test rule",
+        validate: false, // Skip constructor validation to test validate() method
       });
 
       const result = rule.validate();
       expect(result.success).toBe(true);
-      expect(result.error).toBe(null);
+      expect(result.error).toBeNull();
     });
 
-    it("should return success for empty frontmatter", () => {
-      const frontmatter: ClineRuleFrontmatter = {};
-
+    it("should return error for invalid frontmatter", () => {
       const rule = new ClineRule({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
-        frontmatter,
-        body: "Content",
-        fileContent: "Content",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {} as ClineRuleFrontmatter, // Invalid frontmatter
+        body: "This is a test rule",
+        fileContent: "This is a test rule",
+        validate: false, // Skip constructor validation
       });
 
       const result = rule.validate();
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.error).toBeTruthy();
     });
 
-    it("should handle undefined frontmatter gracefully", () => {
+    it("should return success when frontmatter is undefined", () => {
       const rule = new ClineRule({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
+        relativeFilePath: "test-rule.md",
         frontmatter: undefined as any,
-        body: "Content",
-        fileContent: "Content",
+        body: "This is a test rule",
+        fileContent: "This is a test rule",
         validate: false,
       });
 
       const result = rule.validate();
       expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
     });
   });
 
-  describe("getters", () => {
-    it("should return frontmatter correctly", () => {
-      const frontmatter: ClineRuleFrontmatter = {
-        description: "Test description",
-      };
+  describe("fromFilePath", () => {
+    it("should create rule from file with heading", async () => {
+      const filePath = join(testDir, "test-rule.md");
+      const content = "# Coding Standards\n\nFollow TypeScript best practices.";
+      await writeFile(filePath, content);
 
-      const rule = new ClineRule({
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
-        frontmatter,
-        body: "Content",
-        fileContent: "Content",
+        relativeFilePath: "test-rule.md",
+        filePath,
       });
 
-      expect(rule.getFrontmatter()).toEqual(frontmatter);
+      expect(rule.getFrontmatter().description).toBe("Coding Standards");
+      expect(rule.getBody()).toBe(content);
     });
 
-    it("should return body correctly", () => {
-      const body = "# Rule\n\nContent here";
+    it("should create rule from file without heading using filename", async () => {
+      const filePath = join(testDir, "coding-standards.md");
+      const content = "Follow TypeScript best practices.";
+      await writeFile(filePath, content);
 
-      const rule = new ClineRule({
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "test.md",
-        frontmatter: {},
-        body,
-        fileContent: body,
+        relativeFilePath: "coding-standards.md",
+        filePath,
       });
 
-      expect(rule.getBody()).toBe(body);
+      expect(rule.getFrontmatter().description).toBe("Coding Standards");
+      expect(rule.getBody()).toBe(content);
+    });
+
+    it("should handle filenames with underscores", async () => {
+      const filePath = join(testDir, "api_design_rules.md");
+      const content = "API design guidelines.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "api_design_rules.md",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Api Design Rules");
+      expect(rule.getBody()).toBe(content);
+    });
+
+    it("should handle empty files", async () => {
+      const filePath = join(testDir, "empty.md");
+      await writeFile(filePath, "");
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "empty.md",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Empty");
+      expect(rule.getBody()).toBe("");
+    });
+
+    it("should use default description for files without extension", async () => {
+      const filePath = join(testDir, "rules");
+      const content = "Some rules here.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "rules",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Rules");
+      expect(rule.getBody()).toBe(content);
+    });
+
+    it("should handle multiple headings and use the first one", async () => {
+      const filePath = join(testDir, "multiple-headings.md");
+      const content =
+        "Some content\n\n# First Heading\n\nMore content\n\n# Second Heading\n\nEven more content";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "multiple-headings.md",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("First Heading");
+      expect(rule.getBody()).toBe(content);
+    });
+
+    it("should skip validation when validate=false", async () => {
+      const filePath = join(testDir, "test-rule.md");
+      const content = "# Test Rule\n\nThis is a test rule.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "test-rule.md",
+        filePath,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(ClineRule);
+    });
+
+    it("should handle complex filenames", async () => {
+      const filePath = join(testDir, "complex-file-name_with-special123.md");
+      const content = "Complex rule content.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "complex-file-name_with-special123.md",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Complex File Name With Special123");
+      expect(rule.getBody()).toBe(content);
+    });
+  });
+
+  describe("static methods", () => {
+    it("should create rule from valid file path", async () => {
+      const filePath = join(testDir, "test.md");
+      const content = "# Test Rule\n\nThis is a test rule.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "test.md",
+        filePath,
+      });
+
+      expect(rule).toBeInstanceOf(ClineRule);
+      expect(rule.getFrontmatter().description).toBe("Test Rule");
+      expect(rule.getBody()).toBe(content);
     });
   });
 
   describe("edge cases", () => {
-    it("should handle very long content", () => {
-      const longContent = "# Title\n\n" + "Lorem ipsum ".repeat(1000);
+    it("should handle very long content", async () => {
+      const filePath = join(testDir, "long-content.md");
+      const longContent = "# Long Rule\n\n" + "a".repeat(10000);
+      await writeFile(filePath, longContent);
 
-      const rule = new ClineRule({
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "long.md",
-        frontmatter: {}, // No description set initially
-        body: longContent,
-        fileContent: longContent,
+        relativeFilePath: "long-content.md",
+        filePath,
       });
 
-      expect(rule.getBody()).toBe(longContent);
-      // The description is extracted when converting to RulesyncRule, not stored in frontmatter
-      const rulesyncRule = rule.toRulesyncRule();
-      expect(rulesyncRule.getFrontmatter().description).toBe("Title");
+      expect(rule.getFrontmatter().description).toBe("Long Rule");
+      expect(rule.getBody().length).toBe(longContent.length);
     });
 
-    it("should handle content with multiple headings", () => {
-      const content = "# First Heading\n\n## Second Heading\n\n# Third Heading";
+    it("should handle special characters in headings", async () => {
+      const filePath = join(testDir, "special-chars.md");
+      const content = "# Rule with Special Chars: @#$%\n\nContent here.";
+      await writeFile(filePath, content);
 
-      const rule = new ClineRule({
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "multi-heading.md",
-        frontmatter: {},
-        body: content,
-        fileContent: content,
+        relativeFilePath: "special-chars.md",
+        filePath,
       });
 
-      // Should use the first heading
-      const rulesyncRule = rule.toRulesyncRule();
-      expect(rulesyncRule.getFrontmatter().description).toBe("First Heading");
+      expect(rule.getFrontmatter().description).toBe("Rule with Special Chars: @#$%");
+      expect(rule.getBody()).toBe(content);
     });
 
-    it("should handle markdown with special characters", () => {
-      const content = "# Rule with `code` and **bold**\n\nContent with *emphasis*";
+    it("should handle headings with extra spaces", async () => {
+      const filePath = join(testDir, "spaced-heading.md");
+      const content = "#    Spaced Heading    \n\nContent here.";
+      await writeFile(filePath, content);
 
-      const rule = new ClineRule({
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
         relativeDirPath: ".clinerules",
-        relativeFilePath: "special.md",
-        frontmatter: {},
-        body: content,
-        fileContent: content,
+        relativeFilePath: "spaced-heading.md",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Spaced Heading");
+      expect(rule.getBody()).toBe(content);
+    });
+  });
+
+  describe("integration with file system", () => {
+    it("should work with nested directory structure", async () => {
+      const ruleDir = join(testDir, ".clinerules");
+      await mkdir(ruleDir, { recursive: true });
+
+      const filePath = join(ruleDir, "nested-rule.md");
+      const content = "# Nested Rule\n\nThis rule is in a nested directory.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "nested-rule.md",
+        filePath,
+      });
+
+      expect(rule.getFrontmatter().description).toBe("Nested Rule");
+      expect(rule.getBody()).toBe(content);
+      expect(rule.getRelativeFilePath()).toBe("nested-rule.md");
+    });
+
+    it("should preserve file content exactly", async () => {
+      const filePath = join(testDir, "preserve-content.md");
+      const content =
+        "# Preserve Content\n\nThis content should be preserved exactly\n  with whitespace\n\n\nand multiple empty lines.";
+      await writeFile(filePath, content);
+
+      const rule = await ClineRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules",
+        relativeFilePath: "preserve-content.md",
+        filePath,
       });
 
       expect(rule.getBody()).toBe(content);
-      const rulesyncRule = rule.toRulesyncRule();
-      expect(rulesyncRule.getFrontmatter().description).toBe("Rule with `code` and **bold**");
-    });
-
-    it("should handle empty content", () => {
-      const rule = new ClineRule({
-        relativeDirPath: ".clinerules",
-        relativeFilePath: "empty.md",
-        frontmatter: {},
-        body: "",
-        fileContent: "",
-      });
-
-      expect(rule.getBody()).toBe("");
-      const rulesyncRule = rule.toRulesyncRule();
-      expect(rulesyncRule.getFrontmatter().description).toBe("Empty");
+      expect(rule.getFileContent()).toBe(content);
     });
   });
 });
