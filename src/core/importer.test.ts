@@ -2,12 +2,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as parsers from "../parsers/index.js";
+import * as rulesProcessorFactory from "../rules/rules-processor-factory.js";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { ToolTarget } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
+vi.mock("../rules/rules-processor-factory");
 
 describe("importConfiguration", () => {
   let testDir: string;
@@ -24,6 +26,9 @@ describe("importConfiguration", () => {
     await mkdir(rulesDir, { recursive: true });
     await mkdir(commandsDir, { recursive: true });
     vi.resetAllMocks();
+
+    // Mock RulesProcessor to return null for all tools by default (use fallback behavior)
+    vi.spyOn(rulesProcessorFactory, "getRulesProcessor").mockReturnValue(null);
   });
 
   afterEach(async () => {
@@ -455,5 +460,82 @@ describe("importConfiguration", () => {
     expect(createdFile).not.toContain("root:");
     expect(createdFile).not.toContain("globs:");
     expect(createdFile).toContain("Optimize the code by following");
+  });
+
+  it("should use RulesProcessor when available", async () => {
+    // Mock RulesProcessor for claudecode
+    const mockRulesProcessor = {
+      loadToolRules: vi.fn(),
+      writeRulesyncRulesFromToolRules: vi.fn(),
+    };
+
+    const mockToolRules = [
+      {
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "CLAUDE.md",
+        content: "# Claude Code Rules\n\nTest content",
+        toRulesyncRule: vi.fn(),
+      },
+    ];
+
+    mockRulesProcessor.loadToolRules.mockResolvedValue(mockToolRules);
+    mockRulesProcessor.writeRulesyncRulesFromToolRules.mockResolvedValue(undefined);
+
+    // Override the mock to return the mocked processor for claudecode
+    vi.spyOn(rulesProcessorFactory, "getRulesProcessor").mockImplementation((tool) => {
+      if (tool === "claudecode") {
+        return mockRulesProcessor as any;
+      }
+      return null;
+    });
+
+    // Mock parser to return empty results since we're using RulesProcessor
+    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "claudecode",
+      baseDir: testDir,
+      verbose: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.rulesCreated).toBe(1);
+    expect(mockRulesProcessor.loadToolRules).toHaveBeenCalledOnce();
+    expect(mockRulesProcessor.writeRulesyncRulesFromToolRules).toHaveBeenCalledWith(mockToolRules);
+  });
+
+  it("should handle RulesProcessor errors gracefully", async () => {
+    // Mock RulesProcessor to throw an error
+    const mockRulesProcessor = {
+      loadToolRules: vi.fn().mockRejectedValue(new Error("Failed to load rules")),
+      writeRulesyncRulesFromToolRules: vi.fn(),
+    };
+
+    vi.spyOn(rulesProcessorFactory, "getRulesProcessor").mockImplementation((tool) => {
+      if (tool === "claudecode") {
+        return mockRulesProcessor as any;
+      }
+      return null;
+    });
+
+    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "claudecode",
+      baseDir: testDir,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.rulesCreated).toBe(0);
+    expect(result.errors).toContain(
+      "Failed to process rules using RulesProcessor: Failed to load rules",
+    );
   });
 });

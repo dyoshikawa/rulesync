@@ -15,6 +15,7 @@ import {
   parseQwenConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
+import { getRulesProcessor } from "../rules/rules-processor-factory.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
@@ -162,7 +163,17 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  if (rules.length === 0 && !ignorePatterns && !mcpServers && !subagents) {
+  // Don't early return if RulesProcessor is available - it can load rules directly from tool files
+  const rulesProcessor = getRulesProcessor(tool, baseDir);
+  const hasRulesProcessorAvailable = rulesProcessor !== null;
+
+  if (
+    rules.length === 0 &&
+    !ignorePatterns &&
+    !mcpServers &&
+    !subagents &&
+    !hasRulesProcessorAvailable
+  ) {
     return { success: false, rulesCreated: 0, errors };
   }
 
@@ -190,49 +201,74 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  // Write rule files (only if rules or commands features are enabled)
+  // Write rule files using RulesProcessor (only if rules or commands features are enabled)
   let rulesCreated = 0;
   if (rulesEnabled) {
-    for (const rule of rules) {
-      try {
-        const baseFilename = rule.filename;
-        let targetDir = rulesDirPath;
+    try {
+      // Use RulesProcessor for supported tools (already retrieved above)
+      if (rulesProcessor) {
+        // Load tool-specific rules from their native locations
+        const toolRules = await rulesProcessor.loadToolRules();
+        if (toolRules.length > 0) {
+          // Convert tool rules to rulesync format and write to .rulesync/rules/
+          await rulesProcessor.writeRulesyncRulesFromToolRules(toolRules);
+          rulesCreated = toolRules.length;
 
-        // Commands go to .rulesync/commands/ subdirectory
-        if (rule.type === "command") {
-          // Only process commands if commands feature is enabled
-          if (!features.includes("commands")) {
-            continue;
-          }
-          targetDir = join(rulesDirPath, "commands");
-          const { mkdir } = await import("node:fs/promises");
-          await mkdir(targetDir, { recursive: true });
-        } else {
-          // Only process regular rules if rules feature is enabled
-          if (!features.includes("rules")) {
-            continue;
-          }
-          // For regular rules, use legacy location or new location based on option
-          if (!useLegacyLocation) {
-            targetDir = join(rulesDirPath, "rules");
-            const { mkdir } = await import("node:fs/promises");
-            await mkdir(targetDir, { recursive: true });
+          if (verbose) {
+            logger.success(`Created ${rulesCreated} rule files using RulesProcessor`);
           }
         }
-
-        const filePath = join(targetDir, `${baseFilename}.md`);
-        const content = generateRuleFileContent(rule);
-
-        await writeFileContent(filePath, content);
-        rulesCreated++;
-
+      } else {
+        // Fallback to direct rule processing for unsupported tools
         if (verbose) {
-          logger.success(`Created rule file: ${filePath}`);
+          logger.log(`RulesProcessor not available for tool: ${tool}, using direct processing`);
         }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        errors.push(`Failed to create rule file for ${rule.filename}: ${errorMessage}`);
+
+        for (const rule of rules) {
+          try {
+            const baseFilename = rule.filename;
+            let targetDir = rulesDirPath;
+
+            // Commands go to .rulesync/commands/ subdirectory
+            if (rule.type === "command") {
+              // Only process commands if commands feature is enabled
+              if (!features.includes("commands")) {
+                continue;
+              }
+              targetDir = join(rulesDirPath, "commands");
+              const { mkdir } = await import("node:fs/promises");
+              await mkdir(targetDir, { recursive: true });
+            } else {
+              // Only process regular rules if rules feature is enabled
+              if (!features.includes("rules")) {
+                continue;
+              }
+              // For regular rules, use legacy location or new location based on option
+              if (!useLegacyLocation) {
+                targetDir = join(rulesDirPath, "rules");
+                const { mkdir } = await import("node:fs/promises");
+                await mkdir(targetDir, { recursive: true });
+              }
+            }
+
+            const filePath = join(targetDir, `${baseFilename}.md`);
+            const content = generateRuleFileContent(rule);
+
+            await writeFileContent(filePath, content);
+            rulesCreated++;
+
+            if (verbose) {
+              logger.success(`Created rule file: ${filePath}`);
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            errors.push(`Failed to create rule file for ${rule.filename}: ${errorMessage}`);
+          }
+        }
       }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to process rules using RulesProcessor: ${errorMessage}`);
     }
   } else {
     if (verbose && rules.length > 0) {
