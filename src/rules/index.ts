@@ -1,4 +1,7 @@
 export * from "./agentsmd-rule.js";
 export * from "./amazonqcli-rule.js";
+export * from "./augmentcode-legacy-rule.js";
+export * from "./augmentcode-rule.js";
+export * from "./copilot-rule.js";
 export * from "./rulesync-rule.js";
 export * from "./tool-rule.js";
