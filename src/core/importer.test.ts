@@ -2,14 +2,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as parsers from "../parsers/index.js";
-import * as rulesProcessorFactory from "../rules/rules-processor-factory.js";
+import { RulesProcessor } from "../rules/rules-processor.js";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { ToolTarget } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
-vi.mock("../rules/rules-processor-factory");
+vi.mock("../rules/rules-processor");
 
 describe("importConfiguration", () => {
   let testDir: string;
@@ -28,7 +28,7 @@ describe("importConfiguration", () => {
     vi.resetAllMocks();
 
     // Mock RulesProcessor to return null for all tools by default (use fallback behavior)
-    vi.spyOn(rulesProcessorFactory, "getRulesProcessor").mockReturnValue(null);
+    vi.spyOn(RulesProcessor, "create").mockReturnValue(null);
   });
 
   afterEach(async () => {
@@ -483,7 +483,7 @@ describe("importConfiguration", () => {
     mockRulesProcessor.writeRulesyncRulesFromToolRules.mockResolvedValue(undefined);
 
     // Override the mock to return the mocked processor for claudecode
-    vi.spyOn(rulesProcessorFactory, "getRulesProcessor").mockImplementation((tool) => {
+    vi.spyOn(RulesProcessor, "create").mockImplementation((tool) => {
       if (tool === "claudecode") {
         return mockRulesProcessor as any;
       }
@@ -515,7 +515,7 @@ describe("importConfiguration", () => {
       writeRulesyncRulesFromToolRules: vi.fn(),
     };
 
-    vi.spyOn(rulesProcessorFactory, "getRulesProcessor").mockImplementation((tool) => {
+    vi.spyOn(RulesProcessor, "create").mockImplementation((tool) => {
       if (tool === "claudecode") {
         return mockRulesProcessor as any;
       }

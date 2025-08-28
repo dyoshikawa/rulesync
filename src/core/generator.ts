@@ -20,7 +20,7 @@ import { generateQwencodeConfig } from "../generators/rules/qwencode.js";
 import { generateRooConfig } from "../generators/rules/roo.js";
 import { createOutputsArray } from "../generators/rules/shared-helpers.js";
 import { generateWindsurfConfig } from "../generators/rules/windsurf.js";
-import { getRulesProcessor } from "../rules/rules-processor-factory.js";
+import { RulesProcessor } from "../rules/rules-processor.js";
 import type { Config, GeneratedOutput, ParsedRule, ToolTarget } from "../types/index.js";
 import { resolveTargets } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
@@ -79,7 +79,7 @@ async function generateForTool(
 
   // Get RulesProcessor instance for this tool if available
   const resolvedBaseDir = baseDir || process.cwd();
-  const rulesProcessor = getRulesProcessor(tool, resolvedBaseDir);
+  const rulesProcessor = RulesProcessor.create(tool, resolvedBaseDir);
 
   if (rulesProcessor) {
     logger.debug(`Using RulesProcessor for tool: ${tool}`);

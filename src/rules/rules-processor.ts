@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
+import type { ToolTarget } from "../types/index.js";
 import { Processor } from "../types/processor.js";
 import { directoryExists, fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -707,5 +708,92 @@ export class RulesProcessor extends Processor {
     });
 
     await this.writeAiFiles(rulesyncRules);
+  }
+
+  /**
+   * Map ToolTarget to RulesProcessorToolTarget
+   */
+  private static mapToolTargetToRulesProcessorTarget(
+    tool: ToolTarget,
+  ): RulesProcessorToolTarget | null {
+    const mappings: Record<ToolTarget, RulesProcessorToolTarget | null> = {
+      agentsmd: "agentsmd",
+      amazonqcli: "amazonqcli",
+      augmentcode: "augmentcode",
+      "augmentcode-legacy": "augmentcode-legacy",
+      claudecode: "claudecode",
+      cline: "cline",
+      codexcli: "codexcli",
+      copilot: "copilot",
+      cursor: "cursor",
+      geminicli: "geminicli",
+      junie: "junie",
+      kiro: "kiro",
+      opencode: "opencode",
+      qwencode: "qwencode",
+      roo: "roo",
+      windsurf: "windsurf",
+    };
+
+    return mappings[tool] || null;
+  }
+
+  /**
+   * Check if a tool is supported by RulesProcessor
+   */
+  static isToolSupported(tool: ToolTarget): boolean {
+    return RulesProcessor.mapToolTargetToRulesProcessorTarget(tool) !== null;
+  }
+
+  /**
+   * Get all supported tools
+   */
+  static getSupportedTools(): ToolTarget[] {
+    const allTools: ToolTarget[] = [
+      "agentsmd",
+      "amazonqcli",
+      "augmentcode",
+      "augmentcode-legacy",
+      "claudecode",
+      "cline",
+      "codexcli",
+      "copilot",
+      "cursor",
+      "geminicli",
+      "junie",
+      "kiro",
+      "opencode",
+      "qwencode",
+      "roo",
+      "windsurf",
+    ];
+
+    return allTools.filter((tool) => RulesProcessor.isToolSupported(tool));
+  }
+
+  /**
+   * Create a RulesProcessor instance for the specified tool and base directory
+   * Returns null if the tool is not supported
+   */
+  static create(tool: ToolTarget, baseDir: string): RulesProcessor | null {
+    const rulesProcessorToolTarget = RulesProcessor.mapToolTargetToRulesProcessorTarget(tool);
+
+    if (!rulesProcessorToolTarget) {
+      logger.warn(`No RulesProcessor mapping found for tool: ${tool}`);
+      return null;
+    }
+
+    try {
+      const processor = new RulesProcessor({
+        baseDir,
+        toolTarget: rulesProcessorToolTarget,
+      });
+
+      logger.debug(`Created RulesProcessor for tool: ${tool}, baseDir: ${baseDir}`);
+      return processor;
+    } catch (error) {
+      logger.error(`Failed to create RulesProcessor for tool ${tool}:`, error);
+      return null;
+    }
   }
 }

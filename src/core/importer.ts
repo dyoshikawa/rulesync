@@ -15,7 +15,7 @@ import {
   parseQwenConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
-import { getRulesProcessor } from "../rules/rules-processor-factory.js";
+import { RulesProcessor } from "../rules/rules-processor.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
@@ -164,7 +164,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   }
 
   // Don't early return if RulesProcessor is available - it can load rules directly from tool files
-  const rulesProcessor = getRulesProcessor(tool, baseDir);
+  const rulesProcessor = RulesProcessor.create(tool, baseDir);
   const hasRulesProcessorAvailable = rulesProcessor !== null;
 
   if (
