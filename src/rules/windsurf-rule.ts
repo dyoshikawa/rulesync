@@ -3,8 +3,27 @@ import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RuleFrontmatter } from "../types/rules.js";
+import { logger } from "../utils/logger.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+
+/**
+ * Validates glob pattern syntax
+ */
+function validateGlobPattern(pattern: string): boolean {
+  try {
+    // Basic validation - check for common glob pattern syntax
+    if (pattern.includes("..")) {
+      return false; // Path traversal attempt
+    }
+
+    // Check for valid glob characters and patterns
+    const validGlobRegex = /^[\w\-.*?/[\]{}|\\]+$/;
+    return validGlobRegex.test(pattern);
+  } catch {
+    return false;
+  }
+}
 
 export const WindsurfRuleFrontmatterSchema = z.object({
   description: z.string(),
@@ -65,10 +84,25 @@ export class WindsurfRule extends ToolRule {
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+
+    // Validate and clean glob pattern
+    const rawGlobPattern = rulesyncFrontmatter.globs?.join("|");
+    let validatedGlobPattern: string | undefined;
+
+    if (rawGlobPattern) {
+      if (validateGlobPattern(rawGlobPattern)) {
+        validatedGlobPattern = rawGlobPattern;
+      } else {
+        // Log warning for invalid glob pattern but continue processing
+        logger.warn(`Invalid glob pattern detected: ${rawGlobPattern}. Pattern will be ignored.`);
+        validatedGlobPattern = undefined;
+      }
+    }
+
     const windsurfFrontmatter: WindsurfRuleFrontmatter = {
       description: rulesyncFrontmatter.description || "",
       activationMode: this.mapActivationMode(rulesyncFrontmatter),
-      globPattern: rulesyncFrontmatter.globs?.join("|"),
+      globPattern: validatedGlobPattern,
     };
 
     // Generate proper file content with Windsurf specific frontmatter

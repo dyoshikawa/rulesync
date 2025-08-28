@@ -196,22 +196,24 @@ export class RulesProcessor extends Processor {
 
     logger.info(`Found ${mdFiles.length} rule files in ${rulesDir}`);
 
-    // Parse all files and create RulesyncRule instances using fromFilePath
+    // Parse all files in parallel using Promise.allSettled for better error handling
+    const results = await Promise.allSettled(
+      mdFiles.map(async (mdFile) => {
+        const filepath = join(rulesDir, mdFile);
+        return {
+          rule: await RulesyncRule.fromFilePath({ filePath: filepath }),
+          filename: mdFile,
+        };
+      }),
+    );
+
     const rulesyncRules: RulesyncRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const rulesyncRule = await RulesyncRule.fromFilePath({
-          filePath: filepath,
-        });
-
-        rulesyncRules.push(rulesyncRule);
-        logger.debug(`Successfully loaded rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load rule file ${filepath}:`, error);
-        continue;
+    for (const [index, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        rulesyncRules.push(result.value.rule);
+        logger.debug(`Successfully loaded rule: ${result.value.filename}`);
+      } else {
+        logger.warn(`Failed to load rule file ${mdFiles[index]}:`, result.reason);
       }
     }
 
@@ -297,94 +299,38 @@ export class RulesProcessor extends Processor {
    * Load Amazon Q Developer CLI rule configurations from .amazonq/rules/ directory
    */
   private async loadAmazonqcliRules(): Promise<ToolRule[]> {
-    const rulesDir = join(this.baseDir, ".amazonq", "rules");
-
-    if (!(await directoryExists(rulesDir))) {
-      logger.warn(`Amazon Q Developer CLI rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    const entries = await readdir(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown rule files found in ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Amazon Q Developer CLI rule files in ${rulesDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const amazonqcliRule = await AmazonQCliRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".amazonq", "rules"),
+      ".amazonq/rules",
+      (filePath, relativeFilePath) =>
+        AmazonQCliRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".amazonq/rules",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
-
-        toolRules.push(amazonqcliRule);
-        logger.debug(`Successfully loaded Amazon Q Developer CLI rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Amazon Q Developer CLI rule file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolRules.length} Amazon Q Developer CLI rules`);
-    return toolRules;
+        }),
+      "Amazon Q Developer CLI",
+    );
   }
 
   /**
    * Load AugmentCode rule configurations from .augment/rules/ directory
    */
   private async loadAugmentcodeRules(): Promise<ToolRule[]> {
-    const rulesDir = join(this.baseDir, ".augment", "rules");
-
-    if (!(await directoryExists(rulesDir))) {
-      logger.warn(`AugmentCode rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    const entries = await readdir(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown rule files found in ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} AugmentCode rule files in ${rulesDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const augmentcodeRule = await AugmentcodeRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".augment", "rules"),
+      ".augment/rules",
+      (filePath, relativeFilePath) =>
+        AugmentcodeRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".augment/rules",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
-
-        toolRules.push(augmentcodeRule);
-        logger.debug(`Successfully loaded AugmentCode rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load AugmentCode rule file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolRules.length} AugmentCode rules`);
-    return toolRules;
+        }),
+      "AugmentCode",
+    );
   }
 
   /**
@@ -447,47 +393,19 @@ export class RulesProcessor extends Processor {
    * Load Cline rule configurations from .clinerules/ directory
    */
   private async loadClineRules(): Promise<ToolRule[]> {
-    const rulesDir = join(this.baseDir, ".clinerules");
-
-    if (!(await directoryExists(rulesDir))) {
-      logger.warn(`Cline rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    const entries = await readdir(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown rule files found in ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Cline rule files in ${rulesDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const clineRule = await ClineRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".clinerules"),
+      ".clinerules",
+      (filePath, relativeFilePath) =>
+        ClineRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".clinerules",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
-
-        toolRules.push(clineRule);
-        logger.debug(`Successfully loaded Cline rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Cline rule file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolRules.length} Cline rules`);
-    return toolRules;
+        }),
+      "Cline",
+    );
   }
 
   /**
@@ -550,47 +468,19 @@ export class RulesProcessor extends Processor {
    * Load Cursor rule configurations from .cursor/rules/ directory
    */
   private async loadCursorRules(): Promise<ToolRule[]> {
-    const rulesDir = join(this.baseDir, ".cursor", "rules");
-
-    if (!(await directoryExists(rulesDir))) {
-      logger.warn(`Cursor rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    const entries = await readdir(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".mdc") || file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No rule files found in ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Cursor rule files in ${rulesDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const cursorRule = await CursorRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".cursor", "rules"),
+      ".cursor/rules",
+      (filePath, relativeFilePath) =>
+        CursorRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".cursor/rules",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
-
-        toolRules.push(cursorRule);
-        logger.debug(`Successfully loaded Cursor rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Cursor rule file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolRules.length} Cursor rules`);
-    return toolRules;
+        }),
+      "Cursor",
+    );
   }
 
   /**
@@ -653,47 +543,19 @@ export class RulesProcessor extends Processor {
    * Load Kiro rule configurations from .kiro/steering/ directory
    */
   private async loadKiroRules(): Promise<ToolRule[]> {
-    const steeringDir = join(this.baseDir, ".kiro", "steering");
-
-    if (!(await directoryExists(steeringDir))) {
-      logger.warn(`Kiro steering directory not found: ${steeringDir}`);
-      return [];
-    }
-
-    const entries = await readdir(steeringDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown rule files found in ${steeringDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Kiro steering files in ${steeringDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(steeringDir, mdFile);
-
-      try {
-        const kiroRule = await KiroRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".kiro", "steering"),
+      ".kiro/steering",
+      (filePath, relativeFilePath) =>
+        KiroRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".kiro/steering",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
-
-        toolRules.push(kiroRule);
-        logger.debug(`Successfully loaded Kiro steering document: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Kiro steering document ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolRules.length} Kiro steering documents`);
-    return toolRules;
+        }),
+      "Kiro",
+    );
   }
 
   /**
@@ -756,93 +618,86 @@ export class RulesProcessor extends Processor {
    * Load Roo Code rule configurations from .roo/rules/ directory
    */
   private async loadRooRules(): Promise<ToolRule[]> {
-    const rulesDir = join(this.baseDir, ".roo", "rules");
-
-    if (!(await directoryExists(rulesDir))) {
-      logger.warn(`Roo Code rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    const entries = await readdir(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown rule files found in ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Roo Code rule files in ${rulesDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const rooRule = await RooRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".roo", "rules"),
+      ".roo/rules",
+      (filePath, relativeFilePath) =>
+        RooRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".roo/rules",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
-
-        toolRules.push(rooRule);
-        logger.debug(`Successfully loaded Roo Code rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Roo Code rule file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolRules.length} Roo Code rules`);
-    return toolRules;
+        }),
+      "Roo Code",
+    );
   }
 
   /**
    * Load Windsurf rule configurations from .windsurf/rules/ directory
    */
   private async loadWindsurfRules(): Promise<ToolRule[]> {
-    const rulesDir = join(this.baseDir, ".windsurf", "rules");
-
-    if (!(await directoryExists(rulesDir))) {
-      logger.warn(`Windsurf rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    const entries = await readdir(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown rule files found in ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Windsurf rule files in ${rulesDir}`);
-
-    const toolRules: ToolRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const windsurfRule = await WindsurfRule.fromFilePath({
+    return this.loadToolRulesFromDirectory(
+      join(this.baseDir, ".windsurf", "rules"),
+      ".windsurf/rules",
+      (filePath, relativeFilePath) =>
+        WindsurfRule.fromFilePath({
           baseDir: this.baseDir,
           relativeDirPath: ".windsurf/rules",
-          relativeFilePath: mdFile,
-          filePath: filepath,
+          relativeFilePath,
+          filePath,
           validate: false,
-        });
+        }),
+      "Windsurf",
+    );
+  }
 
-        toolRules.push(windsurfRule);
-        logger.debug(`Successfully loaded Windsurf rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Windsurf rule file ${filepath}:`, error);
-        continue;
+  /**
+   * Common helper method to load tool rules from a directory with parallel processing
+   */
+  private async loadToolRulesFromDirectory(
+    dirPath: string,
+    relativeDirPath: string,
+    ruleFactory: (filePath: string, relativeFilePath: string) => Promise<ToolRule>,
+    toolName: string,
+  ): Promise<ToolRule[]> {
+    if (!(await directoryExists(dirPath))) {
+      logger.warn(`${toolName} rules directory not found: ${dirPath}`);
+      return [];
+    }
+
+    const entries = await readdir(dirPath);
+    const mdFiles = entries.filter((file) => file.endsWith(".md") || file.endsWith(".mdc"));
+
+    if (mdFiles.length === 0) {
+      logger.info(`No rule files found in ${dirPath}`);
+      return [];
+    }
+
+    logger.info(`Found ${mdFiles.length} ${toolName} rule files in ${dirPath}`);
+
+    // Use Promise.allSettled for parallel processing with better error handling
+    const results = await Promise.allSettled(
+      mdFiles.map(async (mdFile) => {
+        const filepath = join(dirPath, mdFile);
+        return {
+          rule: await ruleFactory(filepath, mdFile),
+          filename: mdFile,
+        };
+      }),
+    );
+
+    const toolRules: ToolRule[] = [];
+    for (const [index, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        toolRules.push(result.value.rule);
+        logger.debug(`Successfully loaded ${toolName} rule: ${result.value.filename}`);
+      } else {
+        logger.warn(`Failed to load ${toolName} rule file ${mdFiles[index]}:`, result.reason);
       }
     }
 
-    logger.info(`Successfully loaded ${toolRules.length} Windsurf rules`);
+    logger.info(`Successfully loaded ${toolRules.length} ${toolName} rules`);
     return toolRules;
   }
 
