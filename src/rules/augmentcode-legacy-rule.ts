@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { ToolTargets } from "../types/tool-targets.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -19,13 +21,14 @@ export type AugmentcodeLegacyRuleFrontmatter = z.infer<
 export interface AugmentcodeLegacyRuleParams extends AiFileParams {
   frontmatter: AugmentcodeLegacyRuleFrontmatter;
   body: string;
+  root?: boolean;
 }
 
 export class AugmentcodeLegacyRule extends ToolRule {
   private readonly frontmatter: AugmentcodeLegacyRuleFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: AugmentcodeLegacyRuleParams) {
+  constructor({ frontmatter, body, root, ...rest }: AugmentcodeLegacyRuleParams) {
     // Set properties before calling super to ensure they're available for validation
     if (rest.validate !== false) {
       const result = AugmentcodeLegacyRuleFrontmatterSchema.safeParse(frontmatter);
@@ -36,6 +39,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
 
     super({
       ...rest,
+      ...(root !== undefined && { root }),
     });
 
     this.frontmatter = frontmatter;
@@ -47,7 +51,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     const globs: string[] = [];
     const rulesyncFrontmatter = {
       targets,
-      root: false,
+      root: this.isRoot(),
       description: this.frontmatter.description || "",
       globs,
       ...(this.frontmatter.tags && { tags: this.frontmatter.tags }),
@@ -57,10 +61,11 @@ export class AugmentcodeLegacyRule extends ToolRule {
     const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
 
     return new RulesyncRule({
+      baseDir: this.getBaseDir(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.relativeFilePath,
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
       fileContent,
       validate: false,
     });
@@ -69,10 +74,11 @@ export class AugmentcodeLegacyRule extends ToolRule {
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
-    relativeDirPath,
+    relativeDirPath: _relativeDirPath,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+    const root = rulesyncFrontmatter.root;
     const augmentcodeFrontmatter: AugmentcodeLegacyRuleFrontmatter = {
       // Legacy format doesn't use type field, but we can infer it
       type: "always",
@@ -84,14 +90,28 @@ export class AugmentcodeLegacyRule extends ToolRule {
     const body = rulesyncRule.getBody();
     const fileContent = body; // Legacy format is plain Markdown without frontmatter
 
+    if (root) {
+      return new AugmentcodeLegacyRule({
+        baseDir,
+        frontmatter: augmentcodeFrontmatter,
+        body,
+        relativeDirPath: ".",
+        relativeFilePath: ".augment-guidelines",
+        fileContent,
+        validate,
+        root,
+      });
+    }
+
     return new AugmentcodeLegacyRule({
-      baseDir: baseDir,
+      baseDir,
       frontmatter: augmentcodeFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: join(".augment", "rules"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       fileContent,
       validate,
+      root,
     });
   }
 
@@ -137,6 +157,9 @@ export class AugmentcodeLegacyRule extends ToolRule {
       }
     }
 
+    // Determine if it's a root file
+    const isRoot = relativeFilePath === ".augment-guidelines" && relativeDirPath === ".";
+
     return new AugmentcodeLegacyRule({
       baseDir: baseDir,
       relativeDirPath: relativeDirPath,
@@ -145,6 +168,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
       body: content.trim(),
       fileContent,
       validate,
+      root: isRoot,
     });
   }
 

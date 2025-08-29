@@ -91,7 +91,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "augmentcode-legacy":
           return AugmentcodeLegacyRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".augment", "rules"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -191,6 +191,13 @@ export class RulesProcessor extends FeatureProcessor {
 
     switch (this.toolTarget) {
       case "agentsmd": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "augmentcode-legacy": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
@@ -380,31 +387,48 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load AugmentCode legacy rule configuration from .augment-guidelines file
+   * Load AugmentCode legacy rule configuration from .augment-guidelines file and .augment/rules/ directory
    */
   private async loadAugmentcodeLegacyRules(): Promise<ToolRule[]> {
+    const toolRules: ToolRule[] = [];
+
+    // Check for root file
     const guidelinesFile = join(this.baseDir, ".augment-guidelines");
-
-    if (!(await fileExists(guidelinesFile))) {
-      logger.warn(`AugmentCode legacy guidelines file not found: ${guidelinesFile}`);
-      return [];
+    if (await fileExists(guidelinesFile)) {
+      try {
+        const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFilePath({
+          baseDir: this.baseDir,
+          relativeDirPath: ".",
+          relativeFilePath: ".augment-guidelines",
+          filePath: guidelinesFile,
+          validate: false,
+        });
+        toolRules.push(augmentcodeLegacyRule);
+        logger.info(`Successfully loaded AugmentCode legacy guidelines`);
+      } catch (error) {
+        logger.warn(`Failed to load AugmentCode legacy guidelines file ${guidelinesFile}:`, error);
+      }
     }
 
-    try {
-      const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFilePath({
-        baseDir: this.baseDir,
-        relativeDirPath: ".",
-        relativeFilePath: ".augment-guidelines",
-        filePath: guidelinesFile,
-        validate: false,
-      });
-
-      logger.info(`Successfully loaded AugmentCode legacy guidelines`);
-      return [augmentcodeLegacyRule];
-    } catch (error) {
-      logger.warn(`Failed to load AugmentCode legacy guidelines file ${guidelinesFile}:`, error);
-      return [];
+    // Check for non-root files in .augment/rules/
+    const rulesDir = join(this.baseDir, ".augment", "rules");
+    if (await directoryExists(rulesDir)) {
+      const dirRules = await this.loadToolRulesFromDirectory(
+        rulesDir,
+        (filePath, relativeFilePath) =>
+          AugmentcodeLegacyRule.fromFilePath({
+            baseDir: this.baseDir,
+            relativeDirPath: join(".augment", "rules"),
+            relativeFilePath,
+            filePath,
+            validate: false,
+          }),
+        "AugmentCode Legacy",
+      );
+      toolRules.push(...dirRules);
     }
+
+    return toolRules;
   }
 
   /**

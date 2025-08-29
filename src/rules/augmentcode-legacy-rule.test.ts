@@ -174,6 +174,37 @@ Just some plain markdown content without frontmatter.
       expect(rule.getFrontmatter().description).toBe(""); // default value
       expect(rule.getFrontmatter().tags).toEqual([]); // default value
       expect(rule.getBody()).toContain("# Simple Guidelines");
+      expect(rule.isRoot()).toBe(false);
+    });
+
+    it("should detect root file correctly", async () => {
+      const rulesDir = join(testDir);
+      await mkdir(rulesDir, { recursive: true });
+
+      const filePath = join(rulesDir, ".augment-guidelines");
+      const fileContent = `# Root Guidelines
+
+This is a root guidelines file.
+
+## Root Rules
+- This should be marked as root`;
+
+      await writeFile(filePath, fileContent, "utf-8");
+
+      const params: AiFileFromFilePathParams = {
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: ".augment-guidelines",
+        filePath,
+      };
+
+      const rule = await AugmentcodeLegacyRule.fromFilePath(params);
+
+      expect(rule).toBeInstanceOf(AugmentcodeLegacyRule);
+      expect(rule.getFrontmatter().type).toBe("always");
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe(".augment-guidelines");
     });
 
     it("should throw error with invalid frontmatter when validate is true", async () => {
@@ -231,7 +262,7 @@ Content`;
   });
 
   describe("fromRulesyncRule", () => {
-    it("should create instance from RulesyncRule", () => {
+    it("should create instance from RulesyncRule with root=false", () => {
       const rulesyncFrontmatter: RuleFrontmatter = {
         root: false,
         targets: ["augmentcode"],
@@ -262,11 +293,46 @@ Content`;
       expect(rule.getFrontmatter().description).toBe("Test rule from rulesync");
       expect(rule.getFrontmatter().tags).toEqual(["test", "conversion"]);
       expect(rule.getBody()).toBe("# Test Rule\n\nThis is a test rule content.");
+      expect(rule.getRelativeDirPath()).toBe(".augment/rules");
+      expect(rule.isRoot()).toBe(false);
+    });
+
+    it("should create instance from RulesyncRule with root=true", () => {
+      const rulesyncFrontmatter: RuleFrontmatter = {
+        root: true,
+        targets: ["augmentcode"],
+        description: "Root rule from rulesync",
+        globs: [],
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "# Root Rule\n\nThis is a root rule content.",
+        fileContent: "---\nroot: true\n---\n# Root Rule\n\nThis is a root rule content.",
+      });
+
+      const params: ToolRuleFromRulesyncRuleParams = {
+        baseDir: testDir,
+        relativeDirPath: ".augment",
+        rulesyncRule,
+      };
+
+      const rule = AugmentcodeLegacyRule.fromRulesyncRule(params) as AugmentcodeLegacyRule;
+
+      expect(rule).toBeInstanceOf(AugmentcodeLegacyRule);
+      expect(rule.getFrontmatter().description).toBe("Root rule from rulesync");
+      expect(rule.getBody()).toBe("# Root Rule\n\nThis is a root rule content.");
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe(".augment-guidelines");
+      expect(rule.isRoot()).toBe(true);
     });
 
     it("should handle RulesyncRule without tags", () => {
       const rulesyncFrontmatter: RuleFrontmatter = {
-        root: true,
+        root: false,
         targets: ["augmentcode"],
         description: "Rule without tags",
         globs: [],
@@ -278,7 +344,7 @@ Content`;
         relativeFilePath: "test-rule.md",
         frontmatter: rulesyncFrontmatter,
         body: "Simple content",
-        fileContent: "---\nroot: true\n---\nSimple content",
+        fileContent: "---\nroot: false\n---\nSimple content",
       });
 
       const params: ToolRuleFromRulesyncRuleParams = {
@@ -435,6 +501,48 @@ Content`;
       expect(convertedRule.getFrontmatter().description).toBe(originalFrontmatter.description);
       expect(convertedRule.getFrontmatter().tags).toEqual(originalFrontmatter.tags);
       expect(convertedRule.getBody()).toBe(originalBody);
+    });
+
+    it("should maintain data through RulesyncRule conversion for root files", () => {
+      const originalFrontmatter: AugmentcodeLegacyRuleFrontmatter = {
+        type: "auto",
+        description: "Root roundtrip test rule",
+        tags: ["root", "roundtrip", "test"],
+      };
+
+      const originalBody =
+        "# Root Roundtrip Test\n\nThis root content should be preserved through conversion.";
+
+      const originalRule = new AugmentcodeLegacyRule({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: ".augment-guidelines",
+        frontmatter: originalFrontmatter,
+        body: originalBody,
+        fileContent: originalBody,
+        root: true,
+      });
+
+      expect(originalRule.isRoot()).toBe(true);
+
+      // Convert to RulesyncRule
+      const rulesyncRule = originalRule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().root).toBe(true);
+
+      // Convert back to AugmentcodeLegacyRule
+      const convertedRule = AugmentcodeLegacyRule.fromRulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        rulesyncRule,
+      }) as AugmentcodeLegacyRule;
+
+      // Check that data is preserved
+      expect(convertedRule.getFrontmatter().description).toBe(originalFrontmatter.description);
+      expect(convertedRule.getFrontmatter().tags).toEqual(originalFrontmatter.tags);
+      expect(convertedRule.getBody()).toBe(originalBody);
+      expect(convertedRule.isRoot()).toBe(true);
+      expect(convertedRule.getRelativeFilePath()).toBe(".augment-guidelines");
+      expect(convertedRule.getRelativeDirPath()).toBe(".");
     });
   });
 
