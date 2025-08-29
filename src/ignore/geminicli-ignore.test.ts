@@ -202,13 +202,11 @@ file?.txt
 
       const rulesyncIgnore = ignore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["geminicli"],
-        description: "Generated from Gemini CLI ignore file: .aiexclude",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
-      expect(body).toContain("# Gemini CLI Coding Assistant Ignore File");
+      expect(body).toBe("*.log\nnode_modules/\n!important.log");
       expect(body).toContain("*.log");
       expect(body).toContain("node_modules/");
       expect(body).toContain("!important.log");
@@ -229,19 +227,11 @@ file?.txt
       const rulesyncIgnore = ignore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Security and Secrets");
+      expect(body).toBe(patterns.join("\n"));
       expect(body).toContain("*.key");
       expect(body).toContain(".env");
-
-      expect(body).toContain("# Build Artifacts and Dependencies");
       expect(body).toContain("node_modules/");
       expect(body).toContain("dist/");
-
-      expect(body).toContain("# Data Files and Large Assets");
-      expect(body).toContain("*.csv");
-      expect(body).toContain("*.png");
-
-      expect(body).toContain("# Other Exclusions");
       expect(body).toContain("custom/path");
     });
   });

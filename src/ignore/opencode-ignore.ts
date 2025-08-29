@@ -60,19 +60,12 @@ export class OpencodeIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    // Convert OpenCode permissions to unified ignore patterns
-    const body = this.generateIgnorePatternsFromPermissions();
-
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".json")}.md`,
-      frontmatter: {
-        targets: ["opencode"],
-        description: `Generated from OpenCode settings: ${this.relativeFilePath}`,
-      },
-      body,
-      fileContent: body,
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      body: this.patterns.join("\n"),
+      fileContent: this.patterns.join("\n"),
     });
   }
 

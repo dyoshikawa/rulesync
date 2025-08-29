@@ -48,12 +48,8 @@ export class CopilotIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
       baseDir: ".",
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".yml")}.md`,
-      frontmatter: {
-        targets: ["copilot"],
-        description: `Generated from GitHub Copilot content exclusion configuration: ${this.relativeFilePath}`,
-      },
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),
       fileContent: this.patterns.join("\n"),
     });

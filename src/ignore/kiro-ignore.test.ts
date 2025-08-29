@@ -138,20 +138,16 @@ describe("KiroIgnore", () => {
 
       const rulesyncIgnore = kiroIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["kiro"],
-        description:
-          "Generated from Kiro three-file ignore system (.gitignore, .aiignore, .kirodeignore)",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
-      expect(body).toContain("# Kiro Three-File Ignore System");
-      expect(body).toContain("## .gitignore patterns");
-      expect(body).toContain("## .aiignore patterns");
-      expect(body).toContain("## .kirodeignore patterns");
       expect(body).toContain("*.env");
+      expect(body).toContain("node_modules/");
       expect(body).toContain("*.csv");
+      expect(body).toContain("data/");
       expect(body).toContain("!docs/**");
+      expect(body).toContain("!README.md");
     });
 
     it("should handle empty patterns", () => {
@@ -163,10 +159,7 @@ describe("KiroIgnore", () => {
       const rulesyncIgnore = kiroIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Kiro Three-File Ignore System");
-      expect(body).toContain("## .gitignore patterns");
-      expect(body).toContain("## .aiignore patterns");
-      expect(body).toContain("## .kirodeignore patterns");
+      expect(body).toBe("");
     });
   });
 

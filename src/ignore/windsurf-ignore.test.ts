@@ -72,10 +72,8 @@ describe("WindsurfIgnore", () => {
 
       const rulesyncIgnore = windsurfIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["windsurf"],
-        description: "Generated from Windsurf ignore file: .codeiumignore",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
     });
   });

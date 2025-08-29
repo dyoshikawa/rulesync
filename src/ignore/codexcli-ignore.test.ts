@@ -63,10 +63,8 @@ describe("CodexcliIgnore", () => {
 
       const rulesyncIgnore = codexcliIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["codexcli"],
-        description: "Generated from OpenAI Codex CLI ignore file: .codexignore",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toContain("# OpenAI Codex CLI Ignore Patterns");
@@ -98,12 +96,11 @@ describe("CodexcliIgnore", () => {
       const rulesyncIgnore = codexcliIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Security and Sensitive Files");
-      expect(body).toMatch(/# Security and Sensitive Files[^#]*\*.key/s);
-      expect(body).toContain("# Performance Optimization");
-      expect(body).toMatch(/# Performance Optimization[^#]*dist\//s);
-      expect(body).toContain("# Other Exclusions");
-      expect(body).toMatch(/# Other Exclusions[^#]*custom\/\*\*/s);
+      expect(body).toBe(patterns.join("\n"));
+      expect(body).toContain("*.key");
+      expect(body).toContain("dist/");
+      expect(body).toContain("*.swp");
+      expect(body).toContain("custom/**");
     });
   });
 

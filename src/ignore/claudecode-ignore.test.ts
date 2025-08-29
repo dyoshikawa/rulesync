@@ -83,10 +83,8 @@ describe("ClaudecodeIgnore", () => {
 
       const rulesyncIgnore = claudecodeIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["claudecode"],
-        description: "Generated from Claude Code settings: settings.json",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toContain("# Generated from Claude Code permissions");

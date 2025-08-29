@@ -291,10 +291,8 @@ describe("CopilotIgnore", () => {
       const rulesyncIgnore = ignore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["copilot"]);
-      expect(rulesyncIgnore.getFrontmatter().description).toContain(
-        "GitHub Copilot content exclusion",
-      );
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
     });
   });
 

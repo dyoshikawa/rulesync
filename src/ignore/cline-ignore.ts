@@ -31,12 +31,8 @@ export class ClineIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
       baseDir: ".",
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: "cline.md",
-      frontmatter: {
-        targets: ["cline"],
-        description: `Generated from Cline ignore file: ${this.relativeFilePath}`,
-      },
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),
       fileContent: this.patterns.join("\n"),
     });

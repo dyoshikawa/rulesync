@@ -85,13 +85,9 @@ describe("ClineIgnore", () => {
 
       const rulesyncIgnore = clineIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["cline"],
-        description: "Generated from Cline ignore file: .clineignore",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe("cline.md");
-      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".rulesync/ignore");
     });
 
     it("should handle empty patterns", () => {
@@ -106,7 +102,8 @@ describe("ClineIgnore", () => {
       const rulesyncIgnore = clineIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getBody()).toBe("");
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["cline"]);
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
     });
 
     it("should include correct path information", () => {
@@ -120,9 +117,8 @@ describe("ClineIgnore", () => {
 
       const rulesyncIgnore = clineIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".rulesync/ignore");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe("cline.md");
-      expect(rulesyncIgnore.getFrontmatter().description).toContain(".clineignore");
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
     });
   });
 

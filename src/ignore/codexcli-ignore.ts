@@ -16,19 +16,12 @@ export class CodexcliIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    // Convert Codex CLI ignore patterns to unified ignore format
-    const body = this.generateIgnoreBody();
-
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".codexignore")}-ignore.md`,
-      frontmatter: {
-        targets: ["codexcli"],
-        description: `Generated from OpenAI Codex CLI ignore file: ${this.relativeFilePath}`,
-      },
-      body,
-      fileContent: body,
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      body: this.patterns.join("\n"),
+      fileContent: this.patterns.join("\n"),
     });
   }
 

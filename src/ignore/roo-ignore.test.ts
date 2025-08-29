@@ -85,10 +85,8 @@ describe("RooIgnore", () => {
 
       const rulesyncIgnore = rooIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["roo"],
-        description: "Generated from Roo ignore file: .rooignore",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
       expect(rulesyncIgnore.getRelativeFilePath()).toBe("roo.md");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".rulesync/ignore");
@@ -106,7 +104,7 @@ describe("RooIgnore", () => {
       const rulesyncIgnore = rooIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getBody()).toBe("");
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["roo"]);
+      // Targets check removed - no frontmatter in new implementation
     });
 
     it("should include correct path information", () => {
@@ -122,7 +120,7 @@ describe("RooIgnore", () => {
 
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".rulesync/ignore");
       expect(rulesyncIgnore.getRelativeFilePath()).toBe("roo.md");
-      expect(rulesyncIgnore.getFrontmatter().description).toContain(".rooignore");
+      // Description check removed - no frontmatter in new implementation
     });
   });
 
@@ -618,7 +616,7 @@ describe("RooIgnore", () => {
       const rooIgnore = RooIgnore.createWithDefaultPatterns();
       const rulesyncIgnore = rooIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["roo"]);
+      // Targets check removed - no frontmatter in new implementation
       expect(rulesyncIgnore.getRelativeFilePath()).toBe("roo.md");
     });
 

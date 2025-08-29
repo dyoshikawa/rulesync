@@ -128,13 +128,9 @@ export class WindsurfIgnore extends ToolIgnore {
    */
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".codeiumignore")}.md`,
-      frontmatter: {
-        targets: ["windsurf"],
-        description: `Generated from Windsurf ignore file: ${this.relativeFilePath}`,
-      },
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),
       fileContent: this.patterns.join("\n"),
     });

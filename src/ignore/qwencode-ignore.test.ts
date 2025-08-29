@@ -84,10 +84,8 @@ describe("QwencodeIgnore", () => {
 
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["qwencode"],
-        description: "Generated from Qwen Code settings: settings.json",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toContain("# Generated from Qwen Code file filtering settings");

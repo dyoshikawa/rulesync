@@ -102,19 +102,12 @@ export class KiroIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    const body = this.generateCombinedIgnoreContent();
-
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: "kiro-ignore.md",
-      frontmatter: {
-        targets: ["kiro"],
-        description:
-          "Generated from Kiro three-file ignore system (.gitignore, .aiignore, .kirodeignore)",
-      },
-      body,
-      fileContent: body,
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      body: this.patterns.join("\n"),
+      fileContent: this.patterns.join("\n"),
     });
   }
 

@@ -40,18 +40,12 @@ export class JunieIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    const body = this.patterns.join("\n");
-
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: "junie-ignore.md",
-      frontmatter: {
-        targets: ["junie"],
-        description: "JetBrains Junie AI ignore file for controlling file access and privacy",
-      },
-      body,
-      fileContent: body,
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      body: this.patterns.join("\n"),
+      fileContent: this.patterns.join("\n"),
     });
   }
 

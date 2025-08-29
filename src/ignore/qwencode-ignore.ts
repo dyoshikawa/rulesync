@@ -59,19 +59,12 @@ export class QwencodeIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    // Convert Qwen Code file filtering settings to unified ignore patterns
-    const body = this.generateIgnorePatternsFromSettings();
-
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".json")}.md`,
-      frontmatter: {
-        targets: ["qwencode"],
-        description: `Generated from Qwen Code settings: ${this.relativeFilePath}`,
-      },
-      body,
-      fileContent: body,
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      body: this.patterns.join("\n"),
+      fileContent: this.patterns.join("\n"),
     });
   }
 

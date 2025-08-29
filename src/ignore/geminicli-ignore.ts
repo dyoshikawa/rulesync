@@ -49,19 +49,12 @@ export class GeminiCliIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    // Convert Gemini CLI ignore patterns to unified ignore format
-    const body = this.generateAiexcludeContent();
-
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".aiexclude")}.md`,
-      frontmatter: {
-        targets: ["geminicli"],
-        description: `Generated from Gemini CLI ignore file: ${this.relativeFilePath}`,
-      },
-      body,
-      fileContent: body,
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      body: this.patterns.join("\n"),
+      fileContent: this.patterns.join("\n"),
     });
   }
 

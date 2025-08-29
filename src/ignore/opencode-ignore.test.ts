@@ -208,7 +208,7 @@ describe("OpencodeIgnore", () => {
 
       const rulesyncIgnore = ignore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["opencode"]);
+      // Targets check removed - no frontmatter in new implementation
       expect(rulesyncIgnore.getBody()).toContain("Generated from OpenCode permissions");
       expect(rulesyncIgnore.getBody()).toContain(".env*");
       expect(rulesyncIgnore.getBody()).toContain("secrets/**");

@@ -57,10 +57,8 @@ describe("CursorIgnore", () => {
 
       const rulesyncIgnore = cursorIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["cursor"],
-        description: "Generated from Cursor ignore file: .cursorignore",
-      });
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe("node_modules/\n*.log");
     });
 
@@ -89,7 +87,7 @@ describe("CursorIgnore", () => {
 
       const rulesyncIgnore = cursorIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".md");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
     });
   });
 

@@ -18,12 +18,8 @@ export class CursorIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
       baseDir: ".",
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".cursorignore")}.md`,
-      frontmatter: {
-        targets: ["cursor"],
-        description: `Generated from Cursor ignore file: ${this.relativeFilePath}`,
-      },
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),
       fileContent: this.patterns.join("\n"),
     });

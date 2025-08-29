@@ -44,12 +44,8 @@ export class ClaudecodeIgnore extends ToolIgnore {
 
     return new RulesyncIgnore({
       baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: `${basename(this.relativeFilePath, ".json")}.md`,
-      frontmatter: {
-        targets: ["claudecode"],
-        description: `Generated from Claude Code settings: ${this.relativeFilePath}`,
-      },
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
       body,
       fileContent: body,
     });
