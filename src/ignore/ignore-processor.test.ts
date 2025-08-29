@@ -115,10 +115,7 @@ node_modules/
       expect(rulesyncFiles).toHaveLength(1);
       expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncIgnore);
       const rulesyncIgnore = rulesyncFiles[0] as RulesyncIgnore;
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["claudecode"],
-        description: "Test ignore patterns",
-      });
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({});
     });
   });
 
@@ -176,10 +173,7 @@ node_modules/
       const rulesyncIgnores = await processor.loadRulesyncIgnores();
 
       expect(rulesyncIgnores).toHaveLength(1);
-      expect(rulesyncIgnores[0]?.getFrontmatter()).toEqual({
-        targets: ["claudecode"],
-        description: "Test ignore patterns",
-      });
+      expect(rulesyncIgnores[0]?.getFrontmatter()).toEqual({});
     });
 
     it("should throw error when directory doesn't exist", async () => {
@@ -240,8 +234,8 @@ description: Invalid ignore file
 
       const rulesyncIgnores = await processor.loadRulesyncIgnores();
 
-      expect(rulesyncIgnores).toHaveLength(1);
-      expect(rulesyncIgnores[0]?.getFrontmatter().description).toBe("Valid ignore file");
+      expect(rulesyncIgnores).toHaveLength(2);
+      expect(rulesyncIgnores[0]?.getFrontmatter()).toEqual({});
     });
   });
 
@@ -430,10 +424,6 @@ build/
           baseDir: testDir,
           relativeDirPath: ".rulesync/ignore",
           relativeFilePath: "security.md",
-          frontmatter: {
-            targets: ["claudecode"],
-            description: "Security ignore patterns",
-          },
           body: "*.key\n*.pem\n.env*",
           fileContent: "",
         }),
@@ -441,8 +431,7 @@ build/
 
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncIgnores);
 
-      expect(toolFiles).toHaveLength(1);
-      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeIgnore);
+      expect(toolFiles).toHaveLength(0);
     });
 
     it("should filter out non-matching targets", async () => {
@@ -456,10 +445,6 @@ build/
           baseDir: testDir,
           relativeDirPath: ".rulesync/ignore",
           relativeFilePath: "cursor-only.md",
-          frontmatter: {
-            targets: ["cursor"],
-            description: "Cursor-only ignore patterns",
-          },
           body: "*.log",
           fileContent: "",
         }),

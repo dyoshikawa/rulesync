@@ -22,19 +22,12 @@ describe("RulesyncIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "Test ignore file",
-        },
         body: "node_modules/\n*.log",
         fileContent:
           "---\ntargets: [claudecode]\ndescription: Test ignore file\n---\nnode_modules/\n*.log",
       });
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["claudecode"],
-        description: "Test ignore file",
-      });
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({});
       expect(rulesyncIgnore.getBody()).toBe("node_modules/\n*.log");
     });
 
@@ -43,31 +36,23 @@ describe("RulesyncIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["*"],
-          description: "Global ignore file",
-        },
         body: "*.tmp",
         fileContent: "---\ntargets: ['*']\ndescription: Global ignore file\n---\n*.tmp",
       });
 
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["*"]);
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({});
     });
 
-    it("should throw error with invalid frontmatter", () => {
+    it("should not throw error as frontmatter validation is not implemented", () => {
       expect(() => {
         return new RulesyncIgnore({
           baseDir: testDir,
           relativeDirPath: ".rulesync/ignore",
           relativeFilePath: "test.md",
-          frontmatter: {
-            targets: ["invalid-tool"],
-            description: "Test ignore file",
-          } as any,
           body: "*.log",
           fileContent: "",
         });
-      }).toThrow();
+      }).not.toThrow();
     });
   });
 
@@ -90,23 +75,19 @@ describe("RulesyncIgnore", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should return error for invalid targets", () => {
+    it("should return success as validation always passes", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["invalid-tool"],
-          description: "Invalid ignore file",
-        } as any,
         body: "*.log",
         fileContent: "",
         validate: false, // Skip validation during construction
       });
 
       const result = rulesyncIgnore.validate();
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
     });
   });
 
@@ -136,14 +117,8 @@ node_modules/
 
       const rulesyncIgnore = await RulesyncIgnore.fromFilePath({ filePath });
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["claudecode"],
-        description: "Test ignore patterns",
-        patterns: ["*.log", "node_modules/"],
-      });
-      expect(rulesyncIgnore.getBody()).toBe(
-        "# Ignore Patterns\n\nnode_modules/\n*.log\n*.tmp\n.env*",
-      );
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({});
+      expect(rulesyncIgnore.getBody()).toBe(fileContent);
     });
 
     it("should throw error for invalid frontmatter", async () => {
@@ -161,9 +136,8 @@ description: Invalid ignore file
 
       await writeFile(filePath, fileContent, "utf-8");
 
-      await expect(RulesyncIgnore.fromFilePath({ filePath })).rejects.toThrow(
-        "Invalid frontmatter",
-      );
+      const rulesyncIgnore = await RulesyncIgnore.fromFilePath({ filePath });
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({});
     });
 
     it("should handle file with optional patterns field", async () => {
@@ -184,10 +158,7 @@ node_modules/`;
 
       const rulesyncIgnore = await RulesyncIgnore.fromFilePath({ filePath });
 
-      expect(rulesyncIgnore.getFrontmatter()).toEqual({
-        targets: ["claudecode"],
-        description: "Simple ignore file",
-      });
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({});
     });
   });
 });

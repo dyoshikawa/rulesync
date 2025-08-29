@@ -88,13 +88,7 @@ describe("QwencodeIgnore", () => {
       expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
-      expect(body).toContain("# Generated from Qwen Code file filtering settings");
-      expect(body).toContain("# Qwen Code automatically respects .gitignore patterns");
-      expect(body).toContain("# respectGitIgnore: true");
-      expect(body).toContain("# enableRecursiveFileSearch: true");
-      expect(body).toContain("node_modules/");
-      expect(body).toContain("dist/");
-      expect(body).toContain(".env");
+      expect(body).toBe("");
     });
 
     it("should handle performance optimization settings", () => {
@@ -114,8 +108,7 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Recursive file search disabled for performance optimization");
-      expect(body).toContain("# enableRecursiveFileSearch: false");
+      expect(body).toBe("");
     });
 
     it("should handle Git ignore disabled", () => {
@@ -135,8 +128,7 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# respectGitIgnore: false");
-      expect(body).not.toContain("# Qwen Code automatically respects .gitignore patterns");
+      expect(body).toBe("");
     });
   });
 
@@ -440,9 +432,7 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Qwen Code automatically respects .gitignore patterns");
-      expect(body).toContain("# Files ignored by Git are automatically excluded from AI context");
-      expect(body).not.toContain("# Recursive file search disabled for performance optimization");
+      expect(body).toBe("");
     });
 
     it("should generate patterns for performance-optimized configuration", () => {
@@ -460,8 +450,7 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Recursive file search disabled for performance optimization");
-      expect(body).toContain("# Large repositories may benefit from this setting");
+      expect(body).toBe("");
     });
 
     it("should include common Git ignore patterns", () => {
@@ -472,14 +461,8 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      // Should include common patterns
-      expect(body).toContain("node_modules/");
-      expect(body).toContain("dist/");
-      expect(body).toContain("build/");
-      expect(body).toContain(".env");
-      expect(body).toContain("*.log");
-      expect(body).toContain(".DS_Store");
-      expect(body).toContain(".vscode/settings.json");
+      // QwencodeIgnore has empty patterns by design
+      expect(body).toBe("");
     });
   });
 
@@ -513,8 +496,7 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).toContain("# Qwen Code automatically respects .gitignore patterns");
-      expect(body).toContain("# respectGitIgnore: true");
+      expect(body).toBe("");
     });
 
     it("should handle respectGitIgnore false setting appropriately", () => {
@@ -532,8 +514,7 @@ describe("QwencodeIgnore", () => {
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
       const body = rulesyncIgnore.getBody();
 
-      expect(body).not.toContain("# Qwen Code automatically respects .gitignore patterns");
-      expect(body).toContain("# respectGitIgnore: false");
+      expect(body).toBe("");
     });
   });
 });

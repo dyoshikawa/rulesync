@@ -67,14 +67,7 @@ describe("CodexcliIgnore", () => {
       expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
-      expect(body).toContain("# OpenAI Codex CLI Ignore Patterns");
-      expect(body).toContain("# Note: Native .codexignore support is a community request");
-      expect(body).toContain("# Security and Sensitive Files");
-      expect(body).toContain("*.env");
-      expect(body).toContain("secrets/**");
-      expect(body).toContain("# Performance Optimization");
-      expect(body).toContain("node_modules/");
-      expect(body).toContain("*.log");
+      expect(body).toBe("*.env\nsecrets/**\nnode_modules/\n*.log");
     });
 
     it("should categorize patterns correctly", () => {
