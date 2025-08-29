@@ -540,9 +540,9 @@ ${largeContent}`,
     });
   });
 
-  describe("getReferencesSection", () => {
+  describe("getXmlReferencesSection", () => {
     it("should return empty string for empty tool rules", () => {
-      const result = processor.getReferencesSection([], ".claude/memories");
+      const result = processor.getXmlReferencesSection([], ".claude/memories");
       expect(result).toBe("");
     });
 
@@ -556,7 +556,7 @@ ${largeContent}`,
         validate: false,
       });
 
-      const result = processor.getReferencesSection([mockRule], ".claude/memories");
+      const result = processor.getXmlReferencesSection([mockRule], ".claude/memories");
 
       expect(result).toContain("Please also reference the following documents as needed");
       expect(result).toContain("<Documents>");
@@ -587,7 +587,7 @@ ${largeContent}`,
         }),
       ];
 
-      const result = processor.getReferencesSection(mockRules, ".claude/memories");
+      const result = processor.getXmlReferencesSection(mockRules, ".claude/memories");
 
       expect(result).toContain("Please also reference the following documents as needed");
       expect(result).toContain("<Path>@.claude/memories/rule1.md</Path>");
@@ -605,7 +605,7 @@ ${largeContent}`,
         validate: false,
       });
 
-      const result = processor.getReferencesSection([mockRule], ".claude/memories");
+      const result = processor.getXmlReferencesSection([mockRule], ".claude/memories");
 
       expect(result).toContain("<Path>@.claude/memories/default-globs.md</Path>");
       expect(result).toContain("<Description></Description>");

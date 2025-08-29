@@ -327,7 +327,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadAmazonqcliRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".amazonq", "rules"),
-      ".amazonq/rules",
       (filePath, relativeFilePath) =>
         AmazonQCliRule.fromFilePath({
           baseDir: this.baseDir,
@@ -346,7 +345,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadAugmentcodeRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".augment", "rules"),
-      ".augment/rules",
       (filePath, relativeFilePath) =>
         AugmentcodeRule.fromFilePath({
           baseDir: this.baseDir,
@@ -466,7 +464,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadClineRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".clinerules"),
-      ".clinerules",
       (filePath, relativeFilePath) =>
         ClineRule.fromFilePath({
           baseDir: this.baseDir,
@@ -541,7 +538,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadCursorRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".cursor", "rules"),
-      ".cursor/rules",
       (filePath, relativeFilePath) =>
         CursorRule.fromFilePath({
           baseDir: this.baseDir,
@@ -616,7 +612,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadKiroRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".kiro", "steering"),
-      ".kiro/steering",
       (filePath, relativeFilePath) =>
         KiroRule.fromFilePath({
           baseDir: this.baseDir,
@@ -691,7 +686,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadRooRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".roo", "rules"),
-      ".roo/rules",
       (filePath, relativeFilePath) =>
         RooRule.fromFilePath({
           baseDir: this.baseDir,
@@ -710,7 +704,6 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadWindsurfRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".windsurf", "rules"),
-      ".windsurf/rules",
       (filePath, relativeFilePath) =>
         WindsurfRule.fromFilePath({
           baseDir: this.baseDir,
@@ -728,7 +721,6 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadToolRulesFromDirectory(
     dirPath: string,
-    relativeDirPath: string,
     ruleFactory: (filePath: string, relativeFilePath: string) => Promise<ToolRule>,
     toolName: string,
   ): Promise<ToolRule[]> {
@@ -877,7 +869,7 @@ export class RulesProcessor extends FeatureProcessor {
     }
   }
 
-  public getReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
+  public getXmlReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
     if (toolRules.length === 0) {
       return "";
     }
