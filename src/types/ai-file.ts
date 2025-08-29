@@ -90,5 +90,9 @@ export abstract class AiFile {
     return path.join(this.relativeDirPath, this.relativeFilePath);
   }
 
+  setFileContent(newFileContent: string): void {
+    this.fileContent = newFileContent;
+  }
+
   abstract validate(): ValidationResult;
 }

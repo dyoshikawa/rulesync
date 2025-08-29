@@ -475,7 +475,7 @@ This is test content for round-trip conversion.`,
       expect(convertedRulesyncFiles).toHaveLength(1);
       const convertedRule = convertedRulesyncFiles[0] as RulesyncRule;
       expect(convertedRule.getFrontmatter().targets).toEqual(["claudecode"]);
-      expect(convertedRule.getFrontmatter().description).toBe(originalFrontmatter.description);
+      expect(convertedRule.getFrontmatter().description).toBe("");
       // Note: Body might be modified by tool-specific processing, so we check it exists
       expect(convertedRule.getBody()).toBeTruthy();
     });
@@ -553,8 +553,7 @@ ${largeContent}`,
         baseDir: testDir,
         relativeDirPath: ".claude/memories",
         relativeFilePath: "test-rule.md",
-        fileContent: "---\ndescription: Test rule description\n---\nTest rule content",
-        frontmatter: { description: "Test rule description" },
+        fileContent: "Test rule content",
         body: "Test rule content",
         validate: false,
       });
@@ -565,7 +564,7 @@ ${largeContent}`,
       expect(result).toContain("<Documents>");
       expect(result).toContain("<Document>");
       expect(result).toContain("<Path>@.claude/memories/test-rule.md</Path>");
-      expect(result).toContain("<Description>Test rule description</Description>");
+      expect(result).toContain("<Description></Description>");
       expect(result).toContain("</Document>");
       expect(result).toContain("</Documents>");
     });
@@ -576,8 +575,7 @@ ${largeContent}`,
           baseDir: testDir,
           relativeDirPath: ".claude/memories",
           relativeFilePath: "rule1.md",
-          fileContent: "---\ndescription: First rule\n---\nRule 1 content",
-          frontmatter: { description: "First rule" },
+          fileContent: "Rule 1 content",
           body: "Rule 1 content",
           validate: false,
         }),
@@ -585,8 +583,7 @@ ${largeContent}`,
           baseDir: testDir,
           relativeDirPath: ".claude/memories",
           relativeFilePath: "rule2.md",
-          fileContent: "---\ndescription: Second rule\n---\nRule 2 content",
-          frontmatter: { description: "Second rule" },
+          fileContent: "Rule 2 content",
           body: "Rule 2 content",
           validate: false,
         }),
@@ -596,9 +593,8 @@ ${largeContent}`,
       
       expect(result).toContain("Please also reference the following documents as needed");
       expect(result).toContain("<Path>@.claude/memories/rule1.md</Path>");
-      expect(result).toContain("<Description>First rule</Description>");
+      expect(result).toContain("<Description></Description>");
       expect(result).toContain("<Path>@.claude/memories/rule2.md</Path>");
-      expect(result).toContain("<Description>Second rule</Description>");
     });
 
     it("should include FilePatterns for ClaudecodeRule (defaults to **/*)", () => {
@@ -606,8 +602,7 @@ ${largeContent}`,
         baseDir: testDir,
         relativeDirPath: ".claude/memories",
         relativeFilePath: "default-globs.md",
-        fileContent: "---\ndescription: Rule with default globs\n---\nContent",
-        frontmatter: { description: "Rule with default globs" },
+        fileContent: "Content",
         body: "Content",
         validate: false,
       });
@@ -615,7 +610,7 @@ ${largeContent}`,
       const result = processor.getReferencesSection([mockRule], ".claude/memories");
       
       expect(result).toContain("<Path>@.claude/memories/default-globs.md</Path>");
-      expect(result).toContain("<Description>Rule with default globs</Description>");
+      expect(result).toContain("<Description></Description>");
       expect(result).toContain("<FilePatterns>**/*</FilePatterns>");
     });
   });

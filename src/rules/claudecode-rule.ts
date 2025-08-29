@@ -1,20 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import matter from "gray-matter";
-import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
-export const ClaudecodeRuleFrontmatterSchema = z.object({
-  description: z.string(),
-});
-
-export type ClaudecodeRuleFrontmatter = z.infer<typeof ClaudecodeRuleFrontmatterSchema>;
-
 export interface ClaudecodeRuleParams extends AiFileParams {
-  frontmatter: ClaudecodeRuleFrontmatter;
   body: string;
 }
 
@@ -25,33 +16,21 @@ export interface ClaudecodeRuleParams extends AiFileParams {
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  private body: string;
-  private frontmatter: ClaudecodeRuleFrontmatter;
-
   constructor(params: ClaudecodeRuleParams) {
     super({
       ...params,
     });
-    this.body = params.body;
-    this.frontmatter = params.frontmatter;
   }
 
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<ClaudecodeRule> {
     const fileContent = await readFile(params.filePath, "utf8");
-    const { data, content } = matter(fileContent);
-
-    // Validate frontmatter, provide default if empty
-    const frontmatter = ClaudecodeRuleFrontmatterSchema.parse(
-      data.description ? data : { description: "" },
-    );
 
     return new ClaudecodeRule({
       baseDir: params.baseDir || process.cwd(),
       relativeDirPath: params.relativeDirPath,
       relativeFilePath: params.relativeFilePath,
       fileContent,
-      frontmatter,
-      body: content,
+      body: fileContent,
       validate: params.validate ?? true,
     });
   }
@@ -59,27 +38,24 @@ export class ClaudecodeRule extends ToolRule {
   static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
     const { rulesyncRule, ...rest } = params;
 
-    // Extract description from rulesync rule frontmatter
-    const description = rulesyncRule.getFrontmatter().description;
     const root = rulesyncRule.getFrontmatter().root;
+    const body = rulesyncRule.getBody();
 
     if (root) {
       return new ClaudecodeRule({
         ...rest,
-        fileContent: rulesyncRule.getFileContent(),
+        fileContent: body,
         relativeFilePath: "CLAUDE.md",
-        frontmatter: { description },
-        body: rulesyncRule.getBody(),
+        body,
       });
     }
 
     return new ClaudecodeRule({
       ...rest,
-      fileContent: rulesyncRule.getFileContent(),
+      fileContent: body,
       relativeDirPath: join(".claude", "memories"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      frontmatter: { description },
-      body: rulesyncRule.getBody(),
+      body,
     });
   }
 
@@ -87,7 +63,7 @@ export class ClaudecodeRule extends ToolRule {
     const rulesyncFrontmatter: RuleFrontmatter = {
       root: false,
       targets: ["claudecode"],
-      description: this.frontmatter.description,
+      description: "",
       globs: ["**/*"],
     };
 
@@ -96,28 +72,13 @@ export class ClaudecodeRule extends ToolRule {
       relativeDirPath: this.getRelativeDirPath(),
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
-      body: this.body,
+      body: this.getFileContent(),
       fileContent: this.getFileContent(),
     });
   }
 
   validate(): ValidationResult {
-    try {
-      ClaudecodeRuleFrontmatterSchema.parse(this.frontmatter);
-      return { success: true, error: null };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error : new Error("Unknown validation error"),
-      };
-    }
+    return { success: true, error: null };
   }
 
-  setBody(newBody: string): void {
-    this.body = newBody;
-
-    // Update fileContent by combining frontmatter and body
-    const matterString = matter.stringify(newBody, this.frontmatter);
-    this.fileContent = matterString;
-  }
 }

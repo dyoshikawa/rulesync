@@ -1,7 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import matter from "gray-matter";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { RuleFrontmatter } from "../types/rules.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -22,11 +21,7 @@ describe("ClaudecodeRule", () => {
   describe("fromFilePath", () => {
     it("should create ClaudecodeRule from file path", async () => {
       const filePath = join(_testDir, "claudecode-rule.md");
-      const fileContent = `---
-description: "Claude Code specific rule"
----
-
-Use TypeScript strict mode
+      const fileContent = `Use TypeScript strict mode
 Always write tests`;
 
       await writeFile(filePath, fileContent);
@@ -41,28 +36,26 @@ Always write tests`;
 
       expect(rule).toBeInstanceOf(ClaudecodeRule);
       expect(rule.getRelativeFilePath()).toBe("claudecode-rule.md");
+      expect(rule.getFileContent()).toBe(fileContent);
     });
 
-    it("should provide default description when missing", async () => {
-      const filePath = join(_testDir, "no-description-rule.md");
-      const fileContent = `---
-invalidField: true
----
-
-Content`;
+    it("should handle plain text content", async () => {
+      const filePath = join(_testDir, "plain-rule.md");
+      const fileContent = `Content without frontmatter`;
 
       await writeFile(filePath, fileContent);
 
       const rule = await ClaudecodeRule.fromFilePath({
         baseDir: _testDir,
         relativeDirPath: ".",
-        relativeFilePath: "no-description-rule.md",
+        relativeFilePath: "plain-rule.md",
         filePath,
         validate: false,
       });
 
       expect(rule).toBeInstanceOf(ClaudecodeRule);
       expect(rule.validate().success).toBe(true);
+      expect(rule.getFileContent()).toBe(fileContent);
     });
   });
 
@@ -94,6 +87,7 @@ Content`;
       expect(rule).toBeInstanceOf(ClaudecodeRule);
       expect(rule.getRelativeFilePath()).toBe("test.md");
       expect(rule.getRelativeDirPath()).toBe(join(".claude", "memories"));
+      expect(rule.getFileContent()).toBe("Test content");
     });
 
     it("should create ClaudecodeRule with CLAUDE.md when root is true", () => {
@@ -123,6 +117,7 @@ Content`;
       expect(rule).toBeInstanceOf(ClaudecodeRule);
       expect(rule.getRelativeFilePath()).toBe("CLAUDE.md");
       expect(rule.getRelativeDirPath()).toBe("rules");
+      expect(rule.getFileContent()).toBe("Root test content");
     });
   });
 
@@ -132,8 +127,7 @@ Content`;
         baseDir: _testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\nContent",
-        frontmatter: { description: "Test" },
+        fileContent: "Content",
         body: "Content",
         validate: false,
       });
@@ -142,18 +136,18 @@ Content`;
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getFrontmatter().targets).toEqual(["claudecode"]);
-      expect(rulesyncRule.getFrontmatter().description).toBe("Test");
+      expect(rulesyncRule.getFrontmatter().description).toBe("");
+      expect(rulesyncRule.getBody()).toBe("Content");
     });
   });
 
   describe("validate", () => {
-    it("should validate successfully with valid frontmatter", () => {
+    it("should always validate successfully", () => {
       const rule = new ClaudecodeRule({
         baseDir: _testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\nContent",
-        frontmatter: { description: "Test description" },
+        fileContent: "Content",
         body: "Content",
         validate: false,
       });
@@ -161,22 +155,6 @@ Content`;
       const result = rule.validate();
       expect(result.success).toBe(true);
       expect(result.error).toBe(null);
-    });
-
-    it("should fail validation with invalid frontmatter", () => {
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: "rules",
-        relativeFilePath: "test.md",
-        fileContent: "---\ntest: invalid\n---\nContent",
-        frontmatter: {} as any,
-        body: "Content",
-        validate: false,
-      });
-
-      const result = rule.validate();
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
     });
   });
 
@@ -187,8 +165,7 @@ Content`;
         baseDir: _testDir,
         relativeDirPath: ".claude/memories",
         relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\nContent",
-        frontmatter: { description: "Test" },
+        fileContent: "Content",
         body: "Content",
         validate: false,
       });
@@ -204,8 +181,7 @@ Content`;
         baseDir: _testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\nContent",
-        frontmatter: { description: "Test" },
+        fileContent: "Content",
         body: "Content",
         validate: false,
       });
@@ -216,61 +192,21 @@ Content`;
     });
   });
 
-  describe("setBody", () => {
-    it("should update body and fileContent when setBody is called", () => {
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: "rules",
-        relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Original description\n---\nOriginal content",
-        frontmatter: { description: "Original description" },
-        body: "Original content",
-        validate: false,
-      });
-
-      const newBody = "Updated content with new rules";
-      rule.setBody(newBody);
-
-      // Verify the fileContent is updated with new body
-      const parsedContent = matter(rule.getFileContent());
-      expect(parsedContent.content.trim()).toBe(newBody);
-      expect(parsedContent.data.description).toBe("Original description");
-    });
-
-    it("should preserve frontmatter when updating body", () => {
-      const originalFrontmatter = { description: "Test description" };
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: "rules",
-        relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test description\n---\nOriginal body",
-        frontmatter: originalFrontmatter,
-        body: "Original body",
-        validate: false,
-      });
-
-      rule.setBody("New body content");
-
-      const parsedContent = matter(rule.getFileContent());
-      expect(parsedContent.data).toEqual(originalFrontmatter);
-      expect(parsedContent.content.trim()).toBe("New body content");
-    });
-  });
 
   describe("complex scenarios", () => {
     it("should handle multiline content with markdown formatting", () => {
+      const content = "# Coding Standards\n\n- Use TypeScript\n- Write tests\n\n## Security\n\n- Validate inputs";
       const rule = new ClaudecodeRule({
         baseDir: _testDir,
         relativeDirPath: "rules",
         relativeFilePath: "complex.md",
-        fileContent:
-          "---\ndescription: Complex project\n---\n# Coding Standards\n\n- Use TypeScript\n- Write tests\n\n## Security\n\n- Validate inputs",
-        frontmatter: { description: "Complex project" },
-        body: "# Coding Standards\n\n- Use TypeScript\n- Write tests\n\n## Security\n\n- Validate inputs",
+        fileContent: content,
+        body: content,
         validate: false,
       });
 
       expect(rule.getRelativeFilePath()).toBe("complex.md");
+      expect(rule.getFileContent()).toBe(content);
     });
 
     it("should handle rule with special characters in path", () => {
@@ -278,8 +214,7 @@ Content`;
         baseDir: _testDir,
         relativeDirPath: "special-rules",
         relativeFilePath: "rule-with-spaces and symbols.md",
-        fileContent: "---\ndescription: Special rule\n---\nContent",
-        frontmatter: { description: "Special rule" },
+        fileContent: "Content",
         body: "Content",
         validate: false,
       });
