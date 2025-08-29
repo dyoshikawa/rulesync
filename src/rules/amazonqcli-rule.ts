@@ -1,37 +1,29 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import matter from "gray-matter";
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
+import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
-export type AmazonQCliRuleParams = Omit<AiFileParams, "fileContent"> & {
+export interface AmazonQCliRuleParams extends ToolRuleParams {
   body: string;
-  fileContent?: string;
-};
+}
 
 export class AmazonQCliRule extends ToolRule {
   private readonly body: string;
 
-  constructor({ body, fileContent, ...rest }: AmazonQCliRuleParams) {
-    const actualFileContent = fileContent || body;
-
+  constructor(params: AmazonQCliRuleParams) {
     super({
-      ...rest,
-      fileContent: actualFileContent,
+      ...params,
     });
 
-    this.body = body;
+    this.body = params.body;
   }
 
-  static async fromFilePath({
-    baseDir = ".",
-    relativeDirPath,
-    relativeFilePath,
-    filePath,
-    validate = true,
-  }: AiFileFromFilePathParams): Promise<AmazonQCliRule> {
-    // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+  static async fromFilePath(params: AiFileFromFilePathParams): Promise<AmazonQCliRule> {
+    const fileContent = await readFile(params.filePath, "utf8");
     const { content } = matter(fileContent);
 
     // If there's no frontmatter, gray-matter returns the entire content as content
@@ -39,50 +31,59 @@ export class AmazonQCliRule extends ToolRule {
     const body = content.trim() || fileContent.trim();
 
     return new AmazonQCliRule({
-      baseDir,
-      relativeDirPath,
-      relativeFilePath,
-      body,
+      baseDir: params.baseDir || ".",
+      relativeDirPath: params.relativeDirPath,
+      relativeFilePath: params.relativeFilePath,
       fileContent,
-      validate,
+      body,
+      validate: params.validate ?? true,
+      root: params.relativeFilePath === "main.md",
     });
   }
 
-  static fromRulesyncRule({
-    baseDir = ".",
-    relativeDirPath,
-    rulesyncRule,
-    validate = true,
-  }: ToolRuleFromRulesyncRuleParams): AmazonQCliRule {
+  static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): AmazonQCliRule {
+    const { rulesyncRule, ...rest } = params;
+
+    const root = rulesyncRule.getFrontmatter().root;
     const body = rulesyncRule.getBody();
     const fileContent = body; // Amazon Q CLI rules are plain markdown without frontmatter
 
+    if (root) {
+      return new AmazonQCliRule({
+        ...rest,
+        fileContent,
+        relativeFilePath: "main.md",
+        body,
+        root,
+      });
+    }
+
     return new AmazonQCliRule({
-      baseDir,
-      relativeDirPath,
+      ...rest,
+      fileContent,
+      relativeDirPath: join(".amazonq", "rules"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body,
-      fileContent,
-      validate,
+      root,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
-    const frontmatter = {
-      root: false, // Amazon Q supports subdirectories
-      targets: ["amazonqcli" as const],
+    const rulesyncFrontmatter: RuleFrontmatter = {
+      root: this.root,
+      targets: ["amazonqcli"],
       description: "Amazon Q Developer CLI rules",
       globs: ["**/*"],
     };
 
     // Amazon Q CLI rules use plain markdown content
-    const fileContent = matter.stringify(this.body, frontmatter);
+    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
 
     return new RulesyncRule({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      frontmatter,
+      baseDir: this.getBaseDir(),
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
+      frontmatter: rulesyncFrontmatter,
       body: this.body,
       fileContent,
       validate: false,
