@@ -190,6 +190,13 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     switch (this.toolTarget) {
+      case "agentsmd": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
       case "claudecode": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(

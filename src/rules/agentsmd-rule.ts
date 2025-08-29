@@ -1,23 +1,27 @@
 import { readFile } from "node:fs/promises";
 import matter from "gray-matter";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export type AgentsMdRuleParams = Omit<AiFileParams, "fileContent"> & {
   body: string;
   fileContent?: string;
+  root?: boolean;
 };
 
 export class AgentsMdRule extends ToolRule {
   private readonly body: string;
 
-  constructor({ body, fileContent, ...rest }: AgentsMdRuleParams) {
+  constructor({ body, fileContent, root, ...rest }: AgentsMdRuleParams) {
     const actualFileContent = fileContent || body;
 
     super({
       ...rest,
       fileContent: actualFileContent,
+      root: root ?? false,
     });
 
     this.body = body;
@@ -45,6 +49,7 @@ export class AgentsMdRule extends ToolRule {
       body,
       fileContent,
       validate,
+      root: relativeFilePath === "AGENTS.md",
     });
   }
 
@@ -54,38 +59,48 @@ export class AgentsMdRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
+    const root = rulesyncRule.getFrontmatter().root;
     const body = rulesyncRule.getBody();
     const fileContent = body; // AGENTS.md is plain markdown without frontmatter
+
+    if (root) {
+      return new AgentsMdRule({
+        baseDir,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        body,
+        fileContent,
+        validate,
+        root,
+      });
+    }
 
     return new AgentsMdRule({
       baseDir,
       relativeDirPath,
-      relativeFilePath: "AGENTS.md",
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body,
       fileContent,
       validate,
+      root,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
-    const frontmatter = {
-      root: true,
-      targets: ["agentsmd" as const],
+    const rulesyncFrontmatter: RuleFrontmatter = {
+      root: this.isRoot(),
+      targets: ["agentsmd"],
       description: "AGENTS.md instructions",
       globs: ["**/*"],
     };
 
-    // AGENTS.md uses plain markdown content
-    const fileContent = matter.stringify(this.body, frontmatter);
-
     return new RulesyncRule({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      frontmatter,
-      body: this.body,
-      fileContent,
-      validate: false,
+      baseDir: this.getBaseDir(),
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
+      frontmatter: rulesyncFrontmatter,
+      body: this.getBody(),
+      fileContent: this.getFileContent(),
     });
   }
 

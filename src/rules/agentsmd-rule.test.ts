@@ -90,6 +90,7 @@ describe("AgentsMdRule", () => {
       expect(rule.getBody()).toBe(content);
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(rule.getFileContent()).toBe(content);
+      expect(rule.isRoot()).toBe(true);
     });
 
     it("should handle file with frontmatter", async () => {
@@ -156,6 +157,24 @@ describe("AgentsMdRule", () => {
 
       expect(rule.getBody()).toBe(content);
       expect(rule.getRelativeDirPath()).toBe("subdir");
+      expect(rule.isRoot()).toBe(true);
+    });
+
+    it("should set root=false for non-AGENTS.md files", async () => {
+      const agentsPath = join(testDir, "other-file.md");
+      const content = "# Other Guidelines\n\nSpecific rules for other files.";
+      await writeFile(agentsPath, content);
+
+      const rule = await AgentsMdRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "other-file.md",
+        filePath: agentsPath,
+      });
+
+      expect(rule.getBody()).toBe(content);
+      expect(rule.getRelativeFilePath()).toBe("other-file.md");
+      expect(rule.isRoot()).toBe(false);
     });
   });
 
@@ -187,6 +206,7 @@ describe("AgentsMdRule", () => {
 
       expect(rule.getBody()).toBe(body);
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(true);
     });
 
     it("should convert from RulesyncRule with root=false", () => {
@@ -217,6 +237,7 @@ describe("AgentsMdRule", () => {
       expect(rule.getBody()).toBe(body);
       expect(rule.getRelativeDirPath()).toBe("src");
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(false);
     });
 
     it("should handle custom base directory", () => {
@@ -250,7 +271,7 @@ describe("AgentsMdRule", () => {
   });
 
   describe("toRulesyncRule", () => {
-    it("should convert to RulesyncRule with proper frontmatter", () => {
+    it("should convert to RulesyncRule with proper frontmatter for root file", () => {
       const body = "# Project Guidelines\n\nUse TypeScript for all projects.";
       const rule = new AgentsMdRule({
         baseDir: testDir,
@@ -258,6 +279,7 @@ describe("AgentsMdRule", () => {
         relativeFilePath: "AGENTS.md",
         body,
         validate: false,
+        root: true,
       });
 
       const rulesyncRule = rule.toRulesyncRule();
@@ -265,6 +287,29 @@ describe("AgentsMdRule", () => {
       expect(rulesyncRule.getBody()).toBe(body);
       expect(rulesyncRule.getFrontmatter()).toEqual({
         root: true,
+        targets: ["agentsmd"],
+        description: "AGENTS.md instructions",
+        globs: ["**/*"],
+      });
+      expect(rulesyncRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should convert to RulesyncRule with proper frontmatter for non-root file", () => {
+      const body = "# Module Guidelines\n\nModule-specific rules.";
+      const rule = new AgentsMdRule({
+        baseDir: testDir,
+        relativeDirPath: "src",
+        relativeFilePath: "AGENTS.md",
+        body,
+        validate: false,
+        root: false,
+      });
+
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule.getBody()).toBe(body);
+      expect(rulesyncRule.getFrontmatter()).toEqual({
+        root: false,
         targets: ["agentsmd"],
         description: "AGENTS.md instructions",
         globs: ["**/*"],
@@ -284,7 +329,7 @@ describe("AgentsMdRule", () => {
 
       const rulesyncRule = rule.toRulesyncRule();
 
-      expect(rulesyncRule.getRelativeDirPath()).toBe("src/components");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
       expect(rulesyncRule.getRelativeFilePath()).toBe("AGENTS.md");
       // RulesyncRule should have baseDir accessible via inheritance but let's verify using alternative approach
       expect(rule.getBaseDir()).toBe(testDir);
@@ -297,6 +342,7 @@ describe("AgentsMdRule", () => {
         relativeFilePath: "AGENTS.md",
         body,
         validate: false,
+        root: true,
       });
 
       const rulesyncRule = rule.toRulesyncRule();
@@ -435,7 +481,7 @@ describe("AgentsMdRule", () => {
       // Convert and verify
       const rulesyncRule = rule.toRulesyncRule();
       expect(rulesyncRule.getBody()).toBe(content);
-      expect(rulesyncRule.getRelativeDirPath()).toBe("src/components");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
 
       // Convert back and verify
       const convertedRule = AgentsMdRule.fromRulesyncRule({
