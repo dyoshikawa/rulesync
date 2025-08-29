@@ -917,4 +917,32 @@ export class RulesProcessor extends FeatureProcessor {
 
     return lines.join("\n");
   }
+
+  public getReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
+    if (toolRules.length === 0) {
+      return "";
+    }
+
+    const lines: string[] = [];
+    lines.push("Please also reference the following documents as needed:");
+    lines.push("");
+
+    for (const rule of toolRules) {
+      // Get frontmatter by converting to rulesync rule
+      const rulesyncRule = rule.toRulesyncRule();
+      const frontmatter = rulesyncRule.getFrontmatter();
+      const filename = rule.getRelativeFilePath().replace(/\.md$/, "");
+
+      // Escape double quotes in description
+      const escapedDescription = frontmatter.description.replace(/"/g, '\\"');
+      const globsText = frontmatter.globs.join(",");
+
+      lines.push(
+        `@${memorySubDir}/${filename}.md description: "${escapedDescription}" globs: "${globsText}"`,
+      );
+    }
+    lines.push("");
+
+    return lines.join("\n");
+  }
 }

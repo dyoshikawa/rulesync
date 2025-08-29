@@ -613,6 +613,72 @@ ${largeContent}`,
     });
   });
 
+  describe("getReferencesSection", () => {
+    it("should return empty string for empty tool rules", () => {
+      const result = processor.getReferencesSection([], ".claude/memories");
+      expect(result).toBe("");
+    });
+
+    it("should generate simple references section for single rule", () => {
+      const mockRule = new ClaudecodeRule({
+        baseDir: testDir,
+        relativeDirPath: ".claude/memories",
+        relativeFilePath: "test-rule.md",
+        fileContent: "Test rule content",
+        body: "Test rule content",
+        validate: false,
+      });
+
+      const result = processor.getReferencesSection([mockRule], ".claude/memories");
+
+      expect(result).toContain("Please also reference the following documents as needed:");
+      expect(result).toContain('@.claude/memories/test-rule.md description: "" globs: "**/*"');
+    });
+
+    it("should generate references section for multiple rules", () => {
+      const mockRules = [
+        new ClaudecodeRule({
+          baseDir: testDir,
+          relativeDirPath: ".claude/memories",
+          relativeFilePath: "rule1.md",
+          fileContent: "Rule 1 content",
+          body: "Rule 1 content",
+          validate: false,
+        }),
+        new ClaudecodeRule({
+          baseDir: testDir,
+          relativeDirPath: ".claude/memories",
+          relativeFilePath: "rule2.md",
+          fileContent: "Rule 2 content",
+          body: "Rule 2 content",
+          validate: false,
+        }),
+      ];
+
+      const result = processor.getReferencesSection(mockRules, ".claude/memories");
+
+      expect(result).toContain("Please also reference the following documents as needed:");
+      expect(result).toContain('@.claude/memories/rule1.md description: "" globs: "**/*"');
+      expect(result).toContain('@.claude/memories/rule2.md description: "" globs: "**/*"');
+    });
+
+    it("should handle rules with description and globs", () => {
+      const mockRule = new ClaudecodeRule({
+        baseDir: testDir,
+        relativeDirPath: ".claude/memories",
+        relativeFilePath: "test-rule.md",
+        fileContent: "Test rule content",
+        body: "Test rule content",
+        validate: false,
+      });
+
+      const result = processor.getReferencesSection([mockRule], ".claude/memories");
+
+      expect(result).toContain("Please also reference the following documents as needed:");
+      expect(result).toContain('@.claude/memories/test-rule.md description: "" globs: "**/*"');
+    });
+  });
+
   describe("tool-specific directory loading", () => {
     it("should load rules from correct directories for each tool", async () => {
       // Test cursor tool target specifically
