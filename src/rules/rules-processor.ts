@@ -2,7 +2,9 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
 import type { ToolTarget } from "../types/index.js";
-import { Processor } from "../types/processor.js";
+import { FeatureProcessor } from "../types/feature-processor.js";
+import { RulesyncFile } from "../types/rulesync-file.js";
+import { ToolFile } from "../types/tool-file.js";
 import { directoryExists, fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
@@ -24,7 +26,7 @@ import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule } from "./tool-rule.js";
 import { WindsurfRule } from "./windsurf-rule.js";
 
-export const RulesProcessorToolTargetSchema = z.enum([
+const rulesProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
   "amazonqcli",
   "augmentcode",
@@ -41,19 +43,27 @@ export const RulesProcessorToolTargetSchema = z.enum([
   "qwencode",
   "roo",
   "windsurf",
-]);
+];
+export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
 
-export class RulesProcessor extends Processor {
+export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
 
-  constructor({ baseDir, toolTarget }: { baseDir: string; toolTarget: RulesProcessorToolTarget }) {
+  constructor({
+    baseDir = process.cwd(),
+    toolTarget,
+  }: { baseDir?: string; toolTarget: RulesProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = RulesProcessorToolTargetSchema.parse(toolTarget);
   }
 
-  async writeToolRulesFromRulesyncRules(rulesyncRules: RulesyncRule[]): Promise<void> {
+  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncRules = rulesyncFiles.filter(
+      (file): file is RulesyncRule => file instanceof RulesyncRule,
+    );
+
     const toolRules = rulesyncRules.map((rulesyncRule) => {
       switch (this.toolTarget) {
         case "agentsmd":
@@ -173,18 +183,33 @@ export class RulesProcessor extends Processor {
       }
     });
 
-    await this.writeAiFiles(toolRules);
+    return toolRules;
+  }
+
+  async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    const toolRules = toolFiles.filter(
+      (file): file is ToolRule => file instanceof ToolRule,
+    );
+
+    const rulesyncRules = toolRules.map((toolRule) => {
+      return toolRule.toRulesyncRule();
+    });
+
+    return rulesyncRules;
   }
 
   /**
+   * Implementation of abstract method from FeatureProcessor
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
-  async loadRulesyncRules(): Promise<RulesyncRule[]> {
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const rulesDir = join(this.baseDir, ".rulesync", "rules");
 
     // Check if directory exists
-    if (!(await directoryExists(rulesDir))) {
-      throw new Error(`Rulesync rules directory not found: ${rulesDir}`);
+    const dirExists = await directoryExists(rulesDir);
+    if (!dirExists) {
+      logger.debug(`Rulesync rules directory not found: ${rulesDir}`);
+      return [];
     }
 
     // Read all markdown files from the directory
@@ -192,34 +217,34 @@ export class RulesProcessor extends Processor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      throw new Error(`No markdown files found in rulesync rules directory: ${rulesDir}`);
+      logger.debug(`No markdown files found in rulesync rules directory: ${rulesDir}`);
+      return [];
     }
 
     logger.info(`Found ${mdFiles.length} rule files in ${rulesDir}`);
 
-    // Parse all files in parallel using Promise.allSettled for better error handling
-    const results = await Promise.allSettled(
-      mdFiles.map(async (mdFile) => {
-        const filepath = join(rulesDir, mdFile);
-        return {
-          rule: await RulesyncRule.fromFilePath({ filePath: filepath }),
-          filename: mdFile,
-        };
-      }),
-    );
-
+    // Parse all files and create RulesyncRule instances using fromFilePath
     const rulesyncRules: RulesyncRule[] = [];
-    for (const [index, result] of results.entries()) {
-      if (result.status === "fulfilled") {
-        rulesyncRules.push(result.value.rule);
-        logger.debug(`Successfully loaded rule: ${result.value.filename}`);
-      } else {
-        logger.warn(`Failed to load rule file ${mdFiles[index]}:`, result.reason);
+
+    for (const mdFile of mdFiles) {
+      const filepath = join(rulesDir, mdFile);
+
+      try {
+        const rulesyncRule = await RulesyncRule.fromFilePath({
+          filePath: filepath,
+        });
+
+        rulesyncRules.push(rulesyncRule);
+        logger.debug(`Successfully loaded rule: ${mdFile}`);
+      } catch (error) {
+        logger.warn(`Failed to load rule file ${filepath}:`, error);
+        continue;
       }
     }
 
     if (rulesyncRules.length === 0) {
-      throw new Error(`No valid rules found in ${rulesDir}`);
+      logger.debug(`No valid rules found in ${rulesDir}`);
+      return [];
     }
 
     logger.info(`Successfully loaded ${rulesyncRules.length} rulesync rules`);
@@ -227,9 +252,10 @@ export class RulesProcessor extends Processor {
   }
 
   /**
+   * Implementation of abstract method from FeatureProcessor
    * Load tool-specific rule configurations and parse them into ToolRule instances
    */
-  async loadToolRules(): Promise<ToolRule[]> {
+  async loadToolFiles(): Promise<ToolFile[]> {
     switch (this.toolTarget) {
       case "agentsmd":
         return await this.loadAgentsmdRules();
@@ -702,12 +728,22 @@ export class RulesProcessor extends Processor {
     return toolRules;
   }
 
-  async writeRulesyncRulesFromToolRules(toolRules: ToolRule[]): Promise<void> {
-    const rulesyncRules = toolRules.map((toolRule) => {
-      return toolRule.toRulesyncRule();
-    });
+  async writeToolRulesFromRulesyncRules(rulesyncRules: RulesyncRule[]): Promise<void> {
+    const toolRules = await this.convertRulesyncFilesToToolFiles(rulesyncRules);
+    await this.writeAiFiles(toolRules);
+  }
 
+  async writeRulesyncRulesFromToolRules(toolRules: ToolRule[]): Promise<void> {
+    const rulesyncRules = await this.convertToolFilesToRulesyncFiles(toolRules);
     await this.writeAiFiles(rulesyncRules);
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Return the tool targets that this processor supports
+   */
+  static getToolTargets(): ToolTarget[] {
+    return rulesProcessorToolTargets;
   }
 
   /**

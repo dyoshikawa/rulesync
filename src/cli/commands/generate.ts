@@ -5,9 +5,9 @@ import {
   type CommandsProcessorToolTarget,
 } from "../../commands/commands-processor.js";
 import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/index.js";
-import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
@@ -130,16 +130,6 @@ Available tools:
     }
 
     try {
-      // Parse rules
-      logger.info(`Parsing rules from ${config.aiRulesDir}...`);
-      const rules = await parseRulesFromDirectory(config.aiRulesDir);
-
-      if (rules.length === 0) {
-        logger.warn("⚠️  No rules found in .rulesync directory");
-        return;
-      }
-
-      logger.info(`Found ${rules.length} rule(s)`);
       logger.info(`Base directories: ${baseDirs.join(", ")}`);
 
       // Delete existing output directories if --delete option is specified
@@ -253,31 +243,26 @@ Available tools:
         logger.info("Deleted existing output directories");
       }
 
-      // Generate configurations for each base directory (rules feature)
+      // Generate rule files (rules feature)
       let totalOutputs = 0;
       if (normalizedFeatures.includes("rules")) {
+        logger.info("\nGenerating rule files...");
         for (const baseDir of baseDirs) {
-          logger.info(`\nGenerating rule configurations for base directory: ${baseDir}`);
-
-          const outputs = await generateConfigurations(
-            rules,
-            config,
+          for (const toolTarget of intersection(
             config.defaultTargets,
-            baseDir,
-          );
+            RulesProcessor.getToolTargets(),
+          )) {
+            const processor = new RulesProcessor({
+              baseDir: baseDir,
+              toolTarget: toolTarget,
+            });
 
-          if (outputs.length === 0) {
-            logger.warn(`⚠️  No rule configurations generated for ${baseDir}`);
-            continue;
+            const rulesyncFiles = await processor.loadRulesyncFiles();
+            const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+            const writtenCount = await processor.writeAiFiles(toolFiles);
+            totalOutputs += writtenCount;
+            logger.success(`Generated ${writtenCount} ${toolTarget} rule(s) in ${baseDir}`);
           }
-
-          // Write output files
-          for (const output of outputs) {
-            await writeFileContent(output.filepath, output.content);
-            logger.success(`Generated ${output.tool} rule configuration: ${output.filepath}`);
-          }
-
-          totalOutputs += outputs.length;
         }
       } else {
         logger.info("\nSkipping rule generation (not in --features)");

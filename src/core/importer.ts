@@ -16,6 +16,7 @@ import {
   parseQwenConfiguration,
   parseRooConfiguration,
 } from "../parsers/index.js";
+import { RulesProcessor } from "../rules/rules-processor.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
@@ -190,37 +191,62 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  // Write rule files (only if rules feature is enabled, commands handled separately by CommandsProcessor)
+  // Import rule files using RulesProcessor if rules feature is enabled
   let rulesCreated = 0;
   if (features.includes("rules")) {
-    // Filter out commands as they are now handled by CommandsProcessor
-    const regularRules = rules.filter((rule) => rule.type !== "command");
+    try {
+      // Use RulesProcessor for supported tools
+      if (RulesProcessor.getToolTargets().includes(tool)) {
+        const rulesProcessor = new RulesProcessor({
+          baseDir,
+          toolTarget: tool,
+        });
 
-    for (const rule of regularRules) {
-      try {
-        const baseFilename = rule.filename;
-        let targetDir = rulesDirPath;
-
-        // For regular rules, use legacy location or new location based on option
-        if (!useLegacyLocation) {
-          targetDir = join(rulesDirPath, "rules");
-          const { mkdir } = await import("node:fs/promises");
-          await mkdir(targetDir, { recursive: true });
+        const toolFiles = await rulesProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          const writtenCount = await rulesProcessor.writeAiFiles(rulesyncFiles);
+          rulesCreated = writtenCount;
         }
+      } else {
+        // Fallback to old parser-based approach for unsupported tools
+        // Filter out commands as they are now handled by CommandsProcessor
+        const regularRules = rules.filter((rule) => rule.type !== "command");
 
-        const filePath = join(targetDir, `${baseFilename}.md`);
-        const content = generateRuleFileContent(rule);
+        for (const rule of regularRules) {
+          try {
+            const baseFilename = rule.filename;
+            let targetDir = rulesDirPath;
 
-        await writeFileContent(filePath, content);
-        rulesCreated++;
+            // For regular rules, use legacy location or new location based on option
+            if (!useLegacyLocation) {
+              targetDir = join(rulesDirPath, "rules");
+              const { mkdir } = await import("node:fs/promises");
+              await mkdir(targetDir, { recursive: true });
+            }
 
-        if (verbose) {
-          logger.success(`Created rule file: ${filePath}`);
+            const filePath = join(targetDir, `${baseFilename}.md`);
+            const content = generateRuleFileContent(rule);
+
+            await writeFileContent(filePath, content);
+            rulesCreated++;
+
+            if (verbose) {
+              logger.success(`Created rule file: ${filePath}`);
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            errors.push(`Failed to create rule file for ${rule.filename}: ${errorMessage}`);
+          }
         }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        errors.push(`Failed to create rule file for ${rule.filename}: ${errorMessage}`);
       }
+
+      if (verbose && rulesCreated > 0) {
+        logger.success(`Created ${rulesCreated} rule files`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to import rules: ${errorMessage}`);
     }
   } else {
     if (verbose && rules.filter((rule) => rule.type !== "command").length > 0) {

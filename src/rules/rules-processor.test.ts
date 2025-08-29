@@ -5,6 +5,7 @@ import { writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { RulesProcessor, RulesProcessorToolTargetSchema } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
+import { ToolRule } from "./tool-rule.js";
 
 // Mock logger to avoid console output during tests
 vi.mock("../utils/logger.js", () => ({
@@ -91,7 +92,7 @@ describe("RulesProcessor", () => {
     });
   });
 
-  describe("loadRulesyncRules", () => {
+  describe("loadRulesyncFiles", () => {
     it("should load and parse multiple rule files", async () => {
       // Create test rule files
       const rulesDir = join(testDir, ".rulesync", "rules");
@@ -123,7 +124,7 @@ globs: ["**/*.js"]
 This is another test rule content.`,
       );
 
-      const rules = await processor.loadRulesyncRules();
+      const rules = await processor.loadRulesyncFiles();
 
       expect(rules).toHaveLength(2);
       expect(rules[0]!).toBeInstanceOf(RulesyncRule);
@@ -137,13 +138,13 @@ This is another test rule content.`,
       const rulesDir = join(testDir, ".rulesync", "rules");
       await writeFileContent(join(rulesDir, ".gitkeep"), "");
 
-      await expect(processor.loadRulesyncRules()).rejects.toThrow(
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
         "No markdown files found in rulesync rules directory",
       );
     });
 
     it("should throw error when directory does not exist", async () => {
-      await expect(processor.loadRulesyncRules()).rejects.toThrow(
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
         "Rulesync rules directory not found",
       );
     });
@@ -176,7 +177,7 @@ globs: "not an array"
 Invalid content`,
       );
 
-      const rules = await processor.loadRulesyncRules();
+      const rules = await processor.loadRulesyncFiles();
 
       expect(rules).toHaveLength(1);
       expect(rules[0]!.getFrontmatter().description).toBe("Valid rule");
@@ -202,11 +203,11 @@ globs: "not an array"
 Invalid content`,
       );
 
-      await expect(processor.loadRulesyncRules()).rejects.toThrow("No valid rules found in");
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow("No valid rules found in");
     });
   });
 
-  describe("loadToolRules", () => {
+  describe("loadToolFiles", () => {
     it("should load Claude Code rules from CLAUDE.md", async () => {
       processor = new RulesProcessor({
         baseDir: testDir,
@@ -220,7 +221,7 @@ Invalid content`,
 This is Claude Code project memory.`,
       );
 
-      const rules = await processor.loadToolRules();
+      const rules = await processor.loadToolFiles();
 
       expect(rules).toHaveLength(1);
       expect(logger.info).toHaveBeenCalledWith("Successfully loaded Claude Code memory file");
@@ -245,7 +246,7 @@ alwaysApply: true
 This is a cursor rule.`,
       );
 
-      const rules = await processor.loadToolRules();
+      const rules = await processor.loadToolFiles();
 
       expect(rules).toHaveLength(1);
       expect(logger.info).toHaveBeenCalledWith("Found 1 Cursor rule files in " + rulesDir);
@@ -257,7 +258,7 @@ This is a cursor rule.`,
         toolTarget: "cursor",
       });
 
-      const rules = await processor.loadToolRules();
+      const rules = await processor.loadToolFiles();
 
       expect(rules).toHaveLength(0);
       expect(logger.warn).toHaveBeenCalledWith(
@@ -279,7 +280,7 @@ This is a cursor rule.`,
 This is agents file content.`,
       );
 
-      const rules = await processor.loadToolRules();
+      const rules = await processor.loadToolFiles();
 
       expect(rules).toHaveLength(1);
       expect(logger.info).toHaveBeenCalledWith("Successfully loaded AGENTS.md rule");
@@ -295,7 +296,7 @@ This is agents file content.`,
       // Manually change the tool target to test error handling
       (processor as any).toolTarget = "unsupported-tool";
 
-      await expect(processor.loadToolRules()).rejects.toThrow(
+      await expect(processor.loadToolFiles()).rejects.toThrow(
         "Unsupported tool target: unsupported-tool",
       );
     });
@@ -419,11 +420,11 @@ This is Claude Code project memory.`,
       );
 
       // Load the tool rules
-      const toolRules = await processor.loadToolRules();
+      const toolRules = await processor.loadToolFiles();
       expect(toolRules).toHaveLength(1);
 
       // Convert back to rulesync format
-      await processor.writeRulesyncRulesFromToolRules(toolRules);
+      await processor.writeRulesyncRulesFromToolRules(toolRules as ToolRule[]);
 
       // The rulesync rules should be written to .rulesync/rules/ directory
       // Verify that files are created (exact verification depends on implementation)
@@ -454,23 +455,25 @@ This is test content for round-trip conversion.`,
       );
 
       // Load rulesync rules
-      const originalRules = await processor.loadRulesyncRules();
+      const originalRules = await processor.loadRulesyncFiles();
       expect(originalRules).toHaveLength(1);
 
-      const originalFrontmatter = originalRules[0]!.getFrontmatter();
+      const originalFrontmatter = (originalRules[0] as RulesyncRule).getFrontmatter();
 
       // Convert to tool format (this should create CLAUDE.md file)
-      await processor.writeToolRulesFromRulesyncRules(originalRules);
+      await processor.writeToolRulesFromRulesyncRules(originalRules as RulesyncRule[]);
 
       // Load tool rules from the created file
-      const toolRules = await processor.loadToolRules();
+      const toolRules = await processor.loadToolFiles();
       expect(toolRules).toHaveLength(1);
 
       // Convert back to rulesync format
-      await processor.writeRulesyncRulesFromToolRules(toolRules);
+      await processor.writeRulesyncRulesFromToolRules(toolRules as ToolRule[]);
 
-      // Verify data preservation
-      const convertedRule = toolRules[0]!.toRulesyncRule();
+      // Verify data preservation by converting back
+      const convertedRulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolRules);
+      expect(convertedRulesyncFiles).toHaveLength(1);
+      const convertedRule = convertedRulesyncFiles[0] as RulesyncRule;
       expect(convertedRule.getFrontmatter().targets).toEqual(["claudecode"]);
       expect(convertedRule.getFrontmatter().description).toBe(originalFrontmatter.description);
       // Note: Body might be modified by tool-specific processing, so we check it exists
@@ -510,8 +513,8 @@ Rule 2 content`,
 
       // Load rules concurrently
       const [rules1, rules2] = await Promise.all([
-        processor.loadRulesyncRules(),
-        processor.loadRulesyncRules(),
+        processor.loadRulesyncFiles(),
+        processor.loadRulesyncFiles(),
       ]);
 
       expect(rules1).toHaveLength(2);
@@ -533,7 +536,7 @@ description: "Large rule"
 ${largeContent}`,
       );
 
-      const rules = await processor.loadRulesyncRules();
+      const rules = await processor.loadRulesyncFiles();
       expect(rules).toHaveLength(1);
       expect(rules[0]!.getBody()).toContain("Content line.");
     });
@@ -560,7 +563,7 @@ alwaysApply: true
 This is a test rule for cursor.`,
       );
 
-      const rules = await testProcessor.loadToolRules();
+      const rules = await testProcessor.loadToolFiles();
       expect(rules).toHaveLength(1);
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining(`Found 1 Cursor rule files`),
