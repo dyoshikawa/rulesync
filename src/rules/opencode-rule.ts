@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import matter from "gray-matter";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { type AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -8,17 +10,19 @@ import { ToolRule, type ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 export type OpenCodeRuleParams = Omit<AiFileParams, "fileContent"> & {
   body: string;
   fileContent?: string;
+  root?: boolean;
 };
 
 export class OpenCodeRule extends ToolRule {
   private readonly body: string;
 
-  constructor({ body, fileContent, ...rest }: OpenCodeRuleParams) {
+  constructor({ body, fileContent, root, ...rest }: OpenCodeRuleParams) {
     const actualFileContent = fileContent || body;
 
     super({
       ...rest,
       fileContent: actualFileContent,
+      root,
     });
 
     this.body = body;
@@ -46,43 +50,57 @@ export class OpenCodeRule extends ToolRule {
       body,
       fileContent,
       validate,
+      root: relativeFilePath === "AGENTS.md",
     });
   }
 
   static fromRulesyncRule({
     baseDir = ".",
-    relativeDirPath,
+    relativeDirPath: _relativeDirPath,
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): OpenCodeRule {
     const body = rulesyncRule.getBody();
-    const fileContent = body; // AGENTS.md is plain markdown without frontmatter
+    const fileContent = body;
+    const root = rulesyncRule.getFrontmatter().root;
+
+    if (root) {
+      return new OpenCodeRule({
+        baseDir,
+        relativeDirPath: "",
+        relativeFilePath: "AGENTS.md",
+        body,
+        fileContent,
+        validate,
+        root,
+      });
+    }
 
     return new OpenCodeRule({
       baseDir,
-      relativeDirPath,
+      relativeDirPath: join(".opencode", "memories"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body,
       fileContent,
       validate,
+      root,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
     const frontmatter: RuleFrontmatter = {
-      root: true,
+      root: this.isRoot(),
       targets: ["opencode"],
-      description: "OpenCode AGENTS.md instructions",
+      description: this.isRoot() ? "OpenCode AGENTS.md instructions" : "",
       globs: ["**/*"],
     };
 
-    // AGENTS.md uses plain markdown content
     const fileContent = matter.stringify(this.body, frontmatter);
 
     return new RulesyncRule({
       baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
       frontmatter,
       body: this.body,
       fileContent,

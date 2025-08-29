@@ -156,7 +156,9 @@ export class RulesProcessor extends FeatureProcessor {
         case "opencode":
           return OpenCodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: rulesyncRule.getFrontmatter().root
+              ? "."
+              : join(".opencode", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -235,6 +237,13 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "kiro": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "opencode": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
@@ -735,31 +744,65 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load OpenCode rule configuration from AGENTS.md file
+   * Load OpenCode rule configuration from AGENTS.md file and .opencode/memories/*.md files
    */
   private async loadOpencodeRules(): Promise<ToolRule[]> {
+    const rules: ToolRule[] = [];
+
+    // Load root file (AGENTS.md)
     const agentsFile = join(this.baseDir, "AGENTS.md");
-
-    if (!(await fileExists(agentsFile))) {
-      logger.warn(`OpenCode agents file not found: ${agentsFile}`);
-      return [];
+    if (await fileExists(agentsFile)) {
+      try {
+        const opencodeRule = await OpenCodeRule.fromFilePath({
+          baseDir: this.baseDir,
+          relativeDirPath: ".",
+          relativeFilePath: "AGENTS.md",
+          filePath: agentsFile,
+          validate: false,
+        });
+        rules.push(opencodeRule);
+        logger.info(`Successfully loaded OpenCode agents file`);
+      } catch (error) {
+        logger.warn(`Failed to load OpenCode agents file ${agentsFile}:`, error);
+      }
     }
 
-    try {
-      const opencodeRule = await OpenCodeRule.fromFilePath({
-        baseDir: this.baseDir,
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-        filePath: agentsFile,
-        validate: false,
-      });
+    // Load non-root files from .opencode/memories/
+    const memoriesDir = join(this.baseDir, ".opencode", "memories");
+    if (await directoryExists(memoriesDir)) {
+      try {
+        const entries = await readdir(memoriesDir);
+        const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
-      logger.info(`Successfully loaded OpenCode agents file`);
-      return [opencodeRule];
-    } catch (error) {
-      logger.warn(`Failed to load OpenCode agents file ${agentsFile}:`, error);
-      return [];
+        for (const mdFile of mdFiles) {
+          const filePath = join(memoriesDir, mdFile);
+          try {
+            const opencodeRule = await OpenCodeRule.fromFilePath({
+              baseDir: this.baseDir,
+              relativeDirPath: join(".opencode", "memories"),
+              relativeFilePath: mdFile,
+              filePath,
+              validate: false,
+            });
+            rules.push(opencodeRule);
+          } catch (error) {
+            logger.warn(`Failed to load OpenCode memories file ${filePath}:`, error);
+          }
+        }
+
+        if (mdFiles.length > 0) {
+          logger.info(`Successfully loaded ${mdFiles.length} OpenCode memory files`);
+        }
+      } catch (error) {
+        logger.warn(`Failed to read OpenCode memories directory ${memoriesDir}:`, error);
+      }
     }
+
+    if (rules.length === 0) {
+      logger.warn(`No OpenCode rule files found`);
+    }
+
+    return rules;
   }
 
   /**

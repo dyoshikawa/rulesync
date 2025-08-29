@@ -75,6 +75,7 @@ describe("OpenCodeRule", () => {
       expect(rule.getBody()).toBe(content);
       expect(rule.getOutputFilePath()).toBe("AGENTS.md");
       expect(rule.getOutputContent()).toBe(content);
+      expect(rule.isRoot()).toBe(true);
     });
 
     it("should create instance from file with frontmatter", async () => {
@@ -110,10 +111,27 @@ describe("OpenCodeRule", () => {
       expect(rule.getBody()).toBe("");
       expect(rule.getOutputContent()).toBe("");
     });
+
+    it("should create non-root instance from memory file", async () => {
+      const memoriesPath = join(testDir, "component-guide.md");
+      const content = "# Component Guidelines\n\nSpecific guidance for components.";
+      await writeFile(memoriesPath, content);
+
+      const rule = await OpenCodeRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".opencode/memories",
+        relativeFilePath: "component-guide.md",
+        filePath: memoriesPath,
+      });
+
+      expect(rule.getBody()).toBe(content);
+      expect(rule.getOutputContent()).toBe(content);
+      expect(rule.isRoot()).toBe(false);
+    });
   });
 
   describe("fromRulesyncRule", () => {
-    it("should create OpenCodeRule from RulesyncRule", () => {
+    it("should create OpenCodeRule from root RulesyncRule", () => {
       const body = "# Project Guidelines\n\nUse TypeScript for all projects.";
       const frontmatter = {
         root: true,
@@ -140,19 +158,54 @@ describe("OpenCodeRule", () => {
       });
 
       expect(openCodeRule.getBody()).toBe(body);
-      expect(openCodeRule.getRelativeFilePath()).toBe("opencode.md");
+      expect(openCodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(openCodeRule.getRelativeDirPath()).toBe("");
+      expect(openCodeRule.isRoot()).toBe(true);
+    });
+
+    it("should create OpenCodeRule from non-root RulesyncRule", () => {
+      const body = "# Memory Content\n\nSpecific guidance for this component.";
+      const frontmatter = {
+        root: false,
+        targets: ["opencode" as const],
+        description: "",
+        globs: ["**/*"],
+      };
+      const fileContent = matter.stringify(body, frontmatter);
+
+      const rulesyncRule = new RulesyncRule({
+        baseDir: ".",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "component-guide.md",
+        frontmatter,
+        body,
+        fileContent,
+        validate: false,
+      });
+
+      const openCodeRule = OpenCodeRule.fromRulesyncRule({
+        baseDir: ".",
+        relativeDirPath: ".opencode/memories",
+        rulesyncRule,
+      });
+
+      expect(openCodeRule.getBody()).toBe(body);
+      expect(openCodeRule.getRelativeFilePath()).toBe("component-guide.md");
+      expect(openCodeRule.getRelativeDirPath()).toBe(".opencode/memories");
+      expect(openCodeRule.isRoot()).toBe(false);
     });
   });
 
   describe("toRulesyncRule", () => {
-    it("should convert to RulesyncRule with correct frontmatter", () => {
+    it("should convert root rule to RulesyncRule with correct frontmatter", () => {
       const body = "# Project Guidelines\n\nUse TypeScript for all projects.";
       const openCodeRule = new OpenCodeRule({
         baseDir: ".",
-        relativeDirPath: ".",
+        relativeDirPath: "",
         relativeFilePath: "AGENTS.md",
         body,
         validate: false,
+        root: true,
       });
 
       const rulesyncRule = openCodeRule.toRulesyncRule();
@@ -162,6 +215,28 @@ describe("OpenCodeRule", () => {
         root: true,
         targets: ["opencode"],
         description: "OpenCode AGENTS.md instructions",
+        globs: ["**/*"],
+      });
+    });
+
+    it("should convert non-root rule to RulesyncRule with correct frontmatter", () => {
+      const body = "# Memory Content\n\nSpecific guidance.";
+      const openCodeRule = new OpenCodeRule({
+        baseDir: ".",
+        relativeDirPath: ".opencode/memories",
+        relativeFilePath: "component-guide.md",
+        body,
+        validate: false,
+        root: false,
+      });
+
+      const rulesyncRule = openCodeRule.toRulesyncRule();
+
+      expect(rulesyncRule.getBody()).toBe(body);
+      expect(rulesyncRule.getFrontmatter()).toEqual({
+        root: false,
+        targets: ["opencode"],
+        description: "",
         globs: ["**/*"],
       });
     });
@@ -226,13 +301,14 @@ describe("OpenCodeRule", () => {
     it("should maintain content through OpenCodeRule → RulesyncRule → OpenCodeRule conversion", () => {
       const body = "# Project Guidelines\n\nUse TypeScript for all projects.";
 
-      // Create original OpenCodeRule
+      // Create original OpenCodeRule (root)
       const original = new OpenCodeRule({
         baseDir: ".",
-        relativeDirPath: ".",
+        relativeDirPath: "",
         relativeFilePath: "AGENTS.md",
         body,
         validate: false,
+        root: true,
       });
 
       // Convert to RulesyncRule
@@ -248,6 +324,36 @@ describe("OpenCodeRule", () => {
       // Verify content is preserved
       expect(converted.getBody()).toBe(original.getBody());
       expect(converted.getOutputContent()).toBe(original.getOutputContent());
+      expect(converted.isRoot()).toBe(original.isRoot());
+    });
+
+    it("should maintain content for non-root files", () => {
+      const body = "# Memory Content\n\nSpecific guidance.";
+
+      // Create original OpenCodeRule (non-root)
+      const original = new OpenCodeRule({
+        baseDir: ".",
+        relativeDirPath: ".opencode/memories",
+        relativeFilePath: "component-guide.md",
+        body,
+        validate: false,
+        root: false,
+      });
+
+      // Convert to RulesyncRule
+      const rulesyncRule = original.toRulesyncRule();
+
+      // Convert back to OpenCodeRule
+      const converted = OpenCodeRule.fromRulesyncRule({
+        baseDir: ".",
+        relativeDirPath: ".opencode/memories",
+        rulesyncRule,
+      });
+
+      // Verify content is preserved
+      expect(converted.getBody()).toBe(original.getBody());
+      expect(converted.getOutputContent()).toBe(original.getOutputContent());
+      expect(converted.isRoot()).toBe(original.isRoot());
     });
   });
 
