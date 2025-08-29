@@ -42,6 +42,10 @@ export class AgentsMdRule extends ToolRule {
     // If the original file had no frontmatter, use the original fileContent
     const body = content.trim() || fileContent.trim();
 
+    // Determine if it's a root file based on path
+    const isRoot =
+      (relativeDirPath === "" || relativeDirPath === ".") && relativeFilePath === "AGENTS.md";
+
     return new AgentsMdRule({
       baseDir,
       relativeDirPath,
@@ -49,13 +53,13 @@ export class AgentsMdRule extends ToolRule {
       body,
       fileContent,
       validate,
-      root: relativeFilePath === "AGENTS.md",
+      root: isRoot,
     });
   }
 
   static fromRulesyncRule({
     baseDir = ".",
-    relativeDirPath,
+    relativeDirPath: _relativeDirPath,
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
@@ -66,7 +70,7 @@ export class AgentsMdRule extends ToolRule {
     if (root) {
       return new AgentsMdRule({
         baseDir,
-        relativeDirPath: ".",
+        relativeDirPath: "",
         relativeFilePath: "AGENTS.md",
         body,
         fileContent,
@@ -77,7 +81,7 @@ export class AgentsMdRule extends ToolRule {
 
     return new AgentsMdRule({
       baseDir,
-      relativeDirPath,
+      relativeDirPath: ".agents/memories",
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body,
       fileContent,

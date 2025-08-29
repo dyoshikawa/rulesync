@@ -70,7 +70,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "agentsmd":
           return AgentsMdRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? "" : ".agents/memories",
             rulesyncRule: rulesyncRule,
             validate: false,
           });

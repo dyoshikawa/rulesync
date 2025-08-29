@@ -157,7 +157,7 @@ describe("AgentsMdRule", () => {
 
       expect(rule.getBody()).toBe(content);
       expect(rule.getRelativeDirPath()).toBe("subdir");
-      expect(rule.isRoot()).toBe(true);
+      expect(rule.isRoot()).toBe(false);
     });
 
     it("should set root=false for non-AGENTS.md files", async () => {
@@ -205,6 +205,7 @@ describe("AgentsMdRule", () => {
       });
 
       expect(rule.getBody()).toBe(body);
+      expect(rule.getRelativeDirPath()).toBe("");
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(rule.isRoot()).toBe(true);
     });
@@ -235,7 +236,7 @@ describe("AgentsMdRule", () => {
       });
 
       expect(rule.getBody()).toBe(body);
-      expect(rule.getRelativeDirPath()).toBe("src");
+      expect(rule.getRelativeDirPath()).toBe(".agents/memories");
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(rule.isRoot()).toBe(false);
     });
@@ -408,10 +409,11 @@ describe("AgentsMdRule", () => {
       // Create initial AgentsMdRule
       const originalRule = new AgentsMdRule({
         baseDir: testDir,
-        relativeDirPath: ".",
+        relativeDirPath: "",
         relativeFilePath: "AGENTS.md",
         body: originalBody,
         validate: false,
+        root: true,
       });
 
       // Convert to RulesyncRule
@@ -428,7 +430,7 @@ describe("AgentsMdRule", () => {
       // Verify content integrity
       expect(convertedRule.getBody()).toBe(originalBody);
       expect(convertedRule.getBaseDir()).toBe(testDir);
-      expect(convertedRule.getRelativeDirPath()).toBe(".");
+      expect(convertedRule.getRelativeDirPath()).toBe("");
       expect(convertedRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
@@ -490,6 +492,7 @@ describe("AgentsMdRule", () => {
         rulesyncRule,
       });
       expect(convertedRule.getBody()).toBe(content);
+      expect(convertedRule.getRelativeDirPath()).toBe(".agents/memories");
     });
   });
 
