@@ -65,6 +65,91 @@ describe("IgnoreProcessor", () => {
     });
   });
 
+  describe("getToolTargets", () => {
+    it("should return supported tool targets", () => {
+      const toolTargets = IgnoreProcessor.getToolTargets();
+
+      expect(toolTargets).toEqual([
+        "augmentcode",
+        "claudecode",
+        "cline",
+        "codexcli",
+        "copilot",
+        "cursor",
+        "geminicli",
+        "junie",
+        "kiro",
+        "opencode",
+        "qwencode",
+        "roo",
+        "windsurf",
+      ]);
+    });
+  });
+
+  describe("loadRulesyncFiles", () => {
+    it("should load ignore files from directory via loadRulesyncFiles", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const ignoreDir = join(testDir, ".rulesync", "ignore");
+      await mkdir(ignoreDir, { recursive: true });
+
+      const testIgnorePath = join(ignoreDir, "test-ignore.md");
+      const testIgnoreContent = `---
+targets:
+  - claudecode
+description: Test ignore patterns
+---
+
+node_modules/
+*.log
+.env*`;
+
+      await writeFile(testIgnorePath, testIgnoreContent, "utf-8");
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncIgnore);
+      const rulesyncIgnore = rulesyncFiles[0] as RulesyncIgnore;
+      expect(rulesyncIgnore.getFrontmatter()).toEqual({
+        targets: ["claudecode"],
+        description: "Test ignore patterns",
+      });
+    });
+  });
+
+  describe("loadToolFiles", () => {
+    it("should load tool ignore files via loadToolFiles", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const claudeDir = join(testDir, ".claude");
+      await mkdir(claudeDir, { recursive: true });
+
+      const ignoreFilePath = join(claudeDir, "settings.json");
+      const settingsContent = {
+        permissions: {
+          deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+        },
+      };
+
+      await writeFile(ignoreFilePath, JSON.stringify(settingsContent, null, 2), "utf-8");
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeIgnore);
+      const claudecodeIgnore = toolFiles[0] as ClaudecodeIgnore;
+      expect(claudecodeIgnore.getPatterns()).toEqual(["node_modules/", "*.log", ".env*"]);
+    });
+  });
+
   describe("loadRulesyncIgnores", () => {
     it("should load ignore files from directory", async () => {
       const processor = new IgnoreProcessor({
@@ -330,6 +415,91 @@ build/
         const toolIgnores = await processor.loadToolIgnores();
         expect(toolIgnores).toEqual([]);
       }
+    });
+  });
+
+  describe("convertRulesyncFilesToToolFiles", () => {
+    it("should convert RulesyncIgnore to ClaudeCode ignore", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncIgnores = [
+        new RulesyncIgnore({
+          baseDir: testDir,
+          relativeDirPath: ".rulesync/ignore",
+          relativeFilePath: "security.md",
+          frontmatter: {
+            targets: ["claudecode"],
+            description: "Security ignore patterns",
+          },
+          body: "*.key\n*.pem\n.env*",
+          fileContent: "",
+        }),
+      ];
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncIgnores);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeIgnore);
+    });
+
+    it("should filter out non-matching targets", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncIgnores = [
+        new RulesyncIgnore({
+          baseDir: testDir,
+          relativeDirPath: ".rulesync/ignore",
+          relativeFilePath: "cursor-only.md",
+          frontmatter: {
+            targets: ["cursor"],
+            description: "Cursor-only ignore patterns",
+          },
+          body: "*.log",
+          fileContent: "",
+        }),
+      ];
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncIgnores);
+
+      expect(toolFiles).toHaveLength(0);
+    });
+  });
+
+  describe("convertToolFilesToRulesyncFiles", () => {
+    it("should convert ClaudeCode ignore to RulesyncIgnore", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const claudeCodeIgnore = new ClaudecodeIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        permissions: {
+          deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+        },
+        fileContent: JSON.stringify(
+          {
+            permissions: {
+              deny: ["Edit(node_modules/)", "Edit(*.log)", "Edit(.env*)"],
+            },
+          },
+          null,
+          2,
+        ),
+      });
+
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([claudeCodeIgnore]);
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncIgnore);
     });
   });
 

@@ -1,7 +1,9 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
-import { Processor } from "../types/processor.js";
+import { FeatureProcessor } from "../types/feature-processor.js";
+import { RulesyncFile } from "../types/rulesync-file.js";
+import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -21,7 +23,7 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
 
-export const IgnoreProcessorToolTargetSchema = z.enum([
+const ignoreProcessorToolTargets: ToolTarget[] = [
   "augmentcode",
   "claudecode",
   "cline",
@@ -35,120 +37,32 @@ export const IgnoreProcessorToolTargetSchema = z.enum([
   "qwencode",
   "roo",
   "windsurf",
-]);
+];
+
+export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargets);
 
 export type IgnoreProcessorToolTarget = z.infer<typeof IgnoreProcessorToolTargetSchema>;
 
-export class IgnoreProcessor extends Processor {
+export class IgnoreProcessor extends FeatureProcessor {
   private readonly toolTarget: IgnoreProcessorToolTarget;
 
-  constructor({ baseDir, toolTarget }: { baseDir: string; toolTarget: IgnoreProcessorToolTarget }) {
+  constructor({ baseDir = process.cwd(), toolTarget }: { baseDir?: string; toolTarget: IgnoreProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = IgnoreProcessorToolTargetSchema.parse(toolTarget);
   }
 
   async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {
-    const toolIgnores = rulesyncIgnores
-      .filter((rulesyncIgnore) => {
-        const frontmatter = rulesyncIgnore.getFrontmatter();
-        const targets = frontmatter.targets;
-
-        // Check if this ignore file targets the current tool or wildcard
-        if (Array.isArray(targets)) {
-          if (targets.length === 1 && targets[0] === "*") {
-            return true; // Wildcard target
-          }
-          // targets is ToolTargets (string[]) when not wildcard
-          return targets.some((target: string): target is ToolTarget => target === this.toolTarget);
-        }
-        return false;
-      })
-      .map((rulesyncIgnore) => {
-        switch (this.toolTarget) {
-          case "augmentcode":
-            return AugmentcodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "claudecode":
-            return ClaudecodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".claude",
-              rulesyncIgnore,
-            });
-          case "cline":
-            return ClineIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "codexcli":
-            return CodexcliIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "copilot":
-            return CopilotIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "cursor":
-            return CursorIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "geminicli":
-            return GeminiCliIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "junie":
-            return JunieIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "kiro":
-            return KiroIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "opencode":
-            return OpencodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "qwencode":
-            return QwencodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "roo":
-            return RooIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "windsurf":
-            return WindsurfIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-        }
-      });
-
+    const toolIgnores = await this.convertRulesyncFilesToToolFiles(rulesyncIgnores);
     await this.writeAiFiles(toolIgnores);
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Load and parse rulesync ignore files from .rulesync/ignore/ directory
+   */
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const rulesyncIgnores = await this.loadRulesyncIgnores();
+    return rulesyncIgnores;
   }
 
   async loadRulesyncIgnores(): Promise<RulesyncIgnore[]> {
@@ -194,6 +108,15 @@ export class IgnoreProcessor extends Processor {
 
     logger.info(`Successfully loaded ${rulesyncIgnores.length} rulesync ignores`);
     return rulesyncIgnores;
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Load tool-specific ignore configurations and parse them into ToolIgnore instances
+   */
+  async loadToolFiles(): Promise<ToolFile[]> {
+    const toolIgnores = await this.loadToolIgnores();
+    return toolIgnores;
   }
 
   async loadToolIgnores(): Promise<ToolIgnore[]> {
@@ -529,5 +452,141 @@ export class IgnoreProcessor extends Processor {
     });
 
     await this.writeAiFiles(rulesyncIgnores);
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Convert RulesyncFile[] to ToolFile[]
+   */
+  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncIgnores = rulesyncFiles.filter(
+      (file): file is RulesyncIgnore => file instanceof RulesyncIgnore,
+    );
+
+    const toolIgnores = rulesyncIgnores
+      .filter((rulesyncIgnore) => {
+        const frontmatter = rulesyncIgnore.getFrontmatter();
+        const targets = frontmatter.targets;
+
+        // Check if this ignore file targets the current tool or wildcard
+        if (Array.isArray(targets)) {
+          if (targets.length === 1 && targets[0] === "*") {
+            return true; // Wildcard target
+          }
+          // targets is ToolTargets (string[]) when not wildcard
+          return targets.some((target: string): target is ToolTarget => target === this.toolTarget);
+        }
+        return false;
+      })
+      .map((rulesyncIgnore) => {
+        switch (this.toolTarget) {
+          case "augmentcode":
+            return AugmentcodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "claudecode":
+            return ClaudecodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".claude",
+              rulesyncIgnore,
+            });
+          case "cline":
+            return ClineIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "codexcli":
+            return CodexcliIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "copilot":
+            return CopilotIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "cursor":
+            return CursorIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "geminicli":
+            return GeminiCliIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "junie":
+            return JunieIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "kiro":
+            return KiroIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "opencode":
+            return OpencodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "qwencode":
+            return QwencodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "roo":
+            return RooIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          case "windsurf":
+            return WindsurfIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              relativeDirPath: ".",
+              rulesyncIgnore,
+            });
+          default:
+            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        }
+      });
+
+    return toolIgnores;
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Convert ToolFile[] to RulesyncFile[]
+   */
+  async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    const toolIgnores = toolFiles.filter(
+      (file): file is ToolIgnore => file instanceof ToolIgnore,
+    );
+
+    const rulesyncIgnores = toolIgnores.map((toolIgnore) => {
+      return toolIgnore.toRulesyncIgnore();
+    });
+
+    return rulesyncIgnores;
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Return the tool targets that this processor supports
+   */
+  static getToolTargets(): ToolTarget[] {
+    return ignoreProcessorToolTargets;
   }
 }

@@ -2,30 +2,28 @@ import { readFile } from "node:fs/promises";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
-import { ToolSubagent, ToolSubagentFromRulesyncSubagentParams } from "./tool-subagent.js";
+import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import { ToolCommand, ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
 
-export const ClaudecodeSubagentFrontmatterSchema = z.object({
-  name: z.string(),
+export const ClaudecodeCommandFrontmatterSchema = z.object({
   description: z.string(),
-  model: z.optional(z.enum(["opus", "sonnet", "haiku", "inherit"])),
 });
 
-export type ClaudecodeSubagentFrontmatter = z.infer<typeof ClaudecodeSubagentFrontmatterSchema>;
+export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFrontmatterSchema>;
 
-export interface ClaudecodeSubagentParams extends AiFileParams {
-  frontmatter: ClaudecodeSubagentFrontmatter;
+export interface ClaudecodeCommandParams extends AiFileParams {
+  frontmatter: ClaudecodeCommandFrontmatter;
   body: string;
 }
 
-export class ClaudecodeSubagent extends ToolSubagent {
-  private readonly frontmatter: ClaudecodeSubagentFrontmatter;
+export class ClaudecodeCommand extends ToolCommand {
+  private readonly frontmatter: ClaudecodeCommandFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: ClaudecodeSubagentParams) {
-    // Set properties before calling super to ensure they're available for validation
+  constructor({ frontmatter, body, ...rest }: ClaudecodeCommandParams) {
+    // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate !== false) {
-      const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
+      const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
       }
@@ -39,67 +37,60 @@ export class ClaudecodeSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  getFrontmatter(): ClaudecodeSubagentFrontmatter {
-    return this.frontmatter;
-  }
-
   getBody(): string {
     return this.body;
   }
 
-  toRulesyncSubagent(): RulesyncSubagent {
-    const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["claudecode"] as const,
-      name: this.frontmatter.name,
+  getFrontmatter(): Record<string, unknown> {
+    return this.frontmatter;
+  }
+
+  toRulesyncCommand(): RulesyncCommand {
+    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+      targets: ["claudecode"],
       description: this.frontmatter.description,
-      ...(this.frontmatter.model && {
-        claudecode: {
-          model: this.frontmatter.model,
-        },
-      }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
     const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
 
-    return new RulesyncSubagent({
+    return new RulesyncCommand({
+      baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/subagents",
-      relativeFilePath: this.getRelativeFilePath(),
+      relativeDirPath: ".rulesync/commands",
+      relativeFilePath: this.relativeFilePath,
       fileContent,
       validate: false,
     });
   }
 
-  static fromRulesyncSubagent({
+  static fromRulesyncCommand({
     baseDir = ".",
-    rulesyncSubagent,
+    rulesyncCommand,
     relativeDirPath,
     validate = true,
-  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
-    const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const claudecodeFrontmatter: ClaudecodeSubagentFrontmatter = {
-      name: rulesyncFrontmatter.name,
+  }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
+    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
+
+    const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
-      model: rulesyncFrontmatter.claudecode?.model,
     };
 
     // Generate proper file content with Claude Code specific frontmatter
-    const body = rulesyncSubagent.getBody();
+    const body = rulesyncCommand.getBody();
     // Remove undefined values to avoid YAML dump errors
     const cleanFrontmatter = Object.fromEntries(
       Object.entries(claudecodeFrontmatter).filter(([, value]) => value !== undefined),
     );
     const fileContent = matter.stringify(body, cleanFrontmatter);
 
-    return new ClaudecodeSubagent({
+    return new ClaudecodeCommand({
       baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
       body,
       relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       fileContent,
       validate,
     });
@@ -111,7 +102,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
       return { success: true, error: null };
     }
 
-    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(this.frontmatter);
+    const result = ClaudecodeCommandFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
     } else {
@@ -125,18 +116,18 @@ export class ClaudecodeSubagent extends ToolSubagent {
     relativeFilePath,
     filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<ClaudecodeSubagent> {
+  }: AiFileFromFilePathParams): Promise<ClaudecodeCommand> {
     // Read file content
     const fileContent = await readFile(filePath, "utf-8");
     const { data: frontmatter, content } = matter(fileContent);
 
-    // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
-    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
+    // Validate frontmatter using ClaudecodeCommandFrontmatterSchema
+    const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
     }
 
-    return new ClaudecodeSubagent({
+    return new ClaudecodeCommand({
       baseDir: baseDir,
       relativeDirPath: relativeDirPath,
       relativeFilePath: relativeFilePath,

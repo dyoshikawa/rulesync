@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import matter from "gray-matter";
-import { IgnoreProcessor, IgnoreProcessorToolTargetSchema } from "../ignore/ignore-processor.js";
+import { IgnoreProcessor } from "../ignore/ignore-processor.js";
+import { CommandsProcessor } from "../commands/commands-processor.js";
 import {
   parseAgentsMdConfiguration,
   parseAmazonqcliConfiguration,
@@ -39,7 +40,8 @@ export interface ImportResult {
   errors: string[];
   ignoreFileCreated?: boolean;
   mcpFileCreated?: boolean;
-  subagentsCreated?: number;
+  subagentsCreated?: number | undefined;
+  commandsCreated?: number | undefined;
 }
 
 export async function importConfiguration(options: ImportOptions): Promise<ImportResult> {
@@ -187,34 +189,22 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  // Write rule files (only if rules or commands features are enabled)
+  // Write rule files (only if rules feature is enabled, commands handled separately by CommandsProcessor)
   let rulesCreated = 0;
-  if (rulesEnabled) {
-    for (const rule of rules) {
+  if (features.includes("rules")) {
+    // Filter out commands as they are now handled by CommandsProcessor
+    const regularRules = rules.filter((rule) => rule.type !== "command");
+
+    for (const rule of regularRules) {
       try {
         const baseFilename = rule.filename;
         let targetDir = rulesDirPath;
 
-        // Commands go to .rulesync/commands/ subdirectory
-        if (rule.type === "command") {
-          // Only process commands if commands feature is enabled
-          if (!features.includes("commands")) {
-            continue;
-          }
-          targetDir = join(rulesDirPath, "commands");
+        // For regular rules, use legacy location or new location based on option
+        if (!useLegacyLocation) {
+          targetDir = join(rulesDirPath, "rules");
           const { mkdir } = await import("node:fs/promises");
           await mkdir(targetDir, { recursive: true });
-        } else {
-          // Only process regular rules if rules feature is enabled
-          if (!features.includes("rules")) {
-            continue;
-          }
-          // For regular rules, use legacy location or new location based on option
-          if (!useLegacyLocation) {
-            targetDir = join(rulesDirPath, "rules");
-            const { mkdir } = await import("node:fs/promises");
-            await mkdir(targetDir, { recursive: true });
-          }
         }
 
         const filePath = join(targetDir, `${baseFilename}.md`);
@@ -232,8 +222,10 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       }
     }
   } else {
-    if (verbose && rules.length > 0) {
-      logger.log(`Skipping ${rules.length} rule(s) (rules/commands features not enabled)`);
+    if (verbose && rules.filter((rule) => rule.type !== "command").length > 0) {
+      logger.log(
+        `Skipping ${rules.filter((rule) => rule.type !== "command").length} rule(s) (rules feature not enabled)`,
+      );
     }
   }
 
@@ -241,22 +233,21 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   let ignoreFileCreated = false;
   if (ignoreEnabled) {
     try {
-      // Check if tool supports ignore processing using schema validation
-      const parseResult = IgnoreProcessorToolTargetSchema.safeParse(tool);
-
-      if (parseResult.success) {
+      // Use IgnoreProcessor for supported tools
+      if (IgnoreProcessor.getToolTargets().includes(tool)) {
         const ignoreProcessor = new IgnoreProcessor({
           baseDir,
-          toolTarget: parseResult.data,
+          toolTarget: tool,
         });
 
-        const toolIgnores = await ignoreProcessor.loadToolIgnores();
-        if (toolIgnores.length > 0) {
-          await ignoreProcessor.writeRulesyncIgnoresFromToolIgnores(toolIgnores);
+        const toolFiles = await ignoreProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          await ignoreProcessor.writeAiFiles(rulesyncFiles);
           ignoreFileCreated = true;
           if (verbose) {
             logger.success(
-              `Created ignore files from ${toolIgnores.length} tool ignore configurations`,
+              `Created ignore files from ${toolFiles.length} tool ignore configurations`,
             );
           }
         }
@@ -293,16 +284,17 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   if (subagentsEnabled) {
     try {
       // Use SubagentsProcessor for supported tools
-      if (tool === "claudecode") {
+      if (SubagentsProcessor.getToolTargets().includes(tool)) {
         const subagentsProcessor = new SubagentsProcessor({
           baseDir,
-          toolTarget: "claudecode",
+          toolTarget: tool,
         });
 
-        const toolSubagents = await subagentsProcessor.loadToolSubagents();
-        if (toolSubagents.length > 0) {
-          await subagentsProcessor.writeRulesyncSubagentsFromToolSubagents(toolSubagents);
-          subagentsCreated = toolSubagents.length;
+        const toolFiles = await subagentsProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
+          subagentsCreated += writtenCount;
         }
       }
 
@@ -317,34 +309,55 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     logger.log(`Skipping subagents (subagents feature not enabled)`);
   }
 
+  // Create command files using CommandsProcessor if commands feature is enabled
+  let commandsCreated = 0;
+  if (features.includes("commands")) {
+    try {
+      // Use CommandsProcessor for supported tools
+      if (CommandsProcessor.getToolTargets().includes(tool)) {
+        const commandsProcessor = new CommandsProcessor({
+          baseDir,
+          toolTarget: tool,
+        });
+
+        const toolFiles = await commandsProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          const writtenCount = await commandsProcessor.writeAiFiles(rulesyncFiles);
+          commandsCreated = writtenCount;
+        }
+      }
+
+      if (verbose && commandsCreated > 0) {
+        logger.success(`Created ${commandsCreated} command files`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to create commands directory: ${errorMessage}`);
+    }
+  }
+
   const result: ImportResult = {
     success:
       errors.length === 0 &&
-      (rulesCreated > 0 || ignoreFileCreated || mcpFileCreated || subagentsCreated > 0),
+      (rulesCreated > 0 ||
+        ignoreFileCreated ||
+        mcpFileCreated ||
+        subagentsCreated > 0 ||
+        commandsCreated > 0),
     rulesCreated,
     errors,
     ignoreFileCreated,
     mcpFileCreated,
+    subagentsCreated: subagentsCreated > 0 ? subagentsCreated : undefined,
+    commandsCreated: commandsCreated > 0 ? commandsCreated : undefined,
   };
-
-  if (subagentsCreated > 0) {
-    result.subagentsCreated = subagentsCreated;
-  }
 
   return result;
 }
 
 function generateRuleFileContent(rule: ParsedRule): string {
-  // Commands use simplified frontmatter with only description and targets
-  if (rule.type === "command") {
-    const simplifiedFrontmatter = {
-      description: rule.frontmatter.description,
-      targets: rule.frontmatter.targets,
-    };
-    const frontmatter = matter.stringify("", simplifiedFrontmatter);
-    return frontmatter + rule.content;
-  }
-
+  // Commands are now handled by CommandsProcessor, this function only handles regular rules
   const frontmatter = matter.stringify("", rule.frontmatter);
   return frontmatter + rule.content;
 }

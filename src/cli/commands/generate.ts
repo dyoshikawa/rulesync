@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { generateCommands } from "../../core/command-generator.js";
+import { intersection } from "es-toolkit";
+import {
+  CommandsProcessor,
+  type CommandsProcessorToolTarget,
+} from "../../commands/commands-processor.js";
 import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/index.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
@@ -329,22 +333,33 @@ Available tools:
       if (normalizedFeatures.includes("commands")) {
         logger.info("\nGenerating command files...");
 
+        // Check which targets support commands
+        const supportedCommandTargets: CommandsProcessorToolTarget[] = [
+          "claudecode",
+          "geminicli",
+          "roo",
+        ];
+        const commandSupportedTargets = config.defaultTargets.filter(
+          (target): target is CommandsProcessorToolTarget => {
+            return supportedCommandTargets.some((supportedTarget) => supportedTarget === target);
+          },
+        );
+
         for (const baseDir of baseDirs) {
-          const commandResults = await generateCommands(
-            process.cwd(),
-            baseDir === process.cwd() ? undefined : baseDir,
-            config.defaultTargets,
-          );
+          for (const toolTarget of intersection(
+            commandSupportedTargets,
+            CommandsProcessor.getToolTargets(),
+          )) {
+            const processor = new CommandsProcessor({
+              baseDir: baseDir,
+              toolTarget: toolTarget,
+            });
 
-          if (commandResults.length === 0) {
-            logger.info(`No commands found for ${baseDir}`);
-            continue;
-          }
-
-          for (const result of commandResults) {
-            await writeFileContent(result.filepath, result.content);
-            logger.success(`Generated ${result.tool} command: ${result.filepath}`);
-            totalCommandOutputs++;
+            const rulesyncFiles = await processor.loadRulesyncFiles();
+            const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+            const writtenCount = await processor.writeAiFiles(toolFiles);
+            totalCommandOutputs += writtenCount;
+            logger.success(`Generated ${writtenCount} ${toolTarget} command(s) in ${baseDir}`);
           }
         }
       } else {
@@ -364,21 +379,7 @@ Available tools:
           logger.info(`No rulesync ignore directory found at ${fullPath}`);
         } else {
           // Generate ignore files for each supported tool target
-          const supportedToolTargets = [
-            "augmentcode",
-            "claudecode",
-            "cline",
-            "codexcli",
-            "copilot",
-            "cursor",
-            "geminicli",
-            "junie",
-            "kiro",
-            "opencode",
-            "qwencode",
-            "roo",
-            "windsurf",
-          ] as const;
+          const supportedToolTargets = IgnoreProcessor.getToolTargets();
 
           for (const toolTarget of supportedToolTargets) {
             // Only generate ignore files for tools that are in the target list
@@ -394,15 +395,15 @@ Available tools:
                   toolTarget,
                 });
 
-                const rulesyncIgnores = await processor.loadRulesyncIgnores();
-                await processor.writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores);
-
-                // Count the generated files by checking the tool's expected output location
-                // This is a simplified counting approach
-                totalIgnoreOutputs += rulesyncIgnores.length;
-                logger.success(
-                  `Generated ${toolTarget} ignore files from ${rulesyncIgnores.length} source(s)`,
-                );
+                const rulesyncFiles = await processor.loadRulesyncFiles();
+                if (rulesyncFiles.length > 0) {
+                  const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+                  const writtenCount = await processor.writeAiFiles(toolFiles);
+                  totalIgnoreOutputs += writtenCount;
+                  logger.success(
+                    `Generated ${writtenCount} ${toolTarget} ignore file(s) in ${baseDir}`,
+                  );
+                }
               } catch (error) {
                 logger.warn(
                   `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
@@ -421,60 +422,23 @@ Available tools:
       let totalSubagentOutputs = 0;
       if (normalizedFeatures.includes("subagents")) {
         logger.info("\nGenerating subagent files...");
+        for (const baseDir of baseDirs) {
+          for (const toolTarget of intersection(
+            config.defaultTargets,
+            SubagentsProcessor.getToolTargets(),
+          )) {
+            const processor = new SubagentsProcessor({
+              baseDir: baseDir,
+              toolTarget: toolTarget,
+            });
 
-        // Check if claudecode is in the target tools
-        if (config.defaultTargets.includes("claudecode")) {
-          for (const baseDir of baseDirs) {
-            try {
-              // Check if rulesync subagent source directory exists
-              const rulesyncSubagentsDir = join(".rulesync", "subagents");
-              // The rulesync dir can not be influenced by baseDir
-              const fullPath = join(process.cwd(), rulesyncSubagentsDir);
-
-              if (!(await fileExists(fullPath))) {
-                logger.info(`No rulesync subagents directory found at ${fullPath}`);
-                continue;
-              }
-
-              // Use SubagentsProcessor to generate subagent files
-              const processor = new SubagentsProcessor({
-                baseDir: baseDir === process.cwd() ? "." : baseDir,
-                toolTarget: "claudecode",
-              });
-
-              const rulesyncSubagents = await processor.loadRulesyncSubagents();
-              await processor.writeToolSubagentsFromRulesyncSubagents(rulesyncSubagents);
-
-              // Count the generated files
-              const outputDir = join(
-                baseDir === process.cwd() ? "." : baseDir,
-                ".claude",
-                "agents",
-              );
-              if (await fileExists(outputDir)) {
-                const { readdir } = await import("node:fs/promises");
-                const files = await readdir(outputDir);
-                const generatedCount = files.filter((file) => file.endsWith(".md")).length;
-                totalSubagentOutputs += generatedCount;
-
-                if (generatedCount > 0) {
-                  logger.success(
-                    `Generated ${generatedCount} Claude Code subagent(s) in ${outputDir}`,
-                  );
-                }
-              }
-            } catch (error) {
-              logger.warn(
-                `Failed to generate subagents for ${baseDir}: ${error instanceof Error ? error.message : String(error)}`,
-              );
-              continue;
-            }
+            const rulesyncFiles = await processor.loadRulesyncFiles();
+            const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+            const writtenCount = await processor.writeAiFiles(toolFiles);
+            totalSubagentOutputs += writtenCount;
+            logger.success(`Generated ${writtenCount} ${toolTarget} subagent(s) in ${baseDir}`);
           }
-        } else {
-          logger.info("Skipping subagent generation (claudecode not in target tools)");
         }
-      } else {
-        logger.info("\nSkipping subagent file generation (not in --features)");
       }
 
       // Check if any features generated content
