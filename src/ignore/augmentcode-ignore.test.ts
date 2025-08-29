@@ -240,11 +240,11 @@ describe("AugmentcodeIgnore", () => {
       const rulesyncIgnore = ignore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
-      expect(rulesyncIgnore.getFrontmatter().targets).toEqual(["augmentcode"]);
-      expect(rulesyncIgnore.getFrontmatter().description).toContain("AugmentCode ignore file");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
     });
 
-    it("should handle file path without .augmentignore extension", () => {
+    it("should use fixed path regardless of original file path", () => {
       const patterns = ["*.csv"];
       const ignore = new AugmentcodeIgnore({
         baseDir: testDir,
@@ -255,7 +255,8 @@ describe("AugmentcodeIgnore", () => {
       });
 
       const rulesyncIgnore = ignore.toRulesyncIgnore();
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe("custom-ignore.md");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
     });
   });
 
