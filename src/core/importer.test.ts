@@ -12,7 +12,15 @@ vi.mock("../parsers");
 vi.mock("../ignore/ignore-processor.js", () => ({
   IgnoreProcessor: vi.fn().mockImplementation(() => ({})),
 }));
-vi.mock("../commands/commands-processor.js");
+vi.mock("../commands/commands-processor.js", () => {
+  const MockCommandsProcessor: any = vi.fn().mockImplementation(() => ({
+    loadToolFiles: vi.fn().mockResolvedValue([]),
+    convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+    writeAiFiles: vi.fn().mockResolvedValue(0),
+  }));
+  MockCommandsProcessor.getToolTargets = vi.fn();
+  return { CommandsProcessor: MockCommandsProcessor };
+});
 
 describe("importConfiguration", () => {
   let testDir: string;
@@ -39,21 +47,27 @@ describe("importConfiguration", () => {
     vi.mocked(IgnoreProcessor).mockImplementation(() => defaultIgnoreProcessor as any);
 
     // Mock IgnoreProcessor.getToolTargets static method
-    (IgnoreProcessor as any).getToolTargets = vi.fn().mockReturnValue([
-      "augmentcode",
-      "claudecode",
-      "cline",
-      "codexcli",
-      "copilot",
-      "cursor",
-      "geminicli",
-      "junie",
-      "kiro",
-      "opencode",
-      "qwencode",
-      "roo",
-      "windsurf",
-    ]);
+    (IgnoreProcessor as any).getToolTargets = vi
+      .fn()
+      .mockReturnValue([
+        "augmentcode",
+        "claudecode",
+        "cline",
+        "codexcli",
+        "copilot",
+        "cursor",
+        "geminicli",
+        "junie",
+        "kiro",
+        "opencode",
+        "qwencode",
+        "roo",
+        "windsurf",
+      ]);
+
+    // Mock CommandsProcessor.getToolTargets static method
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
   });
 
   afterEach(async () => {
@@ -87,8 +101,7 @@ describe("importConfiguration", () => {
       convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue(undefined),
     };
     const { CommandsProcessor } = await import("../commands/commands-processor.js");
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
-    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+    vi.mocked(CommandsProcessor).mockImplementationOnce(() => mockCommandsProcessor as any);
 
     const result = await importConfiguration({
       tool: "claudecode",
@@ -487,8 +500,7 @@ describe("importConfiguration", () => {
     };
 
     const { CommandsProcessor } = await import("../commands/commands-processor.js");
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
-    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+    vi.mocked(CommandsProcessor).mockImplementationOnce(() => mockCommandsProcessor as any);
 
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
@@ -524,8 +536,7 @@ describe("importConfiguration", () => {
     };
 
     const { CommandsProcessor } = await import("../commands/commands-processor.js");
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
-    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+    vi.mocked(CommandsProcessor).mockImplementationOnce(() => mockCommandsProcessor as any);
 
     vi.spyOn(parsers, "parseGeminiConfiguration").mockResolvedValueOnce({
       rules: [],
@@ -553,8 +564,7 @@ describe("importConfiguration", () => {
     };
 
     const { CommandsProcessor } = await import("../commands/commands-processor.js");
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
-    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+    vi.mocked(CommandsProcessor).mockImplementationOnce(() => mockCommandsProcessor as any);
 
     vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
       rules: [],
@@ -582,8 +592,7 @@ describe("importConfiguration", () => {
     };
 
     const { CommandsProcessor } = await import("../commands/commands-processor.js");
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
-    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+    vi.mocked(CommandsProcessor).mockImplementationOnce(() => mockCommandsProcessor as any);
 
     vi.spyOn(parsers, "parseJunieConfiguration").mockResolvedValueOnce({
       rules: [],
@@ -638,8 +647,7 @@ describe("importConfiguration", () => {
       writeAiFiles: vi.fn().mockResolvedValue(0),
     };
     const { CommandsProcessor } = await import("../commands/commands-processor.js");
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
-    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+    vi.mocked(CommandsProcessor).mockImplementationOnce(() => mockCommandsProcessor as any);
 
     const result = await importConfiguration({
       tool: "claudecode",

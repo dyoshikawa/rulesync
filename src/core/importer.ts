@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import matter from "gray-matter";
-import { IgnoreProcessor } from "../ignore/ignore-processor.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
+import { IgnoreProcessor } from "../ignore/ignore-processor.js";
 import {
   parseAgentsMdConfiguration,
   parseAmazonqcliConfiguration,
@@ -173,8 +173,9 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors: ["No features enabled for import"] };
   }
 
-  // Early return if no data found and ignore feature is not enabled
-  if (rules.length === 0 && !mcpServers && !subagents && !ignoreEnabled) {
+  // Early return if no data found and none of the data-independent features are enabled
+  const commandsEnabled = features.includes("commands");
+  if (rules.length === 0 && !mcpServers && !subagents && !ignoreEnabled && !commandsEnabled) {
     return { success: false, rulesCreated: 0, errors };
   }
 
