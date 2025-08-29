@@ -1,8 +1,8 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
-import type { ToolTarget } from "../types/index.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
+import type { ToolTarget } from "../types/index.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { directoryExists, fileExists } from "../utils/file.js";
@@ -97,7 +97,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "claudecode":
           return ClaudecodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: join(".claude", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -187,9 +187,7 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
-    const toolRules = toolFiles.filter(
-      (file): file is ToolRule => file instanceof ToolRule,
-    );
+    const toolRules = toolFiles.filter((file): file is ToolRule => file instanceof ToolRule);
 
     const rulesyncRules = toolRules.map((toolRule) => {
       return toolRule.toRulesyncRule();

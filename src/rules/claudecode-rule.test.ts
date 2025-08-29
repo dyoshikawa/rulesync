@@ -206,11 +206,11 @@ Content`;
     });
   });
 
-  describe("getOutputFilePath", () => {
-    it("should return CLAUDE.md as output file path", () => {
+  describe("getFilePath", () => {
+    it("should return correct file path", () => {
       const rule = new ClaudecodeRule({
         baseDir: _testDir,
-        relativeDirPath: "rules",
+        relativeDirPath: ".claude/memories",
         relativeFilePath: "test.md",
         fileContent: "---\ndescription: Test\n---\nContent",
         frontmatter: { description: "Test" },
@@ -218,15 +218,15 @@ Content`;
         validate: false,
       });
 
-      expect(rule.getOutputFilePath()).toBe("CLAUDE.md");
+      expect(rule.getFilePath()).toContain("test.md");
     });
   });
 
-  describe("getOutputContent", () => {
-    it("should return the same content as generateClaudeMemoryFile", () => {
+  describe("getFileContent", () => {
+    it("should return the Claude memory file content", () => {
       const rule = new ClaudecodeRule({
         baseDir: _testDir,
-        relativeDirPath: "rules",
+        relativeDirPath: ".claude/memories",
         relativeFilePath: "test.md",
         fileContent: "---\ndescription: Test\n---\nContent",
         frontmatter: { description: "Test" },
@@ -235,9 +235,9 @@ Content`;
       });
 
       const memoryContent = rule.generateClaudeMemoryFile();
-      const outputContent = rule.getOutputContent();
+      const fileContent = rule.getFileContent();
 
-      expect(outputContent).toBe(memoryContent);
+      expect(fileContent).toBe(memoryContent);
     });
   });
 

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
@@ -45,7 +46,7 @@ export class ClaudecodeRule extends ToolRule {
     );
 
     return new ClaudecodeRule({
-      baseDir: params.baseDir || ".",
+      baseDir: params.baseDir || process.cwd(),
       relativeDirPath: params.relativeDirPath,
       relativeFilePath: params.relativeFilePath,
       fileContent,
@@ -60,11 +61,23 @@ export class ClaudecodeRule extends ToolRule {
 
     // Extract description from rulesync rule frontmatter
     const description = rulesyncRule.getFrontmatter().description;
+    const root = rulesyncRule.getFrontmatter().root;
+
+    if (root) {
+      return new ClaudecodeRule({
+        ...rest,
+        fileContent: rulesyncRule.getFileContent(),
+        relativeFilePath: "CLAUDE.md",
+        frontmatter: { description },
+        body: rulesyncRule.getBody(),
+      });
+    }
 
     return new ClaudecodeRule({
       ...rest,
       fileContent: rulesyncRule.getFileContent(),
-      relativeFilePath: "CLAUDE.md",
+      relativeDirPath: join(".claude", "memories"),
+      relativeFilePath: basename(rulesyncRule.getFilePath()),
       frontmatter: { description },
       body: rulesyncRule.getBody(),
     });
@@ -131,19 +144,5 @@ export class ClaudecodeRule extends ToolRule {
     sections.push(`@${this.getRelativeFilePath()}`);
 
     return sections.join("\n").trim();
-  }
-
-  /**
-   * Get the output file path for the generated CLAUDE.md file
-   */
-  getOutputFilePath(): string {
-    return "CLAUDE.md";
-  }
-
-  /**
-   * Get the content that should be written to the output file
-   */
-  getOutputContent(): string {
-    return this.generateClaudeMemoryFile();
   }
 }
