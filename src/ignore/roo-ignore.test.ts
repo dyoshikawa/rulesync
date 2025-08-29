@@ -85,8 +85,8 @@ describe("RooIgnore", () => {
 
       const rulesyncIgnore = rooIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
@@ -132,10 +132,6 @@ describe("RooIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "roo.md",
-        frontmatter: {
-          targets: ["roo"],
-          description: "Test ignore rules",
-        },
         body,
         fileContent: `---\ntargets: ["roo"]\ndescription: "Test ignore rules"\n---\n${body}`,
       });
@@ -158,10 +154,6 @@ describe("RooIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "roo.md",
-        frontmatter: {
-          targets: ["roo"],
-          description: "Test ignore rules",
-        },
         body,
         fileContent: `---\ntargets: ["roo"]\ndescription: "Test ignore rules"\n---\n${body}`,
       });
@@ -180,10 +172,6 @@ describe("RooIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "roo.md",
-        frontmatter: {
-          targets: ["roo"],
-          description: "Empty ignore rules",
-        },
         body: "",
         fileContent: `---\ntargets: ["roo"]\ndescription: "Empty ignore rules"\n---\n`,
       });

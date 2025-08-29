@@ -204,10 +204,6 @@ describe("CopilotIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "copilot.md",
-        frontmatter: {
-          targets: ["copilot"],
-          description: "GitHub Copilot content exclusion patterns",
-        },
         body: patterns.join("\n"),
         fileContent: patterns.join("\n"),
       });
@@ -227,10 +223,6 @@ describe("CopilotIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "copilot.md",
-        frontmatter: {
-          targets: ["copilot"],
-          description: "GitHub Copilot patterns with negations",
-        },
         body: patterns.join("\n"),
         fileContent: patterns.join("\n"),
       });
@@ -259,10 +251,6 @@ describe("CopilotIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "copilot.md",
-        frontmatter: {
-          targets: ["copilot"],
-          description: "GitHub Copilot patterns from rulesync body",
-        },
         body,
         fileContent: body,
       });
@@ -291,8 +279,8 @@ describe("CopilotIgnore", () => {
       const rulesyncIgnore = ignore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
     });
   });
 

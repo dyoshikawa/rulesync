@@ -154,10 +154,6 @@ describe("AugmentcodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "augmentcode.md",
-        frontmatter: {
-          targets: ["augmentcode"],
-          description: "AugmentCode ignore patterns",
-        },
         body: patterns.join("\n"),
         fileContent: patterns.join("\n"),
       });
@@ -177,10 +173,6 @@ describe("AugmentcodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "augmentcode.md",
-        frontmatter: {
-          targets: ["augmentcode"],
-          description: "AugmentCode ignore patterns with re-inclusion",
-        },
         body: patterns.join("\n"),
         fileContent: patterns.join("\n"),
       });
@@ -208,10 +200,6 @@ describe("AugmentcodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "augmentcode.md",
-        frontmatter: {
-          targets: ["augmentcode"],
-          description: "AugmentCode patterns from rulesync body",
-        },
         body,
         fileContent: body,
       });

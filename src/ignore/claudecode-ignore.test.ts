@@ -83,8 +83,8 @@ describe("ClaudecodeIgnore", () => {
 
       const rulesyncIgnore = claudecodeIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toContain("# Generated from Claude Code permissions");
@@ -118,10 +118,6 @@ describe("ClaudecodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "Test ignore rules",
-        },
         body: "*.env\nsecrets/**\nnode_modules/",
         fileContent: "Test content",
       });
@@ -148,10 +144,6 @@ describe("ClaudecodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "empty.md",
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "Empty ignore rules",
-        },
         body: "",
         fileContent: "",
       });

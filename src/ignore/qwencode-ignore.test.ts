@@ -84,8 +84,8 @@ describe("QwencodeIgnore", () => {
 
       const rulesyncIgnore = qwencodeIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toBe("");
@@ -138,10 +138,6 @@ describe("QwencodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["qwencode"],
-          description: "Test ignore rules",
-        },
         body: "# Standard patterns\nnode_modules/\ndist/\n*.env\n# Large files\n**/*.csv\n**/*.mp4",
         fileContent: "Test content",
       });
@@ -163,10 +159,6 @@ describe("QwencodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "empty.md",
-        frontmatter: {
-          targets: ["qwencode"],
-          description: "Empty ignore rules",
-        },
         body: "",
         fileContent: "",
       });
@@ -187,10 +179,6 @@ describe("QwencodeIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "performance.md",
-        frontmatter: {
-          targets: ["qwencode"],
-          description: "Performance patterns",
-        },
         body: "# Performance optimization\n**/large-data/**\n**/*.zip\n**/cache/**",
         fileContent: "",
       });

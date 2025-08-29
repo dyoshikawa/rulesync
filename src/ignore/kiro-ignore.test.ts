@@ -138,8 +138,8 @@ describe("KiroIgnore", () => {
 
       const rulesyncIgnore = kiroIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toContain("*.env");
@@ -169,10 +169,6 @@ describe("KiroIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["kiro"],
-          description: "Test ignore rules",
-        },
         body: [
           "*.env",
           "secrets/",
@@ -217,10 +213,6 @@ describe("KiroIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "empty.md",
-        frontmatter: {
-          targets: ["kiro"],
-          description: "Empty ignore rules",
-        },
         body: "",
         fileContent: "",
       });
@@ -453,10 +445,6 @@ describe("KiroIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["kiro"],
-          description: "Test pattern distribution",
-        },
         body: [
           "*.env", // Should go to gitignore (security)
           "secrets/", // Should go to gitignore (security)

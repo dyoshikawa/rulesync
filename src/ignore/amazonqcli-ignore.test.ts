@@ -112,10 +112,6 @@ describe("AmazonqcliIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "amazonqcli.md",
-        frontmatter: {
-          targets: ["amazonqcli"],
-          description: "Amazon Q CLI ignore patterns",
-        },
         body: patterns.join("\n"),
         fileContent: patterns.join("\n"),
       });
@@ -135,10 +131,6 @@ describe("AmazonqcliIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "amazonqcli.md",
-        frontmatter: {
-          targets: ["amazonqcli"],
-          description: "Amazon Q CLI ignore patterns with negation",
-        },
         body: patterns.join("\n"),
         fileContent: patterns.join("\n"),
       });
@@ -166,10 +158,6 @@ describe("AmazonqcliIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "amazonqcli.md",
-        frontmatter: {
-          targets: ["amazonqcli"],
-          description: "Amazon Q CLI patterns from rulesync body",
-        },
         body,
         fileContent: body,
       });

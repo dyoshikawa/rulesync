@@ -251,10 +251,6 @@ description: Invalid ignore file
           baseDir: testDir,
           relativeDirPath: ".rulesync/ignore",
           relativeFilePath: "security.md",
-          frontmatter: {
-            targets: ["claudecode"],
-            description: "Security ignore patterns",
-          },
           body: "*.key\n*.pem\n.env*",
           fileContent: "",
         }),
@@ -262,10 +258,6 @@ description: Invalid ignore file
           baseDir: testDir,
           relativeDirPath: ".rulesync/ignore",
           relativeFilePath: "build.md",
-          frontmatter: {
-            targets: ["*"],
-            description: "Build artifacts",
-          },
           body: "dist/\nbuild/\nnode_modules/",
           fileContent: "",
         }),
@@ -289,10 +281,6 @@ description: Invalid ignore file
           baseDir: testDir,
           relativeDirPath: ".rulesync/ignore",
           relativeFilePath: "cursor-only.md",
-          frontmatter: {
-            targets: ["cursor"],
-            description: "Cursor-only ignore patterns",
-          },
           body: "*.log",
           fileContent: "",
         }),

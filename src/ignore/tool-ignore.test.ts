@@ -10,8 +10,8 @@ class TestToolIgnore extends ToolIgnore {
       baseDir: this.baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".rulesyncignore",
-      body: this.patterns.join("\n"),
-      fileContent: this.patterns.join("\n"),
+      body: this.getPatterns().join("\n"),
+      fileContent: this.getPatterns().join("\n"),
     });
   }
 
@@ -169,8 +169,8 @@ describe("ToolIgnore", () => {
 
       const rulesyncIgnore = toolIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
     });
   });
@@ -179,11 +179,6 @@ describe("ToolIgnore", () => {
     it("should create instance from RulesyncIgnore", () => {
       const patterns = ["*.tmp", "build/"];
       const rulesyncIgnore = new RulesyncIgnore({
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "Test ignore patterns",
-          patterns,
-        },
         body: patterns.join("\n"),
         baseDir: testDir,
         relativeDirPath: "ignore",
@@ -220,10 +215,6 @@ ${patterns.join("\n")}`,
 
     it("should throw error for abstract fromRulesyncIgnore method", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "Test",
-        },
         body: "",
         baseDir: testDir,
         relativeDirPath: "ignore",

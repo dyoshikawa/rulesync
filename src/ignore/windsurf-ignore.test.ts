@@ -72,8 +72,8 @@ describe("WindsurfIgnore", () => {
 
       const rulesyncIgnore = windsurfIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
     });
   });
@@ -82,11 +82,6 @@ describe("WindsurfIgnore", () => {
     it("should create instance from RulesyncIgnore", () => {
       const patterns = ["*.tmp", "build/", ".env*"];
       const rulesyncIgnore = new RulesyncIgnore({
-        frontmatter: {
-          targets: ["windsurf"],
-          description: "Test windsurf ignore patterns",
-          patterns,
-        },
         body: patterns.join("\n"),
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",

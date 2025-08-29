@@ -62,10 +62,6 @@ describe("RulesyncIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["claudecode"],
-          description: "Valid ignore file",
-        },
         body: "*.log",
         fileContent: "",
       });

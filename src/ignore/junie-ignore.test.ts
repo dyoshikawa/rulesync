@@ -106,8 +106,8 @@ describe("JunieIgnore", () => {
 
       const rulesyncIgnore = junieIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
     });
 
@@ -119,8 +119,8 @@ describe("JunieIgnore", () => {
 
       const rulesyncIgnore = junieIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       expect(rulesyncIgnore.getBody()).toBe("");
     });
 
@@ -129,8 +129,8 @@ describe("JunieIgnore", () => {
 
       const rulesyncIgnore = junieIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toContain("*.pem");
@@ -153,7 +153,7 @@ describe("JunieIgnore", () => {
         rulesyncIgnore,
       });
 
-      expect(converted.patterns).toEqual(patterns);
+      expect(converted.getPatterns()).toEqual(patterns);
     });
   });
 });

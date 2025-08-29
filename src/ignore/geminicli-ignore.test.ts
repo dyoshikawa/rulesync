@@ -202,8 +202,8 @@ file?.txt
 
       const rulesyncIgnore = ignore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toBe("*.log\nnode_modules/\n!important.log");
@@ -242,10 +242,6 @@ file?.txt
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["geminicli"],
-          description: "Test ignore file",
-        },
         body: `# Test ignore file
 *.log
 node_modules/
@@ -268,10 +264,6 @@ node_modules/
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "empty.md",
-        frontmatter: {
-          targets: ["geminicli"],
-          description: "Empty ignore file",
-        },
         body: "",
         fileContent: "",
       });
@@ -290,10 +282,6 @@ node_modules/
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["geminicli"],
-          description: "Test ignore file",
-        },
         body: `# This is a comment
 *.log
 

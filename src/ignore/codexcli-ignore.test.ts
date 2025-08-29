@@ -63,8 +63,8 @@ describe("CodexcliIgnore", () => {
 
       const rulesyncIgnore = codexcliIgnore.toRulesyncIgnore();
 
-      expect(rulesyncIgnore.relativeDirPath).toBe(".");
-      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
 
       const body = rulesyncIgnore.getBody();
       expect(body).toBe("*.env\nsecrets/**\nnode_modules/\n*.log");
@@ -103,10 +103,6 @@ describe("CodexcliIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "codex-ignore.md",
-        frontmatter: {
-          targets: ["codexcli"],
-          description: "Codex CLI ignore patterns",
-        },
         body: "*.env\nsecrets/**\nnode_modules/\n# Comment line\n\n",
         fileContent: "Test content",
       });
@@ -126,10 +122,6 @@ describe("CodexcliIgnore", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/ignore",
         relativeFilePath: "empty.md",
-        frontmatter: {
-          targets: ["codexcli"],
-          description: "Empty ignore patterns",
-        },
         body: "# Only comments\n\n\n",
         fileContent: "",
       });
