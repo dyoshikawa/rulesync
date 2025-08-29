@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -62,8 +63,8 @@ export class ClineRule extends ToolRule {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       baseDir: this.getBaseDir(),
-      relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.relativeFilePath,
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
       fileContent,
       validate: false,
     });
@@ -72,7 +73,7 @@ export class ClineRule extends ToolRule {
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
-    relativeDirPath,
+    relativeDirPath = ".clinerules",
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
@@ -88,7 +89,7 @@ export class ClineRule extends ToolRule {
       baseDir: baseDir,
       frontmatter: clineFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       fileContent,
       validate,

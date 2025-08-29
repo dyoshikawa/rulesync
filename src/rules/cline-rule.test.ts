@@ -90,6 +90,8 @@ describe("ClineRule", () => {
         globs: [],
       });
       expect(rulesyncRule.getBody()).toBe("This is a test rule");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
     });
   });
 
