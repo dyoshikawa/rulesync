@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -107,10 +108,26 @@ export class RooRule extends ToolRule {
     // Extract mode from file path if it's mode-specific
     const mode = RooRule.extractModeFromPath(rulesyncRule.getRelativeFilePath());
 
+    // Determine the appropriate relativeDirPath and relativeFilePath based on mode
+    let relativeDirPath: string;
+    let relativeFilePath: string;
+
+    if (mode) {
+      relativeDirPath = `.roo/rules-${mode}`;
+      // Extract filename from rulesync rule path
+      const filename = basename(rulesyncRule.getRelativeFilePath());
+      relativeFilePath = join(relativeDirPath, filename);
+    } else {
+      relativeDirPath = ".roo/rules";
+      const filename = basename(rulesyncRule.getRelativeFilePath());
+      relativeFilePath = join(relativeDirPath, filename);
+    }
+
     return new RooRule({
       ...rest,
       fileContent: rulesyncRule.getFileContent(),
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      relativeDirPath,
+      relativeFilePath,
       frontmatter: { description },
       body: rulesyncRule.getBody(),
       mode,
@@ -150,7 +167,7 @@ export class RooRule extends ToolRule {
 
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
-      relativeDirPath: this.getRelativeDirPath(),
+      relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,

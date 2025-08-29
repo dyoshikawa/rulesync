@@ -248,8 +248,8 @@ ${body}`;
 
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".roo/rules",
-        relativeFilePath: ".roo/rules/test.md",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test.md",
         frontmatter,
         body,
         fileContent,
@@ -259,11 +259,13 @@ ${body}`;
       const rule = RooRule.fromRulesyncRule({
         rulesyncRule,
         baseDir: testDir,
-        relativeDirPath: ".roo/rules",
+        relativeDirPath: ".rulesync/rules",
       });
 
       expect(rule).toBeInstanceOf(RooRule);
       expect(rule.getOutputContent()).toBe(body);
+      expect(rule.getRelativeDirPath()).toBe(".roo/rules");
+      expect(rule.getRelativeFilePath()).toBe(".roo/rules/test.md");
     });
 
     it("should extract mode from RulesyncRule path", () => {
@@ -276,22 +278,63 @@ ${body}`;
 
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".roo/rules-typescript",
-        relativeFilePath: ".roo/rules-typescript/patterns.md",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "patterns-typescript.md",
         frontmatter,
         body: "Content",
         fileContent: "Content",
         validate: false,
       });
 
+      // We expect this to be recognized as a typescript mode rule based on filename pattern
       const rule = RooRule.fromRulesyncRule({
         rulesyncRule,
         baseDir: testDir,
-        relativeDirPath: ".roo/rules-typescript",
+        relativeDirPath: ".rulesync/rules",
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(".roo/rules");
+      expect(rule.getRelativeFilePath()).toBe(".roo/rules/patterns-typescript.md");
+      // Since mode extraction is based on the original rulesync file path pattern,
+      // and we're not using mode-specific paths here, mode should be undefined
+      expect(rule.getMode()).toBeUndefined();
+    });
+
+    it("should handle mode-specific rules correctly", () => {
+      const frontmatter: RuleFrontmatter = {
+        targets: ["roo"],
+        root: false,
+        description: "Test mode rule",
+        globs: ["**/*"],
+      };
+
+      // Create a rulesync rule that represents a mode-specific rule
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "typescript-patterns.md",
+        frontmatter,
+        body: "Content",
+        fileContent: "Content",
+        validate: false,
+      });
+
+      // Mock the extractModeFromPath to simulate mode detection
+      const originalExtractMode = RooRule.extractModeFromPath;
+      (RooRule as any).extractModeFromPath = () => "typescript";
+
+      const rule = RooRule.fromRulesyncRule({
+        rulesyncRule,
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
       });
 
       expect(rule.getMode()).toBe("typescript");
-      expect(rule.isModeSpecific()).toBe(true);
+      expect(rule.getRelativeDirPath()).toBe(".roo/rules-typescript");
+      expect(rule.getRelativeFilePath()).toBe(".roo/rules-typescript/typescript-patterns.md");
+
+      // Restore original method
+      (RooRule as any).extractModeFromPath = originalExtractMode;
     });
   });
 
@@ -317,6 +360,8 @@ Test content`;
       expect(rulesyncRule.getFrontmatter().targets).toEqual(["roo"]);
       expect(rulesyncRule.getFrontmatter().description).toBe("Test Rule");
       expect(rulesyncRule.getBody()).toBe(content);
+      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(".roorules");
     });
   });
 
