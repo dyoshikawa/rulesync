@@ -305,8 +305,9 @@ describe("generateCommand", () => {
     const mockRulesyncMcpConfigs = [{ filename: "test-mcp", content: "test mcp config" }];
 
     const mockProcessorInstance = {
-      loadRulesyncMcpConfigs: vi.fn().mockResolvedValue(mockRulesyncMcpConfigs),
-      writeToolMcpFromRulesyncMcp: vi.fn().mockResolvedValue(undefined),
+      loadRulesyncFiles: vi.fn().mockResolvedValue(mockRulesyncMcpConfigs),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(1),
     };
     mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
 
@@ -330,10 +331,11 @@ describe("generateCommand", () => {
       baseDir: ".",
       toolTarget: "claudecode",
     });
-    expect(mockProcessorInstance.loadRulesyncMcpConfigs).toHaveBeenCalled();
-    expect(mockProcessorInstance.writeToolMcpFromRulesyncMcp).toHaveBeenCalledWith(
+    expect(mockProcessorInstance.loadRulesyncFiles).toHaveBeenCalled();
+    expect(mockProcessorInstance.convertRulesyncFilesToToolFiles).toHaveBeenCalledWith(
       mockRulesyncMcpConfigs,
     );
+    expect(mockProcessorInstance.writeAiFiles).toHaveBeenCalled();
     expect(mockLogger.success).toHaveBeenCalledWith("Generated 1 claudecode MCP configuration(s)");
   });
 
@@ -347,8 +349,9 @@ describe("generateCommand", () => {
     });
 
     const mockProcessorInstance = {
-      loadRulesyncMcpConfigs: vi.fn(),
-      writeToolMcpFromRulesyncMcp: vi.fn(),
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn(),
+      writeAiFiles: vi.fn(),
     };
     mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
 
@@ -373,10 +376,11 @@ describe("generateCommand", () => {
       baseDir: ".",
       toolTarget: "claudecode",
     });
-    expect(mockProcessorInstance.loadRulesyncMcpConfigs).not.toHaveBeenCalled();
-    expect(mockProcessorInstance.writeToolMcpFromRulesyncMcp).not.toHaveBeenCalled();
+    expect(mockProcessorInstance.loadRulesyncFiles).toHaveBeenCalled();
+    expect(mockProcessorInstance.convertRulesyncFilesToToolFiles).not.toHaveBeenCalled();
+    expect(mockProcessorInstance.writeAiFiles).not.toHaveBeenCalled();
     expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining("No rulesync MCP directory found"),
+      expect.stringContaining("No rulesync MCP files found"),
     );
   });
 
@@ -392,8 +396,9 @@ describe("generateCommand", () => {
     mockMcpProcessorToolTargetSchema.safeParse = vi.fn().mockReturnValue({ success: false });
 
     const mockProcessorInstance = {
-      loadRulesyncMcpConfigs: vi.fn(),
-      writeToolMcpFromRulesyncMcp: vi.fn(),
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn(),
+      writeAiFiles: vi.fn(),
     };
     mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
 
@@ -455,8 +460,9 @@ describe("generateCommand", () => {
     });
 
     const mockProcessorInstance = {
-      loadRulesyncMcpConfigs: vi.fn().mockRejectedValue(new Error("Failed to load MCP configs")),
-      writeToolMcpFromRulesyncMcp: vi.fn(),
+      loadRulesyncFiles: vi.fn().mockRejectedValue(new Error("Failed to load MCP configs")),
+      convertRulesyncFilesToToolFiles: vi.fn(),
+      writeAiFiles: vi.fn(),
     };
     mockMcpProcessor.mockImplementation(() => mockProcessorInstance as any);
 

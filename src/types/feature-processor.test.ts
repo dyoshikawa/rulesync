@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { AiFile, ValidationResult } from "./ai-file.js";
-import { Processor } from "./processor.js";
+import { FeatureProcessor } from "./feature-processor.js";
+import { RulesyncFile } from "./rulesync-file.js";
+import { ToolFile } from "./tool-file.js";
+import { ToolTarget } from "./tool-targets.js";
 
 // Mock the file utility
 vi.mock("../utils/file.js", () => ({
@@ -12,14 +15,35 @@ vi.mock("../utils/file.js", () => ({
 
 import { writeFileContent } from "../utils/file.js";
 
-// Concrete implementation for testing the abstract Processor class
-class TestProcessor extends Processor {
+// Concrete implementation for testing the abstract FeatureProcessor class
+class TestProcessor extends FeatureProcessor {
   constructor(baseDir: string) {
     super({ baseDir });
   }
 
+  // Implement abstract methods for testing
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    return [];
+  }
+
+  async loadToolFiles(): Promise<ToolFile[]> {
+    return [];
+  }
+
+  async convertRulesyncFilesToToolFiles(_rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    return [];
+  }
+
+  async convertToolFilesToRulesyncFiles(_toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    return [];
+  }
+
+  getToolTargets(): ToolTarget[] {
+    return [];
+  }
+
   // Expose protected method for testing
-  async testWriteAiFiles(aiFiles: AiFile[]): Promise<void> {
+  async testWriteAiFiles(aiFiles: AiFile[]): Promise<number> {
     return this.writeAiFiles(aiFiles);
   }
 }
@@ -54,10 +78,10 @@ class TestAiFile extends AiFile {
   }
 }
 
-describe("Processor", () => {
+describe("FeatureProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let mockWriteFileContent: any;
+  let mockWriteFileContent: ReturnType<typeof vi.mocked<typeof writeFileContent>>;
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
@@ -73,13 +97,13 @@ describe("Processor", () => {
   describe("constructor", () => {
     it("should create instance with baseDir", () => {
       const processor = new TestProcessor(testDir);
-      expect(processor).toBeInstanceOf(Processor);
+      expect(processor).toBeInstanceOf(FeatureProcessor);
     });
 
     it("should store baseDir correctly", () => {
       const customDir = join(testDir, "custom");
       const processor = new TestProcessor(customDir);
-      expect(processor).toBeInstanceOf(Processor);
+      expect(processor).toBeInstanceOf(FeatureProcessor);
     });
   });
 
@@ -349,12 +373,12 @@ describe("Processor", () => {
     it("should not be instantiable directly", () => {
       // This is enforced at TypeScript compile time
       // but we can verify the pattern exists
-      expect(Processor).toBeDefined();
-      expect(typeof Processor).toBe("function");
+      expect(FeatureProcessor).toBeDefined();
+      expect(typeof FeatureProcessor).toBe("function");
 
-      // Verify that TestProcessor extends Processor
+      // Verify that TestProcessor extends FeatureProcessor
       const testProcessor = new TestProcessor(testDir);
-      expect(testProcessor).toBeInstanceOf(Processor);
+      expect(testProcessor).toBeInstanceOf(FeatureProcessor);
     });
   });
 });

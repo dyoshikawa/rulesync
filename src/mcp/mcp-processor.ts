@@ -1,8 +1,11 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
+import { FeatureProcessor } from "../types/feature-processor.js";
 import type { RulesyncMcpServer } from "../types/mcp.js";
-import { Processor } from "../types/processor.js";
+import { RulesyncFile } from "../types/rulesync-file.js";
+import { ToolFile } from "../types/tool-file.js";
+import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists, fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
@@ -22,7 +25,7 @@ import { RulesyncMcp } from "./rulesync-mcp.js";
 import type { ToolMcp } from "./tool-mcp.js";
 import { WindsurfMcp } from "./windsurf-mcp.js";
 
-export const McpProcessorToolTargetSchema = z.enum([
+const mcpProcessorToolTargets: ToolTarget[] = [
   "amazonqcli",
   "augmentcode",
   "claudecode",
@@ -37,22 +40,24 @@ export const McpProcessorToolTargetSchema = z.enum([
   "qwencode",
   "roo",
   "windsurf",
-]);
+];
 
+export const McpProcessorToolTargetSchema = z.enum(mcpProcessorToolTargets);
 export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
 
-export class McpProcessor extends Processor {
+export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
 
-  constructor({ baseDir, toolTarget }: { baseDir: string; toolTarget: McpProcessorToolTarget }) {
+  constructor({ baseDir = process.cwd(), toolTarget }: { baseDir?: string; toolTarget: McpProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = McpProcessorToolTargetSchema.parse(toolTarget);
   }
 
-  /**
-   * Convert rulesync MCP configurations to tool-specific MCP format and write to files
-   */
-  async writeToolMcpFromRulesyncMcp(rulesyncMcpConfigs: RulesyncMcp[]): Promise<void> {
+  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncMcpConfigs = rulesyncFiles.filter(
+      (file): file is RulesyncMcp => file instanceof RulesyncMcp,
+    );
+
     const toolMcpFiles = rulesyncMcpConfigs.map((rulesyncMcp) => {
       switch (this.toolTarget) {
         case "amazonqcli":
@@ -86,22 +91,7 @@ export class McpProcessor extends Processor {
         case "windsurf":
           return WindsurfMcp.fromRulesyncMcp(rulesyncMcp, this.baseDir, ".");
         default: {
-          const validTargets = [
-            "amazonqcli",
-            "augmentcode",
-            "claudecode",
-            "cline",
-            "codexcli",
-            "copilot",
-            "cursor",
-            "geminicli",
-            "junie",
-            "kiro",
-            "opencode",
-            "qwencode",
-            "roo",
-            "windsurf",
-          ];
+          const validTargets = mcpProcessorToolTargets;
           throw new Error(
             `Unsupported tool target: "${this.toolTarget}". ` +
               `Supported targets are: ${validTargets.join(", ")}`,
@@ -110,18 +100,35 @@ export class McpProcessor extends Processor {
       }
     });
 
+    return toolMcpFiles;
+  }
+
+  async convertToolFilesToRulesyncFiles(_toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    throw new Error(
+      "Converting tool-specific MCP configurations to rulesync format is not yet implemented",
+    );
+  }
+
+  /**
+   * Convert rulesync MCP configurations to tool-specific MCP format and write to files
+   */
+  async writeToolMcpFromRulesyncMcp(rulesyncMcpConfigs: RulesyncMcp[]): Promise<void> {
+    const toolMcpFiles = await this.convertRulesyncFilesToToolFiles(rulesyncMcpConfigs);
     await this.writeAiFiles(toolMcpFiles);
   }
 
   /**
+   * Implementation of abstract method from FeatureProcessor
    * Load and parse rulesync MCP files from .rulesync/mcp/ directory
    */
-  async loadRulesyncMcpConfigs(): Promise<RulesyncMcp[]> {
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const mcpDir = join(this.baseDir, ".rulesync", "mcp");
 
     // Check if directory exists
-    if (!(await directoryExists(mcpDir))) {
-      throw new Error(`Rulesync MCP directory not found: ${mcpDir}`);
+    const dirExists = await directoryExists(mcpDir);
+    if (!dirExists) {
+      logger.debug(`Rulesync MCP directory not found: ${mcpDir}`);
+      return [];
     }
 
     // Read all markdown files from the directory
@@ -129,7 +136,8 @@ export class McpProcessor extends Processor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      throw new Error(`No markdown files found in rulesync MCP directory: ${mcpDir}`);
+      logger.debug(`No markdown files found in rulesync MCP directory: ${mcpDir}`);
+      return [];
     }
 
     logger.info(`Found ${mdFiles.length} MCP files in ${mcpDir}`);
@@ -154,7 +162,8 @@ export class McpProcessor extends Processor {
     }
 
     if (rulesyncMcpConfigs.length === 0) {
-      throw new Error(`No valid MCP configs found in ${mcpDir}`);
+      logger.debug(`No valid MCP configs found in ${mcpDir}`);
+      return [];
     }
 
     logger.info(`Successfully loaded ${rulesyncMcpConfigs.length} rulesync MCP configs`);
@@ -162,10 +171,10 @@ export class McpProcessor extends Processor {
   }
 
   /**
+   * Implementation of abstract method from FeatureProcessor
    * Load tool-specific MCP configurations and parse them into ToolMcp instances
    */
-
-  async loadToolMcpConfigs(): Promise<ToolMcp[]> {
+  async loadToolFiles(): Promise<ToolFile[]> {
     switch (this.toolTarget) {
       case "amazonqcli":
         return await this.loadAmazonqcliMcp();
@@ -198,6 +207,14 @@ export class McpProcessor extends Processor {
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Return the tool targets that this processor supports
+   */
+  static getToolTargets(): ToolTarget[] {
+    return mcpProcessorToolTargets;
   }
 
   /**
@@ -599,14 +616,4 @@ export class McpProcessor extends Processor {
     }
   }
 
-  /**
-   * Convert tool-specific MCP configurations to rulesync format and write to files
-   * Note: This functionality is not yet implemented as tool-to-rulesync conversion
-   * is not supported by the current MCP class architecture.
-   */
-  async writeRulesyncMcpFromToolMcp(_toolMcpConfigs: ToolMcp[]): Promise<void> {
-    throw new Error(
-      "Converting tool-specific MCP configurations to rulesync format is not yet implemented",
-    );
-  }
 }

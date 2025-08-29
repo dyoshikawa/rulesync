@@ -26,6 +26,14 @@ describe("McpProcessor", () => {
       expect(processor).toBeInstanceOf(McpProcessor);
     });
 
+    it("should create instance without baseDir (use default)", () => {
+      const processor = new McpProcessor({
+        toolTarget: "claudecode",
+      });
+
+      expect(processor).toBeInstanceOf(McpProcessor);
+    });
+
     it("should throw error with invalid tool target", () => {
       expect(() => {
         return new McpProcessor({
@@ -61,7 +69,7 @@ describe("McpProcessor", () => {
     });
   });
 
-  describe("loadRulesyncMcpConfigs", () => {
+  describe("loadRulesyncFiles", () => {
     it("should load MCP configs from .rulesync/mcp/ directory", async () => {
       const mcpDir = join(testDir, ".rulesync", "mcp");
       await mkdir(mcpDir, { recursive: true });
@@ -94,25 +102,24 @@ This is a test MCP server configuration for testing purposes.
         toolTarget: "claudecode",
       });
 
-      const configs = await processor.loadRulesyncMcpConfigs();
+      const configs = await processor.loadRulesyncFiles();
 
       expect(configs).toHaveLength(1);
       expect(configs[0]?.getFrontmatter().name).toBe("test-server");
       expect(configs[0]?.getFrontmatter().description).toBe("Test MCP server for testing");
     });
 
-    it("should throw error if .rulesync/mcp directory does not exist", async () => {
+    it("should return empty array if .rulesync/mcp directory does not exist", async () => {
       const processor = new McpProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncMcpConfigs()).rejects.toThrow(
-        `Rulesync MCP directory not found: ${join(testDir, ".rulesync", "mcp")}`,
-      );
+      const configs = await processor.loadRulesyncFiles();
+      expect(configs).toHaveLength(0);
     });
 
-    it("should throw error if no markdown files found", async () => {
+    it("should return empty array if no markdown files found", async () => {
       const mcpDir = join(testDir, ".rulesync", "mcp");
       await mkdir(mcpDir, { recursive: true });
 
@@ -124,9 +131,8 @@ This is a test MCP server configuration for testing purposes.
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncMcpConfigs()).rejects.toThrow(
-        `No markdown files found in rulesync MCP directory: ${mcpDir}`,
-      );
+      const configs = await processor.loadRulesyncFiles();
+      expect(configs).toHaveLength(0);
     });
 
     it("should handle invalid MCP files gracefully", async () => {
@@ -156,7 +162,7 @@ Valid content`;
         toolTarget: "claudecode",
       });
 
-      const configs = await processor.loadRulesyncMcpConfigs();
+      const configs = await processor.loadRulesyncFiles();
 
       expect(configs).toHaveLength(1);
       expect(configs[0]?.getFrontmatter().name).toBe("valid-server");
@@ -193,8 +199,9 @@ tools:
         toolTarget: "claudecode",
       });
 
-      const rulesyncConfigs = await processor.loadRulesyncMcpConfigs();
-      await processor.writeToolMcpFromRulesyncMcp(rulesyncConfigs);
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const toolMcpFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      await processor.writeAiFiles(toolMcpFiles);
 
       // Verify the file was written
       const mcpFile = join(testDir, ".mcp.json");
@@ -230,8 +237,9 @@ tools: []
         toolTarget: "cursor",
       });
 
-      const rulesyncConfigs = await processor.loadRulesyncMcpConfigs();
-      await processor.writeToolMcpFromRulesyncMcp(rulesyncConfigs);
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const toolMcpFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      await processor.writeAiFiles(toolMcpFiles);
 
       // Verify the file was written
       const mcpFile = join(testDir, ".cursor", "mcp.json");
@@ -292,9 +300,9 @@ Test content`;
         toolTarget: "copilot",
       });
 
-      const rulesyncConfigs = await processor.loadRulesyncMcpConfigs();
+      const rulesyncFiles = await processor.loadRulesyncFiles();
 
-      await expect(processor.writeToolMcpFromRulesyncMcp(rulesyncConfigs)).rejects.toThrow(
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncFiles)).rejects.toThrow(
         "Copilot MCP conversion from rulesync format is not supported due to multiple format variants",
       );
     });
@@ -321,15 +329,15 @@ Test content`;
         toolTarget: "opencode",
       });
 
-      const rulesyncConfigs = await processor.loadRulesyncMcpConfigs();
+      const rulesyncFiles = await processor.loadRulesyncFiles();
 
-      await expect(processor.writeToolMcpFromRulesyncMcp(rulesyncConfigs)).rejects.toThrow(
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncFiles)).rejects.toThrow(
         "OpenCode MCP conversion from rulesync format is not supported",
       );
     });
   });
 
-  describe("loadToolMcpConfigs", () => {
+  describe("loadToolFiles", () => {
     it("should load Claude Code MCP config", async () => {
       // Create .mcp.json file
       const mcpConfig = {
@@ -348,10 +356,10 @@ Test content`;
         toolTarget: "claudecode",
       });
 
-      const configs = await processor.loadToolMcpConfigs();
+      const configs = await processor.loadToolFiles();
 
       expect(configs).toHaveLength(1);
-      expect(configs[0]?.getFileName()).toBe(".mcp.json");
+      expect(configs[0]?.getRelativeFilePath()).toBe(".mcp.json");
     });
 
     it("should load Cursor MCP config", async () => {
@@ -374,10 +382,10 @@ Test content`;
         toolTarget: "cursor",
       });
 
-      const configs = await processor.loadToolMcpConfigs();
+      const configs = await processor.loadToolFiles();
 
       expect(configs).toHaveLength(1);
-      expect(configs[0]?.getFileName()).toBe(".cursor/mcp.json");
+      expect(configs[0]?.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should return empty array if no config file exists", async () => {
@@ -386,7 +394,7 @@ Test content`;
         toolTarget: "claudecode",
       });
 
-      const configs = await processor.loadToolMcpConfigs();
+      const configs = await processor.loadToolFiles();
 
       expect(configs).toHaveLength(0);
     });
@@ -400,7 +408,7 @@ Test content`;
         toolTarget: "claudecode",
       });
 
-      const configs = await processor.loadToolMcpConfigs();
+      const configs = await processor.loadToolFiles();
 
       expect(configs).toHaveLength(0);
     });
@@ -500,18 +508,16 @@ Test content`;
     });
   });
 
-  describe("writeRulesyncMcpFromToolMcp", () => {
+  describe("convertToolFilesToRulesyncFiles", () => {
     it("should throw error as conversion is not yet implemented", async () => {
       const processor = new McpProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      await expect(
-        processor
-          .loadToolMcpConfigs()
-          .then((configs) => processor.writeRulesyncMcpFromToolMcp(configs)),
-      ).rejects.toThrow(
+      const toolFiles = await processor.loadToolFiles();
+      
+      await expect(processor.convertToolFilesToRulesyncFiles(toolFiles)).rejects.toThrow(
         "Converting tool-specific MCP configurations to rulesync format is not yet implemented",
       );
     });
@@ -563,7 +569,7 @@ Test content`;
       });
 
       // Should not throw, just return empty array
-      const configs = await processor.loadToolMcpConfigs();
+      const configs = await processor.loadToolFiles();
       expect(configs).toHaveLength(0);
     });
 
@@ -577,7 +583,7 @@ Test content`;
         toolTarget: "claudecode",
       });
 
-      const configs = await processor.loadToolMcpConfigs();
+      const configs = await processor.loadToolFiles();
       expect(configs).toHaveLength(0);
     });
   });
@@ -612,6 +618,29 @@ Test content`;
       for (const target of invalidTargets) {
         expect(() => McpProcessorToolTargetSchema.parse(target)).toThrow();
       }
+    });
+  });
+
+  describe("static methods", () => {
+    it("should return supported tool targets", () => {
+      const toolTargets = McpProcessor.getToolTargets();
+      
+      expect(toolTargets).toEqual([
+        "amazonqcli",
+        "augmentcode",
+        "claudecode",
+        "cline",
+        "codexcli",
+        "copilot",
+        "cursor",
+        "geminicli",
+        "junie",
+        "kiro",
+        "opencode",
+        "qwencode",
+        "roo",
+        "windsurf",
+      ]);
     });
   });
 });
