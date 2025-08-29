@@ -66,6 +66,10 @@ export abstract class AiFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
+  getBaseDir(): string {
+    return this.baseDir;
+  }
+
   getRelativeDirPath(): string {
     return this.relativeDirPath;
   }
@@ -80,6 +84,10 @@ export abstract class AiFile {
 
   getFileContent(): string {
     return this.fileContent;
+  }
+
+  getRelativePathFromCwd(): string {
+    return path.join(this.relativeDirPath, this.relativeFilePath);
   }
 
   abstract validate(): ValidationResult;

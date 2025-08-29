@@ -138,15 +138,13 @@ This is another test rule content.`,
       const rulesDir = join(testDir, ".rulesync", "rules");
       await writeFileContent(join(rulesDir, ".gitkeep"), "");
 
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
-        "No markdown files found in rulesync rules directory",
-      );
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toEqual([]);
     });
 
-    it("should throw error when directory does not exist", async () => {
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
-        "Rulesync rules directory not found",
-      );
+    it("should return empty array when directory does not exist", async () => {
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toEqual([]);
     });
 
     it("should skip invalid files and continue", async () => {
@@ -203,7 +201,8 @@ globs: "not an array"
 Invalid content`,
       );
 
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow("No valid rules found in");
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toEqual([]);
     });
   });
 
@@ -332,8 +331,8 @@ Test rule content`,
 
       // Verify that the rule was converted and file was created
       // The exact file path depends on the tool target
-      // For Claude Code, it should create CLAUDE.md
-      const expectedFilePath = join(testDir, "CLAUDE.md");
+      // For Claude Code, it should create a file in .claude/memories/
+      const expectedFilePath = join(testDir, ".claude", "memories", "test-rule.md");
       const fileExists = await import("node:fs/promises").then((fs) =>
         fs
           .access(expectedFilePath)

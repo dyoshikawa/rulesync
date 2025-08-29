@@ -7,6 +7,9 @@ vi.mock("../../core/mcp-generator.js");
 vi.mock("../../core/mcp-parser.js");
 vi.mock("../../core/command-generator.js");
 vi.mock("../../utils/index.js");
+vi.mock("../../rules/rules-processor.js");
+vi.mock("../../commands/commands-processor.js");
+vi.mock("../../subagents/subagents-processor.js");
 vi.mock("../../utils/logger.js", () => ({
   logger: mockLogger,
 }));
@@ -18,6 +21,9 @@ import { generateConfigurations, parseRulesFromDirectory } from "../../core/inde
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
 import type { ToolTarget } from "../../types/index.js";
+import { RulesProcessor } from "../../rules/rules-processor.js";
+import { CommandsProcessor } from "../../commands/commands-processor.js";
+import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import {
   fileExists,
   removeClaudeGeneratedFiles,
@@ -38,6 +44,9 @@ const mockRemoveDirectory = vi.mocked(removeDirectory);
 const mockRemoveClaudeGeneratedFiles = vi.mocked(removeClaudeGeneratedFiles);
 const mockCliParser = vi.mocked(CliParser);
 const mockConfigResolver = vi.mocked(ConfigResolver);
+const mockRulesProcessor = vi.mocked(RulesProcessor);
+const mockCommandsProcessor = vi.mocked(CommandsProcessor);
+const mockSubagentsProcessor = vi.mocked(SubagentsProcessor);
 
 const mockConfig = createMockConfig();
 
@@ -99,6 +108,32 @@ describe("generateCommand", () => {
     mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
     mockCliParser.mockImplementation(() => mockParserInstance as any);
 
+    // Mock processor instances
+    const mockRulesProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(1),
+    };
+    const mockCommandsProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
+    };
+    const mockSubagentsProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
+    };
+
+    mockRulesProcessor.mockImplementation(() => mockRulesProcessorInstance as any);
+    mockCommandsProcessor.mockImplementation(() => mockCommandsProcessorInstance as any);
+    mockSubagentsProcessor.mockImplementation(() => mockSubagentsProcessorInstance as any);
+
+    // Mock static getToolTargets methods
+    mockRulesProcessor.getToolTargets = vi.fn().mockReturnValue(["copilot", "cursor", "claudecode"]);
+    mockCommandsProcessor.getToolTargets = vi.fn().mockReturnValue(["claudecode", "roo", "geminicli"]);
+    mockSubagentsProcessor.getToolTargets = vi.fn().mockReturnValue(["claudecode"]);
+
     // Mock fs.promises.readdir
     const { readdir } = await import("node:fs/promises");
     const mockReaddir = vi.mocked(readdir);
@@ -119,19 +154,12 @@ describe("generateCommand", () => {
     await generateCommand({ tools: ["copilot"] });
 
     expect(mockFileExists).toHaveBeenCalledWith(".rulesync");
-    expect(mockParseRulesFromDirectory).toHaveBeenCalledWith(".rulesync");
-    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
-      mockRules,
-      expect.objectContaining({
-        aiRulesDir: ".rulesync",
-        defaultTargets: ["copilot"],
-      }),
-      ["copilot"],
-      expect.any(String),
-    );
-    expect(mockWriteFileContent).toHaveBeenCalledWith(
-      ".github/instructions/test.md",
-      "Generated content",
+    expect(mockRulesProcessor).toHaveBeenCalledWith({
+      baseDir: expect.any(String),
+      toolTarget: "copilot",
+    });
+    expect(logger.success).toHaveBeenCalledWith(
+      expect.stringContaining("Generated 1 copilot rule(s)"),
     );
   });
 
@@ -166,15 +194,42 @@ describe("generateCommand", () => {
   });
 
   it("should warn if no rules found", async () => {
-    mockParseRulesFromDirectory.mockResolvedValue([]);
+    // Mock processors to return 0 files generated
+    const mockRulesProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
+    };
+    mockRulesProcessor.mockImplementation(() => mockRulesProcessorInstance as any);
 
     await generateCommand({ tools: ["copilot"] });
 
-    expect(mockLogger.warn).toHaveBeenCalledWith("⚠️  No rules found in .rulesync directory");
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      "⚠️  No files generated for enabled features: rules, commands, mcp, ignore, subagents",
+    );
   });
 
   it("should warn if no configurations generated", async () => {
-    mockGenerateConfigurations.mockResolvedValue([]);
+    // Mock all processors to return 0 files generated
+    const mockRulesProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
+    };
+    const mockCommandsProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
+    };
+    const mockSubagentsProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
+    };
+
+    mockRulesProcessor.mockImplementation(() => mockRulesProcessorInstance as any);
+    mockCommandsProcessor.mockImplementation(() => mockCommandsProcessorInstance as any);
+    mockSubagentsProcessor.mockImplementation(() => mockSubagentsProcessorInstance as any);
 
     await generateCommand({ tools: ["copilot"] });
 
@@ -206,22 +261,17 @@ describe("generateCommand", () => {
 
     await generateCommand({ tools: ["copilot"], verbose: true });
 
-    expect(mockLogger.info).toHaveBeenCalledWith("Parsing rules from .rulesync...");
-    expect(mockLogger.info).toHaveBeenCalledWith("Found 1 rule(s)");
+    expect(mockLogger.info).toHaveBeenCalledWith("Configuration resolved from: CLI arguments");
+    expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("Base directories:"));
   });
 
   it("should handle specific tools option", async () => {
     await generateCommand({ tools: ["copilot"] });
 
-    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
-      mockRules,
-      expect.objectContaining({
-        aiRulesDir: ".rulesync",
-        defaultTargets: ["copilot"],
-      }),
-      ["copilot"],
-      expect.any(String),
-    );
+    expect(mockRulesProcessor).toHaveBeenCalledWith({
+      baseDir: expect.any(String),
+      toolTarget: "copilot",
+    });
   });
 
   it("should handle tools specified via targets field in config", async () => {
@@ -241,20 +291,24 @@ describe("generateCommand", () => {
 
     await generateCommand({ tools: ["copilot", "cursor"] });
 
-    expect(mockGenerateConfigurations).toHaveBeenCalledWith(
-      mockRules,
-      expect.objectContaining({
-        aiRulesDir: ".rulesync",
-        defaultTargets: ["copilot", "cursor"],
-        targets: ["copilot", "cursor"],
-      }),
-      ["copilot", "cursor"],
-      expect.any(String),
-    );
+    expect(mockRulesProcessor).toHaveBeenCalledWith({
+      baseDir: expect.any(String),
+      toolTarget: "copilot",
+    });
+    expect(mockRulesProcessor).toHaveBeenCalledWith({
+      baseDir: expect.any(String),
+      toolTarget: "cursor",
+    });
   });
 
   it("should handle errors gracefully", async () => {
-    mockParseRulesFromDirectory.mockRejectedValue(new Error("Parse error"));
+    // Mock processor to throw an error
+    const mockRulesProcessorInstance = {
+      loadRulesyncFiles: vi.fn().mockRejectedValue(new Error("Load error")),
+      convertRulesyncFilesToToolFiles: vi.fn(),
+      writeAiFiles: vi.fn(),
+    };
+    mockRulesProcessor.mockImplementation(() => mockRulesProcessorInstance as any);
 
     await expect(generateCommand({ tools: ["copilot"] })).rejects.toThrow("process.exit called");
     expect(mockLogger.error).toHaveBeenCalledWith(

@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import type { ToolTarget } from "../types/index.js";
@@ -390,28 +391,71 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Claude Code rule configuration from CLAUDE.md file
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
-    const claudeFile = join(this.baseDir, "CLAUDE.md");
+    const claudeMemoriesDir = join(this.baseDir, ".claude", "memories");
 
-    if (!(await fileExists(claudeFile))) {
-      logger.warn(`Claude Code memory file not found: ${claudeFile}`);
+    // Check if the memories directory exists
+    if (!(await directoryExists(claudeMemoriesDir))) {
+      logger.debug(`Claude Code memories directory not found: ${claudeMemoriesDir}`);
+      
+      // Fall back to check for legacy CLAUDE.md file
+      const claudeFile = join(this.baseDir, "CLAUDE.md");
+      if (!(await fileExists(claudeFile))) {
+        logger.debug(`Claude Code memory file not found: ${claudeFile}`);
+        return [];
+      }
+
+      try {
+        const claudecodeRule = await ClaudecodeRule.fromFilePath({
+          baseDir: this.baseDir,
+          relativeDirPath: ".",
+          relativeFilePath: "CLAUDE.md",
+          filePath: claudeFile,
+          validate: false,
+        });
+
+        logger.info(`Successfully loaded Claude Code memory file`);
+        return [claudecodeRule];
+      } catch (error) {
+        logger.warn(`Failed to load Claude Code memory file ${claudeFile}:`, error);
+        return [];
+      }
+    }
+
+    // Load from .claude/memories directory
+    const entries = await readdir(claudeMemoriesDir);
+    const mdFiles = entries.filter((file) => file.endsWith(".md"));
+
+    if (mdFiles.length === 0) {
+      logger.debug(`No markdown files found in Claude Code memories directory: ${claudeMemoriesDir}`);
       return [];
     }
 
-    try {
-      const claudecodeRule = await ClaudecodeRule.fromFilePath({
-        baseDir: this.baseDir,
-        relativeDirPath: ".",
-        relativeFilePath: "CLAUDE.md",
-        filePath: claudeFile,
-        validate: false,
-      });
+    logger.info(`Found ${mdFiles.length} Claude Code memory files in ${claudeMemoriesDir}`);
 
-      logger.info(`Successfully loaded Claude Code memory file`);
-      return [claudecodeRule];
-    } catch (error) {
-      logger.warn(`Failed to load Claude Code memory file ${claudeFile}:`, error);
-      return [];
+    const toolRules: ToolRule[] = [];
+
+    for (const mdFile of mdFiles) {
+      const filePath = join(claudeMemoriesDir, mdFile);
+
+      try {
+        const claudecodeRule = await ClaudecodeRule.fromFilePath({
+          baseDir: this.baseDir,
+          relativeDirPath: join(".claude", "memories"),
+          relativeFilePath: mdFile,
+          filePath: filePath,
+          validate: false,
+        });
+
+        toolRules.push(claudecodeRule);
+        logger.debug(`Successfully loaded Claude Code memory file: ${mdFile}`);
+      } catch (error) {
+        logger.warn(`Failed to load Claude Code memory file ${filePath}:`, error);
+        continue;
+      }
     }
+
+    logger.info(`Successfully loaded ${toolRules.length} Claude Code memory files`);
+    return toolRules;
   }
 
   /**
@@ -829,5 +873,54 @@ export class RulesProcessor extends FeatureProcessor {
       logger.error(`Failed to create RulesProcessor for tool ${tool}:`, error);
       return null;
     }
+  }
+
+  private getReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
+    if (toolRules.length === 0) {
+      return "";
+    }
+
+    const lines: string[] = [];
+    lines.push(
+      "Please also reference the following documents as needed. In this case, `@` stands for the project root directory.",
+    );
+    lines.push("");
+
+    // Build XML structure using fast-xml-parser XMLBuilder
+    const documentsData = {
+      Documents: {
+        Document: toolRules.map((rule) => {
+          // Get frontmatter by converting to rulesync rule
+          const rulesyncRule = rule.toRulesyncRule();
+          const frontmatter = rulesyncRule.getFrontmatter();
+          const filename = rule.getRelativeFilePath().replace(/\.md$/, "");
+          
+          const relativePath = `@${memorySubDir}/${filename}.md`;
+          const document: Record<string, string> = {
+            Path: relativePath,
+            Description: frontmatter.description,
+          };
+
+          // Only include FilePatterns if globs exist
+          if (frontmatter.globs && frontmatter.globs.length > 0) {
+            document.FilePatterns = frontmatter.globs.join(", ");
+          }
+
+          return document;
+        }),
+      },
+    };
+
+    const builder = new XMLBuilder({
+      format: true,
+      ignoreAttributes: false,
+      suppressEmptyNode: false,
+    });
+
+    const xmlContent = builder.build(documentsData);
+    lines.push(xmlContent);
+    lines.push("");
+
+    return lines.join("\n");
   }
 }

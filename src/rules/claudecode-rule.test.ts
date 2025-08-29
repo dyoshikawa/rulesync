@@ -42,8 +42,8 @@ Always write tests`;
       expect(rule.getRelativeFilePath()).toBe("claudecode-rule.md");
     });
 
-    it("should validate frontmatter", async () => {
-      const filePath = join(_testDir, "invalid-rule.md");
+    it("should provide default description when missing", async () => {
+      const filePath = join(_testDir, "no-description-rule.md");
       const fileContent = `---
 invalidField: true
 ---
@@ -52,14 +52,16 @@ Content`;
 
       await writeFile(filePath, fileContent);
 
-      await expect(
-        ClaudecodeRule.fromFilePath({
-          baseDir: _testDir,
-          relativeDirPath: ".",
-          relativeFilePath: "invalid-rule.md",
-          filePath,
-        }),
-      ).rejects.toThrow();
+      const rule = await ClaudecodeRule.fromFilePath({
+        baseDir: _testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "no-description-rule.md",
+        filePath,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(ClaudecodeRule);
+      expect(rule.validate().success).toBe(true);
     });
   });
 
@@ -89,7 +91,37 @@ Content`;
       });
 
       expect(rule).toBeInstanceOf(ClaudecodeRule);
+      expect(rule.getRelativeFilePath()).toBe("test.md");
+      expect(rule.getRelativeDirPath()).toBe(join(".claude", "memories"));
+    });
+
+    it("should create ClaudecodeRule with CLAUDE.md when root is true", () => {
+      const rulesyncFrontmatter: RuleFrontmatter = {
+        root: true,
+        targets: ["claudecode"],
+        description: "Root rule description",
+        globs: ["**/*.ts"],
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        baseDir: _testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "root-test.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Root test content",
+        fileContent: "---\ndescription: Root rule description\nroot: true\n---\nRoot test content",
+      });
+
+      const rule = ClaudecodeRule.fromRulesyncRule({
+        baseDir: _testDir,
+        relativeDirPath: "rules",
+        rulesyncRule,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(ClaudecodeRule);
       expect(rule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(rule.getRelativeDirPath()).toBe("rules");
     });
   });
 

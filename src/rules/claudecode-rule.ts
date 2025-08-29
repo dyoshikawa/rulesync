@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
@@ -77,7 +77,7 @@ export class ClaudecodeRule extends ToolRule {
       ...rest,
       fileContent: rulesyncRule.getFileContent(),
       relativeDirPath: join(".claude", "memories"),
-      relativeFilePath: basename(rulesyncRule.getFilePath()),
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
       frontmatter: { description },
       body: rulesyncRule.getBody(),
     });

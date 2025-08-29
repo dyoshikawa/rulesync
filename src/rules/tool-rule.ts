@@ -17,9 +17,5 @@ export abstract class ToolRule extends AiFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  getBaseDir(): string {
-    return this.baseDir;
-  }
-
   abstract toRulesyncRule(): RulesyncRule;
 }
