@@ -17,7 +17,12 @@ export async function setupTestDirectory(): Promise<{
     await mkdir(testsDir, { recursive: true });
   } catch (error) {
     // Ignore error if directory already exists
-    if (error instanceof Error && "code" in error && error.code !== "EEXIST") {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string" &&
+      error.code !== "EEXIST"
+    ) {
       throw error;
     }
   }

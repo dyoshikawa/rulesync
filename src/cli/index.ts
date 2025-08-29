@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import type { FeatureType } from "../types/config-options.js";
 import { FEATURE_TYPES } from "../types/config-options.js";
@@ -26,7 +29,16 @@ import {
 
 const program = new Command();
 
-program.name("rulesync").description("Unified AI rules management CLI tool").version("0.67.0");
+// Dynamically read version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = join(__filename, "..");
+const packageJsonPath = join(__dirname, "../../package.json");
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+
+program
+  .name("rulesync")
+  .description("Unified AI rules management CLI tool")
+  .version(packageJson.version);
 
 program
   .command("init")

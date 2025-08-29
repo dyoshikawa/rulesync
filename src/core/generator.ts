@@ -1,8 +1,3 @@
-import { generateAugmentCodeIgnoreFiles } from "../generators/ignore/augmentcode.js";
-import { generateJunieIgnoreFiles } from "../generators/ignore/junie.js";
-import { generateKiroIgnoreFiles } from "../generators/ignore/kiro.js";
-import { generateQwenCodeIgnoreFiles } from "../generators/ignore/qwencode.js";
-import { generateWindsurfIgnore } from "../generators/ignore/windsurf.js";
 import { generateAgentsMdConfig } from "../generators/rules/agentsmd.js";
 import { generateAmazonqcliConfig } from "../generators/rules/amazonqcli.js";
 import { generateAugmentcodeConfig } from "../generators/rules/augmentcode.js";
@@ -92,20 +87,10 @@ async function generateForTool(
       return await generateAgentsMdConfig(rules, config, baseDir);
     case "amazonqcli":
       return await generateAmazonqcliConfig(rules, config, baseDir);
-    case "augmentcode": {
-      const augmentRulesOutputs = await generateAugmentcodeConfig(rules, config, baseDir);
-      const augmentIgnoreOutputs = await generateAugmentCodeIgnoreFiles(rules, config, baseDir);
-      return [...augmentRulesOutputs, ...augmentIgnoreOutputs];
-    }
-    case "augmentcode-legacy": {
-      const augmentLegacyRulesOutputs = await generateAugmentcodeLegacyConfig(
-        rules,
-        config,
-        baseDir,
-      );
-      const augmentIgnoreOutputs = await generateAugmentCodeIgnoreFiles(rules, config, baseDir);
-      return [...augmentLegacyRulesOutputs, ...augmentIgnoreOutputs];
-    }
+    case "augmentcode":
+      return generateAugmentcodeConfig(rules, config, baseDir);
+    case "augmentcode-legacy":
+      return generateAugmentcodeLegacyConfig(rules, config, baseDir);
     case "copilot":
       return generateCopilotConfig(rules, config, baseDir);
     case "cursor":
@@ -120,28 +105,16 @@ async function generateForTool(
       return generateRooConfig(rules, config, baseDir);
     case "geminicli":
       return generateGeminiConfig(rules, config, baseDir);
-    case "junie": {
-      const junieRulesOutputs = await generateJunieConfig(rules, config, baseDir);
-      const junieIgnoreOutputs = await generateJunieIgnoreFiles(rules, config, baseDir);
-      return [...junieRulesOutputs, ...junieIgnoreOutputs];
-    }
-    case "kiro": {
-      const kiroRulesOutputs = await generateKiroConfig(rules, config, baseDir);
-      const kiroIgnoreOutputs = await generateKiroIgnoreFiles(rules, config, baseDir);
-      return [...kiroRulesOutputs, ...kiroIgnoreOutputs];
-    }
+    case "junie":
+      return generateJunieConfig(rules, config, baseDir);
+    case "kiro":
+      return generateKiroConfig(rules, config, baseDir);
     case "opencode":
       return generateOpenCodeConfig(rules, config, baseDir);
-    case "qwencode": {
-      const qwenRulesOutputs = await generateQwencodeConfig(rules, config, baseDir);
-      const qwenIgnoreOutputs = await generateQwenCodeIgnoreFiles(rules, config, baseDir);
-      return [...qwenRulesOutputs, ...qwenIgnoreOutputs];
-    }
-    case "windsurf": {
-      const windsurfRulesOutputs = await generateWindsurfConfig(rules, config, baseDir);
-      const windsurfIgnoreOutputs = await generateWindsurfIgnore(rules, config, baseDir);
-      return [...windsurfRulesOutputs, ...windsurfIgnoreOutputs];
-    }
+    case "qwencode":
+      return generateQwencodeConfig(rules, config, baseDir);
+    case "windsurf":
+      return generateWindsurfConfig(rules, config, baseDir);
     default:
       logger.warn(`Unknown tool: ${tool}`);
       return null;

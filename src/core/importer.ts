@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import matter from "gray-matter";
 import { CommandsProcessor } from "../commands/commands-processor.js";
+import { IgnoreProcessor } from "../ignore/ignore-processor.js";
 import {
   parseAgentsMdConfiguration,
   parseAmazonqcliConfiguration,
@@ -55,7 +56,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   } = options;
   const errors: string[] = [];
   let rules: ParsedRule[] = [];
-  let ignorePatterns: string[] | undefined;
   let mcpServers: Record<string, RulesyncMcpServer> | undefined;
   let subagents: ParsedSubagent[] | undefined;
 
@@ -95,7 +95,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const claudeResult = await parseClaudeConfiguration(baseDir);
         rules = claudeResult.rules;
         errors.push(...claudeResult.errors);
-        ignorePatterns = claudeResult.ignorePatterns;
         mcpServers = claudeResult.mcpServers;
         subagents = claudeResult.subagents;
         break;
@@ -104,7 +103,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const cursorResult = await parseCursorConfiguration(baseDir);
         rules = cursorResult.rules;
         errors.push(...cursorResult.errors);
-        ignorePatterns = cursorResult.ignorePatterns;
         mcpServers = cursorResult.mcpServers;
         break;
       }
@@ -130,7 +128,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const geminiResult = await parseGeminiConfiguration(baseDir);
         rules = geminiResult.rules;
         errors.push(...geminiResult.errors);
-        ignorePatterns = geminiResult.ignorePatterns;
         mcpServers = geminiResult.mcpServers;
         break;
       }
@@ -144,7 +141,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
         const opencodeResult = await parseOpenCodeConfiguration(baseDir);
         rules = opencodeResult.rules;
         errors.push(...opencodeResult.errors);
-        ignorePatterns = opencodeResult.ignorePatterns;
         mcpServers = opencodeResult.mcpServers;
         break;
       }
@@ -165,8 +161,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     return { success: false, rulesCreated: 0, errors };
   }
 
-  // Note: We don't return early here as CommandsProcessor may still create files
-
   // Check if no relevant features are enabled
   const rulesEnabled = features.includes("rules") || features.includes("commands");
   const ignoreEnabled = features.includes("ignore");
@@ -178,6 +172,12 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       logger.log("No relevant features enabled for import");
     }
     return { success: false, rulesCreated: 0, errors: ["No features enabled for import"] };
+  }
+
+  // Early return if no data found and none of the data-independent features are enabled
+  const commandsEnabled = features.includes("commands");
+  if (rules.length === 0 && !mcpServers && !subagents && !ignoreEnabled && !commandsEnabled) {
+    return { success: false, rulesCreated: 0, errors };
   }
 
   // Ensure .rulesync directory exists
@@ -259,23 +259,35 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     }
   }
 
-  // Create .rulesyncignore file if ignore patterns exist and ignore feature is enabled
+  // Process ignore files if ignore feature is enabled
   let ignoreFileCreated = false;
-  if (ignoreEnabled && ignorePatterns && ignorePatterns.length > 0) {
+  if (ignoreEnabled) {
     try {
-      const rulesyncignorePath = join(baseDir, ".rulesyncignore");
-      const ignoreContent = `${ignorePatterns.join("\n")}\n`;
-      await writeFileContent(rulesyncignorePath, ignoreContent);
-      ignoreFileCreated = true;
-      if (verbose) {
-        logger.success(`Created .rulesyncignore with ${ignorePatterns.length} patterns`);
+      // Use IgnoreProcessor for supported tools
+      if (IgnoreProcessor.getToolTargets().includes(tool)) {
+        const ignoreProcessor = new IgnoreProcessor({
+          baseDir,
+          toolTarget: tool,
+        });
+
+        const toolFiles = await ignoreProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          await ignoreProcessor.writeAiFiles(rulesyncFiles);
+          ignoreFileCreated = true;
+          if (verbose) {
+            logger.success(
+              `Created ignore files from ${toolFiles.length} tool ignore configurations`,
+            );
+          }
+        }
+      } else if (verbose) {
+        logger.log(`Tool ${tool} does not support ignore file processing`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to create .rulesyncignore: ${errorMessage}`);
+      errors.push(`Failed to process ignore files: ${errorMessage}`);
     }
-  } else if (verbose && ignorePatterns && ignorePatterns.length > 0 && !ignoreEnabled) {
-    logger.log(`Skipping ignore patterns (ignore feature not enabled)`);
   }
 
   // Create .mcp.json file if MCP servers exist and mcp feature is enabled

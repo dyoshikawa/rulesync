@@ -7,6 +7,7 @@ import {
 import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
+import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
@@ -350,13 +351,54 @@ Available tools:
         logger.info("\nSkipping command file generation (not in --features)");
       }
 
-      // Generate ignore files (ignore feature) - placeholder for future implementation
-      const totalIgnoreOutputs = 0;
+      // Generate ignore files (ignore feature)
+      let totalIgnoreOutputs = 0;
       if (normalizedFeatures.includes("ignore")) {
         logger.info("\nGenerating ignore files...");
-        logger.info("Ignore file generation is not yet implemented");
-        // TODO: Implement ignore file generation
-        // This would generate .cursorignore, .cline-ignore, etc.
+
+        // Check if rulesync ignore source directory exists
+        const rulesyncIgnoresDir = join(".rulesync", "ignore");
+        const fullPath = join(process.cwd(), rulesyncIgnoresDir);
+
+        if (!(await fileExists(fullPath))) {
+          logger.info(`No rulesync ignore directory found at ${fullPath}`);
+        } else {
+          // Generate ignore files for each supported tool target
+          const supportedToolTargets = IgnoreProcessor.getToolTargets();
+
+          for (const toolTarget of supportedToolTargets) {
+            // Only generate ignore files for tools that are in the target list
+            if (!config.defaultTargets.includes(toolTarget)) {
+              logger.debug(`Skipping ignore files for ${toolTarget} (not in target list)`);
+              continue;
+            }
+
+            for (const baseDir of baseDirs) {
+              try {
+                const processor = new IgnoreProcessor({
+                  baseDir: baseDir === process.cwd() ? "." : baseDir,
+                  toolTarget,
+                });
+
+                const rulesyncFiles = await processor.loadRulesyncFiles();
+                if (rulesyncFiles.length > 0) {
+                  const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+                  const writtenCount = await processor.writeAiFiles(toolFiles);
+                  totalIgnoreOutputs += writtenCount;
+                  logger.success(
+                    `Generated ${writtenCount} ${toolTarget} ignore file(s) in ${baseDir}`,
+                  );
+                }
+              } catch (error) {
+                logger.warn(
+                  `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
+                  error instanceof Error ? error.message : String(error),
+                );
+                continue;
+              }
+            }
+          }
+        }
       } else {
         logger.info("\nSkipping ignore file generation (not in --features)");
       }
