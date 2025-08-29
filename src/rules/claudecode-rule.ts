@@ -112,37 +112,4 @@ export class ClaudecodeRule extends ToolRule {
       };
     }
   }
-
-  /**
-   * Generate CLAUDE.md memory file content
-   *
-   * Creates a markdown file that serves as persistent context for Claude Code,
-   * including project information, coding standards, and import references.
-   */
-  generateClaudeMemoryFile(): string {
-    const sections: string[] = [];
-
-    // Add description as project overview if available
-    if (this.frontmatter.description) {
-      sections.push("# Project Context");
-      sections.push("");
-      sections.push(this.frontmatter.description);
-      sections.push("");
-    }
-
-    // Add rule content as guidance
-    if (this.body.trim()) {
-      sections.push("# Development Guidelines");
-      sections.push("");
-      sections.push(this.body.trim());
-      sections.push("");
-    }
-
-    // Add import reference for the source rule file
-    sections.push("# Additional Context");
-    sections.push("");
-    sections.push(`@${this.getRelativeFilePath()}`);
-
-    return sections.join("\n").trim();
-  }
 }

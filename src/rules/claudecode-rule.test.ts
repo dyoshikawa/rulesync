@@ -147,64 +147,6 @@ Content`;
     });
   });
 
-  describe("generateClaudeMemoryFile", () => {
-    it("should generate memory file with description and content", () => {
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: "rules",
-        relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Project description\n---\nCoding guidelines",
-        frontmatter: { description: "Project description" },
-        body: "Coding guidelines",
-        validate: false,
-      });
-
-      const memoryContent = rule.generateClaudeMemoryFile();
-
-      expect(memoryContent).toContain("# Project Context");
-      expect(memoryContent).toContain("Project description");
-      expect(memoryContent).toContain("# Development Guidelines");
-      expect(memoryContent).toContain("Coding guidelines");
-      expect(memoryContent).toContain("# Additional Context");
-      expect(memoryContent).toContain("@test.md");
-    });
-
-    it("should handle empty body", () => {
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: "rules",
-        relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\n",
-        frontmatter: { description: "Test description" },
-        body: "",
-        validate: false,
-      });
-
-      const memoryContent = rule.generateClaudeMemoryFile();
-
-      expect(memoryContent).toContain("# Project Context");
-      expect(memoryContent).toContain("Test description");
-      expect(memoryContent).toContain("# Additional Context");
-      expect(memoryContent).toContain("@test.md");
-      expect(memoryContent).not.toContain("# Development Guidelines");
-    });
-
-    it("should handle whitespace-only body", () => {
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: "rules",
-        relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\n   \n  \n",
-        frontmatter: { description: "Test description" },
-        body: "   \n  \n",
-        validate: false,
-      });
-
-      const memoryContent = rule.generateClaudeMemoryFile();
-
-      expect(memoryContent).not.toContain("# Development Guidelines");
-    });
-  });
 
   describe("getFilePath", () => {
     it("should return correct file path", () => {
@@ -222,24 +164,6 @@ Content`;
     });
   });
 
-  describe("getFileContent", () => {
-    it("should return the Claude memory file content", () => {
-      const rule = new ClaudecodeRule({
-        baseDir: _testDir,
-        relativeDirPath: ".claude/memories",
-        relativeFilePath: "test.md",
-        fileContent: "---\ndescription: Test\n---\nContent",
-        frontmatter: { description: "Test" },
-        body: "Content",
-        validate: false,
-      });
-
-      const memoryContent = rule.generateClaudeMemoryFile();
-      const fileContent = rule.getFileContent();
-
-      expect(fileContent).toBe(memoryContent);
-    });
-  });
 
   describe("inheritance", () => {
     it("should inherit from ToolRule", () => {
@@ -272,13 +196,7 @@ Content`;
         validate: false,
       });
 
-      const memoryContent = rule.generateClaudeMemoryFile();
-
-      expect(memoryContent).toContain("Complex project");
-      expect(memoryContent).toContain("# Coding Standards");
-      expect(memoryContent).toContain("- Use TypeScript");
-      expect(memoryContent).toContain("## Security");
-      expect(memoryContent).toContain("@complex.md");
+      expect(rule.getRelativeFilePath()).toBe("complex.md");
     });
 
     it("should handle rule with special characters in path", () => {
@@ -292,9 +210,7 @@ Content`;
         validate: false,
       });
 
-      const memoryContent = rule.generateClaudeMemoryFile();
-
-      expect(memoryContent).toContain("@rule-with-spaces and symbols.md");
+      expect(rule.getRelativeFilePath()).toBe("rule-with-spaces and symbols.md");
     });
   });
 });
