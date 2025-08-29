@@ -16,7 +16,7 @@ export type OpenCodeRuleParams = Omit<AiFileParams, "fileContent"> & {
 export class OpenCodeRule extends ToolRule {
   private readonly body: string;
 
-  constructor({ body, fileContent, root, ...rest }: OpenCodeRuleParams) {
+  constructor({ body, fileContent, root = false, ...rest }: OpenCodeRuleParams) {
     const actualFileContent = fileContent || body;
 
     super({
@@ -62,7 +62,7 @@ export class OpenCodeRule extends ToolRule {
   }: ToolRuleFromRulesyncRuleParams): OpenCodeRule {
     const body = rulesyncRule.getBody();
     const fileContent = body;
-    const root = rulesyncRule.getFrontmatter().root;
+    const root = rulesyncRule.getFrontmatter().root ?? false;
 
     if (root) {
       return new OpenCodeRule({

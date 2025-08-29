@@ -2,7 +2,7 @@ import { AiFile, AiFileFromFilePathParams, AiFileParams } from "../types/ai-file
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
-  root?: boolean;
+  root?: boolean | undefined;
 };
 
 export type ToolRuleFromRulesyncRuleParams = Omit<
