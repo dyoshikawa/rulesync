@@ -149,7 +149,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "kiro":
           return KiroRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".kiro/steering",
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? ".kiro" : ".kiro/steering",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -228,6 +228,13 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "geminicli": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "kiro": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
