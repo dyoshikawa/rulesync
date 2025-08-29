@@ -103,7 +103,7 @@ export class KiroIgnore extends ToolIgnore {
 
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
-      baseDir: ".",
+      baseDir: this.baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),
