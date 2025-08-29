@@ -43,7 +43,7 @@ class TestProcessor extends FeatureProcessor {
   }
 
   // Expose protected method for testing
-  async testWriteAiFiles(aiFiles: AiFile[]): Promise<void> {
+  async testWriteAiFiles(aiFiles: AiFile[]): Promise<number> {
     return this.writeAiFiles(aiFiles);
   }
 }

@@ -22,14 +22,19 @@ export abstract class FeatureProcessor {
   /**
    * Return tool targets that this feature supports.
    */
-  abstract getToolTargets(): ToolTarget[];
+  static getToolTargets(): ToolTarget[] {
+    throw new Error("Not implemented");
+  }
 
   /**
    * Once converted to rulesync/tool files, write them to the filesystem.
+   * Returns the number of files written.
    */
-  async writeAiFiles(aiFiles: AiFile[]): Promise<void> {
+  async writeAiFiles(aiFiles: AiFile[]): Promise<number> {
     for (const aiFile of aiFiles) {
       await writeFileContent(aiFile.getFilePath(), aiFile.getFileContent());
     }
+
+    return aiFiles.length;
   }
 }

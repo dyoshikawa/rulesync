@@ -11,7 +11,8 @@ import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
 
-export const SubagentsProcessorToolTargetSchema = z.enum(["claudecode"]);
+const subagentsProcessorToolTargets: ToolTarget[] = ["claudecode"];
+export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
 
 export type SubagentsProcessorToolTarget = z.infer<typeof SubagentsProcessorToolTargetSchema>;
 
@@ -67,8 +68,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     const subagentsDir = join(this.baseDir, ".rulesync", "subagents");
 
     // Check if directory exists
-    if (!(await directoryExists(subagentsDir))) {
-      throw new Error(`Rulesync subagents directory not found: ${subagentsDir}`);
+    const dirExists = await directoryExists(subagentsDir);
+    if (!dirExists) {
+      logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
+      return [];
     }
 
     // Read all markdown files from the directory
@@ -76,7 +79,8 @@ export class SubagentsProcessor extends FeatureProcessor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      throw new Error(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
+      logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
+      return [];
     }
 
     logger.info(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
@@ -101,7 +105,8 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     if (rulesyncSubagents.length === 0) {
-      throw new Error(`No valid subagents found in ${subagentsDir}`);
+      logger.debug(`No valid subagents found in ${subagentsDir}`);
+      return [];
     }
 
     logger.info(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
@@ -192,7 +197,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  getToolTargets(): ToolTarget[] {
-    return [this.toolTarget];
+  static getToolTargets(): ToolTarget[] {
+    return subagentsProcessorToolTargets;
   }
 }

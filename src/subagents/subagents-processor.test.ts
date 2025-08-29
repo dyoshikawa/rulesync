@@ -3,16 +3,22 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/mini";
 import { setupTestDirectory } from "../test-utils/index.js";
+import { directoryExists } from "../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SubagentsProcessor, SubagentsProcessorToolTarget } from "./subagents-processor.js";
 
 // Mock the file utilities and file system operations
-vi.mock("../utils/file.js", () => ({
-  writeFileContent: vi.fn().mockResolvedValue(undefined),
-  directoryExists: vi.fn().mockResolvedValue(true),
-  readFileContent: vi.fn().mockResolvedValue(""),
-}));
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  return {
+    ...actual,
+    writeFileContent: vi.fn().mockResolvedValue(undefined),
+    // Use the actual directoryExists implementation
+    directoryExists: actual.directoryExists,
+    readFileContent: vi.fn().mockResolvedValue(""),
+  };
+});
 
 describe("SubagentsProcessor", () => {
   let testDir: string;
@@ -133,12 +139,8 @@ describe("SubagentsProcessor", () => {
 
   describe("getToolTargets", () => {
     it("should return the supported tool targets", () => {
-      const processor = new SubagentsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
-
-      const toolTargets = processor.getToolTargets();
+      // getToolTargets is a static method, so we call it on the class, not an instance
+      const toolTargets = SubagentsProcessor.getToolTargets();
 
       expect(toolTargets).toEqual(["claudecode"]);
     });
@@ -219,7 +221,7 @@ You are a helpful planning agent.`;
       expect(rulesyncSubagent.getFrontmatter().name).toBe("Test Planner");
     });
 
-    it("should throw error when no markdown files found", async () => {
+    it("should return empty array when no markdown files found", async () => {
       const processor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
@@ -229,18 +231,22 @@ You are a helpful planning agent.`;
       const rulesyncDir = join(testDir, ".rulesync", "subagents");
       await mkdir(rulesyncDir, { recursive: true });
 
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
-        "No markdown files found in rulesync subagents directory",
-      );
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toEqual([]);
     });
 
-    it("should throw error when subagents directory does not exist", async () => {
+    it("should return empty array when subagents directory does not exist", async () => {
       const processor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow("ENOENT");
+      // Ensure the directory really doesn't exist
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      expect(await directoryExists(subagentsDir)).toBe(false);
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toEqual([]);
     });
   });
 
@@ -294,16 +300,13 @@ You are a helpful planning agent.`;
         toolTarget: "claudecode",
       });
 
-      // Mock directoryExists to return false for this specific test
-      const { directoryExists } = await import("../utils/file.js");
-      (directoryExists as any).mockResolvedValue(false);
+      // The agents directory should not exist by default in test setup
+      const agentsDir = join(testDir, ".claude", "agents");
+      expect(await directoryExists(agentsDir)).toBe(false);
 
       const toolFiles = await processor.loadToolFiles();
 
       expect(toolFiles).toHaveLength(0);
-
-      // Restore the mock for other tests
-      (directoryExists as any).mockResolvedValue(true);
     });
   });
 
