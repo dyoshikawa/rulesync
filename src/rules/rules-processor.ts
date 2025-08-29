@@ -184,7 +184,22 @@ export class RulesProcessor extends FeatureProcessor {
       }
     });
 
-    return toolRules;
+    const rootRuleIndex = toolRules.findIndex((rule) => rule.isRoot());
+    if (rootRuleIndex === -1) {
+      return toolRules;
+    }
+
+    switch (this.toolTarget) {
+      case "claudecode": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      default:
+        return toolRules;
+    }
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
@@ -869,8 +884,10 @@ export class RulesProcessor extends FeatureProcessor {
     }
   }
 
-  public getXmlReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
-    if (toolRules.length === 0) {
+  public generateXmlReferencesSection(toolRules: ToolRule[]): string {
+    const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
+
+    if (toolRulesWithoutRoot.length === 0) {
       return "";
     }
 
@@ -883,13 +900,12 @@ export class RulesProcessor extends FeatureProcessor {
     // Build XML structure using fast-xml-parser XMLBuilder
     const documentsData = {
       Documents: {
-        Document: toolRules.map((rule) => {
+        Document: toolRulesWithoutRoot.map((rule) => {
           // Get frontmatter by converting to rulesync rule
           const rulesyncRule = rule.toRulesyncRule();
           const frontmatter = rulesyncRule.getFrontmatter();
-          const filename = rule.getRelativeFilePath().replace(/\.md$/, "");
 
-          const relativePath = `@${memorySubDir}/${filename}.md`;
+          const relativePath = `@${rule.getRelativePathFromCwd()}`;
           const document: Record<string, string> = {
             Path: relativePath,
             Description: frontmatter.description,
@@ -918,8 +934,10 @@ export class RulesProcessor extends FeatureProcessor {
     return lines.join("\n");
   }
 
-  public getReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
-    if (toolRules.length === 0) {
+  public generateReferencesSection(toolRules: ToolRule[]): string {
+    const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
+
+    if (toolRulesWithoutRoot.length === 0) {
       return "";
     }
 
@@ -927,18 +945,17 @@ export class RulesProcessor extends FeatureProcessor {
     lines.push("Please also reference the following documents as needed:");
     lines.push("");
 
-    for (const rule of toolRules) {
+    for (const rule of toolRulesWithoutRoot) {
       // Get frontmatter by converting to rulesync rule
       const rulesyncRule = rule.toRulesyncRule();
       const frontmatter = rulesyncRule.getFrontmatter();
-      const filename = rule.getRelativeFilePath().replace(/\.md$/, "");
 
       // Escape double quotes in description
       const escapedDescription = frontmatter.description.replace(/"/g, '\\"');
       const globsText = frontmatter.globs.join(",");
 
       lines.push(
-        `@${memorySubDir}/${filename}.md description: "${escapedDescription}" globs: "${globsText}"`,
+        `@${rule.getRelativePathFromCwd()} description: "${escapedDescription}" globs: "${globsText}"`,
       );
     }
     lines.push("");

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
 import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
-export interface ClaudecodeRuleParams extends AiFileParams {
+export interface ClaudecodeRuleParams extends ToolRuleParams {
   body: string;
 }
 
@@ -47,6 +47,7 @@ export class ClaudecodeRule extends ToolRule {
         fileContent: body,
         relativeFilePath: "CLAUDE.md",
         body,
+        root,
       });
     }
 
@@ -56,6 +57,7 @@ export class ClaudecodeRule extends ToolRule {
       relativeDirPath: join(".claude", "memories"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body,
+      root,
     });
   }
 
