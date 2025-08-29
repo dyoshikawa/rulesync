@@ -128,7 +128,6 @@ export class WindsurfIgnore extends ToolIgnore {
    */
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
-      baseDir: ".",
       relativeDirPath: ".",
       relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),

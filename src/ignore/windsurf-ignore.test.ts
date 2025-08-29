@@ -60,7 +60,7 @@ describe("WindsurfIgnore", () => {
   });
 
   describe("toRulesyncIgnore", () => {
-    it("should convert to RulesyncIgnore with correct frontmatter", () => {
+    it("should convert to RulesyncIgnore format", () => {
       const patterns = [".env", "*.log", "dist/"];
       const windsurfIgnore = new WindsurfIgnore({
         baseDir: testDir,
