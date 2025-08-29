@@ -1,9 +1,8 @@
 // oxlint-disable no-console
 
+import { globSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-code";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { tasks } from "../tmp/tasks/tasks.ts";
 
 const runClaudeCode = async (task: string) => {
   console.log("task", task);
@@ -20,10 +19,16 @@ const runClaudeCode = async (task: string) => {
   }
 };
 
-for (const task of tasks) {
-  try {
-    await runClaudeCode(task);
-  } catch (error) {
-    console.error(error);
+const filePaths = globSync(join(process.cwd(), "tmp", "tasks", "*.md"));
+
+for (const filePath of filePaths) {
+  const fileContent = readFileSync(filePath, "utf-8");
+  const tasks = fileContent.split("---\n");
+  for (const task of tasks) {
+    try {
+      await runClaudeCode(task);
+    } catch (error) {
+      console.error(error);
+    }
   }
 }
