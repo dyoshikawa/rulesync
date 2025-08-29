@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { ToolTargets } from "../types/tool-targets.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -54,10 +56,11 @@ export class AugmentcodeRule extends ToolRule {
     const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
 
     return new RulesyncRule({
+      baseDir: this.getBaseDir(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.relativeFilePath,
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
       fileContent,
       validate: false,
     });
@@ -66,7 +69,6 @@ export class AugmentcodeRule extends ToolRule {
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
-    relativeDirPath,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AugmentcodeRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
@@ -97,7 +99,7 @@ export class AugmentcodeRule extends ToolRule {
       baseDir: baseDir,
       frontmatter: augmentcodeFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: join(".augment", "rules"),
       relativeFilePath: newFileName,
       fileContent,
       validate,
