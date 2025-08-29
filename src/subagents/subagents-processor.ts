@@ -1,31 +1,37 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
-import { Processor } from "../types/processor.js";
+import { FeatureProcessor } from "../types/feature-processor.js";
+import { RulesyncFile } from "../types/rulesync-file.js";
+import { ToolFile } from "../types/tool-file.js";
+import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
 
-export const SubagentsProcessorToolTargetSchema = z.enum(["claudecode"]);
+const subagentsProcessorToolTargets: ToolTarget[] = ["claudecode"];
+export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
 
 export type SubagentsProcessorToolTarget = z.infer<typeof SubagentsProcessorToolTargetSchema>;
 
-export class SubagentsProcessor extends Processor {
+export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
 
   constructor({
-    baseDir,
+    baseDir = process.cwd(),
     toolTarget,
-  }: { baseDir: string; toolTarget: SubagentsProcessorToolTarget }) {
+  }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = SubagentsProcessorToolTargetSchema.parse(toolTarget);
   }
 
-  async writeToolSubagentsFromRulesyncSubagents(
-    rulesyncSubagents: RulesyncSubagent[],
-  ): Promise<void> {
+  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncSubagents = rulesyncFiles.filter(
+      (file): file is RulesyncSubagent => file instanceof RulesyncSubagent,
+    );
+
     const toolSubagents = rulesyncSubagents.map((rulesyncSubagent) => {
       switch (this.toolTarget) {
         case "claudecode":
@@ -39,18 +45,33 @@ export class SubagentsProcessor extends Processor {
       }
     });
 
-    await this.writeAiFiles(toolSubagents);
+    return toolSubagents;
+  }
+
+  async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    const toolSubagents = toolFiles.filter(
+      (file): file is ToolSubagent => file instanceof ToolSubagent,
+    );
+
+    const rulesyncSubagents = toolSubagents.map((toolSubagent) => {
+      return toolSubagent.toRulesyncSubagent();
+    });
+
+    return rulesyncSubagents;
   }
 
   /**
+   * Implementation of abstract method from Processor
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
-  async loadRulesyncSubagents(): Promise<RulesyncSubagent[]> {
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const subagentsDir = join(this.baseDir, ".rulesync", "subagents");
 
     // Check if directory exists
-    if (!(await directoryExists(subagentsDir))) {
-      throw new Error(`Rulesync subagents directory not found: ${subagentsDir}`);
+    const dirExists = await directoryExists(subagentsDir);
+    if (!dirExists) {
+      logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
+      return [];
     }
 
     // Read all markdown files from the directory
@@ -58,7 +79,8 @@ export class SubagentsProcessor extends Processor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      throw new Error(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
+      logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
+      return [];
     }
 
     logger.info(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
@@ -83,7 +105,8 @@ export class SubagentsProcessor extends Processor {
     }
 
     if (rulesyncSubagents.length === 0) {
-      throw new Error(`No valid subagents found in ${subagentsDir}`);
+      logger.debug(`No valid subagents found in ${subagentsDir}`);
+      return [];
     }
 
     logger.info(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
@@ -91,9 +114,10 @@ export class SubagentsProcessor extends Processor {
   }
 
   /**
+   * Implementation of abstract method from Processor
    * Load tool-specific subagent configurations and parse them into ToolSubagent instances
    */
-  async loadToolSubagents(): Promise<ToolSubagent[]> {
+  async loadToolFiles(): Promise<ToolFile[]> {
     switch (this.toolTarget) {
       case "claudecode":
         return await this.loadClaudecodeSubagents();
@@ -114,8 +138,14 @@ export class SubagentsProcessor extends Processor {
       return [];
     }
 
-    // Read all JSON files from the directory
-    const entries = await readdir(agentsDir);
+    // Read all markdown files from the directory
+    let entries: string[];
+    try {
+      entries = await readdir(agentsDir);
+    } catch (error) {
+      logger.warn(`Failed to read Claude Code agents directory ${agentsDir}:`, error);
+      return [];
+    }
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
@@ -151,11 +181,23 @@ export class SubagentsProcessor extends Processor {
     return toolSubagents;
   }
 
-  async writeRulesyncSubagentsFromToolSubagents(toolSubagents: ToolSubagent[]): Promise<void> {
-    const rulesyncSubagents = toolSubagents.map((toolSubagent) => {
-      return toolSubagent.toRulesyncSubagent();
-    });
+  async writeToolSubagentsFromRulesyncSubagents(
+    rulesyncSubagents: RulesyncSubagent[],
+  ): Promise<void> {
+    const toolSubagents = await this.convertRulesyncFilesToToolFiles(rulesyncSubagents);
+    await this.writeAiFiles(toolSubagents);
+  }
 
+  async writeRulesyncSubagentsFromToolSubagents(toolSubagents: ToolSubagent[]): Promise<void> {
+    const rulesyncSubagents = await this.convertToolFilesToRulesyncFiles(toolSubagents);
     await this.writeAiFiles(rulesyncSubagents);
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Return the tool targets that this processor supports
+   */
+  static getToolTargets(): ToolTarget[] {
+    return subagentsProcessorToolTargets;
   }
 }

@@ -2,14 +2,15 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as parsers from "../parsers/index.js";
-import { RulesProcessor } from "../rules/rules-processor.js";
+// import { RulesProcessor } from "../rules/rules-processor.js"; // Not used in this version
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { ToolTarget } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 import { importConfiguration } from "./importer.js";
 
 vi.mock("../parsers");
-vi.mock("../rules/rules-processor");
+vi.mock("../commands/commands-processor.js");
+// vi.mock("../rules/rules-processor"); // Not used in this version
 
 describe("importConfiguration", () => {
   let testDir: string;
@@ -27,8 +28,8 @@ describe("importConfiguration", () => {
     await mkdir(commandsDir, { recursive: true });
     vi.resetAllMocks();
 
-    // Mock RulesProcessor to return null for all tools by default (use fallback behavior)
-    vi.spyOn(RulesProcessor, "create").mockReturnValue(null);
+    // Mock RulesProcessor to return null for all tools by default (not used in this version)
+    // vi.spyOn(RulesProcessor, "create").mockReturnValue(null);
   });
 
   afterEach(async () => {
@@ -57,9 +58,19 @@ describe("importConfiguration", () => {
       mcpServers: {},
     });
 
+    // Mock CommandsProcessor to avoid interference
+    const mockCommandsProcessor = {
+      loadToolFiles: vi.fn().mockResolvedValue([]),
+      convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue(undefined),
+    };
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+
     const result = await importConfiguration({
       tool: "claudecode",
       baseDir: testDir,
+      features: ["rules"],
     });
 
     expect(result.success).toBe(true);
@@ -168,6 +179,7 @@ describe("importConfiguration", () => {
     const result = await importConfiguration({
       tool: "copilot",
       baseDir: testDir,
+      features: ["rules"], // Exclude commands feature for unsupported tool
     });
 
     expect(result.success).toBe(false);
@@ -278,6 +290,7 @@ describe("importConfiguration", () => {
     const result = await importConfiguration({
       tool: "claudecode",
       baseDir: testDir,
+      features: ["ignore"],
     });
 
     expect(result.success).toBe(true);
@@ -295,6 +308,7 @@ describe("importConfiguration", () => {
     const result = await importConfiguration({
       tool: "claudecode",
       baseDir: testDir,
+      features: ["mcp"],
     });
 
     expect(result.success).toBe(true);
@@ -380,16 +394,156 @@ describe("importConfiguration", () => {
     loggerSuccessSpy.mockRestore();
   });
 
-  it("should import commands files from Claude Code", async () => {
+  it("should handle CommandsProcessor integration for Claude Code", async () => {
+    const loggerSuccessSpy = vi.spyOn(logger, "success").mockImplementation(() => {});
+
+    // Mock CommandsProcessor constructor and methods
+    const mockCommandsProcessor = {
+      loadToolFiles: vi.fn().mockResolvedValue([
+        { name: "fix-issue", description: "Fix GitHub issues" },
+        { name: "optimize", description: "Optimize code" },
+      ]),
+      convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([
+        { name: "fix-issue", description: "Fix GitHub issues" },
+        { name: "optimize", description: "Optimize code" },
+      ]),
+      writeAiFiles: vi.fn().mockResolvedValue(2),
+    };
+
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+
+    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "claudecode",
+      baseDir: testDir,
+      verbose: true,
+      features: ["commands"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.commandsCreated).toBe(2);
+    expect(mockCommandsProcessor.loadToolFiles).toHaveBeenCalled();
+    expect(mockCommandsProcessor.convertToolFilesToRulesyncFiles).toHaveBeenCalled();
+    expect(mockCommandsProcessor.writeAiFiles).toHaveBeenCalled();
+    expect(loggerSuccessSpy).toHaveBeenCalledWith("Created 2 command files");
+
+    loggerSuccessSpy.mockRestore();
+  });
+
+  it("should handle CommandsProcessor integration for Gemini CLI", async () => {
+    const mockCommandsProcessor = {
+      loadToolFiles: vi
+        .fn()
+        .mockResolvedValue([{ name: "plan", description: "Create implementation plan" }]),
+      convertToolFilesToRulesyncFiles: vi
+        .fn()
+        .mockResolvedValue([{ name: "plan", description: "Create implementation plan" }]),
+      writeAiFiles: vi.fn().mockResolvedValue(1),
+    };
+
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+
+    vi.spyOn(parsers, "parseGeminiConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "geminicli",
+      baseDir: testDir,
+      features: ["commands"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.commandsCreated).toBe(1);
+    expect(mockCommandsProcessor.loadToolFiles).toHaveBeenCalled();
+    expect(mockCommandsProcessor.convertToolFilesToRulesyncFiles).toHaveBeenCalled();
+    expect(mockCommandsProcessor.writeAiFiles).toHaveBeenCalled();
+  });
+
+  it("should handle CommandsProcessor errors", async () => {
+    const mockCommandsProcessor = {
+      loadToolFiles: vi.fn().mockRejectedValue(new Error("Commands directory not found")),
+      convertToolFilesToRulesyncFiles: vi.fn(),
+      writeAiFiles: vi.fn(),
+    };
+
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+
+    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "claudecode",
+      baseDir: testDir,
+      features: ["commands"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.commandsCreated).toBeUndefined();
+    expect(result.errors).toContain(
+      "Failed to create commands directory: Commands directory not found",
+    );
+  });
+
+  it("should skip CommandsProcessor for unsupported tools", async () => {
+    const mockCommandsProcessor = {
+      loadToolFiles: vi.fn(),
+      convertToolFilesToRulesyncFiles: vi.fn(),
+      writeAiFiles: vi.fn(),
+    };
+
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
+
+    vi.spyOn(parsers, "parseJunieConfiguration").mockResolvedValueOnce({
+      rules: [],
+      errors: [],
+    });
+
+    const result = await importConfiguration({
+      tool: "junie",
+      baseDir: testDir,
+    });
+
+    expect(result.commandsCreated).toBeUndefined();
+    expect(mockCommandsProcessor.loadToolFiles).not.toHaveBeenCalled();
+  });
+
+  it("should filter out commands from regular rules processing", async () => {
     const mockRules = [
       {
         frontmatter: {
-          description: "Command: fix-issue",
-          targets: ["claudecode"] satisfies ToolTarget[],
           root: false,
+          targets: ["claudecode"] satisfies ToolTarget[],
+          description: "Regular rule",
           globs: ["**/*"],
         },
-        content: "Fix GitHub issue #$ARGUMENTS by following these steps:",
+        content: "Regular rule content",
+        filename: "regular-rule",
+        filepath: "/test/regular.md",
+      },
+      {
+        frontmatter: {
+          root: false,
+          description: "Command: fix-issue",
+          targets: ["claudecode"] satisfies ToolTarget[],
+          globs: ["**/*"],
+        },
+        content: "Fix GitHub issue",
         filename: "fix-issue",
         filepath: "/test/.claude/commands/fix-issue.md",
         type: "command" as const,
@@ -401,141 +555,36 @@ describe("importConfiguration", () => {
       errors: [],
     });
 
-    const result = await importConfiguration({
-      tool: "claudecode",
-      baseDir: testDir,
-    });
-
-    expect(result.rulesCreated).toBe(1);
-    expect(result.success).toBe(true);
-
-    const createdFile = await readFile(
-      join(testDir, ".rulesync", "commands", "fix-issue.md"),
-      "utf-8",
-    );
-    expect(createdFile).toContain("description: 'Command: fix-issue'");
-    expect(createdFile).toContain("targets:");
-    expect(createdFile).toContain("- claudecode");
-    expect(createdFile).not.toContain("root:");
-    expect(createdFile).not.toContain("globs:");
-    expect(createdFile).toContain("Fix GitHub issue #$ARGUMENTS");
-  });
-
-  it("should import commands files from Gemini CLI", async () => {
-    const mockRules = [
-      {
-        frontmatter: {
-          description: "Command: optimize",
-          targets: ["geminicli"] satisfies ToolTarget[],
-          root: false,
-          globs: ["**/*"],
-        },
-        content: "Optimize the code by following these steps:",
-        filename: "optimize",
-        filepath: "/test/.gemini/commands/optimize.md",
-        type: "command" as const,
-      },
-    ];
-
-    vi.spyOn(parsers, "parseGeminiConfiguration").mockResolvedValueOnce({
-      rules: mockRules,
-      errors: [],
-    });
-
-    const result = await importConfiguration({
-      tool: "geminicli",
-      baseDir: testDir,
-    });
-
-    expect(result.rulesCreated).toBe(1);
-    expect(result.success).toBe(true);
-
-    const createdFile = await readFile(
-      join(testDir, ".rulesync", "commands", "optimize.md"),
-      "utf-8",
-    );
-    expect(createdFile).toContain("description: 'Command: optimize'");
-    expect(createdFile).toContain("targets:");
-    expect(createdFile).toContain("- geminicli");
-    expect(createdFile).not.toContain("root:");
-    expect(createdFile).not.toContain("globs:");
-    expect(createdFile).toContain("Optimize the code by following");
-  });
-
-  it("should use RulesProcessor when available", async () => {
-    // Mock RulesProcessor for claudecode
-    const mockRulesProcessor = {
-      loadToolRules: vi.fn(),
-      writeRulesyncRulesFromToolRules: vi.fn(),
+    // Mock CommandsProcessor to return empty
+    const mockCommandsProcessor = {
+      loadToolFiles: vi.fn().mockResolvedValue([]),
+      convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+      writeAiFiles: vi.fn().mockResolvedValue(0),
     };
-
-    const mockToolRules = [
-      {
-        baseDir: testDir,
-        relativeDirPath: ".",
-        relativeFilePath: "CLAUDE.md",
-        content: "# Claude Code Rules\n\nTest content",
-        toRulesyncRule: vi.fn(),
-      },
-    ];
-
-    mockRulesProcessor.loadToolRules.mockResolvedValue(mockToolRules);
-    mockRulesProcessor.writeRulesyncRulesFromToolRules.mockResolvedValue(undefined);
-
-    // Override the mock to return the mocked processor for claudecode
-    vi.spyOn(RulesProcessor, "create").mockImplementation((tool) => {
-      if (tool === "claudecode") {
-        return mockRulesProcessor as any;
-      }
-      return null;
-    });
-
-    // Mock parser to return empty results since we're using RulesProcessor
-    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
-      rules: [],
-      errors: [],
-    });
+    const { CommandsProcessor } = await import("../commands/commands-processor.js");
+    vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+    vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "geminicli", "roo"]);
 
     const result = await importConfiguration({
       tool: "claudecode",
       baseDir: testDir,
-      verbose: true,
+      features: ["rules"], // Only enable rules feature
     });
 
     expect(result.success).toBe(true);
-    expect(result.rulesCreated).toBe(1);
-    expect(mockRulesProcessor.loadToolRules).toHaveBeenCalledOnce();
-    expect(mockRulesProcessor.writeRulesyncRulesFromToolRules).toHaveBeenCalledWith(mockToolRules);
+    expect(result.rulesCreated).toBe(1); // Only the regular rule
+    expect(result.commandsCreated).toBeUndefined(); // No commands from CommandsProcessor
+
+    // Only regular rule file should be created
+    const createdFile = await readFile(join(rulesDir, "regular-rule.md"), "utf-8");
+    expect(createdFile).toContain("Regular rule content");
   });
 
-  it("should handle RulesProcessor errors gracefully", async () => {
-    // Mock RulesProcessor to throw an error
-    const mockRulesProcessor = {
-      loadToolRules: vi.fn().mockRejectedValue(new Error("Failed to load rules")),
-      writeRulesyncRulesFromToolRules: vi.fn(),
-    };
+  // it("should use RulesProcessor when available", async () => {
+  //   // RulesProcessor functionality has been replaced by CommandsProcessor and direct rule processing
+  // });
 
-    vi.spyOn(RulesProcessor, "create").mockImplementation((tool) => {
-      if (tool === "claudecode") {
-        return mockRulesProcessor as any;
-      }
-      return null;
-    });
-
-    vi.spyOn(parsers, "parseClaudeConfiguration").mockResolvedValueOnce({
-      rules: [],
-      errors: [],
-    });
-
-    const result = await importConfiguration({
-      tool: "claudecode",
-      baseDir: testDir,
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.rulesCreated).toBe(0);
-    expect(result.errors).toContain(
-      "Failed to process rules using RulesProcessor: Failed to load rules",
-    );
-  });
+  // it("should handle RulesProcessor errors gracefully", async () => {
+  //   // RulesProcessor functionality has been replaced by CommandsProcessor and direct rule processing
+  // });
 });
