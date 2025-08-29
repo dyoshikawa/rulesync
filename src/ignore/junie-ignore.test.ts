@@ -92,4 +92,68 @@ describe("JunieIgnore", () => {
     const commentLines = lines.filter((line) => line.startsWith("#"));
     expect(commentLines.length).toBeGreaterThan(5);
   });
+
+  describe("toRulesyncIgnore", () => {
+    it("should convert to RulesyncIgnore with correct paths and content", () => {
+      const patterns = ["*.log", "node_modules/", "!important.log"];
+      const junieIgnore = new JunieIgnore({
+        baseDir: ".",
+        relativeDirPath: ".",
+        relativeFilePath: ".aiignore",
+        patterns,
+        fileContent: patterns.join("\n"),
+      });
+
+      const rulesyncIgnore = junieIgnore.toRulesyncIgnore();
+
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getBody()).toBe(patterns.join("\n"));
+    });
+
+    it("should convert empty patterns correctly", () => {
+      const junieIgnore = new JunieIgnore({
+        baseDir: ".",
+        patterns: [],
+      });
+
+      const rulesyncIgnore = junieIgnore.toRulesyncIgnore();
+
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getBody()).toBe("");
+    });
+
+    it("should convert default patterns correctly", () => {
+      const junieIgnore = JunieIgnore.createWithDefaultPatterns();
+
+      const rulesyncIgnore = junieIgnore.toRulesyncIgnore();
+
+      expect(rulesyncIgnore.relativeDirPath).toBe(".");
+      expect(rulesyncIgnore.relativeFilePath).toBe(".rulesyncignore");
+
+      const body = rulesyncIgnore.getBody();
+      expect(body).toContain("*.pem");
+      expect(body).toContain("*.key");
+      expect(body).toContain(".env");
+      expect(body).toContain("node_modules/");
+    });
+
+    it("should convert and round-trip correctly", () => {
+      const patterns = ["*.log", ".env", "node_modules/", "!.env.example"];
+      const original = new JunieIgnore({
+        baseDir: ".",
+        patterns,
+      });
+
+      const rulesyncIgnore = original.toRulesyncIgnore();
+      const converted = JunieIgnore.fromRulesyncIgnore({
+        baseDir: ".",
+        relativeDirPath: ".",
+        rulesyncIgnore,
+      });
+
+      expect(converted.patterns).toEqual(patterns);
+    });
+  });
 });
