@@ -45,7 +45,7 @@ describe("CursorIgnore", () => {
   });
 
   describe("toRulesyncIgnore", () => {
-    it("should convert to RulesyncIgnore with correct frontmatter", () => {
+    it("should convert to RulesyncIgnore with correct paths", () => {
       const patterns = ["node_modules/", "*.log"];
       const cursorIgnore = new CursorIgnore({
         baseDir: testDir,
