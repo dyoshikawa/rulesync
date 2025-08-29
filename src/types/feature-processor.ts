@@ -31,9 +31,11 @@ export abstract class FeatureProcessor {
    * Returns the number of files written.
    */
   async writeAiFiles(aiFiles: AiFile[]): Promise<number> {
-    for (const aiFile of aiFiles) {
+    const writePromises = aiFiles.map(async (aiFile) => {
       await writeFileContent(aiFile.getFilePath(), aiFile.getFileContent());
-    }
+    });
+
+    await Promise.all(writePromises);
 
     return aiFiles.length;
   }

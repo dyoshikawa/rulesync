@@ -516,7 +516,7 @@ Test content`;
       });
 
       const toolFiles = await processor.loadToolFiles();
-      
+
       await expect(processor.convertToolFilesToRulesyncFiles(toolFiles)).rejects.toThrow(
         "Converting tool-specific MCP configurations to rulesync format is not yet implemented",
       );
@@ -624,7 +624,7 @@ Test content`;
   describe("static methods", () => {
     it("should return supported tool targets", () => {
       const toolTargets = McpProcessor.getToolTargets();
-      
+
       expect(toolTargets).toEqual([
         "amazonqcli",
         "augmentcode",

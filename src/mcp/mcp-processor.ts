@@ -48,7 +48,10 @@ export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
 
-  constructor({ baseDir = process.cwd(), toolTarget }: { baseDir?: string; toolTarget: McpProcessorToolTarget }) {
+  constructor({
+    baseDir = process.cwd(),
+    toolTarget,
+  }: { baseDir?: string; toolTarget: McpProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = McpProcessorToolTargetSchema.parse(toolTarget);
   }
@@ -615,5 +618,4 @@ export class McpProcessor extends FeatureProcessor {
       throw new Error(`Failed to write MCP configuration during import: ${errorMessage}`);
     }
   }
-
 }

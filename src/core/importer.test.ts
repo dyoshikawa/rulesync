@@ -10,10 +10,32 @@ import { importConfiguration } from "./importer.js";
 vi.mock("../parsers");
 vi.mock("../commands/commands-processor.js");
 vi.mock("../mcp/mcp-processor.js", () => {
+  const MockMcpProcessor = vi.fn().mockImplementation(() => ({
+    writeRulesyncMcpFromImport: vi.fn().mockResolvedValue(undefined),
+  }));
+
+  // Add static method to the mock constructor
+  (MockMcpProcessor as any).getToolTargets = vi
+    .fn()
+    .mockReturnValue([
+      "amazonqcli",
+      "augmentcode",
+      "claudecode",
+      "cline",
+      "codexcli",
+      "copilot",
+      "cursor",
+      "geminicli",
+      "junie",
+      "kiro",
+      "opencode",
+      "qwencode",
+      "roo",
+      "windsurf",
+    ]);
+
   return {
-    McpProcessor: vi.fn().mockImplementation(() => ({
-      writeRulesyncMcpFromImport: vi.fn().mockResolvedValue(undefined),
-    })),
+    McpProcessor: MockMcpProcessor,
   };
 });
 
@@ -32,12 +54,24 @@ describe("importConfiguration", () => {
     await mkdir(rulesDir, { recursive: true });
     await mkdir(commandsDir, { recursive: true });
     vi.resetAllMocks();
-    
+
     // Mock McpProcessor static method
     const { McpProcessor } = await import("../mcp/mcp-processor.js");
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue([
-      "amazonqcli", "augmentcode", "claudecode", "cline", "codexcli", "copilot",
-      "cursor", "geminicli", "junie", "kiro", "opencode", "qwencode", "roo", "windsurf"
+      "amazonqcli",
+      "augmentcode",
+      "claudecode",
+      "cline",
+      "codexcli",
+      "copilot",
+      "cursor",
+      "geminicli",
+      "junie",
+      "kiro",
+      "opencode",
+      "qwencode",
+      "roo",
+      "windsurf",
     ]);
   });
 
