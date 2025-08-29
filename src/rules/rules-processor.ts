@@ -165,7 +165,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "qwencode":
           return QwencodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".qwen", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -244,6 +244,13 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "opencode": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "qwencode": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
@@ -806,31 +813,65 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load Qwen Code rule configuration from QWEN.md file
+   * Load Qwen Code rule configuration from QWEN.md file and .qwen/memories/*.md files
    */
   private async loadQwencodeRules(): Promise<ToolRule[]> {
+    const rules: ToolRule[] = [];
+
+    // Load root file (QWEN.md)
     const qwenFile = join(this.baseDir, "QWEN.md");
-
-    if (!(await fileExists(qwenFile))) {
-      logger.warn(`Qwen Code memory file not found: ${qwenFile}`);
-      return [];
+    if (await fileExists(qwenFile)) {
+      try {
+        const qwencodeRule = await QwencodeRule.fromFilePath({
+          baseDir: this.baseDir,
+          relativeDirPath: ".",
+          relativeFilePath: "QWEN.md",
+          filePath: qwenFile,
+          validate: false,
+        });
+        rules.push(qwencodeRule);
+        logger.info(`Successfully loaded Qwen Code memory file`);
+      } catch (error) {
+        logger.warn(`Failed to load Qwen Code memory file ${qwenFile}:`, error);
+      }
     }
 
-    try {
-      const qwencodeRule = await QwencodeRule.fromFilePath({
-        baseDir: this.baseDir,
-        relativeDirPath: ".",
-        relativeFilePath: "QWEN.md",
-        filePath: qwenFile,
-        validate: false,
-      });
+    // Load non-root files from .qwen/memories/
+    const memoriesDir = join(this.baseDir, ".qwen", "memories");
+    if (await directoryExists(memoriesDir)) {
+      try {
+        const entries = await readdir(memoriesDir);
+        const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
-      logger.info(`Successfully loaded Qwen Code memory file`);
-      return [qwencodeRule];
-    } catch (error) {
-      logger.warn(`Failed to load Qwen Code memory file ${qwenFile}:`, error);
-      return [];
+        for (const mdFile of mdFiles) {
+          const filePath = join(memoriesDir, mdFile);
+          try {
+            const qwencodeRule = await QwencodeRule.fromFilePath({
+              baseDir: this.baseDir,
+              relativeDirPath: join(".qwen", "memories"),
+              relativeFilePath: mdFile,
+              filePath,
+              validate: false,
+            });
+            rules.push(qwencodeRule);
+          } catch (error) {
+            logger.warn(`Failed to load Qwen Code memories file ${filePath}:`, error);
+          }
+        }
+
+        if (mdFiles.length > 0) {
+          logger.info(`Successfully loaded ${mdFiles.length} Qwen Code memory files`);
+        }
+      } catch (error) {
+        logger.warn(`Failed to read Qwen Code memories directory ${memoriesDir}:`, error);
+      }
     }
+
+    if (rules.length === 0) {
+      logger.warn(`No Qwen Code rule files found`);
+    }
+
+    return rules;
   }
 
   /**
