@@ -276,17 +276,17 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   if (subagentsEnabled) {
     try {
       // Use SubagentsProcessor for supported tools
-      if (tool === "claudecode") {
+      if (SubagentsProcessor.getToolTargets().includes(tool)) {
         const subagentsProcessor = new SubagentsProcessor({
           baseDir,
-          toolTarget: "claudecode",
+          toolTarget: tool,
         });
 
         const toolFiles = await subagentsProcessor.loadToolFiles();
         if (toolFiles.length > 0) {
           const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-          await subagentsProcessor.writeAiFiles(rulesyncFiles);
-          subagentsCreated = toolFiles.length;
+          const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
+          subagentsCreated += writtenCount;
         }
       }
 
