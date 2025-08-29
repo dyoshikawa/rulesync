@@ -17,13 +17,26 @@ describe("generate command with --features option", () => {
     await writeFileContent(
       join(rulesDir, "test-rule.md"),
       `---
-root: true
+root: false
 targets: ["copilot", "claudecode"]
 description: "Test rule for features functionality"
 ---
 
 # Test Rule
 This is a test rule for testing the features functionality.`,
+    );
+
+    // Add a root rule for claudecode to generate CLAUDE.md
+    await writeFileContent(
+      join(rulesDir, "root-rule.md"),
+      `---
+root: true
+targets: ["claudecode"]
+description: "Root rule for Claude Code"
+---
+
+# Project Overview
+This is the project overview for Claude Code.`,
     );
 
     // Basic rulesync config

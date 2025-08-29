@@ -94,7 +94,7 @@ describe("CopilotRule", () => {
   });
 
   describe("fromFilePath", () => {
-    it("should create rule from valid file", async () => {
+    it("should create rule from valid non-root file", async () => {
       const frontmatter: CopilotRuleFrontmatter = {
         description: "GitHub Copilot coding standards",
         applyTo: "**/*.ts",
@@ -113,6 +113,24 @@ describe("CopilotRule", () => {
 
       expect(rule.getFrontmatter()).toEqual(frontmatter);
       expect(rule.getBody()).toBe(body);
+      expect(rule.isRoot()).toBe(false);
+    });
+
+    it("should create rule from root file", async () => {
+      const body = "This is the root Copilot instructions file content";
+      const filePath = join(testDir, "copilot-instructions.md");
+      await writeFile(filePath, body);
+
+      const rule = await CopilotRule.fromFilePath({
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        filePath,
+      });
+
+      expect(rule.getBody()).toBe(body);
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getFrontmatter().description).toBe("");
+      expect(rule.getFrontmatter().applyTo).toBe("**");
     });
 
     it("should handle file with minimal frontmatter", async () => {
@@ -172,7 +190,7 @@ describe("CopilotRule", () => {
   });
 
   describe("toRulesyncRule", () => {
-    it("should convert to RulesyncRule with proper targets", () => {
+    it("should convert non-root rule to RulesyncRule with proper targets", () => {
       const frontmatter: CopilotRuleFrontmatter = {
         description: "TypeScript coding standards",
         applyTo: "**/*.ts",
@@ -184,6 +202,7 @@ describe("CopilotRule", () => {
         frontmatter,
         body: "Use TypeScript features properly",
         fileContent: matter.stringify("Use TypeScript features properly", frontmatter),
+        root: false,
       });
 
       const rulesyncRule = rule.toRulesyncRule();
@@ -194,6 +213,31 @@ describe("CopilotRule", () => {
       expect(rulesyncFrontmatter.globs).toEqual(["**/*.ts"]);
       expect(rulesyncFrontmatter.root).toBe(false);
       expect(rulesyncRule.getBody()).toBe("Use TypeScript features properly");
+    });
+
+    it("should convert root rule to RulesyncRule with root flag", () => {
+      const frontmatter: CopilotRuleFrontmatter = {
+        description: "Root Copilot instructions",
+        applyTo: "**",
+      };
+
+      const rule = new CopilotRule({
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        frontmatter,
+        body: "Main Copilot configuration",
+        fileContent: "Main Copilot configuration",
+        root: true,
+      });
+
+      const rulesyncRule = rule.toRulesyncRule();
+      const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+
+      expect(rulesyncFrontmatter.targets).toEqual(["copilot"]);
+      expect(rulesyncFrontmatter.description).toBe("Root Copilot instructions");
+      expect(rulesyncFrontmatter.globs).toEqual(["**"]);
+      expect(rulesyncFrontmatter.root).toBe(true);
+      expect(rulesyncRule.getBody()).toBe("Main Copilot configuration");
     });
 
     it("should handle default applyTo pattern", () => {
@@ -237,7 +281,7 @@ describe("CopilotRule", () => {
   });
 
   describe("fromRulesyncRule", () => {
-    it("should convert from RulesyncRule with copilot target", () => {
+    it("should convert from RulesyncRule with copilot target (non-root)", () => {
       const targets: ToolTargets = ["copilot"];
       const rulesyncFrontmatter = {
         targets,
@@ -263,6 +307,37 @@ describe("CopilotRule", () => {
       expect(frontmatter.description).toBe("Copilot rule from Rulesync");
       expect(frontmatter.applyTo).toBe("**/*.tsx,**/*.jsx");
       expect(copilotRule.getBody()).toBe("React component guidelines");
+      expect(copilotRule.isRoot()).toBe(false);
+      expect(copilotRule.getRelativeDirPath()).toBe(".github/instructions");
+      expect(copilotRule.getRelativeFilePath()).toBe("react-components.instructions.md");
+    });
+
+    it("should convert from RulesyncRule with root flag", () => {
+      const targets: ToolTargets = ["copilot"];
+      const rulesyncFrontmatter = {
+        targets,
+        root: true,
+        description: "Root Copilot rule",
+        globs: ["**"],
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: rulesyncFrontmatter,
+        body: "This is the main Copilot instructions",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "root-rule.md",
+        fileContent: matter.stringify("This is the main Copilot instructions", rulesyncFrontmatter),
+      });
+
+      const copilotRule = CopilotRule.fromRulesyncRule({
+        rulesyncRule,
+        relativeDirPath: ".github",
+      });
+
+      expect(copilotRule.getBody()).toBe("This is the main Copilot instructions");
+      expect(copilotRule.isRoot()).toBe(true);
+      expect(copilotRule.getRelativeDirPath()).toBe(".github");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
     });
 
     it("should handle single glob pattern", () => {

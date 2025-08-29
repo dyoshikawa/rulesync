@@ -119,7 +119,9 @@ export class RulesProcessor extends FeatureProcessor {
         case "copilot":
           return CopilotRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".github/instructions",
+            relativeDirPath: rulesyncRule.getFrontmatter().root
+              ? ".github"
+              : ".github/instructions",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -212,6 +214,13 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "codexcli": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "copilot": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
