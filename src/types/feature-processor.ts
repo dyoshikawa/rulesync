@@ -1,0 +1,35 @@
+import { writeFileContent } from "../utils/file.js";
+import { AiFile } from "./ai-file.js";
+import { RulesyncFile } from "./rulesync-file.js";
+import { ToolFile } from "./tool-file.js";
+import { ToolTarget } from "./tool-targets.js";
+
+export abstract class FeatureProcessor {
+  protected readonly baseDir: string;
+
+  constructor({ baseDir = process.cwd() }: { baseDir?: string }) {
+    this.baseDir = baseDir;
+  }
+
+  abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
+
+  abstract loadToolFiles(): Promise<ToolFile[]>;
+
+  abstract convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]>;
+
+  abstract convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]>;
+
+  /**
+   * Return tool targets that this feature supports.
+   */
+  abstract getToolTargets(): ToolTarget[];
+
+  /**
+   * Once converted to rulesync/tool files, write them to the filesystem.
+   */
+  async writeAiFiles(aiFiles: AiFile[]): Promise<void> {
+    for (const aiFile of aiFiles) {
+      await writeFileContent(aiFile.getFilePath(), aiFile.getFileContent());
+    }
+  }
+}

@@ -289,10 +289,11 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
           toolTarget: "claudecode",
         });
 
-        const toolSubagents = await subagentsProcessor.loadToolSubagents();
-        if (toolSubagents.length > 0) {
-          await subagentsProcessor.writeRulesyncSubagentsFromToolSubagents(toolSubagents);
-          subagentsCreated = toolSubagents.length;
+        const toolFiles = await subagentsProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          await subagentsProcessor.writeAiFiles(rulesyncFiles);
+          subagentsCreated = toolFiles.length;
         }
       }
 

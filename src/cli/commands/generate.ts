@@ -386,8 +386,9 @@ Available tools:
                 toolTarget: "claudecode",
               });
 
-              const rulesyncSubagents = await processor.loadRulesyncSubagents();
-              await processor.writeToolSubagentsFromRulesyncSubagents(rulesyncSubagents);
+              const rulesyncFiles = await processor.loadRulesyncFiles();
+              const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+              await processor.writeAiFiles(toolFiles);
 
               // Count the generated files
               const outputDir = join(
