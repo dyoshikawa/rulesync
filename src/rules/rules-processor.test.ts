@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
 import { writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { ClaudecodeRule } from "./claudecode-rule.js";
 import { RulesProcessor, RulesProcessorToolTargetSchema } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule } from "./tool-rule.js";
@@ -538,6 +539,84 @@ ${largeContent}`,
       const rules = await processor.loadRulesyncFiles();
       expect(rules).toHaveLength(1);
       expect(rules[0]!.getBody()).toContain("Content line.");
+    });
+  });
+
+  describe("getReferencesSection", () => {
+    it("should return empty string for empty tool rules", () => {
+      const result = processor.getReferencesSection([], ".claude/memories");
+      expect(result).toBe("");
+    });
+
+    it("should generate XML references section for single rule", () => {
+      const mockRule = new ClaudecodeRule({
+        baseDir: testDir,
+        relativeDirPath: ".claude/memories",
+        relativeFilePath: "test-rule.md",
+        fileContent: "---\ndescription: Test rule description\n---\nTest rule content",
+        frontmatter: { description: "Test rule description" },
+        body: "Test rule content",
+        validate: false,
+      });
+
+      const result = processor.getReferencesSection([mockRule], ".claude/memories");
+      
+      expect(result).toContain("Please also reference the following documents as needed");
+      expect(result).toContain("<Documents>");
+      expect(result).toContain("<Document>");
+      expect(result).toContain("<Path>@.claude/memories/test-rule.md</Path>");
+      expect(result).toContain("<Description>Test rule description</Description>");
+      expect(result).toContain("</Document>");
+      expect(result).toContain("</Documents>");
+    });
+
+    it("should generate XML references section for multiple rules", () => {
+      const mockRules = [
+        new ClaudecodeRule({
+          baseDir: testDir,
+          relativeDirPath: ".claude/memories",
+          relativeFilePath: "rule1.md",
+          fileContent: "---\ndescription: First rule\n---\nRule 1 content",
+          frontmatter: { description: "First rule" },
+          body: "Rule 1 content",
+          validate: false,
+        }),
+        new ClaudecodeRule({
+          baseDir: testDir,
+          relativeDirPath: ".claude/memories",
+          relativeFilePath: "rule2.md",
+          fileContent: "---\ndescription: Second rule\n---\nRule 2 content",
+          frontmatter: { description: "Second rule" },
+          body: "Rule 2 content",
+          validate: false,
+        }),
+      ];
+
+      const result = processor.getReferencesSection(mockRules, ".claude/memories");
+      
+      expect(result).toContain("Please also reference the following documents as needed");
+      expect(result).toContain("<Path>@.claude/memories/rule1.md</Path>");
+      expect(result).toContain("<Description>First rule</Description>");
+      expect(result).toContain("<Path>@.claude/memories/rule2.md</Path>");
+      expect(result).toContain("<Description>Second rule</Description>");
+    });
+
+    it("should include FilePatterns for ClaudecodeRule (defaults to **/*)", () => {
+      const mockRule = new ClaudecodeRule({
+        baseDir: testDir,
+        relativeDirPath: ".claude/memories",
+        relativeFilePath: "default-globs.md",
+        fileContent: "---\ndescription: Rule with default globs\n---\nContent",
+        frontmatter: { description: "Rule with default globs" },
+        body: "Content",
+        validate: false,
+      });
+
+      const result = processor.getReferencesSection([mockRule], ".claude/memories");
+      
+      expect(result).toContain("<Path>@.claude/memories/default-globs.md</Path>");
+      expect(result).toContain("<Description>Rule with default globs</Description>");
+      expect(result).toContain("<FilePatterns>**/*</FilePatterns>");
     });
   });
 

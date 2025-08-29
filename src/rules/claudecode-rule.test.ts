@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import matter from "gray-matter";
 import { setupTestDirectory } from "../test-utils/index.js";
 import type { RuleFrontmatter } from "../types/rules.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -212,6 +213,47 @@ Content`;
       expect(rule.getRelativeFilePath()).toBe("test.md");
       expect(rule.getRelativeDirPath()).toBe("rules");
       expect(rule.getFilePath()).toBe(join(_testDir, "rules", "test.md"));
+    });
+  });
+
+  describe("setBody", () => {
+    it("should update body and fileContent when setBody is called", () => {
+      const rule = new ClaudecodeRule({
+        baseDir: _testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "test.md",
+        fileContent: "---\ndescription: Original description\n---\nOriginal content",
+        frontmatter: { description: "Original description" },
+        body: "Original content",
+        validate: false,
+      });
+
+      const newBody = "Updated content with new rules";
+      rule.setBody(newBody);
+
+      // Verify the fileContent is updated with new body
+      const parsedContent = matter(rule.getFileContent());
+      expect(parsedContent.content.trim()).toBe(newBody);
+      expect(parsedContent.data.description).toBe("Original description");
+    });
+
+    it("should preserve frontmatter when updating body", () => {
+      const originalFrontmatter = { description: "Test description" };
+      const rule = new ClaudecodeRule({
+        baseDir: _testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "test.md",
+        fileContent: "---\ndescription: Test description\n---\nOriginal body",
+        frontmatter: originalFrontmatter,
+        body: "Original body",
+        validate: false,
+      });
+
+      rule.setBody("New body content");
+
+      const parsedContent = matter(rule.getFileContent());
+      expect(parsedContent.data).toEqual(originalFrontmatter);
+      expect(parsedContent.content.trim()).toBe("New body content");
     });
   });
 

@@ -25,8 +25,8 @@ export interface ClaudecodeRuleParams extends AiFileParams {
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  private readonly body: string;
-  private readonly frontmatter: ClaudecodeRuleFrontmatter;
+  private body: string;
+  private frontmatter: ClaudecodeRuleFrontmatter;
 
   constructor(params: ClaudecodeRuleParams) {
     super({
@@ -111,5 +111,13 @@ export class ClaudecodeRule extends ToolRule {
         error: error instanceof Error ? error : new Error("Unknown validation error"),
       };
     }
+  }
+
+  setBody(newBody: string): void {
+    this.body = newBody;
+
+    // Update fileContent by combining frontmatter and body
+    const matterString = matter.stringify(newBody, this.frontmatter);
+    this.fileContent = matterString;
   }
 }

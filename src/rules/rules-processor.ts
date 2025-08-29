@@ -396,7 +396,7 @@ export class RulesProcessor extends FeatureProcessor {
     // Check if the memories directory exists
     if (!(await directoryExists(claudeMemoriesDir))) {
       logger.debug(`Claude Code memories directory not found: ${claudeMemoriesDir}`);
-      
+
       // Fall back to check for legacy CLAUDE.md file
       const claudeFile = join(this.baseDir, "CLAUDE.md");
       if (!(await fileExists(claudeFile))) {
@@ -426,7 +426,9 @@ export class RulesProcessor extends FeatureProcessor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      logger.debug(`No markdown files found in Claude Code memories directory: ${claudeMemoriesDir}`);
+      logger.debug(
+        `No markdown files found in Claude Code memories directory: ${claudeMemoriesDir}`,
+      );
       return [];
     }
 
@@ -875,7 +877,7 @@ export class RulesProcessor extends FeatureProcessor {
     }
   }
 
-  private getReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
+  public getReferencesSection(toolRules: ToolRule[], memorySubDir: string): string {
     if (toolRules.length === 0) {
       return "";
     }
@@ -894,7 +896,7 @@ export class RulesProcessor extends FeatureProcessor {
           const rulesyncRule = rule.toRulesyncRule();
           const frontmatter = rulesyncRule.getFrontmatter();
           const filename = rule.getRelativeFilePath().replace(/\.md$/, "");
-          
+
           const relativePath = `@${memorySubDir}/${filename}.md`;
           const document: Record<string, string> = {
             Path: relativePath,

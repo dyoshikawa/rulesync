@@ -40,7 +40,7 @@ export abstract class AiFile {
   /**
    * Whole raw file content
    */
-  protected readonly fileContent: string;
+  protected fileContent: string;
 
   constructor({
     baseDir = ".",
