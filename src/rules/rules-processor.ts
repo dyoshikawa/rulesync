@@ -931,7 +931,7 @@ export class RulesProcessor extends FeatureProcessor {
     lines.push(xmlContent);
     lines.push("");
 
-    return lines.join("\n");
+    return lines.join("\n") + "\n";
   }
 
   public generateReferencesSection(toolRules: ToolRule[]): string {
@@ -960,6 +960,6 @@ export class RulesProcessor extends FeatureProcessor {
     }
     lines.push("");
 
-    return lines.join("\n");
+    return lines.join("\n") + "\n";
   }
 }
