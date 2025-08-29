@@ -39,6 +39,14 @@ export class ClaudecodeSubagent extends ToolSubagent {
     this.body = body;
   }
 
+  getFrontmatter(): ClaudecodeSubagentFrontmatter {
+    return this.frontmatter;
+  }
+
+  getBody(): string {
+    return this.body;
+  }
+
   toRulesyncSubagent(): RulesyncSubagent {
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["claudecode"] as const,
@@ -57,8 +65,9 @@ export class ClaudecodeSubagent extends ToolSubagent {
     return new RulesyncSubagent({
       frontmatter: rulesyncFrontmatter,
       body: this.body,
+      baseDir: this.baseDir,
       relativeDirPath: ".rulesync/subagents",
-      relativeFilePath: this.relativeFilePath,
+      relativeFilePath: this.getRelativeFilePath(),
       fileContent,
       validate: false,
     });
