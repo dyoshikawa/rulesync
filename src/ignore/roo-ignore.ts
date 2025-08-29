@@ -34,12 +34,8 @@ export class RooIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
       baseDir: ".",
-      relativeDirPath: ".rulesync/ignore",
-      relativeFilePath: "roo.md",
-      frontmatter: {
-        targets: ["roo"],
-        description: `Generated from Roo ignore file: ${this.relativeFilePath}`,
-      },
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
       body: this.patterns.join("\n"),
       fileContent: this.patterns.join("\n"),
     });
