@@ -1,9 +1,6 @@
 import { join } from "node:path";
 import matter from "gray-matter";
-import {
-  CommandsProcessor,
-  type CommandsProcessorToolTarget,
-} from "../commands/commands-processor.js";
+import { CommandsProcessor } from "../commands/commands-processor.js";
 import {
   parseAgentsMdConfiguration,
   parseAmazonqcliConfiguration,
@@ -306,17 +303,17 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   if (features.includes("commands")) {
     try {
       // Use CommandsProcessor for supported tools
-      if (tool === "claudecode" || tool === "geminicli" || tool === "roo") {
-        const toolTarget: CommandsProcessorToolTarget = tool;
+      if (CommandsProcessor.getToolTargets().includes(tool)) {
         const commandsProcessor = new CommandsProcessor({
           baseDir,
-          toolTarget,
+          toolTarget: tool,
         });
 
-        const toolCommands = await commandsProcessor.loadToolCommands();
-        if (toolCommands.length > 0) {
-          await commandsProcessor.writeRulesyncCommandsFromToolCommands(toolCommands);
-          commandsCreated = toolCommands.length;
+        const toolFiles = await commandsProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          const writtenCount = await commandsProcessor.writeAiFiles(rulesyncFiles);
+          commandsCreated = writtenCount;
         }
       }
 

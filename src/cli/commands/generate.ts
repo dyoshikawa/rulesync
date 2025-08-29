@@ -344,59 +344,21 @@ Available tools:
           },
         );
 
-        for (const target of commandSupportedTargets) {
-          for (const baseDir of baseDirs) {
-            try {
-              const rulesyncCommandsDir = join(".rulesync", "commands");
-              const fullPath = join(process.cwd(), rulesyncCommandsDir);
+        for (const baseDir of baseDirs) {
+          for (const toolTarget of intersection(
+            commandSupportedTargets,
+            CommandsProcessor.getToolTargets(),
+          )) {
+            const processor = new CommandsProcessor({
+              baseDir: baseDir,
+              toolTarget: toolTarget,
+            });
 
-              if (!(await fileExists(fullPath))) {
-                logger.info(`No rulesync commands directory found at ${fullPath}`);
-                continue;
-              }
-
-              // Use CommandsProcessor to generate command files
-              const processor = new CommandsProcessor({
-                baseDir: baseDir === process.cwd() ? "." : baseDir,
-                toolTarget: target,
-              });
-
-              const rulesyncCommands = await processor.loadRulesyncCommands();
-              await processor.writeToolCommandsFromRulesyncCommands(rulesyncCommands);
-
-              // Count the generated files
-              const outputDir = join(
-                baseDir === process.cwd() ? "." : baseDir,
-                target === "claudecode"
-                  ? ".claude/commands"
-                  : target === "geminicli"
-                    ? ".gemini/commands"
-                    : ".roo/commands",
-              );
-
-              if (await fileExists(outputDir)) {
-                const { readdir } = await import("node:fs/promises");
-                const files = await readdir(outputDir, { recursive: true });
-                const generatedCount = files.filter(
-                  (file) =>
-                    typeof file === "string" && (file.endsWith(".md") || file.endsWith(".toml")),
-                ).length;
-                totalCommandOutputs += generatedCount;
-
-                if (generatedCount > 0) {
-                  logger.success(
-                    `Generated ${generatedCount} ${target} command(s) in ${outputDir}`,
-                  );
-                }
-              }
-            } catch (error) {
-              logger.warn(
-                `Failed to generate commands for ${target} in ${baseDir}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-              );
-              continue;
-            }
+            const rulesyncFiles = await processor.loadRulesyncFiles();
+            const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+            const writtenCount = await processor.writeAiFiles(toolFiles);
+            totalCommandOutputs += writtenCount;
+            logger.success(`Generated ${writtenCount} ${toolTarget} command(s) in ${baseDir}`);
           }
         }
       } else {

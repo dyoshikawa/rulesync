@@ -64,7 +64,7 @@ describe("CommandsProcessor", () => {
     });
   });
 
-  describe("loadRulesyncCommands", () => {
+  describe("loadRulesyncFiles", () => {
     it("should load and parse rulesync command files", async () => {
       const processor = new CommandsProcessor({
         baseDir: testDir,
@@ -87,7 +87,7 @@ Please perform a thorough code review focusing on:
 
       await writeFile(join(rulesyncDir, "code-review.md"), fileContent);
 
-      const rulesyncCommands = await processor.loadRulesyncCommands();
+      const rulesyncCommands = await processor.loadRulesyncFiles();
 
       expect(rulesyncCommands).toHaveLength(1);
       expect(rulesyncCommands[0]!).toBeInstanceOf(RulesyncCommand);
@@ -96,7 +96,7 @@ Please perform a thorough code review focusing on:
       );
     });
 
-    it("should throw error when no markdown files found", async () => {
+    it("should return empty array when no markdown files found", async () => {
       const processor = new CommandsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
@@ -106,18 +106,22 @@ Please perform a thorough code review focusing on:
       const rulesyncDir = join(testDir, ".rulesync", "commands");
       await mkdir(rulesyncDir, { recursive: true });
 
-      await expect(processor.loadRulesyncCommands()).rejects.toThrow(
-        "No markdown files found in rulesync commands directory",
-      );
+      const rulesyncCommands = await processor.loadRulesyncFiles();
+      expect(rulesyncCommands).toHaveLength(0);
     });
 
-    it("should throw error when commands directory does not exist", async () => {
+    it("should return empty array when commands directory does not exist", async () => {
       const processor = new CommandsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncCommands()).rejects.toThrow("ENOENT");
+      // Mock directoryExists to return false
+      const { directoryExists } = await import("../utils/file.js");
+      (directoryExists as any).mockResolvedValueOnce(false);
+
+      const rulesyncCommands = await processor.loadRulesyncFiles();
+      expect(rulesyncCommands).toHaveLength(0);
     });
   });
 
@@ -251,7 +255,7 @@ Please perform a thorough code review focusing on:
     });
   });
 
-  describe("loadToolCommands", () => {
+  describe("loadToolFiles", () => {
     it("should load claudecode commands when tool target is claudecode", async () => {
       const processor = new CommandsProcessor({
         baseDir: testDir,
@@ -270,7 +274,7 @@ Perform code review analysis.`;
 
       await writeFile(join(commandsDir, "code-review.md"), fileContent);
 
-      const toolCommands = await processor.loadToolCommands();
+      const toolCommands = await processor.loadToolFiles();
 
       expect(toolCommands).toHaveLength(1);
       expect(toolCommands[0]).toBeInstanceOf(ClaudecodeCommand);
@@ -286,7 +290,7 @@ Perform code review analysis.`;
       const { directoryExists } = await import("../utils/file.js");
       (directoryExists as any).mockResolvedValueOnce(false);
 
-      const toolCommands = await processor.loadToolCommands();
+      const toolCommands = await processor.loadToolFiles();
 
       expect(toolCommands).toHaveLength(0);
     });
@@ -386,6 +390,13 @@ Perform code review analysis.`,
       }
 
       expect(() => z.enum(["claudecode", "geminicli", "roo"]).parse(invalidTarget)).toThrow();
+    });
+  });
+
+  describe("static methods", () => {
+    it("should return supported tool targets", () => {
+      const toolTargets = CommandsProcessor.getToolTargets();
+      expect(toolTargets).toEqual(["claudecode", "geminicli", "roo"]);
     });
   });
 

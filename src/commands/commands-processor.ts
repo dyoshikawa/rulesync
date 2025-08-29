@@ -1,7 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
-import { Processor } from "../types/processor.js";
+import { FeatureProcessor } from "../types/feature-processor.js";
+import { RulesyncFile } from "../types/rulesync-file.js";
+import { ToolFile } from "../types/tool-file.js";
+import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
@@ -10,25 +13,27 @@ import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
 
-export const CommandsProcessorToolTargetSchema = z.enum(["claudecode", "geminicli", "roo"]);
+const commandsProcessorToolTargets: ToolTarget[] = ["claudecode", "geminicli", "roo"];
+export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
 
-export class CommandsProcessor extends Processor {
+export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
 
   constructor({
-    baseDir,
+    baseDir = process.cwd(),
     toolTarget,
-  }: { baseDir: string; toolTarget: CommandsProcessorToolTarget }) {
+  }: { baseDir?: string; toolTarget: CommandsProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = CommandsProcessorToolTargetSchema.parse(toolTarget);
   }
 
-  /**
-   * Convert rulesync commands to tool-specific command formats and write them to the appropriate directories
-   */
-  async writeToolCommandsFromRulesyncCommands(rulesyncCommands: RulesyncCommand[]): Promise<void> {
+  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncCommands = rulesyncFiles.filter(
+      (file): file is RulesyncCommand => file instanceof RulesyncCommand,
+    );
+
     const toolCommands = rulesyncCommands.map((rulesyncCommand) => {
       switch (this.toolTarget) {
         case "claudecode":
@@ -54,18 +59,33 @@ export class CommandsProcessor extends Processor {
       }
     });
 
-    await this.writeAiFiles(toolCommands);
+    return toolCommands;
+  }
+
+  async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    const toolCommands = toolFiles.filter(
+      (file): file is ToolCommand => file instanceof ToolCommand,
+    );
+
+    const rulesyncCommands = toolCommands.map((toolCommand) => {
+      return toolCommand.toRulesyncCommand();
+    });
+
+    return rulesyncCommands;
   }
 
   /**
+   * Implementation of abstract method from FeatureProcessor
    * Load and parse rulesync command files from .rulesync/commands/ directory
    */
-  async loadRulesyncCommands(): Promise<RulesyncCommand[]> {
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const commandsDir = join(this.baseDir, ".rulesync", "commands");
 
     // Check if directory exists
-    if (!(await directoryExists(commandsDir))) {
-      throw new Error(`Rulesync commands directory not found: ${commandsDir}`);
+    const dirExists = await directoryExists(commandsDir);
+    if (!dirExists) {
+      logger.debug(`Rulesync commands directory not found: ${commandsDir}`);
+      return [];
     }
 
     // Read all markdown files from the directory
@@ -73,7 +93,8 @@ export class CommandsProcessor extends Processor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      throw new Error(`No markdown files found in rulesync commands directory: ${commandsDir}`);
+      logger.debug(`No markdown files found in rulesync commands directory: ${commandsDir}`);
+      return [];
     }
 
     logger.info(`Found ${mdFiles.length} command files in ${commandsDir}`);
@@ -98,7 +119,8 @@ export class CommandsProcessor extends Processor {
     }
 
     if (rulesyncCommands.length === 0) {
-      throw new Error(`No valid commands found in ${commandsDir}`);
+      logger.debug(`No valid commands found in ${commandsDir}`);
+      return [];
     }
 
     logger.info(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
@@ -106,9 +128,10 @@ export class CommandsProcessor extends Processor {
   }
 
   /**
+   * Implementation of abstract method from FeatureProcessor
    * Load tool-specific command configurations and parse them into ToolCommand instances
    */
-  async loadToolCommands(): Promise<ToolCommand[]> {
+  async loadToolFiles(): Promise<ToolFile[]> {
     switch (this.toolTarget) {
       case "claudecode":
         return await this.loadClaudecodeCommands();
@@ -268,14 +291,21 @@ export class CommandsProcessor extends Processor {
     return toolCommands;
   }
 
-  /**
-   * Convert tool-specific commands back to rulesync commands and write them to .rulesync/commands/
-   */
-  async writeRulesyncCommandsFromToolCommands(toolCommands: ToolCommand[]): Promise<void> {
-    const rulesyncCommands = toolCommands.map((toolCommand) => {
-      return toolCommand.toRulesyncCommand();
-    });
+  async writeToolCommandsFromRulesyncCommands(rulesyncCommands: RulesyncCommand[]): Promise<void> {
+    const toolCommands = await this.convertRulesyncFilesToToolFiles(rulesyncCommands);
+    await this.writeAiFiles(toolCommands);
+  }
 
+  async writeRulesyncCommandsFromToolCommands(toolCommands: ToolCommand[]): Promise<void> {
+    const rulesyncCommands = await this.convertToolFilesToRulesyncFiles(toolCommands);
     await this.writeAiFiles(rulesyncCommands);
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Return the tool targets that this processor supports
+   */
+  static getToolTargets(): ToolTarget[] {
+    return commandsProcessorToolTargets;
   }
 }
