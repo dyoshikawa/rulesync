@@ -112,7 +112,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "codexcli":
           return CodexcliRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".codex", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -208,6 +208,13 @@ export class RulesProcessor extends FeatureProcessor {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "codexcli": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
         );
         return toolRules;
       }
@@ -523,31 +530,65 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load OpenAI Codex CLI rule configuration from AGENTS.md file
+   * Load OpenAI Codex CLI rule configuration from AGENTS.md and .codex/memories/*.md files
    */
   private async loadCodexcliRules(): Promise<ToolRule[]> {
+    const rules: ToolRule[] = [];
+
+    // Load root file (AGENTS.md)
     const agentsFile = join(this.baseDir, "AGENTS.md");
-
-    if (!(await fileExists(agentsFile))) {
-      logger.warn(`OpenAI Codex CLI agents file not found: ${agentsFile}`);
-      return [];
+    if (await fileExists(agentsFile)) {
+      try {
+        const codexcliRule = await CodexcliRule.fromFilePath({
+          baseDir: this.baseDir,
+          relativeDirPath: ".",
+          relativeFilePath: "AGENTS.md",
+          filePath: agentsFile,
+          validate: false,
+        });
+        rules.push(codexcliRule);
+        logger.info(`Successfully loaded OpenAI Codex CLI agents file`);
+      } catch (error) {
+        logger.warn(`Failed to load OpenAI Codex CLI agents file ${agentsFile}:`, error);
+      }
     }
 
-    try {
-      const codexcliRule = await CodexcliRule.fromFilePath({
-        baseDir: this.baseDir,
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-        filePath: agentsFile,
-        validate: false,
-      });
+    // Load non-root files from .codex/memories/
+    const memoriesDir = join(this.baseDir, ".codex", "memories");
+    if (await directoryExists(memoriesDir)) {
+      try {
+        const entries = await readdir(memoriesDir);
+        const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
-      logger.info(`Successfully loaded OpenAI Codex CLI agents file`);
-      return [codexcliRule];
-    } catch (error) {
-      logger.warn(`Failed to load OpenAI Codex CLI agents file ${agentsFile}:`, error);
-      return [];
+        for (const mdFile of mdFiles) {
+          const filePath = join(memoriesDir, mdFile);
+          try {
+            const codexcliRule = await CodexcliRule.fromFilePath({
+              baseDir: this.baseDir,
+              relativeDirPath: join(".codex", "memories"),
+              relativeFilePath: mdFile,
+              filePath,
+              validate: false,
+            });
+            rules.push(codexcliRule);
+          } catch (error) {
+            logger.warn(`Failed to load Codex CLI memories file ${filePath}:`, error);
+          }
+        }
+
+        if (mdFiles.length > 0) {
+          logger.info(`Successfully loaded ${mdFiles.length} OpenAI Codex CLI memory files`);
+        }
+      } catch (error) {
+        logger.warn(`Failed to read OpenAI Codex CLI memories directory ${memoriesDir}:`, error);
+      }
     }
+
+    if (rules.length === 0) {
+      logger.warn(`No OpenAI Codex CLI rule files found`);
+    }
+
+    return rules;
   }
 
   /**

@@ -1,13 +1,16 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import matter from "gray-matter";
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
+import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
-export type CodexcliRuleParams = Omit<AiFileParams, "fileContent"> & {
+export interface CodexcliRuleParams extends Omit<ToolRuleParams, "fileContent"> {
   body: string;
   fileContent?: string;
-};
+}
 
 /**
  * Rule generator for OpenAI Codex CLI
@@ -19,26 +22,17 @@ export type CodexcliRuleParams = Omit<AiFileParams, "fileContent"> & {
 export class CodexcliRule extends ToolRule {
   private readonly body: string;
 
-  constructor({ body, fileContent, ...rest }: CodexcliRuleParams) {
-    const actualFileContent = fileContent || body;
-
+  constructor(params: CodexcliRuleParams) {
     super({
-      ...rest,
-      fileContent: actualFileContent,
+      ...params,
+      fileContent: params.fileContent || params.body,
     });
 
-    this.body = body;
+    this.body = params.body;
   }
 
-  static async fromFilePath({
-    baseDir = ".",
-    relativeDirPath,
-    relativeFilePath,
-    filePath,
-    validate = true,
-  }: AiFileFromFilePathParams): Promise<CodexcliRule> {
-    // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+  static async fromFilePath(params: AiFileFromFilePathParams): Promise<CodexcliRule> {
+    const fileContent = await readFile(params.filePath, "utf8");
     const { content } = matter(fileContent);
 
     // If there's no frontmatter, gray-matter returns the entire content as content
@@ -46,53 +40,57 @@ export class CodexcliRule extends ToolRule {
     const body = content.trim() || fileContent.trim();
 
     return new CodexcliRule({
-      baseDir,
-      relativeDirPath,
-      relativeFilePath,
-      body,
+      baseDir: params.baseDir || process.cwd(),
+      relativeDirPath: params.relativeDirPath,
+      relativeFilePath: params.relativeFilePath,
       fileContent,
-      validate,
+      body,
+      validate: params.validate ?? true,
+      root: params.relativeFilePath === "AGENTS.md",
     });
   }
 
-  static fromRulesyncRule({
-    baseDir = ".",
-    relativeDirPath,
-    rulesyncRule,
-    validate = true,
-  }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
+  static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): CodexcliRule {
+    const { rulesyncRule, ...rest } = params;
+
+    const root = rulesyncRule.getFrontmatter().root;
     const body = rulesyncRule.getBody();
-    const fileContent = body; // OpenAI Codex CLI rules are plain markdown without frontmatter
+
+    if (root) {
+      return new CodexcliRule({
+        ...rest,
+        fileContent: body,
+        relativeFilePath: "AGENTS.md",
+        body,
+        root,
+      });
+    }
 
     return new CodexcliRule({
-      baseDir,
-      relativeDirPath,
+      ...rest,
+      fileContent: body,
+      relativeDirPath: join(".codex", "memories"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body,
-      fileContent,
-      validate,
+      root,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
-    const frontmatter = {
-      root: false, // OpenAI Codex CLI supports subdirectories
-      targets: ["codexcli" as const],
-      description: "OpenAI Codex CLI instructions",
+    const rulesyncFrontmatter: RuleFrontmatter = {
+      root: this.isRoot(),
+      targets: ["codexcli"],
+      description: "",
       globs: ["**/*"],
     };
 
-    // OpenAI Codex CLI rules use plain markdown content
-    const fileContent = matter.stringify(this.body, frontmatter);
-
     return new RulesyncRule({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      frontmatter,
+      baseDir: this.getBaseDir(),
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
+      frontmatter: rulesyncFrontmatter,
       body: this.body,
-      fileContent,
-      validate: false,
+      fileContent: this.getFileContent(),
     });
   }
 

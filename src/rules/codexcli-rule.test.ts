@@ -139,6 +139,41 @@ This is the actual content.`;
 
       expect(rule.getBody()).toBe("");
     });
+
+    it("should detect root file when relativeFilePath is AGENTS.md", async () => {
+      const filePath = join(testDir, "AGENTS.md");
+      const content = "# Project Rules\n\nUse TypeScript.";
+      await writeFile(filePath, content);
+
+      const rule = await CodexcliRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        filePath,
+      });
+
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getBody()).toBe(content);
+    });
+
+    it("should not detect root file for non-AGENTS.md files", async () => {
+      const memoriesDir = join(testDir, ".codex", "memories");
+      await mkdir(memoriesDir, { recursive: true });
+
+      const filePath = join(memoriesDir, "some-memory.md");
+      const content = "# Memory File\n\nSome context.";
+      await writeFile(filePath, content);
+
+      const rule = await CodexcliRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: join(".codex", "memories"),
+        relativeFilePath: "some-memory.md",
+        filePath,
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getBody()).toBe(content);
+    });
   });
 
   describe("fromRulesyncRule", () => {
@@ -166,6 +201,64 @@ This is the actual content.`;
 
       expect(codexcliRule.getBody()).toBe("# Test Rule\n\nThis is a test.");
       expect(codexcliRule.getRelativeFilePath()).toBe("test.md");
+      expect(codexcliRule.isRoot()).toBe(false);
+      expect(codexcliRule.getRelativeDirPath()).toBe(join(".codex", "memories"));
+    });
+
+    it("should create root CodexcliRule from root RulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "root-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["codexcli"],
+          description: "Root rule",
+          globs: ["**/*"],
+        },
+        body: "# Root Rule\n\nThis is a root rule.",
+        fileContent:
+          "---\nroot: true\ntargets:\n  - codexcli\n---\n# Root Rule\n\nThis is a root rule.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getBody()).toBe("# Root Rule\n\nThis is a root rule.");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(codexcliRule.isRoot()).toBe(true);
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+    });
+
+    it("should create non-root CodexcliRule from non-root RulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "memory-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["codexcli"],
+          description: "Memory rule",
+          globs: ["**/*"],
+        },
+        body: "# Memory Rule\n\nThis is a memory rule.",
+        fileContent:
+          "---\nroot: false\ntargets:\n  - codexcli\n---\n# Memory Rule\n\nThis is a memory rule.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: join(".codex", "memories"),
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getBody()).toBe("# Memory Rule\n\nThis is a memory rule.");
+      expect(codexcliRule.getRelativeFilePath()).toBe("memory-rule.md");
+      expect(codexcliRule.isRoot()).toBe(false);
+      expect(codexcliRule.getRelativeDirPath()).toBe(join(".codex", "memories"));
     });
   });
 
@@ -183,7 +276,7 @@ This is the actual content.`;
 
       expect(frontmatter.root).toBe(false);
       expect(frontmatter.targets).toEqual(["codexcli"]);
-      expect(frontmatter.description).toBe("OpenAI Codex CLI instructions");
+      expect(frontmatter.description).toBe("");
       expect(frontmatter.globs).toEqual(["**/*"]);
       expect(rulesyncRule.getBody()).toBe("# Test Rule\n\nThis is a test.");
     });
