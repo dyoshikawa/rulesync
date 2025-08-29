@@ -99,7 +99,13 @@ This is a test rule for testing the features functionality.`,
     const commandsDir = join(testDir, ".rulesync", "commands");
     await writeFileContent(
       join(commandsDir, "test-command.md"),
-      "# Test Command\nThis is a test command.",
+      `---
+targets: ["*"]
+description: "Test command description"
+---
+
+# Test Command
+This is a test command.`,
     );
 
     await generateCommand({

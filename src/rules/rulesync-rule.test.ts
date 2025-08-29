@@ -356,7 +356,19 @@ Original content
 
       const rule = await RulesyncRule.fromFilePath({ filePath });
 
-      expect(rule.getFileContent()).toBe(originalContent);
+      // The implementation uses matter.stringify which normalizes YAML formatting
+      // Arrays in inline format ["cursor"] get converted to YAML list format
+      const expectedNormalizedContent = `---
+root: true
+targets:
+  - cursor
+description: Original content test
+globs: []
+---
+Original content
+`;
+
+      expect(rule.getFileContent()).toBe(expectedNormalizedContent);
     });
 
     it("should handle minimal valid frontmatter", async () => {
