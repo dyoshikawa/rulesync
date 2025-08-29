@@ -32,6 +32,7 @@ export class ClaudecodeRule extends ToolRule {
       fileContent,
       body: fileContent,
       validate: params.validate ?? true,
+      root: params.relativeFilePath === "CLAUDE.md",
     });
   }
 
