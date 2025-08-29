@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import matter from "gray-matter";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { type RuleFrontmatter, RuleFrontmatterSchema } from "../types/rules.js";
 import { RulesyncFile, type RulesyncFileParams } from "../types/rulesync-file.js";
@@ -26,6 +27,7 @@ export class RulesyncRule extends RulesyncFile {
     });
 
     this.frontmatter = frontmatter;
+    this.fileContent = matter.stringify(this.body, this.frontmatter);
   }
 
   getFrontmatter(): RuleFrontmatter {
@@ -78,7 +80,7 @@ export class RulesyncRule extends RulesyncFile {
 
     return new RulesyncRule({
       baseDir: ".",
-      relativeDirPath: ".rulesync/rules",
+      relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
       body: content.trim(),

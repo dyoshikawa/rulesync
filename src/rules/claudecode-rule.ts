@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
 import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -72,7 +73,7 @@ export class ClaudecodeRule extends ToolRule {
 
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
-      relativeDirPath: this.getRelativeDirPath(),
+      relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
