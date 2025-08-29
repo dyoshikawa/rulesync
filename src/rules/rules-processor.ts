@@ -98,7 +98,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "claudecode":
           return ClaudecodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: join(".claude", "memories"),
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".claude", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -119,7 +119,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "copilot":
           return CopilotRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".github",
+            relativeDirPath: ".github/instructions",
             rulesyncRule: rulesyncRule,
             validate: false,
           });

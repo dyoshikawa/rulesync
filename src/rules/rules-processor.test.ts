@@ -458,7 +458,6 @@ This is test content for round-trip conversion.`,
       const originalRules = await processor.loadRulesyncFiles();
       expect(originalRules).toHaveLength(1);
 
-
       // Convert to tool format (this should create CLAUDE.md file)
       await processor.writeToolRulesFromRulesyncRules(originalRules as RulesyncRule[]);
 
@@ -558,7 +557,7 @@ ${largeContent}`,
       });
 
       const result = processor.getReferencesSection([mockRule], ".claude/memories");
-      
+
       expect(result).toContain("Please also reference the following documents as needed");
       expect(result).toContain("<Documents>");
       expect(result).toContain("<Document>");
@@ -589,7 +588,7 @@ ${largeContent}`,
       ];
 
       const result = processor.getReferencesSection(mockRules, ".claude/memories");
-      
+
       expect(result).toContain("Please also reference the following documents as needed");
       expect(result).toContain("<Path>@.claude/memories/rule1.md</Path>");
       expect(result).toContain("<Description></Description>");
@@ -607,7 +606,7 @@ ${largeContent}`,
       });
 
       const result = processor.getReferencesSection([mockRule], ".claude/memories");
-      
+
       expect(result).toContain("<Path>@.claude/memories/default-globs.md</Path>");
       expect(result).toContain("<Description></Description>");
       expect(result).toContain("<FilePatterns>**/*</FilePatterns>");

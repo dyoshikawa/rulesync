@@ -109,14 +109,14 @@ Always write tests`;
 
       const rule = ClaudecodeRule.fromRulesyncRule({
         baseDir: _testDir,
-        relativeDirPath: "rules",
+        relativeDirPath: ".",
         rulesyncRule,
         validate: false,
       });
 
       expect(rule).toBeInstanceOf(ClaudecodeRule);
       expect(rule.getRelativeFilePath()).toBe("CLAUDE.md");
-      expect(rule.getRelativeDirPath()).toBe("rules");
+      expect(rule.getRelativeDirPath()).toBe(".");
       expect(rule.getFileContent()).toBe("Root test content");
     });
   });
@@ -158,7 +158,6 @@ Always write tests`;
     });
   });
 
-
   describe("getFilePath", () => {
     it("should return correct file path", () => {
       const rule = new ClaudecodeRule({
@@ -173,7 +172,6 @@ Always write tests`;
       expect(rule.getFilePath()).toContain("test.md");
     });
   });
-
 
   describe("inheritance", () => {
     it("should inherit from ToolRule", () => {
@@ -192,10 +190,10 @@ Always write tests`;
     });
   });
 
-
   describe("complex scenarios", () => {
     it("should handle multiline content with markdown formatting", () => {
-      const content = "# Coding Standards\n\n- Use TypeScript\n- Write tests\n\n## Security\n\n- Validate inputs";
+      const content =
+        "# Coding Standards\n\n- Use TypeScript\n- Write tests\n\n## Security\n\n- Validate inputs";
       const rule = new ClaudecodeRule({
         baseDir: _testDir,
         relativeDirPath: "rules",

@@ -15,15 +15,15 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 vi.mock("node:fs/promises");
 
+import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { generateCommands } from "../../core/command-generator.js";
 import { CliParser, ConfigResolver } from "../../core/config/index.js";
 import { generateConfigurations, parseRulesFromDirectory } from "../../core/index.js";
 import { generateMcpConfigurations } from "../../core/mcp-generator.js";
 import { parseMcpConfig } from "../../core/mcp-parser.js";
-import type { ToolTarget } from "../../types/index.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
-import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import type { ToolTarget } from "../../types/index.js";
 import {
   fileExists,
   removeClaudeGeneratedFiles,
@@ -130,8 +130,12 @@ describe("generateCommand", () => {
     mockSubagentsProcessor.mockImplementation(() => mockSubagentsProcessorInstance as any);
 
     // Mock static getToolTargets methods
-    mockRulesProcessor.getToolTargets = vi.fn().mockReturnValue(["copilot", "cursor", "claudecode"]);
-    mockCommandsProcessor.getToolTargets = vi.fn().mockReturnValue(["claudecode", "roo", "geminicli"]);
+    mockRulesProcessor.getToolTargets = vi
+      .fn()
+      .mockReturnValue(["copilot", "cursor", "claudecode"]);
+    mockCommandsProcessor.getToolTargets = vi
+      .fn()
+      .mockReturnValue(["claudecode", "roo", "geminicli"]);
     mockSubagentsProcessor.getToolTargets = vi.fn().mockReturnValue(["claudecode"]);
 
     // Mock fs.promises.readdir

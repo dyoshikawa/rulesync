@@ -80,5 +80,4 @@ export class ClaudecodeRule extends ToolRule {
   validate(): ValidationResult {
     return { success: true, error: null };
   }
-
 }

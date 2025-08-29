@@ -208,7 +208,10 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
           const writtenCount = await rulesProcessor.writeAiFiles(rulesyncFiles);
           rulesCreated = writtenCount;
         }
-      } else {
+      }
+
+      // Fallback to parser-based approach for all tools if no tool files were processed
+      if (rulesCreated === 0) {
         // Fallback to old parser-based approach for unsupported tools
         // Filter out commands as they are now handled by CommandsProcessor
         const regularRules = rules.filter((rule) => rule.type !== "command");
@@ -329,7 +332,8 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   if (features.includes("commands")) {
     try {
       // Use CommandsProcessor for supported tools
-      if (CommandsProcessor.getToolTargets().includes(tool)) {
+      const supportedTargets = CommandsProcessor.getToolTargets();
+      if (supportedTargets && supportedTargets.includes && supportedTargets.includes(tool)) {
         const commandsProcessor = new CommandsProcessor({
           baseDir,
           toolTarget: tool,
