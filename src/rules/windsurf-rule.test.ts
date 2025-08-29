@@ -128,6 +128,8 @@ This rule has no frontmatter.`;
       expect(windsurfRule).toBeInstanceOf(WindsurfRule);
       expect((windsurfRule as WindsurfRule).getActivationMode()).toBe("glob");
       expect((windsurfRule as WindsurfRule).getGlobPattern()).toBe("**/*.ts|**/*.tsx");
+      // Check that relativeDirPath is set to .windsurf
+      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf");
     });
 
     it("should map rulesync without globs to always mode", () => {
@@ -152,6 +154,7 @@ This rule has no frontmatter.`;
       });
 
       expect((windsurfRule as WindsurfRule).getActivationMode()).toBe("always");
+      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf");
     });
 
     it("should map rulesync without description to manual mode", () => {
@@ -176,6 +179,7 @@ This rule has no frontmatter.`;
       });
 
       expect((windsurfRule as WindsurfRule).getActivationMode()).toBe("manual");
+      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf");
     });
   });
 
@@ -189,7 +193,7 @@ This rule has no frontmatter.`;
 
       const windsurfRule = new WindsurfRule({
         baseDir: testDir,
-        relativeDirPath: ".windsurf/rules",
+        relativeDirPath: ".windsurf",
         relativeFilePath: "test-conversion.md",
         fileContent: "---\ndescription: Test\n---\n\nContent",
         frontmatter,
@@ -203,6 +207,9 @@ This rule has no frontmatter.`;
       expect(rulesyncRule.getFrontmatter().description).toBe("Test rule for conversion");
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["**/*.js"]);
       expect(rulesyncRule.getBody()).toBe("# Converted Rule\n\nThis rule was converted.");
+      // Check that it uses RULESYNC_RULES_DIR
+      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeFilePath()).toBe("test-conversion.md");
     });
   });
 

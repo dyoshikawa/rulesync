@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import matter from "gray-matter";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RuleFrontmatter } from "../types/rules.js";
 import { logger } from "../utils/logger.js";
@@ -80,7 +81,7 @@ export class WindsurfRule extends ToolRule {
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
-    relativeDirPath,
+    relativeDirPath: _relativeDirPath,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
@@ -113,11 +114,12 @@ export class WindsurfRule extends ToolRule {
     );
     const fileContent = matter.stringify(body, cleanFrontmatter);
 
+    // Windsurf doesn't have root files, all files are in .windsurf/ directory
     return new WindsurfRule({
       baseDir: baseDir,
       frontmatter: windsurfFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: ".windsurf",
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       fileContent,
       validate,
@@ -156,10 +158,11 @@ export class WindsurfRule extends ToolRule {
     const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
 
     return new RulesyncRule({
+      baseDir: this.getBaseDir(),
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.relativeFilePath,
       fileContent,
       validate: false,
     });
