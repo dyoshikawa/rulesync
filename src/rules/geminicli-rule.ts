@@ -1,18 +1,15 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams } from "../types/ai-file.js";
 import type { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
-type GeminiCliRuleParams = {
-  baseDir: string;
-  relativeDirPath: string;
-  relativeFilePath: string;
-  fileContent: string;
+export interface GeminiCliRuleParams extends ToolRuleParams {
   body: string;
   description?: string;
-  validate?: boolean;
-};
+}
 
 /**
  * Represents a rule file for Gemini CLI
@@ -24,11 +21,7 @@ export class GeminiCliRule extends ToolRule {
 
   constructor(params: GeminiCliRuleParams) {
     super({
-      baseDir: params.baseDir,
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
-      fileContent: params.fileContent,
-      validate: params.validate ?? true,
+      ...params,
     });
     this.body = params.body;
     this.description = params.description ?? "";
@@ -42,35 +35,49 @@ export class GeminiCliRule extends ToolRule {
     const body = fileContent.trim();
 
     return new GeminiCliRule({
-      baseDir: params.baseDir || ".",
+      baseDir: params.baseDir || process.cwd(),
       relativeDirPath: params.relativeDirPath,
       relativeFilePath: params.relativeFilePath,
       fileContent,
       body,
       validate: params.validate ?? true,
+      root: params.relativeFilePath === "GEMINI.md",
     });
   }
 
   static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): GeminiCliRule {
     const { rulesyncRule, ...rest } = params;
-
-    // Extract description from rulesync rule frontmatter
     const description = rulesyncRule.getFrontmatter().description;
+    const root = rulesyncRule.getFrontmatter().root;
+    const body = rulesyncRule.getBody();
+
+    if (root) {
+      return new GeminiCliRule({
+        ...rest,
+        fileContent: body,
+        relativeFilePath: "GEMINI.md",
+        body,
+        description,
+        root,
+        validate: rest.validate ?? true,
+      });
+    }
 
     return new GeminiCliRule({
-      baseDir: rest.baseDir ?? ".",
-      relativeDirPath: rest.relativeDirPath,
-      fileContent: rulesyncRule.getFileContent(),
+      ...rest,
+      fileContent: body,
+      relativeDirPath: join(".gemini", "memories"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      body,
       description,
-      body: rulesyncRule.getBody(),
+      root,
       validate: rest.validate ?? true,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
     const rulesyncFrontmatter: RuleFrontmatter = {
-      root: false,
+      root: this.root,
       targets: ["geminicli"],
       description: this.description,
       globs: ["**/*"],
@@ -78,7 +85,7 @@ export class GeminiCliRule extends ToolRule {
 
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
-      relativeDirPath: this.getRelativeDirPath(),
+      relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,

@@ -45,6 +45,46 @@ describe("GeminiCliRule", () => {
       expect(rule.getRelativeFilePath()).toBe("GEMINI.md");
     });
 
+    it("should detect root file when relativeFilePath is GEMINI.md", async () => {
+      const filePath = join(testDir, "GEMINI.md");
+      const fileContent = `# Root Project Guidelines`;
+
+      await writeFile(filePath, fileContent);
+
+      const rule = await GeminiCliRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "GEMINI.md",
+        filePath,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(GeminiCliRule);
+      // Check that root property is set properly by checking if toRulesyncRule returns root: true
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().root).toBe(true);
+    });
+
+    it("should not mark non-root files as root", async () => {
+      const filePath = join(testDir, "memory.md");
+      const fileContent = `# Memory Guidelines`;
+
+      await writeFile(filePath, fileContent);
+
+      const rule = await GeminiCliRule.fromFilePath({
+        baseDir: testDir,
+        relativeDirPath: ".gemini/memories",
+        relativeFilePath: "memory.md",
+        filePath,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(GeminiCliRule);
+      // Check that root property is false
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().root).toBe(false);
+    });
+
     it("should handle empty file", async () => {
       const filePath = join(testDir, "empty.md");
       const fileContent = "";
@@ -109,6 +149,65 @@ describe("GeminiCliRule", () => {
 
       expect(rule).toBeInstanceOf(GeminiCliRule);
       expect(rule.getRelativeFilePath()).toBe("test.md");
+      expect(rule.getRelativeDirPath()).toBe(".gemini/memories");
+    });
+
+    it("should handle root RulesyncRule", () => {
+      const rulesyncFrontmatter: RuleFrontmatter = {
+        root: true,
+        targets: ["geminicli"],
+        description: "Root description",
+        globs: ["**/*.ts"],
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "root.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Root content",
+        fileContent: "---\nroot: true\ndescription: Root description\n---\nRoot content",
+      });
+
+      const rule = GeminiCliRule.fromRulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        rulesyncRule,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(GeminiCliRule);
+      expect(rule.getRelativeFilePath()).toBe("GEMINI.md");
+      expect(rule.getRelativeDirPath()).toBe("rules");
+    });
+
+    it("should handle non-root RulesyncRule", () => {
+      const rulesyncFrontmatter: RuleFrontmatter = {
+        root: false,
+        targets: ["geminicli"],
+        description: "Memory description",
+        globs: ["**/*.ts"],
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "memory.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Memory content",
+        fileContent: "---\nroot: false\ndescription: Memory description\n---\nMemory content",
+      });
+
+      const rule = GeminiCliRule.fromRulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        rulesyncRule,
+        validate: false,
+      });
+
+      expect(rule).toBeInstanceOf(GeminiCliRule);
+      expect(rule.getRelativeFilePath()).toBe("memory.md");
+      expect(rule.getRelativeDirPath()).toBe(".gemini/memories");
     });
 
     it("should handle RulesyncRule without description", () => {
@@ -151,6 +250,7 @@ describe("GeminiCliRule", () => {
         body: "Test content",
         description: "Test description",
         validate: false,
+        root: false,
       });
 
       const rulesyncRule = rule.toRulesyncRule();
@@ -158,7 +258,27 @@ describe("GeminiCliRule", () => {
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getFrontmatter().targets).toEqual(["geminicli"]);
       expect(rulesyncRule.getFrontmatter().description).toBe("Test description");
+      expect(rulesyncRule.getFrontmatter().root).toBe(false);
       expect(rulesyncRule.getBody()).toBe("Test content");
+    });
+
+    it("should convert root rule correctly", () => {
+      const rule = new GeminiCliRule({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "GEMINI.md",
+        fileContent: "Root content",
+        body: "Root content",
+        description: "Root description",
+        validate: false,
+        root: true,
+      });
+
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
+      expect(rulesyncRule.getFrontmatter().root).toBe(true);
+      expect(rulesyncRule.getFrontmatter().description).toBe("Root description");
     });
 
     it("should convert without description", () => {
@@ -169,11 +289,13 @@ describe("GeminiCliRule", () => {
         fileContent: "Test content",
         body: "Test content",
         validate: false,
+        root: false,
       });
 
       const rulesyncRule = rule.toRulesyncRule();
 
       expect(rulesyncRule.getFrontmatter().description).toBe("");
+      expect(rulesyncRule.getFrontmatter().root).toBe(false);
     });
   });
 
@@ -186,6 +308,7 @@ describe("GeminiCliRule", () => {
         fileContent: "Any content without frontmatter",
         body: "Any content without frontmatter",
         validate: false,
+        root: false,
       });
 
       const result = rule.validate();
@@ -201,6 +324,7 @@ describe("GeminiCliRule", () => {
         fileContent: "",
         body: "",
         validate: false,
+        root: false,
       });
 
       const result = rule.validate();
@@ -219,6 +343,7 @@ describe("GeminiCliRule", () => {
         body: "# Coding Standards\n\n- Use TypeScript\n- Write tests",
         description: "Project coding guidelines",
         validate: false,
+        root: false,
       });
 
       const memoryContent = rule.generateMemoryFile();
@@ -237,6 +362,7 @@ describe("GeminiCliRule", () => {
         fileContent: "# Tech Stack\n\n- Node.js\n- TypeScript",
         body: "# Tech Stack\n\n- Node.js\n- TypeScript",
         validate: false,
+        root: false,
       });
 
       const memoryContent = rule.generateMemoryFile();
@@ -254,6 +380,7 @@ describe("GeminiCliRule", () => {
         body: "",
         description: "Empty project",
         validate: false,
+        root: false,
       });
 
       const memoryContent = rule.generateMemoryFile();

@@ -135,7 +135,7 @@ export class RulesProcessor extends FeatureProcessor {
         case "geminicli":
           return GeminiCliRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
+            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".gemini", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -221,6 +221,13 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "copilot": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "geminicli": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
