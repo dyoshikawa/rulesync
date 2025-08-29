@@ -458,7 +458,6 @@ This is test content for round-trip conversion.`,
       const originalRules = await processor.loadRulesyncFiles();
       expect(originalRules).toHaveLength(1);
 
-      const originalFrontmatter = (originalRules[0] as RulesyncRule).getFrontmatter();
 
       // Convert to tool format (this should create CLAUDE.md file)
       await processor.writeToolRulesFromRulesyncRules(originalRules as RulesyncRule[]);
