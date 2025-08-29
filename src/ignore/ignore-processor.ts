@@ -46,7 +46,10 @@ export type IgnoreProcessorToolTarget = z.infer<typeof IgnoreProcessorToolTarget
 export class IgnoreProcessor extends FeatureProcessor {
   private readonly toolTarget: IgnoreProcessorToolTarget;
 
-  constructor({ baseDir = process.cwd(), toolTarget }: { baseDir?: string; toolTarget: IgnoreProcessorToolTarget }) {
+  constructor({
+    baseDir = process.cwd(),
+    toolTarget,
+  }: { baseDir?: string; toolTarget: IgnoreProcessorToolTarget }) {
     super({ baseDir });
     this.toolTarget = IgnoreProcessorToolTargetSchema.parse(toolTarget);
   }
@@ -571,9 +574,7 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Convert ToolFile[] to RulesyncFile[]
    */
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
-    const toolIgnores = toolFiles.filter(
-      (file): file is ToolIgnore => file instanceof ToolIgnore,
-    );
+    const toolIgnores = toolFiles.filter((file): file is ToolIgnore => file instanceof ToolIgnore);
 
     const rulesyncIgnores = toolIgnores.map((toolIgnore) => {
       return toolIgnore.toRulesyncIgnore();
