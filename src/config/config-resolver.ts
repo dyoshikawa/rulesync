@@ -1,8 +1,10 @@
 import { loadConfig } from "c12";
-import { CliOptions } from "../core/config/types.js";
 import { fileExists } from "../utils/file.js";
 import { Config, ConfigParams } from "./config.js";
 
+export interface ConfigResolverResolveParams extends ConfigParams {
+  configPath?: string;
+}
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve({
@@ -11,8 +13,8 @@ export class ConfigResolver {
     verbose = false,
     delete: isDelete = false,
     baseDirs = ["."],
-    config: configPath = "rulesync.jsonc",
-  }: CliOptions): Promise<Config> {
+    configPath = "rulesync.jsonc",
+  }: ConfigResolverResolveParams): Promise<Config> {
     if (!fileExists(configPath)) {
       return new Config({
         targets,
