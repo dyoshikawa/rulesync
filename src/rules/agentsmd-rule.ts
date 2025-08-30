@@ -1,30 +1,21 @@
 import { readFile } from "node:fs/promises";
-import matter from "gray-matter";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RuleFrontmatter } from "../types/rules.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
-export type AgentsMdRuleParams = Omit<AiFileParams, "fileContent"> & {
-  body: string;
-  fileContent?: string;
+export type AgentsMdRuleParams = AiFileParams & {
   root?: boolean;
 };
 
 export class AgentsMdRule extends ToolRule {
-  private readonly body: string;
-
-  constructor({ body, fileContent, root, ...rest }: AgentsMdRuleParams) {
-    const actualFileContent = fileContent || body;
-
+  constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
     super({
       ...rest,
-      fileContent: actualFileContent,
+      fileContent,
       root: root ?? false,
     });
-
-    this.body = body;
   }
 
   static async fromFilePath({
@@ -36,21 +27,14 @@ export class AgentsMdRule extends ToolRule {
   }: AiFileFromFilePathParams): Promise<AgentsMdRule> {
     // Read file content
     const fileContent = await readFile(filePath, "utf-8");
-    const { content } = matter(fileContent);
-
-    // If there's no frontmatter, gray-matter returns the entire content as content
-    // If the original file had no frontmatter, use the original fileContent
-    const body = content.trim() || fileContent.trim();
 
     // Determine if it's a root file based on path
-    const isRoot =
-      (relativeDirPath === "" || relativeDirPath === ".") && relativeFilePath === "AGENTS.md";
+    const isRoot = relativeFilePath === "AGENTS.md";
 
     return new AgentsMdRule({
       baseDir,
       relativeDirPath,
       relativeFilePath,
-      body,
       fileContent,
       validate,
       root: isRoot,
@@ -64,15 +48,13 @@ export class AgentsMdRule extends ToolRule {
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
     const root = rulesyncRule.getFrontmatter().root;
-    const body = rulesyncRule.getBody();
-    const fileContent = body; // AGENTS.md is plain markdown without frontmatter
+    const fileContent = rulesyncRule.getBody();
 
     if (root) {
       return new AgentsMdRule({
         baseDir,
         relativeDirPath: "",
         relativeFilePath: "AGENTS.md",
-        body,
         fileContent,
         validate,
         root,
@@ -83,10 +65,9 @@ export class AgentsMdRule extends ToolRule {
       baseDir,
       relativeDirPath: ".agents/memories",
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      body,
       fileContent,
       validate,
-      root,
+      root: root ?? false,
     });
   }
 
@@ -103,7 +84,7 @@ export class AgentsMdRule extends ToolRule {
       relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
+      body: this.getFileContent(),
       fileContent: this.getFileContent(),
     });
   }
@@ -113,9 +94,5 @@ export class AgentsMdRule extends ToolRule {
     // The body content can be empty (though not recommended in practice)
     // This follows the same pattern as other rule validation methods
     return { success: true, error: null };
-  }
-
-  getBody(): string {
-    return this.body;
   }
 }

@@ -14,21 +14,25 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   globs: z.optional(z.array(z.string())),
   cursor: z.optional(
     z.object({
-      ruleType: z.optional(z.enum(["always", "manual", "specificFiles", "intelligently"])),
+      alwaysApply: z.optional(z.boolean()),
+      description: z.optional(z.string()),
+      globs: z.optional(z.array(z.string())),
     }),
   ),
 });
 
 export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSchema>;
 
-export interface RulesyncRuleParams extends RulesyncFileParams {
+export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> & {
   frontmatter: RulesyncRuleFrontmatter;
-}
+  body: string;
+};
 
 export class RulesyncRule extends RulesyncFile {
   private readonly frontmatter: RulesyncRuleFrontmatter;
+  private readonly body: string;
 
-  constructor({ frontmatter, ...rest }: RulesyncRuleParams) {
+  constructor({ frontmatter, body, ...rest }: RulesyncRuleParams) {
     // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate !== false) {
       const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
@@ -39,10 +43,11 @@ export class RulesyncRule extends RulesyncFile {
 
     super({
       ...rest,
+      fileContent: matter.stringify(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
-    this.fileContent = matter.stringify(this.body, this.frontmatter);
+    this.body = body;
   }
 
   getFrontmatter(): RulesyncRuleFrontmatter {
@@ -80,7 +85,7 @@ export class RulesyncRule extends RulesyncFile {
       targets: result.data.targets ?? ["*"],
       description: result.data.description ?? "",
       globs: result.data.globs ?? [],
-      cursor: result.data.cursor ?? { ruleType: "intelligently" },
+      cursor: result.data.cursor,
     };
 
     const filename = basename(filePath);
@@ -91,7 +96,10 @@ export class RulesyncRule extends RulesyncFile {
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
       body: content.trim(),
-      fileContent,
     });
+  }
+
+  getBody(): string {
+    return this.body;
   }
 }

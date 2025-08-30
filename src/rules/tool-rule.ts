@@ -1,4 +1,5 @@
-import { AiFile, AiFileFromFilePathParams, AiFileParams } from "../types/ai-file.js";
+import { AiFileFromFilePathParams, AiFileParams } from "../types/ai-file.js";
+import { ToolFile } from "../types/tool-file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
@@ -12,7 +13,7 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
   rulesyncRule: RulesyncRule;
 };
 
-export abstract class ToolRule extends AiFile {
+export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
 
   constructor({ root = false, ...rest }: ToolRuleParams) {
