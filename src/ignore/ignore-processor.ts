@@ -6,15 +6,12 @@ import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
-import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
-import { CopilotIgnore } from "./copilot-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
-import { OpencodeIgnore } from "./opencode-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -23,15 +20,12 @@ import { WindsurfIgnore } from "./windsurf-ignore.js";
 
 const ignoreProcessorToolTargets: ToolTarget[] = [
   "augmentcode",
-  "claudecode",
   "cline",
   "codexcli",
-  "copilot",
   "cursor",
   "geminicli",
   "junie",
   "kiro",
-  "opencode",
   "qwencode",
   "roo",
   "windsurf",
@@ -83,14 +77,10 @@ export class IgnoreProcessor extends FeatureProcessor {
     switch (this.toolTarget) {
       case "augmentcode":
         return await this.loadAugmentcodeIgnores();
-      case "claudecode":
-        return await this.loadClaudecodeIgnores();
       case "cline":
         return await this.loadClineIgnores();
       case "codexcli":
         return await this.loadCodexcliIgnores();
-      case "copilot":
-        return await this.loadCopilotIgnores();
       case "cursor":
         return await this.loadCursorIgnores();
       case "geminicli":
@@ -99,8 +89,6 @@ export class IgnoreProcessor extends FeatureProcessor {
         return await this.loadJunieIgnores();
       case "kiro":
         return await this.loadKiroIgnores();
-      case "opencode":
-        return await this.loadOpencodeIgnores();
       case "qwencode":
         return await this.loadQwencodeIgnores();
       case "roo":
@@ -110,31 +98,6 @@ export class IgnoreProcessor extends FeatureProcessor {
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
-  }
-
-  private async loadClaudecodeIgnores(): Promise<ToolIgnore[]> {
-    // Claude Code uses settings.json files for configuration
-    const supportedFiles = ClaudecodeIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, ".claude", filename);
-
-      try {
-        const claudeCodeIgnore = await ClaudecodeIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Claude Code ignore file: ${ignoreFilePath}`);
-        return [claudeCodeIgnore];
-      } catch (error) {
-        // Continue to next file if this one fails
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    // If no ignore files found, return empty array
-    logger.debug("No Claude Code configuration files found");
-    return [];
   }
 
   private async loadCodexcliIgnores(): Promise<ToolIgnore[]> {
@@ -161,33 +124,6 @@ export class IgnoreProcessor extends FeatureProcessor {
     // If no ignore files found, return empty array (common case)
     logger.debug(
       "No Codex CLI ignore files found, which is expected since .codexignore is not yet implemented",
-    );
-    return [];
-  }
-
-  private async loadOpencodeIgnores(): Promise<ToolIgnore[]> {
-    // OpenCode uses .gitignore primarily, but may have opencode.json with permission controls
-    const supportedFiles = OpencodeIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const opencodeIgnore = await OpencodeIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded OpenCode ignore file: ${ignoreFilePath}`);
-        return [opencodeIgnore];
-      } catch (error) {
-        // Continue to next file if this one fails
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    // If no ignore files found, return empty array (common case for OpenCode)
-    logger.debug(
-      "No OpenCode configuration files found, which is expected as OpenCode primarily relies on .gitignore",
     );
     return [];
   }
@@ -400,12 +336,6 @@ export class IgnoreProcessor extends FeatureProcessor {
     return [];
   }
 
-  private async loadAmazonqcliIgnores(): Promise<ToolIgnore[]> {
-    // Amazon Q Developer CLI currently doesn't have native ignore file support
-    logger.debug("Amazon Q Developer CLI doesn't have native ignore file support");
-    return [];
-  }
-
   async writeRulesyncIgnoresFromToolIgnores(toolIgnores: ToolIgnore[]): Promise<void> {
     const rulesyncIgnores = toolIgnores.map((toolIgnore) => {
       return toolIgnore.toRulesyncIgnore();
@@ -435,12 +365,6 @@ export class IgnoreProcessor extends FeatureProcessor {
             relativeDirPath: ".",
             rulesyncIgnore,
           });
-        case "claudecode":
-          return ClaudecodeIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            relativeDirPath: ".claude",
-            rulesyncIgnore,
-          });
         case "cline":
           return ClineIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
@@ -449,12 +373,6 @@ export class IgnoreProcessor extends FeatureProcessor {
           });
         case "codexcli":
           return CodexcliIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncIgnore,
-          });
-        case "copilot":
-          return CopilotIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
             relativeDirPath: ".",
             rulesyncIgnore,
@@ -479,12 +397,6 @@ export class IgnoreProcessor extends FeatureProcessor {
           });
         case "kiro":
           return KiroIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncIgnore,
-          });
-        case "opencode":
-          return OpencodeIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
             relativeDirPath: ".",
             rulesyncIgnore,
