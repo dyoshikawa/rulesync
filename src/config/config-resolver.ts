@@ -8,23 +8,32 @@ export type ConfigResolverResolveParams = Partial<
   }
 >;
 
+const defaults: Required<ConfigResolverResolveParams> = {
+  targets: ["agentsmd"],
+  features: ["*"],
+  verbose: false,
+  delete: false,
+  baseDirs: ["."],
+  configPath: "rulesync.jsonc",
+};
+
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve({
-    targets = ["agentsmd"],
-    features = ["*"],
-    verbose = false,
-    delete: isDelete = false,
-    baseDirs = ["."],
-    configPath = "rulesync.jsonc",
+    targets,
+    features,
+    verbose,
+    delete: isDelete,
+    baseDirs,
+    configPath = defaults.configPath,
   }: ConfigResolverResolveParams): Promise<Config> {
     if (!fileExists(configPath)) {
       return new Config({
-        targets,
-        features,
-        verbose,
-        delete: isDelete,
-        baseDirs,
+        targets: targets ?? defaults.targets,
+        features: features ?? defaults.features,
+        verbose: verbose ?? defaults.verbose,
+        delete: isDelete ?? defaults.delete,
+        baseDirs: baseDirs ?? defaults.baseDirs,
       });
     }
 
@@ -33,13 +42,6 @@ export class ConfigResolver {
       cwd: process.cwd(),
       rcFile: false, // Disable rc file lookup
       configFile: "rulesync", // Will look for rulesync.jsonc, rulesync.ts, etc.
-      defaults: {
-        targets,
-        features,
-        verbose,
-        delete: isDelete,
-        baseDirs,
-      },
     };
 
     if (configPath) {
@@ -49,11 +51,11 @@ export class ConfigResolver {
     const { config: configByFile } = await loadConfig<Partial<ConfigParams>>(loadOptions);
 
     const configParams = {
-      targets: targets ?? configByFile.targets,
-      features: features ?? configByFile.features,
-      verbose: verbose ?? configByFile.verbose,
-      delete: isDelete ?? configByFile.delete,
-      baseDirs: baseDirs ?? configByFile.baseDirs,
+      targets: targets ?? configByFile.targets ?? defaults.targets,
+      features: features ?? configByFile.features ?? defaults.features,
+      verbose: verbose ?? configByFile.verbose ?? defaults.verbose,
+      delete: isDelete ?? configByFile.delete ?? defaults.delete,
+      baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
     };
     return new Config(configParams);
   }
