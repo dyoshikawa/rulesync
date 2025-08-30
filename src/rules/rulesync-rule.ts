@@ -1,22 +1,37 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import matter from "gray-matter";
+import { z } from "zod/mini";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { type ValidationResult } from "../types/ai-file.js";
-import { type RuleFrontmatter, RuleFrontmatterSchema } from "../types/rules.js";
 import { RulesyncFile, type RulesyncFileParams } from "../types/rulesync-file.js";
+import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+
+export const RulesyncRuleFrontmatterSchema = z.object({
+  root: z.optional(z.optional(z.boolean())),
+  targets: z.optional(RulesyncTargetsSchema),
+  description: z.optional(z.string()),
+  globs: z.optional(z.array(z.string())),
+  cursor: z.optional(
+    z.object({
+      ruleType: z.optional(z.enum(["always", "manual", "specificFiles", "intelligently"])),
+    }),
+  ),
+});
+
+export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSchema>;
 
 export interface RulesyncRuleParams extends RulesyncFileParams {
-  frontmatter: RuleFrontmatter;
+  frontmatter: RulesyncRuleFrontmatter;
 }
 
 export class RulesyncRule extends RulesyncFile {
-  private readonly frontmatter: RuleFrontmatter;
+  private readonly frontmatter: RulesyncRuleFrontmatter;
 
   constructor({ frontmatter, ...rest }: RulesyncRuleParams) {
     // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate !== false) {
-      const result = RuleFrontmatterSchema.safeParse(frontmatter);
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
       }
@@ -30,7 +45,7 @@ export class RulesyncRule extends RulesyncFile {
     this.fileContent = matter.stringify(this.body, this.frontmatter);
   }
 
-  getFrontmatter(): RuleFrontmatter {
+  getFrontmatter(): RulesyncRuleFrontmatter {
     return this.frontmatter;
   }
 
@@ -40,7 +55,7 @@ export class RulesyncRule extends RulesyncFile {
       return { success: true, error: null };
     }
 
-    const result = RuleFrontmatterSchema.safeParse(this.frontmatter);
+    const result = RulesyncRuleFrontmatterSchema.safeParse(this.frontmatter);
 
     if (result.success) {
       return { success: true, error: null };
@@ -55,25 +70,17 @@ export class RulesyncRule extends RulesyncFile {
     const { data: frontmatter, content } = matter(fileContent);
 
     // Validate frontmatter using RuleFrontmatterSchema
-    const result = RuleFrontmatterSchema.safeParse(frontmatter);
+    const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
     }
 
-    // Convert validated data to RuleFrontmatter type
-    const validatedFrontmatter: RuleFrontmatter = {
+    const validatedFrontmatter: RulesyncRuleFrontmatter = {
       root: result.data.root ?? false,
       targets: result.data.targets ?? ["*"],
       description: result.data.description ?? "",
       globs: result.data.globs ?? [],
-      ...(result.data.cursorRuleType && { cursorRuleType: result.data.cursorRuleType }),
-      ...(result.data.windsurfActivationMode && {
-        windsurfActivationMode: result.data.windsurfActivationMode,
-      }),
-      ...(result.data.windsurfOutputFormat && {
-        windsurfOutputFormat: result.data.windsurfOutputFormat,
-      }),
-      ...(result.data.tags && { tags: result.data.tags }),
+      cursor: result.data.cursor ?? { ruleType: "intelligently" },
     };
 
     const filename = basename(filePath);
