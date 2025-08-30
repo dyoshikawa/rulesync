@@ -9,16 +9,12 @@ import { FEATURE_TYPES } from "../types/config-options.js";
 import type { ToolTarget } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 import {
-  addCommand,
   configCommand,
   generateCommand,
   gitignoreCommand,
   type ImportOptions,
   importCommand,
   initCommand,
-  statusCommand,
-  validateCommand,
-  watchCommand,
 } from "./commands/index.js";
 import {
   checkDeprecatedFlags,
@@ -45,12 +41,6 @@ program
   .description("Initialize rulesync in current directory")
   .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
   .action(initCommand);
-
-program
-  .command("add <filename>")
-  .description("Add a new rule file")
-  .option("--legacy", "Use legacy file location (.rulesync/*.md instead of .rulesync/rules/*.md)")
-  .action(addCommand);
 
 program
   .command("gitignore")
@@ -222,15 +212,6 @@ program
       process.exit(1);
     }
   });
-
-program.command("validate").description("Validate rulesync configuration").action(validateCommand);
-
-program.command("status").description("Show current status of rulesync").action(statusCommand);
-
-program
-  .command("watch")
-  .description("Watch for changes and auto-generate configurations")
-  .action(watchCommand);
 
 program
   .command("config")
