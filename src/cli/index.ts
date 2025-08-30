@@ -130,7 +130,7 @@ program
     "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
   )
   .option(
-    "--features <features>",
+    "-f, --features <features>",
     `Comma-separated list of features to generate (${FEATURE_TYPES.join(",")}) or '*' for all`,
     (value) => {
       if (value === "*") return "*";
