@@ -8,7 +8,7 @@ export type ToolRuleParams = AiFileParams & {
 
 export type ToolRuleFromRulesyncRuleParams = Omit<
   AiFileParams,
-  "fileContent" | "relativeFilePath"
+  "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncRule: RulesyncRule;
 };

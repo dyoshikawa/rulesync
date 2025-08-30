@@ -1,8 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { RuleFrontmatter } from "../types/rules.js";
-import { RulesyncRule } from "./rulesync-rule.js";
+import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export type AgentsMdRuleParams = AiFileParams & {
@@ -43,7 +42,6 @@ export class AgentsMdRule extends ToolRule {
 
   static fromRulesyncRule({
     baseDir = ".",
-    relativeDirPath: _relativeDirPath,
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
@@ -72,11 +70,11 @@ export class AgentsMdRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
-    const rulesyncFrontmatter: RuleFrontmatter = {
+    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       root: this.isRoot(),
-      targets: ["agentsmd"],
-      description: "AGENTS.md instructions",
-      globs: ["**/*"],
+      targets: ["*"],
+      description: "",
+      globs: this.isRoot() ? ["**/*"] : [],
     };
 
     return new RulesyncRule({
@@ -85,7 +83,6 @@ export class AgentsMdRule extends ToolRule {
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
-      fileContent: this.getFileContent(),
     });
   }
 
