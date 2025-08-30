@@ -158,7 +158,7 @@ Available tools:
         // Check which targets support MCP
         const supportedMcpTargets: McpProcessorToolTarget[] = [
           "amazonqcli",
-          "claudecode", 
+          "claudecode",
           "cline",
           "copilot",
           "cursor",
@@ -184,7 +184,9 @@ Available tools:
             const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
             const writtenCount = await processor.writeAiFiles(toolFiles);
             totalMcpOutputs += writtenCount;
-            logger.success(`Generated ${writtenCount} ${toolTarget} MCP configuration(s) in ${baseDir}`);
+            logger.success(
+              `Generated ${writtenCount} ${toolTarget} MCP configuration(s) in ${baseDir}`,
+            );
           }
         }
       } else {
