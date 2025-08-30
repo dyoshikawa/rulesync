@@ -9,15 +9,11 @@ vi.mock("../utils/logger.js", () => ({
 }));
 
 vi.mock("./commands/index.js", () => ({
+  configCommand: vi.fn(),
   generateCommand: vi.fn(),
-  initCommand: vi.fn(),
-  addCommand: vi.fn(),
   gitignoreCommand: vi.fn(),
   importCommand: vi.fn(),
-  statusCommand: vi.fn(),
-  validateCommand: vi.fn(),
-  watchCommand: vi.fn(),
-  configCommand: vi.fn(),
+  initCommand: vi.fn(),
 }));
 
 vi.mock("./utils/targets-parser.js", () => ({
