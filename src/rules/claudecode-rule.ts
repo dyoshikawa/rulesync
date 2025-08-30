@@ -2,13 +2,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
-import { RuleFrontmatter } from "../types/rules.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
-
-export interface ClaudecodeRuleParams extends ToolRuleParams {
-  body: string;
-}
+import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 /**
  * Rule generator for Claude Code AI assistant
@@ -17,12 +12,6 @@ export interface ClaudecodeRuleParams extends ToolRuleParams {
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  constructor(params: ClaudecodeRuleParams) {
-    super({
-      ...params,
-    });
-  }
-
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<ClaudecodeRule> {
     const fileContent = await readFile(params.filePath, "utf8");
 
@@ -31,7 +20,6 @@ export class ClaudecodeRule extends ToolRule {
       relativeDirPath: params.relativeDirPath,
       relativeFilePath: params.relativeFilePath,
       fileContent,
-      body: fileContent,
       validate: params.validate ?? true,
       root: params.relativeFilePath === "CLAUDE.md",
     });
@@ -48,8 +36,8 @@ export class ClaudecodeRule extends ToolRule {
         ...rest,
         fileContent: body,
         relativeFilePath: "CLAUDE.md",
-        body,
         root,
+        relativeDirPath: ".",
       });
     }
 
@@ -58,17 +46,16 @@ export class ClaudecodeRule extends ToolRule {
       fileContent: body,
       relativeDirPath: join(".claude", "memories"),
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      body,
       root,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
-    const rulesyncFrontmatter: RuleFrontmatter = {
-      root: false,
-      targets: ["claudecode"],
+    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
+      root: this.isRoot(),
+      targets: ["*"],
       description: "",
-      globs: ["**/*"],
+      globs: this.isRoot() ? ["**/*"] : [],
     };
 
     return new RulesyncRule({
@@ -77,7 +64,6 @@ export class ClaudecodeRule extends ToolRule {
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
-      fileContent: this.getFileContent(),
     });
   }
 
