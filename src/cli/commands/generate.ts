@@ -217,7 +217,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
         if (totalSubagentOutputs > 0) parts.push(`${totalSubagentOutputs} subagents`);
 
         logger.success(
-          `\n🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,
+          `🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`,
         );
       }
     } catch (error) {
