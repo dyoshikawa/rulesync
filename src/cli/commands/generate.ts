@@ -356,51 +356,35 @@ Available tools:
       if (normalizedFeatures.includes("ignore")) {
         logger.info("\nGenerating ignore files...");
 
-        // Check if rulesync ignore source directory exists
-        const rulesyncIgnoresDir = join(".rulesync", "ignore");
-        const fullPath = join(process.cwd(), rulesyncIgnoresDir);
+        for (const toolTarget of intersection(
+          config.defaultTargets,
+          IgnoreProcessor.getToolTargets(),
+        )) {
+          for (const baseDir of baseDirs) {
+            try {
+              const processor = new IgnoreProcessor({
+                baseDir: baseDir === process.cwd() ? "." : baseDir,
+                toolTarget,
+              });
 
-        if (!(await fileExists(fullPath))) {
-          logger.info(`No rulesync ignore directory found at ${fullPath}`);
-        } else {
-          // Generate ignore files for each supported tool target
-          const supportedToolTargets = IgnoreProcessor.getToolTargets();
-
-          for (const toolTarget of supportedToolTargets) {
-            // Only generate ignore files for tools that are in the target list
-            if (!config.defaultTargets.includes(toolTarget)) {
-              logger.debug(`Skipping ignore files for ${toolTarget} (not in target list)`);
-              continue;
-            }
-
-            for (const baseDir of baseDirs) {
-              try {
-                const processor = new IgnoreProcessor({
-                  baseDir: baseDir === process.cwd() ? "." : baseDir,
-                  toolTarget,
-                });
-
-                const rulesyncFiles = await processor.loadRulesyncFiles();
-                if (rulesyncFiles.length > 0) {
-                  const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-                  const writtenCount = await processor.writeAiFiles(toolFiles);
-                  totalIgnoreOutputs += writtenCount;
-                  logger.success(
-                    `Generated ${writtenCount} ${toolTarget} ignore file(s) in ${baseDir}`,
-                  );
-                }
-              } catch (error) {
-                logger.warn(
-                  `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
-                  error instanceof Error ? error.message : String(error),
+              const rulesyncFiles = await processor.loadRulesyncFiles();
+              if (rulesyncFiles.length > 0) {
+                const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+                const writtenCount = await processor.writeAiFiles(toolFiles);
+                totalIgnoreOutputs += writtenCount;
+                logger.success(
+                  `Generated ${writtenCount} ${toolTarget} ignore file(s) in ${baseDir}`,
                 );
-                continue;
               }
+            } catch (error) {
+              logger.warn(
+                `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
+                error instanceof Error ? error.message : String(error),
+              );
+              continue;
             }
           }
         }
-      } else {
-        logger.info("\nSkipping ignore file generation (not in --features)");
       }
 
       // Generate subagent files (subagents feature)

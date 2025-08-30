@@ -1,11 +1,9 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { directoryExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -69,48 +67,7 @@ export class IgnoreProcessor extends FeatureProcessor {
   }
 
   async loadRulesyncIgnores(): Promise<RulesyncIgnore[]> {
-    const ignoreDir = join(this.baseDir, ".rulesync", "ignore");
-
-    // Check if directory exists
-    if (!(await directoryExists(ignoreDir))) {
-      throw new Error(`Rulesync ignore directory not found: ${ignoreDir}`);
-    }
-
-    // Read all markdown files from the directory
-    const entries = await readdir(ignoreDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      throw new Error(`No markdown files found in rulesync ignore directory: ${ignoreDir}`);
-    }
-
-    logger.info(`Found ${mdFiles.length} ignore files in ${ignoreDir}`);
-
-    // Parse all files and create RulesyncIgnore instances using fromFilePath
-    const rulesyncIgnores: RulesyncIgnore[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(ignoreDir, mdFile);
-
-      try {
-        const rulesyncIgnore = await RulesyncIgnore.fromFilePath({
-          filePath: filepath,
-        });
-
-        rulesyncIgnores.push(rulesyncIgnore);
-        logger.debug(`Successfully loaded ignore: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load ignore file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    if (rulesyncIgnores.length === 0) {
-      throw new Error(`No valid ignore files found in ${ignoreDir}`);
-    }
-
-    logger.info(`Successfully loaded ${rulesyncIgnores.length} rulesync ignores`);
-    return rulesyncIgnores;
+    return [await RulesyncIgnore.fromFilePath({ filePath: ".rulesyncignore" })];
   }
 
   /**
@@ -462,109 +419,98 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Convert RulesyncFile[] to ToolFile[]
    */
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
-    const rulesyncIgnores = rulesyncFiles.filter(
+    const rulesyncIgnore = rulesyncFiles.find(
       (file): file is RulesyncIgnore => file instanceof RulesyncIgnore,
     );
 
-    const toolIgnores = rulesyncIgnores
-      .filter((rulesyncIgnore) => {
-        const frontmatter = rulesyncIgnore.getFrontmatter();
-        const targets = frontmatter.targets;
+    if (!rulesyncIgnore) {
+      throw new Error(`No .rulesyncignore found.`);
+    }
 
-        // Check if this ignore file targets the current tool or wildcard
-        if (Array.isArray(targets)) {
-          if (targets.length === 1 && targets[0] === "*") {
-            return true; // Wildcard target
-          }
-          // targets is ToolTargets (string[]) when not wildcard
-          return targets.some((target: string): target is ToolTarget => target === this.toolTarget);
-        }
-        return false;
-      })
-      .map((rulesyncIgnore) => {
-        switch (this.toolTarget) {
-          case "augmentcode":
-            return AugmentcodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "claudecode":
-            return ClaudecodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".claude",
-              rulesyncIgnore,
-            });
-          case "cline":
-            return ClineIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "codexcli":
-            return CodexcliIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "copilot":
-            return CopilotIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "cursor":
-            return CursorIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "geminicli":
-            return GeminiCliIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "junie":
-            return JunieIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "kiro":
-            return KiroIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "opencode":
-            return OpencodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "qwencode":
-            return QwencodeIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "roo":
-            return RooIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          case "windsurf":
-            return WindsurfIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              relativeDirPath: ".",
-              rulesyncIgnore,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-        }
-      });
+    const toolIgnores = [rulesyncIgnore].map((rulesyncIgnore) => {
+      switch (this.toolTarget) {
+        case "augmentcode":
+          return AugmentcodeIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "claudecode":
+          return ClaudecodeIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".claude",
+            rulesyncIgnore,
+          });
+        case "cline":
+          return ClineIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "codexcli":
+          return CodexcliIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "copilot":
+          return CopilotIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "cursor":
+          return CursorIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "geminicli":
+          return GeminiCliIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "junie":
+          return JunieIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "kiro":
+          return KiroIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "opencode":
+          return OpencodeIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "qwencode":
+          return QwencodeIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "roo":
+          return RooIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        case "windsurf":
+          return WindsurfIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            rulesyncIgnore,
+          });
+        default:
+          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+      }
+    });
 
     return toolIgnores;
   }
