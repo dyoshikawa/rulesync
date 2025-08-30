@@ -1,5 +1,5 @@
-import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
-import { ALL_TOOL_TARGETS, RulesyncTargets } from "../types/tool-targets.js";
+import { ALL_FEATURES, Features, RulesyncFeatures } from "../types/features.js";
+import { ALL_TOOL_TARGETS, RulesyncTargets, ToolTargets } from "../types/tool-targets.js";
 
 export interface ConfigParams {
   baseDirs: string[];
@@ -28,20 +28,20 @@ export class Config {
     return this.baseDirs;
   }
 
-  public getTargets(): RulesyncTargets {
+  public getTargets(): ToolTargets {
     if (this.targets.includes("*")) {
       return [...ALL_TOOL_TARGETS];
     }
 
-    return this.targets;
+    return this.targets.filter((target) => target !== "*");
   }
 
-  public getFeatures(): RulesyncFeatures {
+  public getFeatures(): Features {
     if (this.features.includes("*")) {
       return [...ALL_FEATURES];
     }
 
-    return this.features;
+    return this.features.filter((feature) => feature !== "*");
   }
 
   public getVerbose(): boolean {
