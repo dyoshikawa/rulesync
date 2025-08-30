@@ -8,6 +8,10 @@ import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp
 export type CopilotMcpParams = ToolMcpParams;
 
 export class CopilotMcp extends ToolMcp {
+  static getSupportedMcpFileNames(): string[] {
+    return [COPILOT_MCP_FILE];
+  }
+
   static async fromFilePath({ filePath }: { filePath: string }): Promise<CopilotMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     let json: Record<string, unknown>;

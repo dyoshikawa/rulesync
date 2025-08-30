@@ -8,6 +8,10 @@ import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp
 export type ClineMcpParams = ToolMcpParams;
 
 export class ClineMcp extends ToolMcp {
+  static getSupportedMcpFileNames(): string[] {
+    return [CLINE_MCP_FILE];
+  }
+
   static async fromFilePath({ filePath }: { filePath: string }): Promise<ClineMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     let json: Record<string, unknown>;

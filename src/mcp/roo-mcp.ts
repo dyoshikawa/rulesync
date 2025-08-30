@@ -8,6 +8,10 @@ import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp
 export type RooMcpParams = ToolMcpParams;
 
 export class RooMcp extends ToolMcp {
+  static getSupportedMcpFileNames(): string[] {
+    return [ROO_MCP_FILE];
+  }
+
   static async fromFilePath({ filePath }: { filePath: string }): Promise<RooMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     let json: Record<string, unknown>;

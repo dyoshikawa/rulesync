@@ -69,32 +69,16 @@ export class McpProcessor extends FeatureProcessor {
     switch (this.toolTarget) {
       case "amazonqcli":
         return await this.loadAmazonqcliMcps();
-      case "augmentcode":
-        return await this.loadAugmentcodeMcps();
       case "claudecode":
         return await this.loadClaudecodeMcps();
       case "cline":
         return await this.loadClineMcps();
-      case "codexcli":
-        return await this.loadCodexcliMcps();
       case "copilot":
         return await this.loadCopilotMcps();
       case "cursor":
         return await this.loadCursorMcps();
-      case "geminicli":
-        return await this.loadGeminicliMcps();
-      case "junie":
-        return await this.loadJunieMcps();
-      case "kiro":
-        return await this.loadKiroMcps();
-      case "opencode":
-        return await this.loadOpencodeMcps();
-      case "qwencode":
-        return await this.loadQwencodeMcps();
       case "roo":
         return await this.loadRooMcps();
-      case "windsurf":
-        return await this.loadWindsurfMcps();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -122,27 +106,6 @@ export class McpProcessor extends FeatureProcessor {
     return [];
   }
 
-  private async loadAugmentcodeMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = AugmentcodeMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const augmentcodeMcp = await AugmentcodeMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded AugmentCode MCP file: ${mcpFilePath}`);
-        return [augmentcodeMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No AugmentCode MCP files found");
-    return [];
-  }
 
   private async loadClaudecodeMcps(): Promise<ToolMcp[]> {
     const supportedFiles = ClaudecodeMcp.getSupportedMcpFileNames();
@@ -188,27 +151,6 @@ export class McpProcessor extends FeatureProcessor {
     return [];
   }
 
-  private async loadCodexcliMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = CodexcliMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const codexcliMcp = await CodexcliMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded OpenAI Codex CLI MCP file: ${mcpFilePath}`);
-        return [codexcliMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No OpenAI Codex CLI MCP files found");
-    return [];
-  }
 
   private async loadCopilotMcps(): Promise<ToolMcp[]> {
     const supportedFiles = CopilotMcp.getSupportedMcpFileNames();
@@ -254,116 +196,6 @@ export class McpProcessor extends FeatureProcessor {
     return [];
   }
 
-  private async loadGeminicliMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = GeminicliMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const geminicliMcp = await GeminicliMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded Gemini CLI MCP file: ${mcpFilePath}`);
-        return [geminicliMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Gemini CLI MCP files found");
-    return [];
-  }
-
-  private async loadJunieMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = JunieMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const junieMcp = await JunieMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded JetBrains Junie MCP file: ${mcpFilePath}`);
-        return [junieMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No JetBrains Junie MCP files found");
-    return [];
-  }
-
-  private async loadKiroMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = KiroMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const kiroMcp = await KiroMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded Kiro MCP file: ${mcpFilePath}`);
-        return [kiroMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Kiro MCP files found");
-    return [];
-  }
-
-  private async loadOpencodeMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = OpencodeMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const opencodeMcp = await OpencodeMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded OpenCode MCP file: ${mcpFilePath}`);
-        return [opencodeMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No OpenCode MCP files found");
-    return [];
-  }
-
-  private async loadQwencodeMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = QwencodeMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const qwencodeMcp = await QwencodeMcp.fromFilePath({
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded Qwen Code MCP file: ${mcpFilePath}`);
-        return [qwencodeMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Qwen Code MCP files found");
-    return [];
-  }
-
   private async loadRooMcps(): Promise<ToolMcp[]> {
     const supportedFiles = RooMcp.getSupportedMcpFileNames();
 
@@ -383,31 +215,6 @@ export class McpProcessor extends FeatureProcessor {
     }
 
     logger.debug("No Roo Code MCP files found");
-    return [];
-  }
-
-  private async loadWindsurfMcps(): Promise<ToolMcp[]> {
-    const supportedFiles = WindsurfMcp.getSupportedMcpFileNames();
-
-    for (const filename of supportedFiles) {
-      const mcpFilePath = join(this.baseDir, filename);
-
-      try {
-        const windsurfMcp = await WindsurfMcp.fromFilePath({
-          baseDir: this.baseDir,
-          relativeDirPath: ".",
-          relativeFilePath: filename,
-          filePath: mcpFilePath,
-        });
-
-        logger.info(`Successfully loaded Windsurf MCP file: ${mcpFilePath}`);
-        return [windsurfMcp];
-      } catch (error) {
-        logger.debug(`Failed to load ${mcpFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Windsurf MCP files found");
     return [];
   }
 
@@ -440,12 +247,6 @@ export class McpProcessor extends FeatureProcessor {
             relativeDirPath: ".",
             rulesyncMcp,
           });
-        case "augmentcode":
-          return AugmentcodeMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
         case "claudecode":
           return ClaudecodeMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
@@ -454,12 +255,6 @@ export class McpProcessor extends FeatureProcessor {
           });
         case "cline":
           return ClineMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
-        case "codexcli":
-          return CodexcliMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
             relativeDirPath: ".",
             rulesyncMcp,
@@ -476,44 +271,8 @@ export class McpProcessor extends FeatureProcessor {
             relativeDirPath: ".",
             rulesyncMcp,
           });
-        case "geminicli":
-          return GeminicliMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
-        case "junie":
-          return JunieMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
-        case "kiro":
-          return KiroMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
-        case "opencode":
-          return OpencodeMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
-        case "qwencode":
-          return QwencodeMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
         case "roo":
           return RooMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            relativeDirPath: ".",
-            rulesyncMcp,
-          });
-        case "windsurf":
-          return WindsurfMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
             relativeDirPath: ".",
             rulesyncMcp,

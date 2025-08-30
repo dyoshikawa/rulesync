@@ -8,6 +8,10 @@ import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp
 export type CursorMcpParams = ToolMcpParams;
 
 export class CursorMcp extends ToolMcp {
+  static getSupportedMcpFileNames(): string[] {
+    return [CURSOR_MCP_FILE];
+  }
+
   static async fromFilePath({ filePath }: { filePath: string }): Promise<CursorMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     let json: Record<string, unknown>;

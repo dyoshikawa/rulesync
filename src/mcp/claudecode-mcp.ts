@@ -8,6 +8,10 @@ import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp
 export type ClaudecodeMcpParams = ToolMcpParams;
 
 export class ClaudecodeMcp extends ToolMcp {
+  static getSupportedMcpFileNames(): string[] {
+    return [CLAUDECODE_MCP_FILE];
+  }
+
   static async fromFilePath({ filePath }: { filePath: string }): Promise<ClaudecodeMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     let json: Record<string, unknown>;
