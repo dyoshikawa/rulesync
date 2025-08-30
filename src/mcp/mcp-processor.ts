@@ -106,7 +106,6 @@ export class McpProcessor extends FeatureProcessor {
     return [];
   }
 
-
   private async loadClaudecodeMcps(): Promise<ToolMcp[]> {
     const supportedFiles = ClaudecodeMcp.getSupportedMcpFileNames();
 
@@ -150,7 +149,6 @@ export class McpProcessor extends FeatureProcessor {
     logger.debug("No Cline MCP files found");
     return [];
   }
-
 
   private async loadCopilotMcps(): Promise<ToolMcp[]> {
     const supportedFiles = CopilotMcp.getSupportedMcpFileNames();

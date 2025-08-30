@@ -32,7 +32,7 @@ export class RulesyncMcp extends RulesyncFile {
       relativeFilePath: RULESYNC_MCP_FILE,
       body: fileContent,
       fileContent,
-      json: {},
+      json: JSON.parse(fileContent),
       validate: false,
     });
   }
