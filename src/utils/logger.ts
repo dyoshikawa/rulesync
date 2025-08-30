@@ -20,11 +20,8 @@ class Logger {
     this.console.log(message, ...args);
   }
 
-  // Info level (shown only in verbose mode)
   info(message: string, ...args: unknown[]): void {
-    if (this._verbose) {
-      this.console.info(message, ...args);
-    }
+    this.console.info(message, ...args);
   }
 
   // Success (always shown)
