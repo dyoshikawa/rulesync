@@ -57,7 +57,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
       // Generate MCP configurations (mcp feature)
       let totalMcpOutputs = 0;
-      if (normalizedFeatures.includes("mcp")) {
+      if (config.getFeatures().includes("mcp")) {
         logger.info("\nGenerating MCP files...");
 
         // Check which targets support MCP
@@ -69,13 +69,13 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           "cursor",
           "roo",
         ];
-        const mcpSupportedTargets = config.defaultTargets.filter(
-          (target): target is McpProcessorToolTarget => {
+        const mcpSupportedTargets = config
+          .getTargets()
+          .filter((target): target is McpProcessorToolTarget => {
             return supportedMcpTargets.some((supportedTarget) => supportedTarget === target);
-          },
-        );
+          });
 
-        for (const baseDir of baseDirs) {
+        for (const baseDir of config.getBaseDirs()) {
           for (const toolTarget of intersection(
             mcpSupportedTargets,
             McpProcessor.getToolTargets(),

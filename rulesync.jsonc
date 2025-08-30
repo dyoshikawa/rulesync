@@ -9,7 +9,5 @@
   
   // Delete existing files before generating
   "delete": true,
-  
-  // Enable verbose output
   "verbose": false
 }

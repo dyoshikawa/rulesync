@@ -2,26 +2,11 @@ import { join } from "node:path";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
-export async function initCommand(options: { legacy?: boolean } = {}): Promise<void> {
-  const configResult = await loadConfig();
-  const config = configResult.config;
-  const aiRulesDir = config.aiRulesDir;
-
+export async function initCommand(): Promise<void> {
   logger.log("Initializing rulesync...");
 
-  // Create .rulesync directory
-  await ensureDir(aiRulesDir);
-
-  // Determine whether to use legacy location based on options and config
-  const useLegacy = options.legacy ?? config.legacy ?? false;
-  const rulesDir = useLegacy ? aiRulesDir : join(aiRulesDir, "rules");
-
-  // Create rules directory if using new location
-  if (!useLegacy) {
-    await ensureDir(rulesDir);
-  }
-
-  // Create sample rule files
+  await ensureDir(".rulesync");
+  const rulesDir = join(".rulesync", "rules");
   await createSampleFiles(rulesDir);
 
   logger.success("rulesync initialized successfully!");
