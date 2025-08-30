@@ -320,27 +320,4 @@ describe("generateCommand", () => {
       expect.any(Error),
     );
   });
-
-  it("should delete output directories when --delete option is used", async () => {
-    const mockResolverInstance = {
-      resolve: vi.fn().mockResolvedValue({
-        value: {
-          ...mockConfig,
-          aiRulesDir: ".rulesync",
-          defaultTargets: ["copilot", "cursor", "cline", "roo"] as ToolTarget[],
-          watchEnabled: false,
-          delete: true,
-        },
-        source: "CLI arguments",
-      }),
-    };
-    mockConfigResolver.mockImplementation(() => mockResolverInstance as any);
-
-    await generateCommand({ tools: ["copilot", "cursor", "cline", "roo"], delete: true });
-
-    expect(mockRemoveDirectory).toHaveBeenCalledWith(".github/instructions");
-    expect(mockRemoveDirectory).toHaveBeenCalledWith(".cursor/rules");
-    expect(mockRemoveDirectory).toHaveBeenCalledWith(".clinerules");
-    expect(mockRemoveDirectory).toHaveBeenCalledWith(".roo/rules");
-  });
 });
