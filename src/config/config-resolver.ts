@@ -2,9 +2,12 @@ import { loadConfig } from "c12";
 import { fileExists } from "../utils/file.js";
 import { Config, ConfigParams } from "./config.js";
 
-export interface ConfigResolverResolveParams extends ConfigParams {
-  configPath?: string;
-}
+export type ConfigResolverResolveParams = Partial<
+  ConfigParams & {
+    configPath: string;
+  }
+>;
+
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve({

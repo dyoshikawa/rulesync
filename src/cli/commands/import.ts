@@ -1,143 +1,124 @@
-import { importConfiguration } from "../../core/importer.js";
-import type { FeatureType } from "../../types/config-options.js";
-import type { ToolTarget } from "../../types/index.js";
-import { normalizeFeatures } from "../../utils/feature-validator.js";
+import { CommandsProcessor } from "../../commands/commands-processor.js";
+import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
+import { RulesProcessor } from "../../rules/rules-processor.js";
+import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import { logger } from "../../utils/logger.js";
-import { showBackwardCompatibilityWarning } from "./shared-utils.js";
 
-export interface ImportOptions {
-  targets?: ToolTarget[];
-  features?: FeatureType[] | "*" | undefined;
-  agentsmd?: boolean;
-  amazonqcli?: boolean;
-  augmentcode?: boolean;
-  "augmentcode-legacy"?: boolean;
-  claudecode?: boolean;
-  cursor?: boolean;
-  copilot?: boolean;
-  cline?: boolean;
-  roo?: boolean;
-  geminicli?: boolean;
-  junie?: boolean;
-  qwencode?: boolean;
-  opencode?: boolean;
-  verbose?: boolean;
-  legacy?: boolean;
-}
+export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
 
-export async function importCommand(options: ImportOptions = {}): Promise<void> {
+export async function importCommand(options: ImportOptions): Promise<void> {
+  if (!options.targets) {
+    logger.error("No tools found in --targets");
+    process.exit(1);
+  }
+
+  if (options.targets.length > 1) {
+    logger.error("Only one tool can be imported at a time");
+    process.exit(1);
+  }
+
+  const config = await ConfigResolver.resolve(options);
+
   // Set logger verbosity based on options
-  logger.setVerbose(options.verbose || false);
+  logger.setVerbose(config.getVerbose());
 
-  // Handle features option with backward compatibility
-  let resolvedFeatures: FeatureType[] | "*" | undefined;
-  let showWarning = false;
+  // eslint-disable-next-line no-type-assertion/no-type-assertion
+  const tool = config.getTargets()[0]!;
 
-  if (options.features !== undefined) {
-    resolvedFeatures = options.features;
-  } else {
-    // No features specified - default to all features for backward compatibility
-    resolvedFeatures = "*";
-    showWarning = true;
-  }
+  // Import rule files using RulesProcessor if rules feature is enabled
+  let rulesCreated = 0;
+  if (config.getFeatures().includes("rules")) {
+    if (RulesProcessor.getToolTargets().includes(tool)) {
+      const rulesProcessor = new RulesProcessor({
+        baseDir: ".",
+        toolTarget: tool,
+      });
 
-  // Show backward compatibility warning if features are not specified
-  if (showWarning) {
-    showBackwardCompatibilityWarning(
-      "importing",
-      "rulesync import --targets cursor,copilot --features rules,mcp,ignore",
-    );
-  }
+      const toolFiles = await rulesProcessor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+        const writtenCount = await rulesProcessor.writeAiFiles(rulesyncFiles);
+        rulesCreated = writtenCount;
+      }
 
-  // Normalize features for processing
-  const normalizedFeatures = normalizeFeatures(resolvedFeatures);
-
-  let tools: ToolTarget[] = [];
-
-  // If targets are provided, use them directly
-  if (options.targets && options.targets.length > 0) {
-    tools = options.targets;
-  } else {
-    // Fallback to legacy individual flags for backwards compatibility
-    if (options.agentsmd) tools.push("agentsmd");
-    if (options.amazonqcli) tools.push("amazonqcli");
-    if (options.augmentcode) tools.push("augmentcode");
-    if (options["augmentcode-legacy"]) tools.push("augmentcode-legacy");
-    if (options.claudecode) tools.push("claudecode");
-    if (options.cursor) tools.push("cursor");
-    if (options.copilot) tools.push("copilot");
-    if (options.cline) tools.push("cline");
-    if (options.roo) tools.push("roo");
-    if (options.geminicli) tools.push("geminicli");
-    if (options.junie) tools.push("junie");
-    if (options.qwencode) tools.push("qwencode");
-    if (options.opencode) tools.push("opencode");
-  }
-
-  // Validate that exactly one tool is selected
-  if (tools.length === 0) {
-    logger.error("❌ Please specify a tool to import from using --targets <tool>.");
-    logger.info("Example: rulesync import --targets cursor");
-    process.exit(1);
-  }
-
-  if (tools.length > 1) {
-    logger.error(
-      "❌ Import command only supports a single target.\n" +
-        `You specified: ${tools.join(", ")}\n\n` +
-        "Please run the command separately for each tool:",
-    );
-    for (const tool of tools) {
-      logger.info(`  rulesync import --targets ${tool}`);
+      if (config.getVerbose() && rulesCreated > 0) {
+        logger.success(`Created ${rulesCreated} rule files`);
+      }
     }
-    process.exit(1);
   }
 
-  // Process the single tool (we know it exists due to validation above)
-  const tool = tools[0];
-  if (!tool) {
-    // This should never happen due to validation above, but TypeScript requires this check
-    logger.error("❌ Unexpected error: No tool selected");
-    process.exit(1);
-  }
-  logger.log(`Importing configuration files from ${tool}...`);
+  // Process ignore files if ignore feature is enabled
+  let ignoreFileCreated = 0;
+  if (config.getFeatures().includes("ignore")) {
+    if (IgnoreProcessor.getToolTargets().includes(tool)) {
+      const ignoreProcessor = new IgnoreProcessor({
+        baseDir: ".",
+        toolTarget: tool,
+      });
 
-  try {
-    const result = await importConfiguration({
-      tool,
-      features: normalizedFeatures,
-      verbose: options.verbose ?? false,
-      useLegacyLocation: options.legacy ?? false,
-    });
-
-    if (result.success) {
-      logger.success(`✅ Imported ${result.rulesCreated} rule(s) from ${tool}`);
-      if (result.ignoreFileCreated) {
-        logger.success("  Created .rulesyncignore file from ignore patterns");
-      }
-      if (result.mcpFileCreated) {
-        logger.success("  Created .rulesync/.mcp.json file from MCP configuration");
-      }
-      if (result.subagentsCreated) {
-        logger.success(`  Created ${result.subagentsCreated} subagent files`);
-      }
-
-      logger.success(`\n🎉 Successfully imported from ${tool}`);
-      logger.log("You can now run 'rulesync generate' to create tool-specific configurations.");
-    } else if (result.errors.length > 0) {
-      logger.warn(`⚠️  Failed to import from ${tool}: ${result.errors[0]}`);
-      if (result.errors.length > 1) {
-        logger.info("  Detailed errors:");
-        for (const error of result.errors) {
-          logger.info(`    - ${error}`);
+      const toolFiles = await ignoreProcessor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+        const writtenCount = await ignoreProcessor.writeAiFiles(rulesyncFiles);
+        ignoreFileCreated = writtenCount;
+        if (config.getVerbose()) {
+          logger.success(
+            `Created ignore files from ${toolFiles.length} tool ignore configurations`,
+          );
         }
       }
-      logger.error(`\n❌ Failed to import from ${tool}.`);
-      process.exit(1);
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`❌ Error importing from ${tool}: ${errorMessage}`);
-    process.exit(1);
+
+    if (config.getVerbose() && ignoreFileCreated > 0) {
+      logger.success(`Created ${ignoreFileCreated} ignore files`);
+    }
+  }
+
+  // Create subagent files if subagents feature is enabled
+  let subagentsCreated = 0;
+  if (config.getFeatures().includes("subagents")) {
+    // Use SubagentsProcessor for supported tools
+    if (SubagentsProcessor.getToolTargets().includes(tool)) {
+      const subagentsProcessor = new SubagentsProcessor({
+        baseDir: ".",
+        toolTarget: tool,
+      });
+
+      const toolFiles = await subagentsProcessor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+        const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
+        subagentsCreated += writtenCount;
+      }
+    }
+
+    if (config.getVerbose() && subagentsCreated > 0) {
+      logger.success(`Created ${subagentsCreated} subagent files`);
+    }
+  }
+
+  // Create command files using CommandsProcessor if commands feature is enabled
+  let commandsCreated = 0;
+  if (config.getFeatures().includes("commands")) {
+    // Use CommandsProcessor for supported tools
+    const supportedTargets = CommandsProcessor.getToolTargets();
+    if (supportedTargets && supportedTargets.includes && supportedTargets.includes(tool)) {
+      const commandsProcessor = new CommandsProcessor({
+        baseDir: ".",
+        toolTarget: tool,
+      });
+
+      const toolFiles = await commandsProcessor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+        const writtenCount = await commandsProcessor.writeAiFiles(rulesyncFiles);
+        commandsCreated = writtenCount;
+      }
+    }
+
+    if (config.getVerbose() && commandsCreated > 0) {
+      logger.success(`Created ${commandsCreated} command files`);
+    }
   }
 }
