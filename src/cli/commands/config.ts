@@ -2,7 +2,6 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ConfigOptions, ToolTarget } from "../../types/index.js";
 import { ALL_TOOL_TARGETS, ToolTargetSchema } from "../../types/index.js";
-import { generateMinimalConfig, generateSampleConfig, loadConfig } from "../../utils/index.js";
 import { logger } from "../../utils/logger.js";
 
 export interface ConfigCommandOptions {

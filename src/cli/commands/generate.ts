@@ -7,7 +7,7 @@ import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/c
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
-import { fileExists } from "../../utils/index.js";
+import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
