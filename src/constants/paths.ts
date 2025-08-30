@@ -8,3 +8,4 @@ export const RULESYNC_COMMANDS_DIR = join(".rulesync", "commands");
 export const RULESYNC_SUBAGENTS_DIR = join(".rulesync", "subagents");
 
 export const CURSOR_MCP_FILE = join(".cursor", "mcp.json");
+export const CLAUDECODE_MCP_FILE = ".mcp.json";
