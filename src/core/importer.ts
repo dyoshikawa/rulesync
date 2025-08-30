@@ -2,27 +2,10 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { IgnoreProcessor } from "../ignore/ignore-processor.js";
-import {
-  parseAgentsMdConfiguration,
-  parseAmazonqcliConfiguration,
-  parseAugmentcodeConfiguration,
-  parseAugmentcodeLegacyConfiguration,
-  parseClaudeConfiguration,
-  parseClineConfiguration,
-  parseCopilotConfiguration,
-  parseCursorConfiguration,
-  parseGeminiConfiguration,
-  parseJunieConfiguration,
-  parseOpenCodeConfiguration,
-  parseQwenConfiguration,
-  parseRooConfiguration,
-} from "../parsers/index.js";
 import { RulesProcessor } from "../rules/rules-processor.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import type { FeatureType } from "../types/config-options.js";
 import type { ParsedRule, ToolTarget } from "../types/index.js";
-import type { RulesyncMcpServer } from "../types/mcp.js";
-import type { ParsedSubagent } from "../types/subagent.js";
 import { writeFileContent } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
 
@@ -55,129 +38,10 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
     useLegacyLocation = false,
   } = options;
   const errors: string[] = [];
-  let rules: ParsedRule[] = [];
-  let mcpServers: Record<string, RulesyncMcpServer> | undefined;
-  let subagents: ParsedSubagent[] | undefined;
+  const rules: ParsedRule[] = [];
 
   if (verbose) {
     logger.log(`Importing ${tool} configuration from ${baseDir}...`);
-  }
-
-  // Parse configuration based on tool
-  try {
-    switch (tool) {
-      case "agentsmd": {
-        const agentsmdResult = await parseAgentsMdConfiguration(baseDir);
-        rules = agentsmdResult.rules;
-        errors.push(...agentsmdResult.errors);
-        break;
-      }
-      case "amazonqcli": {
-        const amazonqResult = await parseAmazonqcliConfiguration(baseDir);
-        rules = amazonqResult.rules;
-        errors.push(...amazonqResult.errors);
-        mcpServers = amazonqResult.mcpServers;
-        break;
-      }
-      case "augmentcode": {
-        const augmentResult = await parseAugmentcodeConfiguration(baseDir);
-        rules = augmentResult.rules;
-        errors.push(...augmentResult.errors);
-        break;
-      }
-      case "augmentcode-legacy": {
-        const augmentLegacyResult = await parseAugmentcodeLegacyConfiguration(baseDir);
-        rules = augmentLegacyResult.rules;
-        errors.push(...augmentLegacyResult.errors);
-        break;
-      }
-      case "claudecode": {
-        const claudeResult = await parseClaudeConfiguration(baseDir);
-        rules = claudeResult.rules;
-        errors.push(...claudeResult.errors);
-        mcpServers = claudeResult.mcpServers;
-        subagents = claudeResult.subagents;
-        break;
-      }
-      case "cursor": {
-        const cursorResult = await parseCursorConfiguration(baseDir);
-        rules = cursorResult.rules;
-        errors.push(...cursorResult.errors);
-        mcpServers = cursorResult.mcpServers;
-        break;
-      }
-      case "copilot": {
-        const copilotResult = await parseCopilotConfiguration(baseDir);
-        rules = copilotResult.rules;
-        errors.push(...copilotResult.errors);
-        break;
-      }
-      case "cline": {
-        const clineResult = await parseClineConfiguration(baseDir);
-        rules = clineResult.rules;
-        errors.push(...clineResult.errors);
-        break;
-      }
-      case "roo": {
-        const rooResult = await parseRooConfiguration(baseDir);
-        rules = rooResult.rules;
-        errors.push(...rooResult.errors);
-        break;
-      }
-      case "geminicli": {
-        const geminiResult = await parseGeminiConfiguration(baseDir);
-        rules = geminiResult.rules;
-        errors.push(...geminiResult.errors);
-        mcpServers = geminiResult.mcpServers;
-        break;
-      }
-      case "junie": {
-        const junieResult = await parseJunieConfiguration(baseDir);
-        rules = junieResult.rules;
-        errors.push(...junieResult.errors);
-        break;
-      }
-      case "opencode": {
-        const opencodeResult = await parseOpenCodeConfiguration(baseDir);
-        rules = opencodeResult.rules;
-        errors.push(...opencodeResult.errors);
-        mcpServers = opencodeResult.mcpServers;
-        break;
-      }
-      case "qwencode": {
-        const qwenResult = await parseQwenConfiguration(baseDir);
-        rules = qwenResult.rules;
-        errors.push(...qwenResult.errors);
-        mcpServers = qwenResult.mcpServers;
-        break;
-      }
-      default:
-        errors.push(`Unsupported tool: ${tool}`);
-        return { success: false, rulesCreated: 0, errors };
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to parse ${tool} configuration: ${errorMessage}`);
-    return { success: false, rulesCreated: 0, errors };
-  }
-
-  // Check if no relevant features are enabled
-  const rulesEnabled = features.includes("rules") || features.includes("commands");
-  const ignoreEnabled = features.includes("ignore");
-  const mcpEnabled = features.includes("mcp");
-  const subagentsEnabled = features.includes("subagents");
-
-  if (!rulesEnabled && !ignoreEnabled && !mcpEnabled && !subagentsEnabled) {
-    if (verbose) {
-      logger.log("No relevant features enabled for import");
-    }
-    return { success: false, rulesCreated: 0, errors: ["No features enabled for import"] };
-  }
-
-  // Early return if no data found and none of the data-independent features are enabled
-  const commandsEnabled = features.includes("commands");
-  if (rules.length === 0 && !mcpServers && !subagents && !ignoreEnabled && !commandsEnabled) {
-    return { success: false, rulesCreated: 0, errors };
   }
 
   // Ensure .rulesync directory exists
@@ -261,7 +125,7 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
 
   // Process ignore files if ignore feature is enabled
   let ignoreFileCreated = false;
-  if (ignoreEnabled) {
+  if (features.includes("ignore")) {
     try {
       // Use IgnoreProcessor for supported tools
       if (IgnoreProcessor.getToolTargets().includes(tool)) {
@@ -291,27 +155,11 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   }
 
   // Create .mcp.json file if MCP servers exist and mcp feature is enabled
-  let mcpFileCreated = false;
-  if (mcpEnabled && mcpServers && Object.keys(mcpServers).length > 0) {
-    try {
-      const mcpPath = join(baseDir, rulesDir, ".mcp.json");
-      const mcpContent = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
-      await writeFileContent(mcpPath, mcpContent);
-      mcpFileCreated = true;
-      if (verbose) {
-        logger.success(`Created .mcp.json with ${Object.keys(mcpServers).length} servers`);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      errors.push(`Failed to create .mcp.json: ${errorMessage}`);
-    }
-  } else if (verbose && mcpServers && Object.keys(mcpServers).length > 0 && !mcpEnabled) {
-    logger.log(`Skipping MCP configuration (mcp feature not enabled)`);
-  }
+  const mcpFileCreated = false;
 
   // Create subagent files if subagents feature is enabled
   let subagentsCreated = 0;
-  if (subagentsEnabled) {
+  if (features.includes("subagents")) {
     try {
       // Use SubagentsProcessor for supported tools
       if (SubagentsProcessor.getToolTargets().includes(tool)) {
@@ -335,8 +183,6 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
       const errorMessage = error instanceof Error ? error.message : String(error);
       errors.push(`Failed to create subagents directory: ${errorMessage}`);
     }
-  } else if (verbose && subagents && subagents.length > 0) {
-    logger.log(`Skipping subagents (subagents feature not enabled)`);
   }
 
   // Create command files using CommandsProcessor if commands feature is enabled
