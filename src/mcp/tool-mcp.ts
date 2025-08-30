@@ -6,7 +6,7 @@ export interface ToolMcpParams extends AiFileParams {
   json: Record<string, unknown>;
 }
 
-export type ToolMcpFromRulesyncIgnoreParams = Omit<
+export type ToolMcpFromRulesyncMcpParams = Omit<
   AiFileParams,
   "fileContent" | "relativeFilePath"
 > & {
@@ -42,7 +42,7 @@ export abstract class ToolMcp extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  static fromRulesyncIgnore(_params: ToolMcpFromRulesyncIgnoreParams): ToolMcp {
+  static fromRulesyncMcp(_params: ToolMcpFromRulesyncMcpParams): ToolMcp {
     throw new Error("Please implement this method in the subclass.");
   }
 }
