@@ -246,6 +246,7 @@
         "amazonqignore",
         "dylib",
         "webfetch",
-        "reinclusion"
+        "reinclusion",
+        "Mcps"
     ]
 }
