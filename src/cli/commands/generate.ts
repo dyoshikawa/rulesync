@@ -5,6 +5,7 @@ import {
 } from "../../commands/commands-processor.js";
 import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/index.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
+import { McpProcessor, type McpProcessorToolTarget } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
@@ -150,8 +151,45 @@ Available tools:
       }
 
       // Generate MCP configurations (mcp feature)
-      // TODO: Implement MCP configuration generation
-      const totalMcpOutputs = 0;
+      let totalMcpOutputs = 0;
+      if (normalizedFeatures.includes("mcp")) {
+        logger.info("\nGenerating MCP files...");
+
+        // Check which targets support MCP
+        const supportedMcpTargets: McpProcessorToolTarget[] = [
+          "amazonqcli",
+          "claudecode", 
+          "cline",
+          "copilot",
+          "cursor",
+          "roo",
+        ];
+        const mcpSupportedTargets = config.defaultTargets.filter(
+          (target): target is McpProcessorToolTarget => {
+            return supportedMcpTargets.some((supportedTarget) => supportedTarget === target);
+          },
+        );
+
+        for (const baseDir of baseDirs) {
+          for (const toolTarget of intersection(
+            mcpSupportedTargets,
+            McpProcessor.getToolTargets(),
+          )) {
+            const processor = new McpProcessor({
+              baseDir: baseDir,
+              toolTarget: toolTarget,
+            });
+
+            const rulesyncFiles = await processor.loadRulesyncFiles();
+            const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+            const writtenCount = await processor.writeAiFiles(toolFiles);
+            totalMcpOutputs += writtenCount;
+            logger.success(`Generated ${writtenCount} ${toolTarget} MCP configuration(s) in ${baseDir}`);
+          }
+        }
+      } else {
+        logger.info("\nSkipping MCP configuration generation (not in --features)");
+      }
 
       // Generate command files (commands feature)
       let totalCommandOutputs = 0;

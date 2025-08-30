@@ -2,6 +2,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { IgnoreProcessor } from "../ignore/ignore-processor.js";
+import { McpProcessor } from "../mcp/mcp-processor.js";
 import { RulesProcessor } from "../rules/rules-processor.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import type { FeatureType } from "../types/config-options.js";
@@ -155,7 +156,32 @@ export async function importConfiguration(options: ImportOptions): Promise<Impor
   }
 
   // Create .mcp.json file if MCP servers exist and mcp feature is enabled
-  const mcpFileCreated = false;
+  let mcpFileCreated = false;
+  if (features.includes("mcp")) {
+    try {
+      if (McpProcessor.getToolTargets().includes(tool)) {
+        const mcpProcessor = new McpProcessor({
+          baseDir,
+          toolTarget: tool,
+        });
+
+        const toolFiles = await mcpProcessor.loadToolFiles();
+        if (toolFiles.length > 0) {
+          const rulesyncFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+          await mcpProcessor.writeAiFiles(rulesyncFiles);
+          mcpFileCreated = true;
+          if (verbose) {
+            logger.success(`Created MCP files from ${toolFiles.length} tool MCP configurations`);
+          }
+        }
+      } else if (verbose) {
+        logger.log(`Tool ${tool} does not support MCP file processing`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to process MCP files: ${errorMessage}`);
+    }
+  }
 
   // Create subagent files if subagents feature is enabled
   let subagentsCreated = 0;
