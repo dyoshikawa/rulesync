@@ -1,24 +1,16 @@
-import { join } from "node:path";
 import { intersection } from "es-toolkit";
 import {
   CommandsProcessor,
   type CommandsProcessorToolTarget,
 } from "../../commands/commands-processor.js";
 import { type CliOptions, CliParser, ConfigResolver } from "../../core/config/index.js";
-import { generateMcpConfigurations } from "../../core/mcp-generator.js";
-import { parseMcpConfig } from "../../core/mcp-parser.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import type { FeatureType } from "../../types/config-options.js";
 import type { ToolTarget } from "../../types/index.js";
 import { normalizeFeatures } from "../../utils/feature-validator.js";
-import {
-  fileExists,
-  removeClaudeGeneratedFiles,
-  removeDirectory,
-  writeFileContent,
-} from "../../utils/index.js";
+import { fileExists } from "../../utils/index.js";
 import { logger } from "../../utils/logger.js";
 import { showBackwardCompatibilityWarning } from "./shared-utils.js";
 
@@ -132,118 +124,6 @@ Available tools:
 
     try {
       logger.info(`Base directories: ${baseDirs.join(", ")}`);
-
-      // Delete existing output directories if --delete option is specified
-      if (config.delete) {
-        logger.info("Deleting existing output directories...");
-
-        const targetTools = config.defaultTargets;
-        const deleteTasks = [];
-
-        // Check if .rulesync/commands directory has any command files
-        const commandsDir = join(config.aiRulesDir, "commands");
-        const hasCommands = await fileExists(commandsDir);
-        let hasCommandFiles = false;
-        if (hasCommands) {
-          const { readdir } = await import("node:fs/promises");
-          try {
-            const files = await readdir(commandsDir);
-            hasCommandFiles = files.some((file) => file.endsWith(".md"));
-          } catch {
-            hasCommandFiles = false;
-          }
-        }
-
-        for (const tool of targetTools) {
-          switch (tool) {
-            case "augmentcode":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(join(".augment", "rules")));
-              }
-              if (normalizedFeatures.includes("ignore")) {
-                deleteTasks.push(removeDirectory(join(".augment", "ignore")));
-              }
-              break;
-            case "augmentcode-legacy":
-              // Legacy AugmentCode files are in the root directory
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeClaudeGeneratedFiles());
-              }
-              if (normalizedFeatures.includes("ignore")) {
-                deleteTasks.push(removeDirectory(join(".augment", "ignore")));
-              }
-              break;
-            case "copilot":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.copilot));
-              }
-              break;
-            case "cursor":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.cursor));
-              }
-              break;
-            case "cline":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.cline));
-              }
-              break;
-            case "claudecode":
-              // Delete only the features that are being regenerated
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeClaudeGeneratedFiles());
-              }
-              if (normalizedFeatures.includes("commands") && hasCommandFiles) {
-                deleteTasks.push(removeDirectory(join(".claude", "commands")));
-              }
-              if (normalizedFeatures.includes("subagents")) {
-                deleteTasks.push(removeDirectory(join(".claude", "agents")));
-              }
-              break;
-            case "roo":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.roo));
-              }
-              if (normalizedFeatures.includes("commands") && hasCommandFiles) {
-                deleteTasks.push(removeDirectory(join(".roo", "commands")));
-              }
-              break;
-            case "geminicli":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.geminicli));
-              }
-              if (normalizedFeatures.includes("commands") && hasCommandFiles) {
-                deleteTasks.push(removeDirectory(join(".gemini", "commands")));
-              }
-              break;
-            case "kiro":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.kiro));
-              }
-              break;
-            case "opencode":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.opencode));
-              }
-              break;
-            case "qwencode":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.qwencode));
-              }
-              break;
-            case "windsurf":
-              if (normalizedFeatures.includes("rules")) {
-                deleteTasks.push(removeDirectory(config.outputPaths.windsurf));
-              }
-              break;
-          }
-        }
-
-        await Promise.all(deleteTasks);
-
-        logger.info("Deleted existing output directories");
-      }
-
       // Generate rule files (rules feature)
       let totalOutputs = 0;
       if (normalizedFeatures.includes("rules")) {
@@ -270,48 +150,8 @@ Available tools:
       }
 
       // Generate MCP configurations (mcp feature)
-      let totalMcpOutputs = 0;
-      if (normalizedFeatures.includes("mcp")) {
-        logger.info("\nGenerating MCP configurations...");
-
-        for (const baseDir of baseDirs) {
-          try {
-            const mcpConfig = parseMcpConfig(process.cwd());
-
-            if (
-              !mcpConfig ||
-              !mcpConfig.mcpServers ||
-              Object.keys(mcpConfig.mcpServers).length === 0
-            ) {
-              logger.info(`No MCP configuration found for ${baseDir}`);
-              continue;
-            }
-
-            const mcpResults = await generateMcpConfigurations(
-              mcpConfig,
-              baseDir === process.cwd() ? "." : baseDir,
-              config.defaultTargets,
-            );
-
-            if (mcpResults.length === 0) {
-              logger.info(`No MCP configurations generated for ${baseDir}`);
-              continue;
-            }
-
-            for (const result of mcpResults) {
-              await writeFileContent(result.filepath, result.content);
-              logger.success(`Generated ${result.tool} MCP configuration: ${result.filepath}`);
-              totalMcpOutputs++;
-            }
-          } catch (error) {
-            logger.error(
-              `❌ Failed to generate MCP configurations: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-      } else {
-        logger.info("\nSkipping MCP configuration generation (not in --features)");
-      }
+      // TODO: Implement MCP configuration generation
+      const totalMcpOutputs = 0;
 
       // Generate command files (commands feature)
       let totalCommandOutputs = 0;
