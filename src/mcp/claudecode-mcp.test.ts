@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CLAUDECODE_MCP_FILE } from "../constants/paths.js";
 import { setupTestDirectory } from "../test-utils/index.js";
-import { ClaudeCodeMcp } from "./claudecode-mcp.js";
+import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
-describe("ClaudeCodeMcp", () => {
+describe("ClaudecodeMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -19,7 +19,7 @@ describe("ClaudeCodeMcp", () => {
   });
 
   describe("fromFilePath", () => {
-    it("should create ClaudeCodeMcp from valid JSON file", async () => {
+    it("should create ClaudecodeMcp from valid JSON file", async () => {
       const config = {
         mcpServers: {
           "test-server": {
@@ -33,7 +33,7 @@ describe("ClaudeCodeMcp", () => {
       const filePath = join(testDir, CLAUDECODE_MCP_FILE);
       await writeFile(filePath, JSON.stringify(config, null, 2));
 
-      const mcp = await ClaudeCodeMcp.fromFilePath({ filePath });
+      const mcp = await ClaudecodeMcp.fromFilePath({ filePath });
 
       expect(mcp.getJson()).toEqual(config);
       expect(mcp.getTargetFilePath()).toBe(join(".", ".", CLAUDECODE_MCP_FILE));
@@ -43,14 +43,14 @@ describe("ClaudeCodeMcp", () => {
       const filePath = join(testDir, CLAUDECODE_MCP_FILE);
       await writeFile(filePath, "invalid json");
 
-      await expect(ClaudeCodeMcp.fromFilePath({ filePath })).rejects.toThrow(
+      await expect(ClaudecodeMcp.fromFilePath({ filePath })).rejects.toThrow(
         "Invalid JSON in Claude Code MCP file",
       );
     });
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should convert RulesyncMcp to ClaudeCodeMcp", async () => {
+    it("should convert RulesyncMcp to ClaudecodeMcp", async () => {
       const rulesyncConfig = {
         mcpServers: {
           "test-server": {
@@ -71,7 +71,7 @@ describe("ClaudeCodeMcp", () => {
         validate: false,
       });
 
-      const claudeCodeMcp = ClaudeCodeMcp.fromRulesyncMcp({
+      const claudeCodeMcp = ClaudecodeMcp.fromRulesyncMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         rulesyncMcp,
@@ -85,7 +85,7 @@ describe("ClaudeCodeMcp", () => {
   });
 
   describe("toRulesyncMcp", () => {
-    it("should convert ClaudeCodeMcp to RulesyncMcp", async () => {
+    it("should convert ClaudecodeMcp to RulesyncMcp", async () => {
       const config = {
         mcpServers: {
           "test-server": {
@@ -94,7 +94,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const claudeCodeMcp = new ClaudeCodeMcp({
+      const claudeCodeMcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -133,7 +133,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -148,7 +148,7 @@ describe("ClaudeCodeMcp", () => {
     });
 
     it("should reject invalid JSON structure", async () => {
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -171,7 +171,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -195,7 +195,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -219,7 +219,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -243,7 +243,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -267,7 +267,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -291,7 +291,7 @@ describe("ClaudeCodeMcp", () => {
         },
       };
 
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: CLAUDECODE_MCP_FILE,
@@ -308,7 +308,7 @@ describe("ClaudeCodeMcp", () => {
 
   describe("getTargetFilePath", () => {
     it("should return correct file path", async () => {
-      const mcp = new ClaudeCodeMcp({
+      const mcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: "subdir",
         relativeFilePath: CLAUDECODE_MCP_FILE,

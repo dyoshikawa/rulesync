@@ -1,14 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CLAUDECODE_MCP_FILE } from "../constants/paths.js";
+import { AMAZONQCLI_MCP_FILE } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp.js";
 
-export type ClaudecodeMcpParams = ToolMcpParams;
+export type AmazonqcliMcpParams = ToolMcpParams;
 
-export class ClaudecodeMcp extends ToolMcp {
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<ClaudecodeMcp> {
+export class AmazonqcliMcp extends ToolMcp {
+  static getSupportedMcpFileNames(): string[] {
+    return [AMAZONQCLI_MCP_FILE];
+  }
+
+  static async fromFilePath({ filePath }: { filePath: string }): Promise<AmazonqcliMcp> {
     const fileContent = await readFile(filePath, "utf-8");
     let json: Record<string, unknown>;
 
@@ -16,14 +20,14 @@ export class ClaudecodeMcp extends ToolMcp {
       json = JSON.parse(fileContent);
     } catch (error) {
       throw new Error(
-        `Invalid JSON in Claude Code MCP file: ${error instanceof Error ? error.message : String(error)}`,
+        `Invalid JSON in Amazon Q CLI MCP file: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 
-    return new ClaudecodeMcp({
+    return new AmazonqcliMcp({
       baseDir: ".",
       relativeDirPath: ".",
-      relativeFilePath: CLAUDECODE_MCP_FILE,
+      relativeFilePath: AMAZONQCLI_MCP_FILE,
       fileContent,
       json,
       validate: false,
@@ -35,22 +39,22 @@ export class ClaudecodeMcp extends ToolMcp {
     relativeDirPath,
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): ClaudecodeMcp {
+  }: ToolMcpFromRulesyncMcpParams): AmazonqcliMcp {
     const json = rulesyncMcp.getJson();
 
-    // Convert Rulesync MCP format to Claude Code MCP format
-    const claudeCodeConfig = {
+    // Convert Rulesync MCP format to Amazon Q CLI MCP format
+    const amazonqcliConfig = {
       mcpServers: json.mcpServers || {},
     };
 
-    const fileContent = JSON.stringify(claudeCodeConfig, null, 2);
+    const fileContent = JSON.stringify(amazonqcliConfig, null, 2);
 
-    return new ClaudecodeMcp({
+    return new AmazonqcliMcp({
       baseDir,
       relativeDirPath,
-      relativeFilePath: CLAUDECODE_MCP_FILE,
+      relativeFilePath: AMAZONQCLI_MCP_FILE,
       fileContent,
-      json: claudeCodeConfig,
+      json: amazonqcliConfig,
       validate,
     });
   }
@@ -105,16 +109,14 @@ export class ClaudecodeMcp extends ToolMcp {
           // eslint-disable-next-line no-type-assertion/no-type-assertion
           const config = serverConfig as Record<string, unknown>;
 
-          // Check for required fields - Claude Code supports command, url, or httpUrl
+          // Check for required fields - Amazon Q CLI requires command field
           const hasCommand = typeof config.command === "string";
-          const hasUrl = typeof config.url === "string";
-          const hasHttpUrl = typeof config.httpUrl === "string";
 
-          if (!hasCommand && !hasUrl && !hasHttpUrl) {
+          if (!hasCommand) {
             return {
               success: false,
               error: new Error(
-                `Invalid server configuration for "${serverName}": must have "command", "url", or "httpUrl"`,
+                `Invalid server configuration for "${serverName}": must have "command" field`,
               ),
             };
           }
@@ -138,15 +140,6 @@ export class ClaudecodeMcp extends ToolMcp {
             };
           }
 
-          if (config.transport && typeof config.transport !== "string") {
-            return {
-              success: false,
-              error: new Error(
-                `Invalid server configuration for "${serverName}": "transport" must be a string`,
-              ),
-            };
-          }
-
           if (config.timeout && typeof config.timeout !== "number") {
             return {
               success: false,
@@ -165,11 +158,11 @@ export class ClaudecodeMcp extends ToolMcp {
             };
           }
 
-          if (config.headers && typeof config.headers !== "object") {
+          if (config.autoApprove && !Array.isArray(config.autoApprove)) {
             return {
               success: false,
               error: new Error(
-                `Invalid server configuration for "${serverName}": "headers" must be an object`,
+                `Invalid server configuration for "${serverName}": "autoApprove" must be an array`,
               ),
             };
           }
@@ -186,6 +179,6 @@ export class ClaudecodeMcp extends ToolMcp {
   }
 
   getTargetFilePath(): string {
-    return join(this.baseDir, this.relativeDirPath, CLAUDECODE_MCP_FILE);
+    return join(this.baseDir, this.relativeDirPath, AMAZONQCLI_MCP_FILE);
   }
 }

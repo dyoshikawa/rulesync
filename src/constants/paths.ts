@@ -12,3 +12,4 @@ export const CLAUDECODE_MCP_FILE = ".mcp.json";
 export const COPILOT_MCP_FILE = join(".vscode", "mcp.json");
 export const CLINE_MCP_FILE = join(".cline", "mcp.json");
 export const ROO_MCP_FILE = join(".roo", "mcp.json");
+export const AMAZONQCLI_MCP_FILE = join(".amazonq", "mcp.json");
