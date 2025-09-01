@@ -31,30 +31,15 @@ export class AugmentcodeLegacyRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
-    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
-    const root = rulesyncFrontmatter.root;
-
-    const fileContent = rulesyncRule.getBody();
-
-    if (root) {
-      return new AugmentcodeLegacyRule({
+    return new AugmentcodeLegacyRule(
+      this.buildToolRuleParamsDefault({
         baseDir,
-        relativeDirPath: ".",
-        relativeFilePath: ".augment-guidelines",
-        fileContent,
+        rulesyncRule,
         validate,
-        root,
-      });
-    }
-
-    return new AugmentcodeLegacyRule({
-      baseDir,
-      relativeDirPath: join(".augment", "rules"),
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      fileContent,
-      validate,
-      root,
-    });
+        rootPath: { relativeDirPath: ".", relativeFilePath: ".augment-guidelines" },
+        nonRootPath: { relativeDirPath: ".augment/rules" },
+      }),
+    );
   }
 
   validate(): ValidationResult {

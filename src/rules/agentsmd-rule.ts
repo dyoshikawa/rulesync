@@ -45,45 +45,17 @@ export class AgentsMdRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
-    const root = rulesyncRule.getFrontmatter().root;
-    const fileContent = rulesyncRule.getBody();
-
-    if (root) {
-      return new AgentsMdRule({
+    return new AgentsMdRule(
+      this.buildToolRuleParamsDefault({
         baseDir,
-        relativeDirPath: "",
-        relativeFilePath: "AGENTS.md",
-        fileContent,
+        rulesyncRule,
         validate,
-        root,
-      });
-    }
-
-    return new AgentsMdRule({
-      baseDir,
-      relativeDirPath: ".agents/memories",
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      fileContent,
-      validate,
-      root: root ?? false,
-    });
+      }),
+    );
   }
 
   toRulesyncRule(): RulesyncRule {
-    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
-      root: this.isRoot(),
-      targets: ["*"],
-      description: "",
-      globs: this.isRoot() ? ["**/*"] : [],
-    };
-
-    return new RulesyncRule({
-      baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
-      relativeFilePath: this.getRelativeFilePath(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getFileContent(),
-    });
+    return this.toRulesyncRuleDefault();
   }
 
   validate(): ValidationResult {

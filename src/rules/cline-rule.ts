@@ -13,21 +13,7 @@ export type ClineRuleFrontmatter = z.infer<typeof ClineRuleFrontmatterSchema>;
 
 export class ClineRule extends ToolRule {
   toRulesyncRule(): RulesyncRule {
-    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
-      targets: ["*"],
-      root: this.isRoot(),
-      description: "",
-      globs: this.isRoot() ? ["**/*"] : [],
-    };
-
-    return new RulesyncRule({
-      frontmatter: rulesyncFrontmatter,
-      body: this.getFileContent(),
-      baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
-      relativeFilePath: this.getRelativeFilePath(),
-      validate: false,
-    });
+    return this.toRulesyncRuleDefault();
   }
 
   static fromRulesyncRule({
@@ -35,13 +21,14 @@ export class ClineRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
-    return new ClineRule({
-      baseDir: baseDir,
-      relativeDirPath: ".clinerules",
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      fileContent: rulesyncRule.getBody(),
-      validate,
-    });
+    return new ClineRule(
+      this.buildToolRuleParamsDefault({
+        baseDir,
+        rulesyncRule,
+        validate,
+        nonRootPath: { relativeDirPath: ".clinerules" },
+      }),
+    );
   }
 
   validate(): ValidationResult {

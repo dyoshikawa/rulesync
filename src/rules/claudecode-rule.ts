@@ -25,46 +25,24 @@ export class ClaudecodeRule extends ToolRule {
     });
   }
 
-  static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
-    const { rulesyncRule, ...rest } = params;
-
-    const root = rulesyncRule.getFrontmatter().root;
-    const body = rulesyncRule.getBody();
-
-    if (root) {
-      return new ClaudecodeRule({
-        ...rest,
-        fileContent: body,
-        relativeFilePath: "CLAUDE.md",
-        root,
-        relativeDirPath: ".",
-      });
-    }
-
-    return new ClaudecodeRule({
-      ...rest,
-      fileContent: body,
-      relativeDirPath: join(".claude", "memories"),
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      root,
-    });
+  static fromRulesyncRule({
+    baseDir = ".",
+    rulesyncRule,
+    validate = true,
+  }: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
+    return new ClaudecodeRule(
+      this.buildToolRuleParamsDefault({
+        baseDir,
+        rulesyncRule,
+        validate,
+        rootPath: { relativeDirPath: ".", relativeFilePath: "CLAUDE.md" },
+        nonRootPath: { relativeDirPath: ".claude/memories" },
+      }),
+    );
   }
 
   toRulesyncRule(): RulesyncRule {
-    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
-      root: this.isRoot(),
-      targets: ["*"],
-      description: "",
-      globs: this.isRoot() ? ["**/*"] : [],
-    };
-
-    return new RulesyncRule({
-      baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
-      relativeFilePath: this.getRelativeFilePath(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getFileContent(),
-    });
+    return this.toRulesyncRuleDefault();
   }
 
   validate(): ValidationResult {

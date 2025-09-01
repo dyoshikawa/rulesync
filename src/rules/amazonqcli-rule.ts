@@ -21,35 +21,23 @@ export class AmazonQCliRule extends ToolRule {
     });
   }
 
-  static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): AmazonQCliRule {
-    const { rulesyncRule, ...rest } = params;
-
-    const root = rulesyncRule.getFrontmatter().root;
-    const fileContent = rulesyncRule.getBody(); // Amazon Q CLI rules are plain markdown without frontmatter
-
-    return new AmazonQCliRule({
-      ...rest,
-      fileContent,
-      relativeDirPath: join(".amazonq", "rules"),
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      root,
-    });
+  static fromRulesyncRule({
+    baseDir = ".",
+    rulesyncRule,
+    validate = true,
+  }: ToolRuleFromRulesyncRuleParams): AmazonQCliRule {
+    return new AmazonQCliRule(
+      this.buildToolRuleParamsDefault({
+        baseDir,
+        rulesyncRule,
+        validate,
+        nonRootPath: { relativeDirPath: ".amazonq/rules" },
+      }),
+    );
   }
 
   toRulesyncRule(): RulesyncRule {
-    return new RulesyncRule({
-      frontmatter: {
-        root: this.isRoot(),
-        targets: ["amazonqcli"],
-        description: "",
-        globs: this.isRoot() ? ["**/*"] : [],
-      },
-      baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
-      relativeFilePath: this.getRelativeFilePath(),
-      body: this.getFileContent(),
-      validate: false,
-    });
+    return this.toRulesyncRuleDefault();
   }
 
   validate(): ValidationResult {
