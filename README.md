@@ -115,6 +115,30 @@ npx rulesync generate --targets "*" --features rules
 npx rulesync gitignore
 ```
 
+## Configuration
+
+You can configure rulesync by creating a `rulesync.jsonc` file in the root of your project.
+
+```jsonc
+// rulesync.jsonc
+{
+  // List of tools to generate configurations for. You can specify "*" to generate all tools.
+  "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
+
+  // Features to generate. You can specify "*" to generate all features.
+  "features": ["rules", "ignore", "mcp", "commands", "subagents"],
+  
+  // Base directory or directories for generation
+  "baseDir": ".",
+  
+  // Delete existing files before generating
+  "delete": true,
+
+  // Verbose output
+  "verbose": false
+}
+```
+
 ## License
 
 MIT License
