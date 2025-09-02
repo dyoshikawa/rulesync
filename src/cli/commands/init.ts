@@ -10,7 +10,7 @@ export async function initCommand(): Promise<void> {
   await createSampleFiles(rulesDir);
 
   logger.success("rulesync initialized successfully!");
-  logger.log("\nNext steps:");
+  logger.log("Next steps:");
   logger.log(`1. Edit rule files in ${rulesDir}/`);
   logger.log("2. Run 'rulesync generate' to create configuration files");
 }

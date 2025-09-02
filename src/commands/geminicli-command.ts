@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import matter from "gray-matter";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { ParsedCommand } from "../types/commands.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -81,7 +81,7 @@ export class GeminiCliCommand extends ToolCommand {
     };
 
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
+    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       baseDir: this.baseDir,

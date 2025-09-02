@@ -9,6 +9,7 @@ import {
   ToolCommandFromFilePathParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 
 export const ClaudecodeCommandFrontmatterSchema = z.object({
   description: z.string(),
@@ -36,7 +37,7 @@ export class ClaudecodeCommand extends ToolCommand {
 
     super({
       ...rest,
-      fileContent: matter.stringify(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -58,7 +59,7 @@ export class ClaudecodeCommand extends ToolCommand {
     };
 
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
+    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       baseDir: this.baseDir,

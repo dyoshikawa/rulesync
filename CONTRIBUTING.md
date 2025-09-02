@@ -1184,7 +1184,7 @@ newtool: {
       lines.push(`# ${rule.frontmatter.description}`);
     }
     lines.push(rule.content.trim());
-    return lines.join("\n");
+    return lines.join("");
   },
   pathResolver: (rule, outputDir) => {
     return join(outputDir, ".newtool", "rules", `${rule.filename}.md`);

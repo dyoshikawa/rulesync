@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 
 export const RulesyncCommandFrontmatterSchema = z.object({
   targets: RulesyncTargetsSchema,
@@ -33,7 +34,7 @@ export class RulesyncCommand extends RulesyncFile {
 
     super({
       ...rest,
-      fileContent: matter.stringify(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;

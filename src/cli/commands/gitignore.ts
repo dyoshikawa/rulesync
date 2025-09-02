@@ -72,8 +72,8 @@ export const gitignoreCommand = async (): Promise<void> => {
   }
 
   const newContent = gitignoreContent
-    ? `${gitignoreContent.trimEnd()}\n\n${linesToAdd.join("\n")}\n`
-    : `${linesToAdd.join("\n")}\n`;
+    ? `${gitignoreContent.trimEnd()}\n\n${linesToAdd.join("")}\n`
+    : `${linesToAdd.join("")}\n`;
 
   writeFileSync(gitignorePath, newContent);
 

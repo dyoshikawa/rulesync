@@ -646,9 +646,6 @@ export class RulesProcessor extends FeatureProcessor {
       join(this.baseDir, ".cursor", "rules"),
       (filePath, relativeFilePath) =>
         CursorRule.fromFilePath({
-          baseDir: this.baseDir,
-          relativeDirPath: ".cursor/rules",
-          relativeFilePath,
           filePath,
           validate: true,
         }),
@@ -1091,7 +1088,7 @@ export class RulesProcessor extends FeatureProcessor {
     lines.push(xmlContent);
     lines.push("");
 
-    return lines.join("\n") + "\n";
+    return lines.join("") + "";
   }
 
   public generateReferencesSection(toolRules: ToolRule[]): string {
@@ -1120,6 +1117,6 @@ export class RulesProcessor extends FeatureProcessor {
     }
     lines.push("");
 
-    return lines.join("\n") + "\n";
+    return lines.join("") + "";
   }
 }

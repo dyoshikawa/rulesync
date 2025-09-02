@@ -4,6 +4,7 @@ import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RulesyncTargets } from "../types/tool-targets.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -39,7 +40,7 @@ export class CursorRule extends ToolRule {
 
     super({
       ...rest,
-      fileContent: matter.stringify(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;

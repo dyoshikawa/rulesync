@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import matter from "gray-matter";
 import { optional, z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -37,7 +38,7 @@ export class RooCommand extends ToolCommand {
 
     super({
       ...rest,
-      fileContent: matter.stringify(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -59,7 +60,7 @@ export class RooCommand extends ToolCommand {
     };
 
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
+    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       baseDir: this.baseDir,
@@ -85,7 +86,7 @@ export class RooCommand extends ToolCommand {
 
     // Generate proper file content with Roo Code specific frontmatter
     const body = rulesyncCommand.getBody();
-    const fileContent = matter.stringify(body, rooFrontmatter);
+    const fileContent = stringifyFrontmatter(body, rooFrontmatter);
 
     return new RooCommand({
       baseDir: baseDir,

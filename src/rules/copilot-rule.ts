@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import { z } from "zod/mini";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -33,7 +34,7 @@ export class CopilotRule extends ToolRule {
 
     super({
       ...rest,
-      fileContent: matter.stringify(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter),
     });
 
     // Set default value for applyTo if not provided

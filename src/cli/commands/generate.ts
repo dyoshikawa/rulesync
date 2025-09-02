@@ -33,7 +33,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       // Generate rule files (rules feature)
       let totalOutputs = 0;
       if (config.getFeatures().includes("rules")) {
-        logger.info("\nGenerating rule files...");
+        logger.info("Generating rule files...");
         for (const baseDir of config.getBaseDirs()) {
           for (const toolTarget of intersection(
             config.getTargets(),
@@ -52,13 +52,13 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           }
         }
       } else {
-        logger.info("\nSkipping rule generation (not in --features)");
+        logger.info("Skipping rule generation (not in --features)");
       }
 
       // Generate MCP configurations (mcp feature)
       let totalMcpOutputs = 0;
       if (config.getFeatures().includes("mcp")) {
-        logger.info("\nGenerating MCP files...");
+        logger.info("Generating MCP files...");
 
         // Check which targets support MCP
         const supportedMcpTargets: McpProcessorToolTarget[] = [
@@ -95,13 +95,13 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           }
         }
       } else {
-        logger.info("\nSkipping MCP configuration generation (not in --features)");
+        logger.info("Skipping MCP configuration generation (not in --features)");
       }
 
       // Generate command files (commands feature)
       let totalCommandOutputs = 0;
       if (config.getFeatures().includes("commands")) {
-        logger.info("\nGenerating command files...");
+        logger.info("Generating command files...");
 
         // Check which targets support commands
         const supportedCommandTargets: CommandsProcessorToolTarget[] = [
@@ -133,13 +133,13 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           }
         }
       } else {
-        logger.info("\nSkipping command file generation (not in --features)");
+        logger.info("Skipping command file generation (not in --features)");
       }
 
       // Generate ignore files (ignore feature)
       let totalIgnoreOutputs = 0;
       if (config.getFeatures().includes("ignore")) {
-        logger.info("\nGenerating ignore files...");
+        logger.info("Generating ignore files...");
 
         for (const toolTarget of intersection(
           config.getTargets(),
@@ -175,7 +175,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       // Generate subagent files (subagents feature)
       let totalSubagentOutputs = 0;
       if (config.getFeatures().includes("subagents")) {
-        logger.info("\nGenerating subagent files...");
+        logger.info("Generating subagent files...");
         for (const baseDir of config.getBaseDirs()) {
           for (const toolTarget of intersection(
             config.getTargets(),

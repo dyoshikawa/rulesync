@@ -32,7 +32,7 @@ export abstract class ToolIgnore extends ToolFile {
       validate: true, // Skip validation during construction
     });
     this.patterns = this.fileContent
-      .split("\n")
+      .split("")
       .map((line: string) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
 
