@@ -1,11 +1,10 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { directoryExists } from "../utils/file.js";
+import { directoryExists, findFiles, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -86,8 +85,11 @@ export class CommandsProcessor extends FeatureProcessor {
     }
 
     // Read all markdown files from the directory
-    const entries = await readdir(commandsDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
+    const allMdFiles = await findFiles(commandsDir, ".md");
+    const mdFiles = allMdFiles.map((f) => {
+      const filename = f.split("/").pop();
+      return filename || f;
+    });
 
     if (mdFiles.length === 0) {
       logger.debug(`No markdown files found in rulesync commands directory: ${commandsDir}`);
@@ -154,8 +156,11 @@ export class CommandsProcessor extends FeatureProcessor {
     }
 
     // Read all markdown files from the directory
-    const entries = await readdir(commandsDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
+    const allMdFiles = await findFiles(commandsDir, ".md");
+    const mdFiles = allMdFiles.map((f) => {
+      const filename = f.split("/").pop();
+      return filename || f;
+    });
 
     if (mdFiles.length === 0) {
       logger.info(`No markdown command files found in ${commandsDir}`);
@@ -201,8 +206,8 @@ export class CommandsProcessor extends FeatureProcessor {
     }
 
     // Read all TOML files from the directory
-    const entries = await readdir(commandsDir);
-    const tomlFiles = entries.filter((file) => file.endsWith(".toml"));
+    const allFiles = await listDirectoryFiles(commandsDir);
+    const tomlFiles = allFiles.filter((file) => file.endsWith(".toml"));
 
     if (tomlFiles.length === 0) {
       logger.info(`No TOML command files found in ${commandsDir}`);
@@ -248,8 +253,11 @@ export class CommandsProcessor extends FeatureProcessor {
     }
 
     // Read all markdown files from the directory
-    const entries = await readdir(commandsDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
+    const allMdFiles = await findFiles(commandsDir, ".md");
+    const mdFiles = allMdFiles.map((f) => {
+      const filename = f.split("/").pop();
+      return filename || f;
+    });
 
     if (mdFiles.length === 0) {
       logger.info(`No markdown command files found in ${commandsDir}`);

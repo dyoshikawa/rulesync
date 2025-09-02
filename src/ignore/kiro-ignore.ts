@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 
@@ -20,7 +20,7 @@ export class KiroIgnore extends ToolIgnore {
   }
 
   static async fromFile(): Promise<KiroIgnore> {
-    const fileContent = await readFile(".aiignore", "utf-8");
+    const fileContent = await readFileContent(".aiignore");
 
     return new KiroIgnore({
       baseDir: ".",

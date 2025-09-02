@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
@@ -21,7 +21,7 @@ export class QwencodeIgnore extends ToolIgnore {
   }
 
   static async fromFile(): Promise<QwencodeIgnore> {
-    const fileContent = await readFile(".geminiignore", "utf-8");
+    const fileContent = await readFileContent(".geminiignore");
 
     return new QwencodeIgnore({
       baseDir: ".",

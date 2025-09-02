@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createTempDirectory, ensureDir, removeDirectory } from "../utils/file.js";
 
 /**
  * Helper for test setup and cleanup
@@ -13,22 +13,10 @@ export async function setupTestDirectory(): Promise<{
   const testsDir = join(tmpdir(), "tests");
 
   // Ensure the tests directory exists
-  try {
-    await mkdir(testsDir, { recursive: true });
-  } catch (error) {
-    // Ignore error if directory already exists
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string" &&
-      error.code !== "EEXIST"
-    ) {
-      throw error;
-    }
-  }
+  await ensureDir(testsDir);
 
-  const testDir = await mkdtemp(join(testsDir, "rulesync-test-"));
-  const cleanup = () => rm(testDir, { recursive: true, force: true });
+  const testDir = await createTempDirectory(join(testsDir, "rulesync-test-"));
+  const cleanup = () => removeDirectory(testDir);
   return { testDir, cleanup };
 }
 

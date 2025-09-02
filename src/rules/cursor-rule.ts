@@ -1,9 +1,9 @@
-import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RulesyncTargets } from "../types/tool-targets.js";
+import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
@@ -123,7 +123,7 @@ export class CursorRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFilePathParams): Promise<CursorRule> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
     const { data: frontmatter, content } = matter(fileContent);
 
     // Validate frontmatter using CursorRuleFrontmatterSchema

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
@@ -52,7 +52,7 @@ export class AugmentcodeIgnore extends ToolIgnore {
    * Reads and parses .augmentignore file
    */
   static async fromFile(): Promise<AugmentcodeIgnore> {
-    const fileContent = await readFile(".augmentignore", "utf-8");
+    const fileContent = await readFileContent(".augmentignore");
 
     return new AugmentcodeIgnore({
       baseDir: ".",

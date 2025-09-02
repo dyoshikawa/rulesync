@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
+import { readFileContent } from "../utils/file.js";
 
 export class RulesyncIgnore extends RulesyncFile {
   validate(): ValidationResult {
@@ -8,7 +8,7 @@ export class RulesyncIgnore extends RulesyncFile {
   }
 
   static async fromFile(): Promise<RulesyncIgnore> {
-    const fileContent = await readFile(".rulesyncignore", "utf-8");
+    const fileContent = await readFileContent(".rulesyncignore");
 
     return new RulesyncIgnore({
       baseDir: ".",

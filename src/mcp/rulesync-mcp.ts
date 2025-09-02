@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
+import { readFileContent } from "../utils/file.js";
 
 export type RulesyncMcpParams = RulesyncFileParams;
 
@@ -29,7 +29,7 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncMcp> {
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     return new RulesyncMcp({
       baseDir: ".",

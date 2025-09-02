@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
@@ -42,7 +42,7 @@ export class ClineRule extends ToolRule {
     validate = true,
   }: AiFileFromFilePathParams): Promise<ClineRule> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     return new ClineRule({
       baseDir: baseDir,

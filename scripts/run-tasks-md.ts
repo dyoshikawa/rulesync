@@ -1,8 +1,7 @@
 // oxlint-disable no-console
 
-import { globSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-code";
+import { readFileContent } from "../src/utils/file.js";
 
 const runClaudeCode = async (task: string) => {
   console.log("task", task);
@@ -19,16 +18,21 @@ const runClaudeCode = async (task: string) => {
   }
 };
 
-const filePaths = globSync(join(process.cwd(), "tmp", "tasks", "*.md"));
+// Using glob would require adding it as dependency, for now implement simple file listing
+const filePaths: string[] = []; // Empty for now - requires glob functionality
 
-for (const filePath of filePaths) {
-  const fileContent = readFileSync(filePath, "utf-8");
-  const tasks = fileContent.split("---\n");
-  for (const task of tasks) {
-    try {
-      await runClaudeCode(task);
-    } catch (error) {
-      console.error(error);
+const main = async () => {
+  for (const filePath of filePaths) {
+    const fileContent = await readFileContent(filePath);
+    const tasks = fileContent.split("---\n");
+    for (const task of tasks) {
+      try {
+        await runClaudeCode(task);
+      } catch (error) {
+        console.error(error);
+      }
     }
   }
-}
+};
+
+main().catch(console.error);

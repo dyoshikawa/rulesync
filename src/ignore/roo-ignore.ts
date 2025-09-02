@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 
@@ -33,7 +33,7 @@ export class RooIgnore extends ToolIgnore {
   }
 
   static async fromFile(): Promise<RooIgnore> {
-    const fileContent = await readFile(".rooignore", "utf-8");
+    const fileContent = await readFileContent(".rooignore");
 
     return new RooIgnore({
       baseDir: ".",

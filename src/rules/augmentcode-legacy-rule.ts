@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -53,7 +53,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     validate = true,
   }: AiFileFromFilePathParams): Promise<AugmentcodeLegacyRule> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     // Determine if it's a root file
     const isRoot = relativeFilePath === ".augment-guidelines";

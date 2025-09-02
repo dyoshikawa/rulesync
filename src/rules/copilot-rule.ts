@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
@@ -113,7 +113,7 @@ export class CopilotRule extends ToolRule {
     validate = true,
   }: AiFileFromFilePathParams): Promise<CopilotRule> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     // Determine if this is a root file based on the file path
     const root = relativeFilePath === "copilot-instructions.md";

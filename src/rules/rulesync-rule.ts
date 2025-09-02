@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
@@ -6,6 +5,7 @@ import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { RulesyncFile, type RulesyncFileParams } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
@@ -72,7 +72,7 @@ export class RulesyncRule extends RulesyncFile {
 
   static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncRule> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
     const { data: frontmatter, content } = matter(fileContent);
 
     // Validate frontmatter using RuleFrontmatterSchema

@@ -1,11 +1,11 @@
-import { readFile } from "node:fs/promises";
 import { ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp, ToolMcpFromRulesyncMcpParams } from "./tool-mcp.js";
 
 export class AmazonqcliMcp extends ToolMcp {
   static async fromFilePath({ filePath }: { filePath: string }): Promise<AmazonqcliMcp> {
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     return new AmazonqcliMcp({
       baseDir: ".",

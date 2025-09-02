@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
 
@@ -95,6 +95,14 @@ export async function fileExists(filepath: string): Promise<boolean> {
   }
 }
 
+export async function listDirectoryFiles(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch {
+    return [];
+  }
+}
+
 export async function findFiles(dir: string, extension: string = ".md"): Promise<string[]> {
   try {
     const files = await readdir(dir);
@@ -168,4 +176,8 @@ export async function removeClaudeGeneratedFiles(): Promise<void> {
       await removeFile(fileOrDir);
     }
   }
+}
+
+export async function createTempDirectory(prefix: string): Promise<string> {
+  return await mkdtemp(prefix);
 }

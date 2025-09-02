@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
@@ -27,7 +27,7 @@ export class CodexcliIgnore extends ToolIgnore {
   }
 
   static async fromFile(): Promise<CodexcliIgnore> {
-    const fileContent = await readFile(".codexignore", "utf-8");
+    const fileContent = await readFileContent(".codexignore");
 
     return new CodexcliIgnore({
       baseDir: ".",

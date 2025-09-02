@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { type AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, type ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -13,7 +13,7 @@ export class OpenCodeRule extends ToolRule {
     filePath,
     validate = true,
   }: AiFileFromFilePathParams): Promise<OpenCodeRule> {
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     return new OpenCodeRule({
       baseDir,

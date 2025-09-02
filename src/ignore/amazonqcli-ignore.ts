@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
@@ -48,7 +48,7 @@ export class AmazonqcliIgnore extends ToolIgnore {
    * Supports both proposed .q-ignore and .amazonqignore formats
    */
   static async fromFile(): Promise<AmazonqcliIgnore> {
-    const fileContent = await readFile(".amazonqignore", "utf-8");
+    const fileContent = await readFileContent(".amazonqignore");
 
     return new AmazonqcliIgnore({
       baseDir: ".",

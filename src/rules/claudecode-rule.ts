@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
@@ -11,7 +11,7 @@ import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
  */
 export class ClaudecodeRule extends ToolRule {
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<ClaudecodeRule> {
-    const fileContent = await readFile(params.filePath, "utf8");
+    const fileContent = await readFileContent(params.filePath);
 
     return new ClaudecodeRule({
       baseDir: params.baseDir || process.cwd(),

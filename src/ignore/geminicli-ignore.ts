@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
@@ -30,7 +30,7 @@ export class GeminiCliIgnore extends ToolIgnore {
   }
 
   static async fromFile(): Promise<GeminiCliIgnore> {
-    const fileContent = await readFile(".aiexclude", "utf-8");
+    const fileContent = await readFileContent(".aiexclude");
 
     return new GeminiCliIgnore({
       baseDir: ".",

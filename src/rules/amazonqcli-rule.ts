@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -7,7 +7,7 @@ export type AmazonQCliRuleParams = ToolRuleParams;
 
 export class AmazonQCliRule extends ToolRule {
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<AmazonQCliRule> {
-    const fileContent = await readFile(params.filePath, "utf8");
+    const fileContent = await readFileContent(params.filePath);
 
     return new AmazonQCliRule({
       baseDir: params.baseDir || ".",

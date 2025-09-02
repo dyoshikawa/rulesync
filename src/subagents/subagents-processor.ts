@@ -1,11 +1,10 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { directoryExists } from "../utils/file.js";
+import { directoryExists, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -75,7 +74,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     // Read all markdown files from the directory
-    const entries = await readdir(subagentsDir);
+    const entries = await listDirectoryFiles(subagentsDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
@@ -141,7 +140,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Read all markdown files from the directory
     let entries: string[];
     try {
-      entries = await readdir(agentsDir);
+      entries = await listDirectoryFiles(agentsDir);
     } catch (error) {
       logger.warn(`Failed to read Claude Code agents directory ${agentsDir}:`, error);
       return [];

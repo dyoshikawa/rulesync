@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -14,7 +14,7 @@ export type KiroRuleParams = ToolRuleParams;
  */
 export class KiroRule extends ToolRule {
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<KiroRule> {
-    const fileContent = await readFile(params.filePath, "utf8");
+    const fileContent = await readFileContent(params.filePath);
 
     return new KiroRule({
       baseDir: params.baseDir || ".",

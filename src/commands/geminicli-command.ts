@@ -1,9 +1,9 @@
-import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { ParsedCommand } from "../types/commands.js";
+import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -127,7 +127,7 @@ ${geminiFrontmatter.prompt}
     validate = true,
   }: ToolCommandFromFilePathParams): Promise<GeminiCliCommand> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     return new GeminiCliCommand({
       baseDir: baseDir,

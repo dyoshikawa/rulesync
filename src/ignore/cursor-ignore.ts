@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 
@@ -27,7 +27,7 @@ export class CursorIgnore extends ToolIgnore {
   }
 
   static async fromFile(): Promise<CursorIgnore> {
-    const fileContent = await readFile(".cursorignore", "utf-8");
+    const fileContent = await readFileContent(".cursorignore");
 
     return new CursorIgnore({
       baseDir: ".",

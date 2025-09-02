@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -11,7 +11,7 @@ export type GeminiCliRuleParams = ToolRuleParams;
  */
 export class GeminiCliRule extends ToolRule {
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<GeminiCliRule> {
-    const fileContent = await readFile(params.filePath, "utf8");
+    const fileContent = await readFileContent(params.filePath);
 
     return new GeminiCliRule({
       baseDir: params.baseDir || process.cwd(),

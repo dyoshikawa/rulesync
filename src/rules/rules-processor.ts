@@ -1,4 +1,3 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
@@ -6,7 +5,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import type { ToolTarget } from "../types/index.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
-import { directoryExists, fileExists } from "../utils/file.js";
+import { directoryExists, fileExists, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AmazonQCliRule } from "./amazonqcli-rule.js";
@@ -267,7 +266,7 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     // Read all markdown files from the directory
-    const entries = await readdir(rulesDir);
+    const entries = await listDirectoryFiles(rulesDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
@@ -492,7 +491,7 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     // Load from .claude/memories directory
-    const entries = await readdir(claudeMemoriesDir);
+    const entries = await listDirectoryFiles(claudeMemoriesDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
@@ -576,7 +575,7 @@ export class RulesProcessor extends FeatureProcessor {
     const memoriesDir = join(this.baseDir, ".codex", "memories");
     if (await directoryExists(memoriesDir)) {
       try {
-        const entries = await readdir(memoriesDir);
+        const entries = await listDirectoryFiles(memoriesDir);
         const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
         for (const mdFile of mdFiles) {
@@ -755,7 +754,7 @@ export class RulesProcessor extends FeatureProcessor {
     const memoriesDir = join(this.baseDir, ".opencode", "memories");
     if (await directoryExists(memoriesDir)) {
       try {
-        const entries = await readdir(memoriesDir);
+        const entries = await listDirectoryFiles(memoriesDir);
         const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
         for (const mdFile of mdFiles) {
@@ -817,7 +816,7 @@ export class RulesProcessor extends FeatureProcessor {
     const memoriesDir = join(this.baseDir, ".qwen", "memories");
     if (await directoryExists(memoriesDir)) {
       try {
-        const entries = await readdir(memoriesDir);
+        const entries = await listDirectoryFiles(memoriesDir);
         const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
         for (const mdFile of mdFiles) {
@@ -900,7 +899,7 @@ export class RulesProcessor extends FeatureProcessor {
       return [];
     }
 
-    const entries = await readdir(dirPath);
+    const entries = await listDirectoryFiles(dirPath);
     const mdFiles = entries.filter((file) => file.endsWith(".md") || file.endsWith(".mdc"));
 
     if (mdFiles.length === 0) {

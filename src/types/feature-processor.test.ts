@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/index.js";
+import { readFileContent } from "../utils/file.js";
 import { AiFile, ValidationResult } from "./ai-file.js";
 import { FeatureProcessor } from "./feature-processor.js";
 import { RulesyncFile } from "./rulesync-file.js";
@@ -244,7 +244,7 @@ describe("FeatureProcessor", () => {
       await processor.testWriteAiFiles([testFile]);
 
       // Verify the file was actually written
-      const writtenContent = await readFile(testFile.getFilePath(), "utf-8");
+      const writtenContent = await readFileContent(testFile.getFilePath());
       expect(writtenContent).toBe("Integration test content");
     });
 
@@ -256,7 +256,7 @@ describe("FeatureProcessor", () => {
       await processor.testWriteAiFiles([testFile]);
 
       // Verify the file was created in the deep path
-      const writtenContent = await readFile(testFile.getFilePath(), "utf-8");
+      const writtenContent = await readFileContent(testFile.getFilePath());
       expect(writtenContent).toBe("Deep content");
     });
 
@@ -272,7 +272,7 @@ describe("FeatureProcessor", () => {
 
       // Verify all files were written correctly
       for (const file of files) {
-        const content = await readFile(file.getFilePath(), "utf-8");
+        const content = await readFileContent(file.getFilePath());
         expect(content).toBe(file.getFileContent());
       }
     });

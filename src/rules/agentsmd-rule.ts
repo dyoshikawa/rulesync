@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
@@ -24,7 +24,7 @@ export class AgentsMdRule extends ToolRule {
     validate = true,
   }: AiFileFromFilePathParams): Promise<AgentsMdRule> {
     // Read file content
-    const fileContent = await readFile(filePath, "utf-8");
+    const fileContent = await readFileContent(filePath);
 
     // Determine if it's a root file based on path
     const isRoot = relativeFilePath === "AGENTS.md";

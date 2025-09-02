@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 
@@ -41,7 +41,7 @@ export class ClineIgnore extends ToolIgnore {
    * Load ClineIgnore from .clineignore file
    */
   static async fromFile(): Promise<ClineIgnore> {
-    const fileContent = await readFile(".clineignore", "utf-8");
+    const fileContent = await readFileContent(".clineignore");
 
     return new ClineIgnore({
       baseDir: ".",

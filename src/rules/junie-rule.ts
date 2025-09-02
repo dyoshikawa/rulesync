@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
@@ -13,7 +13,7 @@ export type JunieRuleParams = AiFileParams;
  */
 export class JunieRule extends ToolRule {
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<JunieRule> {
-    const fileContent = await readFile(params.filePath, "utf8");
+    const fileContent = await readFileContent(params.filePath);
 
     return new JunieRule({
       baseDir: params.baseDir || ".",

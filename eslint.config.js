@@ -44,6 +44,7 @@ export default defineConfig([
     },
     rules: {
       "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+      "@typescript-eslint/no-floating-promises": "error",
       "strict-dependencies/strict-dependencies": [
         "error",
         [

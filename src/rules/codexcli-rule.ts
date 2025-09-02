@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
@@ -12,7 +12,7 @@ import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
  */
 export class CodexcliRule extends ToolRule {
   static async fromFilePath(params: AiFileFromFilePathParams): Promise<CodexcliRule> {
-    const fileContent = await readFile(params.filePath, "utf8");
+    const fileContent = await readFileContent(params.filePath);
 
     return new CodexcliRule({
       baseDir: params.baseDir || process.cwd(),
