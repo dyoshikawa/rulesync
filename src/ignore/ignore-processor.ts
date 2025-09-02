@@ -1,10 +1,8 @@
-import { join } from "node:path";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
@@ -56,12 +54,7 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Load and parse rulesync ignore files from .rulesync/ignore/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncIgnores = await this.loadRulesyncIgnores();
-    return rulesyncIgnores;
-  }
-
-  async loadRulesyncIgnores(): Promise<RulesyncIgnore[]> {
-    return [await RulesyncIgnore.fromFilePath({ filePath: ".rulesyncignore" })];
+    return [await RulesyncIgnore.fromFile()];
   }
 
   /**
@@ -76,272 +69,28 @@ export class IgnoreProcessor extends FeatureProcessor {
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     switch (this.toolTarget) {
       case "augmentcode":
-        return await this.loadAugmentcodeIgnores();
+        return [await AugmentcodeIgnore.fromFile()];
       case "cline":
-        return await this.loadClineIgnores();
+        return [await ClineIgnore.fromFile()];
       case "codexcli":
-        return await this.loadCodexcliIgnores();
+        return [await CodexcliIgnore.fromFile()];
       case "cursor":
-        return await this.loadCursorIgnores();
+        return [await CursorIgnore.fromFile()];
       case "geminicli":
-        return await this.loadGeminicliIgnores();
+        return [await GeminiCliIgnore.fromFile()];
       case "junie":
-        return await this.loadJunieIgnores();
+        return [await JunieIgnore.fromFile()];
       case "kiro":
-        return await this.loadKiroIgnores();
+        return [await KiroIgnore.fromFile()];
       case "qwencode":
-        return await this.loadQwencodeIgnores();
+        return [await QwencodeIgnore.fromFile()];
       case "roo":
-        return await this.loadRooIgnores();
+        return [await RooIgnore.fromFile()];
       case "windsurf":
-        return await this.loadWindsurfIgnores();
+        return [await WindsurfIgnore.fromFile()];
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
-  }
-
-  private async loadCodexcliIgnores(): Promise<ToolIgnore[]> {
-    // OpenAI Codex CLI doesn't have native ignore file support yet
-    // Look for proposed .codexignore or .aiexclude files in project root
-    const supportedFiles = CodexcliIgnore.getSupportedIgnoreFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const codexcliIgnore = await CodexcliIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Codex CLI ignore file: ${ignoreFilePath}`);
-        return [codexcliIgnore];
-      } catch (error) {
-        // Continue to next file if this one fails
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    // If no ignore files found, return empty array (common case)
-    logger.debug(
-      "No Codex CLI ignore files found, which is expected since .codexignore is not yet implemented",
-    );
-    return [];
-  }
-
-  private async loadAugmentcodeIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = AugmentcodeIgnore.getSupportedIgnoreFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const augmentcodeIgnore = await AugmentcodeIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded AugmentCode ignore file: ${ignoreFilePath}`);
-        return [augmentcodeIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No AugmentCode ignore files found");
-    return [];
-  }
-
-  private async loadClineIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = ClineIgnore.getSupportedIgnoreFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const clineIgnore = await ClineIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Cline ignore file: ${ignoreFilePath}`);
-        return [clineIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Cline ignore files found");
-    return [];
-  }
-
-  private async loadCopilotIgnores(): Promise<ToolIgnore[]> {
-    // GitHub Copilot doesn't use traditional ignore files
-    // This method returns empty array as Copilot uses Web UI content exclusion
-    logger.debug("GitHub Copilot uses Web UI content exclusion, no file-based ignore support");
-    return [];
-  }
-
-  private async loadCursorIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = CursorIgnore.getSupportedIgnoreFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const cursorIgnore = await CursorIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Cursor ignore file: ${ignoreFilePath}`);
-        return [cursorIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Cursor ignore files found");
-    return [];
-  }
-
-  private async loadGeminicliIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = GeminiCliIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const geminicliIgnore = await GeminiCliIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Gemini CLI ignore file: ${ignoreFilePath}`);
-        return [geminicliIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Gemini CLI ignore files found");
-    return [];
-  }
-
-  private async loadJunieIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = JunieIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const junieIgnore = await JunieIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded JetBrains Junie ignore file: ${ignoreFilePath}`);
-        return [junieIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No JetBrains Junie ignore files found");
-    return [];
-  }
-
-  private async loadKiroIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = KiroIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const kiroIgnore = await KiroIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Kiro ignore file: ${ignoreFilePath}`);
-        return [kiroIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Kiro ignore files found");
-    return [];
-  }
-
-  private async loadQwencodeIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = QwencodeIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const qwencodeIgnore = await QwencodeIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Qwen Code ignore file: ${ignoreFilePath}`);
-        return [qwencodeIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Qwen Code ignore files found");
-    return [];
-  }
-
-  private async loadRooIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = RooIgnore.getSupportedIgnoreFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const rooIgnore = await RooIgnore.fromFilePath({
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Roo Code ignore file: ${ignoreFilePath}`);
-        return [rooIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Roo Code ignore files found");
-    return [];
-  }
-
-  private async loadWindsurfIgnores(): Promise<ToolIgnore[]> {
-    const supportedFiles = WindsurfIgnore.getSupportedFileNames();
-
-    for (const filename of supportedFiles) {
-      const ignoreFilePath = join(this.baseDir, filename);
-
-      try {
-        const windsurfIgnore = await WindsurfIgnore.fromFilePath({
-          baseDir: this.baseDir,
-          relativeDirPath: ".",
-          relativeFilePath: filename,
-          filePath: ignoreFilePath,
-        });
-
-        logger.info(`Successfully loaded Windsurf ignore file: ${ignoreFilePath}`);
-        return [windsurfIgnore];
-      } catch (error) {
-        logger.debug(`Failed to load ${ignoreFilePath}:`, error);
-      }
-    }
-
-    logger.debug("No Windsurf ignore files found");
-    return [];
-  }
-
-  async writeRulesyncIgnoresFromToolIgnores(toolIgnores: ToolIgnore[]): Promise<void> {
-    const rulesyncIgnores = toolIgnores.map((toolIgnore) => {
-      return toolIgnore.toRulesyncIgnore();
-    });
-
-    await this.writeAiFiles(rulesyncIgnores);
   }
 
   /**
@@ -362,61 +111,51 @@ export class IgnoreProcessor extends FeatureProcessor {
         case "augmentcode":
           return AugmentcodeIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "cline":
           return ClineIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "codexcli":
           return CodexcliIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "cursor":
           return CursorIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "geminicli":
           return GeminiCliIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "junie":
           return JunieIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "kiro":
           return KiroIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "qwencode":
           return QwencodeIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "roo":
           return RooIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         case "windsurf":
           return WindsurfIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncIgnore,
           });
         default:

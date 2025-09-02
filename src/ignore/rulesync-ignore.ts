@@ -7,7 +7,7 @@ export class RulesyncIgnore extends RulesyncFile {
     return { success: true, error: null };
   }
 
-  static async fromFilePath(): Promise<RulesyncIgnore> {
+  static async fromFile(): Promise<RulesyncIgnore> {
     const fileContent = await readFile(".rulesyncignore", "utf-8");
 
     return new RulesyncIgnore({
@@ -16,5 +16,9 @@ export class RulesyncIgnore extends RulesyncFile {
       relativeFilePath: ".rulesyncignore",
       fileContent,
     });
+  }
+
+  static async fromFilePath(_params: { filePath: string }): Promise<RulesyncIgnore> {
+    throw new Error("Please use the fromFile method instead.");
   }
 }
