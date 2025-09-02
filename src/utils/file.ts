@@ -164,20 +164,6 @@ export async function removeFile(filepath: string): Promise<void> {
   }
 }
 
-export async function removeClaudeGeneratedFiles(): Promise<void> {
-  const filesToRemove = ["CLAUDE.md", ".claude/memories"];
-
-  for (const fileOrDir of filesToRemove) {
-    if (fileOrDir.endsWith("/memories")) {
-      // Remove the entire memories directory
-      await removeDirectory(fileOrDir);
-    } else {
-      // Remove individual file
-      await removeFile(fileOrDir);
-    }
-  }
-}
-
 export async function createTempDirectory(prefix: string): Promise<string> {
   return await mkdtemp(prefix);
 }
