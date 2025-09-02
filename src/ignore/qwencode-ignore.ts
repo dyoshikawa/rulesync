@@ -40,7 +40,7 @@ export class QwencodeIgnore extends ToolIgnore {
     super({
       patterns,
       ...rest,
-      validate: false, // Skip validation during construction
+      validate: true, // Skip validation during construction
     });
 
     this.fileFiltering = processedFileFiltering;

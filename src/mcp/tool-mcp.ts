@@ -17,7 +17,7 @@ export abstract class ToolMcp extends ToolFile {
   constructor({ ...rest }: ToolMcpParams) {
     super({
       ...rest,
-      validate: false, // Skip validation during construction
+      validate: true, // Skip validation during construction
     });
 
     this.json = JSON.parse(this.fileContent);
@@ -40,8 +40,8 @@ export abstract class ToolMcp extends ToolFile {
   protected toRulesyncMcpDefault(): RulesyncMcp {
     return new RulesyncMcp({
       baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
       fileContent: this.fileContent,
     });
   }

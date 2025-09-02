@@ -55,7 +55,7 @@ export class CopilotRule extends ToolRule {
       body: this.body,
       relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: this.getRelativeFilePath(),
-      validate: false,
+      validate: true,
     });
   }
 

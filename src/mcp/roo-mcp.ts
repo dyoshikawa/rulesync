@@ -30,7 +30,7 @@ export class RooMcp extends ToolMcp {
       relativeFilePath: ROO_MCP_FILE,
       fileContent,
       json,
-      validate: false,
+      validate: true,
     });
   }
 
@@ -73,7 +73,7 @@ export class RooMcp extends ToolMcp {
       body: fileContent,
       fileContent,
       json: rulesyncConfig,
-      validate: false,
+      validate: true,
     });
   }
 

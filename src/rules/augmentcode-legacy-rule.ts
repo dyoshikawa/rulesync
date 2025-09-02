@@ -21,7 +21,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
       body: this.getFileContent(),
       relativeDirPath: RULESYNC_RULES_DIR,
       relativeFilePath: this.getRelativeFilePath(),
-      validate: false,
+      validate: true,
     });
   }
 

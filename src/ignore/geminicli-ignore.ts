@@ -83,7 +83,7 @@ export class GeminiCliIgnore extends ToolIgnore {
       patterns,
       supportsNegation: hasNegationPatterns,
       fileContent: patterns.join("\n"),
-      validate: false, // Skip validation in conversion
+      validate: true, // Skip validation in conversion
     });
   }
 
@@ -116,7 +116,7 @@ export class GeminiCliIgnore extends ToolIgnore {
       useGitignore,
       supportsNegation: finalSupportsNegation,
       fileContent,
-      validate: false, // Skip validation in fromFilePath as patterns may have negation
+      validate: true, // Skip validation in fromFilePath as patterns may have negation
     });
   }
 

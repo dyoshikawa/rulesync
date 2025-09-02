@@ -44,7 +44,7 @@ export class CodexcliIgnore extends ToolIgnore {
       relativeFilePath: ".codexignore",
       patterns,
       fileContent: patterns.join("\n"),
-      validate: false, // Skip validation to allow empty patterns
+      validate: true, // Skip validation to allow empty patterns
     });
   }
 
@@ -66,7 +66,7 @@ export class CodexcliIgnore extends ToolIgnore {
         relativeFilePath: filename,
         patterns,
         fileContent,
-        validate: false, // Skip validation to allow empty patterns
+        validate: true, // Skip validation to allow empty patterns
       });
     } catch (error) {
       // Handle file not found gracefully - common for proposed files

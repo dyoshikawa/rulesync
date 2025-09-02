@@ -18,7 +18,7 @@ export abstract class ToolIgnore extends AiFile {
   constructor({ patterns, ...rest }: ToolIgnoreParams) {
     super({
       ...rest,
-      validate: false, // Skip validation during construction
+      validate: true, // Skip validation during construction
     });
     this.patterns = patterns;
 

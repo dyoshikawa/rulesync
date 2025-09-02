@@ -69,7 +69,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
       relativeDirPath: ".rulesync/subagents",
       relativeFilePath: this.getRelativeFilePath(),
       fileContent,
-      validate: false,
+      validate: true,
     });
   }
 

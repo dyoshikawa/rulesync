@@ -77,7 +77,7 @@ export class CursorRule extends ToolRule {
       relativeDirPath: ".rulesync/rules",
       relativeFilePath: this.relativeFilePath,
       fileContent,
-      validate: false,
+      validate: true,
     });
   }
 

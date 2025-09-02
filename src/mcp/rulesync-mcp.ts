@@ -37,7 +37,7 @@ export class RulesyncMcp extends RulesyncFile {
       relativeDirPath: ".",
       relativeFilePath: RULESYNC_MCP_FILE,
       fileContent,
-      validate: false,
+      validate: true,
     });
   }
 

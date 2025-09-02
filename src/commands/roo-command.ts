@@ -62,7 +62,7 @@ export class RooCommand extends ToolCommand {
       relativeDirPath: ".rulesync/commands",
       relativeFilePath: this.relativeFilePath,
       fileContent,
-      validate: false,
+      validate: true,
     });
   }
 

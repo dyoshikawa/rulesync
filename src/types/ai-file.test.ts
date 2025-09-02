@@ -93,7 +93,7 @@ describe("AiFile", () => {
           relativeDirPath: ".claude",
           relativeFilePath: "test.md",
           fileContent: "invalid content",
-          validate: false,
+          validate: true,
         });
       }).not.toThrow();
     });
@@ -170,7 +170,7 @@ describe("AiFile", () => {
         relativeDirPath: ".claude",
         relativeFilePath: "test.md",
         fileContent: "valid content",
-        validate: false,
+        validate: true,
       });
 
       const result = aiFile.validate();
@@ -183,7 +183,7 @@ describe("AiFile", () => {
         relativeDirPath: ".claude",
         relativeFilePath: "test.md",
         fileContent: "invalid content",
-        validate: false,
+        validate: true,
       });
 
       const result = aiFile.validate();

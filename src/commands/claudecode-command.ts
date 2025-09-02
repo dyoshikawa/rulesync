@@ -61,7 +61,7 @@ export class ClaudecodeCommand extends ToolCommand {
       relativeDirPath: ".rulesync/commands",
       relativeFilePath: this.relativeFilePath,
       fileContent,
-      validate: false,
+      validate: true,
     });
   }
 
