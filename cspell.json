@@ -250,6 +250,14 @@
         "Mcps",
         "junieignore",
         "geminiignore",
-        "toolname"
+        "toolname",
+        "файл",
+        "longpattern",
+        "Frontmatters",
+        "frontmatters",
+        "العربية",
+        "русский",
+        "existingdir",
+        "toremove"
     ]
 }
