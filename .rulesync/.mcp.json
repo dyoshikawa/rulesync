@@ -1,12 +1,36 @@
 {
   "mcpServers": {
-    "playwright1": {
+    "serena": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide-assistant",
+        "--enable-web-dashboard",
+        "false",
+        "--project",
+        "."
+      ],
+      "env": {}
+    },
+    "context7": {
+      "type": "stdio",
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--storage-state=./tmp/storage.json"
-      ]
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {}
+    },
+    "cipher": {
+      "type": "stdio",
+      "command": "cipher",
+      "args": ["--mode", "mcp"],
+      "env": {}
     }
   }
 }

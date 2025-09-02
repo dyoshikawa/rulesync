@@ -4,6 +4,7 @@ import { RulesyncTargetsSchema } from "./tool-targets.js";
 export const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 
 export const McpServerBaseSchema = z.object({
+  type: z.optional(z.enum(["stdio", "sse", "http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),
   url: z.optional(z.string()),
@@ -15,7 +16,6 @@ export const McpServerBaseSchema = z.object({
   trust: z.optional(z.boolean()),
   cwd: z.optional(z.string()),
   transport: z.optional(McpTransportTypeSchema),
-  type: z.optional(z.enum(["sse", "streamable-http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),

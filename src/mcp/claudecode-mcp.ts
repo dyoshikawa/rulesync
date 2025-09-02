@@ -10,7 +10,7 @@ export class ClaudecodeMcp extends ToolMcp {
     return new ClaudecodeMcp({
       baseDir: ".",
       relativeDirPath: ".",
-      relativeFilePath: "CLAUDE.md",
+      relativeFilePath: ".mcp.json",
       fileContent,
       validate: true,
     });
@@ -23,8 +23,8 @@ export class ClaudecodeMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): ClaudecodeMcp {
     return new ClaudecodeMcp({
       baseDir,
-      relativeDirPath: ".claude",
-      relativeFilePath: "CLAUDE.md",
+      relativeDirPath: ".",
+      relativeFilePath: ".mcp.json",
       fileContent: rulesyncMcp.getFileContent(),
       validate,
     });
