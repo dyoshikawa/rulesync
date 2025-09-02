@@ -173,8 +173,6 @@ export class CommandsProcessor extends FeatureProcessor {
       try {
         const claudecodeCommand = await ClaudecodeCommand.fromFilePath({
           baseDir: this.baseDir,
-          relativeDirPath: ".claude/commands",
-          relativeFilePath: mdFile,
           filePath: filepath,
         });
 
@@ -222,8 +220,6 @@ export class CommandsProcessor extends FeatureProcessor {
       try {
         const geminiCliCommand = await GeminiCliCommand.fromFilePath({
           baseDir: this.baseDir,
-          relativeDirPath: ".gemini/commands",
-          relativeFilePath: tomlFile,
           filePath: filepath,
         });
 
@@ -271,8 +267,6 @@ export class CommandsProcessor extends FeatureProcessor {
       try {
         const rooCommand = await RooCommand.fromFilePath({
           baseDir: this.baseDir,
-          relativeDirPath: ".roo/commands",
-          relativeFilePath: mdFile,
           filePath: filepath,
         });
 

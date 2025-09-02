@@ -1,12 +1,16 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { basename } from "node:path";
 import matter from "gray-matter";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
-import type { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { ParsedCommand } from "../types/commands.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import { ToolCommand, ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
+import {
+  ToolCommand,
+  ToolCommandFromFilePathParams,
+  ToolCommandFromRulesyncCommandParams,
+} from "./tool-command.js";
 
 export const GeminiCliCommandFrontmatterSchema = z.object({
   description: z.optional(z.string()),
@@ -119,17 +123,16 @@ ${geminiFrontmatter.prompt}
 
   static async fromFilePath({
     baseDir = ".",
-    relativeFilePath,
     filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<GeminiCliCommand> {
+  }: ToolCommandFromFilePathParams): Promise<GeminiCliCommand> {
     // Read file content
     const fileContent = await readFile(filePath, "utf-8");
 
     return new GeminiCliCommand({
       baseDir: baseDir,
       relativeDirPath: ".gemini/commands",
-      relativeFilePath: relativeFilePath,
+      relativeFilePath: basename(filePath),
       fileContent,
       validate,
     });
