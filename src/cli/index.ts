@@ -6,13 +6,11 @@ import { Command } from "commander";
 import { FEATURE_TYPES } from "../types/config-options.js";
 import { readJsonFile } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import {
-  configCommand,
-  generateCommand,
-  gitignoreCommand,
-  importCommand,
-  initCommand,
-} from "./commands/index.js";
+import { configCommand } from "./commands/config.js";
+import { generateCommand } from "./commands/generate.js";
+import { gitignoreCommand } from "./commands/gitignore.js";
+import { importCommand } from "./commands/import.js";
+import { initCommand } from "./commands/init.js";
 
 const main = async () => {
   const program = new Command();
