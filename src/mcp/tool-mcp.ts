@@ -6,7 +6,7 @@ export type ToolMcpParams = AiFileParams;
 
 export type ToolMcpFromRulesyncMcpParams = Omit<
   AiFileParams,
-  "fileContent" | "relativeFilePath"
+  "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncMcp: RulesyncMcp;
 };

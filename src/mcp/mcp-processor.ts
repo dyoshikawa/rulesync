@@ -108,37 +108,31 @@ export class McpProcessor extends FeatureProcessor {
         case "amazonqcli":
           return AmazonqcliMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncMcp,
           });
         case "claudecode":
           return ClaudecodeMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncMcp,
           });
         case "cline":
           return ClineMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncMcp,
           });
         case "copilot":
           return CopilotMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncMcp,
           });
         case "cursor":
           return CursorMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncMcp,
           });
         case "roo":
           return RooMcp.fromRulesyncMcp({
             baseDir: this.baseDir,
-            relativeDirPath: ".",
             rulesyncMcp,
           });
         default:
