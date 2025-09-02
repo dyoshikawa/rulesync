@@ -1,10 +1,10 @@
 import { basename } from "node:path";
-import matter from "gray-matter";
 import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
+import { parseFrontmatter } from "../utils/frontmatter.js";
 
 export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "inherit"]);
 
@@ -73,7 +73,7 @@ export class RulesyncSubagent extends RulesyncFile {
   static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncSubagent> {
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { data: frontmatter, content } = matter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using SubagentFrontmatterSchema
     const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);

@@ -1,9 +1,8 @@
 import { basename } from "node:path";
-import matter from "gray-matter";
 import { optional, z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
-import { stringifyFrontmatter } from "../utils/frontmatter.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -120,7 +119,7 @@ export class RooCommand extends ToolCommand {
   }: ToolCommandFromFilePathParams): Promise<RooCommand> {
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { data: frontmatter, content } = matter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using RooCommandFrontmatterSchema
     const result = RooCommandFrontmatterSchema.safeParse(frontmatter);

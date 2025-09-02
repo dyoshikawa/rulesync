@@ -1,9 +1,8 @@
-import matter from "gray-matter";
 import { z } from "zod/mini";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
-import { stringifyFrontmatter } from "../utils/frontmatter.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
 
@@ -135,7 +134,7 @@ export class CopilotRule extends ToolRule {
     }
 
     // Non-root file: parse frontmatter
-    const { data: frontmatter, content } = matter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CopilotRuleFrontmatterSchema
     const result = CopilotRuleFrontmatterSchema.safeParse(frontmatter);
