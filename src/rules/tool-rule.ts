@@ -14,6 +14,10 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
   rulesyncRule: RulesyncRule;
 };
 
+export type ToolRuleFromFilePathParams = Pick<AiFileFromFilePathParams, "validate"> & {
+  filePath: string;
+};
+
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
 
@@ -22,7 +26,7 @@ export abstract class ToolRule extends ToolFile {
     this.root = root;
   }
 
-  static async fromFilePath(_params: AiFileFromFilePathParams): Promise<ToolRule> {
+  static async fromFilePath(_params: ToolRuleFromFilePathParams): Promise<ToolRule> {
     throw new Error("Please implement this method in the subclass.");
   }
 

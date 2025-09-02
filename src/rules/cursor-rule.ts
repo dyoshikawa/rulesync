@@ -1,13 +1,18 @@
 import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import type { ToolTargets } from "../types/tool-targets.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { AiFileParams, ValidationResult } from "../types/ai-file.js";
+import type { RulesyncTargets } from "../types/tool-targets.js";
+import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFilePathParams,
+  ToolRuleFromRulesyncRuleParams,
+} from "./tool-rule.js";
 
 export const CursorRuleFrontmatterSchema = z.object({
-  description: z.string(),
+  description: z.optional(z.string()),
   globs: z.optional(z.string()),
   alwaysApply: z.optional(z.boolean()),
 });
@@ -17,7 +22,7 @@ export type CursorRuleFrontmatter = z.infer<typeof CursorRuleFrontmatterSchema>;
 export type CursorRuleParams = {
   frontmatter: CursorRuleFrontmatter;
   body: string;
-} & AiFileParams;
+} & Omit<AiFileParams, "fileContent">;
 
 export class CursorRule extends ToolRule {
   private readonly frontmatter: CursorRuleFrontmatter;
@@ -25,7 +30,7 @@ export class CursorRule extends ToolRule {
 
   constructor({ frontmatter, body, ...rest }: CursorRuleParams) {
     // Set properties before calling super to ensure they're available for validation
-    if (rest.validate !== false) {
+    if (rest.validate) {
       const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
@@ -34,6 +39,7 @@ export class CursorRule extends ToolRule {
 
     super({
       ...rest,
+      fileContent: matter.stringify(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -41,7 +47,7 @@ export class CursorRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
-    const targets: ToolTargets = ["cursor"];
+    const targets: RulesyncTargets = ["*"];
 
     // Convert Cursor rule types to Rulesync format
     const isAlways = this.frontmatter.alwaysApply === true;
@@ -61,22 +67,18 @@ export class CursorRule extends ToolRule {
       globs = [];
     }
 
-    const rulesyncFrontmatter = {
+    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets,
       root: false,
       description: this.frontmatter.description,
       globs,
     };
 
-    // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = matter.stringify(this.body, rulesyncFrontmatter);
-
     return new RulesyncRule({
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: ".rulesync/rules",
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }
@@ -84,32 +86,21 @@ export class CursorRule extends ToolRule {
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
-    relativeDirPath,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): CursorRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
-    // Determine Cursor rule properties from Rulesync frontmatter
-    const isAlwaysGlob =
-      rulesyncFrontmatter.globs.includes("**/*") && rulesyncFrontmatter.globs.length === 1;
-    const alwaysApply = isAlwaysGlob;
-
-    // Convert globs array back to string
-    const globs = rulesyncFrontmatter.globs.length > 0 ? rulesyncFrontmatter.globs.join(",") : "";
-
     const cursorFrontmatter: CursorRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
-      globs: globs || undefined,
-      alwaysApply: alwaysApply || undefined,
+      globs:
+        (rulesyncFrontmatter.globs?.length ?? 0 > 0)
+          ? rulesyncFrontmatter.globs?.join(",")
+          : undefined,
+      alwaysApply: rulesyncFrontmatter.cursor?.alwaysApply ?? undefined,
     };
 
     // Generate proper file content with Cursor specific frontmatter
     const body = rulesyncRule.getBody();
-    // Remove undefined values to avoid YAML dump errors
-    const cleanFrontmatter = Object.fromEntries(
-      Object.entries(cursorFrontmatter).filter(([, value]) => value !== undefined),
-    );
-    const fileContent = matter.stringify(body, cleanFrontmatter);
 
     // Generate filename with .mdc extension
     const originalFileName = rulesyncRule.getRelativeFilePath();
@@ -120,20 +111,16 @@ export class CursorRule extends ToolRule {
       baseDir: baseDir,
       frontmatter: cursorFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: ".cursor/rules",
       relativeFilePath: newFileName,
-      fileContent,
       validate,
     });
   }
 
   static async fromFilePath({
-    baseDir = ".",
-    relativeDirPath,
-    relativeFilePath,
     filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<CursorRule> {
+  }: ToolRuleFromFilePathParams): Promise<CursorRule> {
     // Read file content
     const fileContent = await readFile(filePath, "utf-8");
     const { data: frontmatter, content } = matter(fileContent);
@@ -145,12 +132,11 @@ export class CursorRule extends ToolRule {
     }
 
     return new CursorRule({
-      baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
-      relativeFilePath: relativeFilePath,
+      baseDir: ".",
+      relativeDirPath: ".cursor/rules",
+      relativeFilePath: basename(filePath),
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
       validate,
     });
   }
