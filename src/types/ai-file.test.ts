@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setupTestDirectory } from "../test-utils/index.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { AiFile, AiFileFromFilePathParams, ValidationResult } from "./ai-file.js";
 
 // Concrete implementation for testing the abstract AiFile class
