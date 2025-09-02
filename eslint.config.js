@@ -49,7 +49,7 @@ export default defineConfig([
         [
           {
             module: "node:fs",
-            allowReferenceFrom: ["src/utils/file.ts"],
+            allowReferenceFrom: ["src/utils/file.ts", "src/utils/file.test.ts"],
             allowSameModule: false,
           },
         ],
