@@ -1,9 +1,12 @@
-import { AiFile, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import {
+  AiFile,
+  AiFileFromFilePathParams,
+  AiFileParams,
+  ValidationResult,
+} from "../types/ai-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
-export type ToolIgnoreParams = {
-  patterns: string[];
-} & AiFileParams;
+export type ToolIgnoreParams = AiFileParams;
 
 export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   AiFileParams,
@@ -12,18 +15,28 @@ export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   rulesyncIgnore: RulesyncIgnore;
 };
 
+export type ToolIgnoreFromFilePathParams = Omit<
+  AiFileFromFilePathParams,
+  "fileContent" | "relativeFilePath" | "relativeDirPath"
+> & {
+  filePath: string;
+};
+
 export abstract class ToolIgnore extends AiFile {
   protected readonly patterns: string[];
 
-  constructor({ patterns, ...rest }: ToolIgnoreParams) {
+  constructor({ ...rest }: ToolIgnoreParams) {
     super({
       ...rest,
       validate: true, // Skip validation during construction
     });
-    this.patterns = patterns;
+    this.patterns = this.fileContent
+      .split("\n")
+      .map((line: string) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
 
     // Validate after setting patterns, if validation was requested
-    if (rest.validate !== false) {
+    if (rest.validate) {
       const result = this.validate();
       if (!result.success) {
         throw result.error;
@@ -48,7 +61,7 @@ export abstract class ToolIgnore extends AiFile {
 
   abstract toRulesyncIgnore(): RulesyncIgnore;
 
-  static async fromFilePath(_params: { filePath: string }): Promise<ToolIgnore> {
+  static async fromFilePath(_params: ToolIgnoreFromFilePathParams): Promise<ToolIgnore> {
     throw new Error("Please implement this method in the subclass.");
   }
 
