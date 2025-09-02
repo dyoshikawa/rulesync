@@ -50,13 +50,6 @@ export abstract class ToolIgnore extends ToolFile {
   }
 
   validate(): ValidationResult {
-    // Basic validation for patterns array
-    if (this.patterns === undefined || this.patterns === null) {
-      return { success: false, error: new Error("Patterns must be defined") };
-    }
-    if (!Array.isArray(this.patterns)) {
-      return { success: false, error: new Error("Patterns must be an array") };
-    }
     return { success: true, error: null };
   }
 
