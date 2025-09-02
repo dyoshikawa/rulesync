@@ -2,9 +2,9 @@ import { AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
-export interface ToolMcpParams extends AiFileParams {
+export type ToolMcpParams = {
   json: Record<string, unknown>;
-}
+} & AiFileParams;
 
 export type ToolMcpFromRulesyncMcpParams = Omit<
   AiFileParams,

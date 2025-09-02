@@ -5,9 +5,9 @@ export const CommandFrontmatterSchema = BaseFrontmatterSchema;
 
 type CommandFrontmatter = z.infer<typeof CommandFrontmatterSchema>;
 
-export interface ParsedCommand extends ParsedContent {
+export type ParsedCommand = {
   frontmatter: CommandFrontmatter;
   type?: "rule" | "command";
-}
+} & ParsedContent;
 
 export type CommandOutput = Output;

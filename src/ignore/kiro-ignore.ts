@@ -13,7 +13,7 @@ const KiroIgnoreFileSchema = z.object({
 
 export type KiroIgnoreFile = z.infer<typeof KiroIgnoreFileSchema>;
 
-export interface KiroIgnoreParams {
+export type KiroIgnoreParams = {
   baseDir?: string;
   relativeDirPath: string;
   gitignorePatterns?: string[];
@@ -21,7 +21,7 @@ export interface KiroIgnoreParams {
   kirodeignorePatterns?: string[];
   validate?: boolean | undefined;
   dryRun?: boolean | undefined;
-}
+};
 
 export class KiroIgnore extends ToolIgnore {
   static readonly toolName = "kiro";

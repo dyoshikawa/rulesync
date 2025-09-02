@@ -4,9 +4,9 @@ import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 
-export interface RulesyncMcpParams extends RulesyncFileParams {
+export type RulesyncMcpParams = {
   json: Record<string, unknown>;
-}
+} & RulesyncFileParams;
 
 // Re-export schema for validation consistency
 export { RulesyncMcpConfigSchema as RulesyncMcpJsonSchema };

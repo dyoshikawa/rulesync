@@ -6,10 +6,10 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-interface QwencodeFileFiltering {
+type QwencodeFileFiltering = {
   respectGitIgnore?: boolean | undefined;
   enableRecursiveFileSearch?: boolean | undefined;
-}
+};
 
 const QwencodeSettingsSchema = z.object({
   fileFiltering: z.optional(
@@ -20,9 +20,9 @@ const QwencodeSettingsSchema = z.object({
   ),
 });
 
-export interface QwencodeIgnoreParams extends AiFileParams {
+export type QwencodeIgnoreParams = {
   fileFiltering?: QwencodeFileFiltering;
-}
+} & AiFileParams;
 
 export class QwencodeIgnore extends ToolIgnore {
   private readonly fileFiltering: QwencodeFileFiltering;

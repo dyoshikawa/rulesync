@@ -10,13 +10,13 @@ export type ValidationResult =
       error: Error;
     };
 
-export interface AiFileParams {
+export type AiFileParams = {
   baseDir?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   fileContent: string;
   validate?: boolean;
-}
+};
 
 export type AiFileFromFilePathParams = Omit<AiFileParams, "fileContent"> & {
   filePath: string;

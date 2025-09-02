@@ -13,10 +13,10 @@ export const ClaudecodeSubagentFrontmatterSchema = z.object({
 
 export type ClaudecodeSubagentFrontmatter = z.infer<typeof ClaudecodeSubagentFrontmatterSchema>;
 
-export interface ClaudecodeSubagentParams extends AiFileParams {
+export type ClaudecodeSubagentParams = {
   frontmatter: ClaudecodeSubagentFrontmatter;
   body: string;
-}
+} & AiFileParams;
 
 export class ClaudecodeSubagent extends ToolSubagent {
   private readonly frontmatter: ClaudecodeSubagentFrontmatter;

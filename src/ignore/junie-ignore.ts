@@ -6,14 +6,14 @@ import { ToolIgnore } from "./tool-ignore.js";
  * JetBrains Junie ignore file implementation.
  * Supports .aiignore files for controlling AI file access.
  */
-interface JunieIgnoreParams {
+type JunieIgnoreParams = {
   baseDir?: string;
   relativeDirPath?: string;
   relativeFilePath?: string;
   patterns: string[];
   fileContent?: string;
   validate?: boolean;
-}
+};
 
 export class JunieIgnore extends ToolIgnore {
   static readonly toolName = "junie";

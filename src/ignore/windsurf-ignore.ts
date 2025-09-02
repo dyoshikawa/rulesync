@@ -4,9 +4,9 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type { ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-export interface WindsurfIgnoreParams extends Omit<ToolIgnoreParams, "patterns"> {
+export type WindsurfIgnoreParams = {
   patterns?: string[];
-}
+} & Omit<ToolIgnoreParams, "patterns">;
 
 /**
  * Windsurf AI code editor ignore file implementation

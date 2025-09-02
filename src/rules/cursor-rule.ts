@@ -14,10 +14,10 @@ export const CursorRuleFrontmatterSchema = z.object({
 
 export type CursorRuleFrontmatter = z.infer<typeof CursorRuleFrontmatterSchema>;
 
-export interface CursorRuleParams extends AiFileParams {
+export type CursorRuleParams = {
   frontmatter: CursorRuleFrontmatter;
   body: string;
-}
+} & AiFileParams;
 
 export class CursorRule extends ToolRule {
   private readonly frontmatter: CursorRuleFrontmatter;

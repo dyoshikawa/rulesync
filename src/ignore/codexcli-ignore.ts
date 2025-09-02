@@ -3,9 +3,9 @@ import { basename } from "node:path";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
-export interface CodexcliIgnoreParams extends Omit<ToolIgnoreParams, "patterns"> {
+export type CodexcliIgnoreParams = {
   patterns?: string[];
-}
+} & Omit<ToolIgnoreParams, "patterns">;
 
 export class CodexcliIgnore extends ToolIgnore {
   constructor({ patterns = CodexcliIgnore.getProposedPatterns(), ...rest }: CodexcliIgnoreParams) {

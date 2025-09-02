@@ -11,10 +11,10 @@ export const ClaudecodeCommandFrontmatterSchema = z.object({
 
 export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFrontmatterSchema>;
 
-export interface ClaudecodeCommandParams extends AiFileParams {
+export type ClaudecodeCommandParams = {
   frontmatter: ClaudecodeCommandFrontmatter;
   body: string;
-}
+} & AiFileParams;
 
 export class ClaudecodeCommand extends ToolCommand {
   private readonly frontmatter: ClaudecodeCommandFrontmatter;

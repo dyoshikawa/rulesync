@@ -6,11 +6,11 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-export interface GeminiCliIgnoreParams extends AiFileParams {
+export type GeminiCliIgnoreParams = {
   patterns?: string[];
   useGitignore?: boolean;
   supportsNegation?: boolean;
-}
+} & AiFileParams;
 
 /**
  * Represents Gemini CLI Coding Assistant ignore configuration

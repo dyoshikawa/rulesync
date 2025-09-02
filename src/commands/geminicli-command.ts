@@ -13,15 +13,15 @@ export const GeminiCliCommandFrontmatterSchema = z.object({
   prompt: z.string(),
 });
 
-export interface GeminiCliCommandFrontmatter {
+export type GeminiCliCommandFrontmatter = {
   description: string;
   prompt: string;
-}
+};
 
-export interface GeminiCliCommandParams extends AiFileParams {
+export type GeminiCliCommandParams = {
   frontmatter: GeminiCliCommandFrontmatter;
   body: string;
-}
+} & AiFileParams;
 
 export class GeminiCliCommand extends ToolCommand {
   protected readonly toolName = "geminicli" as const;

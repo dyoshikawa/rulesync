@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export type AgentsMdRuleParams = AiFileParams & {

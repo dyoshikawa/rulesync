@@ -3,9 +3,9 @@ import { basename } from "node:path";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
-export interface CursorIgnoreParams extends ToolIgnoreParams {
+export type CursorIgnoreParams = {
   patterns: string[];
-}
+} & ToolIgnoreParams;
 
 export class CursorIgnore extends ToolIgnore {
   constructor({ patterns, ...rest }: CursorIgnoreParams) {

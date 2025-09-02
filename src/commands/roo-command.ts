@@ -12,10 +12,10 @@ export const RooCommandFrontmatterSchema = z.object({
 
 export type RooCommandFrontmatter = z.infer<typeof RooCommandFrontmatterSchema>;
 
-export interface RooCommandParams extends AiFileParams {
+export type RooCommandParams = {
   frontmatter: RooCommandFrontmatter;
   body: string;
-}
+} & AiFileParams;
 
 export class RooCommand extends ToolCommand {
   private readonly frontmatter: RooCommandFrontmatter;

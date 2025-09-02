@@ -1,10 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import matter from "gray-matter";
-import { z } from "zod/mini";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import type { ToolTargets } from "../types/tool-targets.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 

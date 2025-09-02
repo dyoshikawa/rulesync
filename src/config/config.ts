@@ -1,13 +1,13 @@
 import { ALL_FEATURES, Features, RulesyncFeatures } from "../types/features.js";
 import { ALL_TOOL_TARGETS, RulesyncTargets, ToolTargets } from "../types/tool-targets.js";
 
-export interface ConfigParams {
+export type ConfigParams = {
   baseDirs: string[];
   targets: RulesyncTargets;
   features: RulesyncFeatures;
   verbose: boolean;
   delete: boolean;
-}
+};
 
 export class Config {
   private readonly baseDirs: string[];

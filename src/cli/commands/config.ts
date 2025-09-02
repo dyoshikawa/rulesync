@@ -2,9 +2,9 @@ import { ConfigParams } from "../../config/config.js";
 import { fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
-interface ConfigCommandOptions {
+type ConfigCommandOptions = {
   init?: boolean;
-}
+};
 
 export async function configCommand(options: ConfigCommandOptions): Promise<void> {
   if (options.init) {

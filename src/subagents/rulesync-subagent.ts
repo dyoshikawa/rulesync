@@ -21,9 +21,9 @@ export const RulesyncSubagentFrontmatterSchema = z.object({
 
 export type RulesyncSubagentFrontmatter = z.infer<typeof RulesyncSubagentFrontmatterSchema>;
 
-export interface RulesyncSubagentParams extends RulesyncFileParams {
+export type RulesyncSubagentParams = {
   frontmatter: RulesyncSubagentFrontmatter;
-}
+} & RulesyncFileParams;
 
 export class RulesyncSubagent extends RulesyncFile {
   private readonly frontmatter: RulesyncSubagentFrontmatter;

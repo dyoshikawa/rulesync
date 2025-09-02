@@ -13,9 +13,9 @@ export const RulesyncCommandFrontmatterSchema = z.object({
 
 export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatterSchema>;
 
-export interface RulesyncCommandParams extends RulesyncFileParams {
+export type RulesyncCommandParams = {
   frontmatter: RulesyncCommandFrontmatter;
-}
+} & RulesyncFileParams;
 
 export class RulesyncCommand extends RulesyncFile {
   private readonly frontmatter: RulesyncCommandFrontmatter;

@@ -3,9 +3,9 @@ import { basename } from "node:path";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
-export interface ClineIgnoreParams extends ToolIgnoreParams {
+export type ClineIgnoreParams = {
   patterns: string[];
-}
+} & ToolIgnoreParams;
 
 /**
  * ClineIgnore represents ignore patterns for the Cline VSCode extension.

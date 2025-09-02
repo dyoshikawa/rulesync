@@ -3,9 +3,9 @@ import { basename } from "node:path";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
 
-export interface RooIgnoreParams extends ToolIgnoreParams {
+export type RooIgnoreParams = {
   patterns: string[];
-}
+} & ToolIgnoreParams;
 
 /**
  * RooIgnore represents ignore patterns for the Roo Code AI coding assistant.

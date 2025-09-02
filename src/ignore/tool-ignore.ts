@@ -1,9 +1,9 @@
 import { AiFile, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
-export interface ToolIgnoreParams extends AiFileParams {
+export type ToolIgnoreParams = {
   patterns: string[];
-}
+} & AiFileParams;
 
 export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   AiFileParams,

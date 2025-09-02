@@ -15,12 +15,12 @@ export type Output = z.infer<typeof OutputSchema>;
 /**
  * Common base interface for parsed content with frontmatter
  */
-export interface ParsedContent {
+export type ParsedContent = {
   frontmatter: Record<string, unknown>;
   content: string;
   filename: string;
   filepath: string;
-}
+};
 
 /**
  * Common base schema for frontmatter validation
