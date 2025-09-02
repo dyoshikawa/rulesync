@@ -1,4 +1,4 @@
-import { writeFileContent } from "../utils/file.js";
+import { removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
@@ -36,5 +36,11 @@ export abstract class FeatureProcessor {
     }
 
     return aiFiles.length;
+  }
+
+  async removeAiFiles(aiFiles: AiFile[]): Promise<void> {
+    for (const aiFile of aiFiles) {
+      await removeFile(aiFile.getFilePath());
+    }
   }
 }

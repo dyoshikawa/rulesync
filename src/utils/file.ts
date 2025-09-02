@@ -155,6 +155,7 @@ export async function removeDirectory(dirPath: string): Promise<void> {
 }
 
 export async function removeFile(filepath: string): Promise<void> {
+  logger.debug(`Removing file: ${filepath}`);
   try {
     if (await fileExists(filepath)) {
       await rm(filepath);
