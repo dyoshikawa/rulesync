@@ -687,25 +687,19 @@ export class RulesProcessor extends FeatureProcessor {
     const guidelinesFile = join(this.baseDir, ".junie", "guidelines.md");
 
     if (!(await fileExists(guidelinesFile))) {
-      logger.warn(`JetBrains Junie guidelines file not found: ${guidelinesFile}`);
       return [];
     }
 
-    try {
-      const junieRule = await JunieRule.fromFilePath({
-        baseDir: this.baseDir,
-        relativeDirPath: ".junie",
-        relativeFilePath: "guidelines.md",
-        filePath: guidelinesFile,
-        validate: true,
-      });
+    const junieRule = await JunieRule.fromFilePath({
+      baseDir: this.baseDir,
+      relativeDirPath: ".junie",
+      relativeFilePath: "guidelines.md",
+      filePath: guidelinesFile,
+      validate: true,
+    });
 
-      logger.info(`Successfully loaded JetBrains Junie guidelines file`);
-      return [junieRule];
-    } catch (error) {
-      logger.warn(`Failed to load JetBrains Junie guidelines file ${guidelinesFile}:`, error);
-      return [];
-    }
+    logger.info(`Successfully loaded JetBrains Junie guidelines file`);
+    return [junieRule];
   }
 
   /**
