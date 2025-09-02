@@ -2,9 +2,7 @@ import { AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
-export type ToolMcpParams = {
-  json: Record<string, unknown>;
-} & AiFileParams;
+export type ToolMcpParams = AiFileParams;
 
 export type ToolMcpFromRulesyncMcpParams = Omit<
   AiFileParams,
@@ -16,15 +14,16 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
 export abstract class ToolMcp extends ToolFile {
   protected readonly json: Record<string, unknown>;
 
-  constructor({ json, ...rest }: ToolMcpParams) {
+  constructor({ ...rest }: ToolMcpParams) {
     super({
       ...rest,
       validate: false, // Skip validation during construction
     });
-    this.json = json;
+
+    this.json = JSON.parse(this.fileContent);
 
     // Validate after setting patterns, if validation was requested
-    if (rest.validate !== false) {
+    if (rest.validate) {
       const result = this.validate();
       if (!result.success) {
         throw result.error;
@@ -37,6 +36,15 @@ export abstract class ToolMcp extends ToolFile {
   }
 
   abstract toRulesyncMcp(): RulesyncMcp;
+
+  protected toRulesyncMcpDefault(): RulesyncMcp {
+    return new RulesyncMcp({
+      baseDir: this.baseDir,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+      fileContent: this.fileContent,
+    });
+  }
 
   static async fromFilePath(_params: { filePath: string }): Promise<ToolMcp> {
     throw new Error("Please implement this method in the subclass.");

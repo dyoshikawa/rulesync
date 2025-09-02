@@ -4,9 +4,7 @@ import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 
-export type RulesyncMcpParams = {
-  json: Record<string, unknown>;
-} & RulesyncFileParams;
+export type RulesyncMcpParams = RulesyncFileParams;
 
 // Re-export schema for validation consistency
 export { RulesyncMcpConfigSchema as RulesyncMcpJsonSchema };
@@ -14,9 +12,17 @@ export { RulesyncMcpConfigSchema as RulesyncMcpJsonSchema };
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: Record<string, unknown>;
 
-  constructor({ json, ...rest }: RulesyncMcpParams) {
+  constructor({ ...rest }: RulesyncMcpParams) {
     super({ ...rest });
-    this.json = json;
+
+    this.json = JSON.parse(this.fileContent);
+
+    if (rest.validate) {
+      const result = this.validate();
+      if (!result.success) {
+        throw result.error;
+      }
+    }
   }
 
   validate(): ValidationResult {
@@ -30,9 +36,7 @@ export class RulesyncMcp extends RulesyncFile {
       baseDir: ".",
       relativeDirPath: ".",
       relativeFilePath: RULESYNC_MCP_FILE,
-      body: fileContent,
       fileContent,
-      json: JSON.parse(fileContent),
       validate: false,
     });
   }
