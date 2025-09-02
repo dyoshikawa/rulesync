@@ -247,6 +247,8 @@
         "dylib",
         "webfetch",
         "reinclusion",
-        "Mcps"
+        "Mcps",
+        "junieignore",
+        "geminiignore"
     ]
 }
