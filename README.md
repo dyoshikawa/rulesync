@@ -4,6 +4,12 @@
 [![npm version](https://img.shields.io/npm/v/rulesync)](https://www.npmjs.com/package/rulesync)
 [![npm downloads](https://img.shields.io/npm/dt/rulesync)](https://www.npmjs.com/package/rulesync)
 
+> [!IMPORTANT]
+> Starting from v0.68.0, we have implemented a major refactoring by the maintainers. If the behavior is unstable, please specify and run v0.67.0.
+> Additionally, as a result, we have deprecated some features, support, and backward compatibility. If you wish to see any of these features restored, please create an Issue.
+> As background, this tool has been built using Vibe Coding up until now, but the codebase had become extremely complex, making future extensions difficult, so we had to discard the existing codebase. We plan to continue active development going forward.
+> Thank you for your continued support of rulesync.
+
 A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports 19+ AI development tools with rules, commands, MCP, ignore files, and subagents. Uses the recommended `.rulesync/rules/*.md` structure, with full backward compatibility for legacy `.rulesync/*.md` layouts.
 
 ## Installation
