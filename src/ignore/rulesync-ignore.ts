@@ -7,19 +7,14 @@ export class RulesyncIgnore extends RulesyncFile {
     return { success: true, error: null };
   }
 
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncIgnore> {
-    const fileContent = await readFile(filePath, "utf-8");
+  static async fromFilePath(): Promise<RulesyncIgnore> {
+    const fileContent = await readFile(".rulesyncignore", "utf-8");
 
     return new RulesyncIgnore({
       baseDir: ".",
       relativeDirPath: ".",
       relativeFilePath: ".rulesyncignore",
-      body: fileContent,
       fileContent,
     });
-  }
-
-  getFrontmatter(): Record<string, unknown> {
-    return {};
   }
 }

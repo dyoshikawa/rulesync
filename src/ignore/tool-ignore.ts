@@ -4,13 +4,14 @@ import {
   AiFileParams,
   ValidationResult,
 } from "../types/ai-file.js";
+import { ToolFile } from "../types/tool-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
 export type ToolIgnoreParams = AiFileParams;
 
 export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   AiFileParams,
-  "fileContent" | "relativeFilePath"
+  "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncIgnore: RulesyncIgnore;
 };
@@ -22,7 +23,7 @@ export type ToolIgnoreFromFilePathParams = Omit<
   filePath: string;
 };
 
-export abstract class ToolIgnore extends AiFile {
+export abstract class ToolIgnore extends ToolFile {
   protected readonly patterns: string[];
 
   constructor({ ...rest }: ToolIgnoreParams) {
@@ -59,13 +60,26 @@ export abstract class ToolIgnore extends AiFile {
     return { success: true, error: null };
   }
 
-  abstract toRulesyncIgnore(): RulesyncIgnore;
-
-  static async fromFilePath(_params: ToolIgnoreFromFilePathParams): Promise<ToolIgnore> {
+  static fromRulesyncIgnore(_params: ToolIgnoreFromRulesyncIgnoreParams): ToolIgnore {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  static fromRulesyncIgnore(_params: ToolIgnoreFromRulesyncIgnoreParams): ToolIgnore {
+  abstract toRulesyncIgnore(): RulesyncIgnore;
+
+  protected toRulesyncIgnoreDefault(): RulesyncIgnore {
+    return new RulesyncIgnore({
+      baseDir: ".",
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+      fileContent: this.fileContent,
+    });
+  }
+
+  static async fromFile(): Promise<ToolIgnore> {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  static async fromFilePath(_params: ToolIgnoreFromFilePathParams): Promise<ToolIgnore> {
+    throw new Error("Please use the fromFile method instead.");
   }
 }
