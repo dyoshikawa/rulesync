@@ -106,7 +106,6 @@ export class GeminiCliCommand extends ToolCommand {
   static fromRulesyncCommand({
     baseDir = ".",
     rulesyncCommand,
-    relativeDirPath,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): GeminiCliCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
@@ -124,7 +123,7 @@ ${geminiFrontmatter.prompt}
 
     return new GeminiCliCommand({
       baseDir: baseDir,
-      relativeDirPath,
+      relativeDirPath: ".gemini/commands",
       relativeFilePath: rulesyncCommand.getRelativeFilePath().replace(".md", ".toml"),
       fileContent: tomlContent,
       validate,
@@ -133,7 +132,6 @@ ${geminiFrontmatter.prompt}
 
   static async fromFilePath({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
     filePath,
     validate = true,
@@ -143,7 +141,7 @@ ${geminiFrontmatter.prompt}
 
     return new GeminiCliCommand({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
+      relativeDirPath: ".gemini/commands",
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
@@ -14,7 +15,7 @@ export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFront
 export type ClaudecodeCommandParams = {
   frontmatter: ClaudecodeCommandFrontmatter;
   body: string;
-} & AiFileParams;
+} & Omit<AiFileParams, "fileContent">;
 
 export class ClaudecodeCommand extends ToolCommand {
   private readonly frontmatter: ClaudecodeCommandFrontmatter;
@@ -22,7 +23,7 @@ export class ClaudecodeCommand extends ToolCommand {
 
   constructor({ frontmatter, body, ...rest }: ClaudecodeCommandParams) {
     // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate !== false) {
+    if (rest.validate) {
       const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
@@ -31,6 +32,7 @@ export class ClaudecodeCommand extends ToolCommand {
 
     super({
       ...rest,
+      fileContent: matter.stringify(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -47,7 +49,7 @@ export class ClaudecodeCommand extends ToolCommand {
 
   toRulesyncCommand(): RulesyncCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["claudecode"],
+      targets: ["*"],
       description: this.frontmatter.description,
     };
 
@@ -68,7 +70,6 @@ export class ClaudecodeCommand extends ToolCommand {
   static fromRulesyncCommand({
     baseDir = ".",
     rulesyncCommand,
-    relativeDirPath,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
@@ -79,19 +80,13 @@ export class ClaudecodeCommand extends ToolCommand {
 
     // Generate proper file content with Claude Code specific frontmatter
     const body = rulesyncCommand.getBody();
-    // Remove undefined values to avoid YAML dump errors
-    const cleanFrontmatter = Object.fromEntries(
-      Object.entries(claudecodeFrontmatter).filter(([, value]) => value !== undefined),
-    );
-    const fileContent = matter.stringify(body, cleanFrontmatter);
 
     return new ClaudecodeCommand({
       baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: join(".claude", "commands"),
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      fileContent,
       validate,
     });
   }
@@ -112,7 +107,6 @@ export class ClaudecodeCommand extends ToolCommand {
 
   static async fromFilePath({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
     filePath,
     validate = true,
@@ -129,11 +123,10 @@ export class ClaudecodeCommand extends ToolCommand {
 
     return new ClaudecodeCommand({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
+      relativeDirPath: ".claude/commands",
       relativeFilePath: relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
       validate,
     });
   }

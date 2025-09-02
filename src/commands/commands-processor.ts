@@ -39,19 +39,16 @@ export class CommandsProcessor extends FeatureProcessor {
         case "claudecode":
           return ClaudecodeCommand.fromRulesyncCommand({
             baseDir: this.baseDir,
-            relativeDirPath: ".claude/commands",
             rulesyncCommand: rulesyncCommand,
           });
         case "geminicli":
           return GeminiCliCommand.fromRulesyncCommand({
             baseDir: this.baseDir,
-            relativeDirPath: ".gemini/commands",
             rulesyncCommand: rulesyncCommand,
           });
         case "roo":
           return RooCommand.fromRulesyncCommand({
             baseDir: this.baseDir,
-            relativeDirPath: ".roo/commands",
             rulesyncCommand: rulesyncCommand,
           });
         default:

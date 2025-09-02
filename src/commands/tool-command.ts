@@ -3,7 +3,7 @@ import type { RulesyncCommand } from "./rulesync-command.js";
 
 export type ToolCommandFromRulesyncCommandParams = Omit<
   AiFileParams,
-  "fileContent" | "relativeFilePath"
+  "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncCommand: RulesyncCommand;
 };
@@ -25,16 +25,6 @@ export type ToolCommandFromRulesyncCommandParams = Omit<
  * - Tool-specific body content formatting
  */
 export abstract class ToolCommand extends AiFile {
-  /**
-   * Get the command body content (without frontmatter)
-   */
-  abstract getBody(): string;
-
-  /**
-   * Get the command frontmatter as a record
-   */
-  abstract getFrontmatter(): Record<string, unknown>;
-
   /**
    * Load a command from a tool-specific file path.
    *

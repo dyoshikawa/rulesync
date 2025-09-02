@@ -23,7 +23,7 @@ export class RooCommand extends ToolCommand {
 
   constructor({ frontmatter, body, ...rest }: RooCommandParams) {
     // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate !== false) {
+    if (rest.validate) {
       const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw result.error;
@@ -32,6 +32,7 @@ export class RooCommand extends ToolCommand {
 
     super({
       ...rest,
+      fileContent: matter.stringify(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -69,7 +70,6 @@ export class RooCommand extends ToolCommand {
   static fromRulesyncCommand({
     baseDir = ".",
     rulesyncCommand,
-    relativeDirPath,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): RooCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
@@ -90,7 +90,7 @@ export class RooCommand extends ToolCommand {
       baseDir: baseDir,
       frontmatter: rooFrontmatter,
       body,
-      relativeDirPath,
+      relativeDirPath: ".roo/commands",
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       fileContent,
       validate,
