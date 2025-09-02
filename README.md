@@ -14,95 +14,58 @@ npm install -g rulesync
 pnpm add -g rulesync
 # or  
 yarn global add rulesync
+# or
+bun add -g rulesync
+
+# And then
+rulesync --version
+rulesync --help
 ```
 
 ## Getting Started
 
-### New Project
+```bash
+# Create necessary directories and sample rule files
+npx rulesync init
+# Create a new configuration file
+npx rulesync config --init
+```
 
-1. **Initialize your project:**
-   ```bash
-   # Recommended: Use new organized structure
-   npx rulesync init
-   
-   # Legacy: Use backward-compatible structure
-   npx rulesync init --legacy
-   ```
-
-2. **Edit the generated rule files:**
-   - **Recommended**: Edit files in `.rulesync/rules/` directory
-   - **Legacy**: Edit files in `.rulesync/` directory
-   
-3. **Generate tool-specific configuration files:**
-   ```bash
-   # Generate all features for all tools (recommended)
-   npx rulesync generate --targets * --features *
-   
-   # Generate specific features for specific tools
-   npx rulesync generate --targets copilot,cursor,cline --features rules,commands
-   npx rulesync generate --targets claudecode --features rules,commands,subagents
-   
-   # Generate only rules (fastest option)
-   npx rulesync generate --targets * --features rules
-   
-   # Generate subagents for Claude Code
-   npx rulesync generate --targets claudecode --features subagents
-   
-   # Generate specific tools with all features
-   npx rulesync generate --targets claudecode,cursor --features *
-   ```
-
-### Existing Project
-
-If you already have AI tool configurations:
+On the other hand, if you already have AI tool configurations:
 
 ```bash
-# Import existing configurations (to recommended structure)
+# Import existing files (to .rulesync/**/*)
 npx rulesync import --targets claudecode    # From CLAUDE.md
 npx rulesync import --targets cursor        # From .cursorrules
 npx rulesync import --targets copilot       # From .github/copilot-instructions.md
-npx rulesync import --targets amazonqcli    # From .amazonq/rules/*.md
-npx rulesync import --targets qwencode      # From QWEN.md
-npx rulesync import --targets opencode      # From AGENTS.md
-npx rulesync import --targets agentsmd      # From AGENTS.md + .agents/memories/*.md
-npx rulesync import --targets windsurf      # From .windsurf/rules/
+npx rulesync import --targets claudecode --features rules,mcp,commands,subagents
 
-# Import to legacy structure (for existing projects)
-npx rulesync import --targets claudecode --legacy
-npx rulesync import --targets cursor --legacy
-npx rulesync import --targets copilot --legacy
+# And more tool supports
 
 # Generate unified configurations with all features
-npx rulesync generate --targets * --features *
+npx rulesync generate --targets "*" --features "*"
 ```
 
-## Supported Tools
+## Supported Tools and Features
 
-rulesync supports both **generation** and **import** for **19 AI development tools**:
+rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
-### Core AI Development Tools
-- **GitHub Copilot** - Custom Instructions (`.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`)
-- **Cursor** - Project Rules (`.cursor/rules/*.mdc` + `.cursorrules` + custom commands) 
-- **Cline** - Rules & Instructions (`.clinerules/*.md` + `.cline/instructions.md`)
-- **Claude Code** - Memory System (`CLAUDE.md` + `.claude/memories/*.md` + **Custom Slash Commands** `.claude/commands/*.md` + **🤖 Subagents** `.claude/subagents/*.md`)
-- **Amazon Q Developer CLI** - Rules & Context (`.amazonq/rules/*.md` + `.amazonq/mcp.json` + built-in commands + context management)
-- **Windsurf** - AI Code Editor (`.windsurf/rules/*.md` + `.windsurf/mcp.json` + `.codeiumignore`)
-
-### Specialized AI Tools
-- **OpenCode** - Terminal AI (`AGENTS.md` + `opencode.json` + **🔐 Permission-Based Security**)
-- **OpenAI Codex CLI** - Advanced CLI (`AGENTS.md` + **File Splitting with XML** + `.codex/memories/*.md` + `.codex/mcp-config.json`)
-- **AugmentCode** - IDE Integration (`.augment/rules/*.md` + current & legacy formats)
-- **Roo Code** - VSCode Extension (`.roo/rules/*.md` + `.roo/instructions.md`)
-- **Gemini CLI** - Google AI (`GEMINI.md` + `.gemini/memories/*.md` + **Custom Slash Commands** `.gemini/commands/*.md`)
-- **Qwen Code** - Qwen Models (`QWEN.md` + `.qwen/memories/*.md` + **Git-Aware Filtering** + `.qwen/settings.json`)
-
-### IDE-Integrated AI
-- **JetBrains Junie** - IntelliJ Family (`.junie/guidelines.md` + IDE integration)
-- **Kiro IDE** - AWS IDE (`.kiro/steering/*.md` + **AI Ignore Files** `.aiignore`)
-
-### Standardized Formats
-- **AgentsMd** - Universal Format (`AGENTS.md` + `.agents/memories/*.md` for standardized AI agent instructions)
-- **AugmentCode Legacy** - Backward compatibility (`.augment-guidelines` format support)
+| Tool                  | rules | ignore | mcp   | commands | subagents |
+|------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
+| Claude Code            |  ✅   |      |  ✅    |    ✅     |    ✅      |
+| Codex CLI              |  ✅   |   ✅   |      |         |          |
+| Gemini CLI             |  ✅   |   ✅   |      |     ✅   |          |
+| GitHub Copilot         |  ✅    |       |  ✅    |          |          |
+| Cursor                 |  ✅   |   ✅  |   ✅   |          |          |
+| OpenCode               |  ✅   |       |       |         |          |
+| Cline                  |  ✅    |   ✅    |  ✅    |          |          |
+| Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |          |
+| Qwen Code              |  ✅   |   ✅   |       |         |          |
+| Kiro IDE               |  ✅   |   ✅   |      |         |          |
+| Amazon Q Developer CLI |  ✅   |       |  ✅   |         |          |
+| JetBrains Junie        |  ✅   |   ✅   |      |         |          |
+| AugmentCode            |  ✅   |   ✅   |       |         |          |
+| Windsurf               |  ✅   |   ✅    |      |         |          |
 
 ## Why rulesync?
 
@@ -123,14 +86,11 @@ Enable hybrid development workflows combining multiple AI tools:
 - **Windsurf** for comprehensive AI-assisted editing with Cascade AI
 - **Gemini CLI** for Google AI integration and custom workflows
 
-### 🔓 **No Vendor Lock-in**
-Avoid vendor lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files as-is.
+### 🔓 **No Lock-in**
+Avoid lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files as-is.
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
-
-### 📁 **Organized Structure**
-New organized directory structure (`.rulesync/rules/`) keeps rules well-organized, while maintaining full backward compatibility with legacy layouts (`.rulesync/*.md`) for existing projects.
 
 ## Quick Commands
 
@@ -138,90 +98,22 @@ New organized directory structure (`.rulesync/rules/`) keeps rules well-organize
 # Initialize new project (recommended: organized rules structure)
 npx rulesync init
 
-# Initialize with legacy layout (backward compatibility)
-npx rulesync init --legacy
-
-# Add new rule file to recommended location
-npx rulesync add typescript-rules
-
-# Add rule file to legacy location (for existing projects)
-npx rulesync add typescript-rules --legacy
-
 # Import existing configurations (to .rulesync/rules/ by default)
-npx rulesync import --targets cursor
-npx rulesync import --targets amazonqcli
-npx rulesync import --targets qwencode
-npx rulesync import --targets agentsmd
-npx rulesync import --targets claudecode  # Imports subagents too
-
-# Import to legacy location (for existing projects)
-npx rulesync import --targets cursor --legacy
-npx rulesync import --targets amazonqcli --legacy
-npx rulesync import --targets windsurf --legacy
-
-# Validate rules
-npx rulesync validate
+npx rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents
 
 # Generate all features for all tools (new preferred syntax)
-npx rulesync generate --targets * --features *
+npx rulesync generate --targets "*" --features "*"
 
 # Generate specific features for specific tools
 npx rulesync generate --targets copilot,cursor,cline --features rules,mcp
 npx rulesync generate --targets claudecode --features rules,subagents
 
-# Generate only rules (no MCP, ignore files, or subagents)
-npx rulesync generate --targets * --features rules
-
-# Generate subagents for supported tools
-npx rulesync generate --targets claudecode --features subagents
-
-# Watch for changes
-npx rulesync watch
-
-# Show project status
-npx rulesync status
+# Generate only rules (no MCP, ignore files, commands, or subagents)
+npx rulesync generate --targets "*" --features rules
 
 # Add generated files to .gitignore
 npx rulesync gitignore
 ```
-
-## Documentation
-
-### 📖 Core Documentation
-- **[Commands Reference](./docs/commands.md)** - Complete CLI commands guide
-- **[Configuration Guide](./docs/configuration.md)** - Rule files and configuration options
-
-### 🛠️ Tool Integrations
-- **[Claude Code](./docs/tools/claudecode.md)** - Memory system and custom commands
-- **[Cursor](./docs/tools/cursor.md)** - Rule types and MDC format
-- **[GitHub Copilot](./docs/tools/copilot.md)** - Custom instructions
-- **[Cline](./docs/tools/cline.md)** - Plain Markdown rules
-- **[Amazon Q Developer CLI](./docs/tools/amazonqcli.md)** - Rules, MCP, and built-in commands
-- **[OpenCode](./docs/tools/opencode.md)** - Permission-based configuration and MCP integration
-- **[OpenAI Codex CLI](./docs/tools/codexcli.md)** - Advanced file splitting with XML document references and memory files
-- **[Gemini CLI](./docs/tools/geminicli.md)** - Memory and commands
-- **[Windsurf](./docs/tools/windsurf.md)** - Rules and Cascade AI
-- **[JetBrains Junie](./docs/tools/junie.md)** - Guidelines and IDE integration
-- **[Kiro IDE](./docs/tools/kiro.md)** - Custom steering documents
-- **[AugmentCode](./docs/tools/augmentcode.md)** - Rule types and configuration
-- **[Roo Code](./docs/tools/roo.md)** - Instructions and rules
-- **[Qwen Code](./docs/tools/qwencode.md)** - Memory system with git-aware filtering
-- **[AgentsMd](./docs/tools/agentsmd.md)** - Standardized AI agent instructions
-
-### ⚡ Features
-- **[Selective Generation](./docs/features/selective-generation.md)** - Generate only what you need with --features option
-- **[Custom Slash Commands](./docs/features/custom-commands.md)** - Create unified commands for Claude Code and Gemini CLI
-- **[MCP Integration](./docs/features/mcp.md)** - Model Context Protocol server configuration
-- **[Subagents System](./docs/features/subagents.md)** - Create specialized AI assistants and workflows
-- **[Import System](./docs/features/import.md)** - Import existing AI tool configurations
-- **[Rule Validation](./docs/features/validation.md)** - Validate rule files and configuration
-
-### 📚 Guides
-- **[Getting Started](./docs/guides/getting-started.md)** - Comprehensive setup guide
-- **[Best Practices](./docs/guides/best-practices.md)** - Proven strategies and patterns
-- **[Migration Guide](./docs/guides/migration.md)** - Migrate from existing AI tool configurations
-- **[Troubleshooting](./docs/guides/troubleshooting.md)** - Common issues and solutions
-- **[Real-World Examples](./docs/guides/examples.md)** - Practical implementation examples
 
 ## License
 

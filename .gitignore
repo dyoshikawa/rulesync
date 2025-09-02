@@ -246,3 +246,5 @@ data
 **/QWEN.md
 **/.qwen/memories/
 **/.qwen/settings.json
+
+repomix-output.xml
