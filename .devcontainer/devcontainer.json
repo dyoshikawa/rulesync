@@ -47,7 +47,7 @@
     "GITHUB_TOKEN": "${localEnv:DEVCONTAINER_GITHUB_TOKEN}",
     "OCO_API_KEY": "${localEnv:DEVCONTAINER_OPENROUTER_API_KEY}",
     "OCO_API_URL": "https://openrouter.ai/api/v1/",
-    "OCO_MODEL": "openai/gpt-oss-120b"
+    "OCO_MODEL": "openai/gpt-5-nano"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
