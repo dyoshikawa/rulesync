@@ -15,6 +15,7 @@ Execute the all following commands even though errors are occurred:
 - `pnpm fix`
 - `pnpm typecheck`
 - `pnpm test`
+- `pnpm cspell`
 - `pnpm secretlint`
 
 And then, if errors are found, please plan to fix them while analyzing the errors and related files. Then, please report the occurred errors and your plan.
