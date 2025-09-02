@@ -7,3 +7,12 @@ export function stringifyFrontmatter(body: string, frontmatter: Record<string, u
 
   return matter.stringify(body, cleanFrontmatter);
 }
+
+export function parseFrontmatter(content: string): {
+  frontmatter: Record<string, unknown>;
+  body: string;
+} {
+  const { data: frontmatter, content: body } = matter(content);
+
+  return { frontmatter, body };
+}

@@ -56,6 +56,11 @@ export default defineConfig([
             allowReferenceFrom: ["src/utils/file.ts", "src/utils/file.test.ts"],
             allowSameModule: false,
           },
+          {
+            module: "gray-matter",
+            allowReferenceFrom: ["src/utils/frontmatter.ts"],
+            allowSameModule: false,
+          },
         ],
       ],
     },
