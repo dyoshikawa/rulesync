@@ -23,12 +23,14 @@ export type RulesyncSubagentFrontmatter = z.infer<typeof RulesyncSubagentFrontma
 
 export type RulesyncSubagentParams = {
   frontmatter: RulesyncSubagentFrontmatter;
+  body: string;
 } & RulesyncFileParams;
 
 export class RulesyncSubagent extends RulesyncFile {
   private readonly frontmatter: RulesyncSubagentFrontmatter;
+  private readonly body: string;
 
-  constructor({ frontmatter, ...rest }: RulesyncSubagentParams) {
+  constructor({ frontmatter, body, ...rest }: RulesyncSubagentParams) {
     // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate !== false) {
       const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
@@ -42,10 +44,15 @@ export class RulesyncSubagent extends RulesyncFile {
     });
 
     this.frontmatter = frontmatter;
+    this.body = body;
   }
 
   getFrontmatter(): RulesyncSubagentFrontmatter {
     return this.frontmatter;
+  }
+
+  getBody(): string {
+    return this.body;
   }
 
   validate(): ValidationResult {
