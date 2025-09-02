@@ -71,97 +71,97 @@ export class RulesProcessor extends FeatureProcessor {
           return AgentsMdRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "amazonqcli":
           return AmazonQCliRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "augmentcode":
           return AugmentcodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "augmentcode-legacy":
           return AugmentcodeLegacyRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "claudecode":
           return ClaudecodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "cline":
           return ClineRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "codexcli":
           return CodexcliRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "copilot":
           return CopilotRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "cursor":
           return CursorRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "geminicli":
           return GeminiCliRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "junie":
           return JunieRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "kiro":
           return KiroRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "opencode":
           return OpenCodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "qwencode":
           return QwencodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "roo":
           return RooRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         case "windsurf":
           return WindsurfRule.fromRulesyncRule({
             baseDir: this.baseDir,
             rulesyncRule: rulesyncRule,
-            validate: false,
+            validate: true,
           });
         default:
           throw new Error(`Unsupported tool target: ${this.toolTarget}`);
@@ -365,7 +365,7 @@ export class RulesProcessor extends FeatureProcessor {
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         filePath: agentsFile,
-        validate: false,
+        validate: true,
       });
 
       logger.info(`Successfully loaded AGENTS.md rule`);
@@ -388,7 +388,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".amazonq/rules",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "Amazon Q Developer CLI",
     );
@@ -406,7 +406,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".augment/rules",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "AugmentCode",
     );
@@ -427,7 +427,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".",
           relativeFilePath: ".augment-guidelines",
           filePath: guidelinesFile,
-          validate: false,
+          validate: true,
         });
         toolRules.push(augmentcodeLegacyRule);
         logger.info(`Successfully loaded AugmentCode legacy guidelines`);
@@ -447,7 +447,7 @@ export class RulesProcessor extends FeatureProcessor {
             relativeDirPath: join(".augment", "rules"),
             relativeFilePath,
             filePath,
-            validate: false,
+            validate: true,
           }),
         "AugmentCode Legacy",
       );
@@ -480,7 +480,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".",
           relativeFilePath: "CLAUDE.md",
           filePath: claudeFile,
-          validate: false,
+          validate: true,
         });
 
         logger.info(`Successfully loaded Claude Code memory file`);
@@ -515,7 +515,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: join(".claude", "memories"),
           relativeFilePath: mdFile,
           filePath: filePath,
-          validate: false,
+          validate: true,
         });
 
         toolRules.push(claudecodeRule);
@@ -542,7 +542,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".clinerules",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "Cline",
     );
@@ -563,7 +563,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".",
           relativeFilePath: "AGENTS.md",
           filePath: agentsFile,
-          validate: false,
+          validate: true,
         });
         rules.push(codexcliRule);
         logger.info(`Successfully loaded OpenAI Codex CLI agents file`);
@@ -587,7 +587,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: join(".codex", "memories"),
               relativeFilePath: mdFile,
               filePath,
-              validate: false,
+              validate: true,
             });
             rules.push(codexcliRule);
           } catch (error) {
@@ -627,7 +627,7 @@ export class RulesProcessor extends FeatureProcessor {
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         filePath: copilotFile,
-        validate: false,
+        validate: true,
       });
 
       logger.info(`Successfully loaded GitHub Copilot instructions file`);
@@ -650,7 +650,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".cursor/rules",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "Cursor",
     );
@@ -673,7 +673,7 @@ export class RulesProcessor extends FeatureProcessor {
         relativeDirPath: ".",
         relativeFilePath: "GEMINI.md",
         filePath: geminiFile,
-        validate: false,
+        validate: true,
       });
 
       logger.info(`Successfully loaded Gemini CLI memory file`);
@@ -701,7 +701,7 @@ export class RulesProcessor extends FeatureProcessor {
         relativeDirPath: ".junie",
         relativeFilePath: "guidelines.md",
         filePath: guidelinesFile,
-        validate: false,
+        validate: true,
       });
 
       logger.info(`Successfully loaded JetBrains Junie guidelines file`);
@@ -724,7 +724,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".kiro/steering",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "Kiro",
     );
@@ -745,7 +745,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".",
           relativeFilePath: "AGENTS.md",
           filePath: agentsFile,
-          validate: false,
+          validate: true,
         });
         rules.push(opencodeRule);
         logger.info(`Successfully loaded OpenCode agents file`);
@@ -769,7 +769,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: join(".opencode", "memories"),
               relativeFilePath: mdFile,
               filePath,
-              validate: false,
+              validate: true,
             });
             rules.push(opencodeRule);
           } catch (error) {
@@ -807,7 +807,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".",
           relativeFilePath: "QWEN.md",
           filePath: qwenFile,
-          validate: false,
+          validate: true,
         });
         rules.push(qwencodeRule);
         logger.info(`Successfully loaded Qwen Code memory file`);
@@ -831,7 +831,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: join(".qwen", "memories"),
               relativeFilePath: mdFile,
               filePath,
-              validate: false,
+              validate: true,
             });
             rules.push(qwencodeRule);
           } catch (error) {
@@ -866,7 +866,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".roo/rules",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "Roo Code",
     );
@@ -884,7 +884,7 @@ export class RulesProcessor extends FeatureProcessor {
           relativeDirPath: ".windsurf/rules",
           relativeFilePath,
           filePath,
-          validate: false,
+          validate: true,
         }),
       "Windsurf",
     );
