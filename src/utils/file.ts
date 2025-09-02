@@ -80,7 +80,6 @@ export async function readFileContent(filepath: string): Promise<string> {
 }
 
 export async function writeFileContent(filepath: string, content: string): Promise<void> {
-  console.log("writing file", filepath);
   await ensureDir(dirname(filepath));
   await writeFile(filepath, content, "utf-8");
 }
