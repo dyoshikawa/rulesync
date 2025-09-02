@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp.js";

@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { RULESYNC_MCP_FILE } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
@@ -34,8 +33,8 @@ export class RulesyncMcp extends RulesyncFile {
 
     return new RulesyncMcp({
       baseDir: ".",
-      relativeDirPath: ".",
-      relativeFilePath: RULESYNC_MCP_FILE,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
       fileContent,
       validate: true,
     });
@@ -43,9 +42,5 @@ export class RulesyncMcp extends RulesyncFile {
 
   getJson(): Record<string, unknown> {
     return this.json;
-  }
-
-  getFrontmatter(): Record<string, unknown> {
-    return {};
   }
 }
