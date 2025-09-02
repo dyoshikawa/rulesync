@@ -45,8 +45,9 @@
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
     "OPENAI_API_KEY": "${localEnv:DEVCONTAINER_OPENAI_API_KEY}",
     "GITHUB_TOKEN": "${localEnv:DEVCONTAINER_GITHUB_TOKEN}",
-    "OCO_API_KEY": "${localEnv:DEVCONTAINER_OPENAI_API_KEY}",
-    "OCO_MODEL": "gpt-4o-mini"
+    "OCO_API_KEY": "${localEnv:DEVCONTAINER_OPENROUTER_API_KEY}",
+    "OCO_API_URL": "https://openrouter.ai/api/v1/",
+    "OCO_MODEL": "openai/gpt-oss-120b"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
