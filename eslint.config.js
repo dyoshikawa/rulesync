@@ -20,6 +20,7 @@ export default defineConfig([
       "eslint-plugin-*.js",
     ],
   },
+
   {
     files: ["**/*.{js,mjs,cjs,ts,mts}"],
   },
@@ -27,6 +28,20 @@ export default defineConfig([
   eslint.configs.recommended,
 
   ...tseslint.configs.recommended,
+
+  {
+    files: ["**/*.{js,mjs,cjs,ts,mts}"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+    },
+  },
 
   {
     files: ["**/*.ts", "**/*.mts"],

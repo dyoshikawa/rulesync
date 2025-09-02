@@ -1,8 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
-import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 /**
@@ -26,46 +24,24 @@ export class CodexcliRule extends ToolRule {
     });
   }
 
-  static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): CodexcliRule {
-    const { rulesyncRule, ...rest } = params;
-
-    const root = rulesyncRule.getFrontmatter().root;
-    const body = rulesyncRule.getBody();
-
-    if (root) {
-      return new CodexcliRule({
-        ...rest,
-        fileContent: body,
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-        root,
-      });
-    }
-
-    return new CodexcliRule({
-      ...rest,
-      fileContent: body,
-      relativeDirPath: join(".codex", "memories"),
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      root,
-    });
+  static fromRulesyncRule({
+    baseDir = ".",
+    rulesyncRule,
+    validate = true,
+  }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
+    return new CodexcliRule(
+      this.buildToolRuleParamsDefault({
+        baseDir,
+        rulesyncRule,
+        validate,
+        rootPath: { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
+        nonRootPath: { relativeDirPath: ".codex/memories" },
+      }),
+    );
   }
 
   toRulesyncRule(): RulesyncRule {
-    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
-      root: this.isRoot(),
-      targets: ["codexcli"],
-      description: "",
-      globs: this.isRoot() ? ["**/*"] : [],
-    };
-
-    return new RulesyncRule({
-      baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
-      relativeFilePath: this.getRelativeFilePath(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getFileContent(),
-    });
+    return this.toRulesyncRuleDefault();
   }
 
   validate(): ValidationResult {

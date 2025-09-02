@@ -1,6 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";

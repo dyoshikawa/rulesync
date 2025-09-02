@@ -1,8 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod/mini";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
-import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export const ClineRuleFrontmatterSchema = z.object({
