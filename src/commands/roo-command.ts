@@ -1,9 +1,14 @@
 import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import matter from "gray-matter";
 import { optional, z } from "zod/mini";
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import { ToolCommand, ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
+import {
+  ToolCommand,
+  ToolCommandFromFilePathParams,
+  ToolCommandFromRulesyncCommandParams,
+} from "./tool-command.js";
 
 export const RooCommandFrontmatterSchema = z.object({
   description: z.string(),
@@ -80,11 +85,7 @@ export class RooCommand extends ToolCommand {
 
     // Generate proper file content with Roo Code specific frontmatter
     const body = rulesyncCommand.getBody();
-    // Remove undefined values to avoid YAML dump errors
-    const cleanFrontmatter = Object.fromEntries(
-      Object.entries(rooFrontmatter).filter(([, value]) => value !== undefined),
-    );
-    const fileContent = matter.stringify(body, cleanFrontmatter);
+    const fileContent = matter.stringify(body, rooFrontmatter);
 
     return new RooCommand({
       baseDir: baseDir,
@@ -92,7 +93,7 @@ export class RooCommand extends ToolCommand {
       body,
       relativeDirPath: ".roo/commands",
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      fileContent,
+      fileContent: fileContent,
       validate,
     });
   }
@@ -113,11 +114,9 @@ export class RooCommand extends ToolCommand {
 
   static async fromFilePath({
     baseDir = ".",
-    relativeDirPath,
-    relativeFilePath,
     filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<RooCommand> {
+  }: ToolCommandFromFilePathParams): Promise<RooCommand> {
     // Read file content
     const fileContent = await readFile(filePath, "utf-8");
     const { data: frontmatter, content } = matter(fileContent);
@@ -130,8 +129,8 @@ export class RooCommand extends ToolCommand {
 
     return new RooCommand({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
-      relativeFilePath: relativeFilePath,
+      relativeDirPath: ".roo/commands",
+      relativeFilePath: basename(filePath),
       frontmatter: result.data,
       body: content.trim(),
       fileContent,

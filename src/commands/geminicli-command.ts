@@ -24,11 +24,6 @@ export type GeminiCliCommandParams = {
 } & AiFileParams;
 
 export class GeminiCliCommand extends ToolCommand {
-  protected readonly toolName = "geminicli" as const;
-  protected readonly commandsDirectoryName = "commands";
-  protected readonly supportsNamespacing = true;
-  protected readonly fileExtension = ".toml";
-
   private readonly frontmatter: GeminiCliCommandFrontmatter;
   private readonly body: string;
 
@@ -37,14 +32,6 @@ export class GeminiCliCommand extends ToolCommand {
     const parsed = this.parseTomlContent(this.fileContent);
     this.frontmatter = parsed;
     this.body = parsed.prompt;
-  }
-
-  protected getGlobalCommandsDirectory(): string {
-    return path.join(process.env.HOME || "~", ".gemini", "commands");
-  }
-
-  protected getProjectCommandsDirectory(): string {
-    return path.join(process.cwd(), ".gemini", "commands");
   }
 
   private parseTomlContent(content: string): GeminiCliCommandFrontmatter {
@@ -157,7 +144,7 @@ ${geminiFrontmatter.prompt}
     }
   }
 
-  protected async processContent(content: string, args?: string): Promise<string> {
+  private async processContent(content: string, args?: string): Promise<string> {
     let processedContent = content;
 
     // Process {{args}} placeholder
@@ -169,7 +156,7 @@ ${geminiFrontmatter.prompt}
     return processedContent;
   }
 
-  protected processArgumentPlaceholder(content: string, args?: string): string {
+  private processArgumentPlaceholder(content: string, args?: string): string {
     if (content.includes("{{args}}")) {
       // If {{args}} placeholder exists, replace it with arguments
       return content.replace(/\{\{args\}\}/g, args || "");

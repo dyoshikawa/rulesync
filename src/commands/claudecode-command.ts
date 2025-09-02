@@ -1,10 +1,14 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import { ToolCommand, ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
+import {
+  ToolCommand,
+  ToolCommandFromFilePathParams,
+  ToolCommandFromRulesyncCommandParams,
+} from "./tool-command.js";
 
 export const ClaudecodeCommandFrontmatterSchema = z.object({
   description: z.string(),
@@ -107,10 +111,9 @@ export class ClaudecodeCommand extends ToolCommand {
 
   static async fromFilePath({
     baseDir = ".",
-    relativeFilePath,
     filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<ClaudecodeCommand> {
+  }: ToolCommandFromFilePathParams): Promise<ClaudecodeCommand> {
     // Read file content
     const fileContent = await readFile(filePath, "utf-8");
     const { data: frontmatter, content } = matter(fileContent);
@@ -124,7 +127,7 @@ export class ClaudecodeCommand extends ToolCommand {
     return new ClaudecodeCommand({
       baseDir: baseDir,
       relativeDirPath: ".claude/commands",
-      relativeFilePath: relativeFilePath,
+      relativeFilePath: basename(filePath),
       frontmatter: result.data,
       body: content.trim(),
       validate,

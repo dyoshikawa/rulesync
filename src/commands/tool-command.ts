@@ -8,6 +8,11 @@ export type ToolCommandFromRulesyncCommandParams = Omit<
   rulesyncCommand: RulesyncCommand;
 };
 
+export type ToolCommandFromFilePathParams = Omit<
+  AiFileFromFilePathParams,
+  "fileContent" | "relativeDirPath" | "relativeFilePath"
+>;
+
 /**
  * Abstract base class for AI development tool-specific command formats.
  *
@@ -37,7 +42,7 @@ export abstract class ToolCommand extends AiFile {
    * @param params - Parameters including the file path to load
    * @returns Promise resolving to a concrete ToolCommand instance
    */
-  static async fromFilePath(_params: AiFileFromFilePathParams): Promise<ToolCommand> {
+  static async fromFilePath(_params: ToolCommandFromFilePathParams): Promise<ToolCommand> {
     throw new Error("Please implement this method in the subclass.");
   }
 
