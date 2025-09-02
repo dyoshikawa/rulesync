@@ -1,215 +1,32 @@
 import { readFile } from "node:fs/promises";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore } from "./tool-ignore.js";
-
-/**
- * JetBrains Junie ignore file implementation.
- * Supports .aiignore files for controlling AI file access.
- */
-type JunieIgnoreParams = {
-  baseDir?: string;
-  relativeDirPath?: string;
-  relativeFilePath?: string;
-  patterns: string[];
-  fileContent?: string;
-  validate?: boolean;
-};
+import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 
 export class JunieIgnore extends ToolIgnore {
-  static readonly toolName = "junie";
-  static readonly fileName = ".aiignore";
-
-  constructor({
-    baseDir = ".",
-    relativeDirPath = ".",
-    relativeFilePath = ".aiignore",
-    patterns,
-    fileContent,
-    validate = true,
-  }: JunieIgnoreParams) {
-    const content = fileContent || JunieIgnore.generateDefaultContent(patterns);
-
-    super({
-      baseDir,
-      relativeDirPath,
-      relativeFilePath,
-      patterns,
-      fileContent: content,
-      validate,
-    });
-  }
-
   toRulesyncIgnore(): RulesyncIgnore {
-    return new RulesyncIgnore({
-      baseDir: ".",
-      relativeDirPath: ".",
-      relativeFilePath: ".rulesyncignore",
-      body: this.patterns.join("\n"),
-      fileContent: this.patterns.join("\n"),
-    });
+    return this.toRulesyncIgnoreDefault();
   }
 
   static fromRulesyncIgnore({
     baseDir = ".",
-    relativeDirPath = ".",
     rulesyncIgnore,
-  }: {
-    baseDir?: string;
-    relativeDirPath?: string;
-    rulesyncIgnore: RulesyncIgnore;
-  }): JunieIgnore {
-    const body = rulesyncIgnore.getBody();
-    const patterns = body
-      .split("\n")
-      .map((line: string) => line.trim())
-      .filter((line: string) => line.length > 0 && !line.startsWith("#"));
-
+  }: ToolIgnoreFromRulesyncIgnoreParams): JunieIgnore {
     return new JunieIgnore({
       baseDir,
-      relativeDirPath,
-      patterns,
+      relativeDirPath: ".",
+      relativeFilePath: ".junieignore",
+      fileContent: rulesyncIgnore.getFileContent(),
     });
   }
 
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<JunieIgnore> {
-    const content = await readFile(filePath, "utf-8");
-
-    const patterns = content
-      .split("\n")
-      .map((line: string) => line.trim())
-      .filter((line: string) => line.length > 0 && !line.startsWith("#"));
+  static async fromFile(): Promise<JunieIgnore> {
+    const fileContent = await readFile(".junieignore", "utf-8");
 
     return new JunieIgnore({
       baseDir: ".",
       relativeDirPath: ".",
-      patterns,
-      fileContent: content,
+      relativeFilePath: ".junieignore",
+      fileContent,
     });
-  }
-
-  static getDefaultPatterns(): string[] {
-    return [
-      "# Secrets & Credentials",
-      "*.pem",
-      "*.key",
-      "*.crt",
-      "*.p12",
-      "*.pfx",
-      "*.der",
-      "id_rsa*",
-      "id_dsa*",
-      "",
-      "# Environment files",
-      ".env",
-      ".env.*",
-      "!.env.example",
-      "",
-      "# Build artifacts",
-      "build/",
-      "dist/",
-      "out/",
-      "target/",
-      "",
-      "# Dependencies",
-      "node_modules/",
-      ".pnpm-store/",
-      ".yarn/",
-      "",
-      "# IDE and editor files",
-      ".vscode/settings.json",
-      ".idea/",
-      "*.swp",
-      "*.swo",
-      "",
-      "# Logs and temporary files",
-      "*.log",
-      "logs/",
-      "*.tmp",
-      ".cache/",
-      "",
-      "# Data files",
-      "*.csv",
-      "*.xlsx",
-      "*.json",
-      "data/",
-      "datasets/",
-      "",
-      "# Media files",
-      "*.mp4",
-      "*.avi",
-      "*.png",
-      "*.jpg",
-      "*.jpeg",
-      "*.gif",
-      "",
-      "# Large test files",
-      "test-data/",
-      "fixtures/large-*",
-      "",
-      "# AWS credentials",
-      ".aws/",
-      "**/.aws/**",
-      "",
-      "# Infrastructure state",
-      "terraform.tfstate*",
-      "cdk.out/",
-      "",
-      "# Generic secret patterns",
-      "**/*secret*.json",
-      "**/*secrets*.yml",
-      "**/config/**/prod*.yaml",
-      "",
-      "# Security-sensitive documentation",
-      "internal-docs/",
-      "confidential/",
-      "",
-      "# Test data that might confuse AI",
-      "test/fixtures/large-*.json",
-      "benchmark-results/",
-      "",
-      "# Source Control Metadata",
-      ".git/",
-      ".svn/",
-      ".hg/",
-      "*.iml",
-      "",
-      "# OS specific files",
-      ".DS_Store",
-      "Thumbs.db",
-      "desktop.ini",
-    ];
-  }
-
-  static createWithDefaultPatterns(params: Partial<JunieIgnoreParams> = {}): JunieIgnore {
-    return new JunieIgnore({
-      baseDir: params.baseDir || ".",
-      relativeDirPath: params.relativeDirPath || ".",
-      patterns: [...JunieIgnore.getDefaultPatterns(), ...(params.patterns || [])],
-    });
-  }
-
-  static generateDefaultContent(customPatterns: string[] = []): string {
-    const lines: string[] = [];
-
-    lines.push("# JetBrains Junie AI ignore file");
-    lines.push("# Controls which files the AI can access automatically");
-    lines.push("# Syntax identical to .gitignore");
-    lines.push("");
-
-    // Add default patterns
-    lines.push(...JunieIgnore.getDefaultPatterns());
-
-    // Add custom patterns
-    if (customPatterns.length > 0) {
-      lines.push("");
-      lines.push("# Custom patterns");
-      lines.push(...customPatterns);
-    }
-
-    return lines.join("\n") + "\n";
-  }
-
-  static getSupportedFileNames(): readonly string[] {
-    return [".aiignore", ".cursorignore", ".codeiumignore", ".aiexclude", ".noai"] as const;
   }
 }
