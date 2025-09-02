@@ -20,7 +20,7 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
 
   constructor({
-    baseDir = process.cwd(),
+    baseDir = ".",
     toolTarget,
   }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget }) {
     super({ baseDir });
@@ -180,19 +180,6 @@ export class SubagentsProcessor extends FeatureProcessor {
     logger.info(`Successfully loaded ${toolSubagents.length} Claude Code subagents`);
     return toolSubagents;
   }
-
-  async writeToolSubagentsFromRulesyncSubagents(
-    rulesyncSubagents: RulesyncSubagent[],
-  ): Promise<void> {
-    const toolSubagents = await this.convertRulesyncFilesToToolFiles(rulesyncSubagents);
-    await this.writeAiFiles(toolSubagents);
-  }
-
-  async writeRulesyncSubagentsFromToolSubagents(toolSubagents: ToolSubagent[]): Promise<void> {
-    const rulesyncSubagents = await this.convertToolFilesToRulesyncFiles(toolSubagents);
-    await this.writeAiFiles(rulesyncSubagents);
-  }
-
   /**
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
