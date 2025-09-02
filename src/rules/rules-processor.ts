@@ -70,116 +70,96 @@ export class RulesProcessor extends FeatureProcessor {
         case "agentsmd":
           return AgentsMdRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? "" : ".agents/memories",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "amazonqcli":
           return AmazonQCliRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".amazonq/rules",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "augmentcode":
           return AugmentcodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".augment/rules",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "augmentcode-legacy":
           return AugmentcodeLegacyRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".augment", "rules"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "claudecode":
           return ClaudecodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".claude", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "cline":
           return ClineRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".clinerules",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "codexcli":
           return CodexcliRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".codex", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "copilot":
           return CopilotRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root
-              ? ".github"
-              : ".github/instructions",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "cursor":
           return CursorRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".cursor/rules",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "geminicli":
           return GeminiCliRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".gemini", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "junie":
           return JunieRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".junie",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "kiro":
           return KiroRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? ".kiro" : ".kiro/steering",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "opencode":
           return OpenCodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root
-              ? "."
-              : join(".opencode", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "qwencode":
           return QwencodeRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: rulesyncRule.getFrontmatter().root ? "." : join(".qwen", "memories"),
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "roo":
           return RooRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".roo/rules",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
         case "windsurf":
           return WindsurfRule.fromRulesyncRule({
             baseDir: this.baseDir,
-            relativeDirPath: ".windsurf/rules",
             rulesyncRule: rulesyncRule,
             validate: false,
           });
@@ -1080,17 +1060,18 @@ export class RulesProcessor extends FeatureProcessor {
     const documentsData = {
       Documents: {
         Document: toolRulesWithoutRoot.map((rule) => {
-          // Get frontmatter by converting to rulesync rule
           const rulesyncRule = rule.toRulesyncRule();
           const frontmatter = rulesyncRule.getFrontmatter();
 
           const relativePath = `@${rule.getRelativePathFromCwd()}`;
           const document: Record<string, string> = {
             Path: relativePath,
-            Description: frontmatter.description,
           };
 
-          // Only include FilePatterns if globs exist
+          if (frontmatter.description) {
+            document.Description = frontmatter.description;
+          }
+
           if (frontmatter.globs && frontmatter.globs.length > 0) {
             document.FilePatterns = frontmatter.globs.join(", ");
           }
@@ -1130,8 +1111,8 @@ export class RulesProcessor extends FeatureProcessor {
       const frontmatter = rulesyncRule.getFrontmatter();
 
       // Escape double quotes in description
-      const escapedDescription = frontmatter.description.replace(/"/g, '\\"');
-      const globsText = frontmatter.globs.join(",");
+      const escapedDescription = frontmatter.description?.replace(/"/g, '\\"');
+      const globsText = frontmatter.globs?.join(",");
 
       lines.push(
         `@${rule.getRelativePathFromCwd()} description: "${escapedDescription}" globs: "${globsText}"`,
