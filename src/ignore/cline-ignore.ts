@@ -1,11 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
-
-export type ClineIgnoreParams = {
-  patterns: string[];
-} & ToolIgnoreParams;
+import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 
 /**
  * ClineIgnore represents ignore patterns for the Cline VSCode extension.

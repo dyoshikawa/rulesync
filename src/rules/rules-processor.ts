@@ -644,7 +644,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadCursorRules(): Promise<ToolRule[]> {
     return this.loadToolRulesFromDirectory(
       join(this.baseDir, ".cursor", "rules"),
-      (filePath, relativeFilePath) =>
+      (filePath) =>
         CursorRule.fromFilePath({
           filePath,
           validate: true,

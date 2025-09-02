@@ -3,13 +3,13 @@ import { basename, join } from "node:path";
 import matter from "gray-matter";
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
   ToolCommandFromFilePathParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
-import { stringifyFrontmatter } from "../utils/frontmatter.js";
 
 export const ClaudecodeCommandFrontmatterSchema = z.object({
   description: z.string(),

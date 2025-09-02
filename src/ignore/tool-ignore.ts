@@ -1,9 +1,4 @@
-import {
-  AiFile,
-  AiFileFromFilePathParams,
-  AiFileParams,
-  ValidationResult,
-} from "../types/ai-file.js";
+import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 

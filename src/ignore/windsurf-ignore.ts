@@ -1,7 +1,5 @@
-import { readFile } from "node:fs/promises";
-import type { AiFileFromFilePathParams } from "../types/ai-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import type { ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
+import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
 /**

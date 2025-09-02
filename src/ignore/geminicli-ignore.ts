@@ -1,7 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
-
-import type { ValidationResult } from "../types/ai-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
