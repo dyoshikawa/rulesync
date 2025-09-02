@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
@@ -123,14 +123,12 @@ export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {
   const legacyLocationFiles = await findFiles(aiRulesDir, ".md");
 
   // Get basenames from new location files for deduplication
-  const newLocationBasenames = new Set(
-    newLocationFiles.map((file) => file.split("/").pop()?.replace(/\.md$/, "")),
-  );
+  const newLocationBasenames = new Set(newLocationFiles.map((file) => basename(file, ".md")));
 
   // Filter legacy files to exclude those that exist in new location
   const filteredLegacyFiles = legacyLocationFiles.filter((file) => {
-    const basename = file.split("/").pop()?.replace(/\.md$/, "");
-    return !newLocationBasenames.has(basename);
+    const fileBasename = basename(file, ".md");
+    return !newLocationBasenames.has(fileBasename);
   });
 
   // Return combined list with new location files first

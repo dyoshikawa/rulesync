@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
@@ -86,10 +86,7 @@ export class CommandsProcessor extends FeatureProcessor {
 
     // Read all markdown files from the directory
     const allMdFiles = await findFiles(commandsDir, ".md");
-    const mdFiles = allMdFiles.map((f) => {
-      const filename = f.split("/").pop();
-      return filename || f;
-    });
+    const mdFiles = allMdFiles.map((f) => basename(f));
 
     if (mdFiles.length === 0) {
       logger.debug(`No markdown files found in rulesync commands directory: ${commandsDir}`);
@@ -157,10 +154,7 @@ export class CommandsProcessor extends FeatureProcessor {
 
     // Read all markdown files from the directory
     const allMdFiles = await findFiles(commandsDir, ".md");
-    const mdFiles = allMdFiles.map((f) => {
-      const filename = f.split("/").pop();
-      return filename || f;
-    });
+    const mdFiles = allMdFiles.map((f) => basename(f));
 
     if (mdFiles.length === 0) {
       logger.info(`No markdown command files found in ${commandsDir}`);
@@ -254,10 +248,7 @@ export class CommandsProcessor extends FeatureProcessor {
 
     // Read all markdown files from the directory
     const allMdFiles = await findFiles(commandsDir, ".md");
-    const mdFiles = allMdFiles.map((f) => {
-      const filename = f.split("/").pop();
-      return filename || f;
-    });
+    const mdFiles = allMdFiles.map((f) => basename(f));
 
     if (mdFiles.length === 0) {
       logger.info(`No markdown command files found in ${commandsDir}`);
