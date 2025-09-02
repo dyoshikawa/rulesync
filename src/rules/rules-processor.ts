@@ -1086,9 +1086,8 @@ export class RulesProcessor extends FeatureProcessor {
 
     const xmlContent = builder.build(documentsData);
     lines.push(xmlContent);
-    lines.push("");
 
-    return lines.join("") + "";
+    return lines.join("\n") + "\n";
   }
 
   public generateReferencesSection(toolRules: ToolRule[]): string {
@@ -1115,8 +1114,7 @@ export class RulesProcessor extends FeatureProcessor {
         `@${rule.getRelativePathFromCwd()} description: "${escapedDescription}" globs: "${globsText}"`,
       );
     }
-    lines.push("");
 
-    return lines.join("") + "";
+    return lines.join("\n") + "\n";
   }
 }
