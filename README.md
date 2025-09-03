@@ -148,7 +148,7 @@ Example:
 
 ```md
 ---
-root: true # true for overview, false for details
+root: true # true that is less than or equal to one file for overview such as AGENTS.md, false for details such as .agents/memories/*.md
 targets: ["*"] # * = all, or specific tools
 description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
