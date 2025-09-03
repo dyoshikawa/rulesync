@@ -1,8 +1,12 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
+import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
 import { type ValidationResult } from "../types/ai-file.js";
-import { RulesyncFile, type RulesyncFileParams } from "../types/rulesync-file.js";
+import {
+  RulesyncFile,
+  RulesyncFileFromFileParams,
+  type RulesyncFileParams,
+} from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -67,6 +71,40 @@ export class RulesyncRule extends RulesyncFile {
     } else {
       return { success: false, error: result.error };
     }
+  }
+
+  static async fromLegacyFile({
+    relativeFilePath,
+  }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
+    const filePath = join(RULESYNC_RULES_DIR_LEGACY, relativeFilePath);
+
+    // Read file content
+    const fileContent = await readFileContent(filePath);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+
+    // Validate frontmatter using RuleFrontmatterSchema
+    const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+    }
+
+    const validatedFrontmatter: RulesyncRuleFrontmatter = {
+      root: result.data.root ?? false,
+      targets: result.data.targets ?? ["*"],
+      description: result.data.description ?? "",
+      globs: result.data.globs ?? [],
+      cursor: result.data.cursor,
+    };
+
+    const filename = basename(filePath);
+
+    return new RulesyncRule({
+      baseDir: ".",
+      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeFilePath: filename,
+      frontmatter: validatedFrontmatter,
+      body: content.trim(),
+    });
   }
 
   static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncRule> {

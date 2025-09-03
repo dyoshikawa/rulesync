@@ -44,7 +44,11 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           await processor.removeAiFiles(oldToolFiles);
         }
 
-        const rulesyncFiles = await processor.loadRulesyncFiles();
+        let rulesyncFiles = await processor.loadRulesyncFiles();
+        if (rulesyncFiles.length === 0) {
+          rulesyncFiles = await processor.loadLegacyRulesyncFiles();
+        }
+
         const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
         const writtenCount = await processor.writeAiFiles(toolFiles);
         totalRulesOutputs += writtenCount;
