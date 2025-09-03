@@ -1,7 +1,12 @@
-import { AiFileFromFilePathParams } from "../types/ai-file.js";
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+} from "./tool-rule.js";
 
 export type GeminiCliRuleParams = ToolRuleParams;
 
@@ -10,16 +15,22 @@ export type GeminiCliRuleParams = ToolRuleParams;
  * Gemini CLI uses plain markdown files (GEMINI.md) without frontmatter
  */
 export class GeminiCliRule extends ToolRule {
-  static async fromFilePath(params: AiFileFromFilePathParams): Promise<GeminiCliRule> {
-    const fileContent = await readFileContent(params.filePath);
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<GeminiCliRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+
+    const isRoot = relativeFilePath === "GEMINI.md";
 
     return new GeminiCliRule({
-      baseDir: params.baseDir || process.cwd(),
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
+      baseDir,
+      relativeDirPath: isRoot ? "." : ".gemini/memories",
+      relativeFilePath: isRoot ? "GEMINI.md" : relativeFilePath,
       fileContent,
-      validate: params.validate ?? true,
-      root: params.relativeFilePath === "GEMINI.md",
+      validate,
+      root: isRoot,
     });
   }
 

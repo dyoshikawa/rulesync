@@ -1,15 +1,11 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RulesyncTargets } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleFromFilePathParams,
-  ToolRuleFromRulesyncRuleParams,
-} from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export const CursorRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
@@ -117,24 +113,27 @@ export class CursorRule extends ToolRule {
     });
   }
 
-  static async fromFilePath({
-    filePath,
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
     validate = true,
-  }: ToolRuleFromFilePathParams): Promise<CursorRule> {
+  }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CursorRuleFrontmatterSchema
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(
+        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${result.error.message}`,
+      );
     }
 
     return new CursorRule({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".cursor/rules",
-      relativeFilePath: basename(filePath),
+      relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
       validate,
