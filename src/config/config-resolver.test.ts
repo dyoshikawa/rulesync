@@ -5,7 +5,14 @@ import * as fileUtils from "../utils/file.js";
 import { Config } from "./config.js";
 import { ConfigResolver } from "./config-resolver.js";
 
-vi.mock("../utils/file.js");
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    fileExists: vi.fn(),
+  };
+});
 vi.mock("c12");
 
 describe("ConfigResolver", () => {
@@ -211,12 +218,12 @@ describe("ConfigResolver", () => {
       } as any);
 
       const config = await ConfigResolver.resolve({
-        targets: ["from-param"],
+        targets: ["cursor"],
         verbose: true,
         // features, delete, baseDirs not provided - should use file config
       });
 
-      expect(config.getTargets()).toEqual(["from-param"]); // From parameter
+      expect(config.getTargets()).toEqual(["cursor"]); // From parameter
       expect(config.getFeatures()).toEqual(["from-file-feature"]); // From file
       expect(config.getVerbose()).toBe(true); // From parameter
       expect(config.getDelete()).toBe(false); // From file

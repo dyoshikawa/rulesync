@@ -1,11 +1,23 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockRulesyncMcp, createMockToolFile } from "../test-utils/mock-factories.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import * as fileUtils from "../utils/file.js";
 import { McpProcessor } from "./mcp-processor.js";
-import { RulesyncMcp } from "./rulesync-mcp.js";
 
-vi.mock("../utils/file.js");
+// import { RulesyncMcp } from "./rulesync-mcp.js"; // Now using mock factories
+
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    directoryExists: vi.fn(),
+    listDirectoryFiles: vi.fn(),
+    findFiles: vi.fn(),
+    readFileContent: vi.fn(),
+  };
+});
 vi.mock("../utils/logger.js");
 
 describe("McpProcessor", () => {
@@ -74,20 +86,20 @@ describe("McpProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mcpFilePath = join(testDir, ".rulesync", ".mcp.json");
+      // const mcpFilePath = join(testDir, ".rulesync", ".mcp.json"); // Not needed with mock factories
 
       // Mock the RulesyncMcp.fromFilePath static method
-      const mockRulesyncMcp = {
-        filePath: mcpFilePath,
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
               args: ["--test"],
             },
           },
-        }),
-      } as RulesyncMcp;
+        },
+      });
 
       vi.doMock("./rulesync-mcp.js", () => ({
         RulesyncMcp: {
@@ -109,23 +121,22 @@ describe("McpProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
               args: ["--test"],
             },
           },
-        }),
-        frontmatter: {},
-      } as RulesyncMcp;
+        },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".cursor/mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".cursor/mcp.json");
     });
 
     it("should convert rulesync MCP to claudecode MCP", async () => {
@@ -134,22 +145,21 @@ describe("McpProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
             },
           },
-        }),
-        frontmatter: {},
-      } as RulesyncMcp;
+        },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".mcp.json");
     });
 
     it("should convert rulesync MCP to cline MCP", async () => {
@@ -158,22 +168,21 @@ describe("McpProcessor", () => {
         toolTarget: "cline",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
             },
           },
-        }),
-        frontmatter: {},
-      } as RulesyncMcp;
+        },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".cline/mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".cline/mcp.json");
     });
 
     it("should convert rulesync MCP to amazonqcli MCP", async () => {
@@ -182,22 +191,21 @@ describe("McpProcessor", () => {
         toolTarget: "amazonqcli",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
             },
           },
-        }),
-        frontmatter: {},
-      } as RulesyncMcp;
+        },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".amazonq/mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".amazonq/mcp.json");
     });
 
     it("should convert rulesync MCP to copilot MCP", async () => {
@@ -206,22 +214,21 @@ describe("McpProcessor", () => {
         toolTarget: "copilot",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
             },
           },
-        }),
-        frontmatter: {},
-      } as RulesyncMcp;
+        },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".vscode/mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".vscode/mcp.json");
     });
 
     it("should convert rulesync MCP to roo MCP", async () => {
@@ -230,22 +237,21 @@ describe("McpProcessor", () => {
         toolTarget: "roo",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {
           mcpServers: {
             "test-server": {
               command: "test-command",
             },
           },
-        }),
-        frontmatter: {},
-      } as RulesyncMcp;
+        },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".roo/mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".roo/mcp.json");
     });
 
     it("should filter non-MCP files", async () => {
@@ -320,7 +326,8 @@ describe("McpProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cursor", "mcp.json"),
           content: JSON.stringify({
             mcpServers: {
@@ -329,13 +336,13 @@ describe("McpProcessor", () => {
               },
             },
           }),
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/.mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/.mcp.json");
     });
 
     it("should convert cline MCP back to rulesync format", async () => {
@@ -345,7 +352,8 @@ describe("McpProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cline", "mcp.json"),
           content: JSON.stringify({
             mcpServers: {
@@ -354,13 +362,13 @@ describe("McpProcessor", () => {
               },
             },
           }),
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/.mcp.json");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/.mcp.json");
     });
 
     it("should handle multiple MCP files", async () => {
@@ -370,10 +378,11 @@ describe("McpProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cursor", "mcp.json"),
           content: JSON.stringify({ mcpServers: {} }),
-        },
+        }),
         // Note: MCP processor typically handles single files, but testing robustness
       ];
 
@@ -403,11 +412,10 @@ describe("McpProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mockRulesyncMcp = {
-        filePath: join(testDir, ".rulesync", ".mcp.json"),
-        content: JSON.stringify({}),
-        frontmatter: {},
-      } as RulesyncMcp;
+      const mockRulesyncMcp = createMockRulesyncMcp({
+        testDir,
+        jsonData: {},
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 

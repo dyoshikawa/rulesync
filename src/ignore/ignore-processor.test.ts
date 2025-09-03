@@ -1,11 +1,23 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockRulesyncIgnore, createMockToolFile } from "../test-utils/mock-factories.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import * as fileUtils from "../utils/file.js";
 import { IgnoreProcessor } from "./ignore-processor.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
 
-vi.mock("../utils/file.js");
+// import { RulesyncIgnore } from "./rulesync-ignore.js"; // Now using mock factories
+
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    directoryExists: vi.fn(),
+    listDirectoryFiles: vi.fn(),
+    readFileContent: vi.fn(),
+    fileExists: vi.fn(),
+  };
+});
 vi.mock("../utils/logger.js");
 
 describe("IgnoreProcessor", () => {
@@ -73,18 +85,16 @@ describe("IgnoreProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mockRulesyncIgnore = {
-        filePath: join(testDir, ".rulesync", "ignore", "cursor.txt"),
+      const mockRulesyncIgnore = createMockRulesyncIgnore({
+        testDir,
+        fileName: "cursor.txt",
         content: "node_modules/\n*.log\n",
-        frontmatter: {
-          targets: ["cursor"],
-        },
-      } as RulesyncIgnore;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".cursorignore");
+      expect(result[0]?.getFilePath()).toContain(".cursorignore");
     });
 
     it("should convert rulesync ignores to cline ignore", async () => {
@@ -93,18 +103,16 @@ describe("IgnoreProcessor", () => {
         toolTarget: "cline",
       });
 
-      const mockRulesyncIgnore = {
-        filePath: join(testDir, ".rulesync", "ignore", "cline.txt"),
+      const mockRulesyncIgnore = createMockRulesyncIgnore({
+        testDir,
+        fileName: "cline.txt",
         content: "dist/\n*.test.js\n",
-        frontmatter: {
-          targets: ["cline"],
-        },
-      } as RulesyncIgnore;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".clineignore");
+      expect(result[0]?.getFilePath()).toContain(".clineignore");
     });
 
     it("should convert rulesync ignores to windsurf ignore", async () => {
@@ -113,18 +121,16 @@ describe("IgnoreProcessor", () => {
         toolTarget: "windsurf",
       });
 
-      const mockRulesyncIgnore = {
-        filePath: join(testDir, ".rulesync", "ignore", "windsurf.txt"),
+      const mockRulesyncIgnore = createMockRulesyncIgnore({
+        testDir,
+        fileName: "windsurf.txt",
         content: "build/\n*.tmp\n",
-        frontmatter: {
-          targets: ["windsurf"],
-        },
-      } as RulesyncIgnore;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".windsurfignore");
+      expect(result[0]?.getFilePath()).toContain(".windsurfignore");
     });
 
     it("should handle multiple ignore files", async () => {
@@ -133,17 +139,17 @@ describe("IgnoreProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mockIgnore1 = {
-        filePath: join(testDir, ".rulesync", "ignore", "ignore1.txt"),
+      const mockIgnore1 = createMockRulesyncIgnore({
+        testDir,
+        fileName: "ignore1.txt",
         content: "*.log\n",
-        frontmatter: { targets: ["cursor"] },
-      } as RulesyncIgnore;
+      });
 
-      const mockIgnore2 = {
-        filePath: join(testDir, ".rulesync", "ignore", "ignore2.txt"),
+      const mockIgnore2 = createMockRulesyncIgnore({
+        testDir,
+        fileName: "ignore2.txt",
         content: "*.tmp\n",
-        frontmatter: { targets: ["cursor"] },
-      } as RulesyncIgnore;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockIgnore1, mockIgnore2]);
 
@@ -272,16 +278,17 @@ describe("IgnoreProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cursorignore"),
           content: "node_modules/\n*.log\n",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/ignore/");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/ignore/");
     });
 
     it("should convert cline ignore back to rulesync format", async () => {
@@ -291,16 +298,17 @@ describe("IgnoreProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".clineignore"),
           content: "dist/\n*.test.js\n",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/ignore/");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/ignore/");
     });
   });
 
@@ -314,12 +322,12 @@ describe("IgnoreProcessor", () => {
       const mockWriteAiFiles = vi.spyOn(processor, "writeAiFiles").mockResolvedValue(1);
 
       const mockRulesyncIgnores = [
-        {
-          filePath: join(testDir, ".rulesync", "ignore", "test.txt"),
+        createMockRulesyncIgnore({
+          testDir,
+          fileName: "test.txt",
           content: "node_modules/\n",
-          frontmatter: { targets: ["cursor"] },
-        },
-      ] as RulesyncIgnore[];
+        }),
+      ];
 
       await processor.writeToolIgnoresFromRulesyncIgnores(mockRulesyncIgnores);
 

@@ -6,7 +6,17 @@ import { FeatureProcessor } from "./feature-processor.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
 
-vi.mock("../utils/file.js");
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    writeFileContent: vi.fn(),
+    ensureDir: vi.fn(),
+    copyFile: vi.fn(),
+    removeFile: vi.fn(),
+  };
+});
 
 // Create a concrete implementation for testing
 class TestFeatureProcessor extends FeatureProcessor {

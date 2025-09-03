@@ -1,11 +1,23 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockRulesyncCommand, createMockToolFile } from "../test-utils/mock-factories.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import * as fileUtils from "../utils/file.js";
 import { CommandsProcessor } from "./commands-processor.js";
-import { RulesyncCommand } from "./rulesync-command.js";
 
-vi.mock("../utils/file.js");
+// import { RulesyncCommand } from "./rulesync-command.js"; // Now using mock factories
+
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    directoryExists: vi.fn(),
+    listDirectoryFiles: vi.fn(),
+    findFiles: vi.fn(),
+    readFileContent: vi.fn(),
+  };
+});
 vi.mock("../utils/logger.js");
 
 describe("CommandsProcessor", () => {
@@ -82,15 +94,16 @@ describe("CommandsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const mockRulesyncCommand = {
-        filePath: join(testDir, ".rulesync", "commands", "test-command.js"),
+      const mockRulesyncCommand = createMockRulesyncCommand({
+        testDir,
+        fileName: "test-command.js",
         content: "console.log('test command');",
-      } as RulesyncCommand;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".claude/commands/test-command.js");
+      expect(result[0]?.getFilePath()).toContain(".claude/commands/test-command.js");
     });
 
     it("should convert rulesync commands to geminicli commands", async () => {
@@ -99,15 +112,16 @@ describe("CommandsProcessor", () => {
         toolTarget: "geminicli",
       });
 
-      const mockRulesyncCommand = {
-        filePath: join(testDir, ".rulesync", "commands", "test-command.js"),
+      const mockRulesyncCommand = createMockRulesyncCommand({
+        testDir,
+        fileName: "test-command.js",
         content: "console.log('test command');",
-      } as RulesyncCommand;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".gemini/commands/test-command.js");
+      expect(result[0]?.getFilePath()).toContain(".gemini/commands/test-command.js");
     });
 
     it("should convert rulesync commands to roo commands", async () => {
@@ -116,15 +130,16 @@ describe("CommandsProcessor", () => {
         toolTarget: "roo",
       });
 
-      const mockRulesyncCommand = {
-        filePath: join(testDir, ".rulesync", "commands", "test-command.js"),
+      const mockRulesyncCommand = createMockRulesyncCommand({
+        testDir,
+        fileName: "test-command.js",
         content: "console.log('test command');",
-      } as RulesyncCommand;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".roo/commands/test-command.js");
+      expect(result[0]?.getFilePath()).toContain(".roo/commands/test-command.js");
     });
 
     it("should filter non-command files", async () => {
@@ -149,21 +164,23 @@ describe("CommandsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const mockCommand1 = {
-        filePath: join(testDir, ".rulesync", "commands", "command1.js"),
+      const mockCommand1 = createMockRulesyncCommand({
+        testDir,
+        fileName: "command1.js",
         content: "console.log('command1');",
-      } as RulesyncCommand;
+      });
 
-      const mockCommand2 = {
-        filePath: join(testDir, ".rulesync", "commands", "command2.js"),
+      const mockCommand2 = createMockRulesyncCommand({
+        testDir,
+        fileName: "command2.js",
         content: "console.log('command2');",
-      } as RulesyncCommand;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockCommand1, mockCommand2]);
 
       expect(result).toHaveLength(2);
-      expect(result[0].getFilePath()).toContain("command1.js");
-      expect(result[1].getFilePath()).toContain("command2.js");
+      expect(result[0]?.getFilePath()).toContain("command1.js");
+      expect(result[1]?.getFilePath()).toContain("command2.js");
     });
   });
 
@@ -230,16 +247,17 @@ describe("CommandsProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".claude", "commands", "test-command.js"),
           content: "console.log('test');",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/commands/test-command.js");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/commands/test-command.js");
     });
 
     it("should convert tool files back to rulesync files for geminicli", async () => {
@@ -249,16 +267,17 @@ describe("CommandsProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".gemini", "commands", "test-command.js"),
           content: "console.log('test');",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/commands/test-command.js");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/commands/test-command.js");
     });
 
     it("should convert tool files back to rulesync files for roo", async () => {
@@ -268,16 +287,17 @@ describe("CommandsProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".roo", "commands", "test-command.js"),
           content: "console.log('test');",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/commands/test-command.js");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/commands/test-command.js");
     });
   });
 });

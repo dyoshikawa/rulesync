@@ -1,11 +1,23 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockRulesyncRule, createMockToolFile } from "../test-utils/mock-factories.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import * as fileUtils from "../utils/file.js";
 import { RulesProcessor } from "./rules-processor.js";
-import { RulesyncRule } from "./rulesync-rule.js";
 
-vi.mock("../utils/file.js");
+// import { RulesyncRule } from "./rulesync-rule.js"; // Now using mock factories
+
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    directoryExists: vi.fn(),
+    listDirectoryFiles: vi.fn(),
+    findFiles: vi.fn(),
+    readFileContent: vi.fn(),
+  };
+});
 vi.mock("../utils/logger.js");
 
 describe("RulesProcessor", () => {
@@ -79,19 +91,20 @@ describe("RulesProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mockRulesyncRule = {
-        filePath: join(testDir, ".rulesync", "rules", "test-rule.md"),
+      const mockRulesyncRule = createMockRulesyncRule({
+        testDir,
+        fileName: "test-rule.md",
         content: "# Test Rule\n\nThis is a test rule.",
         frontmatter: {
           targets: ["cursor"],
           description: "Test rule",
         },
-      } as RulesyncRule;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncRule]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".cursor/rules/test-rule.md");
+      expect(result[0]?.getFilePath()).toContain(".cursor/rules/test-rule.md");
     });
 
     it("should convert rulesync rules to copilot rules", async () => {
@@ -100,19 +113,20 @@ describe("RulesProcessor", () => {
         toolTarget: "copilot",
       });
 
-      const mockRulesyncRule = {
-        filePath: join(testDir, ".rulesync", "rules", "test-rule.md"),
+      const mockRulesyncRule = createMockRulesyncRule({
+        testDir,
+        fileName: "test-rule.md",
         content: "# Test Rule\n\nThis is a test rule.",
         frontmatter: {
           targets: ["copilot"],
           description: "Test rule",
         },
-      } as RulesyncRule;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncRule]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain("copilot-instructions.md");
+      expect(result[0]?.getFilePath()).toContain("copilot-instructions.md");
     });
 
     it("should convert rulesync rules to claudecode rules", async () => {
@@ -121,19 +135,20 @@ describe("RulesProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const mockRulesyncRule = {
-        filePath: join(testDir, ".rulesync", "rules", "test-rule.md"),
+      const mockRulesyncRule = createMockRulesyncRule({
+        testDir,
+        fileName: "test-rule.md",
         content: "# Test Rule\n\nThis is a test rule.",
         frontmatter: {
           targets: ["claudecode"],
           description: "Test rule",
         },
-      } as RulesyncRule;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncRule]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain("CLAUDE.md");
+      expect(result[0]?.getFilePath()).toContain("CLAUDE.md");
     });
 
     it("should handle multiple rule files", async () => {
@@ -142,23 +157,25 @@ describe("RulesProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const mockRule1 = {
-        filePath: join(testDir, ".rulesync", "rules", "rule1.md"),
+      const mockRule1 = createMockRulesyncRule({
+        testDir,
+        fileName: "rule1.md",
         content: "# Rule 1",
         frontmatter: { targets: ["cursor"] },
-      } as RulesyncRule;
+      });
 
-      const mockRule2 = {
-        filePath: join(testDir, ".rulesync", "rules", "rule2.md"),
+      const mockRule2 = createMockRulesyncRule({
+        testDir,
+        fileName: "rule2.md",
         content: "# Rule 2",
         frontmatter: { targets: ["cursor"] },
-      } as RulesyncRule;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRule1, mockRule2]);
 
       expect(result).toHaveLength(2);
-      expect(result[0].getFilePath()).toContain("rule1.md");
-      expect(result[1].getFilePath()).toContain("rule2.md");
+      expect(result[0]?.getFilePath()).toContain("rule1.md");
+      expect(result[1]?.getFilePath()).toContain("rule2.md");
     });
 
     it("should filter non-rule files", async () => {
@@ -288,16 +305,17 @@ describe("RulesProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cursor", "rules", "test-rule.md"),
           content: "# Test Rule\nContent for cursor",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/rules/test-rule.md");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/rules/test-rule.md");
     });
 
     it("should convert copilot tool files back to rulesync files", async () => {
@@ -307,16 +325,17 @@ describe("RulesProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".github", "copilot-instructions.md"),
           content: "# Copilot Instructions\nContent for copilot",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/rules/");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/rules/");
     });
 
     it("should handle multiple tool files", async () => {
@@ -326,21 +345,23 @@ describe("RulesProcessor", () => {
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cursor", "rules", "rule1.md"),
           content: "# Rule 1",
-        },
-        {
+        }),
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".cursor", "rules", "rule2.md"),
           content: "# Rule 2",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(2);
-      expect(result[0].getFilePath()).toContain("rule1.md");
-      expect(result[1].getFilePath()).toContain("rule2.md");
+      expect(result[0]?.getFilePath()).toContain("rule1.md");
+      expect(result[1]?.getFilePath()).toContain("rule2.md");
     });
   });
 

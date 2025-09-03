@@ -1,11 +1,22 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockRulesyncSubagent, createMockToolFile } from "../test-utils/mock-factories.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import * as fileUtils from "../utils/file.js";
-import { RulesyncSubagent } from "./rulesync-subagent.js";
+// import { RulesyncSubagent } from "./rulesync-subagent.js"; // Now using mock factories
 import { SubagentsProcessor } from "./subagents-processor.js";
 
-vi.mock("../utils/file.js");
+// Only mock specific functions, not the entire module to avoid conflicts with setupTestDirectory
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual("../utils/file.js");
+  return {
+    ...actual,
+    directoryExists: vi.fn(),
+    listDirectoryFiles: vi.fn(),
+    findFiles: vi.fn(),
+    readFileContent: vi.fn(),
+  };
+});
 vi.mock("../utils/logger.js");
 
 describe("SubagentsProcessor", () => {
@@ -65,26 +76,20 @@ describe("SubagentsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const mockRulesyncSubagent = {
-        filePath: join(testDir, ".rulesync", "subagents", "test-subagent.md"),
-        content: `---
-name: test-subagent
-description: Test subagent
----
-
-# Test Subagent
-
-This is a test subagent for Claude Code.`,
+      const mockRulesyncSubagent = createMockRulesyncSubagent({
+        testDir,
+        fileName: "test-subagent.md",
+        content: `# Test Subagent\n\nThis is a test subagent for Claude Code.`,
         frontmatter: {
           name: "test-subagent",
           description: "Test subagent",
         },
-      } as RulesyncSubagent;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncSubagent]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".claude/agents/test-subagent.md");
+      expect(result[0]?.getFilePath()).toContain(".claude/agents/test-subagent.md");
     });
 
     it("should handle multiple subagent files", async () => {
@@ -93,17 +98,19 @@ This is a test subagent for Claude Code.`,
         toolTarget: "claudecode",
       });
 
-      const mockSubagent1 = {
-        filePath: join(testDir, ".rulesync", "subagents", "subagent1.md"),
+      const mockSubagent1 = createMockRulesyncSubagent({
+        testDir,
+        fileName: "subagent1.md",
         content: "# Subagent 1",
-        frontmatter: { name: "subagent1" },
-      } as RulesyncSubagent;
+        frontmatter: { name: "subagent1", description: "Subagent 1" },
+      });
 
-      const mockSubagent2 = {
-        filePath: join(testDir, ".rulesync", "subagents", "subagent2.md"),
+      const mockSubagent2 = createMockRulesyncSubagent({
+        testDir,
+        fileName: "subagent2.md",
         content: "# Subagent 2",
-        frontmatter: { name: "subagent2" },
-      } as RulesyncSubagent;
+        frontmatter: { name: "subagent2", description: "Subagent 2" },
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([
         mockSubagent1,
@@ -111,8 +118,8 @@ This is a test subagent for Claude Code.`,
       ]);
 
       expect(result).toHaveLength(2);
-      expect(result[0].getFilePath()).toContain("subagent1.md");
-      expect(result[1].getFilePath()).toContain("subagent2.md");
+      expect(result[0]?.getFilePath()).toContain("subagent1.md");
+      expect(result[1]?.getFilePath()).toContain("subagent2.md");
     });
 
     it("should filter non-subagent files", async () => {
@@ -142,11 +149,12 @@ This is a test subagent for Claude Code.`,
       // Manually set an invalid target to test the default case
       (processor as any).toolTarget = "unsupported";
 
-      const mockRulesyncSubagent = {
-        filePath: join(testDir, ".rulesync", "subagents", "test.md"),
+      const mockRulesyncSubagent = createMockRulesyncSubagent({
+        testDir,
+        fileName: "test.md",
         content: "# Test",
-        frontmatter: {},
-      } as RulesyncSubagent;
+        frontmatter: { name: "test", description: "Test subagent" },
+      });
 
       await expect(
         processor.convertRulesyncFilesToToolFiles([mockRulesyncSubagent]),
@@ -260,7 +268,8 @@ Content`;
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".claude", "agents", "test-agent.md"),
           content: `---
 name: test-agent
@@ -269,13 +278,13 @@ description: Test agent
 # Test Agent
 
 This is a test agent.`,
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFilePath()).toContain(".rulesync/subagents/test-agent.md");
+      expect(result[0]?.getFilePath()).toContain(".rulesync/subagents/test-agent.md");
     });
 
     it("should handle multiple tool files", async () => {
@@ -285,21 +294,23 @@ This is a test agent.`,
       });
 
       const toolFiles = [
-        {
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".claude", "agents", "agent1.md"),
           content: "# Agent 1",
-        },
-        {
+        }),
+        createMockToolFile({
+          testDir,
           filePath: join(testDir, ".claude", "agents", "agent2.md"),
           content: "# Agent 2",
-        },
+        }),
       ];
 
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(2);
-      expect(result[0].getFilePath()).toContain("agent1.md");
-      expect(result[1].getFilePath()).toContain("agent2.md");
+      expect(result[0]?.getFilePath()).toContain("agent1.md");
+      expect(result[1]?.getFilePath()).toContain("agent2.md");
     });
   });
 
@@ -310,19 +321,10 @@ This is a test agent.`,
         toolTarget: "claudecode",
       });
 
-      const mockRulesyncSubagent = {
-        filePath: join(testDir, ".rulesync", "subagents", "complex-subagent.md"),
-        content: `---
-name: complex-subagent
-description: Complex subagent with multiple properties
-version: 1.0
-author: Test Author
-tags: [ai, assistant, test]
----
-
-# Complex Subagent
-
-This subagent has complex frontmatter.`,
+      const mockRulesyncSubagent = createMockRulesyncSubagent({
+        testDir,
+        fileName: "complex-subagent.md",
+        content: "# Complex Subagent\n\nThis subagent has complex frontmatter.",
         frontmatter: {
           name: "complex-subagent",
           description: "Complex subagent with multiple properties",
@@ -330,12 +332,12 @@ This subagent has complex frontmatter.`,
           author: "Test Author",
           tags: ["ai", "assistant", "test"],
         },
-      } as RulesyncSubagent;
+      });
 
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncSubagent]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].getFileContent()).toContain("Complex subagent with multiple properties");
+      expect(result[0]?.getFileContent()).toContain("Complex subagent with multiple properties");
     });
   });
 });

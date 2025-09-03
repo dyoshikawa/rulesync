@@ -213,7 +213,7 @@ describe("MCP types", () => {
 
       const parsed = McpConfigSchema.parse(config);
       expect(Object.keys(parsed.mcpServers)).toHaveLength(2);
-      expect(parsed.mcpServers["weather-server"].command).toBe("python");
+      expect(parsed.mcpServers["weather-server"]?.command).toBe("python");
     });
 
     it("should validate empty server configuration", () => {
@@ -257,8 +257,8 @@ describe("MCP types", () => {
       expect(() => RulesyncMcpConfigSchema.parse(config)).not.toThrow();
 
       const parsed = RulesyncMcpConfigSchema.parse(config);
-      expect(parsed.mcpServers["weather-server"].targets).toEqual(["cursor", "claudecode"]);
-      expect(parsed.mcpServers["global-server"].targets).toEqual(["*"]);
+      expect(parsed.mcpServers["weather-server"]?.targets).toEqual(["cursor", "claudecode"]);
+      expect(parsed.mcpServers["global-server"]?.targets).toEqual(["*"]);
     });
 
     it("should work with servers without targets", () => {
