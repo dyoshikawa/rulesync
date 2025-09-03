@@ -313,7 +313,7 @@ export class RulesProcessor extends FeatureProcessor {
   async loadLegacyRulesyncFiles(): Promise<RulesyncFile[]> {
     const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
     return Promise.all(
-      legacyFiles.map((file) => RulesyncRule.fromLegacyFile({ relativeFilePath: file })),
+      legacyFiles.map((file) => RulesyncRule.fromLegacyFile({ relativeFilePath: basename(file) })),
     );
   }
 
