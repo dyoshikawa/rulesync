@@ -197,12 +197,6 @@ describe("CommandsProcessor", () => {
         join(commandsDir, "command1.md"),
         join(commandsDir, "command2.md"),
       ]);
-      vi.mocked(fileUtils.listDirectoryFiles).mockResolvedValue(["command1.js", "command2.ts"]);
-      vi.mocked(fileUtils.readFileContent).mockImplementation(async (path: string) => {
-        if (path.includes("command1.js")) return "console.log('command1');";
-        if (path.includes("command2.ts")) return "console.log('command2');";
-        return "";
-      });
 
       const result = await processor.loadRulesyncFiles();
 
@@ -231,7 +225,6 @@ describe("CommandsProcessor", () => {
 
       vi.mocked(fileUtils.directoryExists).mockResolvedValue(true);
       vi.mocked(fileUtils.findFiles).mockResolvedValue([]);
-      vi.mocked(fileUtils.listDirectoryFiles).mockResolvedValue([]);
 
       const result = await processor.loadRulesyncFiles();
 

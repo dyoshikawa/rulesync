@@ -27,6 +27,7 @@ describe("generateCommand", () => {
       loadToolFiles: vi.fn().mockResolvedValue([]),
       removeAiFiles: vi.fn().mockResolvedValue(undefined),
       loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+      loadLegacyRulesyncFiles: vi.fn().mockResolvedValue([]),
       convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
       writeAiFiles: vi.fn().mockResolvedValue(2),
     };
