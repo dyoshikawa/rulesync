@@ -10,7 +10,7 @@ export type ConfigResolverResolveParams = Partial<
 
 const defaults: Required<ConfigResolverResolveParams> = {
   targets: ["agentsmd"],
-  features: ["*"],
+  features: ["rules"],
   verbose: false,
   delete: false,
   baseDirs: ["."],

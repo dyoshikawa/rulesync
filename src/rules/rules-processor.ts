@@ -1,11 +1,17 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { directoryExists, fileExists, listDirectoryFiles } from "../utils/file.js";
+import {
+  directoryExists,
+  fileExists,
+  findFilesByGlobs,
+  listDirectoryFiles,
+} from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AmazonQCliRule } from "./amazonqcli-rule.js";
@@ -302,6 +308,13 @@ export class RulesProcessor extends FeatureProcessor {
 
     logger.info(`Successfully loaded ${rulesyncRules.length} rulesync rules`);
     return rulesyncRules;
+  }
+
+  async loadLegacyRulesyncFiles(): Promise<RulesyncFile[]> {
+    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
+    return Promise.all(
+      legacyFiles.map((file) => RulesyncRule.fromLegacyFile({ relativeFilePath: basename(file) })),
+    );
   }
 
   /**
