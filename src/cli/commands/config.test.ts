@@ -79,7 +79,8 @@ describe("configCommand", () => {
       await configCommand({ init: true });
 
       const writeCall = vi.mocked(fileUtils.writeFileContent).mock.calls[0];
-      const jsonContent = writeCall[1];
+      expect(writeCall).toBeDefined();
+      const jsonContent = writeCall![1];
 
       // Should be properly formatted JSON (with 2 spaces)
       expect(jsonContent).toContain('  "targets":');

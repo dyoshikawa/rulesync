@@ -18,16 +18,33 @@ class TestFeatureProcessor extends FeatureProcessor {
     return [];
   }
 
-  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+  async convertRulesyncFilesToToolFiles(_rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
     return [];
   }
 
-  async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+  async convertToolFilesToRulesyncFiles(_toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     return [];
   }
 
-  static getToolTargets() {
-    return ["test-target"];
+  static getToolTargets(): (
+    | "agentsmd"
+    | "amazonqcli"
+    | "augmentcode"
+    | "augmentcode-legacy"
+    | "claudecode"
+    | "cline"
+    | "codexcli"
+    | "copilot"
+    | "cursor"
+    | "geminicli"
+    | "junie"
+    | "kiro"
+    | "opencode"
+    | "qwencode"
+    | "roo"
+    | "windsurf"
+  )[] {
+    return ["cursor"];
   }
 }
 
@@ -256,7 +273,7 @@ describe("FeatureProcessor", () => {
     it("should require implementation of all abstract methods", () => {
       // This is a compile-time check, but we can verify behavior
       expect(() => {
-        abstract class IncompleteProcessor extends FeatureProcessor {
+        abstract class _IncompleteProcessor extends FeatureProcessor {
           async loadRulesyncFiles(): Promise<RulesyncFile[]> {
             return [];
           }

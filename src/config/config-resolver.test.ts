@@ -185,7 +185,7 @@ describe("ConfigResolver", () => {
         configFile: "rulesync.jsonc",
       } as any);
 
-      const config = await ConfigResolver.resolve({
+      const _config = await ConfigResolver.resolve({
         // No configPath provided - should use default
       });
 

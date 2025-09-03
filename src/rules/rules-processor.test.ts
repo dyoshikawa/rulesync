@@ -41,7 +41,7 @@ describe("RulesProcessor", () => {
 
     it("should validate tool target", () => {
       expect(() => {
-        new RulesProcessor({
+        void new RulesProcessor({
           baseDir: testDir,
           toolTarget: "invalid" as any,
         });
@@ -91,7 +91,7 @@ describe("RulesProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncRule]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".cursor/rules/test-rule.md");
+      expect(result[0].getFilePath()).toContain(".cursor/rules/test-rule.md");
     });
 
     it("should convert rulesync rules to copilot rules", async () => {
@@ -112,7 +112,7 @@ describe("RulesProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncRule]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain("copilot-instructions.md");
+      expect(result[0].getFilePath()).toContain("copilot-instructions.md");
     });
 
     it("should convert rulesync rules to claudecode rules", async () => {
@@ -133,7 +133,7 @@ describe("RulesProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncRule]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain("CLAUDE.md");
+      expect(result[0].getFilePath()).toContain("CLAUDE.md");
     });
 
     it("should handle multiple rule files", async () => {
@@ -157,8 +157,8 @@ describe("RulesProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRule1, mockRule2]);
 
       expect(result).toHaveLength(2);
-      expect(result[0].filePath).toContain("rule1.md");
-      expect(result[1].filePath).toContain("rule2.md");
+      expect(result[0].getFilePath()).toContain("rule1.md");
+      expect(result[1].getFilePath()).toContain("rule2.md");
     });
 
     it("should filter non-rule files", async () => {
@@ -297,7 +297,7 @@ describe("RulesProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/rules/test-rule.md");
+      expect(result[0].getFilePath()).toContain(".rulesync/rules/test-rule.md");
     });
 
     it("should convert copilot tool files back to rulesync files", async () => {
@@ -316,7 +316,7 @@ describe("RulesProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/rules/");
+      expect(result[0].getFilePath()).toContain(".rulesync/rules/");
     });
 
     it("should handle multiple tool files", async () => {
@@ -339,8 +339,8 @@ describe("RulesProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(2);
-      expect(result[0].filePath).toContain("rule1.md");
-      expect(result[1].filePath).toContain("rule2.md");
+      expect(result[0].getFilePath()).toContain("rule1.md");
+      expect(result[1].getFilePath()).toContain("rule2.md");
     });
   });
 
@@ -350,7 +350,7 @@ describe("RulesProcessor", () => {
 
       for (const target of targets) {
         expect(() => {
-          new RulesProcessor({
+          void new RulesProcessor({
             baseDir: testDir,
             toolTarget: target as any,
           });

@@ -41,7 +41,7 @@ describe("IgnoreProcessor", () => {
 
     it("should validate tool target", () => {
       expect(() => {
-        new IgnoreProcessor({
+        void new IgnoreProcessor({
           baseDir: testDir,
           toolTarget: "invalid" as any,
         });
@@ -84,7 +84,7 @@ describe("IgnoreProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".cursorignore");
+      expect(result[0].getFilePath()).toContain(".cursorignore");
     });
 
     it("should convert rulesync ignores to cline ignore", async () => {
@@ -104,7 +104,7 @@ describe("IgnoreProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".clineignore");
+      expect(result[0].getFilePath()).toContain(".clineignore");
     });
 
     it("should convert rulesync ignores to windsurf ignore", async () => {
@@ -124,7 +124,7 @@ describe("IgnoreProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".windsurfignore");
+      expect(result[0].getFilePath()).toContain(".windsurfignore");
     });
 
     it("should handle multiple ignore files", async () => {
@@ -281,7 +281,7 @@ describe("IgnoreProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/ignore/");
+      expect(result[0].getFilePath()).toContain(".rulesync/ignore/");
     });
 
     it("should convert cline ignore back to rulesync format", async () => {
@@ -300,7 +300,7 @@ describe("IgnoreProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/ignore/");
+      expect(result[0].getFilePath()).toContain(".rulesync/ignore/");
     });
   });
 
@@ -339,7 +339,7 @@ describe("IgnoreProcessor", () => {
 
       for (const target of targets) {
         expect(() => {
-          new IgnoreProcessor({
+          void new IgnoreProcessor({
             baseDir: testDir,
             toolTarget: target as any,
           });

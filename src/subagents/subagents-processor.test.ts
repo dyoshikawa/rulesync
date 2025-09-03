@@ -41,7 +41,7 @@ describe("SubagentsProcessor", () => {
 
     it("should validate tool target", () => {
       expect(() => {
-        new SubagentsProcessor({
+        void new SubagentsProcessor({
           baseDir: testDir,
           toolTarget: "invalid" as any,
         });
@@ -84,7 +84,7 @@ This is a test subagent for Claude Code.`,
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncSubagent]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".claude/agents/test-subagent.md");
+      expect(result[0].getFilePath()).toContain(".claude/agents/test-subagent.md");
     });
 
     it("should handle multiple subagent files", async () => {
@@ -111,8 +111,8 @@ This is a test subagent for Claude Code.`,
       ]);
 
       expect(result).toHaveLength(2);
-      expect(result[0].filePath).toContain("subagent1.md");
-      expect(result[1].filePath).toContain("subagent2.md");
+      expect(result[0].getFilePath()).toContain("subagent1.md");
+      expect(result[1].getFilePath()).toContain("subagent2.md");
     });
 
     it("should filter non-subagent files", async () => {
@@ -275,7 +275,7 @@ This is a test agent.`,
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/subagents/test-agent.md");
+      expect(result[0].getFilePath()).toContain(".rulesync/subagents/test-agent.md");
     });
 
     it("should handle multiple tool files", async () => {
@@ -298,8 +298,8 @@ This is a test agent.`,
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(2);
-      expect(result[0].filePath).toContain("agent1.md");
-      expect(result[1].filePath).toContain("agent2.md");
+      expect(result[0].getFilePath()).toContain("agent1.md");
+      expect(result[1].getFilePath()).toContain("agent2.md");
     });
   });
 
@@ -335,7 +335,7 @@ This subagent has complex frontmatter.`,
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncSubagent]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].content).toContain("Complex subagent with multiple properties");
+      expect(result[0].getFileContent()).toContain("Complex subagent with multiple properties");
     });
   });
 });

@@ -41,7 +41,7 @@ describe("McpProcessor", () => {
 
     it("should validate tool target", () => {
       expect(() => {
-        new McpProcessor({
+        void new McpProcessor({
           baseDir: testDir,
           toolTarget: "invalid" as any,
         });
@@ -125,7 +125,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".cursor/mcp.json");
+      expect(result[0].getFilePath()).toContain(".cursor/mcp.json");
     });
 
     it("should convert rulesync MCP to claudecode MCP", async () => {
@@ -149,7 +149,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".mcp.json");
+      expect(result[0].getFilePath()).toContain(".mcp.json");
     });
 
     it("should convert rulesync MCP to cline MCP", async () => {
@@ -173,7 +173,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".cline/mcp.json");
+      expect(result[0].getFilePath()).toContain(".cline/mcp.json");
     });
 
     it("should convert rulesync MCP to amazonqcli MCP", async () => {
@@ -197,7 +197,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".amazonq/mcp.json");
+      expect(result[0].getFilePath()).toContain(".amazonq/mcp.json");
     });
 
     it("should convert rulesync MCP to copilot MCP", async () => {
@@ -221,7 +221,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".vscode/mcp.json");
+      expect(result[0].getFilePath()).toContain(".vscode/mcp.json");
     });
 
     it("should convert rulesync MCP to roo MCP", async () => {
@@ -245,7 +245,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncMcp]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".roo/mcp.json");
+      expect(result[0].getFilePath()).toContain(".roo/mcp.json");
     });
 
     it("should filter non-MCP files", async () => {
@@ -335,7 +335,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/.mcp.json");
+      expect(result[0].getFilePath()).toContain(".rulesync/.mcp.json");
     });
 
     it("should convert cline MCP back to rulesync format", async () => {
@@ -360,7 +360,7 @@ describe("McpProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/.mcp.json");
+      expect(result[0].getFilePath()).toContain(".rulesync/.mcp.json");
     });
 
     it("should handle multiple MCP files", async () => {
@@ -389,7 +389,7 @@ describe("McpProcessor", () => {
 
       for (const target of targets) {
         expect(() => {
-          new McpProcessor({
+          void new McpProcessor({
             baseDir: testDir,
             toolTarget: target as any,
           });

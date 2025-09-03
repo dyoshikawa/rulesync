@@ -93,7 +93,8 @@ describe("initCommand", () => {
     await initCommand();
 
     const writeCall = vi.mocked(fileUtils.writeFileContent).mock.calls[0];
-    const content = writeCall[1];
+    expect(writeCall).toBeDefined();
+    const content = writeCall![1];
 
     // Should contain valid YAML frontmatter
     expect(content).toMatch(/^---\n[\s\S]*?\n---\n/);
@@ -109,7 +110,8 @@ describe("initCommand", () => {
     await initCommand();
 
     const writeCall = vi.mocked(fileUtils.writeFileContent).mock.calls[0];
-    const content = writeCall[1];
+    expect(writeCall).toBeDefined();
+    const content = writeCall![1];
 
     // Check for main sections
     expect(content).toContain("# Project Overview");

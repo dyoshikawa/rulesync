@@ -59,7 +59,7 @@ describe("CommandsProcessor", () => {
 
     it("should validate tool target", () => {
       expect(() => {
-        new CommandsProcessor({
+        void new CommandsProcessor({
           baseDir: testDir,
           toolTarget: "invalid" as any,
         });
@@ -90,7 +90,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".claude/commands/test-command.js");
+      expect(result[0].getFilePath()).toContain(".claude/commands/test-command.js");
     });
 
     it("should convert rulesync commands to geminicli commands", async () => {
@@ -107,7 +107,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".gemini/commands/test-command.js");
+      expect(result[0].getFilePath()).toContain(".gemini/commands/test-command.js");
     });
 
     it("should convert rulesync commands to roo commands", async () => {
@@ -124,7 +124,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".roo/commands/test-command.js");
+      expect(result[0].getFilePath()).toContain(".roo/commands/test-command.js");
     });
 
     it("should filter non-command files", async () => {
@@ -162,8 +162,8 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockCommand1, mockCommand2]);
 
       expect(result).toHaveLength(2);
-      expect(result[0].filePath).toContain("command1.js");
-      expect(result[1].filePath).toContain("command2.js");
+      expect(result[0].getFilePath()).toContain("command1.js");
+      expect(result[1].getFilePath()).toContain("command2.js");
     });
   });
 
@@ -239,7 +239,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/commands/test-command.js");
+      expect(result[0].getFilePath()).toContain(".rulesync/commands/test-command.js");
     });
 
     it("should convert tool files back to rulesync files for geminicli", async () => {
@@ -258,7 +258,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/commands/test-command.js");
+      expect(result[0].getFilePath()).toContain(".rulesync/commands/test-command.js");
     });
 
     it("should convert tool files back to rulesync files for roo", async () => {
@@ -277,7 +277,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
       expect(result).toHaveLength(1);
-      expect(result[0].filePath).toContain(".rulesync/commands/test-command.js");
+      expect(result[0].getFilePath()).toContain(".rulesync/commands/test-command.js");
     });
   });
 });

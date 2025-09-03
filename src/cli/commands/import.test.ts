@@ -12,13 +12,13 @@ vi.mock("../../rules/rules-processor.js");
 vi.mock("../../subagents/subagents-processor.js");
 
 describe("importCommand", () => {
-  let testDir: string;
+  let _testDir: string;
   let cleanup: () => Promise<void>;
   let mockConfig: any;
   let mockProcessor: any;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    ({ testDir: _testDir, cleanup } = await setupTestDirectory());
 
     mockProcessor = {
       loadToolFiles: vi
