@@ -1,8 +1,9 @@
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export type AugmentcodeRuleParams = AiFileParams;
 
@@ -26,19 +27,17 @@ export class AugmentcodeRule extends ToolRule {
     );
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
-    filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<AugmentcodeRule> {
-    const fileContent = await readFileContent(filePath);
+  }: ToolRuleFromFileParams): Promise<AugmentcodeRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
     const { body: content } = parseFrontmatter(fileContent);
 
     return new AugmentcodeRule({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
+      relativeDirPath: ".augment/rules",
       relativeFilePath: relativeFilePath,
       fileContent: content.trim(),
       validate,
