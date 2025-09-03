@@ -16,6 +16,7 @@ export const ALL_TOOL_TARGETS = [
   "geminicli",
   "kiro",
   "junie",
+  "warp",
   "windsurf",
 ] as const;
 

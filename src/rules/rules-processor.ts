@@ -30,6 +30,7 @@ import { QwencodeRule } from "./qwencode-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule } from "./tool-rule.js";
+import { WarpRule } from "./warp-rule.js";
 import { WindsurfRule } from "./windsurf-rule.js";
 
 const rulesProcessorToolTargets: ToolTarget[] = [
@@ -48,6 +49,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "opencode",
   "qwencode",
   "roo",
+  "warp",
   "windsurf",
 ];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
@@ -162,6 +164,12 @@ export class RulesProcessor extends FeatureProcessor {
             rulesyncRule: rulesyncRule,
             validate: true,
           });
+        case "warp":
+          return WarpRule.fromRulesyncRule({
+            baseDir: this.baseDir,
+            rulesyncRule: rulesyncRule,
+            validate: true,
+          });
         case "windsurf":
           return WindsurfRule.fromRulesyncRule({
             baseDir: this.baseDir,
@@ -236,6 +244,13 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "qwencode": {
+        const rootRule = toolRules[rootRuleIndex];
+        rootRule?.setFileContent(
+          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+        );
+        return toolRules;
+      }
+      case "warp": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
@@ -366,6 +381,8 @@ export class RulesProcessor extends FeatureProcessor {
           return await this.loadQwencodeRules();
         case "roo":
           return await this.loadRooRules();
+        case "warp":
+          return await this.loadWarpRules();
         case "windsurf":
           return await this.loadWindsurfRules();
         default:
@@ -403,6 +420,33 @@ export class RulesProcessor extends FeatureProcessor {
       logger.warn(`Failed to load AGENTS.md file ${agentsFile}:`, error);
       return [];
     }
+  }
+
+  private async loadWarpRules(): Promise<ToolRule[]> {
+    const rootFilePaths = await findFilesByGlobs(join(this.baseDir, "WARP.md"));
+    const nonRootFilePaths = await findFilesByGlobs(join(this.baseDir, ".warp/memories/*.md"));
+
+    const rootFiles = await Promise.all(
+      rootFilePaths.map((filePath) =>
+        WarpRule.fromFilePath({
+          filePath,
+          validate: true,
+          relativeDirPath: ".",
+          relativeFilePath: "WARP.md",
+        }),
+      ),
+    );
+    const nonRootFiles = await Promise.all(
+      nonRootFilePaths.map((filePath) =>
+        WarpRule.fromFilePath({
+          filePath,
+          validate: true,
+          relativeDirPath: ".warp/memories",
+          relativeFilePath: basename(filePath),
+        }),
+      ),
+    );
+    return [...rootFiles, ...nonRootFiles];
   }
 
   /**
