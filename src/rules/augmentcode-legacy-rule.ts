@@ -1,8 +1,14 @@
+import { join } from "node:path";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+} from "./tool-rule.js";
 
 export type AugmentcodeLegacyRuleParams = ToolRuleParams;
 
@@ -45,22 +51,20 @@ export class AugmentcodeLegacyRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
-    filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<AugmentcodeLegacyRule> {
+  }: ToolRuleFromFileParams): Promise<AugmentcodeLegacyRule> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     // Determine if it's a root file
     const isRoot = relativeFilePath === ".augment-guidelines";
 
     return new AugmentcodeLegacyRule({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
+      relativeDirPath: ".augment/rules",
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
