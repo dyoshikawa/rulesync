@@ -27,7 +27,7 @@ export class ConfigResolver {
     baseDirs,
     configPath = defaults.configPath,
   }: ConfigResolverResolveParams): Promise<Config> {
-    if (!fileExists(configPath)) {
+    if (!(await fileExists(configPath))) {
       return new Config({
         targets: targets ?? defaults.targets,
         features: features ?? defaults.features,
@@ -41,14 +41,11 @@ export class ConfigResolver {
       name: "rulesync",
       cwd: process.cwd(),
       rcFile: false, // Disable rc file lookup
-      configFile: "rulesync", // Will look for rulesync.jsonc, rulesync.ts, etc.
+      configFile: configPath || "rulesync", // Use provided configPath or default
     };
 
-    if (configPath) {
-      loadOptions.configFile = configPath;
-    }
-
-    const { config: configByFile } = await loadConfig<Partial<ConfigParams>>(loadOptions);
+    const loadConfigResult = await loadConfig<Partial<ConfigParams>>(loadOptions);
+    const configByFile = loadConfigResult?.config || {};
 
     const configParams = {
       targets: targets ?? configByFile.targets ?? defaults.targets,

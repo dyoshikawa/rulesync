@@ -1,4 +1,14 @@
+import { isAbsolute, resolve } from "node:path";
 import { logger } from "../../utils/logger.js";
+
+/**
+ * Resolves glob paths, converting relative paths to absolute paths
+ * @param paths Array of paths (absolute or relative)
+ * @returns Array of absolute paths
+ */
+export function resolveGlobPaths(paths: string[]): string[] {
+  return paths.map((path) => (isAbsolute(path) ? path : resolve(path)));
+}
 
 /**
  * Show backward compatibility warning for commands without --features option
