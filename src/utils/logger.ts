@@ -15,11 +15,6 @@ class Logger {
     return this._verbose;
   }
 
-  // Regular log (always shown, regardless of verbose)
-  log(message: string, ...args: unknown[]): void {
-    this.console.log(message, ...args);
-  }
-
   info(message: string, ...args: unknown[]): void {
     this.console.info(message, ...args);
   }
@@ -42,7 +37,7 @@ class Logger {
   // Debug level (shown only in verbose mode)
   debug(message: string, ...args: unknown[]): void {
     if (this._verbose) {
-      this.console.debug(message, ...args);
+      this.console.info(message, ...args);
     }
   }
 }
