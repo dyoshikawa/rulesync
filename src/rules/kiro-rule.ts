@@ -1,7 +1,13 @@
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+} from "./tool-rule.js";
 
 export type KiroRuleParams = ToolRuleParams;
 
@@ -13,15 +19,19 @@ export type KiroRuleParams = ToolRuleParams;
  * in the .kiro/steering/ directory (product.md, structure.md, tech.md).
  */
 export class KiroRule extends ToolRule {
-  static async fromFilePath(params: AiFileFromFilePathParams): Promise<KiroRule> {
-    const fileContent = await readFileContent(params.filePath);
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<KiroRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     return new KiroRule({
-      baseDir: params.baseDir || ".",
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
+      baseDir,
+      relativeDirPath: ".kiro/steering",
+      relativeFilePath: relativeFilePath,
       fileContent,
-      validate: params.validate ?? true,
+      validate,
       root: false,
     });
   }
