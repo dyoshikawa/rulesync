@@ -262,59 +262,71 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesDir = join(this.baseDir, ".rulesync", "rules");
+    try {
+      const rulesDir = join(this.baseDir, ".rulesync", "rules");
 
-    // Check if directory exists
-    const dirExists = await directoryExists(rulesDir);
-    if (!dirExists) {
-      logger.debug(`Rulesync rules directory not found: ${rulesDir}`);
-      return [];
-    }
-
-    // Read all markdown files from the directory
-    const entries = await listDirectoryFiles(rulesDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.debug(`No markdown files found in rulesync rules directory: ${rulesDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} rule files in ${rulesDir}`);
-
-    // Parse all files and create RulesyncRule instances using fromFilePath
-    const rulesyncRules: RulesyncRule[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(rulesDir, mdFile);
-
-      try {
-        const rulesyncRule = await RulesyncRule.fromFilePath({
-          filePath: filepath,
-        });
-
-        rulesyncRules.push(rulesyncRule);
-        logger.debug(`Successfully loaded rule: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load rule file ${filepath}:`, error);
-        continue;
+      // Check if directory exists
+      const dirExists = await directoryExists(rulesDir);
+      if (!dirExists) {
+        logger.debug(`Rulesync rules directory not found: ${rulesDir}`);
+        return [];
       }
-    }
 
-    if (rulesyncRules.length === 0) {
-      logger.debug(`No valid rules found in ${rulesDir}`);
+      // Read all markdown files from the directory
+      const entries = await listDirectoryFiles(rulesDir);
+      const mdFiles = entries.filter((file) => file.endsWith(".md"));
+
+      if (mdFiles.length === 0) {
+        logger.debug(`No markdown files found in rulesync rules directory: ${rulesDir}`);
+        return [];
+      }
+
+      logger.info(`Found ${mdFiles.length} rule files in ${rulesDir}`);
+
+      // Parse all files and create RulesyncRule instances using fromFilePath
+      const rulesyncRules: RulesyncRule[] = [];
+
+      for (const mdFile of mdFiles) {
+        const filepath = join(rulesDir, mdFile);
+
+        try {
+          const rulesyncRule = await RulesyncRule.fromFilePath({
+            filePath: filepath,
+          });
+
+          rulesyncRules.push(rulesyncRule);
+          logger.debug(`Successfully loaded rule: ${mdFile}`);
+        } catch (error) {
+          logger.warn(`Failed to load rule file ${filepath}:`, error);
+          continue;
+        }
+      }
+
+      if (rulesyncRules.length === 0) {
+        logger.debug(`No valid rules found in ${rulesDir}`);
+        return [];
+      }
+
+      logger.info(`Successfully loaded ${rulesyncRules.length} rulesync rules`);
+      return rulesyncRules;
+    } catch (error) {
+      logger.debug(`No rulesync files found`, error);
       return [];
     }
-
-    logger.info(`Successfully loaded ${rulesyncRules.length} rulesync rules`);
-    return rulesyncRules;
   }
 
   async loadLegacyRulesyncFiles(): Promise<RulesyncFile[]> {
-    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
-    return Promise.all(
-      legacyFiles.map((file) => RulesyncRule.fromLegacyFile({ relativeFilePath: basename(file) })),
-    );
+    try {
+      const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
+      return Promise.all(
+        legacyFiles.map((file) =>
+          RulesyncRule.fromLegacyFile({ relativeFilePath: basename(file) }),
+        ),
+      );
+    } catch (error) {
+      logger.debug(`No legacy rulesync files found`, error);
+      return [];
+    }
   }
 
   /**
@@ -322,41 +334,46 @@ export class RulesProcessor extends FeatureProcessor {
    * Load tool-specific rule configurations and parse them into ToolRule instances
    */
   async loadToolFiles(): Promise<ToolFile[]> {
-    switch (this.toolTarget) {
-      case "agentsmd":
-        return await this.loadAgentsmdRules();
-      case "amazonqcli":
-        return await this.loadAmazonqcliRules();
-      case "augmentcode":
-        return await this.loadAugmentcodeRules();
-      case "augmentcode-legacy":
-        return await this.loadAugmentcodeLegacyRules();
-      case "claudecode":
-        return await this.loadClaudecodeRules();
-      case "cline":
-        return await this.loadClineRules();
-      case "codexcli":
-        return await this.loadCodexcliRules();
-      case "copilot":
-        return await this.loadCopilotRules();
-      case "cursor":
-        return await this.loadCursorRules();
-      case "geminicli":
-        return await this.loadGeminicliRules();
-      case "junie":
-        return await this.loadJunieRules();
-      case "kiro":
-        return await this.loadKiroRules();
-      case "opencode":
-        return await this.loadOpencodeRules();
-      case "qwencode":
-        return await this.loadQwencodeRules();
-      case "roo":
-        return await this.loadRooRules();
-      case "windsurf":
-        return await this.loadWindsurfRules();
-      default:
-        throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+    try {
+      switch (this.toolTarget) {
+        case "agentsmd":
+          return await this.loadAgentsmdRules();
+        case "amazonqcli":
+          return await this.loadAmazonqcliRules();
+        case "augmentcode":
+          return await this.loadAugmentcodeRules();
+        case "augmentcode-legacy":
+          return await this.loadAugmentcodeLegacyRules();
+        case "claudecode":
+          return await this.loadClaudecodeRules();
+        case "cline":
+          return await this.loadClineRules();
+        case "codexcli":
+          return await this.loadCodexcliRules();
+        case "copilot":
+          return await this.loadCopilotRules();
+        case "cursor":
+          return await this.loadCursorRules();
+        case "geminicli":
+          return await this.loadGeminicliRules();
+        case "junie":
+          return await this.loadJunieRules();
+        case "kiro":
+          return await this.loadKiroRules();
+        case "opencode":
+          return await this.loadOpencodeRules();
+        case "qwencode":
+          return await this.loadQwencodeRules();
+        case "roo":
+          return await this.loadRooRules();
+        case "windsurf":
+          return await this.loadWindsurfRules();
+        default:
+          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+      }
+    } catch (error) {
+      logger.debug(`No tool files found`, error);
+      return [];
     }
   }
 

@@ -3,6 +3,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
+import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
@@ -54,7 +55,12 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Load and parse rulesync ignore files from .rulesync/ignore/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    return [await RulesyncIgnore.fromFile()];
+    try {
+      return [await RulesyncIgnore.fromFile()];
+    } catch (error) {
+      logger.debug(`No rulesync files found`, error);
+      return [];
+    }
   }
 
   /**
@@ -62,8 +68,13 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Load tool-specific ignore configurations and parse them into ToolIgnore instances
    */
   async loadToolFiles(): Promise<ToolFile[]> {
-    const toolIgnores = await this.loadToolIgnores();
-    return toolIgnores;
+    try {
+      const toolIgnores = await this.loadToolIgnores();
+      return toolIgnores;
+    } catch (error) {
+      logger.debug(`No tool files found`, error);
+      return [];
+    }
   }
 
   async loadToolIgnores(): Promise<ToolIgnore[]> {
