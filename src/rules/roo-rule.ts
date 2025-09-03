@@ -1,7 +1,13 @@
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+} from "./tool-rule.js";
 
 export type RooRuleParams = ToolRuleParams;
 
@@ -13,15 +19,20 @@ export type RooRuleParams = ToolRuleParams;
  * and both directory-based and single-file configurations.
  */
 export class RooRule extends ToolRule {
-  static async fromFilePath(params: AiFileFromFilePathParams): Promise<RooRule> {
-    const fileContent = await readFileContent(params.filePath);
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<RooRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     return new RooRule({
-      baseDir: params.baseDir || ".",
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
+      baseDir,
+      relativeDirPath: ".roo/rules",
+      relativeFilePath: relativeFilePath,
       fileContent,
-      validate: params.validate ?? true,
+      validate,
+      root: false,
     });
   }
 

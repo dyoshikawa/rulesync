@@ -73,8 +73,9 @@ export class RulesyncRule extends RulesyncFile {
     }
   }
 
-  static async fromLegacyFile({
+  static async fromFileLegacy({
     relativeFilePath,
+    validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
     const filePath = join(RULESYNC_RULES_DIR_LEGACY, relativeFilePath);
 
@@ -104,10 +105,16 @@ export class RulesyncRule extends RulesyncFile {
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
       body: content.trim(),
+      validate,
     });
   }
 
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncRule> {
+  static async fromFile({
+    relativeFilePath,
+    validate = true,
+  }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
+    const filePath = join(RULESYNC_RULES_DIR, relativeFilePath);
+
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
@@ -134,6 +141,7 @@ export class RulesyncRule extends RulesyncFile {
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
       body: content.trim(),
+      validate,
     });
   }
 
