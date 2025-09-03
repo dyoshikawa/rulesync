@@ -1,18 +1,29 @@
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+} from "./tool-rule.js";
 
 export type WindsurfRuleParams = ToolRuleParams;
 export class WindsurfRule extends ToolRule {
-  static async fromFilePath(params: AiFileFromFilePathParams): Promise<WindsurfRule> {
-    const fileContent = await readFileContent(params.filePath);
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<WindsurfRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     return new WindsurfRule({
-      baseDir: params.baseDir || ".",
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
+      baseDir,
+      relativeDirPath: ".windsurf/rules",
+      relativeFilePath: relativeFilePath,
       fileContent,
+      validate,
     });
   }
 

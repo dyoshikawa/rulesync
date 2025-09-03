@@ -1,7 +1,8 @@
-import { AiFileFromFilePathParams, AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export type WarpRuleParams = AiFileParams & {
   root?: boolean;
@@ -16,14 +17,13 @@ export class WarpRule extends ToolRule {
     });
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
     relativeFilePath,
-    filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<WarpRule> {
+  }: ToolRuleFromFileParams): Promise<WarpRule> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     // Determine if it's a root file based on path
     const isRoot = relativeFilePath === "WARP.md";
