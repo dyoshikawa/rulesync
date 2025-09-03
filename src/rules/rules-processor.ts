@@ -277,71 +277,19 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    try {
-      const rulesDir = join(this.baseDir, ".rulesync", "rules");
-
-      // Check if directory exists
-      const dirExists = await directoryExists(rulesDir);
-      if (!dirExists) {
-        logger.debug(`Rulesync rules directory not found: ${rulesDir}`);
-        return [];
-      }
-
-      // Read all markdown files from the directory
-      const entries = await listDirectoryFiles(rulesDir);
-      const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-      if (mdFiles.length === 0) {
-        logger.debug(`No markdown files found in rulesync rules directory: ${rulesDir}`);
-        return [];
-      }
-
-      logger.info(`Found ${mdFiles.length} rule files in ${rulesDir}`);
-
-      // Parse all files and create RulesyncRule instances using fromFilePath
-      const rulesyncRules: RulesyncRule[] = [];
-
-      for (const mdFile of mdFiles) {
-        const filepath = join(rulesDir, mdFile);
-
-        try {
-          const rulesyncRule = await RulesyncRule.fromFilePath({
-            filePath: filepath,
-          });
-
-          rulesyncRules.push(rulesyncRule);
-          logger.debug(`Successfully loaded rule: ${mdFile}`);
-        } catch (error) {
-          logger.warn(`Failed to load rule file ${filepath}:`, error);
-          continue;
-        }
-      }
-
-      if (rulesyncRules.length === 0) {
-        logger.debug(`No valid rules found in ${rulesDir}`);
-        return [];
-      }
-
-      logger.info(`Successfully loaded ${rulesyncRules.length} rulesync rules`);
-      return rulesyncRules;
-    } catch (error) {
-      logger.debug(`No rulesync files found`, error);
-      return [];
-    }
+    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
+    logger.debug(`Found ${legacyFiles.length} rulesync files`);
+    return Promise.all(
+      legacyFiles.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
+    );
   }
 
-  async loadLegacyRulesyncFiles(): Promise<RulesyncFile[]> {
-    try {
-      const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
-      return Promise.all(
-        legacyFiles.map((file) =>
-          RulesyncRule.fromLegacyFile({ relativeFilePath: basename(file) }),
-        ),
-      );
-    } catch (error) {
-      logger.debug(`No legacy rulesync files found`, error);
-      return [];
-    }
+  async loadRulesyncFilesLegacy(): Promise<RulesyncFile[]> {
+    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
+    logger.debug(`Found ${legacyFiles.length} legacy rulesync files`);
+    return Promise.all(
+      legacyFiles.map((file) => RulesyncRule.fromFileLegacy({ relativeFilePath: basename(file) })),
+    );
   }
 
   /**
