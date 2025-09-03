@@ -83,15 +83,7 @@ Team members can freely choose their preferred AI coding tools. Whether it's Git
 AI development tools evolve rapidly with new tools emerging frequently. With rulesync, switching between tools doesn't require redefining your rules from scratch.
 
 ### 🎯 **Multi-Tool Workflow**
-Enable hybrid development workflows combining multiple AI tools:
-- **GitHub Copilot** for code completion and inline suggestions
-- **Cursor** for intelligent refactoring and project-wide changes
-- **Claude Code** for architecture design and complex problem solving
-- **Cline** for autonomous debugging and file system operations
-- **Amazon Q Developer CLI** for comprehensive chat-based development with built-in commands and MCP integration
-- **OpenCode** for secure terminal-based development with granular permission controls
-- **Windsurf** for comprehensive AI-assisted editing with Cascade AI
-- **Gemini CLI** for Google AI integration and custom workflows
+Enable hybrid development workflows combining multiple AI tools.
 
 ### 🔓 **No Lock-in**
 Avoid lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files as-is.
@@ -126,6 +118,8 @@ npx rulesync gitignore
 
 You can configure rulesync by creating a `rulesync.jsonc` file in the root of your project.
 
+Example:
+
 ```jsonc
 // rulesync.jsonc
 {
@@ -144,6 +138,119 @@ You can configure rulesync by creating a `rulesync.jsonc` file in the root of yo
   // Verbose output
   "verbose": false
 }
+```
+
+## Each File Format
+
+### `rulesync/rules/*.md`
+
+Example:
+
+```md
+---
+root: true # true for overview, false for details
+targets: ["*"] # * = all, or specific tools
+description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
+cursor: # for cursor-specific rules
+  alwaysApply: true
+  description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+  globs: ["*"]
+---
+
+# rulesync Project Overview
+
+This is rulesync, a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
+
+...
+```
+
+### `rulesync/commands/*.md`
+
+Example:
+
+```md
+---
+description: 'Review a pull request' # command description
+targets: ["*"] # * = all, or specific tools
+---
+
+target_pr = $ARGUMENTS
+
+If target_pr is not provided, use the PR of the current branch.
+
+Execute the following in parallel:
+
+...
+```
+
+### `rulesync/subagents/*.md`
+
+Example:
+
+```md
+---
+name: planner # subagent name
+targets: ["*"] # * = all, or specific tools
+description: >- # subagent description
+  This is the general-purpose planner. The user asks the agent to plan to
+  suggest a specification, implement a new feature, refactor the codebase, or
+  fix a bug. This agent can be called by the user explicitly only.
+claudecode: # for claudecode-specific rules
+  model: opus # opus, sonnet, haiku or inherit
+---
+
+You are the planner for any tasks.
+
+Based on the user's instruction, create a plan while analyzing the related files. Then, report the plan in detail. You can output files to @tmp/ if needed.
+
+Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
+```
+
+### `.rulesync/.mcp.json`
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "serena": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide-assistant",
+        "--enable-web-dashboard",
+        "false",
+        "--project",
+        "."
+      ],
+      "env": {}
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+### `.rulesyncignore`
+
+Example:
+
+```ignore
+tmp/
+credentials/
 ```
 
 ## License
