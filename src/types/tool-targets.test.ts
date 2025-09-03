@@ -26,6 +26,7 @@ describe("tool targets", () => {
         "geminicli",
         "kiro",
         "junie",
+        "warp",
         "windsurf",
       ];
 
