@@ -1,10 +1,16 @@
+import { join } from "node:path";
 import { z } from "zod/mini";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+} from "./tool-rule.js";
 
 export const CopilotRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
@@ -104,32 +110,30 @@ export class CopilotRule extends ToolRule {
     });
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
-    filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<CopilotRule> {
+  }: ToolRuleFromFileParams): Promise<CopilotRule> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     // Determine if this is a root file based on the file path
-    const root = relativeFilePath === "copilot-instructions.md";
+    const isRoot = relativeFilePath === "copilot-instructions.md";
 
-    if (root) {
+    if (isRoot) {
       // Root file: no frontmatter expected
       return new CopilotRule({
         baseDir: baseDir,
-        relativeDirPath: relativeDirPath,
-        relativeFilePath: relativeFilePath,
+        relativeDirPath: ".github",
+        relativeFilePath: isRoot ? "copilot-instructions.md" : relativeFilePath,
         frontmatter: {
           description: "",
           applyTo: "**",
         },
         body: fileContent.trim(),
         validate,
-        root,
+        root: isRoot,
       });
     }
 
@@ -139,20 +143,19 @@ export class CopilotRule extends ToolRule {
     // Validate frontmatter using CopilotRuleFrontmatterSchema
     const result = CopilotRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(
+        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${result.error.message}`,
+      );
     }
 
     return new CopilotRule({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
-      relativeFilePath: relativeFilePath,
-      frontmatter: {
-        ...result.data,
-        applyTo: result.data.applyTo || "**",
-      },
+      relativeDirPath: ".github/instructions",
+      relativeFilePath: relativeFilePath.replace(/\.md$/, ".instructions.md"),
+      frontmatter: result.data,
       body: content.trim(),
       validate,
-      root,
+      root: isRoot,
     });
   }
 

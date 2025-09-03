@@ -64,8 +64,8 @@ export class AugmentcodeLegacyRule extends ToolRule {
 
     return new AugmentcodeLegacyRule({
       baseDir: baseDir,
-      relativeDirPath: ".augment/rules",
-      relativeFilePath: relativeFilePath,
+      relativeDirPath: isRoot ? "." : ".augment/rules",
+      relativeFilePath: isRoot ? ".augment-guidelines" : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,

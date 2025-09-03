@@ -1,7 +1,8 @@
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 /**
  * Rule generator for OpenAI Codex CLI
@@ -11,16 +12,22 @@ import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
  * hierarchical loading (global, project, directory-specific).
  */
 export class CodexcliRule extends ToolRule {
-  static async fromFilePath(params: AiFileFromFilePathParams): Promise<CodexcliRule> {
-    const fileContent = await readFileContent(params.filePath);
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<CodexcliRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+
+    const isRoot = relativeFilePath === "AGENTS.md";
 
     return new CodexcliRule({
-      baseDir: params.baseDir || process.cwd(),
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
+      baseDir,
+      relativeDirPath: isRoot ? "." : ".codex/memories",
+      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
-      validate: params.validate ?? true,
-      root: params.relativeFilePath === "AGENTS.md",
+      validate,
+      root: isRoot,
     });
   }
 

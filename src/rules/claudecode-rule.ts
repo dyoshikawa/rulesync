@@ -1,7 +1,8 @@
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 /**
  * Rule generator for Claude Code AI assistant
@@ -10,16 +11,22 @@ import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  static async fromFilePath(params: AiFileFromFilePathParams): Promise<ClaudecodeRule> {
-    const fileContent = await readFileContent(params.filePath);
+  static async fromFile({
+    baseDir = ".",
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<ClaudecodeRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+
+    const isRoot = relativeFilePath === "CLAUDE.md";
 
     return new ClaudecodeRule({
-      baseDir: params.baseDir || process.cwd(),
-      relativeDirPath: params.relativeDirPath,
-      relativeFilePath: params.relativeFilePath,
+      baseDir,
+      relativeDirPath: isRoot ? "." : ".claude/memories",
+      relativeFilePath: isRoot ? "CLAUDE.md" : relativeFilePath,
       fileContent,
-      validate: params.validate ?? true,
-      root: params.relativeFilePath === "CLAUDE.md",
+      validate,
+      root: isRoot,
     });
   }
 

@@ -30,8 +30,8 @@ export class AgentsMdRule extends ToolRule {
 
     return new AgentsMdRule({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath,
+      relativeDirPath: isRoot ? "." : ".agents/memories",
+      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,

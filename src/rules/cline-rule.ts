@@ -1,8 +1,9 @@
+import { join } from "node:path";
 import { z } from "zod/mini";
-import { AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
 
 export const ClineRuleFrontmatterSchema = z.object({
   description: z.string(),
@@ -34,19 +35,17 @@ export class ClineRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
-    filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<ClineRule> {
+  }: ToolRuleFromFileParams): Promise<ClineRule> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
 
     return new ClineRule({
       baseDir: baseDir,
-      relativeDirPath: relativeDirPath,
+      relativeDirPath: ".clinerules",
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
