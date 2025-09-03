@@ -1,5 +1,5 @@
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
-import { AiFileFromFilePathParams, AiFileParams } from "../types/ai-file.js";
+import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -14,9 +14,7 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
   rulesyncRule: RulesyncRule;
 };
 
-export type ToolRuleFromFilePathParams = Pick<AiFileFromFilePathParams, "validate"> & {
-  filePath: string;
-};
+export type ToolRuleFromFileParams = AiFileFromFileParams;
 
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
@@ -26,7 +24,7 @@ export abstract class ToolRule extends ToolFile {
     this.root = root;
   }
 
-  static async fromFilePath(_params: ToolRuleFromFilePathParams): Promise<ToolRule> {
+  static async fromFile(_params: ToolRuleFromFileParams): Promise<ToolRule> {
     throw new Error("Please implement this method in the subclass.");
   }
 

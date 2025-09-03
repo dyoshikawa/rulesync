@@ -18,10 +18,7 @@ export type AiFileParams = {
   validate?: boolean;
 };
 
-export type AiFileFromFilePathParams = Omit<AiFileParams, "fileContent"> & {
-  filePath: string;
-};
-
+export type AiFileFromFileParams = Pick<AiFileParams, "baseDir" | "validate" | "relativeFilePath">;
 export abstract class AiFile {
   /**
    * @example "."
@@ -62,7 +59,7 @@ export abstract class AiFile {
     }
   }
 
-  static async fromFilePath(_params: AiFileFromFilePathParams): Promise<AiFile> {
+  static async fromFile(_params: AiFileFromFileParams): Promise<AiFile> {
     throw new Error("Please implement this method in the subclass.");
   }
 
