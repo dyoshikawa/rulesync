@@ -50,7 +50,7 @@ describe("logger", () => {
       const message = "Test log message";
       const args = ["arg1", 42, { key: "value" }];
 
-      logger.log(message, ...args);
+      logger.info(message, ...args);
 
       expect(consoleSpy.log).toHaveBeenCalledWith(message, ...args);
       expect(consoleSpy.log).toHaveBeenCalledTimes(1);
@@ -142,7 +142,7 @@ describe("logger", () => {
     it("should maintain state across multiple calls", () => {
       logger.setVerbose(true);
 
-      logger.log("message 1");
+      logger.info("message 1");
       logger.info("message 2");
       logger.debug("message 3");
       logger.warn("message 4");
@@ -160,7 +160,7 @@ describe("logger", () => {
 
   describe("edge cases", () => {
     it("should handle undefined arguments", () => {
-      logger.log("message", undefined);
+      logger.info("message", undefined);
       logger.info("message", undefined);
       logger.success("message", undefined);
       logger.warn("message", undefined);
@@ -174,7 +174,7 @@ describe("logger", () => {
     });
 
     it("should handle null arguments", () => {
-      logger.log("message", null);
+      logger.info("message", null);
       expect(consoleSpy.log).toHaveBeenCalledWith("message", null);
     });
 
@@ -190,7 +190,7 @@ describe("logger", () => {
     });
 
     it("should handle empty messages", () => {
-      logger.log("");
+      logger.info("");
       logger.debug("");
 
       expect(consoleSpy.log).toHaveBeenCalledWith("");
@@ -198,7 +198,7 @@ describe("logger", () => {
     });
 
     it("should handle messages with no additional arguments", () => {
-      logger.log("Just a message");
+      logger.info("Just a message");
       logger.info("Just a message");
       logger.success("Just a message");
       logger.warn("Just a message");

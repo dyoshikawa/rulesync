@@ -17,9 +17,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
 
   // Set logger verbosity based on config
-  logger.setVerbose(config.getVerbose() || false);
+  logger.setVerbose(config.getVerbose());
 
-  logger.log("Generating files...");
+  logger.info("Generating files...");
 
   // Check if .rulesync directory exists
   if (!(await fileExists(".rulesync"))) {

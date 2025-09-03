@@ -80,7 +80,7 @@ export const gitignoreCommand = async (): Promise<void> => {
   logger.success(`Added ${linesToAdd.length} rules to .gitignore:`);
   for (const line of linesToAdd) {
     if (!line.startsWith("#")) {
-      logger.log(`  ${line}`);
+      logger.info(`  ${line}`);
     }
   }
 };

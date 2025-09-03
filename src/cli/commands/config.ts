@@ -16,7 +16,7 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
 }
 
 async function initConfig(): Promise<void> {
-  logger.log("Initializing configuration...");
+  logger.info("Initializing configuration...");
 
   if (await fileExists("rulesync.jsonc")) {
     logger.error("rulesync.jsonc already exists");

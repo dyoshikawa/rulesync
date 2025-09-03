@@ -73,7 +73,7 @@ const main = async () => {
         return value.split(",").map((f) => f.trim());
       },
     )
-    .option("-v, --verbose", "Verbose output")
+    .option("--verbose", "Verbose output")
     .action(async (options) => {
       try {
         await importCommand({

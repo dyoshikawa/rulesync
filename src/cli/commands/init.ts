@@ -3,16 +3,16 @@ import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 export async function initCommand(): Promise<void> {
-  logger.log("Initializing rulesync...");
+  logger.info("Initializing rulesync...");
 
   await ensureDir(".rulesync");
   const rulesDir = join(".rulesync", "rules");
   await createSampleFiles(rulesDir);
 
   logger.success("rulesync initialized successfully!");
-  logger.log("Next steps:");
-  logger.log(`1. Edit rule files in ${rulesDir}/`);
-  logger.log("2. Run 'rulesync generate' to create configuration files");
+  logger.info("Next steps:");
+  logger.info(`1. Edit rule files in ${rulesDir}/`);
+  logger.info("2. Run 'rulesync generate' to create configuration files");
 }
 
 async function createSampleFiles(rulesDir: string): Promise<void> {
@@ -57,6 +57,6 @@ globs: ["**/*"]
     await writeFileContent(filepath, sampleFile.content);
     logger.success(`Created ${filepath}`);
   } else {
-    logger.log(`Skipped ${filepath} (already exists)`);
+    logger.info(`Skipped ${filepath} (already exists)`);
   }
 }
