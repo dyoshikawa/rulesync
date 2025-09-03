@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
+import { ANNOUNCEMENT } from "../constants/annnouncements.js";
 import { FEATURE_TYPES } from "../types/config-options.js";
 import { readJsonFile } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -40,6 +41,12 @@ const main = async () => {
   const program = new Command();
 
   const version = await getVersion();
+
+  program.hook("postAction", () => {
+    if (ANNOUNCEMENT.length > 0) {
+      logger.info(ANNOUNCEMENT);
+    }
+  });
 
   program
     .name("rulesync")
