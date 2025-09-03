@@ -1,4 +1,5 @@
-import { type AiFileFromFilePathParams, ValidationResult } from "../types/ai-file.js";
+import { join } from "node:path";
+import { type AiFileFromFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { ToolRule, type ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
@@ -6,21 +7,21 @@ import { ToolRule, type ToolRuleFromRulesyncRuleParams, ToolRuleParams } from ".
 export type OpenCodeRuleParams = ToolRuleParams;
 
 export class OpenCodeRule extends ToolRule {
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    relativeDirPath,
     relativeFilePath,
-    filePath,
     validate = true,
-  }: AiFileFromFilePathParams): Promise<OpenCodeRule> {
-    const fileContent = await readFileContent(filePath);
+  }: AiFileFromFileParams): Promise<OpenCodeRule> {
+    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+
+    const isRoot = relativeFilePath === "AGENTS.md";
 
     return new OpenCodeRule({
       baseDir,
-      relativeDirPath,
-      relativeFilePath,
+      relativeDirPath: isRoot ? "." : ".opencode/memories",
+      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       validate,
-      root: relativeFilePath === "AGENTS.md",
+      root: isRoot,
       fileContent,
     });
   }
