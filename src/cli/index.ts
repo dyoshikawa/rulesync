@@ -3,7 +3,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
-import { ANNOUNCEMENT } from "../constants/annnouncements.js";
+import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { FEATURE_TYPES } from "../types/config-options.js";
 import { readJsonFile } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
