@@ -1,4 +1,4 @@
-import { AiFileParams } from "../types/ai-file.js";
+import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -10,6 +10,8 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
 > & {
   rulesyncMcp: RulesyncMcp;
 };
+
+export type ToolMcpFromFileParams = AiFileFromFileParams;
 
 export abstract class ToolMcp extends ToolFile {
   protected readonly json: Record<string, unknown>;
@@ -46,7 +48,7 @@ export abstract class ToolMcp extends ToolFile {
     });
   }
 
-  static async fromFilePath(_params: { filePath: string }): Promise<ToolMcp> {
+  static async fromFile(_params: ToolMcpFromFileParams): Promise<ToolMcp> {
     throw new Error("Please implement this method in the subclass.");
   }
 

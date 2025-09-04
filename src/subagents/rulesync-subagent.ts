@@ -1,7 +1,12 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_SUBAGENTS_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
-import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
+import {
+  RulesyncFile,
+  RulesyncFileFromFileParams,
+  RulesyncFileParams,
+} from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
@@ -25,6 +30,8 @@ export type RulesyncSubagentParams = {
   frontmatter: RulesyncSubagentFrontmatter;
   body: string;
 } & RulesyncFileParams;
+
+export type RulesyncSubagentFromFileParams = RulesyncFileFromFileParams;
 
 export class RulesyncSubagent extends RulesyncFile {
   private readonly frontmatter: RulesyncSubagentFrontmatter;
@@ -70,18 +77,20 @@ export class RulesyncSubagent extends RulesyncFile {
     }
   }
 
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncSubagent> {
+  static async fromFile({
+    relativeFilePath,
+  }: RulesyncSubagentFromFileParams): Promise<RulesyncSubagent> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(RULESYNC_SUBAGENTS_DIR, relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using SubagentFrontmatterSchema
     const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${result.error.message}`);
     }
 
-    const filename = basename(filePath);
+    const filename = basename(relativeFilePath);
 
     return new RulesyncSubagent({
       baseDir: ".",

@@ -24,7 +24,7 @@ export class JunieRule extends ToolRule {
 
     return new JunieRule({
       baseDir,
-      relativeDirPath: ".junie",
+      relativeDirPath: isRoot ? ".junie" : ".junie/memories",
       relativeFilePath: isRoot ? "guidelines.md" : relativeFilePath,
       fileContent,
       validate,
@@ -41,8 +41,8 @@ export class JunieRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "guidelines.md" },
-        nonRootPath: { relativeDirPath: ".junie/guidelines" },
+        rootPath: { relativeDirPath: ".junie", relativeFilePath: "guidelines.md" },
+        nonRootPath: { relativeDirPath: ".junie/memories" },
       }),
     );
   }
