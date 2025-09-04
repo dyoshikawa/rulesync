@@ -1,7 +1,12 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_COMMANDS_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
-import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
+import {
+  RulesyncFile,
+  RulesyncFileFromFileParams,
+  RulesyncFileParams,
+} from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -63,18 +68,20 @@ export class RulesyncCommand extends RulesyncFile {
     }
   }
 
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<RulesyncCommand> {
+  static async fromFile({
+    relativeFilePath,
+  }: RulesyncFileFromFileParams): Promise<RulesyncCommand> {
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(join(RULESYNC_COMMANDS_DIR, relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CommandFrontmatterSchema
     const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${result.error.message}`);
     }
 
-    const filename = basename(filePath);
+    const filename = basename(relativeFilePath);
 
     return new RulesyncCommand({
       baseDir: ".",

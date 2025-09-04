@@ -1,4 +1,4 @@
-import { AiFile, AiFileFromFilePathParams, AiFileParams } from "../types/ai-file.js";
+import { AiFile, AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
 export type ToolCommandFromRulesyncCommandParams = Omit<
@@ -8,10 +8,7 @@ export type ToolCommandFromRulesyncCommandParams = Omit<
   rulesyncCommand: RulesyncCommand;
 };
 
-export type ToolCommandFromFilePathParams = Omit<
-  AiFileFromFilePathParams,
-  "fileContent" | "relativeDirPath" | "relativeFilePath"
->;
+export type ToolCommandFromFileParams = AiFileFromFileParams;
 
 /**
  * Abstract base class for AI development tool-specific command formats.
@@ -42,7 +39,7 @@ export abstract class ToolCommand extends AiFile {
    * @param params - Parameters including the file path to load
    * @returns Promise resolving to a concrete ToolCommand instance
    */
-  static async fromFilePath(_params: ToolCommandFromFilePathParams): Promise<ToolCommand> {
+  static async fromFile(_params: ToolCommandFromFileParams): Promise<ToolCommand> {
     throw new Error("Please implement this method in the subclass.");
   }
 

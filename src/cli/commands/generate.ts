@@ -46,7 +46,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
         let rulesyncFiles = await processor.loadRulesyncFiles();
         if (rulesyncFiles.length === 0) {
-          rulesyncFiles = await processor.loadLegacyRulesyncFiles();
+          rulesyncFiles = await processor.loadRulesyncFilesLegacy();
         }
 
         const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
