@@ -17,8 +17,4 @@ export class RulesyncIgnore extends RulesyncFile {
       fileContent,
     });
   }
-
-  static async fromFilePath(_params: { filePath: string }): Promise<RulesyncIgnore> {
-    throw new Error("Please use the fromFile method instead.");
-  }
 }
