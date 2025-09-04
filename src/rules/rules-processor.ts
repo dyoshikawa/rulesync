@@ -343,11 +343,9 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   private async loadToolRulesDefault({
-    baseDir = ".",
     rootPaths,
     nonRootPaths,
   }: {
-    baseDir?: string;
     rootPaths?: { relativeDirPath?: string; relativeFilePath: string };
     nonRootPaths?: { relativeDirPath: string };
   }) {
