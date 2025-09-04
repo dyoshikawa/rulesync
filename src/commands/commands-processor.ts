@@ -4,7 +4,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { directoryExists, findFiles, listDirectoryFiles } from "../utils/file.js";
+import { findFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -75,49 +75,17 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load and parse rulesync command files from .rulesync/commands/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const commandsDir = join(this.baseDir, ".rulesync", "commands");
+    const rulesyncCommandPaths = await findFiles(join(".rulesync", "commands", "*.md"));
 
-    // Check if directory exists
-    const dirExists = await directoryExists(commandsDir);
-    if (!dirExists) {
-      logger.debug(`Rulesync commands directory not found: ${commandsDir}`);
-      return [];
-    }
-
-    // Read all markdown files from the directory
-    const allMdFiles = await findFiles(commandsDir, ".md");
-    const mdFiles = allMdFiles.map((f) => basename(f));
-
-    if (mdFiles.length === 0) {
-      logger.debug(`No markdown files found in rulesync commands directory: ${commandsDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} command files in ${commandsDir}`);
-
-    // Parse all files and create RulesyncCommand instances using fromFilePath
-    const rulesyncCommands: RulesyncCommand[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(commandsDir, mdFile);
-
-      try {
-        const rulesyncCommand = await RulesyncCommand.fromFilePath({
-          filePath: filepath,
-        });
-
-        rulesyncCommands.push(rulesyncCommand);
-        logger.debug(`Successfully loaded command: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load command file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    if (rulesyncCommands.length === 0) {
-      logger.debug(`No valid commands found in ${commandsDir}`);
-      return [];
-    }
+    const rulesyncCommands = (
+      await Promise.allSettled(
+        rulesyncCommandPaths.map((path) =>
+          RulesyncCommand.fromFile({ relativeFilePath: basename(path) }),
+        ),
+      )
+    )
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
 
     logger.info(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
     return rulesyncCommands;
@@ -132,7 +100,7 @@ export class CommandsProcessor extends FeatureProcessor {
       case "claudecode":
         return await this.loadClaudecodeCommands();
       case "geminicli":
-        return await this.loadGeminiCliCommands();
+        return await this.loadGeminicliCommands();
       case "roo":
         return await this.loadRooCommands();
       default:
@@ -140,155 +108,72 @@ export class CommandsProcessor extends FeatureProcessor {
     }
   }
 
+  private async loadToolCommandDefault({
+    toolTarget,
+    relativeDirPath,
+    extension,
+  }: {
+    toolTarget: "claudecode" | "geminicli" | "roo";
+    relativeDirPath: string;
+    extension: "md" | "toml";
+  }): Promise<ToolCommand[]> {
+    const commandFilePaths = await findFiles(join(this.baseDir, relativeDirPath), `*.${extension}`);
+
+    const toolCommands = (
+      await Promise.allSettled(
+        commandFilePaths.map((path) => {
+          switch (toolTarget) {
+            case "claudecode":
+              return ClaudecodeCommand.fromFile({ relativeFilePath: basename(path) });
+            case "geminicli":
+              return GeminiCliCommand.fromFile({ relativeFilePath: basename(path) });
+            case "roo":
+              return RooCommand.fromFile({ relativeFilePath: basename(path) });
+            default:
+              throw new Error(`Unsupported tool target: ${toolTarget}`);
+          }
+        }),
+      )
+    )
+
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    logger.info(`Successfully loaded ${toolCommands.length} ${relativeDirPath} commands`);
+    return toolCommands;
+  }
+
   /**
    * Load Claude Code command configurations from .claude/commands/ directory
    */
   private async loadClaudecodeCommands(): Promise<ToolCommand[]> {
-    const commandsDir = join(this.baseDir, ".claude", "commands");
-
-    // Check if directory exists
-    if (!(await directoryExists(commandsDir))) {
-      logger.warn(`Claude Code commands directory not found: ${commandsDir}`);
-      return [];
-    }
-
-    // Read all markdown files from the directory
-    const allMdFiles = await findFiles(commandsDir, ".md");
-    const mdFiles = allMdFiles.map((f) => basename(f));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown command files found in ${commandsDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Claude Code command files in ${commandsDir}`);
-
-    // Parse all files and create ToolCommand instances
-    const toolCommands: ToolCommand[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(commandsDir, mdFile);
-
-      try {
-        const claudecodeCommand = await ClaudecodeCommand.fromFilePath({
-          baseDir: this.baseDir,
-          filePath: filepath,
-        });
-
-        toolCommands.push(claudecodeCommand);
-        logger.debug(`Successfully loaded Claude Code command: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Claude Code command file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolCommands.length} Claude Code commands`);
-    return toolCommands;
+    return await this.loadToolCommandDefault({
+      toolTarget: "claudecode",
+      relativeDirPath: ".claude/commands",
+      extension: "md",
+    });
   }
 
   /**
    * Load Gemini CLI command configurations from .gemini/commands/ directory
    */
-  private async loadGeminiCliCommands(): Promise<ToolCommand[]> {
-    const commandsDir = join(this.baseDir, ".gemini", "commands");
-
-    // Check if directory exists
-    if (!(await directoryExists(commandsDir))) {
-      logger.warn(`Gemini CLI commands directory not found: ${commandsDir}`);
-      return [];
-    }
-
-    // Read all TOML files from the directory
-    const allFiles = await listDirectoryFiles(commandsDir);
-    const tomlFiles = allFiles.filter((file) => file.endsWith(".toml"));
-
-    if (tomlFiles.length === 0) {
-      logger.info(`No TOML command files found in ${commandsDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${tomlFiles.length} Gemini CLI command files in ${commandsDir}`);
-
-    // Parse all files and create ToolCommand instances
-    const toolCommands: ToolCommand[] = [];
-
-    for (const tomlFile of tomlFiles) {
-      const filepath = join(commandsDir, tomlFile);
-
-      try {
-        const geminiCliCommand = await GeminiCliCommand.fromFilePath({
-          baseDir: this.baseDir,
-          filePath: filepath,
-        });
-
-        toolCommands.push(geminiCliCommand);
-        logger.debug(`Successfully loaded Gemini CLI command: ${tomlFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Gemini CLI command file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolCommands.length} Gemini CLI commands`);
-    return toolCommands;
+  private async loadGeminicliCommands(): Promise<ToolCommand[]> {
+    return await this.loadToolCommandDefault({
+      toolTarget: "geminicli",
+      relativeDirPath: ".gemini/commands",
+      extension: "md",
+    });
   }
 
   /**
    * Load Roo Code command configurations from .roo/commands/ directory
    */
   private async loadRooCommands(): Promise<ToolCommand[]> {
-    const commandsDir = join(this.baseDir, ".roo", "commands");
-
-    // Check if directory exists
-    if (!(await directoryExists(commandsDir))) {
-      logger.warn(`Roo Code commands directory not found: ${commandsDir}`);
-      return [];
-    }
-
-    // Read all markdown files from the directory
-    const allMdFiles = await findFiles(commandsDir, ".md");
-    const mdFiles = allMdFiles.map((f) => basename(f));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No markdown command files found in ${commandsDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Roo Code command files in ${commandsDir}`);
-
-    // Parse all files and create ToolCommand instances
-    const toolCommands: ToolCommand[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(commandsDir, mdFile);
-
-      try {
-        const rooCommand = await RooCommand.fromFilePath({
-          baseDir: this.baseDir,
-          filePath: filepath,
-        });
-
-        toolCommands.push(rooCommand);
-        logger.debug(`Successfully loaded Roo Code command: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Roo Code command file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolCommands.length} Roo Code commands`);
-    return toolCommands;
-  }
-
-  async writeToolCommandsFromRulesyncCommands(rulesyncCommands: RulesyncCommand[]): Promise<void> {
-    const toolCommands = await this.convertRulesyncFilesToToolFiles(rulesyncCommands);
-    await this.writeAiFiles(toolCommands);
-  }
-
-  async writeRulesyncCommandsFromToolCommands(toolCommands: ToolCommand[]): Promise<void> {
-    const rulesyncCommands = await this.convertToolFilesToRulesyncFiles(toolCommands);
-    await this.writeAiFiles(rulesyncCommands);
+    return await this.loadToolCommandDefault({
+      toolTarget: "roo",
+      relativeDirPath: ".roo/commands",
+      extension: "md",
+    });
   }
 
   /**

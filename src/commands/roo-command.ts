@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { optional, z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
@@ -6,7 +6,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js"
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
-  ToolCommandFromFilePathParams,
+  ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
@@ -112,11 +112,12 @@ export class RooCommand extends ToolCommand {
     }
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    filePath,
+    relativeFilePath,
     validate = true,
-  }: ToolCommandFromFilePathParams): Promise<RooCommand> {
+  }: ToolCommandFromFileParams): Promise<RooCommand> {
+    const filePath = join(baseDir, ".roo", "commands", relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
@@ -130,7 +131,7 @@ export class RooCommand extends ToolCommand {
     return new RooCommand({
       baseDir: baseDir,
       relativeDirPath: ".roo/commands",
-      relativeFilePath: basename(filePath),
+      relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
       fileContent,

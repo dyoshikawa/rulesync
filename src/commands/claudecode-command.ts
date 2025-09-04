@@ -6,7 +6,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js"
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
-  ToolCommandFromFilePathParams,
+  ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
@@ -109,11 +109,12 @@ export class ClaudecodeCommand extends ToolCommand {
     }
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    filePath,
+    relativeFilePath,
     validate = true,
-  }: ToolCommandFromFilePathParams): Promise<ClaudecodeCommand> {
+  }: ToolCommandFromFileParams): Promise<ClaudecodeCommand> {
+    const filePath = join(baseDir, ".claude", "commands", relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
@@ -127,7 +128,7 @@ export class ClaudecodeCommand extends ToolCommand {
     return new ClaudecodeCommand({
       baseDir: baseDir,
       relativeDirPath: ".claude/commands",
-      relativeFilePath: basename(filePath),
+      relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
       validate,

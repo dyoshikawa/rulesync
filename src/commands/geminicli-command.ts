@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
@@ -8,7 +8,7 @@ import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
-  ToolCommandFromFilePathParams,
+  ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
@@ -121,18 +121,19 @@ ${geminiFrontmatter.prompt}
     });
   }
 
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
-    filePath,
+    relativeFilePath,
     validate = true,
-  }: ToolCommandFromFilePathParams): Promise<GeminiCliCommand> {
+  }: ToolCommandFromFileParams): Promise<GeminiCliCommand> {
+    const filePath = join(baseDir, ".gemini", "commands", relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
 
     return new GeminiCliCommand({
       baseDir: baseDir,
       relativeDirPath: ".gemini/commands",
-      relativeFilePath: basename(filePath),
+      relativeFilePath: basename(relativeFilePath),
       fileContent,
       validate,
     });
@@ -145,31 +146,5 @@ ${geminiFrontmatter.prompt}
     } catch (error) {
       return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
     }
-  }
-
-  private async processContent(content: string, args?: string): Promise<string> {
-    let processedContent = content;
-
-    // Process {{args}} placeholder
-    processedContent = this.processArgumentPlaceholder(processedContent, args);
-
-    // NOTE: Shell command execution feature removed for security reasons
-    // Commands with !{ } syntax will be left as-is in the output
-
-    return processedContent;
-  }
-
-  private processArgumentPlaceholder(content: string, args?: string): string {
-    if (content.includes("{{args}}")) {
-      // If {{args}} placeholder exists, replace it with arguments
-      return content.replace(/\{\{args\}\}/g, args || "");
-    }
-
-    // If no {{args}} placeholder and arguments are provided, append arguments
-    if (args) {
-      return `${content}\n\n${args}`;
-    }
-
-    return content;
   }
 }
