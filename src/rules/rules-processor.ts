@@ -342,6 +342,57 @@ export class RulesProcessor extends FeatureProcessor {
     }
   }
 
+  private async loadToolRulesDefault({
+    baseDir = ".",
+    rootPaths,
+    nonRootPaths,
+  }: {
+    baseDir?: string;
+    rootPaths?: { relativeDirPath?: string; relativeFilePath: string };
+    nonRootPaths?: { relativeDirPath: string };
+  }) {
+    const rootToolRules = await (async () => {
+      if (!rootPaths) {
+        return [];
+      }
+
+      const rootFilePaths = await findFilesByGlobs(
+        join(this.baseDir, rootPaths.relativeDirPath ?? ".", rootPaths.relativeFilePath),
+      );
+      return await Promise.all(
+        rootFilePaths.map((filePath) =>
+          ToolRule.fromFile({ relativeFilePath: basename(filePath) }),
+        ),
+      );
+    })();
+    logger.debug(`Found ${rootToolRules.length} root tool rule files`);
+
+    const nonRootToolRules = await (async () => {
+      if (!nonRootPaths) {
+        return [];
+      }
+
+      const nonRootFilePaths = await findFilesByGlobs(
+        join(this.baseDir, nonRootPaths.relativeDirPath),
+      );
+      return await Promise.all(
+        nonRootFilePaths.map((filePath) =>
+          ToolRule.fromFile({ relativeFilePath: basename(filePath) }),
+        ),
+      );
+    })();
+    logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
+
+    const results = await Promise.allSettled(
+      [...rootToolRules, ...nonRootToolRules].map((toolRule) =>
+        ToolRule.fromFile({ relativeFilePath: toolRule.getRelativeFilePath() }),
+      ),
+    );
+    return results
+      .filter((r): r is PromiseFulfilledResult<ToolRule> => r.status === "fulfilled")
+      .map((r) => r.value);
+  }
+
   /**
    * Load AGENTS.md rule configuration
    */
