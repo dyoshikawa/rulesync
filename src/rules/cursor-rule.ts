@@ -79,7 +79,7 @@ export class CursorRule extends ToolRule {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.relativeFilePath,
+      relativeFilePath: this.relativeFilePath.replace(/\.mdc$/, ".md"),
       validate: true,
     });
   }
