@@ -41,7 +41,7 @@ export class ClineRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<ClineRule> {
     // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".clinerules", relativeFilePath));
 
     return new ClineRule({
       baseDir: baseDir,
