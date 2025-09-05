@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
@@ -392,7 +392,7 @@ describe("IgnoreProcessor", () => {
 
       // Mock the toRulesyncIgnore method to return a proper mock
       const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
-      vi.spyOn(cursorIgnore, 'toRulesyncIgnore').mockReturnValue(mockRulesyncIgnore);
+      vi.spyOn(cursorIgnore, "toRulesyncIgnore").mockReturnValue(mockRulesyncIgnore);
 
       const processor = new IgnoreProcessor({
         baseDir: testDir,
