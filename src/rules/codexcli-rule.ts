@@ -17,9 +17,9 @@ export class CodexcliRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CodexcliRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     const isRoot = relativeFilePath === "AGENTS.md";
+    const relativePath = isRoot ? "AGENTS.md" : join(".codex/memories", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new CodexcliRule({
       baseDir,
