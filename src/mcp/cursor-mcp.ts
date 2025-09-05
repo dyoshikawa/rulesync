@@ -1,20 +1,29 @@
+import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
-import { ToolMcp, ToolMcpFromRulesyncMcpParams, ToolMcpParams } from "./tool-mcp.js";
+import {
+  ToolMcp,
+  ToolMcpFromFileParams,
+  ToolMcpFromRulesyncMcpParams,
+  ToolMcpParams,
+} from "./tool-mcp.js";
 
 export type CursorMcpParams = ToolMcpParams;
 
 export class CursorMcp extends ToolMcp {
-  static async fromFilePath({ filePath }: { filePath: string }): Promise<CursorMcp> {
-    const fileContent = await readFileContent(filePath);
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolMcpFromFileParams): Promise<CursorMcp> {
+    const fileContent = await readFileContent(join(baseDir, ".cursor/mcp.json"));
 
     return new CursorMcp({
       baseDir: ".",
       relativeDirPath: ".cursor",
       relativeFilePath: "mcp.json",
       fileContent,
-      validate: true,
+      validate,
     });
   }
 
