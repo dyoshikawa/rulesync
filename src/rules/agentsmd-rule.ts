@@ -22,11 +22,10 @@ export class AgentsMdRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AgentsMdRule> {
-    // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     // Determine if it's a root file based on path
     const isRoot = relativeFilePath === "AGENTS.md";
+    const relativePath = isRoot ? "AGENTS.md" : join(".agents/memories", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new AgentsMdRule({
       baseDir,
