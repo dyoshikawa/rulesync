@@ -24,7 +24,7 @@ export class KiroRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<KiroRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".kiro/steering", relativeFilePath));
 
     return new KiroRule({
       baseDir,
