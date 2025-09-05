@@ -1,6 +1,7 @@
 import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
+import { McpProcessor } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import { logger } from "../../utils/logger.js";
@@ -73,6 +74,28 @@ export async function importCommand(options: ImportOptions): Promise<void> {
     if (config.getVerbose() && ignoreFileCreated > 0) {
       logger.success(`Created ${ignoreFileCreated} ignore files`);
     }
+  }
+
+  // Create MCP files if mcp feature is enabled
+  let mcpCreated = 0;
+  if (config.getFeatures().includes("mcp")) {
+    if (McpProcessor.getToolTargets().includes(tool)) {
+      const mcpProcessor = new McpProcessor({
+        baseDir: ".",
+        toolTarget: tool,
+      });
+
+      const toolFiles = await mcpProcessor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+        const writtenCount = await mcpProcessor.writeAiFiles(rulesyncFiles);
+        mcpCreated = writtenCount;
+      }
+    }
+  }
+
+  if (config.getVerbose() && mcpCreated > 0) {
+    logger.success(`Created ${mcpCreated} MCP files`);
   }
 
   // Create subagent files if subagents feature is enabled

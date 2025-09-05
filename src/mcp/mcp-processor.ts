@@ -56,58 +56,62 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadToolFiles(): Promise<ToolFile[]> {
     try {
-      switch (this.toolTarget) {
-        case "amazonqcli": {
-          return [
-            await AmazonqcliMcp.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-            }),
-          ];
+      const toolMcps = await (async () => {
+        switch (this.toolTarget) {
+          case "amazonqcli": {
+            return [
+              await AmazonqcliMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          case "claudecode": {
+            return [
+              await ClaudecodeMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          case "cline": {
+            return [
+              await ClineMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          case "copilot": {
+            return [
+              await CopilotMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          case "cursor": {
+            return [
+              await CursorMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          case "roo": {
+            return [
+              await RooMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          default:
+            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
         }
-        case "claudecode": {
-          return [
-            await ClaudecodeMcp.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-            }),
-          ];
-        }
-        case "cline": {
-          return [
-            await ClineMcp.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-            }),
-          ];
-        }
-        case "copilot": {
-          return [
-            await CopilotMcp.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-            }),
-          ];
-        }
-        case "cursor": {
-          return [
-            await CursorMcp.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-            }),
-          ];
-        }
-        case "roo": {
-          return [
-            await RooMcp.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-            }),
-          ];
-        }
-        default:
-          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      }
+      })();
+      logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+      return toolMcps;
     } catch (error) {
       logger.debug(`No MCP files found for tool target: ${this.toolTarget}`, error);
       return [];
