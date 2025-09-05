@@ -56,11 +56,10 @@ export class AugmentcodeLegacyRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeLegacyRule> {
-    // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     // Determine if it's a root file
     const isRoot = relativeFilePath === ".augment-guidelines";
+    const relativePath = isRoot ? ".augment-guidelines" : join(".augment/rules", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new AugmentcodeLegacyRule({
       baseDir: baseDir,
