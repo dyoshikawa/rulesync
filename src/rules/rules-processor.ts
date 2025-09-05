@@ -545,7 +545,7 @@ export class RulesProcessor extends FeatureProcessor {
       nonRoot: {
         relativeDirPath: ".cursor/rules",
         fromFile: (params) => CursorRule.fromFile(params),
-        extension: "md",
+        extension: "mdc",
       },
     });
   }

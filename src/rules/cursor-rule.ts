@@ -68,6 +68,11 @@ export class CursorRule extends ToolRule {
       root: false,
       description: this.frontmatter.description,
       globs,
+      cursor: {
+        alwaysApply: this.frontmatter.alwaysApply,
+        description: this.frontmatter.description,
+        globs: globs.length > 0 ? globs : undefined,
+      },
     };
 
     return new RulesyncRule({
