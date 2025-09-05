@@ -1,10 +1,10 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { directoryExists, listDirectoryFiles } from "../utils/file.js";
+import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -91,8 +91,9 @@ export class SubagentsProcessor extends FeatureProcessor {
       const filepath = join(subagentsDir, mdFile);
 
       try {
-        const rulesyncSubagent = await RulesyncSubagent.fromFilePath({
-          filePath: filepath,
+        const rulesyncSubagent = await RulesyncSubagent.fromFile({
+          relativeFilePath: mdFile,
+          validate: true,
         });
 
         rulesyncSubagents.push(rulesyncSubagent);
@@ -129,56 +130,30 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load Claude Code subagent configurations from .claude/agents/ directory
    */
   private async loadClaudecodeSubagents(): Promise<ToolSubagent[]> {
-    const agentsDir = join(this.baseDir, ".claude", "agents");
-
-    // Check if directory exists
-    if (!(await directoryExists(agentsDir))) {
-      logger.warn(`Claude Code agents directory not found: ${agentsDir}`);
-      return [];
-    }
-
-    // Read all markdown files from the directory
-    let entries: string[];
-    try {
-      entries = await listDirectoryFiles(agentsDir);
-    } catch (error) {
-      logger.warn(`Failed to read Claude Code agents directory ${agentsDir}:`, error);
-      return [];
-    }
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.info(`No JSON agent files found in ${agentsDir}`);
-      return [];
-    }
-
-    logger.info(`Found ${mdFiles.length} Claude Code agent files in ${agentsDir}`);
-
-    // Parse all files and create ToolSubagent instances
-    const toolSubagents: ToolSubagent[] = [];
-
-    for (const mdFile of mdFiles) {
-      const filepath = join(agentsDir, mdFile);
-
-      try {
-        const claudecodeSubagent = await ClaudecodeSubagent.fromFilePath({
-          baseDir: this.baseDir,
-          relativeDirPath: ".claude/agents",
-          relativeFilePath: mdFile,
-          filePath: filepath,
-        });
-
-        toolSubagents.push(claudecodeSubagent);
-        logger.debug(`Successfully loaded Claude Code agent: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load Claude Code agent file ${filepath}:`, error);
-        continue;
-      }
-    }
-
-    logger.info(`Successfully loaded ${toolSubagents.length} Claude Code subagents`);
-    return toolSubagents;
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: ".claude/agents",
+      fromFile: (relativeFilePath) => ClaudecodeSubagent.fromFile({ relativeFilePath }),
+    });
   }
+
+  private async loadToolSubagentsDefault({
+    relativeDirPath,
+    fromFile,
+  }: {
+    relativeDirPath: string;
+    fromFile: (relativeFilePath: string) => Promise<ToolSubagent>;
+  }): Promise<ToolSubagent[]> {
+    const paths = await findFilesByGlobs(join(this.baseDir, relativeDirPath, "*.md"));
+
+    const subagents = (await Promise.allSettled(paths.map((path) => fromFile(basename(path)))))
+      .filter((r): r is PromiseFulfilledResult<ToolSubagent> => r.status === "fulfilled")
+      .map((r) => r.value);
+
+    logger.info(`Successfully loaded ${subagents.length} ${relativeDirPath} subagents`);
+
+    return subagents;
+  }
+
   /**
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
