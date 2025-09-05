@@ -24,7 +24,7 @@ import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule } from "./tool-rule.js";
+import { ToolRule, ToolRuleFromFileParams } from "./tool-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { WindsurfRule } from "./windsurf-rule.js";
 
@@ -338,160 +338,59 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   private async loadToolRulesDefault({
-    toolTarget,
-    rootPaths,
-    nonRootPaths,
+    root,
+    nonRoot,
   }: {
-    toolTarget: RulesProcessorToolTarget;
-    rootPaths?: { relativeDirPath?: string; relativeFilePath: string };
-    nonRootPaths?: { relativeDirPath: string };
+    root?: {
+      relativeDirPath: string;
+      relativeFilePath: string;
+      fromFile: (params: ToolRuleFromFileParams) => Promise<ToolRule>;
+    };
+    nonRoot?: {
+      relativeFilePath: string;
+      fromFile: (params: ToolRuleFromFileParams) => Promise<ToolRule>;
+      extension: "md" | "mdc";
+    };
   }) {
     const rootToolRules = await (async () => {
-      if (!rootPaths) {
+      if (!root) {
         return [];
       }
 
       const rootFilePaths = await findFilesByGlobs(
-        join(this.baseDir, rootPaths.relativeDirPath ?? ".", rootPaths.relativeFilePath),
+        join(this.baseDir, root.relativeDirPath ?? ".", root.relativeFilePath),
       );
       return await Promise.all(
-        rootFilePaths.map((filePath) => {
-          switch (toolTarget) {
-            case "agentsmd":
-              return AgentsMdRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "amazonqcli":
-              return AmazonQCliRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "augmentcode":
-              return AugmentcodeRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "augmentcode-legacy":
-              return AugmentcodeLegacyRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "claudecode":
-              return ClaudecodeRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "cline":
-              return ClineRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "codexcli":
-              return CodexcliRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "copilot":
-              return CopilotRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "cursor":
-              return CursorRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "geminicli":
-              return GeminiCliRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "junie":
-              return JunieRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "kiro":
-              return KiroRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "opencode":
-              return OpenCodeRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "qwencode":
-              return QwencodeRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "roo":
-              return RooRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "warp":
-              return WarpRule.fromFile({ relativeFilePath: basename(filePath) });
-            case "windsurf":
-              return WindsurfRule.fromFile({ relativeFilePath: basename(filePath) });
-            default:
-              throw new Error(`Unsupported tool target: ${toolTarget}`);
-          }
-        }),
+        rootFilePaths.map((filePath) =>
+          root.fromFile({
+            baseDir: this.baseDir,
+            relativeFilePath: basename(filePath),
+          }),
+        ),
       );
     })();
     logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
     const nonRootToolRules = await (async () => {
-      if (!nonRootPaths) {
+      if (!nonRoot) {
         return [];
       }
 
       const nonRootFilePaths = await findFilesByGlobs(
-        join(this.baseDir, nonRootPaths.relativeDirPath),
+        join(this.baseDir, nonRoot.relativeFilePath, `.${nonRoot.extension}`),
       );
       return await Promise.all(
         nonRootFilePaths.map((filePath) =>
-          ToolRule.fromFile({ relativeFilePath: basename(filePath) }),
+          nonRoot.fromFile({
+            baseDir: this.baseDir,
+            relativeFilePath: basename(filePath),
+          }),
         ),
       );
     })();
     logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
-    const results = await Promise.allSettled(
-      [...rootToolRules, ...nonRootToolRules].map((toolRule) => {
-        switch (toolTarget) {
-          case "agentsmd":
-            return AgentsMdRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "amazonqcli":
-            return AmazonQCliRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "augmentcode":
-            return AugmentcodeRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "augmentcode-legacy":
-            return AugmentcodeLegacyRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "claudecode":
-            return ClaudecodeRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "cline":
-            return ClineRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "codexcli":
-            return CodexcliRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "copilot":
-            return CopilotRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "cursor":
-            return CursorRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "geminicli":
-            return GeminiCliRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "junie":
-            return JunieRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "kiro":
-            return KiroRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "opencode":
-            return OpenCodeRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "qwencode":
-            return QwencodeRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "roo":
-            return RooRule.fromFile({ relativeFilePath: basename(toolRule.getRelativeFilePath()) });
-          case "warp":
-            return WarpRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          case "windsurf":
-            return WindsurfRule.fromFile({
-              relativeFilePath: basename(toolRule.getRelativeFilePath()),
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${toolTarget}`);
-        }
-      }),
-    );
-    return results
-      .filter((r): r is PromiseFulfilledResult<ToolRule> => r.status === "fulfilled")
-      .map((r) => r.value);
+    return [...rootToolRules, ...nonRootToolRules];
   }
 
   /**
@@ -499,17 +398,31 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadAgentsmdRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "agentsmd",
-      rootPaths: { relativeFilePath: "AGENTS.md" },
-      nonRootPaths: { relativeDirPath: ".agents/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        fromFile: (params) => AgentsMdRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".agents/memories",
+        fromFile: (params) => AgentsMdRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
   private async loadWarpRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "warp",
-      rootPaths: { relativeFilePath: "WARP.md" },
-      nonRootPaths: { relativeDirPath: ".warp/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "WARP.md",
+        fromFile: (params) => WarpRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".warp/memories",
+        fromFile: (params) => WarpRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -518,8 +431,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadAmazonqcliRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "amazonqcli",
-      nonRootPaths: { relativeDirPath: ".amazonq/rules" },
+      nonRoot: {
+        relativeFilePath: ".amazonq/rules",
+        fromFile: (params) => AmazonQCliRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -528,8 +444,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadAugmentcodeRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "augmentcode",
-      nonRootPaths: { relativeDirPath: ".augment/rules" },
+      nonRoot: {
+        relativeFilePath: ".augment/rules",
+        fromFile: (params) => AugmentcodeRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -538,9 +457,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadAugmentcodeLegacyRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "augmentcode-legacy",
-      rootPaths: { relativeFilePath: ".augment-guidelines" },
-      nonRootPaths: { relativeDirPath: ".augment/rules" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: ".augment-guidelines",
+        fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".augment/rules",
+        fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -549,9 +475,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "claudecode",
-      rootPaths: { relativeFilePath: "CLAUDE.md" },
-      nonRootPaths: { relativeDirPath: ".claude/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "CLAUDE.md",
+        fromFile: (params) => ClaudecodeRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".claude/memories",
+        fromFile: (params) => ClaudecodeRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -560,8 +493,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadClineRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "cline",
-      nonRootPaths: { relativeDirPath: ".clinerules" },
+      nonRoot: {
+        relativeFilePath: ".clinerules",
+        fromFile: (params) => ClineRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -570,9 +506,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadCodexcliRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "codexcli",
-      rootPaths: { relativeFilePath: "AGENTS.md" },
-      nonRootPaths: { relativeDirPath: ".codex/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        fromFile: (params) => CodexcliRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".codex/memories",
+        fromFile: (params) => CodexcliRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -581,9 +524,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadCopilotRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "copilot",
-      rootPaths: { relativeFilePath: ".github/copilot-instructions.md" },
-      nonRootPaths: { relativeDirPath: ".github/instructions" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: ".github/copilot-instructions.md",
+        fromFile: (params) => CopilotRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".github/instructions",
+        fromFile: (params) => CopilotRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -592,8 +542,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadCursorRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "cursor",
-      nonRootPaths: { relativeDirPath: ".cursor/rules" },
+      nonRoot: {
+        relativeFilePath: ".cursor/rules",
+        fromFile: (params) => CursorRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -602,8 +555,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadGeminicliRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "geminicli",
-      rootPaths: { relativeFilePath: "GEMINI.md" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "GEMINI.md",
+        fromFile: (params) => GeminiCliRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".gemini/memories",
+        fromFile: (params) => GeminiCliRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -612,9 +573,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadJunieRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "junie",
-      rootPaths: { relativeDirPath: ".junie", relativeFilePath: "guidelines.md" },
-      nonRootPaths: { relativeDirPath: ".junie/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: ".junie/guidelines.md",
+        fromFile: (params) => JunieRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".junie/memories",
+        fromFile: (params) => JunieRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -623,8 +591,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadKiroRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "kiro",
-      nonRootPaths: { relativeDirPath: ".kiro/steering" },
+      nonRoot: {
+        relativeFilePath: ".kiro/steering",
+        fromFile: (params) => KiroRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -633,9 +604,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadOpencodeRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "opencode",
-      rootPaths: { relativeFilePath: "AGENTS.md" },
-      nonRootPaths: { relativeDirPath: ".opencode/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        fromFile: (params) => OpenCodeRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".opencode/memories",
+        fromFile: (params) => OpenCodeRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -644,9 +622,16 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadQwencodeRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "qwencode",
-      rootPaths: { relativeFilePath: "QWEN.md" },
-      nonRootPaths: { relativeDirPath: ".qwen/memories" },
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "QWEN.md",
+        fromFile: (params) => QwencodeRule.fromFile(params),
+      },
+      nonRoot: {
+        relativeFilePath: ".qwen/memories",
+        fromFile: (params) => QwencodeRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -655,8 +640,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadRooRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "roo",
-      nonRootPaths: { relativeDirPath: ".roo/rules" },
+      nonRoot: {
+        relativeFilePath: ".roo/rules",
+        fromFile: (params) => RooRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
@@ -665,8 +653,11 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private async loadWindsurfRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
-      toolTarget: "windsurf",
-      nonRootPaths: { relativeDirPath: ".windsurf/rules" },
+      nonRoot: {
+        relativeFilePath: ".windsurf/rules",
+        fromFile: (params) => WindsurfRule.fromFile(params),
+        extension: "md",
+      },
     });
   }
 
