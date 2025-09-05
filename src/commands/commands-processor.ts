@@ -4,7 +4,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { findFiles, findFilesByGlobs } from "../utils/file.js";
+import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -75,7 +75,7 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load and parse rulesync command files from .rulesync/commands/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncCommandPaths = await findFiles(join(".rulesync", "commands", "*.md"));
+    const rulesyncCommandPaths = await findFilesByGlobs(join(".rulesync", "commands", "*.md"));
 
     const rulesyncCommands = (
       await Promise.allSettled(
