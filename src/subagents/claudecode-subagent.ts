@@ -98,7 +98,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
       baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
       body,
-      relativeDirPath: ".claude/subagents",
+      relativeDirPath: ".claude/agents",
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       fileContent,
       validate,
@@ -125,7 +125,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     validate = true,
   }: ToolSubagentFromFileParams): Promise<ClaudecodeSubagent> {
     // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".claude/agents", relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
@@ -136,7 +136,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
 
     return new ClaudecodeSubagent({
       baseDir: baseDir,
-      relativeDirPath: ".claude/subagents",
+      relativeDirPath: ".claude/agents",
       relativeFilePath: relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
