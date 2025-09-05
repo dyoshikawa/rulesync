@@ -1,6 +1,10 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import type {
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
 export class QwencodeIgnore extends ToolIgnore {
@@ -20,14 +24,18 @@ export class QwencodeIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<QwencodeIgnore> {
-    const fileContent = await readFileContent(".geminiignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<QwencodeIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".geminiignore"));
 
     return new QwencodeIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".geminiignore",
       fileContent,
+      validate,
     });
   }
 }

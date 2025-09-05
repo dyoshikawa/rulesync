@@ -1,6 +1,11 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 
 /**
  * ClineIgnore represents ignore patterns for the Cline VSCode extension.
@@ -40,14 +45,18 @@ export class ClineIgnore extends ToolIgnore {
   /**
    * Load ClineIgnore from .clineignore file
    */
-  static async fromFile(): Promise<ClineIgnore> {
-    const fileContent = await readFileContent(".clineignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<ClineIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".clineignore"));
 
     return new ClineIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".clineignore",
       fileContent,
+      validate,
     });
   }
 }

@@ -1,6 +1,12 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreParams,
+} from "./tool-ignore.js";
 
 export type CodexcliIgnoreParams = {
   patterns?: string[];
@@ -26,15 +32,18 @@ export class CodexcliIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<CodexcliIgnore> {
-    const fileContent = await readFileContent(".codexignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<CodexcliIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".codexignore"));
 
     return new CodexcliIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".codexignore",
       fileContent: fileContent,
-      validate: true, // Skip validation to allow empty patterns
+      validate,
     });
   }
 }

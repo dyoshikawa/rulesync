@@ -1,6 +1,12 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreParams,
+} from "./tool-ignore.js";
 
 export type AugmentcodeIgnoreParams = ToolIgnoreParams;
 
@@ -51,14 +57,18 @@ export class AugmentcodeIgnore extends ToolIgnore {
    * Create AugmentcodeIgnore from file path
    * Reads and parses .augmentignore file
    */
-  static async fromFile(): Promise<AugmentcodeIgnore> {
-    const fileContent = await readFileContent(".augmentignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<AugmentcodeIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".augmentignore"));
 
     return new AugmentcodeIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".augmentignore",
       fileContent,
+      validate,
     });
   }
 }

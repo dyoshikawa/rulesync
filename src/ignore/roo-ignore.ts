@@ -1,6 +1,11 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 
 /**
  * RooIgnore represents ignore patterns for the Roo Code AI coding assistant.
@@ -32,14 +37,18 @@ export class RooIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<RooIgnore> {
-    const fileContent = await readFileContent(".rooignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<RooIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".rooignore"));
 
     return new RooIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".rooignore",
       fileContent,
+      validate,
     });
   }
 }

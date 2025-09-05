@@ -1,6 +1,11 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 
 export class KiroIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
@@ -19,14 +24,18 @@ export class KiroIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<KiroIgnore> {
-    const fileContent = await readFileContent(".aiignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<KiroIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".aiignore"));
 
     return new KiroIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".aiignore",
       fileContent,
+      validate,
     });
   }
 }

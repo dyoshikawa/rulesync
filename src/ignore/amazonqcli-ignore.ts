@@ -1,6 +1,12 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams, ToolIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreParams,
+} from "./tool-ignore.js";
 
 export type AmazonqcliIgnoreParams = ToolIgnoreParams;
 
@@ -47,14 +53,18 @@ export class AmazonqcliIgnore extends ToolIgnore {
    * Create AmazonqcliIgnore from file path
    * Supports both proposed .q-ignore and .amazonqignore formats
    */
-  static async fromFile(): Promise<AmazonqcliIgnore> {
-    const fileContent = await readFileContent(".amazonqignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<AmazonqcliIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".amazonqignore"));
 
     return new AmazonqcliIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".amazonqignore",
       fileContent,
+      validate,
     });
   }
 }

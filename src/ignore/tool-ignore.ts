@@ -11,8 +11,7 @@ export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   rulesyncIgnore: RulesyncIgnore;
 };
 
-export type ToolIgnoreFromFileParams = AiFileFromFileParams;
-
+export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
 export abstract class ToolIgnore extends ToolFile {
   protected readonly patterns: string[];
 

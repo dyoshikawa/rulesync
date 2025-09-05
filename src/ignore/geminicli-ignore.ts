@@ -1,6 +1,10 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import type { ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import type {
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
 /**
@@ -29,14 +33,18 @@ export class GeminiCliIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<GeminiCliIgnore> {
-    const fileContent = await readFileContent(".aiexclude");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<GeminiCliIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".aiexclude"));
 
     return new GeminiCliIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".aiexclude",
       fileContent,
+      validate,
     });
   }
 }

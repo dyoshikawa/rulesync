@@ -80,25 +80,25 @@ export class IgnoreProcessor extends FeatureProcessor {
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     switch (this.toolTarget) {
       case "augmentcode":
-        return [await AugmentcodeIgnore.fromFile()];
+        return [await AugmentcodeIgnore.fromFile({ baseDir: this.baseDir })];
       case "cline":
-        return [await ClineIgnore.fromFile()];
+        return [await ClineIgnore.fromFile({ baseDir: this.baseDir })];
       case "codexcli":
-        return [await CodexcliIgnore.fromFile()];
+        return [await CodexcliIgnore.fromFile({ baseDir: this.baseDir })];
       case "cursor":
-        return [await CursorIgnore.fromFile()];
+        return [await CursorIgnore.fromFile({ baseDir: this.baseDir })];
       case "geminicli":
-        return [await GeminiCliIgnore.fromFile()];
+        return [await GeminiCliIgnore.fromFile({ baseDir: this.baseDir })];
       case "junie":
-        return [await JunieIgnore.fromFile()];
+        return [await JunieIgnore.fromFile({ baseDir: this.baseDir })];
       case "kiro":
-        return [await KiroIgnore.fromFile()];
+        return [await KiroIgnore.fromFile({ baseDir: this.baseDir })];
       case "qwencode":
-        return [await QwencodeIgnore.fromFile()];
+        return [await QwencodeIgnore.fromFile({ baseDir: this.baseDir })];
       case "roo":
-        return [await RooIgnore.fromFile()];
+        return [await RooIgnore.fromFile({ baseDir: this.baseDir })];
       case "windsurf":
-        return [await WindsurfIgnore.fromFile()];
+        return [await WindsurfIgnore.fromFile({ baseDir: this.baseDir })];
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }

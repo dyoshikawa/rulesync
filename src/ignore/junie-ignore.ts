@@ -1,6 +1,11 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 
 export class JunieIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
@@ -19,14 +24,18 @@ export class JunieIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<JunieIgnore> {
-    const fileContent = await readFileContent(".junieignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<JunieIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".junieignore"));
 
     return new JunieIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".junieignore",
       fileContent,
+      validate,
     });
   }
 }

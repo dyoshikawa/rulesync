@@ -1,6 +1,11 @@
+import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { ToolIgnore, ToolIgnoreFromRulesyncIgnoreParams } from "./tool-ignore.js";
+import {
+  ToolIgnore,
+  ToolIgnoreFromFileParams,
+  ToolIgnoreFromRulesyncIgnoreParams,
+} from "./tool-ignore.js";
 
 export class CursorIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
@@ -26,14 +31,18 @@ export class CursorIgnore extends ToolIgnore {
     });
   }
 
-  static async fromFile(): Promise<CursorIgnore> {
-    const fileContent = await readFileContent(".cursorignore");
+  static async fromFile({
+    baseDir = ".",
+    validate = true,
+  }: ToolIgnoreFromFileParams): Promise<CursorIgnore> {
+    const fileContent = await readFileContent(join(baseDir, ".cursorignore"));
 
     return new CursorIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".cursorignore",
       fileContent,
+      validate,
     });
   }
 }
