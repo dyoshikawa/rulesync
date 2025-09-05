@@ -16,7 +16,7 @@ export class WindsurfRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<WindsurfRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".windsurf/rules", relativeFilePath));
 
     return new WindsurfRule({
       baseDir,
