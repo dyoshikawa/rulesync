@@ -11,7 +11,7 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
   rulesyncMcp: RulesyncMcp;
 };
 
-export type ToolMcpFromFileParams = AiFileFromFileParams;
+export type ToolMcpFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
 
 export abstract class ToolMcp extends ToolFile {
   protected readonly json: Record<string, unknown>;
