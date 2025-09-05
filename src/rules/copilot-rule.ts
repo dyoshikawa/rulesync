@@ -115,11 +115,12 @@ export class CopilotRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CopilotRule> {
-    // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     // Determine if this is a root file based on the file path
     const isRoot = relativeFilePath === "copilot-instructions.md";
+    const relativePath = isRoot
+      ? "copilot-instructions.md"
+      : join(".github/instructions", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     if (isRoot) {
       // Root file: no frontmatter expected
