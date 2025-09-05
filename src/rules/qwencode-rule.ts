@@ -23,9 +23,9 @@ export class QwencodeRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     const isRoot = relativeFilePath === "QWEN.md";
+    const relativePath = isRoot ? "QWEN.md" : join(".qwencode/memories", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new QwencodeRule({
       baseDir,
