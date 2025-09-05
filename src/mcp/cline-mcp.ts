@@ -19,7 +19,7 @@ export class ClineMcp extends ToolMcp {
     const fileContent = await readFileContent(join(baseDir, ".cline/mcp.json"));
 
     return new ClineMcp({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".cline",
       relativeFilePath: "mcp.json",
       fileContent,
