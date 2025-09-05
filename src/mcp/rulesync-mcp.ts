@@ -2,13 +2,19 @@ import { join } from "node:path";
 import { RULESYNC_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
-import { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
+import {
+  RulesyncFile,
+  RulesyncFileFromFileParams,
+  RulesyncFileParams,
+} from "../types/rulesync-file.js";
 import { readFileContent } from "../utils/file.js";
 
 export type RulesyncMcpParams = RulesyncFileParams;
 
 // Re-export schema for validation consistency
 export { RulesyncMcpConfigSchema as RulesyncMcpJsonSchema };
+
+export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: Record<string, unknown>;
@@ -30,7 +36,7 @@ export class RulesyncMcp extends RulesyncFile {
     return { success: true, error: null };
   }
 
-  static async fromFile(): Promise<RulesyncMcp> {
+  static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
     const fileContent = await readFileContent(join(RULESYNC_DIR, ".mcp.json"));
 
     return new RulesyncMcp({
@@ -38,7 +44,7 @@ export class RulesyncMcp extends RulesyncFile {
       relativeDirPath: RULESYNC_DIR,
       relativeFilePath: ".mcp.json",
       fileContent,
-      validate: true,
+      validate,
     });
   }
 
