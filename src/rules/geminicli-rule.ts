@@ -20,9 +20,9 @@ export class GeminiCliRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<GeminiCliRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     const isRoot = relativeFilePath === "GEMINI.md";
+    const relativePath = isRoot ? "GEMINI.md" : join(".gemini/memories", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new GeminiCliRule({
       baseDir,
