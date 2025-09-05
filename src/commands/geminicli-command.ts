@@ -51,7 +51,7 @@ export class GeminiCliCommand extends ToolCommand {
     }
   }
 
-  protected parseCommandFile(content: string): ParsedCommand {
+  private parseCommandFile(content: string): ParsedCommand {
     const parsed = this.parseTomlContent(content);
     return {
       filename: "unknown.toml",
