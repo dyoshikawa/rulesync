@@ -24,7 +24,7 @@ export class RooRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<RooRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".roo/rules", relativeFilePath));
 
     return new RooRule({
       baseDir,
