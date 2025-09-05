@@ -32,7 +32,7 @@ export class AugmentcodeRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".augment/rules", relativeFilePath));
     const { body: content } = parseFrontmatter(fileContent);
 
     return new AugmentcodeRule({
