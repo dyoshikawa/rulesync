@@ -17,7 +17,7 @@ export class AmazonQCliRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AmazonQCliRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".amazonq/rules", relativeFilePath));
 
     return new AmazonQCliRule({
       baseDir,
