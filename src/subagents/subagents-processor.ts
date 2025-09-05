@@ -10,7 +10,7 @@ import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
 
-const subagentsProcessorToolTargets: ToolTarget[] = ["claudecode"];
+export const subagentsProcessorToolTargets: ToolTarget[] = ["claudecode"];
 export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
 
 export type SubagentsProcessorToolTarget = z.infer<typeof SubagentsProcessorToolTargetSchema>;
