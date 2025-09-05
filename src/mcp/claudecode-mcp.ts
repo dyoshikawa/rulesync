@@ -12,7 +12,7 @@ export class ClaudecodeMcp extends ToolMcp {
     const fileContent = await readFileContent(join(baseDir, ".mcp.json"));
 
     return new ClaudecodeMcp({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: ".",
       relativeFilePath: ".mcp.json",
       fileContent,
