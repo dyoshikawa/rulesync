@@ -347,7 +347,7 @@ export class RulesProcessor extends FeatureProcessor {
       fromFile: (params: ToolRuleFromFileParams) => Promise<ToolRule>;
     };
     nonRoot?: {
-      relativeFilePath: string;
+      relativeDirPath: string;
       fromFile: (params: ToolRuleFromFileParams) => Promise<ToolRule>;
       extension: "md" | "mdc";
     };
@@ -377,7 +377,7 @@ export class RulesProcessor extends FeatureProcessor {
       }
 
       const nonRootFilePaths = await findFilesByGlobs(
-        join(this.baseDir, nonRoot.relativeFilePath, `*.${nonRoot.extension}`),
+        join(this.baseDir, nonRoot.relativeDirPath, `*.${nonRoot.extension}`),
       );
       return await Promise.all(
         nonRootFilePaths.map((filePath) =>
@@ -404,7 +404,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => AgentsMdRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".agents/memories",
+        relativeDirPath: ".agents/memories",
         fromFile: (params) => AgentsMdRule.fromFile(params),
         extension: "md",
       },
@@ -419,7 +419,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => WarpRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".warp/memories",
+        relativeDirPath: ".warp/memories",
         fromFile: (params) => WarpRule.fromFile(params),
         extension: "md",
       },
@@ -432,7 +432,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadAmazonqcliRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".amazonq/rules",
+        relativeDirPath: ".amazonq/rules",
         fromFile: (params) => AmazonQCliRule.fromFile(params),
         extension: "md",
       },
@@ -445,7 +445,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadAugmentcodeRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".augment/rules",
+        relativeDirPath: ".augment/rules",
         fromFile: (params) => AugmentcodeRule.fromFile(params),
         extension: "md",
       },
@@ -463,7 +463,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".augment/rules",
+        relativeDirPath: ".augment/rules",
         fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
         extension: "md",
       },
@@ -481,7 +481,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => ClaudecodeRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".claude/memories",
+        relativeDirPath: ".claude/memories",
         fromFile: (params) => ClaudecodeRule.fromFile(params),
         extension: "md",
       },
@@ -494,7 +494,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadClineRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".clinerules",
+        relativeDirPath: ".clinerules",
         fromFile: (params) => ClineRule.fromFile(params),
         extension: "md",
       },
@@ -512,7 +512,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => CodexcliRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".codex/memories",
+        relativeDirPath: ".codex/memories",
         fromFile: (params) => CodexcliRule.fromFile(params),
         extension: "md",
       },
@@ -530,7 +530,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => CopilotRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".github/instructions",
+        relativeDirPath: ".github/instructions",
         fromFile: (params) => CopilotRule.fromFile(params),
         extension: "md",
       },
@@ -543,7 +543,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadCursorRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".cursor/rules",
+        relativeDirPath: ".cursor/rules",
         fromFile: (params) => CursorRule.fromFile(params),
         extension: "md",
       },
@@ -561,7 +561,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => GeminiCliRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".gemini/memories",
+        relativeDirPath: ".gemini/memories",
         fromFile: (params) => GeminiCliRule.fromFile(params),
         extension: "md",
       },
@@ -579,7 +579,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => JunieRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".junie/memories",
+        relativeDirPath: ".junie/memories",
         fromFile: (params) => JunieRule.fromFile(params),
         extension: "md",
       },
@@ -592,7 +592,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadKiroRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".kiro/steering",
+        relativeDirPath: ".kiro/steering",
         fromFile: (params) => KiroRule.fromFile(params),
         extension: "md",
       },
@@ -610,7 +610,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => OpenCodeRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".opencode/memories",
+        relativeDirPath: ".opencode/memories",
         fromFile: (params) => OpenCodeRule.fromFile(params),
         extension: "md",
       },
@@ -628,7 +628,7 @@ export class RulesProcessor extends FeatureProcessor {
         fromFile: (params) => QwencodeRule.fromFile(params),
       },
       nonRoot: {
-        relativeFilePath: ".qwen/memories",
+        relativeDirPath: ".qwen/memories",
         fromFile: (params) => QwencodeRule.fromFile(params),
         extension: "md",
       },
@@ -641,7 +641,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadRooRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".roo/rules",
+        relativeDirPath: ".roo/rules",
         fromFile: (params) => RooRule.fromFile(params),
         extension: "md",
       },
@@ -654,7 +654,7 @@ export class RulesProcessor extends FeatureProcessor {
   private async loadWindsurfRules(): Promise<ToolRule[]> {
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeFilePath: ".windsurf/rules",
+        relativeDirPath: ".windsurf/rules",
         fromFile: (params) => WindsurfRule.fromFile(params),
         extension: "md",
       },
