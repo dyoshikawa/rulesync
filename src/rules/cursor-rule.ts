@@ -119,7 +119,7 @@ export class CursorRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
+    const fileContent = await readFileContent(join(baseDir, ".cursor/rules", relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CursorRuleFrontmatterSchema
