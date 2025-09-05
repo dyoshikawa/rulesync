@@ -377,7 +377,7 @@ export class RulesProcessor extends FeatureProcessor {
       }
 
       const nonRootFilePaths = await findFilesByGlobs(
-        join(this.baseDir, nonRoot.relativeFilePath, `.${nonRoot.extension}`),
+        join(this.baseDir, nonRoot.relativeFilePath, `*.${nonRoot.extension}`),
       );
       return await Promise.all(
         nonRootFilePaths.map((filePath) =>
