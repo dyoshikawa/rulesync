@@ -1,7 +1,7 @@
 import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
-import { RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
+import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
@@ -272,10 +272,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
-    logger.debug(`Found ${legacyFiles.length} rulesync files`);
+    const files = await findFilesByGlobs(join(RULESYNC_RULES_DIR, "*.md"));
+    logger.debug(`Found ${files.length} rulesync files`);
     return Promise.all(
-      legacyFiles.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
+      files.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
     );
   }
 
