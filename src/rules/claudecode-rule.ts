@@ -16,9 +16,9 @@ export class ClaudecodeRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<ClaudecodeRule> {
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
     const isRoot = relativeFilePath === "CLAUDE.md";
+    const relativePath = isRoot ? "CLAUDE.md" : join(".claude/memories", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new ClaudecodeRule({
       baseDir,
