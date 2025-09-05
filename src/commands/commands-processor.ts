@@ -4,7 +4,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { findFiles } from "../utils/file.js";
+import { findFiles, findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -117,7 +117,9 @@ export class CommandsProcessor extends FeatureProcessor {
     relativeDirPath: string;
     extension: "md" | "toml";
   }): Promise<ToolCommand[]> {
-    const commandFilePaths = await findFiles(join(this.baseDir, relativeDirPath), `*.${extension}`);
+    const commandFilePaths = await findFilesByGlobs(
+      join(this.baseDir, relativeDirPath, `*.${extension}`),
+    );
 
     const toolCommands = (
       await Promise.allSettled(
