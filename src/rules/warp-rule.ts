@@ -22,11 +22,9 @@ export class WarpRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<WarpRule> {
-    // Read file content
-    const fileContent = await readFileContent(join(baseDir, relativeFilePath));
-
-    // Determine if it's a root file based on path
     const isRoot = relativeFilePath === "WARP.md";
+    const relativePath = isRoot ? "WARP.md" : join(".warp/memories", relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new WarpRule({
       baseDir,
