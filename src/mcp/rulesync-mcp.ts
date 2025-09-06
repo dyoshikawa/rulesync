@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { RULESYNC_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcpConfigSchema } from "../types/mcp.js";
 import {
@@ -15,6 +14,11 @@ export type RulesyncMcpParams = RulesyncFileParams;
 export { RulesyncMcpConfigSchema as RulesyncMcpJsonSchema };
 
 export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
+
+export type RulesyncMcpSettablePaths = {
+  relativeDirPath: string;
+  relativeFilePath: string;
+};
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: Record<string, unknown>;
@@ -32,17 +36,26 @@ export class RulesyncMcp extends RulesyncFile {
     }
   }
 
+  static getSettablePaths(): RulesyncMcpSettablePaths {
+    return {
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+    };
+  }
+
   validate(): ValidationResult {
     return { success: true, error: null };
   }
 
   static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
-    const fileContent = await readFileContent(join(RULESYNC_DIR, ".mcp.json"));
+    const fileContent = await readFileContent(
+      join(this.getSettablePaths().relativeDirPath, this.getSettablePaths().relativeFilePath),
+    );
 
     return new RulesyncMcp({
       baseDir: ".",
-      relativeDirPath: RULESYNC_DIR,
-      relativeFilePath: ".mcp.json",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
