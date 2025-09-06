@@ -397,14 +397,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load AGENTS.md rule configuration
    */
   private async loadAgentsmdRules(): Promise<ToolRule[]> {
+    const settablePaths = AgentsMdRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => AgentsMdRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".agents/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => AgentsMdRule.fromFile(params),
         extension: "md",
       },
@@ -412,14 +413,15 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   private async loadWarpRules(): Promise<ToolRule[]> {
+    const settablePaths = WarpRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "WARP.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => WarpRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".warp/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => WarpRule.fromFile(params),
         extension: "md",
       },
@@ -430,9 +432,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Amazon Q Developer CLI rule configurations from .amazonq/rules/ directory
    */
   private async loadAmazonqcliRules(): Promise<ToolRule[]> {
+    const settablePaths = AmazonQCliRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".amazonq/rules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => AmazonQCliRule.fromFile(params),
         extension: "md",
       },
@@ -443,9 +446,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load AugmentCode rule configurations from .augment/rules/ directory
    */
   private async loadAugmentcodeRules(): Promise<ToolRule[]> {
+    const settablePaths = AugmentcodeRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".augment/rules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => AugmentcodeRule.fromFile(params),
         extension: "md",
       },
@@ -456,14 +460,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load AugmentCode legacy rule configuration from .augment-guidelines file and .augment/rules/ directory
    */
   private async loadAugmentcodeLegacyRules(): Promise<ToolRule[]> {
+    const settablePaths = AugmentcodeLegacyRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: ".augment-guidelines",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".augment/rules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
         extension: "md",
       },
@@ -474,14 +479,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Claude Code rule configuration from CLAUDE.md file
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
+    const settablePaths = ClaudecodeRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "CLAUDE.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => ClaudecodeRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".claude/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => ClaudecodeRule.fromFile(params),
         extension: "md",
       },
@@ -492,9 +498,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Cline rule configurations from .clinerules/ directory
    */
   private async loadClineRules(): Promise<ToolRule[]> {
+    const settablePaths = ClineRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".clinerules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => ClineRule.fromFile(params),
         extension: "md",
       },
@@ -505,14 +512,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load OpenAI Codex CLI rule configuration from AGENTS.md and .codex/memories/*.md files
    */
   private async loadCodexcliRules(): Promise<ToolRule[]> {
+    const settablePaths = CodexcliRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => CodexcliRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".codex/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => CodexcliRule.fromFile(params),
         extension: "md",
       },
@@ -523,14 +531,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load GitHub Copilot rule configuration from .github/copilot-instructions.md file
    */
   private async loadCopilotRules(): Promise<ToolRule[]> {
+    const settablePaths = CopilotRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: ".github/copilot-instructions.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => CopilotRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".github/instructions",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => CopilotRule.fromFile(params),
         extension: "md",
       },
@@ -541,9 +550,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Cursor rule configurations from .cursor/rules/ directory
    */
   private async loadCursorRules(): Promise<ToolRule[]> {
+    const settablePaths = CursorRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".cursor/rules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => CursorRule.fromFile(params),
         extension: "mdc",
       },
@@ -554,14 +564,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Gemini CLI rule configuration from GEMINI.md file
    */
   private async loadGeminicliRules(): Promise<ToolRule[]> {
+    const settablePaths = GeminiCliRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "GEMINI.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => GeminiCliRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".gemini/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => GeminiCliRule.fromFile(params),
         extension: "md",
       },
@@ -572,14 +583,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load JetBrains Junie rule configuration from .junie/guidelines.md file
    */
   private async loadJunieRules(): Promise<ToolRule[]> {
+    const settablePaths = JunieRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: ".junie/guidelines.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => JunieRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".junie/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => JunieRule.fromFile(params),
         extension: "md",
       },
@@ -590,9 +602,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Kiro rule configurations from .kiro/steering/ directory
    */
   private async loadKiroRules(): Promise<ToolRule[]> {
+    const settablePaths = KiroRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".kiro/steering",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => KiroRule.fromFile(params),
         extension: "md",
       },
@@ -603,14 +616,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load OpenCode rule configuration from AGENTS.md file and .opencode/memories/*.md files
    */
   private async loadOpencodeRules(): Promise<ToolRule[]> {
+    const settablePaths = OpenCodeRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => OpenCodeRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".opencode/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => OpenCodeRule.fromFile(params),
         extension: "md",
       },
@@ -621,14 +635,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Qwen Code rule configuration from QWEN.md file and .qwen/memories/*.md files
    */
   private async loadQwencodeRules(): Promise<ToolRule[]> {
+    const settablePaths = QwencodeRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
-        relativeDirPath: ".",
-        relativeFilePath: "QWEN.md",
+        relativeDirPath: settablePaths.root.relativeDirPath,
+        relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => QwencodeRule.fromFile(params),
       },
       nonRoot: {
-        relativeDirPath: ".qwen/memories",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => QwencodeRule.fromFile(params),
         extension: "md",
       },
@@ -639,9 +654,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Roo Code rule configurations from .roo/rules/ directory
    */
   private async loadRooRules(): Promise<ToolRule[]> {
+    const settablePaths = RooRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".roo/rules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => RooRule.fromFile(params),
         extension: "md",
       },
@@ -652,9 +668,10 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Windsurf rule configurations from .windsurf/rules/ directory
    */
   private async loadWindsurfRules(): Promise<ToolRule[]> {
+    const settablePaths = WindsurfRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       nonRoot: {
-        relativeDirPath: ".windsurf/rules",
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => WindsurfRule.fromFile(params),
         extension: "md",
       },
