@@ -2,10 +2,25 @@ import { join } from "node:path";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
 
 export type WarpRuleParams = AiFileParams & {
   root?: boolean;
+};
+
+export type WarpRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
 };
 
 export class WarpRule extends ToolRule {
@@ -17,19 +32,33 @@ export class WarpRule extends ToolRule {
     });
   }
 
+  static getSettablePaths(): WarpRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "WARP.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".warp/memories",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<WarpRule> {
-    const isRoot = relativeFilePath === "WARP.md";
-    const relativePath = isRoot ? "WARP.md" : join(".warp/memories", relativeFilePath);
+    const isRoot = relativeFilePath === this.getSettablePaths().root.relativeFilePath;
+    const relativePath = isRoot
+      ? this.getSettablePaths().root.relativeFilePath
+      : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new WarpRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".warp",
-      relativeFilePath: isRoot ? "WARP.md" : relativeFilePath,
+      relativeDirPath: isRoot ? this.getSettablePaths().root.relativeDirPath : ".warp",
+      relativeFilePath: isRoot ? this.getSettablePaths().root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
@@ -46,8 +75,8 @@ export class WarpRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "WARP.md" },
-        nonRootPath: { relativeDirPath: ".warp/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
