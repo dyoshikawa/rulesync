@@ -97,6 +97,7 @@ export default defineConfig([
     rules: {
       "no-empty": "off", // Allow empty test cases
       "@typescript-eslint/no-explicit-any": "off", // Allow any in tests
+      "no-new": "off", // Allow new in tests
       "no-type-assertion/no-type-assertion": "off", // Allow type assertions in tests
     },
   },

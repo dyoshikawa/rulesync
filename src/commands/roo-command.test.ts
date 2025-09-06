@@ -54,7 +54,6 @@ describe("RooCommand", () => {
       };
 
       expect(() => {
-        // eslint-disable-next-line no-new
         new RooCommand({
           baseDir: ".",
           relativeDirPath: ".roo/commands",
@@ -73,7 +72,6 @@ describe("RooCommand", () => {
       };
 
       expect(() => {
-        // eslint-disable-next-line no-new
         new RooCommand({
           baseDir: ".",
           relativeDirPath: ".roo/commands",

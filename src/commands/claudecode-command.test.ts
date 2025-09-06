@@ -1,8 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { z } from "zod/mini";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeCommand, ClaudecodeCommandFrontmatterSchema } from "./claudecode-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import type {
@@ -275,7 +274,7 @@ describe("ClaudecodeCommand", () => {
   describe("fromFile", () => {
     it("should load ClaudecodeCommand from file", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: File test command
@@ -283,7 +282,7 @@ description: File test command
 This is the command body from file`;
 
       const filePath = join(commandsDir, "file-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
         baseDir: testDir,
@@ -302,7 +301,7 @@ This is the command body from file`;
 
     it("should use default baseDir when not provided", async () => {
       const commandsDir = join(".", ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: Default dir test
@@ -310,7 +309,7 @@ description: Default dir test
 Command body`;
 
       const filePath = join(commandsDir, "default-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
         relativeFilePath: "default-test.md",
@@ -321,7 +320,7 @@ Command body`;
 
     it("should throw error for invalid frontmatter", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: 123
@@ -330,7 +329,7 @@ invalid: field
 Command body`;
 
       const filePath = join(commandsDir, "invalid-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       await expect(
         ClaudecodeCommand.fromFile({
@@ -342,7 +341,7 @@ Command body`;
 
     it("should handle files with complex frontmatter", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: "Complex command with quotes and special chars: @#$%"
@@ -354,7 +353,7 @@ It has several paragraphs and formatting.
 `;
 
       const filePath = join(commandsDir, "complex-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
         baseDir: testDir,
@@ -370,7 +369,7 @@ It has several paragraphs and formatting.
 
     it("should trim whitespace from body", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: Whitespace test
@@ -383,7 +382,7 @@ description: Whitespace test
 `;
 
       const filePath = join(commandsDir, "whitespace-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
         baseDir: testDir,
@@ -395,7 +394,7 @@ description: Whitespace test
 
     it("should disable validation when specified", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: Test command
@@ -403,7 +402,7 @@ description: Test command
 Command body`;
 
       const filePath = join(commandsDir, "validation-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
         baseDir: testDir,
@@ -506,7 +505,7 @@ Command body`;
 
     it("should throw validation errors with helpful messages", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: 42
@@ -514,7 +513,7 @@ description: 42
 Body`;
 
       const filePath = join(commandsDir, "error-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       await expect(
         ClaudecodeCommand.fromFile({
@@ -541,7 +540,7 @@ Body`;
 
     it("should work with ToolCommandFromFileParams", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
-      await mkdir(commandsDir, { recursive: true });
+      await ensureDir(commandsDir);
 
       const fileContent = `---
 description: Type test
@@ -549,7 +548,7 @@ description: Type test
 Body`;
 
       const filePath = join(commandsDir, "type-test.md");
-      await writeFile(filePath, fileContent);
+      await writeFileContent(filePath, fileContent);
 
       const params: ToolCommandFromFileParams = {
         baseDir: testDir,
