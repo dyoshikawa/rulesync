@@ -303,7 +303,7 @@ describe("RooCommand", () => {
         await cleanup();
         // Clean up the file created in current working directory
         try {
-          await import("node:fs/promises").then(fs => fs.unlink(filePath));
+          await import("node:fs/promises").then((fs) => fs.unlink(filePath));
         } catch {
           // Ignore if file doesn't exist
         }

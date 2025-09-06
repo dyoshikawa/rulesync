@@ -253,11 +253,11 @@ describe("CommandsProcessor", () => {
       const mockToolCommand = {
         toRulesyncCommand: vi.fn().mockReturnValue(mockRulesyncCommand),
         // Add the ToolCommand constructor properties to make instanceof work
-        constructor: { name: 'ToolCommand' }
+        constructor: { name: "ToolCommand" },
       };
 
       // Manually set the prototype to make instanceof ToolCommand return true
-      const { ToolCommand } = await import('./tool-command.js');
+      const { ToolCommand } = await import("./tool-command.js");
       Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
 
       const result = await processor.convertToolFilesToRulesyncFiles([mockToolCommand as any]);
@@ -281,7 +281,7 @@ describe("CommandsProcessor", () => {
       };
 
       // Set prototype to make instanceof ToolCommand return true
-      const { ToolCommand } = await import('./tool-command.js');
+      const { ToolCommand } = await import("./tool-command.js");
       Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
 
       const mockOtherFile = { type: "other" };
@@ -447,7 +447,7 @@ describe("CommandsProcessor", () => {
             description: "test description",
           },
           body: "content",
-          fileContent: "---\ndescription: \"test description\"\n---\n\ncontent",
+          fileContent: '---\ndescription: "test description"\n---\n\ncontent',
         }),
       ];
 
@@ -542,7 +542,7 @@ describe("CommandsProcessor", () => {
           description: "test description",
         },
         body: "content",
-        fileContent: "---\ndescription: \"test description\"\n---\n\ncontent",
+        fileContent: '---\ndescription: "test description"\n---\n\ncontent',
       });
 
       mockFindFilesByGlobs.mockResolvedValue(mockPaths);

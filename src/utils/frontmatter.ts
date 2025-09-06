@@ -32,11 +32,13 @@ function deepRemoveNullishValue(value: unknown): unknown {
   return value;
 }
 
-function deepRemoveNullishObject(obj: Record<string, unknown> | null | undefined): Record<string, unknown> {
-  if (!obj || typeof obj !== 'object') {
+function deepRemoveNullishObject(
+  obj: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  if (!obj || typeof obj !== "object") {
     return {};
   }
-  
+
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
     const cleaned = deepRemoveNullishValue(val);
@@ -47,7 +49,10 @@ function deepRemoveNullishObject(obj: Record<string, unknown> | null | undefined
   return result;
 }
 
-export function stringifyFrontmatter(body: string, frontmatter: Record<string, unknown> | null | undefined): string {
+export function stringifyFrontmatter(
+  body: string,
+  frontmatter: Record<string, unknown> | null | undefined,
+): string {
   const cleanFrontmatter = deepRemoveNullishObject(frontmatter);
 
   return matter.stringify(body, cleanFrontmatter);
