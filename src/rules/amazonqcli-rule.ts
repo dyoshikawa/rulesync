@@ -7,21 +7,33 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type AmazonQCliRuleParams = ToolRuleParams;
 
+export type AmazonQCliRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
+
 export class AmazonQCliRule extends ToolRule {
+  static getSettablePaths(): AmazonQCliRuleSettablePaths {
+    return {
+      nonRoot: {
+        relativeDirPath: ".amazonq/rules",
+      },
+    };
+  }
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AmazonQCliRule> {
-    const fileContent = await readFileContent(join(baseDir, ".amazonq/rules", relativeFilePath));
+    const fileContent = await readFileContent(
+      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    );
 
     return new AmazonQCliRule({
       baseDir,
-      relativeDirPath: ".amazonq/rules",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath,
       fileContent,
       validate,
@@ -39,7 +51,7 @@ export class AmazonQCliRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        nonRootPath: { relativeDirPath: ".amazonq/rules" },
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
