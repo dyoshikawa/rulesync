@@ -16,6 +16,16 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
 
 export type ToolRuleFromFileParams = AiFileFromFileParams;
 
+export type ToolRuleSettablePaths = {
+  root?: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
+
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
 
