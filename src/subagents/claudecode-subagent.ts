@@ -8,6 +8,7 @@ import {
   ToolSubagent,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
+  ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
 export const ClaudecodeSubagentFrontmatterSchema = z.object({
@@ -42,6 +43,18 @@ export class ClaudecodeSubagent extends ToolSubagent {
 
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  static getSettablePaths(): ToolSubagentSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "CLAUDE.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".claude/agents",
+      },
+    };
   }
 
   getFrontmatter(): ClaudecodeSubagentFrontmatter {

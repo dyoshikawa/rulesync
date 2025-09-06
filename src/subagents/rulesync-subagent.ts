@@ -31,6 +31,10 @@ export type RulesyncSubagentParams = {
   body: string;
 } & RulesyncFileParams;
 
+export type RulesyncSubagentSettablePaths = {
+  relativeDirPath: string;
+};
+
 export type RulesyncSubagentFromFileParams = RulesyncFileFromFileParams;
 
 export class RulesyncSubagent extends RulesyncFile {
@@ -52,6 +56,12 @@ export class RulesyncSubagent extends RulesyncFile {
 
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  static getSettablePaths(): RulesyncSubagentSettablePaths {
+    return {
+      relativeDirPath: ".rulesync/subagents",
+    };
   }
 
   getFrontmatter(): RulesyncSubagentFrontmatter {
@@ -94,7 +104,7 @@ export class RulesyncSubagent extends RulesyncFile {
 
     return new RulesyncSubagent({
       baseDir: ".",
-      relativeDirPath: ".rulesync/subagents",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: filename,
       frontmatter: result.data,
       body: content.trim(),

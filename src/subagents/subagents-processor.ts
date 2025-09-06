@@ -36,7 +36,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         case "claudecode":
           return ClaudecodeSubagent.fromRulesyncSubagent({
             baseDir: this.baseDir,
-            relativeDirPath: ".claude/agents",
+            relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
             rulesyncSubagent: rulesyncSubagent,
           });
         default:
@@ -64,7 +64,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const subagentsDir = join(this.baseDir, ".rulesync", "subagents");
+    const subagentsDir = join(this.baseDir, RulesyncSubagent.getSettablePaths().relativeDirPath);
 
     // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);
@@ -131,7 +131,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   private async loadClaudecodeSubagents(): Promise<ToolSubagent[]> {
     return await this.loadToolSubagentsDefault({
-      relativeDirPath: ".claude/agents",
+      relativeDirPath: ClaudecodeSubagent.getSettablePaths().nonRoot.relativeDirPath,
       fromFile: (relativeFilePath) => ClaudecodeSubagent.fromFile({ relativeFilePath }),
     });
   }

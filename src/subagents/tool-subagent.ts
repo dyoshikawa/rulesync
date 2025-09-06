@@ -9,9 +9,22 @@ export type ToolSubagentFromRulesyncSubagentParams = Omit<
   rulesyncSubagent: RulesyncSubagent;
 };
 
-export type ToolSubagentFromFileParams = AiFileFromFileParams;
+export type ToolSubagentSettablePaths = {
+  root?: {
+    relativeDirPath?: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
+export type ToolSubagentFromFileParams = AiFileFromFileParams;
 export abstract class ToolSubagent extends ToolFile {
+  static getSettablePaths(): ToolSubagentSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
   static async fromFile(_params: ToolSubagentFromFileParams): Promise<ToolSubagent> {
     throw new Error("Please implement this method in the subclass.");
   }
