@@ -15,12 +15,39 @@ vi.mock("../utils/logger.js", () => ({
     info: vi.fn(),
   },
 }));
-vi.mock("./rulesync-command.js");
-vi.mock("./claudecode-command.js");
-vi.mock("./geminicli-command.js");
-vi.mock("./roo-command.js");
+vi.mock("./rulesync-command.js", () => ({
+  RulesyncCommand: vi.fn().mockImplementation((config) => config),
+}));
+vi.mock("./claudecode-command.js", () => ({
+  ClaudecodeCommand: vi.fn().mockImplementation((config) => config),
+}));
+vi.mock("./geminicli-command.js", () => ({
+  GeminiCliCommand: vi.fn().mockImplementation((config) => config),
+}));
+vi.mock("./roo-command.js", () => ({
+  RooCommand: vi.fn().mockImplementation((config) => config),
+}));
 
 const mockFindFilesByGlobs = findFilesByGlobs as MockedFunction<typeof findFilesByGlobs>;
+
+// Set up static methods after mocking
+vi.mocked(RulesyncCommand).fromFile = vi.fn();
+vi.mocked(RulesyncCommand).getSettablePaths = vi.fn().mockReturnValue({ relativeDirPath: ".rulesync/commands" });
+
+// Set up static methods after mocking
+vi.mocked(ClaudecodeCommand).fromFile = vi.fn();
+vi.mocked(ClaudecodeCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(ClaudecodeCommand).getSettablePaths = vi.fn().mockReturnValue({ relativeDirPath: ".claude/commands" });
+
+// Set up static methods after mocking
+vi.mocked(GeminiCliCommand).fromFile = vi.fn();
+vi.mocked(GeminiCliCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(GeminiCliCommand).getSettablePaths = vi.fn().mockReturnValue({ relativeDirPath: ".gemini/commands" });
+
+// Set up static methods after mocking
+vi.mocked(RooCommand).fromFile = vi.fn();
+vi.mocked(RooCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(RooCommand).getSettablePaths = vi.fn().mockReturnValue({ relativeDirPath: ".roo/commands" });
 
 describe("CommandsProcessor", () => {
   let testDir: string;

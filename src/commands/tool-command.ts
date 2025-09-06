@@ -10,6 +10,10 @@ export type ToolCommandFromRulesyncCommandParams = Omit<
 
 export type ToolCommandFromFileParams = AiFileFromFileParams;
 
+export type ToolCommandSettablePaths = {
+  relativeDirPath: string;
+};
+
 /**
  * Abstract base class for AI development tool-specific command formats.
  *
@@ -27,6 +31,10 @@ export type ToolCommandFromFileParams = AiFileFromFileParams;
  * - Tool-specific body content formatting
  */
 export abstract class ToolCommand extends AiFile {
+  static getSettablePaths(): ToolCommandSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
   /**
    * Load a command from a tool-specific file path.
    *

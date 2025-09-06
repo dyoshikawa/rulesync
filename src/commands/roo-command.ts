@@ -22,9 +22,19 @@ export type RooCommandParams = {
   body: string;
 } & AiFileParams;
 
+export type RooCommandSettablePaths = {
+  relativeDirPath: string;
+};
+
 export class RooCommand extends ToolCommand {
   private readonly frontmatter: RooCommandFrontmatter;
   private readonly body: string;
+
+  static getSettablePaths(): RooCommandSettablePaths {
+    return {
+      relativeDirPath: ".roo/commands",
+    };
+  }
 
   constructor({ frontmatter, body, ...rest }: RooCommandParams) {
     // Validate frontmatter before calling super to avoid validation order issues
@@ -65,7 +75,7 @@ export class RooCommand extends ToolCommand {
       baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/commands",
+      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent,
       validate: true,
@@ -91,7 +101,7 @@ export class RooCommand extends ToolCommand {
       baseDir: baseDir,
       frontmatter: rooFrontmatter,
       body,
-      relativeDirPath: ".roo/commands",
+      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       fileContent: fileContent,
       validate,
@@ -117,7 +127,7 @@ export class RooCommand extends ToolCommand {
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<RooCommand> {
-    const filePath = join(baseDir, ".roo", "commands", relativeFilePath);
+    const filePath = join(baseDir, RooCommand.getSettablePaths().relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
@@ -130,7 +140,7 @@ export class RooCommand extends ToolCommand {
 
     return new RooCommand({
       baseDir: baseDir,
-      relativeDirPath: ".roo/commands",
+      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),

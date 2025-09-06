@@ -8,6 +8,7 @@ import {
   ToolCommand,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
+  ToolCommandSettablePaths,
 } from "./tool-command.js";
 
 export const ClaudecodeCommandFrontmatterSchema = z.object({
@@ -43,6 +44,12 @@ export class ClaudecodeCommand extends ToolCommand {
     this.body = body;
   }
 
+  static getSettablePaths(): ToolCommandSettablePaths {
+    return {
+      relativeDirPath: ".claude/commands",
+    };
+  }
+
   getBody(): string {
     return this.body;
   }
@@ -64,7 +71,7 @@ export class ClaudecodeCommand extends ToolCommand {
       baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/commands",
+      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent,
       validate: true,
@@ -89,7 +96,7 @@ export class ClaudecodeCommand extends ToolCommand {
       baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
       body,
-      relativeDirPath: join(".claude", "commands"),
+      relativeDirPath: ClaudecodeCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       validate,
     });
@@ -114,7 +121,11 @@ export class ClaudecodeCommand extends ToolCommand {
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<ClaudecodeCommand> {
-    const filePath = join(baseDir, ".claude", "commands", relativeFilePath);
+    const filePath = join(
+      baseDir,
+      ClaudecodeCommand.getSettablePaths().relativeDirPath,
+      relativeFilePath,
+    );
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
@@ -127,7 +138,7 @@ export class ClaudecodeCommand extends ToolCommand {
 
     return new ClaudecodeCommand({
       baseDir: baseDir,
-      relativeDirPath: ".claude/commands",
+      relativeDirPath: ClaudecodeCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
