@@ -2,7 +2,19 @@ import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
+
+export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+};
 
 /**
  * Rule generator for OpenAI Codex CLI
@@ -12,18 +24,34 @@ import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from
  * hierarchical loading (global, project, directory-specific).
  */
 export class CodexcliRule extends ToolRule {
+  static getSettablePaths(): CodexcliRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".codex/memories",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CodexcliRule> {
     const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot ? "AGENTS.md" : join(".codex/memories", relativeFilePath);
+    const relativePath = isRoot
+      ? "AGENTS.md"
+      : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new CodexcliRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".codex/memories",
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
       validate,
@@ -41,8 +69,8 @@ export class CodexcliRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
-        nonRootPath: { relativeDirPath: ".codex/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
