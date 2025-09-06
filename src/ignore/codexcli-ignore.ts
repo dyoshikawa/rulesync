@@ -6,6 +6,7 @@ import {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
 export type CodexcliIgnoreParams = {
@@ -13,6 +14,13 @@ export type CodexcliIgnoreParams = {
 } & Omit<ToolIgnoreParams, "patterns">;
 
 export class CodexcliIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".codexignore",
+    };
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
@@ -25,8 +33,8 @@ export class CodexcliIgnore extends ToolIgnore {
 
     return new CodexcliIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".codexignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: fileContent,
       validate: true, // Skip validation to allow empty patterns
     });
@@ -36,12 +44,18 @@ export class CodexcliIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<CodexcliIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".codexignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new CodexcliIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".codexignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: fileContent,
       validate,
     });
