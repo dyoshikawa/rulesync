@@ -6,15 +6,35 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type GeminiCliRuleParams = ToolRuleParams;
+
+export type GeminiCliRuleSettablePaths = ToolRuleSettablePaths & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+};
 
 /**
  * Represents a rule file for Gemini CLI
  * Gemini CLI uses plain markdown files (GEMINI.md) without frontmatter
  */
 export class GeminiCliRule extends ToolRule {
+  static getSettablePaths(): GeminiCliRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "GEMINI.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".gemini/memories",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
@@ -26,7 +46,9 @@ export class GeminiCliRule extends ToolRule {
 
     return new GeminiCliRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".gemini/memories",
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "GEMINI.md" : relativeFilePath,
       fileContent,
       validate,
@@ -44,8 +66,8 @@ export class GeminiCliRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "GEMINI.md" },
-        nonRootPath: { relativeDirPath: ".gemini/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
