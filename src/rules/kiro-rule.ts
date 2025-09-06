@@ -7,9 +7,12 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type KiroRuleParams = ToolRuleParams;
+
+export type KiroRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
 
 /**
  * Rule generator for Kiro AI-powered IDE
@@ -19,16 +22,26 @@ export type KiroRuleParams = ToolRuleParams;
  * in the .kiro/steering/ directory (product.md, structure.md, tech.md).
  */
 export class KiroRule extends ToolRule {
+  static getSettablePaths(): KiroRuleSettablePaths {
+    return {
+      nonRoot: {
+        relativeDirPath: ".kiro/steering",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<KiroRule> {
-    const fileContent = await readFileContent(join(baseDir, ".kiro/steering", relativeFilePath));
+    const fileContent = await readFileContent(
+      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    );
 
     return new KiroRule({
       baseDir,
-      relativeDirPath: ".kiro/steering",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
@@ -46,7 +59,7 @@ export class KiroRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        nonRootPath: { relativeDirPath: ".kiro/steering" },
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
