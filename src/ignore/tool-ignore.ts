@@ -11,6 +11,11 @@ export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   rulesyncIgnore: RulesyncIgnore;
 };
 
+export type ToolIgnoreSettablePaths = {
+  relativeDirPath: string;
+  relativeFilePath: string;
+};
+
 export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
 export abstract class ToolIgnore extends ToolFile {
   protected readonly patterns: string[];
@@ -32,6 +37,10 @@ export abstract class ToolIgnore extends ToolFile {
         throw result.error;
       }
     }
+  }
+
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
   }
 
   getPatterns(): string[] {
