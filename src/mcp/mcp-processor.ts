@@ -13,7 +13,7 @@ import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
 
-const mcpProcessorToolTargets: ToolTarget[] = [
+export const mcpProcessorToolTargets: ToolTarget[] = [
   "amazonqcli",
   "claudecode",
   "cline",
