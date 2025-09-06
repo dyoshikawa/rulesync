@@ -8,9 +8,20 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type AugmentcodeLegacyRuleParams = ToolRuleParams;
+
+export type AugmentcodeLegacyRuleSettablePaths = ToolRuleSettablePaths & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 export class AugmentcodeLegacyRule extends ToolRule {
   toRulesyncRule(): RulesyncRule {
@@ -31,6 +42,18 @@ export class AugmentcodeLegacyRule extends ToolRule {
     });
   }
 
+  static getSettablePaths(): AugmentcodeLegacyRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: ".augment-guidelines",
+      },
+      nonRoot: {
+        relativeDirPath: ".augment/rules",
+      },
+    };
+  }
+
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
@@ -41,8 +64,8 @@ export class AugmentcodeLegacyRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: ".augment-guidelines" },
-        nonRootPath: { relativeDirPath: ".augment/rules" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
@@ -56,15 +79,20 @@ export class AugmentcodeLegacyRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeLegacyRule> {
+    const settablePaths = this.getSettablePaths();
     // Determine if it's a root file
-    const isRoot = relativeFilePath === ".augment-guidelines";
-    const relativePath = isRoot ? ".augment-guidelines" : join(".augment/rules", relativeFilePath);
+    const isRoot = relativeFilePath === settablePaths.root.relativeFilePath;
+    const relativePath = isRoot
+      ? settablePaths.root.relativeFilePath
+      : join(settablePaths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new AugmentcodeLegacyRule({
       baseDir: baseDir,
-      relativeDirPath: isRoot ? "." : ".augment/rules",
-      relativeFilePath: isRoot ? ".augment-guidelines" : relativeFilePath,
+      relativeDirPath: isRoot
+        ? settablePaths.root.relativeDirPath
+        : settablePaths.nonRoot.relativeDirPath,
+      relativeFilePath: isRoot ? settablePaths.root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
