@@ -7,21 +7,35 @@ import {
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpParams,
+  ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
 export type CursorMcpParams = ToolMcpParams;
 
 export class CursorMcp extends ToolMcp {
+  static getSettablePaths(): ToolMcpSettablePaths {
+    return {
+      relativeDirPath: ".cursor",
+      relativeFilePath: "mcp.json",
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<CursorMcp> {
-    const fileContent = await readFileContent(join(baseDir, ".cursor/mcp.json"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new CursorMcp({
-      baseDir: ".",
-      relativeDirPath: ".cursor",
-      relativeFilePath: "mcp.json",
+      baseDir,
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
@@ -43,8 +57,8 @@ export class CursorMcp extends ToolMcp {
 
     return new CursorMcp({
       baseDir,
-      relativeDirPath: ".cursor",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });

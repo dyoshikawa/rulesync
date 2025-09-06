@@ -7,21 +7,35 @@ import {
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpParams,
+  ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
 export type ClineMcpParams = ToolMcpParams;
 
 export class ClineMcp extends ToolMcp {
+  static getSettablePaths(): ToolMcpSettablePaths {
+    return {
+      relativeDirPath: ".cline",
+      relativeFilePath: "mcp.json",
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<ClineMcp> {
-    const fileContent = await readFileContent(join(baseDir, ".cline/mcp.json"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new ClineMcp({
       baseDir,
-      relativeDirPath: ".cline",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
@@ -34,8 +48,8 @@ export class ClineMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): ClineMcp {
     return new ClineMcp({
       baseDir,
-      relativeDirPath: ".cline",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncMcp.getFileContent(),
       validate,
     });

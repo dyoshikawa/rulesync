@@ -13,6 +13,11 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
 
 export type ToolMcpFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
 
+export type ToolMcpSettablePaths = {
+  relativeDirPath: string;
+  relativeFilePath: string;
+};
+
 export abstract class ToolMcp extends ToolFile {
   protected readonly json: Record<string, unknown>;
 
@@ -35,6 +40,10 @@ export abstract class ToolMcp extends ToolFile {
 
   getJson(): Record<string, unknown> {
     return this.json;
+  }
+
+  static getSettablePaths(): ToolMcpSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
   }
 
   abstract toRulesyncMcp(): RulesyncMcp;

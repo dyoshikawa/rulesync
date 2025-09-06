@@ -2,18 +2,36 @@ import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
-import { ToolMcp, ToolMcpFromFileParams, ToolMcpFromRulesyncMcpParams } from "./tool-mcp.js";
+import {
+  ToolMcp,
+  ToolMcpFromFileParams,
+  ToolMcpFromRulesyncMcpParams,
+  ToolMcpSettablePaths,
+} from "./tool-mcp.js";
 
 export class RooMcp extends ToolMcp {
+  static getSettablePaths(): ToolMcpSettablePaths {
+    return {
+      relativeDirPath: ".roo",
+      relativeFilePath: "mcp.json",
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<RooMcp> {
-    const fileContent = await readFileContent(join(baseDir, ".roo/mcp.json"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
     return new RooMcp({
-      baseDir: ".",
-      relativeDirPath: ".roo",
-      relativeFilePath: "mcp.json",
+      baseDir,
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
@@ -28,8 +46,8 @@ export class RooMcp extends ToolMcp {
 
     return new RooMcp({
       baseDir,
-      relativeDirPath: ".roo",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
