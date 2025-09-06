@@ -21,13 +21,13 @@ describe("AmazonqcliIgnore", () => {
     it("should create instance with default parameters", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: "*.log\nnode_modules/",
       });
 
       expect(amazonqcliIgnore).toBeInstanceOf(AmazonqcliIgnore);
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe(".");
-      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
+      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
       expect(amazonqcliIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
@@ -35,18 +35,18 @@ describe("AmazonqcliIgnore", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         baseDir: "/custom/path",
         relativeDirPath: "subdir",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: "*.tmp",
       });
 
-      expect(amazonqcliIgnore.getFilePath()).toBe("/custom/path/subdir/.q-ignore");
+      expect(amazonqcliIgnore.getFilePath()).toBe("/custom/path/subdir/.amazonqignore");
     });
 
     it("should validate content by default", () => {
       expect(() => {
         const _instance = new AmazonqcliIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".q-ignore",
+          relativeFilePath: ".amazonqignore",
           fileContent: "", // empty content should be valid
         });
       }).not.toThrow();
@@ -56,7 +56,7 @@ describe("AmazonqcliIgnore", () => {
       expect(() => {
         const _instance = new AmazonqcliIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".q-ignore",
+          relativeFilePath: ".amazonqignore",
           fileContent: "any content",
           validate: false,
         });
@@ -81,7 +81,7 @@ describe("AmazonqcliIgnore", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -97,7 +97,7 @@ describe("AmazonqcliIgnore", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: "",
       });
 
@@ -111,7 +111,7 @@ describe("AmazonqcliIgnore", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -154,7 +154,7 @@ describe("AmazonqcliIgnore", () => {
       expect(amazonqcliIgnore).toBeInstanceOf(AmazonqcliIgnore);
       expect(amazonqcliIgnore.getBaseDir()).toBe(".");
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe(".");
-      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
+      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
       expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
     });
 
@@ -172,7 +172,7 @@ describe("AmazonqcliIgnore", () => {
       });
 
       expect(amazonqcliIgnore.getBaseDir()).toBe("/custom/base");
-      expect(amazonqcliIgnore.getFilePath()).toBe("/custom/base/.q-ignore");
+      expect(amazonqcliIgnore.getFilePath()).toBe("/custom/base/.amazonqignore");
       expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
     });
 
@@ -205,7 +205,7 @@ describe("AmazonqcliIgnore", () => {
       expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should always use .q-ignore as the output filename", () => {
+    it("should always use .amazonqignore as the output filename", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".rulesignore",
@@ -217,7 +217,7 @@ describe("AmazonqcliIgnore", () => {
         rulesyncIgnore,
       });
 
-      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
+      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe(".");
     });
   });
@@ -370,7 +370,7 @@ q-temp/`;
       const fileContent = "*.log\nnode_modules/\n.env";
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -383,7 +383,7 @@ q-temp/`;
     it("should inherit validation method", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: "*.log\nnode_modules/",
       });
 
@@ -397,14 +397,14 @@ q-temp/`;
       const amazonqcliIgnore = new AmazonqcliIgnore({
         baseDir: "/test/base",
         relativeDirPath: "subdir",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: "*.log",
       });
 
       expect(amazonqcliIgnore.getBaseDir()).toBe("/test/base");
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe("subdir");
-      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
-      expect(amazonqcliIgnore.getFilePath()).toBe("/test/base/subdir/.q-ignore");
+      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
+      expect(amazonqcliIgnore.getFilePath()).toBe("/test/base/subdir/.amazonqignore");
       expect(amazonqcliIgnore.getFileContent()).toBe("*.log");
     });
   });
@@ -425,7 +425,7 @@ q-temp/`;
       const originalAmazonqcliIgnore = new AmazonqcliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: originalContent,
       });
 
@@ -438,7 +438,7 @@ q-temp/`;
       expect(roundTripAmazonqcliIgnore.getFileContent()).toBe(originalContent);
       expect(roundTripAmazonqcliIgnore.getBaseDir()).toBe(testDir);
       expect(roundTripAmazonqcliIgnore.getRelativeDirPath()).toBe(".");
-      expect(roundTripAmazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
+      expect(roundTripAmazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
     });
 
     it("should maintain patterns in round-trip conversion", () => {
@@ -447,7 +447,7 @@ q-temp/`;
 
       const originalAmazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: originalContent,
       });
 
@@ -477,8 +477,8 @@ q-temp/`;
       });
 
       expect(roundTripAmazonqcliIgnore.getFileContent()).toBe(originalContent);
-      // Note: fromRulesyncIgnore always uses .q-ignore, not .amazonqignore
-      expect(roundTripAmazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
+      // Note: fromRulesyncIgnore now uses .amazonqignore consistently
+      expect(roundTripAmazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
     });
   });
 
@@ -486,7 +486,7 @@ q-temp/`;
     it("should handle file content with only whitespace", () => {
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: "   \n\t\n   ",
       });
 
@@ -499,7 +499,7 @@ q-temp/`;
       const fileContent = "*.log\r\nnode_modules/\n.env\r\nbuild/";
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -510,7 +510,7 @@ q-temp/`;
       const longPattern = "a".repeat(1000);
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: longPattern,
       });
 
@@ -522,7 +522,7 @@ q-temp/`;
       const unicodeContent = "*.log\n節点模块/\n環境.env\n🏗️build/\n.q-缓存";
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: unicodeContent,
       });
 
@@ -583,7 +583,7 @@ q-temp/`;
   });
 
   describe("Amazon Q CLI-specific behavior", () => {
-    it("should use .q-ignore as the primary filename in fromRulesyncIgnore", () => {
+    it("should use .amazonqignore as the primary filename in fromRulesyncIgnore", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".rulesignore",
@@ -594,7 +594,7 @@ q-temp/`;
         rulesyncIgnore,
       });
 
-      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
+      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
     });
 
     it("should support .amazonqignore as alternative filename in fromFile", async () => {
@@ -629,7 +629,7 @@ q-temp/
 
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -654,11 +654,11 @@ q-temp/
       expect(patterns).toEqual(expectedPatterns);
     });
 
-    it("should handle proposed .q-ignore format content preservation", () => {
+    it("should handle .amazonqignore format content preservation", () => {
       const fileContent = "# Amazon Q CLI ignore patterns\n*.log\n.q-cache/\nq-temp/";
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -676,10 +676,10 @@ q-temp/
         }),
       });
 
-      // Should always place .q-ignore in root (relativeDirPath: ".")
+      // Should always place .amazonqignore in root (relativeDirPath: ".")
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe(".");
-      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".q-ignore");
-      expect(amazonqcliIgnore.getFilePath()).toBe("/workspace/root/.q-ignore");
+      expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
+      expect(amazonqcliIgnore.getFilePath()).toBe("/workspace/root/.amazonqignore");
     });
 
     it("should handle Amazon Q specific ignore patterns", () => {
@@ -698,7 +698,7 @@ build/`;
 
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent,
       });
 
@@ -735,7 +735,7 @@ dist/
 
       const amazonqcliIgnore = new AmazonqcliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".q-ignore",
+        relativeFilePath: ".amazonqignore",
         fileContent: proposedPatterns,
       });
 

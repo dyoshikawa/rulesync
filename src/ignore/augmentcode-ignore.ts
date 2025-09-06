@@ -6,6 +6,7 @@ import {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
 export type AugmentcodeIgnoreParams = ToolIgnoreParams;
@@ -30,6 +31,13 @@ export type AugmentcodeIgnoreParams = ToolIgnoreParams;
  * - Leading ! negates patterns (re-includes files)
  */
 export class AugmentcodeIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".augmentignore",
+    };
+  }
+
   /**
    * Convert to RulesyncIgnore format
    */
@@ -47,8 +55,8 @@ export class AugmentcodeIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): AugmentcodeIgnore {
     return new AugmentcodeIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".augmentignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
     });
   }
@@ -61,12 +69,18 @@ export class AugmentcodeIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<AugmentcodeIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".augmentignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new AugmentcodeIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".augmentignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });

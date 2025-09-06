@@ -5,9 +5,17 @@ import {
   ToolIgnore,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
 export class CursorIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".cursorignore",
+    };
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
       baseDir: ".",
@@ -25,8 +33,8 @@ export class CursorIgnore extends ToolIgnore {
 
     return new CursorIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".cursorignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: body,
     });
   }
@@ -35,12 +43,18 @@ export class CursorIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<CursorIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".cursorignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new CursorIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".cursorignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });

@@ -5,9 +5,17 @@ import {
   ToolIgnore,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
 export class KiroIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".aiignore",
+    };
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
@@ -18,8 +26,8 @@ export class KiroIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): KiroIgnore {
     return new KiroIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".aiignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
     });
   }
@@ -28,12 +36,18 @@ export class KiroIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<KiroIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".aiignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new KiroIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".aiignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });

@@ -4,10 +4,18 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
 export class QwencodeIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".geminiignore",
+    };
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
@@ -18,8 +26,8 @@ export class QwencodeIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): QwencodeIgnore {
     return new QwencodeIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".geminiignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
     });
   }
@@ -28,12 +36,18 @@ export class QwencodeIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<QwencodeIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".geminiignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new QwencodeIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".geminiignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });

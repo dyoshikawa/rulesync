@@ -5,9 +5,17 @@ import {
   ToolIgnore,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
 export class JunieIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".junieignore",
+    };
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
@@ -18,8 +26,8 @@ export class JunieIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): JunieIgnore {
     return new JunieIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".junieignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
     });
   }
@@ -28,12 +36,18 @@ export class JunieIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<JunieIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".junieignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new JunieIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".junieignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
