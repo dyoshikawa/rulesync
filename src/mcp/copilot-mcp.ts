@@ -19,7 +19,7 @@ export class CopilotMcp extends ToolMcp {
       relativeFilePath: "mcp.json",
     };
   }
-  static async fromFilePath({
+  static async fromFile({
     baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<CopilotMcp> {
@@ -32,7 +32,7 @@ export class CopilotMcp extends ToolMcp {
     );
 
     return new CopilotMcp({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,

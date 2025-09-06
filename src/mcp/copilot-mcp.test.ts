@@ -132,7 +132,7 @@ describe("CopilotMcp", () => {
     });
   });
 
-  describe("fromFilePath", () => {
+  describe("fromFile", () => {
     it("should create instance from file with default parameters", async () => {
       const vscodeDir = join(testDir, ".vscode");
       await ensureDir(vscodeDir);
@@ -147,13 +147,13 @@ describe("CopilotMcp", () => {
       };
       await writeFileContent(join(vscodeDir, "mcp.json"), JSON.stringify(jsonData, null, 2));
 
-      const copilotMcp = await CopilotMcp.fromFilePath({
+      const copilotMcp = await CopilotMcp.fromFile({
         baseDir: testDir,
       });
 
       expect(copilotMcp).toBeInstanceOf(CopilotMcp);
       expect(copilotMcp.getJson()).toEqual(jsonData);
-      expect(copilotMcp.getFilePath()).toBe(join(".", ".vscode/mcp.json"));
+      expect(copilotMcp.getFilePath()).toBe(join(testDir, ".vscode/mcp.json"));
     });
 
     it("should create instance from file with custom baseDir", async () => {
@@ -171,11 +171,11 @@ describe("CopilotMcp", () => {
       };
       await writeFileContent(join(vscodeDir, "mcp.json"), JSON.stringify(jsonData));
 
-      const copilotMcp = await CopilotMcp.fromFilePath({
+      const copilotMcp = await CopilotMcp.fromFile({
         baseDir: customDir,
       });
 
-      expect(copilotMcp.getFilePath()).toBe(join(".", ".vscode/mcp.json"));
+      expect(copilotMcp.getFilePath()).toBe(join(customDir, ".vscode/mcp.json"));
       expect(copilotMcp.getJson()).toEqual(jsonData);
     });
 
@@ -193,7 +193,7 @@ describe("CopilotMcp", () => {
       };
       await writeFileContent(join(vscodeDir, "mcp.json"), JSON.stringify(jsonData));
 
-      const copilotMcp = await CopilotMcp.fromFilePath({
+      const copilotMcp = await CopilotMcp.fromFile({
         baseDir: testDir,
         validate: true,
       });
@@ -210,7 +210,7 @@ describe("CopilotMcp", () => {
       };
       await writeFileContent(join(vscodeDir, "mcp.json"), JSON.stringify(jsonData));
 
-      const copilotMcp = await CopilotMcp.fromFilePath({
+      const copilotMcp = await CopilotMcp.fromFile({
         baseDir: testDir,
         validate: false,
       });
@@ -220,7 +220,7 @@ describe("CopilotMcp", () => {
 
     it("should throw error if file does not exist", async () => {
       await expect(
-        CopilotMcp.fromFilePath({
+        CopilotMcp.fromFile({
           baseDir: testDir,
         }),
       ).rejects.toThrow();
@@ -493,7 +493,7 @@ describe("CopilotMcp", () => {
   });
 
   describe("integration", () => {
-    it("should handle complete workflow: fromFilePath -> toRulesyncMcp -> fromRulesyncMcp", async () => {
+    it("should handle complete workflow: fromFile -> toRulesyncMcp -> fromRulesyncMcp", async () => {
       const vscodeDir = join(testDir, ".vscode");
       await ensureDir(vscodeDir);
 
@@ -514,7 +514,7 @@ describe("CopilotMcp", () => {
       );
 
       // Step 1: Load from file
-      const originalCopilotMcp = await CopilotMcp.fromFilePath({
+      const originalCopilotMcp = await CopilotMcp.fromFile({
         baseDir: testDir,
       });
 
