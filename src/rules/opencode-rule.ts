@@ -36,6 +36,8 @@ export class OpenCodeRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
+        rootPath: { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
+        nonRootPath: { relativeDirPath: ".opencode/memories" },
       }),
     );
   }
