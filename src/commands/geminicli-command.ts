@@ -10,6 +10,7 @@ import {
   ToolCommand,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
+  ToolCommandSettablePaths,
 } from "./tool-command.js";
 
 export const GeminiCliCommandFrontmatterSchema = z.object({
@@ -36,6 +37,12 @@ export class GeminiCliCommand extends ToolCommand {
     const parsed = this.parseTomlContent(this.fileContent);
     this.frontmatter = parsed;
     this.body = parsed.prompt;
+  }
+
+  static getSettablePaths(): ToolCommandSettablePaths {
+    return {
+      relativeDirPath: ".gemini/commands",
+    };
   }
 
   private parseTomlContent(content: string): GeminiCliCommandFrontmatter {
@@ -87,7 +94,7 @@ export class GeminiCliCommand extends ToolCommand {
       baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/commands",
+      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent,
       validate: true,
@@ -114,7 +121,7 @@ ${geminiFrontmatter.prompt}
 
     return new GeminiCliCommand({
       baseDir: baseDir,
-      relativeDirPath: ".gemini/commands",
+      relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath().replace(".md", ".toml"),
       fileContent: tomlContent,
       validate,
@@ -126,13 +133,17 @@ ${geminiFrontmatter.prompt}
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<GeminiCliCommand> {
-    const filePath = join(baseDir, ".gemini", "commands", relativeFilePath);
+    const filePath = join(
+      baseDir,
+      GeminiCliCommand.getSettablePaths().relativeDirPath,
+      relativeFilePath,
+    );
     // Read file content
     const fileContent = await readFileContent(filePath);
 
     return new GeminiCliCommand({
       baseDir: baseDir,
-      relativeDirPath: ".gemini/commands",
+      relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       fileContent,
       validate,

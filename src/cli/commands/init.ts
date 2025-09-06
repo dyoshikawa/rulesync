@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import {
-  RULESYNC_COMMANDS_DIR,
   RULESYNC_DIR,
   RULESYNC_RULES_DIR,
   RULESYNC_SUBAGENTS_DIR,
 } from "../../constants/paths.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
+import { RulesyncCommand } from "../../commands/rulesync-command.js";
 
 export async function initCommand(): Promise<void> {
   logger.info("Initializing rulesync...");
@@ -59,7 +59,7 @@ globs: ["**/*"]
 
   const filepath = join(RULESYNC_RULES_DIR, sampleFile.filename);
   await ensureDir(RULESYNC_RULES_DIR);
-  await ensureDir(RULESYNC_COMMANDS_DIR);
+  await ensureDir(RulesyncCommand.getSettablePaths().relativeDirPath);
   await ensureDir(RULESYNC_SUBAGENTS_DIR);
   if (!(await fileExists(filepath))) {
     await writeFileContent(filepath, sampleFile.content);
