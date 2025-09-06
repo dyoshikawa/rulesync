@@ -28,6 +28,7 @@ export class JunieRule extends ToolRule {
       relativeFilePath: isRoot ? "guidelines.md" : relativeFilePath,
       fileContent,
       validate,
+      root: isRoot,
     });
   }
 
