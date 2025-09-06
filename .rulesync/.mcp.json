@@ -25,12 +25,6 @@
         "@upstash/context7-mcp"
       ],
       "env": {}
-    },
-    "cipher": {
-      "type": "stdio",
-      "command": "cipher",
-      "args": ["--mode", "mcp"],
-      "env": {}
     }
   }
 }
