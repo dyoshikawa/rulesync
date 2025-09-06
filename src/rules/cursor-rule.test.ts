@@ -108,7 +108,7 @@ globs: *.ts
 Rule body content`;
       expect(rule.getFileContent()).toBe(expectedContent);
     });
-    
+
     it("should generate correct file content with complex glob patterns", () => {
       const frontmatter: CursorRuleFrontmatter = {
         description: "Complex globs test",
@@ -255,7 +255,7 @@ Test content`;
       const fileContent = `---
 alwaysApply: false
 description: Test rule
-globs: *.ts,*.tsx
+globs: *.ts,*.tsx,src/**/*.js,**/*.test.ts
 ---
 
 This is the rule content
@@ -270,7 +270,7 @@ This is the rule content
 
       expect(rule.getFrontmatter()).toEqual({
         description: "Test rule",
-        globs: "*.ts,*.tsx",
+        globs: "*.ts,*.tsx,src/**/*.js,**/*.test.ts",
         alwaysApply: false,
       });
       expect(rule.getBody()).toBe("This is the rule content");
