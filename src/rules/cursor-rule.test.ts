@@ -99,7 +99,38 @@ describe("CursorRule", () => {
         relativeFilePath: "test.mdc",
       });
 
-      const expectedContent = stringifyFrontmatter("Rule body content", frontmatter);
+      // MDC files should output globs without quotes
+      const expectedContent = `---
+description: Test rule
+globs: *.ts
+---
+
+Rule body content`;
+      expect(rule.getFileContent()).toBe(expectedContent);
+    });
+    
+    it("should generate correct file content with complex glob patterns", () => {
+      const frontmatter: CursorRuleFrontmatter = {
+        description: "Complex globs test",
+        globs: "*.ts,*.tsx,**/*.js",
+        alwaysApply: false,
+      };
+
+      const rule = new CursorRule({
+        frontmatter,
+        body: "Test content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "test.mdc",
+      });
+
+      // MDC files should output globs without quotes
+      const expectedContent = `---
+alwaysApply: false
+description: Complex globs test
+globs: *.ts,*.tsx,**/*.js
+---
+
+Test content`;
       expect(rule.getFileContent()).toBe(expectedContent);
     });
   });
@@ -219,7 +250,7 @@ describe("CursorRule", () => {
   });
 
   describe("fromFile", () => {
-    it.only("should read and parse a cursor rule file", async () => {
+    it("should read and parse a cursor rule file", async () => {
       const filePath = join(testDir, ".cursor/rules", "test.mdc");
       const fileContent = `---
 alwaysApply: false
