@@ -68,13 +68,18 @@ export class CursorRule extends ToolRule {
       root: false,
       description: this.frontmatter.description,
       globs,
+      cursor: {
+        alwaysApply: this.frontmatter.alwaysApply,
+        description: this.frontmatter.description,
+        globs: globs.length > 0 ? globs : undefined,
+      },
     };
 
     return new RulesyncRule({
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.relativeFilePath,
+      relativeFilePath: this.relativeFilePath.replace(/\.mdc$/, ".md"),
       validate: true,
     });
   }
