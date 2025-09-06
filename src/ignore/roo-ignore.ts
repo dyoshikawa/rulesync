@@ -5,6 +5,7 @@ import {
   ToolIgnore,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
 /**
@@ -21,6 +22,12 @@ import {
  * - Support started: Official support in Roocode 3.8 (2025-03-13)
  */
 export class RooIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".rooignore",
+    };
+  }
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
@@ -31,8 +38,8 @@ export class RooIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): RooIgnore {
     return new RooIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".rooignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
     });
   }
@@ -41,12 +48,18 @@ export class RooIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<RooIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".rooignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new RooIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".rooignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
