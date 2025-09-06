@@ -38,11 +38,14 @@ export class QwencodeRule extends ToolRule {
   }
 
   static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): QwencodeRule {
-    const { rulesyncRule } = params;
+    const { baseDir = ".", rulesyncRule, validate = true } = params;
     return new QwencodeRule(
       this.buildToolRuleParamsDefault({
+        baseDir,
         rulesyncRule,
-        validate: params.validate ?? true,
+        validate,
+        rootPath: { relativeDirPath: ".", relativeFilePath: "QWEN.md" },
+        nonRootPath: { relativeDirPath: ".qwencode/memories" },
       }),
     );
   }
