@@ -1,6 +1,5 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
-import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import {
   RulesyncFile,
@@ -32,6 +31,15 @@ export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> & {
   body: string;
 };
 
+export type RulesyncRuleSettablePaths = {
+  recommended: {
+    relativeDirPath: string;
+  };
+  legacy: {
+    relativeDirPath: string;
+  };
+};
+
 export class RulesyncRule extends RulesyncFile {
   private readonly frontmatter: RulesyncRuleFrontmatter;
   private readonly body: string;
@@ -52,6 +60,17 @@ export class RulesyncRule extends RulesyncFile {
 
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  static getSettablePaths(): RulesyncRuleSettablePaths {
+    return {
+      recommended: {
+        relativeDirPath: ".rulesync/rules",
+      },
+      legacy: {
+        relativeDirPath: ".rulesync",
+      },
+    };
   }
 
   getFrontmatter(): RulesyncRuleFrontmatter {
@@ -77,7 +96,7 @@ export class RulesyncRule extends RulesyncFile {
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const filePath = join(RULESYNC_RULES_DIR_LEGACY, relativeFilePath);
+    const filePath = join(this.getSettablePaths().legacy.relativeDirPath, relativeFilePath);
 
     // Read file content
     const fileContent = await readFileContent(filePath);
@@ -101,7 +120,7 @@ export class RulesyncRule extends RulesyncFile {
 
     return new RulesyncRule({
       baseDir: ".",
-      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
       body: content.trim(),
@@ -113,7 +132,7 @@ export class RulesyncRule extends RulesyncFile {
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const filePath = join(RULESYNC_RULES_DIR, relativeFilePath);
+    const filePath = join(this.getSettablePaths().recommended.relativeDirPath, relativeFilePath);
 
     // Read file content
     const fileContent = await readFileContent(filePath);
@@ -137,7 +156,7 @@ export class RulesyncRule extends RulesyncFile {
 
     return new RulesyncRule({
       baseDir: ".",
-      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
       body: content.trim(),

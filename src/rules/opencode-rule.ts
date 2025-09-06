@@ -2,11 +2,34 @@ import { join } from "node:path";
 import { type AiFileFromFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, type ToolRuleFromRulesyncRuleParams, ToolRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  type ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
 
 export type OpenCodeRuleParams = ToolRuleParams;
 
+export type OpenCodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+};
+
 export class OpenCodeRule extends ToolRule {
+  static getSettablePaths(): OpenCodeRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".opencode/memories",
+      },
+    };
+  }
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
@@ -18,7 +41,9 @@ export class OpenCodeRule extends ToolRule {
 
     return new OpenCodeRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".opencode/memories",
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       validate,
       root: isRoot,
@@ -36,8 +61,8 @@ export class OpenCodeRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
-        nonRootPath: { relativeDirPath: ".opencode/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }

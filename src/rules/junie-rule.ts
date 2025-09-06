@@ -2,9 +2,24 @@ import { join } from "node:path";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
 
 export type JunieRuleParams = AiFileParams;
+
+export type JunieRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 /**
  * Rule generator for JetBrains Junie AI coding agent
@@ -13,6 +28,18 @@ export type JunieRuleParams = AiFileParams;
  * Junie uses plain markdown format without frontmatter requirements.
  */
 export class JunieRule extends ToolRule {
+  static getSettablePaths(): JunieRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".junie",
+        relativeFilePath: "guidelines.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".junie/memories",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
@@ -24,7 +51,9 @@ export class JunieRule extends ToolRule {
 
     return new JunieRule({
       baseDir,
-      relativeDirPath: isRoot ? ".junie" : ".junie/memories",
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "guidelines.md" : relativeFilePath,
       fileContent,
       validate,
@@ -42,8 +71,8 @@ export class JunieRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".junie", relativeFilePath: "guidelines.md" },
-        nonRootPath: { relativeDirPath: ".junie/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }

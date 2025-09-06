@@ -7,9 +7,20 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type QwencodeRuleParams = ToolRuleParams;
+
+export type QwencodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 /**
  * Rule generator for Qwen Code AI assistant
@@ -18,6 +29,18 @@ export type QwencodeRuleParams = ToolRuleParams;
  * Supports the Qwen Code context management system with hierarchical discovery.
  */
 export class QwencodeRule extends ToolRule {
+  static getSettablePaths(): QwencodeRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "QWEN.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".qwencode/memories",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
@@ -29,7 +52,9 @@ export class QwencodeRule extends ToolRule {
 
     return new QwencodeRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".qwencode/memories",
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "QWEN.md" : relativeFilePath,
       fileContent,
       validate,
@@ -44,8 +69,8 @@ export class QwencodeRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "QWEN.md" },
-        nonRootPath: { relativeDirPath: ".qwencode/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }

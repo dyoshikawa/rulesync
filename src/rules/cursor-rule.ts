@@ -5,7 +5,12 @@ import type { RulesyncTargets } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
 
 export const CursorRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
@@ -20,9 +25,23 @@ export type CursorRuleParams = {
   body: string;
 } & Omit<AiFileParams, "fileContent">;
 
+export type CursorRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
+
 export class CursorRule extends ToolRule {
   private readonly frontmatter: CursorRuleFrontmatter;
   private readonly body: string;
+
+  static getSettablePaths(): CursorRuleSettablePaths {
+    return {
+      nonRoot: {
+        relativeDirPath: ".cursor/rules",
+      },
+    };
+  }
 
   constructor({ frontmatter, body, ...rest }: CursorRuleParams) {
     // Set properties before calling super to ensure they're available for validation
@@ -175,7 +194,7 @@ export class CursorRule extends ToolRule {
       baseDir: baseDir,
       frontmatter: cursorFrontmatter,
       body,
-      relativeDirPath: ".cursor/rules",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: newFileName,
       validate,
     });
@@ -187,7 +206,9 @@ export class CursorRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
-    const fileContent = await readFileContent(join(baseDir, ".cursor/rules", relativeFilePath));
+    const fileContent = await readFileContent(
+      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    );
 
     // Use custom parser for MDC files
     const { frontmatter, body: content } = CursorRule.parseCursorFrontmatter(fileContent);
@@ -202,7 +223,7 @@ export class CursorRule extends ToolRule {
 
     return new CursorRule({
       baseDir,
-      relativeDirPath: ".cursor/rules",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),

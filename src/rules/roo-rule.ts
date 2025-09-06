@@ -7,9 +7,16 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type RooRuleParams = ToolRuleParams;
+
+export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 /**
  * Rule generator for Roo Code AI assistant
@@ -19,16 +26,26 @@ export type RooRuleParams = ToolRuleParams;
  * and both directory-based and single-file configurations.
  */
 export class RooRule extends ToolRule {
+  static getSettablePaths(): RooRuleSettablePaths {
+    return {
+      nonRoot: {
+        relativeDirPath: ".roo/rules",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<RooRule> {
-    const fileContent = await readFileContent(join(baseDir, ".roo/rules", relativeFilePath));
+    const fileContent = await readFileContent(
+      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    );
 
     return new RooRule({
       baseDir,
-      relativeDirPath: ".roo/rules",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
@@ -46,7 +63,7 @@ export class RooRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        nonRootPath: { relativeDirPath: ".roo/rules" },
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }

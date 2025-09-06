@@ -2,10 +2,25 @@ import { join } from "node:path";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
 
 export type AgentsMdRuleParams = AiFileParams & {
   root?: boolean;
+};
+
+export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
 };
 
 export class AgentsMdRule extends ToolRule {
@@ -15,6 +30,18 @@ export class AgentsMdRule extends ToolRule {
       fileContent,
       root: root ?? false,
     });
+  }
+
+  static getSettablePaths(): AgentsMdRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".agents/memories",
+      },
+    };
   }
 
   static async fromFile({
@@ -29,7 +56,9 @@ export class AgentsMdRule extends ToolRule {
 
     return new AgentsMdRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".agents/memories",
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
       validate,
@@ -47,6 +76,8 @@ export class AgentsMdRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
