@@ -10,6 +10,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export const CopilotRuleFrontmatterSchema = z.object({
@@ -24,9 +25,31 @@ export type CopilotRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   body: string;
 };
 
+export type CopilotRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
+
 export class CopilotRule extends ToolRule {
   private readonly frontmatter: CopilotRuleFrontmatter;
   private readonly body: string;
+
+  static getSettablePaths(): CopilotRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".github/instructions",
+      },
+    };
+  }
 
   constructor({ frontmatter, body, ...rest }: CopilotRuleParams) {
     // Set properties before calling super to ensure they're available for validation
@@ -87,8 +110,8 @@ export class CopilotRule extends ToolRule {
         baseDir: baseDir,
         frontmatter: copilotFrontmatter,
         body,
-        relativeDirPath: ".github",
-        relativeFilePath: "copilot-instructions.md",
+        relativeDirPath: this.getSettablePaths().root.relativeDirPath,
+        relativeFilePath: this.getSettablePaths().root.relativeFilePath,
         validate,
         root,
       });
@@ -103,7 +126,7 @@ export class CopilotRule extends ToolRule {
       baseDir: baseDir,
       frontmatter: copilotFrontmatter,
       body,
-      relativeDirPath: ".github/instructions",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: newFileName,
       validate,
       root,
@@ -118,16 +141,19 @@ export class CopilotRule extends ToolRule {
     // Determine if this is a root file based on the file path
     const isRoot = relativeFilePath === "copilot-instructions.md";
     const relativePath = isRoot
-      ? join(".github", "copilot-instructions.md")
-      : join(".github/instructions", relativeFilePath);
+      ? join(
+          this.getSettablePaths().root.relativeDirPath,
+          this.getSettablePaths().root.relativeFilePath,
+        )
+      : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     if (isRoot) {
       // Root file: no frontmatter expected
       return new CopilotRule({
         baseDir: baseDir,
-        relativeDirPath: ".github",
-        relativeFilePath: isRoot ? "copilot-instructions.md" : relativeFilePath,
+        relativeDirPath: this.getSettablePaths().root.relativeDirPath,
+        relativeFilePath: isRoot ? this.getSettablePaths().root.relativeFilePath : relativeFilePath,
         frontmatter: {
           description: "",
           applyTo: "**",
@@ -151,7 +177,7 @@ export class CopilotRule extends ToolRule {
 
     return new CopilotRule({
       baseDir: baseDir,
-      relativeDirPath: ".github/instructions",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath.endsWith(".instructions.md")
         ? relativeFilePath
         : relativeFilePath.replace(/\.md$/, ".instructions.md"),
