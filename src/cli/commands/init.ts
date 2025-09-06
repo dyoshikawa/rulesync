@@ -1,12 +1,8 @@
 import { join } from "node:path";
-import {
-  RULESYNC_DIR,
-  RULESYNC_RULES_DIR,
-  RULESYNC_SUBAGENTS_DIR,
-} from "../../constants/paths.js";
+import { RulesyncCommand } from "../../commands/rulesync-command.js";
+import { RULESYNC_DIR, RULESYNC_RULES_DIR, RULESYNC_SUBAGENTS_DIR } from "../../constants/paths.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
-import { RulesyncCommand } from "../../commands/rulesync-command.js";
 
 export async function initCommand(): Promise<void> {
   logger.info("Initializing rulesync...");
