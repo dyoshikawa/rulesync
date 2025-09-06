@@ -125,7 +125,10 @@ export class CursorRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
     const fileContent = await readFileContent(join(baseDir, ".cursor/rules", relativeFilePath));
+    console.log("fileContent", fileContent);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    console.log("content", content);
+    console.log("frontmatter", frontmatter);
 
     // Validate frontmatter using CursorRuleFrontmatterSchema
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
@@ -134,6 +137,7 @@ export class CursorRule extends ToolRule {
         `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${result.error.message}`,
       );
     }
+    console.log("result.data", result.data);
 
     return new CursorRule({
       baseDir,

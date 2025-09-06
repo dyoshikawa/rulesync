@@ -49,9 +49,9 @@
 		"prepublishOnly": "pnpm build",
 		"secretlint": "secretlint --secretlintignore .gitignore \"**/*\"",
 		"sort": "sort-package-json",
-		"test": "vitest run --silent",
-		"test:coverage": "vitest run --coverage --silent",
-		"test:watch": "vitest --silent",
+		"test": "vitest run --silent=true",
+		"test:coverage": "vitest run --coverage --silent=true",
+		"test:watch": "vitest --silent=true",
 		"typecheck": "tsgo --noEmit",
 		"prepare": "simple-git-hooks && pnpm generate"
 	},
