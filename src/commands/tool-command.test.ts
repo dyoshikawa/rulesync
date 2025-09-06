@@ -27,7 +27,6 @@ class TestToolCommand extends ToolCommand {
     const pathParts = params.relativeFilePath.split("/");
     const fileName = pathParts.pop() || params.relativeFilePath;
     const relativeDirPath = pathParts.length > 0 ? pathParts.join("/") : ".";
-    
     return new TestToolCommand({
       baseDir: params.baseDir || ".",
       relativeDirPath: relativeDirPath,
@@ -114,7 +113,6 @@ describe("ToolCommand", () => {
 
     it("should throw validation error during construction if content is invalid", () => {
       expect(() => {
-        // eslint-disable-next-line no-new
         new TestToolCommand({
           relativeDirPath: ".tool",
           relativeFilePath: "invalid-file.md",
@@ -376,7 +374,6 @@ describe("ToolCommand", () => {
   describe("error handling", () => {
     it("should handle validation errors properly", () => {
       expect(() => {
-        // eslint-disable-next-line no-new
         new TestToolCommand({
           relativeDirPath: ".tool",
           relativeFilePath: "test.md",
