@@ -218,6 +218,7 @@
         "stackback",
         "statusline",
         "streamable",
+        "stringifier",
         "stylelintcache",
         "sugarss",
         "Tabnine",
