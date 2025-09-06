@@ -1,6 +1,5 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
-import { RULESYNC_COMMANDS_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import {
   RulesyncFile,
@@ -23,6 +22,10 @@ export type RulesyncCommandParams = {
   body: string;
 } & RulesyncFileParams;
 
+export type RulesyncCommandSettablePaths = {
+  relativeDirPath: string;
+};
+
 export class RulesyncCommand extends RulesyncFile {
   private readonly frontmatter: RulesyncCommandFrontmatter;
   private readonly body: string;
@@ -43,6 +46,12 @@ export class RulesyncCommand extends RulesyncFile {
 
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  static getSettablePaths(): RulesyncCommandSettablePaths {
+    return {
+      relativeDirPath: ".rulesync/commands",
+    };
   }
 
   getFrontmatter(): RulesyncCommandFrontmatter {
@@ -72,7 +81,9 @@ export class RulesyncCommand extends RulesyncFile {
     relativeFilePath,
   }: RulesyncFileFromFileParams): Promise<RulesyncCommand> {
     // Read file content
-    const fileContent = await readFileContent(join(RULESYNC_COMMANDS_DIR, relativeFilePath));
+    const fileContent = await readFileContent(
+      join(RulesyncCommand.getSettablePaths().relativeDirPath, relativeFilePath),
+    );
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CommandFrontmatterSchema
@@ -85,7 +96,7 @@ export class RulesyncCommand extends RulesyncFile {
 
     return new RulesyncCommand({
       baseDir: ".",
-      relativeDirPath: ".rulesync/commands",
+      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: filename,
       frontmatter: result.data,
       body: content.trim(),
