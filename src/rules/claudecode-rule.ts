@@ -2,7 +2,22 @@ import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+} from "./tool-rule.js";
+
+export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 /**
  * Rule generator for Claude Code AI assistant
@@ -11,19 +26,35 @@ import { ToolRule, ToolRuleFromFileParams, ToolRuleFromRulesyncRuleParams } from
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
+  static getSettablePaths(): ClaudecodeRuleSettablePaths {
+    return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "CLAUDE.md",
+      },
+      nonRoot: {
+        relativeDirPath: ".claude/memories",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<ClaudecodeRule> {
-    const isRoot = relativeFilePath === "CLAUDE.md";
-    const relativePath = isRoot ? "CLAUDE.md" : join(".claude/memories", relativeFilePath);
+    const isRoot = relativeFilePath === this.getSettablePaths().root.relativeFilePath;
+    const relativePath = isRoot
+      ? this.getSettablePaths().root.relativeFilePath
+      : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new ClaudecodeRule({
       baseDir,
-      relativeDirPath: isRoot ? "." : ".claude/memories",
-      relativeFilePath: isRoot ? "CLAUDE.md" : relativeFilePath,
+      relativeDirPath: isRoot
+        ? this.getSettablePaths().root.relativeDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeFilePath: isRoot ? this.getSettablePaths().root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
@@ -40,8 +71,8 @@ export class ClaudecodeRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: { relativeDirPath: ".", relativeFilePath: "CLAUDE.md" },
-        nonRootPath: { relativeDirPath: ".claude/memories" },
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
