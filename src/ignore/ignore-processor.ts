@@ -4,6 +4,7 @@ import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { logger } from "../utils/logger.js";
+import { AmazonqcliIgnore } from "./amazonqcli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
@@ -18,6 +19,7 @@ import { ToolIgnore } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
 
 const ignoreProcessorToolTargets: ToolTarget[] = [
+  "amazonqcli",
   "augmentcode",
   "cline",
   "codexcli",
@@ -79,6 +81,8 @@ export class IgnoreProcessor extends FeatureProcessor {
 
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     switch (this.toolTarget) {
+      case "amazonqcli":
+        return [await AmazonqcliIgnore.fromFile({ baseDir: this.baseDir })];
       case "augmentcode":
         return [await AugmentcodeIgnore.fromFile({ baseDir: this.baseDir })];
       case "cline":
@@ -119,6 +123,11 @@ export class IgnoreProcessor extends FeatureProcessor {
 
     const toolIgnores = [rulesyncIgnore].map((rulesyncIgnore) => {
       switch (this.toolTarget) {
+        case "amazonqcli":
+          return AmazonqcliIgnore.fromRulesyncIgnore({
+            baseDir: this.baseDir,
+            rulesyncIgnore,
+          });
         case "augmentcode":
           return AugmentcodeIgnore.fromRulesyncIgnore({
             baseDir: this.baseDir,

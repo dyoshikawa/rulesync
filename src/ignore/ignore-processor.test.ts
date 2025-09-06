@@ -78,6 +78,7 @@ describe("IgnoreProcessor", () => {
 
     it("should accept all valid tool targets", () => {
       const validTargets = [
+        "amazonqcli",
         "augmentcode",
         "cline",
         "codexcli",
@@ -322,6 +323,7 @@ describe("IgnoreProcessor", () => {
       });
 
       const targets = [
+        "amazonqcli",
         "augmentcode",
         "cline",
         "codexcli",
@@ -452,6 +454,7 @@ describe("IgnoreProcessor", () => {
     it("should return all supported tool targets", () => {
       const toolTargets = IgnoreProcessor.getToolTargets();
       const expectedTargets = [
+        "amazonqcli",
         "augmentcode",
         "cline",
         "codexcli",

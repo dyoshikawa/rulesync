@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import {
-  ToolIgnore,
+import type {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
+import { ToolIgnore } from "./tool-ignore.js";
 
 export type AmazonqcliIgnoreParams = ToolIgnoreParams;
 
@@ -24,6 +25,13 @@ export type AmazonqcliIgnoreParams = ToolIgnoreParams;
  * - Integration with Amazon Q's context management system
  */
 export class AmazonqcliIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".amazonqignore",
+    };
+  }
+
   /**
    * Convert to RulesyncIgnore format
    */
@@ -43,8 +51,8 @@ export class AmazonqcliIgnore extends ToolIgnore {
 
     return new AmazonqcliIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".q-ignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: body,
     });
   }
@@ -57,12 +65,18 @@ export class AmazonqcliIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<AmazonqcliIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".amazonqignore"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new AmazonqcliIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".amazonqignore",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
