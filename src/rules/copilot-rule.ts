@@ -152,8 +152,8 @@ export class CopilotRule extends ToolRule {
     return new CopilotRule({
       baseDir: baseDir,
       relativeDirPath: ".github/instructions",
-      relativeFilePath: relativeFilePath.endsWith(".instructions.md") 
-        ? relativeFilePath 
+      relativeFilePath: relativeFilePath.endsWith(".instructions.md")
+        ? relativeFilePath
         : relativeFilePath.replace(/\.md$/, ".instructions.md"),
       frontmatter: result.data,
       body: content.trim(),
