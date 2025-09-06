@@ -75,7 +75,9 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load and parse rulesync command files from .rulesync/commands/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncCommandPaths = await findFilesByGlobs(join(".rulesync", "commands", "*.md"));
+    const rulesyncCommandPaths = await findFilesByGlobs(
+      join(RulesyncCommand.getSettablePaths().relativeDirPath, "*.md"),
+    );
 
     const rulesyncCommands = (
       await Promise.allSettled(
@@ -151,7 +153,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private async loadClaudecodeCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "claudecode",
-      relativeDirPath: ".claude/commands",
+      relativeDirPath: ClaudecodeCommand.getSettablePaths().relativeDirPath,
       extension: "md",
     });
   }
@@ -162,7 +164,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private async loadGeminicliCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "geminicli",
-      relativeDirPath: ".gemini/commands",
+      relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
       extension: "md",
     });
   }
@@ -173,7 +175,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private async loadRooCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "roo",
-      relativeDirPath: ".roo/commands",
+      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       extension: "md",
     });
   }
