@@ -28,7 +28,7 @@ globs: ["**/*.test.ts"]
       it("Test Case", async () => {
         // Run test using testDir
         const subDir = join(testDir, "subdir");
-        await mkdir(subDir, { recursive: true });
+        await ensureDir(subDir);
         // ...
       });
     });
