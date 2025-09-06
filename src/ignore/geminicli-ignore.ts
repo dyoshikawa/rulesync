@@ -4,6 +4,7 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
+  ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
@@ -17,6 +18,13 @@ import { ToolIgnore } from "./tool-ignore.js";
  * When conflicts occur in the same file, .aiexclude takes precedence over .gitignore
  */
 export class GeminiCliIgnore extends ToolIgnore {
+  static getSettablePaths(): ToolIgnoreSettablePaths {
+    return {
+      relativeDirPath: ".",
+      relativeFilePath: ".aiexclude",
+    };
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
@@ -27,8 +35,8 @@ export class GeminiCliIgnore extends ToolIgnore {
   }: ToolIgnoreFromRulesyncIgnoreParams): GeminiCliIgnore {
     return new GeminiCliIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".aiexclude",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
     });
   }
@@ -37,12 +45,18 @@ export class GeminiCliIgnore extends ToolIgnore {
     baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<GeminiCliIgnore> {
-    const fileContent = await readFileContent(join(baseDir, ".aiexclude"));
+    const fileContent = await readFileContent(
+      join(
+        baseDir,
+        this.getSettablePaths().relativeDirPath,
+        this.getSettablePaths().relativeFilePath,
+      ),
+    );
 
     return new GeminiCliIgnore({
       baseDir,
-      relativeDirPath: ".",
-      relativeFilePath: ".aiexclude",
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
     });
