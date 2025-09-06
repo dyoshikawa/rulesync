@@ -4,16 +4,19 @@ targets:
   - claudecode
 ---
 
-Analyze this project's codebase and update .rulesync/overview.md files as needed. Especially you should read `README.md`, `CONTRIBUTING.md` and `docs/**/*.md`.
+Analyze this project's codebase and update .rulesync/rules/overview.md files as needed. Especially you should read `README.md` and `CONTRIBUTING.md`.
 
-Please always define the following frontmatter in .rulesync/overview.md files.
+Please always define the following frontmatter in .rulesync/rules/overview.md files.
 
 ---
-root: true | false               # Required: Rule level (true for overview, false for details)
-targets: ["*"]                   # Required: Target tools (* = all, or specific tools)
-description: "" # Required: Rule description
-globs: ["**/*"]                  # Required: File patterns
-cursorRuleType: "always"         # Optional: Cursor-specific rule type (always, manual, specificFiles, intelligently)
+root: true # true that is less than or equal to one file for overview such as AGENTS.md, false for details such as .agents/memories/*.md
+targets: ["*"] # * = all, or specific tools
+description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
+cursor: # for cursor-specific rules
+  alwaysApply: true
+  description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+  globs: ["*"]
 ---
 
-In .rulesync/overview.md files, root should be true. Please provide an appropriate description in the description field.
+In .rulesync/rules/overview.md files, root should be true. Please provide an appropriate description in the description field.

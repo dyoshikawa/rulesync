@@ -35,11 +35,74 @@ export class CursorRule extends ToolRule {
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: CursorRule.stringifyCursorFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  /**
+   * Custom stringify function for Cursor MDC files
+   * MDC files don't support quotes in YAML, so globs patterns must be output without quotes
+   */
+  private static stringifyCursorFrontmatter(
+    body: string,
+    frontmatter: CursorRuleFrontmatter,
+  ): string {
+    // If there are no globs or they don't contain asterisk patterns, use the default stringifier
+    if (
+      !frontmatter.globs ||
+      typeof frontmatter.globs !== "string" ||
+      !frontmatter.globs.includes("*")
+    ) {
+      return stringifyFrontmatter(body, frontmatter);
+    }
+
+    // For globs with asterisk patterns, manually build the YAML frontmatter
+    // to ensure they are output without quotes
+    const lines: string[] = ["---"];
+
+    if (frontmatter.alwaysApply !== undefined) {
+      lines.push(`alwaysApply: ${frontmatter.alwaysApply}`);
+    }
+    if (frontmatter.description !== undefined) {
+      lines.push(`description: ${frontmatter.description}`);
+    }
+    if (frontmatter.globs !== undefined) {
+      // Output globs without quotes
+      lines.push(`globs: ${frontmatter.globs}`);
+    }
+
+    lines.push("---");
+    lines.push("");
+
+    if (body) {
+      lines.push(body);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Custom parse function for Cursor MDC files
+   * MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially
+   */
+  private static parseCursorFrontmatter(fileContent: string): {
+    frontmatter: Record<string, unknown>;
+    body: string;
+  } {
+    // Special handling for MDC files: preprocess globs field to handle asterisks
+    // MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially
+    const preprocessedContent = fileContent.replace(
+      /^globs:\s*(\*[^\n]*?)$/m,
+      (_match, globPattern) => {
+        // Wrap the glob pattern in quotes for YAML parsing
+        return `globs: "${globPattern}"`;
+      },
+    );
+
+    return parseFrontmatter(preprocessedContent);
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -125,7 +188,9 @@ export class CursorRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
     const fileContent = await readFileContent(join(baseDir, ".cursor/rules", relativeFilePath));
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+
+    // Use custom parser for MDC files
+    const { frontmatter, body: content } = CursorRule.parseCursorFrontmatter(fileContent);
 
     // Validate frontmatter using CursorRuleFrontmatterSchema
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);

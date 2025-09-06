@@ -1,6 +1,6 @@
 {
 	"name": "rulesync",
-	"version": "0.69.0",
+	"version": "0.70.0",
 	"description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
 	"keywords": [
 		"ai",
@@ -49,9 +49,9 @@
 		"prepublishOnly": "pnpm build",
 		"secretlint": "secretlint --secretlintignore .gitignore \"**/*\"",
 		"sort": "sort-package-json",
-		"test": "vitest run --silent",
-		"test:coverage": "vitest run --coverage --silent",
-		"test:watch": "vitest --silent",
+		"test": "vitest run --silent=true",
+		"test:coverage": "vitest run --coverage --silent=true",
+		"test:watch": "vitest --silent=true",
 		"typecheck": "tsgo --noEmit",
 		"prepare": "simple-git-hooks && pnpm generate"
 	},
