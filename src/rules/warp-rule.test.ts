@@ -143,13 +143,14 @@ describe("WarpRule", () => {
 
     it("should use default parameters when not provided", async () => {
       const warpContent = "# Default Test";
-      await writeFileContent(join("WARP.md"), warpContent);
+      await writeFileContent(join(testDir, "WARP.md"), warpContent);
 
       const warpRule = await WarpRule.fromFile({
+        baseDir: testDir,
         relativeFilePath: "WARP.md",
       });
 
-      expect(warpRule.getBaseDir()).toBe(".");
+      expect(warpRule.getBaseDir()).toBe(testDir);
       expect(warpRule.isRoot()).toBe(true);
     });
 

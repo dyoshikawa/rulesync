@@ -126,11 +126,7 @@ describe("CommandsProcessor", () => {
         baseDir: expect.any(String),
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test.md",
-        fileContent: "converted content",
-        frontmatter: {
-          description: "test description",
-        },
-        body: "converted content",
+        fileContent: `description = "test description"\nprompt = """\nconverted content\n"""`,
       });
 
       vi.mocked(GeminiCliCommand.fromRulesyncCommand).mockReturnValue(mockGeminiCliCommand);
@@ -244,69 +240,60 @@ describe("CommandsProcessor", () => {
     });
 
     it("should convert tool commands to rulesync commands", async () => {
-      const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: expect.any(String),
-        relativeDirPath: ".rulesync/commands",
-        relativeFilePath: "test.md",
-        fileContent: "converted content",
-        frontmatter: {
+      // Since the mocking is interfering with instanceof checks, let's test the behavior more directly
+      // We'll create a minimal mock that the method can actually work with
+      const mockRulesyncCommand = {
+        getBody: () => "converted content",
+        getFrontmatter: () => ({
           targets: ["claudecode"],
           description: "test description",
-        },
-        body: "converted content",
-      });
+        }),
+      };
 
-      const mockToolCommand = new ClaudecodeCommand({
-        baseDir: expect.any(String),
-        relativeDirPath: ".claude/commands",
-        relativeFilePath: "test.md",
-        frontmatter: {
-          description: "test description",
-        },
-        body: "test content",
-      });
+      const mockToolCommand = {
+        toRulesyncCommand: vi.fn().mockReturnValue(mockRulesyncCommand),
+        // Add the ToolCommand constructor properties to make instanceof work
+        constructor: { name: 'ToolCommand' }
+      };
 
-      mockToolCommand.toRulesyncCommand = vi.fn().mockReturnValue(mockRulesyncCommand);
+      // Manually set the prototype to make instanceof ToolCommand return true
+      const { ToolCommand } = await import('./tool-command.js');
+      Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
 
-      const result = await processor.convertToolFilesToRulesyncFiles([mockToolCommand]);
+      const result = await processor.convertToolFilesToRulesyncFiles([mockToolCommand as any]);
 
+      expect(result).toHaveLength(1);
       expect(mockToolCommand.toRulesyncCommand).toHaveBeenCalled();
-      expect(result).toEqual([mockRulesyncCommand]);
+      expect(result[0]).toBe(mockRulesyncCommand);
     });
 
     it("should filter out non-tool command files", async () => {
-      const mockToolCommand = new ClaudecodeCommand({
-        baseDir: expect.any(String),
-        relativeDirPath: ".claude/commands",
-        relativeFilePath: "test.md",
-        frontmatter: {
-          description: "test description",
-        },
-        body: "test content",
-      });
-
-      const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: expect.any(String),
-        relativeDirPath: ".rulesync/commands",
-        relativeFilePath: "test.md",
-        fileContent: "converted content",
-        frontmatter: {
+      const mockRulesyncCommand = {
+        getBody: () => "converted content",
+        getFrontmatter: () => ({
           targets: ["claudecode"],
           description: "test description",
-        },
-        body: "converted content",
-      });
+        }),
+      };
 
-      mockToolCommand.toRulesyncCommand = vi.fn().mockReturnValue(mockRulesyncCommand);
+      const mockToolCommand = {
+        toRulesyncCommand: vi.fn().mockReturnValue(mockRulesyncCommand),
+      };
+
+      // Set prototype to make instanceof ToolCommand return true
+      const { ToolCommand } = await import('./tool-command.js');
+      Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
 
       const mockOtherFile = { type: "other" };
 
       const result = await processor.convertToolFilesToRulesyncFiles([
-        mockToolCommand,
+        mockToolCommand as any,
         mockOtherFile as any,
       ]);
 
+      // Only the ToolCommand should be processed, the other file should be filtered out
       expect(result).toHaveLength(1);
+      expect(mockToolCommand.toRulesyncCommand).toHaveBeenCalled();
     });
   });
 
@@ -347,8 +334,8 @@ describe("CommandsProcessor", () => {
 
       mockFindFilesByGlobs.mockResolvedValue(mockPaths);
       vi.mocked(RulesyncCommand.fromFile)
-        .mockResolvedValueOnce(mockRulesyncCommands[0])
-        .mockResolvedValueOnce(mockRulesyncCommands[1]);
+        .mockResolvedValueOnce(mockRulesyncCommands[0]!)
+        .mockResolvedValueOnce(mockRulesyncCommands[1]!);
 
       const result = await processor.loadRulesyncFiles();
 
@@ -398,13 +385,13 @@ describe("CommandsProcessor", () => {
   describe("loadToolFiles", () => {
     it("should load claudecode commands", async () => {
       processor = new CommandsProcessor({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
       const mockCommands = [
         new ClaudecodeCommand({
-          baseDir: expect.any(String),
+          baseDir: testDir,
           relativeDirPath: ".claude/commands",
           relativeFilePath: "test.md",
           frontmatter: {
@@ -415,7 +402,7 @@ describe("CommandsProcessor", () => {
       ];
 
       mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
-      vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommands[0]);
+      vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommands[0]!);
 
       const result = await processor.loadToolFiles();
 
@@ -424,25 +411,21 @@ describe("CommandsProcessor", () => {
 
     it("should load geminicli commands", async () => {
       processor = new CommandsProcessor({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         toolTarget: "geminicli",
       });
 
       const mockCommands = [
         new GeminiCliCommand({
-          baseDir: expect.any(String),
+          baseDir: testDir,
           relativeDirPath: ".gemini/commands",
           relativeFilePath: "test.md",
-          fileContent: "content",
-          frontmatter: {
-            description: "test description",
-          },
-          body: "content",
+          fileContent: `description = "test description"\nprompt = """\ncontent\n"""`,
         }),
       ];
 
       mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
-      vi.mocked(GeminiCliCommand.fromFile).mockResolvedValue(mockCommands[0]);
+      vi.mocked(GeminiCliCommand.fromFile).mockResolvedValue(mockCommands[0]!);
 
       const result = await processor.loadToolFiles();
 
@@ -451,25 +434,25 @@ describe("CommandsProcessor", () => {
 
     it("should load roo commands", async () => {
       processor = new CommandsProcessor({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         toolTarget: "roo",
       });
 
       const mockCommands = [
         new RooCommand({
-          baseDir: expect.any(String),
+          baseDir: testDir,
           relativeDirPath: ".roo/commands",
           relativeFilePath: "test.md",
-          fileContent: "content",
           frontmatter: {
             description: "test description",
           },
           body: "content",
+          fileContent: "---\ndescription: \"test description\"\n---\n\ncontent",
         }),
       ];
 
       mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
-      vi.mocked(RooCommand.fromFile).mockResolvedValue(mockCommands[0]);
+      vi.mocked(RooCommand.fromFile).mockResolvedValue(mockCommands[0]!);
 
       const result = await processor.loadToolFiles();
 
@@ -494,7 +477,7 @@ describe("CommandsProcessor", () => {
   describe("loadToolCommandDefault", () => {
     beforeEach(() => {
       processor = new CommandsProcessor({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
     });
@@ -502,7 +485,7 @@ describe("CommandsProcessor", () => {
     it("should load claudecode commands with correct parameters", async () => {
       const mockPaths = [`${testDir}/.claude/commands/test.md`];
       const mockCommand = new ClaudecodeCommand({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -531,14 +514,10 @@ describe("CommandsProcessor", () => {
     it("should load geminicli commands with correct parameters", async () => {
       const mockPaths = [`${testDir}/.gemini/commands/test.md`];
       const mockCommand = new GeminiCliCommand({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test.md",
-        fileContent: "content",
-        frontmatter: {
-          description: "test description",
-        },
-        body: "content",
+        fileContent: `description = "test description"\nprompt = """\ncontent\n"""`,
       });
 
       mockFindFilesByGlobs.mockResolvedValue(mockPaths);
@@ -556,14 +535,14 @@ describe("CommandsProcessor", () => {
     it("should load roo commands with correct parameters", async () => {
       const mockPaths = [`${testDir}/.roo/commands/test.md`];
       const mockCommand = new RooCommand({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
-        fileContent: "content",
         frontmatter: {
           description: "test description",
         },
         body: "content",
+        fileContent: "---\ndescription: \"test description\"\n---\n\ncontent",
       });
 
       mockFindFilesByGlobs.mockResolvedValue(mockPaths);
@@ -581,7 +560,7 @@ describe("CommandsProcessor", () => {
     it("should handle failed file loading gracefully", async () => {
       const mockPaths = ["test1.md", "test2.md"];
       const mockCommand = new ClaudecodeCommand({
-        baseDir: expect.any(String),
+        baseDir: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test1.md",
         frontmatter: {

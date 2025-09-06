@@ -44,7 +44,7 @@ describe("RooIgnore", () => {
 
     it("should validate content by default", () => {
       expect(() => {
-        const _instance = new RooIgnore({
+        new RooIgnore({
           relativeDirPath: ".",
           relativeFilePath: ".rooignore",
           fileContent: "", // empty content should be valid
@@ -54,7 +54,7 @@ describe("RooIgnore", () => {
 
     it("should skip validation when validate=false", () => {
       expect(() => {
-        const _instance = new RooIgnore({
+        new RooIgnore({
           relativeDirPath: ".",
           relativeFilePath: ".rooignore",
           fileContent: "any content",

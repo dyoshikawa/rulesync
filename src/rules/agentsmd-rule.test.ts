@@ -170,7 +170,12 @@ describe("AgentsMdRule", () => {
       const rulesyncRule = rule.toRulesyncRule();
 
       expect(rulesyncRule.getBody()).toBe("# Test Agent\n\nAgent configuration.");
-      expect(rulesyncRule.getFrontmatter()).toEqual({});
+      expect(rulesyncRule.getFrontmatter()).toEqual({
+        root: false,
+        targets: ["*"],
+        description: "",
+        globs: [],
+      });
     });
 
     it("should handle root agent file conversion", () => {
@@ -185,7 +190,12 @@ describe("AgentsMdRule", () => {
       const rulesyncRule = rule.toRulesyncRule();
 
       expect(rulesyncRule.getBody()).toBe("# Root Agent\n\nRoot configuration.");
-      expect(rulesyncRule.getFrontmatter()).toEqual({});
+      expect(rulesyncRule.getFrontmatter()).toEqual({
+        root: true,
+        targets: ["*"],
+        description: "",
+        globs: ["**/*"],
+      });
     });
   });
 

@@ -280,6 +280,10 @@ describe("RooCommand", () => {
       const testSetup = await setupTestDirectory();
       const { cleanup } = testSetup;
 
+      // Declare filePath in outer scope so it's available in finally block
+      const commandsDir = join(".", ".roo", "commands");
+      const filePath = join(commandsDir, "default-base.md");
+
       try {
         const frontmatter: RooCommandFrontmatter = {
           description: "Command with default baseDir",
@@ -287,9 +291,7 @@ describe("RooCommand", () => {
         const body = "Test body";
         const fileContent = stringifyFrontmatter(body, frontmatter);
 
-        // Write the test file in current directory structure
-        const commandsDir = join(".", ".roo", "commands");
-        const filePath = join(testSetup.testDir, commandsDir, "default-base.md");
+        // Write the test file in current working directory structure (not testDir)
         await writeFileContent(filePath, fileContent);
 
         const command = await RooCommand.fromFile({
@@ -299,6 +301,12 @@ describe("RooCommand", () => {
         expect(command.getBaseDir()).toBe(".");
       } finally {
         await cleanup();
+        // Clean up the file created in current working directory
+        try {
+          await import("node:fs/promises").then(fs => fs.unlink(filePath));
+        } catch {
+          // Ignore if file doesn't exist
+        }
       }
     });
 
