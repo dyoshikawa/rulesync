@@ -75,7 +75,7 @@ export class CopilotRule extends ToolRule {
 
     const copilotFrontmatter: CopilotRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
-      applyTo: rulesyncFrontmatter.globs?.join(","),
+      applyTo: rulesyncFrontmatter.globs?.length ? rulesyncFrontmatter.globs.join(",") : undefined,
     };
 
     // Generate proper file content with Copilot specific frontmatter
@@ -118,7 +118,7 @@ export class CopilotRule extends ToolRule {
     // Determine if this is a root file based on the file path
     const isRoot = relativeFilePath === "copilot-instructions.md";
     const relativePath = isRoot
-      ? "copilot-instructions.md"
+      ? join(".github", "copilot-instructions.md")
       : join(".github/instructions", relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
@@ -152,7 +152,9 @@ export class CopilotRule extends ToolRule {
     return new CopilotRule({
       baseDir: baseDir,
       relativeDirPath: ".github/instructions",
-      relativeFilePath: relativeFilePath.replace(/\.md$/, ".instructions.md"),
+      relativeFilePath: relativeFilePath.endsWith(".instructions.md") 
+        ? relativeFilePath 
+        : relativeFilePath.replace(/\.md$/, ".instructions.md"),
       frontmatter: result.data,
       body: content.trim(),
       validate,
