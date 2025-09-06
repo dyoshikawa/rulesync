@@ -7,20 +7,36 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
 export type WindsurfRuleParams = ToolRuleParams;
+
+export type WindsurfRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 export class WindsurfRule extends ToolRule {
+  static getSettablePaths(): WindsurfRuleSettablePaths {
+    return {
+      nonRoot: {
+        relativeDirPath: ".windsurf/rules",
+      },
+    };
+  }
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<WindsurfRule> {
-    const fileContent = await readFileContent(join(baseDir, ".windsurf/rules", relativeFilePath));
+    const fileContent = await readFileContent(
+      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    );
 
     return new WindsurfRule({
       baseDir,
-      relativeDirPath: ".windsurf/rules",
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
@@ -37,7 +53,7 @@ export class WindsurfRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
-        nonRootPath: { relativeDirPath: ".windsurf/rules" },
+        nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );
   }
