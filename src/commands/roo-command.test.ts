@@ -289,7 +289,7 @@ describe("RooCommand", () => {
 
         // Write the test file in current directory structure
         const commandsDir = join(".", ".roo", "commands");
-        const filePath = join(commandsDir, "default-base.md");
+        const filePath = join(testSetup.testDir, commandsDir, "default-base.md");
         await writeFileContent(filePath, fileContent);
 
         const command = await RooCommand.fromFile({
