@@ -7,10 +7,25 @@ import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
+import { CodexCliSubagent } from "./codexcli-subagent.js";
+import { CopilotSubagent } from "./copilot-subagent.js";
+import { CursorSubagent } from "./cursor-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
+import { SimulatedSubagent } from "./simulated-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
 
-export const subagentsProcessorToolTargets: ToolTarget[] = ["claudecode"];
+export const subagentsProcessorToolTargets: ToolTarget[] = [
+  "claudecode",
+  "copilot",
+  "cursor",
+  "codexcli",
+];
+
+export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = [
+  "copilot",
+  "cursor",
+  "codexcli",
+];
 export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
 
 export type SubagentsProcessorToolTarget = z.infer<typeof SubagentsProcessorToolTargetSchema>;
@@ -39,6 +54,24 @@ export class SubagentsProcessor extends FeatureProcessor {
             relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
             rulesyncSubagent: rulesyncSubagent,
           });
+        case "copilot":
+          return CopilotSubagent.fromRulesyncSubagent({
+            baseDir: this.baseDir,
+            relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+            rulesyncSubagent: rulesyncSubagent,
+          });
+        case "cursor":
+          return CursorSubagent.fromRulesyncSubagent({
+            baseDir: this.baseDir,
+            relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+            rulesyncSubagent: rulesyncSubagent,
+          });
+        case "codexcli":
+          return CodexCliSubagent.fromRulesyncSubagent({
+            baseDir: this.baseDir,
+            relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+            rulesyncSubagent: rulesyncSubagent,
+          });
         default:
           throw new Error(`Unsupported tool target: ${this.toolTarget}`);
       }
@@ -52,9 +85,19 @@ export class SubagentsProcessor extends FeatureProcessor {
       (file): file is ToolSubagent => file instanceof ToolSubagent,
     );
 
-    const rulesyncSubagents = toolSubagents.map((toolSubagent) => {
-      return toolSubagent.toRulesyncSubagent();
-    });
+    const rulesyncSubagents: RulesyncSubagent[] = [];
+
+    for (const toolSubagent of toolSubagents) {
+      // Skip simulated subagents as they can't be converted back to rulesync
+      if (toolSubagent instanceof SimulatedSubagent) {
+        logger.debug(
+          `Skipping simulated subagent conversion: ${toolSubagent.getRelativeFilePath()}`,
+        );
+        continue;
+      }
+
+      rulesyncSubagents.push(toolSubagent.toRulesyncSubagent());
+    }
 
     return rulesyncSubagents;
   }
@@ -121,6 +164,12 @@ export class SubagentsProcessor extends FeatureProcessor {
     switch (this.toolTarget) {
       case "claudecode":
         return await this.loadClaudecodeSubagents();
+      case "copilot":
+        return await this.loadCopilotSubagents();
+      case "cursor":
+        return await this.loadCursorSubagents();
+      case "codexcli":
+        return await this.loadCodexCliSubagents();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -133,6 +182,36 @@ export class SubagentsProcessor extends FeatureProcessor {
     return await this.loadToolSubagentsDefault({
       relativeDirPath: ClaudecodeSubagent.getSettablePaths().nonRoot.relativeDirPath,
       fromFile: (relativeFilePath) => ClaudecodeSubagent.fromFile({ relativeFilePath }),
+    });
+  }
+
+  /**
+   * Load Copilot subagent configurations from .copilot/subagents/ directory
+   */
+  private async loadCopilotSubagents(): Promise<ToolSubagent[]> {
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: CopilotSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      fromFile: (relativeFilePath) => CopilotSubagent.fromFile({ relativeFilePath }),
+    });
+  }
+
+  /**
+   * Load Cursor subagent configurations from .cursor/subagents/ directory
+   */
+  private async loadCursorSubagents(): Promise<ToolSubagent[]> {
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: CursorSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      fromFile: (relativeFilePath) => CursorSubagent.fromFile({ relativeFilePath }),
+    });
+  }
+
+  /**
+   * Load CodexCli subagent configurations from .codex/subagents/ directory
+   */
+  private async loadCodexCliSubagents(): Promise<ToolSubagent[]> {
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: CodexCliSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      fromFile: (relativeFilePath) => CodexCliSubagent.fromFile({ relativeFilePath }),
     });
   }
 
@@ -158,7 +237,17 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets({
+    excludeSimulated = false,
+  }: {
+    excludeSimulated?: boolean;
+  } = {}): ToolTarget[] {
+    if (excludeSimulated) {
+      return subagentsProcessorToolTargets.filter(
+        (target) => !subagentsProcessorToolTargetsSimulated.includes(target),
+      );
+    }
+
     return subagentsProcessorToolTargets;
   }
 }

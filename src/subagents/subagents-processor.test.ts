@@ -3,12 +3,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
+import { CodexCliSubagent } from "./codexcli-subagent.js";
+import { CopilotSubagent } from "./copilot-subagent.js";
+import { CursorSubagent } from "./cursor-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SubagentsProcessor,
   SubagentsProcessorToolTarget,
   SubagentsProcessorToolTargetSchema,
   subagentsProcessorToolTargets,
+  subagentsProcessorToolTargetsSimulated,
 } from "./subagents-processor.js";
 
 describe("SubagentsProcessor", () => {
@@ -78,7 +82,7 @@ describe("SubagentsProcessor", () => {
       });
     });
 
-    it("should filter and convert RulesyncSubagent instances", async () => {
+    it("should filter and convert RulesyncSubagent instances for claudecode", async () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
@@ -149,6 +153,99 @@ Test agent content`,
         processorWithMockTarget.convertRulesyncFilesToToolFiles([rulesyncSubagent]),
       ).rejects.toThrow("Unsupported tool target: unsupported");
     });
+
+    it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test-agent.md",
+        fileContent: `---
+name: test-agent
+description: Test agent description
+targets: ["*"]
+---
+Test agent content`,
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CopilotSubagent);
+    });
+
+    it("should convert RulesyncSubagent to CursorSubagent for cursor target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test-agent.md",
+        fileContent: `---
+name: test-agent
+description: Test agent description
+targets: ["*"]
+---
+Test agent content`,
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CursorSubagent);
+    });
+
+    it("should convert RulesyncSubagent to CodexCliSubagent for codexcli target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test-agent.md",
+        fileContent: `---
+name: test-agent
+description: Test agent description
+targets: ["*"]
+---
+Test agent content`,
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CodexCliSubagent);
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
@@ -207,6 +304,71 @@ Test agent content`,
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
       expect(rulesyncFiles).toEqual([]);
+    });
+
+    it("should skip simulated subagents when converting to rulesync", async () => {
+      const claudecodeSubagent = new ClaudecodeSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        relativeFilePath: "claude-agent.md",
+        fileContent: `---
+name: claude-agent
+description: Claude agent
+---
+Claude content`,
+        frontmatter: {
+          name: "claude-agent",
+          description: "Claude agent",
+        },
+        body: "Claude content",
+        validate: false,
+      });
+
+      const copilotSubagent = new CopilotSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".copilot/subagents",
+        relativeFilePath: "copilot-agent.md",
+        frontmatter: {
+          name: "copilot-agent",
+          description: "Copilot agent",
+        },
+        body: "Copilot content",
+        validate: false,
+      });
+
+      const cursorSubagent = new CursorSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".cursor/subagents",
+        relativeFilePath: "cursor-agent.md",
+        frontmatter: {
+          name: "cursor-agent",
+          description: "Cursor agent",
+        },
+        body: "Cursor content",
+        validate: false,
+      });
+
+      const codexCliSubagent = new CodexCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".codex/subagents",
+        relativeFilePath: "codex-agent.md",
+        frontmatter: {
+          name: "codex-agent",
+          description: "CodexCli agent",
+        },
+        body: "Codex content",
+        validate: false,
+      });
+
+      const toolFiles = [claudecodeSubagent, copilotSubagent, cursorSubagent, codexCliSubagent];
+
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+
+      // Only ClaudecodeSubagent should be converted (non-simulated)
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
+      const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("claude-agent");
     });
   });
 
@@ -320,16 +482,38 @@ Invalid content`;
   });
 
   describe("loadToolFiles", () => {
-    let processor: SubagentsProcessor;
-
-    beforeEach(() => {
-      processor = new SubagentsProcessor({
+    it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
+      const processor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
     });
 
-    it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
+    it("should delegate to loadCopilotSubagents for copilot target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
+    });
+
+    it("should delegate to loadCursorSubagents for cursor target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
+    });
+
+    it("should delegate to loadCodexCliSubagents for codexcli target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
       const toolFiles = await processor.loadToolFiles();
       expect(Array.isArray(toolFiles)).toBe(true);
     });
@@ -343,6 +527,108 @@ Invalid content`;
       await expect(processorWithMockTarget.loadToolFiles()).rejects.toThrow(
         "Unsupported tool target: unsupported",
       );
+    });
+  });
+
+  describe("loadCopilotSubagents", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+    });
+
+    it("should return empty array when subagents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should load copilot subagent files from .copilot/subagents", async () => {
+      const subagentsDir = join(testDir, ".copilot", "subagents");
+      await ensureDir(subagentsDir);
+
+      const subagentContent = `---
+name: copilot-agent
+description: Copilot agent description
+---
+Copilot agent content`;
+
+      await writeFileContent(join(subagentsDir, "copilot-agent.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CopilotSubagent);
+    });
+  });
+
+  describe("loadCursorSubagents", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+    });
+
+    it("should return empty array when subagents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should load cursor subagent files from .cursor/subagents", async () => {
+      const subagentsDir = join(testDir, ".cursor", "subagents");
+      await ensureDir(subagentsDir);
+
+      const subagentContent = `---
+name: cursor-agent
+description: Cursor agent description
+---
+Cursor agent content`;
+
+      await writeFileContent(join(subagentsDir, "cursor-agent.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CursorSubagent);
+    });
+  });
+
+  describe("loadCodexCliSubagents", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+    });
+
+    it("should return empty array when subagents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should load codexcli subagent files from .codex/subagents", async () => {
+      const subagentsDir = join(testDir, ".codex", "subagents");
+      await ensureDir(subagentsDir);
+
+      const subagentContent = `---
+name: codex-agent
+description: CodexCli agent description
+---
+CodexCli agent content`;
+
+      await writeFileContent(join(subagentsDir, "codex-agent.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CodexCliSubagent);
     });
   });
 
@@ -433,11 +719,35 @@ Valid content`,
   });
 
   describe("getToolTargets", () => {
-    it("should return supported tool targets", () => {
+    it("should return all supported tool targets by default", () => {
       const toolTargets = SubagentsProcessor.getToolTargets();
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("cursor");
+      expect(toolTargets).toContain("codexcli");
+      expect(toolTargets).toEqual(subagentsProcessorToolTargets);
+    });
+
+    it("should exclude simulated targets when excludeSimulated is true", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ excludeSimulated: true });
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).not.toContain("copilot");
+      expect(toolTargets).not.toContain("cursor");
+      expect(toolTargets).not.toContain("codexcli");
+    });
+
+    it("should include simulated targets when excludeSimulated is false", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ excludeSimulated: false });
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("cursor");
+      expect(toolTargets).toContain("codexcli");
       expect(toolTargets).toEqual(subagentsProcessorToolTargets);
     });
 
@@ -454,13 +764,30 @@ Valid content`,
     });
 
     it("should export subagentsProcessorToolTargets constant", () => {
-      expect(subagentsProcessorToolTargets).toEqual(["claudecode"]);
+      expect(subagentsProcessorToolTargets).toEqual([
+        "claudecode",
+        "copilot",
+        "cursor",
+        "codexcli",
+      ]);
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);
     });
 
+    it("should export subagentsProcessorToolTargetsSimulated constant", () => {
+      expect(subagentsProcessorToolTargetsSimulated).toEqual(["copilot", "cursor", "codexcli"]);
+      expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
+    });
+
     it("should have valid SubagentsProcessorToolTarget type", () => {
-      const validTarget: SubagentsProcessorToolTarget = "claudecode";
-      expect(validTarget).toBe("claudecode");
+      const validTargets: SubagentsProcessorToolTarget[] = [
+        "claudecode",
+        "copilot",
+        "cursor",
+        "codexcli",
+      ];
+      validTargets.forEach((target) => {
+        expect(subagentsProcessorToolTargets).toContain(target);
+      });
     });
   });
 
