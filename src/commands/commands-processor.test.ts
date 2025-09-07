@@ -652,7 +652,7 @@ describe("CommandsProcessor", () => {
   describe("getToolTargets", () => {
     it("should return supported tool targets", () => {
       const targets = CommandsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "geminicli", "roo"]);
+      expect(targets).toEqual(["claudecode", "geminicli", "roo", "copilot", "cursor", "codexcli"]);
     });
   });
 });

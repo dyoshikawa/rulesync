@@ -125,7 +125,7 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   let commandsCreated = 0;
   if (config.getFeatures().includes("commands")) {
     // Use CommandsProcessor for supported tools
-    const supportedTargets = CommandsProcessor.getToolTargets();
+    const supportedTargets = CommandsProcessor.getToolTargets({ excludeSimulated: true });
     if (supportedTargets && supportedTargets.includes && supportedTargets.includes(tool)) {
       const commandsProcessor = new CommandsProcessor({
         baseDir: ".",
