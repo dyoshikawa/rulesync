@@ -54,7 +54,8 @@
 		"test:watch": "vitest --silent=true",
 		"typecheck": "tsgo --noEmit",
 		"prepare": "simple-git-hooks && pnpm generate",
-		"cicheck": "pnpm run check && pnpm run test && pnpm run cspell && pnpm run secretlint"
+		"cicheck": "pnpm run check && pnpm run test && pnpm run cspell && pnpm run secretlint",
+		"task": "tsx scripts/run-tasks.ts"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "pnpm exec lint-staged"
