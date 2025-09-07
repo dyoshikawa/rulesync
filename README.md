@@ -60,10 +60,10 @@ rulesync supports both **generation** and **import** for All of the major AI cod
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
 | AGENTS.md            |  ✅   |      |       |          |           |
 | Claude Code            |  ✅   |      |  ✅    |    ✅     |    ✅      |
-| Codex CLI              |  ✅   |   ✅   |      |         |          |
+| Codex CLI              |  ✅   |   ✅   |      |    🎮     |    🎮      |
 | Gemini CLI             |  ✅   |   ✅   |      |     ✅   |          |
-| GitHub Copilot         |  ✅    |       |  ✅    |          |          |
-| Cursor                 |  ✅   |   ✅  |   ✅   |          |          |
+| GitHub Copilot         |  ✅    |       |  ✅    |    🎮      |    🎮      |
+| Cursor                 |  ✅   |   ✅  |   ✅   |     🎮    |     🎮     |
 | OpenCode               |  ✅   |       |       |         |          |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |
 | Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |          |
@@ -73,6 +73,9 @@ rulesync supports both **generation** and **import** for All of the major AI cod
 | JetBrains Junie        |  ✅   |   ✅   |      |         |          |
 | AugmentCode            |  ✅   |   ✅   |       |         |          |
 | Windsurf               |  ✅   |   ✅    |      |         |          |
+
+
+🎮: Simulated Commands/Subagents (Experimental Feature)
 
 ## Why rulesync?
 
@@ -110,6 +113,9 @@ npx rulesync generate --targets claudecode --features rules,subagents
 # Generate only rules (no MCP, ignore files, commands, or subagents)
 npx rulesync generate --targets "*" --features rules
 
+# Generate simulated commands and subagents with experimental features
+npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --experimental-simulate-commands --experimental-simulate-subagents
+
 # Add generated files to .gitignore
 npx rulesync gitignore
 ```
@@ -136,7 +142,11 @@ Example:
   "delete": true,
 
   // Verbose output
-  "verbose": false
+  "verbose": false,
+
+  // Experimental features
+  "experimentalSimulateCommands": false,
+  "experimentalSimutateSubagents": false
 }
 ```
 
