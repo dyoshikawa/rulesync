@@ -27,6 +27,15 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   const tool = config.getTargets()[0]!;
 
+  // Check if tool is simulated-only and prevent import
+  const simulatedOnlyTools = ["copilot", "cursor", "codexcli"];
+  if (simulatedOnlyTools.includes(tool)) {
+    logger.error(
+      `Cannot import ${tool}: it only supports generation (simulated commands/subagents)`,
+    );
+    process.exit(1);
+  }
+
   // Import rule files using RulesProcessor if rules feature is enabled
   let rulesCreated = 0;
   if (config.getFeatures().includes("rules")) {
@@ -101,8 +110,9 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // Create subagent files if subagents feature is enabled
   let subagentsCreated = 0;
   if (config.getFeatures().includes("subagents")) {
-    // Use SubagentsProcessor for supported tools
-    if (SubagentsProcessor.getToolTargets().includes(tool)) {
+    // Use SubagentsProcessor for supported tools, excluding simulated ones
+    const supportedTargets = SubagentsProcessor.getToolTargets({ excludeSimulated: true });
+    if (supportedTargets.includes(tool)) {
       const subagentsProcessor = new SubagentsProcessor({
         baseDir: ".",
         toolTarget: tool,
@@ -124,9 +134,9 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // Create command files using CommandsProcessor if commands feature is enabled
   let commandsCreated = 0;
   if (config.getFeatures().includes("commands")) {
-    // Use CommandsProcessor for supported tools
+    // Use CommandsProcessor for supported tools, excluding simulated ones
     const supportedTargets = CommandsProcessor.getToolTargets({ excludeSimulated: true });
-    if (supportedTargets && supportedTargets.includes && supportedTargets.includes(tool)) {
+    if (supportedTargets.includes(tool)) {
       const commandsProcessor = new CommandsProcessor({
         baseDir: ".",
         toolTarget: tool,
