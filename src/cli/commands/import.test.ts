@@ -194,7 +194,7 @@ describe("importCommand", () => {
       expect(mockMcpProcessor.writeAiFiles).toHaveBeenCalled();
     });
 
-    it("should import subagents with excludeSimulated flag", async () => {
+    it("should import subagents with includeSimulated flag", async () => {
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
@@ -209,8 +209,8 @@ describe("importCommand", () => {
 
       await importCommand(options);
 
-      // Verify that getToolTargets was called with excludeSimulated: true
-      expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({ excludeSimulated: true });
+      // Verify that getToolTargets was called with includeSimulated: false
+      expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -220,7 +220,7 @@ describe("importCommand", () => {
       expect(mockSubagentsProcessor.writeAiFiles).toHaveBeenCalled();
     });
 
-    it("should import commands with excludeSimulated flag", async () => {
+    it("should import commands with includeSimulated flag", async () => {
       const mockCommandsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "command1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
@@ -235,8 +235,8 @@ describe("importCommand", () => {
 
       await importCommand(options);
 
-      // Verify that getToolTargets was called with excludeSimulated: true
-      expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({ excludeSimulated: true });
+      // Verify that getToolTargets was called with includeSimulated: false
+      expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
       expect(CommandsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",

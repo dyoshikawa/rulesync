@@ -719,19 +719,8 @@ Valid content`,
   });
 
   describe("getToolTargets", () => {
-    it("should return all supported tool targets by default", () => {
+    it("should exclude simulated targets by default", () => {
       const toolTargets = SubagentsProcessor.getToolTargets();
-
-      expect(Array.isArray(toolTargets)).toBe(true);
-      expect(toolTargets).toContain("claudecode");
-      expect(toolTargets).toContain("copilot");
-      expect(toolTargets).toContain("cursor");
-      expect(toolTargets).toContain("codexcli");
-      expect(toolTargets).toEqual(subagentsProcessorToolTargets);
-    });
-
-    it("should exclude simulated targets when excludeSimulated is true", () => {
-      const toolTargets = SubagentsProcessor.getToolTargets({ excludeSimulated: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
@@ -740,8 +729,18 @@ Valid content`,
       expect(toolTargets).not.toContain("codexcli");
     });
 
-    it("should include simulated targets when excludeSimulated is false", () => {
-      const toolTargets = SubagentsProcessor.getToolTargets({ excludeSimulated: false });
+    it("should exclude simulated targets when includeSimulated is false", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).not.toContain("copilot");
+      expect(toolTargets).not.toContain("cursor");
+      expect(toolTargets).not.toContain("codexcli");
+    });
+
+    it("should include simulated targets when includeSimulated is true", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ includeSimulated: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");

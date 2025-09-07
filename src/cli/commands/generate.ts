@@ -1,8 +1,5 @@
 import { intersection } from "es-toolkit";
-import {
-  CommandsProcessor,
-  type CommandsProcessorToolTarget,
-} from "../../commands/commands-processor.js";
+import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor, type McpProcessorToolTarget } from "../../mcp/mcp-processor.js";
@@ -113,7 +110,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       for (const toolTarget of intersection(
         config.getTargets(),
         CommandsProcessor.getToolTargets({
-          excludeSimulated: !config.getExperimentalSimulateCommands(),
+          includeSimulated: config.getExperimentalSimulateCommands(),
         }),
       )) {
         const processor = new CommandsProcessor({
@@ -181,7 +178,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       for (const toolTarget of intersection(
         config.getTargets(),
         SubagentsProcessor.getToolTargets({
-          excludeSimulated: !config.getExperimentalSimulateSubagents(),
+          includeSimulated: config.getExperimentalSimulateSubagents(),
         }),
       )) {
         const processor = new SubagentsProcessor({

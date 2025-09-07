@@ -111,7 +111,7 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   let subagentsCreated = 0;
   if (config.getFeatures().includes("subagents")) {
     // Use SubagentsProcessor for supported tools, excluding simulated ones
-    const supportedTargets = SubagentsProcessor.getToolTargets({ excludeSimulated: true });
+    const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
     if (supportedTargets.includes(tool)) {
       const subagentsProcessor = new SubagentsProcessor({
         baseDir: ".",
@@ -135,7 +135,7 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   let commandsCreated = 0;
   if (config.getFeatures().includes("commands")) {
     // Use CommandsProcessor for supported tools, excluding simulated ones
-    const supportedTargets = CommandsProcessor.getToolTargets({ excludeSimulated: true });
+    const supportedTargets = CommandsProcessor.getToolTargets({ includeSimulated: false });
     if (supportedTargets.includes(tool)) {
       const commandsProcessor = new CommandsProcessor({
         baseDir: ".",

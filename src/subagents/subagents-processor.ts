@@ -238,11 +238,11 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Return the tool targets that this processor supports
    */
   static getToolTargets({
-    excludeSimulated = false,
+    includeSimulated = false,
   }: {
-    excludeSimulated?: boolean;
+    includeSimulated?: boolean;
   } = {}): ToolTarget[] {
-    if (excludeSimulated) {
+    if (!includeSimulated) {
       return subagentsProcessorToolTargets.filter(
         (target) => !subagentsProcessorToolTargetsSimulated.includes(target),
       );

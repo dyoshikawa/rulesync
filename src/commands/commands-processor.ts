@@ -212,11 +212,11 @@ export class CommandsProcessor extends FeatureProcessor {
    * Return the tool targets that this processor supports
    */
   static getToolTargets({
-    excludeSimulated = false,
+    includeSimulated = false,
   }: {
-    excludeSimulated?: boolean;
+    includeSimulated?: boolean;
   } = {}): ToolTarget[] {
-    if (excludeSimulated) {
+    if (!includeSimulated) {
       return commandsProcessorToolTargets.filter(
         (target) => !commandsProcessorToolTargetsSimulated.includes(target),
       );

@@ -650,8 +650,13 @@ describe("CommandsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return supported tool targets", () => {
+    it("should exclude simulated targets by default", () => {
       const targets = CommandsProcessor.getToolTargets();
+      expect(targets).toEqual(["claudecode", "geminicli", "roo"]);
+    });
+
+    it("should include simulated targets when includeSimulated is true", () => {
+      const targets = CommandsProcessor.getToolTargets({ includeSimulated: true });
       expect(targets).toEqual(["claudecode", "geminicli", "roo", "copilot", "cursor", "codexcli"]);
     });
   });
