@@ -138,7 +138,7 @@ const main = async () => {
           baseDirs: options.baseDirs,
           configPath: options.config,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
-          experimentalSimutateSubagents: options.experimentalSimutateSubagents,
+          experimentalSimulateSubagents: options.experimentalSimulateSubagents,
         });
       } catch (error) {
         logger.error(error instanceof Error ? error.message : String(error));

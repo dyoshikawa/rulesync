@@ -8,7 +8,7 @@ export type ConfigParams = {
   verbose: boolean;
   delete: boolean;
   experimentalSimulateCommands: boolean;
-  experimentalSimutateSubagents: boolean;
+  experimentalSimulateSubagents: boolean;
 };
 
 export class Config {
@@ -18,7 +18,7 @@ export class Config {
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly experimentalSimulateCommands: boolean;
-  private readonly experimentalSimutateSubagents: boolean;
+  private readonly experimentalSimulateSubagents: boolean;
 
   constructor({
     baseDirs,
@@ -27,7 +27,7 @@ export class Config {
     verbose,
     delete: isDelete,
     experimentalSimulateCommands,
-    experimentalSimutateSubagents,
+    experimentalSimulateSubagents,
   }: ConfigParams) {
     this.baseDirs = baseDirs;
     this.targets = targets;
@@ -35,7 +35,7 @@ export class Config {
     this.verbose = verbose;
     this.delete = isDelete;
     this.experimentalSimulateCommands = experimentalSimulateCommands;
-    this.experimentalSimutateSubagents = experimentalSimutateSubagents;
+    this.experimentalSimulateSubagents = experimentalSimulateSubagents;
   }
 
   public getBaseDirs(): string[] {
@@ -70,7 +70,7 @@ export class Config {
     return this.experimentalSimulateCommands;
   }
 
-  public getExperimentalSimutateSubagents(): boolean {
-    return this.experimentalSimutateSubagents;
+  public getExperimentalSimulateSubagents(): boolean {
+    return this.experimentalSimulateSubagents;
   }
 }

@@ -146,7 +146,7 @@ Example:
 
   // Experimental features
   "experimentalSimulateCommands": false,
-  "experimentalSimutateSubagents": false
+  "experimentalSimulateSubagents": false
 }
 ```
 

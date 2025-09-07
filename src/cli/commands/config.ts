@@ -33,7 +33,7 @@ async function initConfig(): Promise<void> {
         delete: true,
         verbose: false,
         experimentalSimulateCommands: false,
-        experimentalSimutateSubagents: false,
+        experimentalSimulateSubagents: false,
       } satisfies ConfigParams,
       null,
       2,
