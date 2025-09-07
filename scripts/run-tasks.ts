@@ -3,7 +3,7 @@
 import { query } from "@anthropic-ai/claude-code";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { tasks } from "../tmp/tasks/tasks.ts";
+import { model, tasks } from "../tmp/tasks/tasks.ts";
 
 const runClaudeCode = async (task: string) => {
   console.log("task", task);
@@ -12,6 +12,7 @@ const runClaudeCode = async (task: string) => {
     options: {
       abortController: new AbortController(),
       permissionMode: "bypassPermissions",
+      model: model ?? "sonnet",
     },
   })) {
     if (message.type === "assistant") {
