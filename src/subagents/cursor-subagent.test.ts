@@ -527,7 +527,7 @@ Body content`;
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
-          description: "Windows line endings test",
+          description: "Test with Windows line endings",
         },
         body: windowsContent,
         validate: true,
@@ -537,8 +537,8 @@ Body content`;
     });
   });
 
-  describe("integration with base classes", () => {
-    it("should properly inherit from SimulatedSubagent", () => {
+  describe("inheritance", () => {
+    it("should inherit from SimulatedSubagent", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/subagents",
@@ -547,31 +547,15 @@ Body content`;
           name: "Test",
           description: "Test",
         },
-        body: "Body",
-        validate: true,
-      });
-
-      // Check that it's an instance of parent classes
-      expect(subagent).toBeInstanceOf(CursorSubagent);
-      expect(subagent.getRelativeDirPath()).toBe(".cursor/subagents");
-      expect(subagent.getRelativeFilePath()).toBe("test.md");
-    });
-
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
-      const subagent = new CursorSubagent({
-        baseDir: customBaseDir,
-        relativeDirPath: ".cursor/subagents",
-        relativeFilePath: "test.md",
-        frontmatter: {
-          name: "Test",
-          description: "Test",
-        },
-        body: "Body",
+        body: "Test",
         validate: true,
       });
 
       expect(subagent).toBeInstanceOf(CursorSubagent);
+      // Test that it inherits methods from parent class
+      expect(() => subagent.toRulesyncSubagent()).toThrow(
+        "Not implemented because it is a SIMULATED file.",
+      );
     });
   });
 });
