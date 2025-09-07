@@ -20,13 +20,13 @@ describe("QwencodeRule", () => {
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const qwencodeRule = new QwencodeRule({
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Rule\n\nThis is a test rule.",
       });
 
       expect(qwencodeRule).toBeInstanceOf(QwencodeRule);
-      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwencode/memories");
+      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
       expect(qwencodeRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(qwencodeRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
       expect(qwencodeRule.isRoot()).toBe(false);
@@ -35,19 +35,19 @@ describe("QwencodeRule", () => {
     it("should create instance with custom baseDir", () => {
       const qwencodeRule = new QwencodeRule({
         baseDir: "/custom/path",
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Custom Rule",
       });
 
-      expect(qwencodeRule.getFilePath()).toBe("/custom/path/.qwencode/memories/test-rule.md");
+      expect(qwencodeRule.getFilePath()).toBe("/custom/path/.qwen/memories/test-rule.md");
       expect(qwencodeRule.isRoot()).toBe(false);
     });
 
     it("should validate content by default", () => {
       expect(() => {
         const _instance = new QwencodeRule({
-          relativeDirPath: ".qwencode/memories",
+          relativeDirPath: ".qwen/memories",
           relativeFilePath: "test-rule.md",
           fileContent: "", // empty content should be valid since validate always returns success
         });
@@ -57,7 +57,7 @@ describe("QwencodeRule", () => {
     it("should skip validation when requested", () => {
       expect(() => {
         const _instance = new QwencodeRule({
-          relativeDirPath: ".qwencode/memories",
+          relativeDirPath: ".qwen/memories",
           relativeFilePath: "test-rule.md",
           fileContent: "",
           validate: false,
@@ -79,7 +79,7 @@ describe("QwencodeRule", () => {
 
     it("should handle non-root rule parameter", () => {
       const qwencodeRule = new QwencodeRule({
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "non-root-rule.md",
         fileContent: "# Non-Root Rule",
         root: false,
@@ -93,7 +93,7 @@ describe("QwencodeRule", () => {
   describe("fromFile", () => {
     it("should create instance from existing non-root file", async () => {
       // Setup test file
-      const memoriesDir = join(testDir, ".qwencode/memories");
+      const memoriesDir = join(testDir, ".qwen/memories");
       await ensureDir(memoriesDir);
       const testContent = "# Test Rule from File\n\nContent from file.";
       await writeFileContent(join(memoriesDir, "test.md"), testContent);
@@ -103,10 +103,10 @@ describe("QwencodeRule", () => {
         relativeFilePath: "test.md",
       });
 
-      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwencode/memories");
+      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
       expect(qwencodeRule.getRelativeFilePath()).toBe("test.md");
       expect(qwencodeRule.getFileContent()).toBe(testContent);
-      expect(qwencodeRule.getFilePath()).toBe(join(testDir, ".qwencode/memories/test.md"));
+      expect(qwencodeRule.getFilePath()).toBe(join(testDir, ".qwen/memories/test.md"));
       expect(qwencodeRule.isRoot()).toBe(false);
     });
 
@@ -129,7 +129,7 @@ describe("QwencodeRule", () => {
 
     it("should use default baseDir when not provided", async () => {
       // Setup test file in current directory
-      const memoriesDir = join(".", ".qwencode/memories");
+      const memoriesDir = join(".", ".qwen/memories");
       await ensureDir(memoriesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(memoriesDir, "default-test.md");
@@ -140,7 +140,7 @@ describe("QwencodeRule", () => {
           relativeFilePath: "default-test.md",
         });
 
-        expect(qwencodeRule.getRelativeDirPath()).toBe(".qwencode/memories");
+        expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
         expect(qwencodeRule.getRelativeFilePath()).toBe("default-test.md");
         expect(qwencodeRule.getFileContent()).toBe(testContent);
         expect(qwencodeRule.isRoot()).toBe(false);
@@ -174,7 +174,7 @@ describe("QwencodeRule", () => {
     });
 
     it("should handle validation parameter", async () => {
-      const memoriesDir = join(testDir, ".qwencode/memories");
+      const memoriesDir = join(testDir, ".qwen/memories");
       await ensureDir(memoriesDir);
       const testContent = "# Validation Test";
       await writeFileContent(join(memoriesDir, "validation-test.md"), testContent);
@@ -233,7 +233,7 @@ describe("QwencodeRule", () => {
       });
 
       expect(qwencodeRule).toBeInstanceOf(QwencodeRule);
-      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwencode/memories");
+      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
       expect(qwencodeRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(qwencodeRule.getFileContent()).toBe("# Test RulesyncRule\n\nContent from rulesync.");
       expect(qwencodeRule.isRoot()).toBe(false);
@@ -283,7 +283,7 @@ describe("QwencodeRule", () => {
         rulesyncRule,
       });
 
-      expect(qwencodeRule.getFilePath()).toBe("/custom/base/.qwencode/memories/custom-base.md");
+      expect(qwencodeRule.getFilePath()).toBe("/custom/base/.qwen/memories/custom-base.md");
       expect(qwencodeRule.isRoot()).toBe(false);
     });
 
@@ -331,7 +331,7 @@ describe("QwencodeRule", () => {
       });
 
       expect(qwencodeRule.isRoot()).toBe(false);
-      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwencode/memories");
+      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
     });
   });
 
@@ -339,7 +339,7 @@ describe("QwencodeRule", () => {
     it("should convert non-root QwencodeRule to RulesyncRule", () => {
       const qwencodeRule = new QwencodeRule({
         baseDir: testDir,
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "convert-test.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
       });
@@ -384,7 +384,7 @@ describe("QwencodeRule", () => {
     it("should preserve metadata in conversion", () => {
       const qwencodeRule = new QwencodeRule({
         baseDir: "/test/path",
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "metadata-test.md",
         fileContent: "# Metadata Test\n\nContent with metadata.",
       });
@@ -399,7 +399,7 @@ describe("QwencodeRule", () => {
   describe("validate", () => {
     it("should always return success", () => {
       const qwencodeRule = new QwencodeRule({
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "validation-test.md",
         fileContent: "# Any content is valid",
       });
@@ -412,7 +412,7 @@ describe("QwencodeRule", () => {
 
     it("should return success for empty content", () => {
       const qwencodeRule = new QwencodeRule({
-        relativeDirPath: ".qwencode/memories",
+        relativeDirPath: ".qwen/memories",
         relativeFilePath: "empty.md",
         fileContent: "",
       });
@@ -448,7 +448,7 @@ describe("QwencodeRule", () => {
 
       for (const content of contents) {
         const qwencodeRule = new QwencodeRule({
-          relativeDirPath: ".qwencode/memories",
+          relativeDirPath: ".qwen/memories",
           relativeFilePath: "test.md",
           fileContent: content,
         });
@@ -463,7 +463,7 @@ describe("QwencodeRule", () => {
   describe("integration tests", () => {
     it("should handle complete workflow from non-root file to rulesync rule", async () => {
       // Create original file
-      const memoriesDir = join(testDir, ".qwencode/memories");
+      const memoriesDir = join(testDir, ".qwen/memories");
       await ensureDir(memoriesDir);
       const originalContent = "# Integration Test\n\nComplete workflow test.";
       await writeFileContent(join(memoriesDir, "integration.md"), originalContent);
@@ -588,7 +588,7 @@ describe("QwencodeRule", () => {
         rulesyncRule: nonRootRulesync,
       });
 
-      expect(nonRootQwencode.getRelativeDirPath()).toBe(".qwencode/memories");
+      expect(nonRootQwencode.getRelativeDirPath()).toBe(".qwen/memories");
       expect(nonRootQwencode.getRelativeFilePath()).toBe("non-root.md");
       expect(nonRootQwencode.isRoot()).toBe(false);
 
