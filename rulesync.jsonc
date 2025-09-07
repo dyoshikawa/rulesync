@@ -9,5 +9,8 @@
   
   // Delete existing files before generating
   "delete": true,
-  "verbose": true
+  "verbose": true,
+
+  "experimentalSimulateCommands": true,
+  "experimentalSimulateSubagents": true
 }
