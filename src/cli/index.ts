@@ -80,7 +80,7 @@ const main = async () => {
         return value.split(",").map((f) => f.trim());
       },
     )
-    .option("--verbose", "Verbose output")
+    .option("-V, --verbose", "Verbose output")
     .action(async (options) => {
       try {
         await importCommand({
@@ -118,8 +118,16 @@ const main = async () => {
       "-b, --base-dir <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
     )
-    .option("-v, --verbose", "Verbose output")
+    .option("-V, --verbose", "Verbose output")
     .option("-c, --config <path>", "Path to configuration file")
+    .option(
+      "--experimental-simulate-commands",
+      "Generate simulated commands (experimental feature). This feature is only available for copilot, cursor and codexcli.",
+    )
+    .option(
+      "--experimental-simulate-subagents",
+      "Generate simulated subagents (experimental feature). This feature is only available for copilot, cursor and codexcli.",
+    )
     .action(async (options) => {
       try {
         await generateCommand({
@@ -129,6 +137,8 @@ const main = async () => {
           delete: options.delete,
           baseDirs: options.baseDirs,
           configPath: options.config,
+          experimentalSimulateCommands: options.experimentalSimulateCommands,
+          experimentalSimutateSubagents: options.experimentalSimutateSubagents,
         });
       } catch (error) {
         logger.error(error instanceof Error ? error.message : String(error));
