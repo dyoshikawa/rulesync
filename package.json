@@ -37,6 +37,7 @@
 		"bcheck:fix": "biome check --write .",
 		"build": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
+		"cicheck": "pnpm run check && pnpm run test && pnpm run cspell && pnpm run secretlint",
 		"cspell": "cspell \"**/*\"",
 		"dev": "tsx src/cli/index.ts",
 		"eslint": "eslint . --max-warnings 0 --cache",
@@ -46,16 +47,15 @@
 		"knip": "knip",
 		"oxlint": "oxlint . --max-warnings 0",
 		"oxlint:fix": "oxlint . --fix --max-warnings 0",
+		"prepare": "simple-git-hooks && pnpm generate",
 		"prepublishOnly": "pnpm build",
 		"secretlint": "secretlint --secretlintignore .gitignore \"**/*\"",
 		"sort": "sort-package-json",
+		"task": "tsx scripts/run-tasks.ts",
 		"test": "vitest run --silent=true",
 		"test:coverage": "vitest run --coverage --silent=true",
 		"test:watch": "vitest --silent=true",
-		"typecheck": "tsgo --noEmit",
-		"prepare": "simple-git-hooks && pnpm generate",
-		"cicheck": "pnpm run check && pnpm run test && pnpm run cspell && pnpm run secretlint",
-		"task": "tsx scripts/run-tasks.ts"
+		"typecheck": "tsgo --noEmit"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "pnpm exec lint-staged"
