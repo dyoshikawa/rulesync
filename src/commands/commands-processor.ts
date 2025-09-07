@@ -211,7 +211,7 @@ export class CommandsProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(excludeSimulated: boolean = false): ToolTarget[] {
+  static getToolTargets(excludeSimulated: boolean = true): ToolTarget[] {
     if (excludeSimulated) {
       return commandsProcessorToolTargets.filter(
         (target) => !commandsProcessorToolTargetsSimulated.includes(target),
