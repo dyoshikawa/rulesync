@@ -12,8 +12,17 @@ import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
 
-const commandsProcessorToolTargets: ToolTarget[] = ["claudecode", "geminicli", "roo"];
+const commandsProcessorToolTargets: ToolTarget[] = [
+  "claudecode",
+  "geminicli",
+  "roo",
+  "copilot",
+  "cursor",
+  "codexcli",
+];
 export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
+
+const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot", "cursor", "codexcli"];
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
 
@@ -184,7 +193,13 @@ export class CommandsProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets(excludeSimulated: boolean = false): ToolTarget[] {
+    if (excludeSimulated) {
+      return commandsProcessorToolTargets.filter(
+        (target) => !commandsProcessorToolTargetsSimulated.includes(target),
+      );
+    }
+
     return commandsProcessorToolTargets;
   }
 }

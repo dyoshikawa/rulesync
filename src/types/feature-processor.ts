@@ -22,7 +22,7 @@ export abstract class FeatureProcessor {
   /**
    * Return tool targets that this feature supports.
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets(_excludeSimulated: boolean = false): ToolTarget[] {
     throw new Error("Not implemented");
   }
 
