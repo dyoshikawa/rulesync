@@ -15,6 +15,8 @@ const defaults: Required<ConfigResolverResolveParams> = {
   delete: false,
   baseDirs: ["."],
   configPath: "rulesync.jsonc",
+  experimentalSimulateCommands: false,
+  experimentalSimutateSubagents: false,
 };
 
 // oxlint-disable-next-line no-extraneous-class
@@ -26,6 +28,8 @@ export class ConfigResolver {
     delete: isDelete,
     baseDirs,
     configPath = defaults.configPath,
+    experimentalSimulateCommands,
+    experimentalSimutateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
     if (!fileExists(configPath)) {
       return new Config({
@@ -34,6 +38,10 @@ export class ConfigResolver {
         verbose: verbose ?? defaults.verbose,
         delete: isDelete ?? defaults.delete,
         baseDirs: baseDirs ?? defaults.baseDirs,
+        experimentalSimulateCommands:
+          experimentalSimulateCommands ?? defaults.experimentalSimulateCommands,
+        experimentalSimutateSubagents:
+          experimentalSimutateSubagents ?? defaults.experimentalSimutateSubagents,
       });
     }
 
@@ -56,6 +64,14 @@ export class ConfigResolver {
       verbose: verbose ?? configByFile.verbose ?? defaults.verbose,
       delete: isDelete ?? configByFile.delete ?? defaults.delete,
       baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
+      experimentalSimulateCommands:
+        experimentalSimulateCommands ??
+        configByFile.experimentalSimulateCommands ??
+        defaults.experimentalSimulateCommands,
+      experimentalSimutateSubagents:
+        experimentalSimutateSubagents ??
+        configByFile.experimentalSimutateSubagents ??
+        defaults.experimentalSimutateSubagents,
     };
     return new Config(configParams);
   }
