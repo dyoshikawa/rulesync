@@ -8,17 +8,18 @@ import {
   SimulatedSubagentFrontmatter,
   SimulatedSubagentFrontmatterSchema,
 } from "./simulated-subagent.js";
+import type { ToolSubagent } from "./tool-subagent.js";
 
 describe("CodexCliSubagent", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
   const validMarkdownContent = `---
-name: Test Codex Agent
-description: Test codex agent description
+name: Test CodexCli Agent
+description: Test codexcli agent description
 ---
 
-This is the body of the codex agent.
+This is the body of the codexcli agent.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
@@ -42,7 +43,7 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for codex subagents", () => {
+    it("should return correct paths for codexcli subagents", () => {
       const paths = CodexCliSubagent.getSettablePaths();
       expect(paths).toEqual({
         root: {
@@ -63,18 +64,20 @@ Body content`;
         relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test Codex Agent",
-          description: "Test codex agent description",
+          name: "Test CodexCli Agent",
+          description: "Test codexcli agent description",
         },
-        body: "This is the body of the codex agent.\nIt can be multiline.",
+        body: "This is the body of the codexcli agent.\nIt can be multiline.",
         validate: true,
       });
 
       expect(subagent).toBeInstanceOf(CodexCliSubagent);
-      expect(subagent.getBody()).toBe("This is the body of the codex agent.\nIt can be multiline.");
+      expect(subagent.getBody()).toBe(
+        "This is the body of the codexcli agent.\nIt can be multiline.",
+      );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Codex Agent",
-        description: "Test codex agent description",
+        name: "Test CodexCli Agent",
+        description: "Test codexcli agent description",
       });
     });
 
@@ -87,11 +90,11 @@ Body content`;
           name: "",
           description: "",
         },
-        body: "This is a codex agent without name or description.",
+        body: "This is a codexcli agent without name or description.",
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe("This is a codex agent without name or description.");
+      expect(subagent.getBody()).toBe("This is a codexcli agent without name or description.");
       expect(subagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
@@ -156,8 +159,8 @@ Body content`;
         relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test Codex Agent",
-          description: "Test codex agent",
+          name: "Test CodexCli Agent",
+          description: "Test codexcli agent",
         },
         body: "Test body",
         validate: true,
@@ -165,8 +168,8 @@ Body content`;
 
       const frontmatter = subagent.getFrontmatter();
       expect(frontmatter).toEqual({
-        name: "Test Codex Agent",
-        description: "Test codex agent",
+        name: "Test CodexCli Agent",
+        description: "Test codexcli agent",
       });
     });
   });
@@ -207,21 +210,21 @@ Body content`;
         validate: true,
       });
 
-      const codexSubagent = CodexCliSubagent.fromRulesyncSubagent({
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".codex/subagents",
         rulesyncSubagent,
         validate: true,
       }) as CodexCliSubagent;
 
-      expect(codexSubagent).toBeInstanceOf(CodexCliSubagent);
-      expect(codexSubagent.getBody()).toBe("Test agent content");
-      expect(codexSubagent.getFrontmatter()).toEqual({
+      expect(codexcliSubagent).toBeInstanceOf(CodexCliSubagent);
+      expect(codexcliSubagent.getBody()).toBe("Test agent content");
+      expect(codexcliSubagent.getFrontmatter()).toEqual({
         name: "Test Agent",
         description: "Test description from rulesync",
       });
-      expect(codexSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(codexSubagent.getRelativeDirPath()).toBe(".codex/subagents");
+      expect(codexcliSubagent.getRelativeFilePath()).toBe("test-agent.md");
+      expect(codexcliSubagent.getRelativeDirPath()).toBe(".codex/subagents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -239,14 +242,14 @@ Body content`;
         validate: true,
       });
 
-      const codexSubagent = CodexCliSubagent.fromRulesyncSubagent({
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".codex/subagents",
         rulesyncSubagent,
         validate: true,
       }) as CodexCliSubagent;
 
-      expect(codexSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
+      expect(codexcliSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
     });
 
     it("should handle empty name and description", () => {
@@ -264,14 +267,14 @@ Body content`;
         validate: true,
       });
 
-      const codexSubagent = CodexCliSubagent.fromRulesyncSubagent({
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".codex/subagents",
         rulesyncSubagent,
         validate: true,
       }) as CodexCliSubagent;
 
-      expect(codexSubagent.getFrontmatter()).toEqual({
+      expect(codexcliSubagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
       });
@@ -292,10 +295,12 @@ Body content`;
       });
 
       expect(subagent).toBeInstanceOf(CodexCliSubagent);
-      expect(subagent.getBody()).toBe("This is the body of the codex agent.\nIt can be multiline.");
+      expect(subagent.getBody()).toBe(
+        "This is the body of the codexcli agent.\nIt can be multiline.",
+      );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Codex Agent",
-        description: "Test codex agent description",
+        name: "Test CodexCli Agent",
+        description: "Test codexcli agent description",
       });
       expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
     });
@@ -543,31 +548,32 @@ Body content`;
           name: "Test",
           description: "Test",
         },
-        body: "Body",
+        body: "Test",
         validate: true,
       });
 
-      // Check that it's an instance of parent classes
-      expect(subagent).toBeInstanceOf(CodexCliSubagent);
-      expect(subagent.getRelativeDirPath()).toBe(".codex/subagents");
-      expect(subagent.getRelativeFilePath()).toBe("test.md");
+      // Should inherit toRulesyncSubagent that throws error
+      expect(() => subagent.toRulesyncSubagent()).toThrow(
+        "Not implemented because it is a SIMULATED file.",
+      );
     });
 
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
+    it("should be assignable to ToolSubagent type", () => {
       const subagent = new CodexCliSubagent({
-        baseDir: customBaseDir,
+        baseDir: testDir,
         relativeDirPath: ".codex/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
           description: "Test",
         },
-        body: "Body",
-        validate: true,
+        body: "Test",
+        validate: false,
       });
 
-      expect(subagent).toBeInstanceOf(CodexCliSubagent);
+      // Type check: should be assignable to ToolSubagent
+      const toolSubagent: ToolSubagent = subagent;
+      expect(toolSubagent).toBeDefined();
     });
   });
 });
