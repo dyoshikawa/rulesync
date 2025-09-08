@@ -13,13 +13,7 @@ import {
 class TestSimulatedSubagent extends SimulatedSubagent {
   static getSettablePaths() {
     return {
-      root: {
-        relativeDirPath: ".",
-        relativeFilePath: "TEST_AGENT.md",
-      },
-      nonRoot: {
-        relativeDirPath: ".test/agents",
-      },
+      relativeDirPath: ".test/agents",
     };
   }
 

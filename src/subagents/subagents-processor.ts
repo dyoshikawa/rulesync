@@ -180,7 +180,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   private async loadClaudecodeSubagents(): Promise<ToolSubagent[]> {
     return await this.loadToolSubagentsDefault({
-      relativeDirPath: ClaudecodeSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: ClaudecodeSubagent.getSettablePaths().relativeDirPath,
       fromFile: (relativeFilePath) => ClaudecodeSubagent.fromFile({ relativeFilePath }),
     });
   }
@@ -190,7 +190,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   private async loadCopilotSubagents(): Promise<ToolSubagent[]> {
     return await this.loadToolSubagentsDefault({
-      relativeDirPath: CopilotSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
       fromFile: (relativeFilePath) => CopilotSubagent.fromFile({ relativeFilePath }),
     });
   }
@@ -200,7 +200,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   private async loadCursorSubagents(): Promise<ToolSubagent[]> {
     return await this.loadToolSubagentsDefault({
-      relativeDirPath: CursorSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
       fromFile: (relativeFilePath) => CursorSubagent.fromFile({ relativeFilePath }),
     });
   }
@@ -210,7 +210,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   private async loadCodexCliSubagents(): Promise<ToolSubagent[]> {
     return await this.loadToolSubagentsDefault({
-      relativeDirPath: CodexCliSubagent.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
       fromFile: (relativeFilePath) => CodexCliSubagent.fromFile({ relativeFilePath }),
     });
   }

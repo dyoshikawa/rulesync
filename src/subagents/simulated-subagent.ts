@@ -73,7 +73,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
       baseDir: baseDir,
       frontmatter: simulatedFrontmatter,
       body,
-      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       validate,
     };
@@ -97,11 +97,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
     relativeFilePath,
     validate = true,
   }: ToolSubagentFromFileParams): Promise<ConstructorParameters<typeof SimulatedSubagent>[0]> {
-    const filePath = join(
-      baseDir,
-      this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath,
-    );
+    const filePath = join(baseDir, this.getSettablePaths().relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
@@ -112,7 +108,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
 
     return {
       baseDir: baseDir,
-      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),

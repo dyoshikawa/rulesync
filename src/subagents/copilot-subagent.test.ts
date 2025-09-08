@@ -45,13 +45,7 @@ Body content`;
     it("should return correct paths for copilot subagents", () => {
       const paths = CopilotSubagent.getSettablePaths();
       expect(paths).toEqual({
-        root: {
-          relativeDirPath: ".",
-          relativeFilePath: "COPILOT.md",
-        },
-        nonRoot: {
-          relativeDirPath: ".copilot/subagents",
-        },
+        relativeDirPath: ".copilot/subagents",
       });
     });
   });

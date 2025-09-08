@@ -45,13 +45,7 @@ Body content`;
     it("should return correct paths for cursor subagents", () => {
       const paths = CursorSubagent.getSettablePaths();
       expect(paths).toEqual({
-        root: {
-          relativeDirPath: ".",
-          relativeFilePath: "CURSOR.md",
-        },
-        nonRoot: {
-          relativeDirPath: ".cursor/subagents",
-        },
+        relativeDirPath: ".cursor/subagents",
       });
     });
   });

@@ -46,13 +46,7 @@ Body content`;
     it("should return correct paths for codexcli subagents", () => {
       const paths = CodexCliSubagent.getSettablePaths();
       expect(paths).toEqual({
-        root: {
-          relativeDirPath: ".",
-          relativeFilePath: "CODEX.md",
-        },
-        nonRoot: {
-          relativeDirPath: ".codex/subagents",
-        },
+        relativeDirPath: ".codex/subagents",
       });
     });
   });

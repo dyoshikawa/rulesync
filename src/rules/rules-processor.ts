@@ -204,7 +204,7 @@ export class RulesProcessor extends FeatureProcessor {
           body: this.generateAdditionalConventionsSection({
             commands: { relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath },
             subagents: {
-              relativeDirPath: CursorSubagent.getSettablePaths().nonRoot.relativeDirPath,
+              relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
             },
           }),
           relativeDirPath: CursorRule.getSettablePaths().nonRoot.relativeDirPath,
@@ -248,7 +248,7 @@ export class RulesProcessor extends FeatureProcessor {
             this.generateAdditionalConventionsSection({
               commands: { relativeDirPath: CodexCliCommand.getSettablePaths().relativeDirPath },
               subagents: {
-                relativeDirPath: CodexCliSubagent.getSettablePaths().nonRoot.relativeDirPath,
+                relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
               },
             }) +
             rootRule.getFileContent(),
@@ -262,7 +262,7 @@ export class RulesProcessor extends FeatureProcessor {
             this.generateAdditionalConventionsSection({
               commands: { relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath },
               subagents: {
-                relativeDirPath: CopilotSubagent.getSettablePaths().nonRoot.relativeDirPath,
+                relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
               },
             }) +
             rootRule.getFileContent(),
