@@ -1,7 +1,9 @@
 import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
+import { CopilotCommand } from "../commands/copilot-command.js";
 import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
+import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
@@ -213,7 +215,14 @@ export class RulesProcessor extends FeatureProcessor {
       case "copilot": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateXmlReferencesSection(toolRules) +
+            this.generateAdditionalConventionsSection({
+              commands: { relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath },
+              subagents: {
+                relativeDirPath: CopilotSubagent.getSettablePaths().nonRoot.relativeDirPath,
+              },
+            }) +
+            rootRule.getFileContent(),
         );
         return toolRules;
       }
@@ -762,5 +771,44 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     return lines.join("\n") + "\n";
+  }
+
+  private generateAdditionalConventionsSection({
+    commands,
+    subagents,
+  }: {
+    commands: {
+      relativeDirPath: string;
+    };
+    subagents: {
+      relativeDirPath: string;
+    };
+  }): string {
+    return `# Additional Conventions Beyond the Built-in Functions
+
+As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.
+
+## Simulated Custom Slash Commands
+
+Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
+
+### Syntax
+
+Users can use following syntax to invoke a custom command.
+
+\`\`\`txt
+s/<command> [arguments]
+\`\`\`
+
+This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.  
+The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
+
+When users call a custom slash command, you have to look for the markdown file, \`${join(commands.relativeDirPath, "{command}.md")}\`, then execute the contents of that file as the block of operations.
+
+## Simulated Subagents
+
+Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like simulated custom slash commands simply. Simulated subagents can be called by simulated custom slash commands.
+
+When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(subagents.relativeDirPath, "{subagent}.md")}\`, and execute its contents as the block of operations.`;
   }
 }
