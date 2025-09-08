@@ -272,9 +272,9 @@ Simulated commands and subagents are experimental features that allow you to gen
 
 1. Prepare `.rulesync/commands/*.md` and `.rulesync/subagents/*.md` for your purposes.
 2. Generate simulated commands and subagents for specific tools that are included in copilot, cursor and codexcli.
-  ```bash
-  npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --experimental-simulate-commands --experimental-simulate-subagents
-  ```
+    ```bash
+    npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --experimental-simulate-commands --experimental-simulate-subagents
+    ```
 3. Use simulated commands and subagents in your prompts.
     - Prompt examples:
       ```txt
