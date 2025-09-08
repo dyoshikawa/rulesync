@@ -73,6 +73,7 @@ rulesync supports both **generation** and **import** for All of the major AI cod
 | JetBrains Junie        |  ✅   |   ✅   |      |         |          |
 | AugmentCode            |  ✅   |   ✅   |       |         |          |
 | Windsurf               |  ✅   |   ✅    |      |         |          |
+| Warp               |  ✅   |        |      |         |          |
 
 
 🎮: Simulated Commands/Subagents (Experimental Feature)
