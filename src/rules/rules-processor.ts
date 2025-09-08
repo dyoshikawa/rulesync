@@ -1,8 +1,10 @@
 import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
+import { CodexCliCommand } from "../commands/codexcli-command.js";
 import { CopilotCommand } from "../commands/copilot-command.js";
 import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
+import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
 import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
@@ -208,7 +210,14 @@ export class RulesProcessor extends FeatureProcessor {
       case "codexcli": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateXmlReferencesSection(toolRules) +
+            this.generateAdditionalConventionsSection({
+              commands: { relativeDirPath: CodexCliCommand.getSettablePaths().relativeDirPath },
+              subagents: {
+                relativeDirPath: CodexCliSubagent.getSettablePaths().nonRoot.relativeDirPath,
+              },
+            }) +
+            rootRule.getFileContent(),
         );
         return toolRules;
       }
