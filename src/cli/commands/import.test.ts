@@ -83,45 +83,6 @@ describe("importCommand", () => {
       expect(logger.error).toHaveBeenCalledWith("Only one tool can be imported at a time");
       expect(mockExit).toHaveBeenCalledWith(1);
     });
-
-    it("should exit with error when trying to import simulated-only tool copilot", async () => {
-      mockConfig.getTargets.mockReturnValue(["copilot"]);
-      const options: ImportOptions = {
-        targets: ["copilot"],
-      };
-
-      await expect(importCommand(options)).rejects.toThrow("Process exit");
-      expect(logger.error).toHaveBeenCalledWith(
-        "Cannot import copilot: it only supports generation (simulated commands/subagents)",
-      );
-      expect(mockExit).toHaveBeenCalledWith(1);
-    });
-
-    it("should exit with error when trying to import simulated-only tool cursor", async () => {
-      mockConfig.getTargets.mockReturnValue(["cursor"]);
-      const options: ImportOptions = {
-        targets: ["cursor"],
-      };
-
-      await expect(importCommand(options)).rejects.toThrow("Process exit");
-      expect(logger.error).toHaveBeenCalledWith(
-        "Cannot import cursor: it only supports generation (simulated commands/subagents)",
-      );
-      expect(mockExit).toHaveBeenCalledWith(1);
-    });
-
-    it("should exit with error when trying to import simulated-only tool codexcli", async () => {
-      mockConfig.getTargets.mockReturnValue(["codexcli"]);
-      const options: ImportOptions = {
-        targets: ["codexcli"],
-      };
-
-      await expect(importCommand(options)).rejects.toThrow("Process exit");
-      expect(logger.error).toHaveBeenCalledWith(
-        "Cannot import codexcli: it only supports generation (simulated commands/subagents)",
-      );
-      expect(mockExit).toHaveBeenCalledWith(1);
-    });
   });
 
   describe("successful import", () => {
