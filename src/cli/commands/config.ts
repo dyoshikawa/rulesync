@@ -2,7 +2,7 @@ import { ConfigParams } from "../../config/config.js";
 import { fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
-type ConfigCommandOptions = {
+export type ConfigCommandOptions = {
   init?: boolean;
 };
 
