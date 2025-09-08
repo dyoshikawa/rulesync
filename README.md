@@ -282,7 +282,7 @@ Simulated commands and subagents are experimental features that allow you to gen
       s/your-command
 
       # Execute simulated subagents
-      Call your-subagent to achive something.
+      Call your-subagent to achieve something.
       ```
 
 ## License
