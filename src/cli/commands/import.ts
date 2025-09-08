@@ -27,15 +27,6 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   const tool = config.getTargets()[0]!;
 
-  // Check if tool is simulated-only and prevent import
-  const simulatedOnlyTools = ["copilot", "cursor", "codexcli"];
-  if (simulatedOnlyTools.includes(tool)) {
-    logger.error(
-      `Cannot import ${tool}: it only supports generation (simulated commands/subagents)`,
-    );
-    process.exit(1);
-  }
-
   // Import rule files using RulesProcessor if rules feature is enabled
   let rulesCreated = 0;
   if (config.getFeatures().includes("rules")) {
