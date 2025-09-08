@@ -34,6 +34,8 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
         const processor = new RulesProcessor({
           baseDir: baseDir,
           toolTarget: toolTarget,
+          simulateCommands: config.getExperimentalSimulateCommands(),
+          simulateSubagents: config.getExperimentalSimulateSubagents(),
         });
 
         if (config.getDelete()) {
