@@ -9,13 +9,7 @@ import {
 export class CursorSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      root: {
-        relativeDirPath: ".",
-        relativeFilePath: "CURSOR.md",
-      },
-      nonRoot: {
-        relativeDirPath: ".cursor/subagents",
-      },
+      relativeDirPath: ".cursor/subagents",
     };
   }
 

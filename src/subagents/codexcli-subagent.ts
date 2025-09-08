@@ -9,13 +9,7 @@ import {
 export class CodexCliSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      root: {
-        relativeDirPath: ".",
-        relativeFilePath: "CODEX.md",
-      },
-      nonRoot: {
-        relativeDirPath: ".codex/subagents",
-      },
+      relativeDirPath: ".codex/subagents",
     };
   }
 

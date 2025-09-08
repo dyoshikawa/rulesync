@@ -10,13 +10,7 @@ export type ToolSubagentFromRulesyncSubagentParams = Omit<
 };
 
 export type ToolSubagentSettablePaths = {
-  root?: {
-    relativeDirPath?: string;
-    relativeFilePath: string;
-  };
-  nonRoot: {
-    relativeDirPath: string;
-  };
+  relativeDirPath: string;
 };
 
 export type ToolSubagentFromFileParams = AiFileFromFileParams;

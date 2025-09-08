@@ -47,13 +47,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
 
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      root: {
-        relativeDirPath: ".",
-        relativeFilePath: "CLAUDE.md",
-      },
-      nonRoot: {
-        relativeDirPath: ".claude/agents",
-      },
+      relativeDirPath: ".claude/agents",
     };
   }
 
