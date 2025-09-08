@@ -5,7 +5,7 @@ description: >-
   Use this agent when the user wants to release a new version of the project.
   This agent can be called by user explicitly only.
 claudecode:
-  model: sonnet
+  model: opus
 ---
 
 First, let's work on the following steps.
