@@ -132,6 +132,12 @@ export class CommandsProcessor extends FeatureProcessor {
         return await this.loadGeminicliCommands();
       case "roo":
         return await this.loadRooCommands();
+      case "copilot":
+        return await this.loadCopilotCommands();
+      case "cursor":
+        return await this.loadCursorCommands();
+      case "codexcli":
+        return await this.loadCodexcliCommands();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -142,7 +148,7 @@ export class CommandsProcessor extends FeatureProcessor {
     relativeDirPath,
     extension,
   }: {
-    toolTarget: "claudecode" | "geminicli" | "roo";
+    toolTarget: "claudecode" | "geminicli" | "roo" | "copilot" | "cursor" | "codexcli";
     relativeDirPath: string;
     extension: "md" | "toml";
   }): Promise<ToolCommand[]> {
@@ -160,6 +166,12 @@ export class CommandsProcessor extends FeatureProcessor {
               return GeminiCliCommand.fromFile({ relativeFilePath: basename(path) });
             case "roo":
               return RooCommand.fromFile({ relativeFilePath: basename(path) });
+            case "copilot":
+              return CopilotCommand.fromFile({ relativeFilePath: basename(path) });
+            case "cursor":
+              return CursorCommand.fromFile({ relativeFilePath: basename(path) });
+            case "codexcli":
+              return CodexCliCommand.fromFile({ relativeFilePath: basename(path) });
             default:
               throw new Error(`Unsupported tool target: ${toolTarget}`);
           }
@@ -177,6 +189,17 @@ export class CommandsProcessor extends FeatureProcessor {
   /**
    * Load Claude Code command configurations from .claude/commands/ directory
    */
+  private async loadCopilotCommands(): Promise<ToolCommand[]> {
+    return await this.loadToolCommandDefault({
+      toolTarget: "copilot",
+      relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath,
+      extension: "md",
+    });
+  }
+
+  /**
+   * Load Claude Code command configurations from .claude/commands/ directory
+   */
   private async loadClaudecodeCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "claudecode",
@@ -188,10 +211,32 @@ export class CommandsProcessor extends FeatureProcessor {
   /**
    * Load Gemini CLI command configurations from .gemini/commands/ directory
    */
+  private async loadCursorCommands(): Promise<ToolCommand[]> {
+    return await this.loadToolCommandDefault({
+      toolTarget: "cursor",
+      relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath,
+      extension: "md",
+    });
+  }
+
+  /**
+   * Load Gemini CLI command configurations from .gemini/commands/ directory
+   */
   private async loadGeminicliCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "geminicli",
       relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
+      extension: "md",
+    });
+  }
+
+  /**
+   * Load Roo Code command configurations from .roo/commands/ directory
+   */
+  private async loadCodexcliCommands(): Promise<ToolCommand[]> {
+    return await this.loadToolCommandDefault({
+      toolTarget: "codexcli",
+      relativeDirPath: CodexCliCommand.getSettablePaths().relativeDirPath,
       extension: "md",
     });
   }
