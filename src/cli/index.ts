@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { ANNOUNCEMENT } from "../constants/announcements.js";
-import { FEATURE_TYPES } from "../types/config-options.js";
+import { ALL_FEATURES } from "../types/features.js";
 import { readJsonFile } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { configCommand } from "./commands/config.js";
@@ -75,7 +75,7 @@ const main = async () => {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to import (${FEATURE_TYPES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to import (${ALL_FEATURES.join(",")}) or '*' for all`,
       (value) => {
         return value.split(",").map((f) => f.trim());
       },
@@ -108,7 +108,7 @@ const main = async () => {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to generate (${FEATURE_TYPES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to generate (${ALL_FEATURES.join(",")}) or '*' for all`,
       (value) => {
         return value.split(",").map((f) => f.trim());
       },
