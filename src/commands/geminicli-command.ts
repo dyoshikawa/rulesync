@@ -2,7 +2,6 @@ import { basename, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
-import type { ParsedCommand } from "../types/commands.js";
 import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -56,18 +55,6 @@ export class GeminiCliCommand extends ToolCommand {
     } catch (error) {
       throw new Error(`Failed to parse TOML command file: ${error}`);
     }
-  }
-
-  private parseCommandFile(content: string): ParsedCommand {
-    const parsed = this.parseTomlContent(content);
-    return {
-      filename: "unknown.toml",
-      filepath: "unknown.toml",
-      frontmatter: {
-        description: parsed.description,
-      },
-      content: parsed.prompt,
-    };
   }
 
   getBody(): string {
