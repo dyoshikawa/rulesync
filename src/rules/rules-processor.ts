@@ -2,6 +2,7 @@ import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
 import { CodexCliCommand } from "../commands/codexcli-command.js";
+import { CommandsProcessor } from "../commands/commands-processor.js";
 import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
 import { GeminiCliCommand } from "../commands/geminicli-command.js";
@@ -12,6 +13,7 @@ import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { CursorSubagent } from "../subagents/cursor-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
+import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
@@ -349,13 +351,13 @@ export class RulesProcessor extends FeatureProcessor {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) +
-            rootRule.getFileContent() +
             this.generateAdditionalConventionsSection({
               commands: { relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath },
               subagents: {
                 relativeDirPath: GeminiCliSubagent.getSettablePaths().relativeDirPath,
               },
-            }),
+            }) +
+            rootRule.getFileContent(),
         );
         return toolRules;
       }
@@ -913,9 +915,8 @@ export class RulesProcessor extends FeatureProcessor {
     return `# Additional Conventions Beyond the Built-in Functions
 
 As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.
-
 ${
-  this.simulateCommands
+  this.simulateCommands && CommandsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
     ? `## Simulated Custom Slash Commands
 
 Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
@@ -934,9 +935,8 @@ The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not
 When users call a custom slash command, you have to look for the markdown file, \`${join(commands.relativeDirPath, "{command}.md")}\`, then execute the contents of that file as the block of operations.`
     : ""
 }
-
 ${
-  this.simulateSubagents
+  this.simulateSubagents && SubagentsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
     ? `## Simulated Subagents
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like simulated custom slash commands simply. Simulated subagents can be called by simulated custom slash commands.

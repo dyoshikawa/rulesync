@@ -312,4 +312,8 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     return subagentsProcessorToolTargets;
   }
+
+  static getToolTargetsSimulated(): ToolTarget[] {
+    return subagentsProcessorToolTargetsSimulated;
+  }
 }

@@ -299,4 +299,8 @@ export class CommandsProcessor extends FeatureProcessor {
 
     return commandsProcessorToolTargets;
   }
+
+  static getToolTargetsSimulated(): ToolTarget[] {
+    return commandsProcessorToolTargetsSimulated;
+  }
 }
