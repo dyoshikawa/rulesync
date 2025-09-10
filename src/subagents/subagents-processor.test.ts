@@ -546,7 +546,7 @@ Invalid content`;
     });
 
     it("should load copilot subagent files from .github/subagents", async () => {
-      const subagentsDir = join(testDir, ".copilot", "subagents");
+      const subagentsDir = join(testDir, ".github", "subagents");
       await ensureDir(subagentsDir);
 
       const subagentContent = `---

@@ -258,7 +258,7 @@ Body content`;
 
   describe("fromFile", () => {
     it("should load CopilotCommand from file", async () => {
-      const commandsDir = join(testDir, ".copilot", "commands");
+      const commandsDir = join(testDir, ".github", "commands");
       const filePath = join(commandsDir, "test-file-command.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -280,7 +280,7 @@ Body content`;
     });
 
     it("should handle file path with subdirectories", async () => {
-      const commandsDir = join(testDir, ".copilot", "commands", "subdir");
+      const commandsDir = join(testDir, ".github", "commands", "subdir");
       const filePath = join(commandsDir, "nested-command.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -305,7 +305,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const commandsDir = join(testDir, ".copilot", "commands");
+      const commandsDir = join(testDir, ".github", "commands");
       const filePath = join(commandsDir, "invalid-command.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -320,7 +320,7 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const commandsDir = join(testDir, ".copilot", "commands");
+      const commandsDir = join(testDir, ".github", "commands");
       const filePath = join(commandsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
