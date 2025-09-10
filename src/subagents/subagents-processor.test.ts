@@ -326,7 +326,7 @@ Claude content`,
 
       const copilotSubagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "copilot-agent.md",
         frontmatter: {
           name: "copilot-agent",
@@ -545,7 +545,7 @@ Invalid content`;
       expect(toolFiles).toEqual([]);
     });
 
-    it("should load copilot subagent files from .copilot/subagents", async () => {
+    it("should load copilot subagent files from .github/subagents", async () => {
       const subagentsDir = join(testDir, ".copilot", "subagents");
       await ensureDir(subagentsDir);
 

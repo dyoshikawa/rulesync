@@ -10,7 +10,7 @@ import {
 export class CopilotSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: ".copilot/subagents",
+      relativeDirPath: ".github/subagents",
     };
   }
 

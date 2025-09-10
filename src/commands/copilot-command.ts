@@ -12,7 +12,7 @@ import {
 export class CopilotCommand extends SimulatedCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
     return {
-      relativeDirPath: ".copilot/commands",
+      relativeDirPath: ".github/commands",
     };
   }
 

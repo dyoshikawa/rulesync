@@ -45,7 +45,7 @@ Body content`;
     it("should return correct paths for copilot subagents", () => {
       const paths = CopilotSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
       });
     });
   });
@@ -54,7 +54,7 @@ Body content`;
     it("should create instance with valid markdown content", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Copilot Agent",
@@ -77,7 +77,7 @@ Body content`;
     it("should create instance with empty name and description", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
@@ -97,7 +97,7 @@ Body content`;
     it("should create instance without validation when validate is false", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -115,7 +115,7 @@ Body content`;
         () =>
           new CopilotSubagent({
             baseDir: testDir,
-            relativeDirPath: ".copilot/subagents",
+            relativeDirPath: ".github/subagents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
@@ -131,7 +131,7 @@ Body content`;
     it("should return the body content", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -149,7 +149,7 @@ Body content`;
     it("should return frontmatter with name and description", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Copilot Agent",
@@ -171,7 +171,7 @@ Body content`;
     it("should throw error as it is a simulated file", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -205,7 +205,7 @@ Body content`;
 
       const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         rulesyncSubagent,
         validate: true,
       }) as CopilotSubagent;
@@ -217,7 +217,7 @@ Body content`;
         description: "Test description from rulesync",
       });
       expect(copilotSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(copilotSubagent.getRelativeDirPath()).toBe(".copilot/subagents");
+      expect(copilotSubagent.getRelativeDirPath()).toBe(".github/subagents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -237,7 +237,7 @@ Body content`;
 
       const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         rulesyncSubagent,
         validate: true,
       }) as CopilotSubagent;
@@ -262,7 +262,7 @@ Body content`;
 
       const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         rulesyncSubagent,
         validate: true,
       }) as CopilotSubagent;
@@ -358,7 +358,7 @@ Body content`;
     it("should return success for valid frontmatter", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
@@ -376,7 +376,7 @@ Body content`;
     it("should handle frontmatter with additional properties", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
@@ -435,7 +435,7 @@ Body content`;
     it("should handle empty body content", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -458,7 +458,7 @@ Body content`;
 
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -479,7 +479,7 @@ Body content`;
 
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -496,7 +496,7 @@ Body content`;
     it("should handle multi-line name and description", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -517,7 +517,7 @@ Body content`;
 
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
@@ -607,7 +607,7 @@ Body content`;
     it("should properly inherit from SimulatedSubagent", () => {
       const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
@@ -619,7 +619,7 @@ Body content`;
 
       // Check that it's an instance of parent classes
       expect(subagent).toBeInstanceOf(CopilotSubagent);
-      expect(subagent.getRelativeDirPath()).toBe(".copilot/subagents");
+      expect(subagent.getRelativeDirPath()).toBe(".github/subagents");
       expect(subagent.getRelativeFilePath()).toBe("test.md");
     });
 
@@ -627,7 +627,7 @@ Body content`;
       const customBaseDir = "/custom/base/dir";
       const subagent = new CopilotSubagent({
         baseDir: customBaseDir,
-        relativeDirPath: ".copilot/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
