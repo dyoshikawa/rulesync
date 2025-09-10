@@ -222,6 +222,7 @@ describe("gitignoreCommand", () => {
 **/GEMINI.md
 **/.gemini/memories/
 **/.gemini/commands/
+**/.gemini/subagents/
 **/QWEN.md
 **/.qwen/memories/
 **/.aiexclude
@@ -239,6 +240,7 @@ describe("gitignoreCommand", () => {
 **/.cursor/mcp.json
 **/.cline/mcp.json
 **/.roo/mcp.json
+**/.roo/subagents/
 **/.vscode/mcp.json
 **/.github/commands/
 **/.github/subagents/

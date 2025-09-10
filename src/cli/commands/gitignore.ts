@@ -26,6 +26,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/GEMINI.md",
     "**/.gemini/memories/",
     "**/.gemini/commands/",
+    "**/.gemini/subagents/",
     "**/QWEN.md",
     "**/.qwen/memories/",
     "**/.aiexclude",
@@ -43,6 +44,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.cursor/mcp.json",
     "**/.cline/mcp.json",
     "**/.roo/mcp.json",
+    "**/.roo/subagents/",
     "**/.vscode/mcp.json",
     "**/.github/commands/",
     "**/.github/subagents/",
@@ -72,8 +74,8 @@ export const gitignoreCommand = async (): Promise<void> => {
   }
 
   const newContent = gitignoreContent
-    ? `${gitignoreContent.trimEnd()}\n\n${linesToAdd.join("")}\n`
-    : `${linesToAdd.join("")}\n`;
+    ? `${gitignoreContent.trimEnd()}\n\n${linesToAdd.join("\n")}\n`
+    : `${linesToAdd.join("\n")}\n`;
 
   await writeFileContent(gitignorePath, newContent);
 

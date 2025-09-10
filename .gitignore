@@ -251,3 +251,5 @@ data
 repomix-output.xml
 
 **/.github/commands/**/.github/subagents/**/.warp/**/WARP.md
+
+**/.gemini/subagents/
