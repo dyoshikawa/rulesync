@@ -768,12 +768,20 @@ Valid content`,
         "copilot",
         "cursor",
         "codexcli",
+        "geminicli",
+        "roo",
       ]);
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);
     });
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
-      expect(subagentsProcessorToolTargetsSimulated).toEqual(["copilot", "cursor", "codexcli"]);
+      expect(subagentsProcessorToolTargetsSimulated).toEqual([
+        "copilot",
+        "cursor",
+        "codexcli",
+        "geminicli",
+        "roo",
+      ]);
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });
 

@@ -55,12 +55,12 @@ rulesync supports both **generation** and **import** for All of the major AI cod
 | AGENTS.md            |  ✅   |      |       |          |           |
 | Claude Code            |  ✅   |      |  ✅    |    ✅     |    ✅      |
 | Codex CLI              |  ✅   |   ✅   |      |    🎮     |    🎮      |
-| Gemini CLI             |  ✅   |   ✅   |      |     ✅   |          |
+| Gemini CLI             |  ✅   |   ✅   |      |     ✅   |      🎮     |
 | GitHub Copilot         |  ✅    |       |  ✅    |    🎮      |    🎮      |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     🎮    |     🎮     |
 | OpenCode               |  ✅   |       |       |         |          |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |
-| Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |          |
+| Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |
 | Qwen Code              |  ✅   |   ✅   |       |         |          |
 | Kiro IDE               |  ✅   |   ✅   |      |         |          |
 | Amazon Q Developer CLI |  ✅   |       |  ✅   |         |          |

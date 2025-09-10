@@ -10,6 +10,8 @@ import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
+import { GeminiCliSubagent } from "./geminicli-subagent.js";
+import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
@@ -19,12 +21,16 @@ export const subagentsProcessorToolTargets: ToolTarget[] = [
   "copilot",
   "cursor",
   "codexcli",
+  "geminicli",
+  "roo",
 ];
 
 export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = [
   "copilot",
   "cursor",
   "codexcli",
+  "geminicli",
+  "roo",
 ];
 export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
 
@@ -81,6 +87,24 @@ export class SubagentsProcessor extends FeatureProcessor {
               return null;
             }
             return CodexCliSubagent.fromRulesyncSubagent({
+              baseDir: this.baseDir,
+              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+              rulesyncSubagent: rulesyncSubagent,
+            });
+          case "geminicli":
+            if (!GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
+              return null;
+            }
+            return GeminiCliSubagent.fromRulesyncSubagent({
+              baseDir: this.baseDir,
+              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+              rulesyncSubagent: rulesyncSubagent,
+            });
+          case "roo":
+            if (!RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
+              return null;
+            }
+            return RooSubagent.fromRulesyncSubagent({
               baseDir: this.baseDir,
               relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
               rulesyncSubagent: rulesyncSubagent,
@@ -184,6 +208,10 @@ export class SubagentsProcessor extends FeatureProcessor {
         return await this.loadCursorSubagents();
       case "codexcli":
         return await this.loadCodexCliSubagents();
+      case "geminicli":
+        return await this.loadGeminiCliSubagents();
+      case "roo":
+        return await this.loadRooSubagents();
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -226,6 +254,26 @@ export class SubagentsProcessor extends FeatureProcessor {
     return await this.loadToolSubagentsDefault({
       relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
       fromFile: (relativeFilePath) => CodexCliSubagent.fromFile({ relativeFilePath }),
+    });
+  }
+
+  /**
+   * Load GeminiCli subagent configurations from .gemini/subagents/ directory
+   */
+  private async loadGeminiCliSubagents(): Promise<ToolSubagent[]> {
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: GeminiCliSubagent.getSettablePaths().relativeDirPath,
+      fromFile: (relativeFilePath) => GeminiCliSubagent.fromFile({ relativeFilePath }),
+    });
+  }
+
+  /**
+   * Load Roo subagent configurations from .roo/subagents/ directory
+   */
+  private async loadRooSubagents(): Promise<ToolSubagent[]> {
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: RooSubagent.getSettablePaths().relativeDirPath,
+      fromFile: (relativeFilePath) => RooSubagent.fromFile({ relativeFilePath }),
     });
   }
 
