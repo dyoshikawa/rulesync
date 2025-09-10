@@ -63,6 +63,8 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.aiexclude");
       expect(content).toContain("**/.mcp.json");
+      expect(content).toContain("**/.github/commands/");
+      expect(content).toContain("**/.github/subagents/");
       expect(content).toContain("**/.warp/");
       expect(content).toContain("**/.codex/");
     });
