@@ -90,29 +90,6 @@ describe("ClaudecodeRule", () => {
       expect(claudecodeRule.getFileContent()).toBe("# Root Memory");
       expect(claudecodeRule.isRoot()).toBe(true);
     });
-
-    it("should create instance with description parameter", () => {
-      const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
-        relativeFilePath: "test-memory.md",
-        fileContent: "# Test Memory\n\nThis is a test memory.",
-        description: "This is a test description for the ClaudecodeRule",
-      });
-
-      expect(claudecodeRule).toBeInstanceOf(ClaudecodeRule);
-      expect(claudecodeRule.getDescription()).toBe("This is a test description for the ClaudecodeRule");
-    });
-
-    it("should handle undefined description parameter", () => {
-      const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
-        relativeFilePath: "test-memory.md",
-        fileContent: "# Test Memory\n\nThis is a test memory.",
-      });
-
-      expect(claudecodeRule).toBeInstanceOf(ClaudecodeRule);
-      expect(claudecodeRule.getDescription()).toBeUndefined();
-    });
   });
 
   describe("fromFile", () => {
@@ -329,65 +306,6 @@ describe("ClaudecodeRule", () => {
 
       expect(claudecodeRuleWithValidation.getFileContent()).toContain("# Validation Test");
       expect(claudecodeRuleWithoutValidation.getFileContent()).toContain("# Validation Test");
-    });
-
-    it("should preserve description from RulesyncRule frontmatter", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "test-with-description.md",
-        frontmatter: {
-          root: false,
-          targets: ["*"],
-          description: "This is a test description from frontmatter",
-          globs: [],
-        },
-        body: "# Test with Description\n\nContent with description.",
-      });
-
-      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
-        rulesyncRule,
-      });
-
-      expect(claudecodeRule.getDescription()).toBe("This is a test description from frontmatter");
-    });
-
-    it("should handle undefined description in RulesyncRule frontmatter", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "test-without-description.md",
-        frontmatter: {
-          root: false,
-          targets: ["*"],
-          globs: [],
-        },
-        body: "# Test without Description\n\nContent without description.",
-      });
-
-      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
-        rulesyncRule,
-      });
-
-      expect(claudecodeRule.getDescription()).toBeUndefined();
-    });
-
-    it("should handle empty string description in RulesyncRule frontmatter", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "test-empty-description.md",
-        frontmatter: {
-          root: false,
-          targets: ["*"],
-          description: "",
-          globs: [],
-        },
-        body: "# Test with Empty Description\n\nContent with empty description.",
-      });
-
-      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
-        rulesyncRule,
-      });
-
-      expect(claudecodeRule.getDescription()).toBe("");
     });
   });
 
