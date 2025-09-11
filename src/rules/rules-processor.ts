@@ -885,13 +885,9 @@ export class RulesProcessor extends FeatureProcessor {
     lines.push("");
 
     for (const rule of toolRulesWithoutRoot) {
-      // Get frontmatter by converting to rulesync rule
-      const rulesyncRule = rule.toRulesyncRule();
-      const frontmatter = rulesyncRule.getFrontmatter();
-
       // Escape double quotes in description
-      const escapedDescription = frontmatter.description?.replace(/"/g, '\\"');
-      const globsText = frontmatter.globs?.join(",");
+      const escapedDescription = rule.getDescription()?.replace(/"/g, '\\"');
+      const globsText = rule.getGlobs()?.join(",");
 
       lines.push(
         `@${rule.getRelativePathFromCwd()} description: "${escapedDescription}" globs: "${globsText}"`,
