@@ -20,9 +20,7 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
   };
 };
 
-export type ClaudecodeRuleParams = ToolRuleParams & {
-  description?: string | undefined;
-};
+export type ClaudecodeRuleParams = ToolRuleParams;
 
 /**
  * Rule generator for Claude Code AI assistant
