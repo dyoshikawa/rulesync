@@ -31,13 +31,6 @@ export type ClaudecodeRuleParams = ToolRuleParams & {
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  private readonly description?: string | undefined;
-
-  constructor({ description, ...rest }: ClaudecodeRuleParams) {
-    super(rest);
-    this.description = description;
-  }
-
   static getSettablePaths(): ClaudecodeRuleSettablePaths {
     return {
       root: {
@@ -87,7 +80,6 @@ export class ClaudecodeRule extends ToolRule {
         rootPath: this.getSettablePaths().root,
         nonRootPath: this.getSettablePaths().nonRoot,
       }),
-      description: rulesyncRule.getFrontmatter().description,
     });
   }
 

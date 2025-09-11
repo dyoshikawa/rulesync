@@ -6,6 +6,7 @@ import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
   root?: boolean | undefined;
+  description?: string | undefined;
 };
 
 export type ToolRuleFromRulesyncRuleParams = Omit<
@@ -29,10 +30,12 @@ export type ToolRuleSettablePaths = {
 
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
+  protected readonly description?: string | undefined;
 
-  constructor({ root = false, ...rest }: ToolRuleParams) {
+  constructor({ root = false, description, ...rest }: ToolRuleParams) {
     super(rest);
     this.root = root;
+    this.description = description;
   }
 
   static async fromFile(_params: ToolRuleFromFileParams): Promise<ToolRule> {
@@ -73,6 +76,7 @@ export abstract class ToolRule extends ToolFile {
       fileContent,
       validate,
       root: rulesyncRule.getFrontmatter().root ?? false,
+      description: rulesyncRule.getFrontmatter().description,
     };
   }
 
@@ -86,7 +90,7 @@ export abstract class ToolRule extends ToolFile {
       frontmatter: {
         root: this.isRoot(),
         targets: ["*"],
-        description: "",
+        description: this.description,
         globs: this.isRoot() ? ["**/*"] : [],
       },
       body: this.getFileContent(),
@@ -95,6 +99,10 @@ export abstract class ToolRule extends ToolFile {
 
   isRoot(): boolean {
     return this.root;
+  }
+
+  getDescription(): string | undefined {
+    return this.description;
   }
 
   static isTargetedByRulesyncRule(_rulesyncRule: RulesyncRule): boolean {
