@@ -6,6 +6,7 @@ import {
   ToolRule,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
@@ -19,6 +20,10 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
   };
 };
 
+export type ClaudecodeRuleParams = ToolRuleParams & {
+  description?: string | undefined;
+};
+
 /**
  * Rule generator for Claude Code AI assistant
  *
@@ -26,6 +31,13 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
+  private readonly description?: string | undefined;
+
+  constructor({ description, ...rest }: ClaudecodeRuleParams) {
+    super(rest);
+    this.description = description;
+  }
+
   static getSettablePaths(): ClaudecodeRuleSettablePaths {
     return {
       root: {
@@ -58,6 +70,7 @@ export class ClaudecodeRule extends ToolRule {
       fileContent,
       validate,
       root: isRoot,
+      description: undefined,
     });
   }
 
@@ -66,15 +79,16 @@ export class ClaudecodeRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
-    return new ClaudecodeRule(
-      this.buildToolRuleParamsDefault({
+    return new ClaudecodeRule({
+      ...this.buildToolRuleParamsDefault({
         baseDir,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,
         nonRootPath: this.getSettablePaths().nonRoot,
       }),
-    );
+      description: rulesyncRule.getFrontmatter().description,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -90,5 +104,9 @@ export class ClaudecodeRule extends ToolRule {
       rulesyncRule,
       toolTarget: "claudecode",
     });
+  }
+
+  getDescription(): string | undefined {
+    return this.description;
   }
 }
