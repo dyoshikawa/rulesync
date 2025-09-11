@@ -603,8 +603,8 @@ interface ApiResponse<T> {
       expect(finalRulesyncRule.getBody()).toBe(originalContent);
       expect(finalRulesyncRule.getFrontmatter().root).toBe(true);
       expect(finalRulesyncRule.getFrontmatter().targets).toEqual(["*"]);
-      expect(finalRulesyncRule.getFrontmatter().description).toBe("");
-      expect(finalRulesyncRule.getFrontmatter().globs).toEqual(["**/*"]);
+      expect(finalRulesyncRule.getFrontmatter().description).toBe("OpenAI Codex CLI configuration");
+      expect(finalRulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
       expect(finalRulesyncRule.validate().success).toBe(true);
     });
 

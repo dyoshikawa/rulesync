@@ -83,6 +83,43 @@ describe("ToolRule", () => {
       expect(toolRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(toolRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
       expect(toolRule.isRoot()).toBe(false);
+      expect(toolRule.getDescription()).toBeUndefined();
+      expect(toolRule.getGlobs()).toBeUndefined();
+    });
+
+    it("should create instance with description", () => {
+      const toolRule = new TestToolRule({
+        relativeDirPath: ".test/rules",
+        relativeFilePath: "test-rule.md",
+        fileContent: "# Test Rule",
+        description: "This is a test description",
+      });
+
+      expect(toolRule.getDescription()).toBe("This is a test description");
+    });
+
+    it("should create instance with globs", () => {
+      const toolRule = new TestToolRule({
+        relativeDirPath: ".test/rules",
+        relativeFilePath: "test-rule.md",
+        fileContent: "# Test Rule",
+        globs: ["**/*.ts", "**/*.js"],
+      });
+
+      expect(toolRule.getGlobs()).toEqual(["**/*.ts", "**/*.js"]);
+    });
+
+    it("should create instance with both description and globs", () => {
+      const toolRule = new TestToolRule({
+        relativeDirPath: ".test/rules",
+        relativeFilePath: "test-rule.md",
+        fileContent: "# Test Rule",
+        description: "Test description",
+        globs: ["src/**/*"],
+      });
+
+      expect(toolRule.getDescription()).toBe("Test description");
+      expect(toolRule.getGlobs()).toEqual(["src/**/*"]);
     });
 
     it("should create instance with custom baseDir", () => {
@@ -131,7 +168,7 @@ describe("ToolRule", () => {
 
     it("should validate content by default", () => {
       expect(() => {
-        const _instance = new TestToolRule({
+        new TestToolRule({
           relativeDirPath: ".test/rules",
           relativeFilePath: "test-rule.md",
           fileContent: "Valid content",
@@ -139,7 +176,7 @@ describe("ToolRule", () => {
       }).not.toThrow();
 
       expect(() => {
-        const _instance = new TestToolRule({
+        new TestToolRule({
           relativeDirPath: ".test/rules",
           relativeFilePath: "test-rule.md",
           fileContent: "", // Should fail validation
@@ -149,7 +186,7 @@ describe("ToolRule", () => {
 
     it("should skip validation when requested", () => {
       expect(() => {
-        const _instance = new TestToolRule({
+        new TestToolRule({
           relativeDirPath: ".test/rules",
           relativeFilePath: "test-rule.md",
           fileContent: "", // Would normally fail validation
@@ -285,6 +322,8 @@ describe("ToolRule", () => {
       expect(toolRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(toolRule.getFileContent()).toBe("# Test RulesyncRule\n\nContent from rulesync.");
       expect(toolRule.isRoot()).toBe(false);
+      expect(toolRule.getDescription()).toBe("Test rule");
+      expect(toolRule.getGlobs()).toEqual([]);
     });
 
     it("should create instance from RulesyncRule with root rule", () => {
@@ -309,6 +348,27 @@ describe("ToolRule", () => {
       expect(toolRule.getRelativeFilePath()).toBe("TEST_AGENTS.md");
       expect(toolRule.getFileContent()).toBe("# Root RulesyncRule\n\nThis is a root rule.");
       expect(toolRule.isRoot()).toBe(true);
+      expect(toolRule.getDescription()).toBe("Root rule");
+      expect(toolRule.getGlobs()).toEqual(["**/*"]);
+    });
+
+    it("should handle undefined description and globs in frontmatter", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "minimal-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+        } as any,
+        body: "# Minimal Rule",
+      });
+
+      const toolRule = TestToolRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(toolRule.getDescription()).toBeUndefined();
+      expect(toolRule.getGlobs()).toBeUndefined();
     });
 
     it("should use custom baseDir", () => {
@@ -406,6 +466,8 @@ describe("ToolRule", () => {
         fileContent: "# Test Rule",
         validate: true,
         root: false,
+        description: "Test rule",
+        globs: [],
       });
     });
 
@@ -433,7 +495,28 @@ describe("ToolRule", () => {
         fileContent: "# Root Rule",
         validate: true,
         root: true,
+        description: "Root rule",
+        globs: ["**/*"],
       });
+    });
+
+    it("should handle undefined description and globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "minimal.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+        } as any,
+        body: "# Minimal",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsDefault({
+        rulesyncRule,
+      });
+
+      expect(params.description).toBeUndefined();
+      expect(params.globs).toBeUndefined();
     });
 
     it("should use custom baseDir", () => {
@@ -598,6 +681,24 @@ describe("ToolRule", () => {
       expect(frontmatter.targets).toEqual(["*"]);
       expect(frontmatter.description).toBe("");
       expect(frontmatter.globs).toEqual([]);
+    });
+
+    it("should create RulesyncRule with description and globs", () => {
+      const toolRule = new TestToolRule({
+        baseDir: testDir,
+        relativeDirPath: ".test/rules",
+        relativeFilePath: "with-metadata.md",
+        fileContent: "# Rule with metadata",
+        root: false,
+        description: "Test description",
+        globs: ["**/*.ts"],
+      });
+
+      const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
+
+      const frontmatter = rulesyncRule.getFrontmatter();
+      expect(frontmatter.description).toBe("Test description");
+      expect(frontmatter.globs).toEqual(["**/*.ts"]);
     });
 
     it("should create RulesyncRule with default frontmatter for root rule", () => {
