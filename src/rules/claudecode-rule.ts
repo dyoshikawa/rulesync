@@ -6,7 +6,6 @@ import {
   ToolRule,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
@@ -19,8 +18,6 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
     relativeDirPath: string;
   };
 };
-
-export type ClaudecodeRuleParams = ToolRuleParams;
 
 /**
  * Rule generator for Claude Code AI assistant
@@ -61,7 +58,6 @@ export class ClaudecodeRule extends ToolRule {
       fileContent,
       validate,
       root: isRoot,
-      description: undefined,
     });
   }
 
@@ -70,15 +66,15 @@ export class ClaudecodeRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
-    return new ClaudecodeRule({
-      ...this.buildToolRuleParamsDefault({
+    return new ClaudecodeRule(
+      this.buildToolRuleParamsDefault({
         baseDir,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,
         nonRootPath: this.getSettablePaths().nonRoot,
       }),
-    });
+    );
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -95,5 +91,4 @@ export class ClaudecodeRule extends ToolRule {
       toolTarget: "claudecode",
     });
   }
-
 }
