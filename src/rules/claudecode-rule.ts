@@ -98,7 +98,4 @@ export class ClaudecodeRule extends ToolRule {
     });
   }
 
-  getDescription(): string | undefined {
-    return this.description;
-  }
 }
