@@ -65,7 +65,7 @@ export class CodexcliRule extends ToolRule {
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
     return new CodexcliRule(
-      this.buildToolRuleParamsDefault({
+      this.buildToolRuleParamsAgentsmd({
         baseDir,
         rulesyncRule,
         validate,

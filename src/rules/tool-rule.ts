@@ -107,6 +107,7 @@ export abstract class ToolRule extends ToolFile {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
     if (!rulesyncFrontmatter.root && rulesyncFrontmatter.agentsmd?.subprojectPath) {
       params.relativeDirPath = join(rulesyncFrontmatter.agentsmd.subprojectPath);
+      params.relativeFilePath = "AGENTS.md";
     }
 
     return params;

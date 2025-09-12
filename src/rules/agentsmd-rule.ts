@@ -73,20 +73,15 @@ export class AgentsMdRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
-    const params = this.buildToolRuleParamsDefault({
-      baseDir,
-      rulesyncRule,
-      validate,
-      rootPath: this.getSettablePaths().root,
-      nonRootPath: this.getSettablePaths().nonRoot,
-    });
-
-    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
-    if (!rulesyncFrontmatter.root && rulesyncFrontmatter.agentsmd?.subprojectPath) {
-      params.relativeDirPath = join(rulesyncFrontmatter.agentsmd.subprojectPath);
-    }
-
-    return new AgentsMdRule(params);
+    return new AgentsMdRule(
+      this.buildToolRuleParamsAgentsmd({
+        baseDir,
+        rulesyncRule,
+        validate,
+        rootPath: this.getSettablePaths().root,
+        nonRootPath: this.getSettablePaths().nonRoot,
+      }),
+    );
   }
 
   toRulesyncRule(): RulesyncRule {
