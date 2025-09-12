@@ -1,6 +1,6 @@
-# Contributing to rulesync
+# Contributing to Rulesync
 
-Thank you for your interest in contributing to rulesync! This guide will help you get started with development, testing, and contributing to the project.
+Thank you for your interest in contributing to Rulesync! This guide will help you get started with development, testing, and contributing to the project.
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ Thank you for your interest in contributing to rulesync! This guide will help yo
 
 ## Getting Started
 
-rulesync is a Node.js CLI tool that generates configuration files for various AI development tools from unified AI rule files. It supports 19+ AI development tools including GitHub Copilot, Cursor, Claude Code, Cline, and many others.
+Rulesync is a Node.js CLI tool that generates configuration files for various AI development tools from unified AI rule files. It supports 19+ AI development tools including GitHub Copilot, Cursor, Claude Code, Cline, and many others.
 
 ### Prerequisites
 
@@ -91,7 +91,7 @@ rulesync/
 - **`src/mcp/`**: Contains MCP (Model Context Protocol) configuration generators
 - **`src/ignore/`**: Contains ignore file processors for various AI tools
 - **`src/types/`**: TypeScript type definitions and interfaces
-- **`.rulesync/`**: The project's own rulesync configuration with comprehensive specifications
+- **`.rulesync/`**: The project's own Rulesync configuration with comprehensive specifications
 
 ## Development Workflow
 
@@ -398,8 +398,8 @@ The project includes VS Code configuration with recommended extensions:
 
 ## Code of Conduct
 
-Please be respectful and constructive in all interactions. We want rulesync to be welcoming to contributors of all backgrounds and experience levels.
+Please be respectful and constructive in all interactions. We want Rulesync to be welcoming to contributors of all backgrounds and experience levels.
 
 ---
 
-Thank you for contributing to rulesync! Your efforts help make AI development tools more accessible and consistent for developers worldwide.
+Thank you for contributing to Rulesync! Your efforts help make AI development tools more accessible and consistent for developers worldwide.

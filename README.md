@@ -1,4 +1,4 @@
-# rulesync
+# Rulesync
 
 [![CI](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml/badge.svg)](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/rulesync)](https://www.npmjs.com/package/rulesync)
@@ -7,7 +7,7 @@
 A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, and subagents. Uses the recommended `.rulesync/rules/*.md` structure, with full backward compatibility for legacy `.rulesync/*.md` layouts.
 
 > [!NOTE]
-> If you are interested in rulesync latest news, please follow the maintainer's X(Twitter) account:
+> If you are interested in Rulesync latest news, please follow the maintainer's X(Twitter) account:
 > [@dyoshikawa1993](https://x.com/dyoshikawa1993)
 
 ## Installation
@@ -52,7 +52,7 @@ npx rulesync generate --targets "*" --features "*"
 
 ## Supported Tools and Features
 
-rulesync supports both **generation** and **import** for All of the major AI coding tools:
+Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
 | Tool                  | rules | ignore | mcp   | commands | subagents |
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
@@ -76,19 +76,19 @@ rulesync supports both **generation** and **import** for All of the major AI cod
 
 🎮: Simulated Commands/Subagents (Experimental Feature)
 
-## Why rulesync?
+## Why Rulesync?
 
 ### 🔧 **Tool Flexibility**
 Team members can freely choose their preferred AI coding tools. Whether it's GitHub Copilot, Cursor, Cline, or Claude Code, each developer can use the tool that maximizes their productivity.
 
 ### 📈 **Future-Proof Development**
-AI development tools evolve rapidly with new tools emerging frequently. With rulesync, switching between tools doesn't require redefining your rules from scratch.
+AI development tools evolve rapidly with new tools emerging frequently. With Rulesync, switching between tools doesn't require redefining your rules from scratch.
 
 ### 🎯 **Multi-Tool Workflow**
 Enable hybrid development workflows combining multiple AI tools.
 
 ### 🔓 **No Lock-in**
-Avoid lock-in completely. If you decide to stop using rulesync, you can continue using the generated rule files as-is.
+Avoid lock-in completely. If you decide to stop using Rulesync, you can continue using the generated rule files as-is.
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
@@ -124,7 +124,7 @@ npx rulesync gitignore
 
 ## Configuration
 
-You can configure rulesync by creating a `rulesync.jsonc` file in the root of your project.
+You can configure Rulesync by creating a `rulesync.jsonc` file in the root of your project.
 
 Example:
 
@@ -162,7 +162,7 @@ Example:
 ---
 root: true # true that is less than or equal to one file for overview such as `AGENTS.md`, false for details such as `.agents/memories/*.md`
 targets: ["*"] # * = all, or specific tools
-description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
 agentsmd: # agentsmd and codexcli specific rules
   # Support for using nested AGENTS.md files for subprojects in a large monorepo.
@@ -172,13 +172,13 @@ agentsmd: # agentsmd and codexcli specific rules
   subprojectPath: "path/to/subproject"
 cursor: # cursor specific rules
   alwaysApply: true
-  description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
+  description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
   globs: ["*"]
 ---
 
-# rulesync Project Overview
+# Rulesync Project Overview
 
-This is rulesync, a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
+This is Rulesync, a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
 
 ...
 ```
