@@ -4,16 +4,10 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 10
-    # Cooldown period: wait before creating PRs for new releases
+      interval: "daily"
     cooldown:
       default-days: 7
-    insecure-external-code-execution: deny
-    rebase-strategy: "auto"
+    open-pull-requests-limit: 10
     groups:
       # Group all development dependencies into a single PR
       dev-dependencies:
@@ -33,25 +27,15 @@ updates:
     reviewers:
       - "dyoshikawa"
       - "cm-dyoshikawa"
-    # Enable versioning strategy for better auto-merge compatibility
-    versioning-strategy: "increase"
     allow:
       # Allow all security updates
       - dependency-type: "all"
-    ignore:
-      # Add specific packages to ignore here if needed
-      # - dependency-name: "example-package"
-      #   versions: ["2.x", "3.x"]
 
   # Automatic updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Tokyo"
-    # Cooldown period for GitHub Actions updates
+      interval: "daily"
     cooldown:
       default-days: 7
     commit-message:
@@ -62,3 +46,4 @@ updates:
       - "automated"
     reviewers:
       - "dyoshikawa"
+      - "cm-dyoshikawa"
