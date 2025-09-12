@@ -24,8 +24,6 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 };
 
 export class AgentsMdRule extends ToolRule {
-  private readonly subprojectPath: string | undefined;
-
   constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
     super({
       ...rest,
@@ -100,9 +98,5 @@ export class AgentsMdRule extends ToolRule {
       rulesyncRule,
       toolTarget: "agentsmd",
     });
-  }
-
-  getSubprojectPath(): string | undefined {
-    return this.subprojectPath;
   }
 }

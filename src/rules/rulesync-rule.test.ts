@@ -368,6 +368,49 @@ Cursor-specific rule body`;
       }
     });
 
+    it("should handle agentsmd configuration in frontmatter", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_DIR);
+      await ensureDir(rulesDir);
+
+      const ruleContent = `---
+root: false
+targets:
+  - agentsmd
+  - codexcli
+description: Subproject rule
+agentsmd:
+  subprojectPath: "packages/my-app"
+---
+
+Subproject-specific rule body`;
+
+      const filePath = join(rulesDir, "agentsmd-rule.md");
+      await writeFileContent(filePath, ruleContent);
+
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
+
+      try {
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "agentsmd-rule.md",
+        });
+
+        expect(rule.getFrontmatter()).toEqual({
+          root: false,
+          targets: ["agentsmd", "codexcli"],
+          description: "Subproject rule",
+          globs: [],
+          cursor: undefined,
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        });
+        expect(rule.getBody()).toBe("Subproject-specific rule body");
+      } finally {
+        process.chdir(originalCwd);
+      }
+    });
+
     it("should trim whitespace from body content", async () => {
       const rulesDir = join(testDir, RULESYNC_RULES_DIR);
       await ensureDir(rulesDir);
@@ -521,6 +564,52 @@ Invalid legacy rule`;
       const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
       expect(result.success).toBe(true);
       expect(result.data).toEqual(frontmatter);
+    });
+
+    it("should validate frontmatter with agentsmd field", () => {
+      const frontmatter = {
+        root: false,
+        targets: ["agentsmd"],
+        description: "Test with agentsmd",
+        globs: ["**/*.ts"],
+        agentsmd: {
+          subprojectPath: "packages/my-app",
+        },
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(frontmatter);
+    });
+
+    it("should validate frontmatter with empty agentsmd subprojectPath", () => {
+      const frontmatter = {
+        root: false,
+        targets: ["agentsmd"],
+        agentsmd: {
+          subprojectPath: "",
+        },
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.agentsmd?.subprojectPath).toBe("");
+      }
+    });
+
+    it("should validate frontmatter with agentsmd but no subprojectPath", () => {
+      const frontmatter = {
+        root: false,
+        targets: ["agentsmd"],
+        agentsmd: {},
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.agentsmd).toEqual({});
+      }
     });
 
     it("should reject invalid root field", () => {

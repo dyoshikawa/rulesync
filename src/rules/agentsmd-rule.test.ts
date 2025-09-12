@@ -156,6 +156,107 @@ describe("AgentsMdRule", () => {
 
       expect(rule.getFileContent()).toBe("# Test Agent\n\nContent");
     });
+
+    it("should handle subprojectPath from agentsmd field", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        },
+        body: "# Subproject Agent\n\nContent for subproject.",
+      });
+
+      const rule = AgentsMdRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(rule.getFileContent()).toBe("# Subproject Agent\n\nContent for subproject.");
+      expect(rule.getRelativeDirPath()).toBe("packages/my-app");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should ignore subprojectPath for root rules", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: true,
+          targets: ["agentsmd"],
+          agentsmd: {
+            subprojectPath: "packages/my-app", // Should be ignored
+          },
+        },
+        body: "# Root Agent\n\nRoot content.",
+      });
+
+      const rule = AgentsMdRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(rule.getFileContent()).toBe("# Root Agent\n\nRoot content.");
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(true);
+    });
+
+    it("should handle empty subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          agentsmd: {
+            subprojectPath: "",
+          },
+        },
+        body: "# Empty Subproject\n\nContent.",
+      });
+
+      const rule = AgentsMdRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(rule.getFileContent()).toBe("# Empty Subproject\n\nContent.");
+      expect(rule.getRelativeDirPath()).toBe(".agents/memories");
+      expect(rule.getRelativeFilePath()).toBe("test.md");
+    });
+
+    it("should handle complex nested subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "nested.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          agentsmd: {
+            subprojectPath: "packages/apps/my-app/src",
+          },
+        },
+        body: "# Nested Subproject\n\nDeeply nested content.",
+      });
+
+      const rule = AgentsMdRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(rule.getFileContent()).toBe("# Nested Subproject\n\nDeeply nested content.");
+      expect(rule.getRelativeDirPath()).toBe("packages/apps/my-app/src");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
   });
 
   describe("toRulesyncRule", () => {

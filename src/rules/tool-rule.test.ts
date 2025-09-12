@@ -441,6 +441,235 @@ describe("ToolRule", () => {
     });
   });
 
+  describe("buildToolRuleParamsAgentsmd", () => {
+    it("should build params for non-root rule with subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "Test rule",
+          globs: [],
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        },
+        body: "# Test Rule",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+      });
+
+      expect(params).toEqual({
+        baseDir: ".",
+        relativeDirPath: "packages/my-app",
+        relativeFilePath: "AGENTS.md",
+        fileContent: "# Test Rule",
+        validate: true,
+        root: false,
+        description: "Test rule",
+        globs: [],
+      });
+    });
+
+    it("should build params for non-root rule without subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "Test rule",
+          globs: [],
+        },
+        body: "# Test Rule",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+      });
+
+      expect(params).toEqual({
+        baseDir: ".",
+        relativeDirPath: ".agents/memories",
+        relativeFilePath: "test-rule.md",
+        fileContent: "# Test Rule",
+        validate: true,
+        root: false,
+        description: "Test rule",
+        globs: [],
+      });
+    });
+
+    it("should build params for root rule (ignoring subprojectPath)", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "root-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["agentsmd"],
+          description: "Root rule",
+          globs: ["**/*"],
+          agentsmd: {
+            subprojectPath: "packages/my-app", // Should be ignored for root rules
+          },
+        },
+        body: "# Root Rule",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+      });
+
+      expect(params).toEqual({
+        baseDir: ".",
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        fileContent: "# Root Rule",
+        validate: true,
+        root: true,
+        description: "Root rule",
+        globs: ["**/*"],
+      });
+    });
+
+    it("should handle empty subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "Test rule",
+          globs: [],
+          agentsmd: {
+            subprojectPath: "",
+          },
+        },
+        body: "# Test Rule",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+      });
+
+      expect(params).toEqual({
+        baseDir: ".",
+        relativeDirPath: ".agents/memories",
+        relativeFilePath: "test-rule.md",
+        fileContent: "# Test Rule",
+        validate: true,
+        root: false,
+        description: "Test rule",
+        globs: [],
+      });
+    });
+
+    it("should handle undefined agentsmd field", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "Test rule",
+          globs: [],
+        },
+        body: "# Test Rule",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+      });
+
+      expect(params).toEqual({
+        baseDir: ".",
+        relativeDirPath: ".agents/memories",
+        relativeFilePath: "test-rule.md",
+        fileContent: "# Test Rule",
+        validate: true,
+        root: false,
+        description: "Test rule",
+        globs: [],
+      });
+    });
+
+    it("should use custom baseDir", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "custom.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "",
+          globs: [],
+          agentsmd: {
+            subprojectPath: "subdir",
+          },
+        },
+        body: "# Custom",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        baseDir: "/custom/path",
+        rulesyncRule,
+      });
+
+      expect(params.baseDir).toBe("/custom/path");
+      expect(params.relativeDirPath).toBe("subdir");
+    });
+
+    it("should use custom validation setting", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "no-validate.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "",
+          globs: [],
+          agentsmd: {
+            subprojectPath: "test",
+          },
+        },
+        body: "# No Validation",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+        validate: false,
+      });
+
+      expect(params.validate).toBe(false);
+    });
+
+    it("should handle complex nested subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "nested.md",
+        frontmatter: {
+          root: false,
+          targets: ["agentsmd"],
+          description: "Nested rule",
+          globs: ["**/*.ts"],
+          agentsmd: {
+            subprojectPath: "packages/apps/my-app/src",
+          },
+        },
+        body: "# Nested Rule",
+      });
+
+      const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
+        rulesyncRule,
+      });
+
+      expect(params.relativeDirPath).toBe("packages/apps/my-app/src");
+      expect(params.relativeFilePath).toBe("AGENTS.md");
+    });
+  });
+
   describe("buildToolRuleParamsDefault", () => {
     it("should build params for non-root rule with defaults", () => {
       const rulesyncRule = new RulesyncRule({

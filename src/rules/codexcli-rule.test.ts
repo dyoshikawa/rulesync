@@ -249,6 +249,132 @@ More detailed instructions here.`;
       expect(codexcliRule.getFileContent()).toBe(complexBody);
     });
 
+    it("should handle subprojectPath from agentsmd field", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["codexcli"],
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        },
+        body: "# Subproject CodexCLI\n\nContent for subproject.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getFileContent()).toBe(
+        "# Subproject CodexCLI\n\nContent for subproject.",
+      );
+      expect(codexcliRule.getRelativeDirPath()).toBe("packages/my-app");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should ignore subprojectPath for root rules", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: true,
+          targets: ["codexcli"],
+          agentsmd: {
+            subprojectPath: "packages/my-app", // Should be ignored
+          },
+        },
+        body: "# Root CodexCLI\n\nRoot content.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getFileContent()).toBe("# Root CodexCLI\n\nRoot content.");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should handle empty subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["codexcli"],
+          agentsmd: {
+            subprojectPath: "",
+          },
+        },
+        body: "# Empty Subproject CodexCLI\n\nContent.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getFileContent()).toBe("# Empty Subproject CodexCLI\n\nContent.");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".codex/memories");
+      expect(codexcliRule.getRelativeFilePath()).toBe("test.md");
+    });
+
+    it("should handle complex nested subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "nested.md",
+        frontmatter: {
+          root: false,
+          targets: ["codexcli"],
+          agentsmd: {
+            subprojectPath: "packages/apps/my-app/src",
+          },
+        },
+        body: "# Nested Subproject CodexCLI\n\nDeeply nested content.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getFileContent()).toBe(
+        "# Nested Subproject CodexCLI\n\nDeeply nested content.",
+      );
+      expect(codexcliRule.getRelativeDirPath()).toBe("packages/apps/my-app/src");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should handle undefined agentsmd field", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["codexcli"],
+        },
+        body: "# No agentsmd\n\nContent without agentsmd.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getFileContent()).toBe("# No agentsmd\n\nContent without agentsmd.");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".codex/memories");
+      expect(codexcliRule.getRelativeFilePath()).toBe("test.md");
+    });
+
     it("should respect validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,

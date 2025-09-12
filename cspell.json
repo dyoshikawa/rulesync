@@ -277,6 +277,10 @@
         "toolrule",
         "unvalidated",
         "Unvalidated",
-        "العالم"
+        "العالم",
+        "subproject",
+        "subprojects",
+        "Subproject",
+        "Subprojects"
     ]
 }
