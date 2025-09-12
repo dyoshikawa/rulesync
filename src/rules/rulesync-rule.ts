@@ -15,6 +15,11 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   targets: z.optional(RulesyncTargetsSchema),
   description: z.optional(z.string()),
   globs: z.optional(z.array(z.string())),
+  agentsmd: z.optional(
+    z.object({
+      subprojectPath: z.optional(z.string()),
+    }),
+  ),
   cursor: z.optional(
     z.object({
       alwaysApply: z.optional(z.boolean()),
