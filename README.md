@@ -6,6 +6,10 @@
 
 A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, and subagents. Uses the recommended `.rulesync/rules/*.md` structure, with full backward compatibility for legacy `.rulesync/*.md` layouts.
 
+> [!NOTE]
+> If you are interested in rulesync latest news, please follow the maintainer's X(Twitter) account:
+> [@dyoshikawa1993](https://x.com/dyoshikawa1993)
+
 ## Installation
 
 ```bash
