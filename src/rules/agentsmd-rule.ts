@@ -11,6 +11,10 @@ import {
 
 export type AgentsMdRuleParams = AiFileParams & {
   root?: boolean;
+  /**
+   * @example "path/to/subproject"
+   */
+  subprojectPath?: string;
 };
 
 export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -24,12 +28,15 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 };
 
 export class AgentsMdRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
+  private readonly subprojectPath: string | undefined;
+
+  constructor({ fileContent, root, subprojectPath, ...rest }: AgentsMdRuleParams) {
     super({
       ...rest,
       fileContent,
       root: root ?? false,
     });
+    this.subprojectPath = subprojectPath;
   }
 
   static getSettablePaths(): AgentsMdRuleSettablePaths {
@@ -98,5 +105,9 @@ export class AgentsMdRule extends ToolRule {
       rulesyncRule,
       toolTarget: "agentsmd",
     });
+  }
+
+  getSubprojectPath(): string | undefined {
+    return this.subprojectPath;
   }
 }

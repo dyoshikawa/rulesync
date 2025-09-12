@@ -161,11 +161,11 @@ targets: ["*"] # * = all, or specific tools
 description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
 agentsmd: # agentsmd specific rules
-  # Support for using nested AGENTS.md files for subprojects.
+  # Support for using nested AGENTS.md files for subprojects in a large monorepo.
   # This option is available only if root is false.
-  # If dirPath is provided, the file is located in `${dirPath}/AGENTS.md`.
-  # If dirPath is not provided and root is false, the file is located in `.agents/memories/*.md`.
-  dirPath: "path/to/subproject"
+  # If subprojectPath is provided, the file is located in `${subprojectPath}/AGENTS.md`.
+  # If subprojectPath is not provided and root is false, the file is located in `.agents/memories/*.md`.
+  subprojectPath: "path/to/subproject"
 cursor: # cursor specific rules
   alwaysApply: true
   description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
