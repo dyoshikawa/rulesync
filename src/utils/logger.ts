@@ -1,5 +1,7 @@
 import { consola } from "consola";
 
+const isEnvTest = process.env.NODE_ENV === "test";
+
 // Global logger instance with configurable verbosity
 class Logger {
   private _verbose = false;
@@ -16,26 +18,31 @@ class Logger {
   }
 
   info(message: string, ...args: unknown[]): void {
+    if (isEnvTest) return;
     this.console.info(message, ...args);
   }
 
   // Success (always shown)
   success(message: string, ...args: unknown[]): void {
+    if (isEnvTest) return;
     this.console.success(message, ...args);
   }
 
   // Warning (always shown)
   warn(message: string, ...args: unknown[]): void {
+    if (isEnvTest) return;
     this.console.warn(message, ...args);
   }
 
   // Error (always shown)
   error(message: string, ...args: unknown[]): void {
+    if (isEnvTest) return;
     this.console.error(message, ...args);
   }
 
   // Debug level (shown only in verbose mode)
   debug(message: string, ...args: unknown[]): void {
+    if (isEnvTest) return;
     if (this._verbose) {
       this.console.info(message, ...args);
     }
