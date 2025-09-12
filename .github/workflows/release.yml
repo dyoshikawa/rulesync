@@ -4,6 +4,10 @@ on:
   release:
     types: [created]
 
+permissions:
+  id-token: write # Required for OIDC
+  contents: read
+
 jobs:
   publish:
     name: Publish to NPM
@@ -24,17 +28,19 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10.12.2
+          version: 10.15.1
+    
+      # Required equal or greater than npm 11.5.1 for OIDC
+      - name: Update npm
+        run: |
+          npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run quality checks
+      - name: Run cicheck
         run: |
-          pnpm check
-          pnpm secretlint
-          pnpm cspell
-          pnpm test
+          pnpm cicheck
 
       - name: Publish to npm
         run: pnpm publish
