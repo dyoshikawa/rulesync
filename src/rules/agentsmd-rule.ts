@@ -11,10 +11,6 @@ import {
 
 export type AgentsMdRuleParams = AiFileParams & {
   root?: boolean;
-  /**
-   * @example "path/to/subproject"
-   */
-  subprojectPath?: string;
 };
 
 export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -30,13 +26,12 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 export class AgentsMdRule extends ToolRule {
   private readonly subprojectPath: string | undefined;
 
-  constructor({ fileContent, root, subprojectPath, ...rest }: AgentsMdRuleParams) {
+  constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
     super({
       ...rest,
       fileContent,
       root: root ?? false,
     });
-    this.subprojectPath = subprojectPath;
   }
 
   static getSettablePaths(): AgentsMdRuleSettablePaths {
@@ -78,15 +73,20 @@ export class AgentsMdRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
-    return new AgentsMdRule(
-      this.buildToolRuleParamsDefault({
-        baseDir,
-        rulesyncRule,
-        validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
-    );
+    const params = this.buildToolRuleParamsDefault({
+      baseDir,
+      rulesyncRule,
+      validate,
+      rootPath: this.getSettablePaths().root,
+      nonRootPath: this.getSettablePaths().nonRoot,
+    });
+
+    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+    if (!rulesyncFrontmatter.root && rulesyncFrontmatter.agentsmd?.subprojectPath) {
+      params.relativeDirPath = join(rulesyncFrontmatter.agentsmd.subprojectPath);
+    }
+
+    return new AgentsMdRule(params);
   }
 
   toRulesyncRule(): RulesyncRule {

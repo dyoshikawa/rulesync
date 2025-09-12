@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
@@ -29,6 +30,20 @@ export type ToolRuleSettablePaths = {
   };
 };
 
+type BuildToolRuleParamsParams = ToolRuleFromRulesyncRuleParams & {
+  rootPath?: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRootPath?: {
+    relativeDirPath: string;
+  };
+};
+
+type BuildToolRuleParamsResult = Omit<ToolRuleParams, "root"> & {
+  root: boolean;
+};
+
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
   protected readonly description?: string | undefined;
@@ -55,17 +70,7 @@ export abstract class ToolRule extends ToolFile {
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
     nonRootPath = { relativeDirPath: ".agents/memories" },
-  }: ToolRuleFromRulesyncRuleParams & {
-    rootPath?: {
-      relativeDirPath: string;
-      relativeFilePath: string;
-    };
-    nonRootPath?: {
-      relativeDirPath: string;
-    };
-  }): Omit<ToolRuleParams, "root"> & {
-    root: boolean;
-  } {
+  }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const fileContent = rulesyncRule.getBody();
 
     return {
@@ -82,6 +87,29 @@ export abstract class ToolRule extends ToolFile {
       description: rulesyncRule.getFrontmatter().description,
       globs: rulesyncRule.getFrontmatter().globs,
     };
+  }
+
+  protected static buildToolRuleParamsAgentsmd({
+    baseDir = ".",
+    rulesyncRule,
+    validate = true,
+    rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
+    nonRootPath = { relativeDirPath: ".agents/memories" },
+  }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
+    const params = this.buildToolRuleParamsDefault({
+      baseDir,
+      rulesyncRule,
+      validate,
+      rootPath,
+      nonRootPath,
+    });
+
+    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+    if (!rulesyncFrontmatter.root && rulesyncFrontmatter.agentsmd?.subprojectPath) {
+      params.relativeDirPath = join(rulesyncFrontmatter.agentsmd.subprojectPath);
+    }
+
+    return params;
   }
 
   abstract toRulesyncRule(): RulesyncRule;

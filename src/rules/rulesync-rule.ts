@@ -17,6 +17,7 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   globs: z.optional(z.array(z.string())),
   agentsmd: z.optional(
     z.object({
+      // @example "path/to/subproject"
       subprojectPath: z.optional(z.string()),
     }),
   ),

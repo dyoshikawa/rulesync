@@ -160,7 +160,7 @@ root: true # true that is less than or equal to one file for overview such as `A
 targets: ["*"] # * = all, or specific tools
 description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
-agentsmd: # agentsmd specific rules
+agentsmd: # agentsmd and codexcli specific rules
   # Support for using nested AGENTS.md files for subprojects in a large monorepo.
   # This option is available only if root is false.
   # If subprojectPath is provided, the file is located in `${subprojectPath}/AGENTS.md`.
