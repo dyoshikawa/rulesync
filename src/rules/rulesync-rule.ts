@@ -118,6 +118,7 @@ export class RulesyncRule extends RulesyncFile {
       targets: result.data.targets ?? ["*"],
       description: result.data.description ?? "",
       globs: result.data.globs ?? [],
+      agentsmd: result.data.agentsmd,
       cursor: result.data.cursor,
     };
 
@@ -154,6 +155,7 @@ export class RulesyncRule extends RulesyncFile {
       targets: result.data.targets ?? ["*"],
       description: result.data.description ?? "",
       globs: result.data.globs ?? [],
+      agentsmd: result.data.agentsmd,
       cursor: result.data.cursor,
     };
 
