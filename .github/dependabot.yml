@@ -7,16 +7,16 @@ updates:
       interval: "daily"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
-      # Group all development dependencies into a single PR
       dev-dependencies:
         dependency-type: "development"
         patterns:
           - "*"
-      # Production dependencies are updated individually
       production-dependencies:
         dependency-type: "production"
+        patterns:
+          - "*"
     commit-message:
       prefix: "chore"
       prefix-development: "chore"
@@ -38,6 +38,11 @@ updates:
       interval: "daily"
     cooldown:
       default-days: 7
+    open-pull-requests-limit: 1
+    groups:
+      all-actions:
+        patterns:
+          - "*"
     commit-message:
       prefix: "ci"
       include: "scope"
