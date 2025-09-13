@@ -39,6 +39,9 @@ jobs:
       - name: Run cicheck
         run: pnpm cicheck
 
+      - name: Build
+        run: pnpm build
+
       - name: Check build artifacts
         run: |
           test -f dist/index.js
