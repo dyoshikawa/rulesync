@@ -17,12 +17,9 @@ First, let's work on the following steps.
   - Sections, `What's Changed`, `Contributors` and `Full Changelog` are needed.
   - `./ai-tmp/release-notes.md` will be used as the release notes.
 
-Then, from $ARGUMENTS, get the new version without v prefix, and assign it to $new_version. For example, if $ARGUMENTS is "v0.1.0", the new version is "0.1.0".
+Then, from $ARGUMENTS, get the new version without v prefix, and assign it to $new_version. For example, if $ARGUMENTS is "v1.0.0", the new version is "1.0.0".
 
-Unless the user does not explicitly specify the new version, please judge the new version from the release description with the following rules:
-
-- For the time being, the major version is kept as `0` because the project is not yet stable.
-- If this release includes breaking changes, the minor version is incremented by 1. Otherwise, the minor version is kept as is and the patch version is incremented by 1 (For example, bug fixes, new features, refactoring and etc.).
+Unless the user does not explicitly specify the new version, please judge the new version from the release description with the following the general semantic versioning rules.
 
 Let's resume the release process.
 
