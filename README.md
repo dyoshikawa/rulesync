@@ -137,8 +137,8 @@ Example:
   // Features to generate. You can specify "*" to generate all features.
   "features": ["rules", "ignore", "mcp", "commands", "subagents"],
   
-  // Base directory or directories for generation
-  "baseDir": ".",
+  // Base directories for generation
+  "baseDirs": ["."],
   
   // Delete existing files before generating
   "delete": true,
