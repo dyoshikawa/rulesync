@@ -137,7 +137,9 @@ Example:
   // Features to generate. You can specify "*" to generate all features.
   "features": ["rules", "ignore", "mcp", "commands", "subagents"],
   
-  // Base directories for generation
+  // Base directories for generation.
+  // Basically, you can specify a `["."]` only.
+  // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple base directories.
   "baseDirs": ["."],
   
   // Delete existing files before generating
