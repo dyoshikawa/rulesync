@@ -4,8 +4,10 @@
 
   "features": ["rules", "ignore", "mcp", "commands", "subagents"],
   
-  // Base directory or directories for generation
-  "baseDir": ".",
+  // Base directory or directories for generation.
+  // Basically, you can specify a `[.]` only.
+  // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple base directories.
+  "baseDirs": ["."],
   
   // Delete existing files before generating
   "delete": true,
