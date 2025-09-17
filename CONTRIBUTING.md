@@ -371,7 +371,7 @@ pnpm dev init
 pnpm dev generate --targets cursor --features rules
 
 # Test with different options
-pnpm dev generate --targets * --features *
+pnpm dev generate --targets "*" --features "*"
 ```
 
 ### Debugging
@@ -379,7 +379,7 @@ pnpm dev generate --targets * --features *
 Enable debug output for troubleshooting:
 
 ```bash
-DEBUG=rulesync* pnpm dev generate --targets cursor
+npm dev generate --targets cursor --verbose
 ```
 
 ### IDE Setup
