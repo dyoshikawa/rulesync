@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RulesyncTargets } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+import { parseFrontmatter } from "../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -69,16 +69,7 @@ export class CursorRule extends ToolRule {
     body: string,
     frontmatter: CursorRuleFrontmatter,
   ): string {
-    // If there are no globs or they don't contain asterisk patterns, use the default stringifier
-    if (
-      !frontmatter.globs ||
-      typeof frontmatter.globs !== "string" ||
-      !frontmatter.globs.includes("*")
-    ) {
-      return stringifyFrontmatter(body, frontmatter);
-    }
-
-    // For globs with asterisk patterns, manually build the YAML frontmatter
+    // For cursor settings, manually build the YAML frontmatter
     // to ensure they are output without quotes
     const lines: string[] = ["---"];
 
