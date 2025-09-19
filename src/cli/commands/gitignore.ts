@@ -18,6 +18,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.claude/memories/",
     "**/.claude/commands/",
     "**/.claude/agents/",
+    "**/.claude/settings.local.json",
     "**/AGENTS.md",
     "**/.agents/",
     "**/.roo/rules/",

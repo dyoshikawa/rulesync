@@ -6,8 +6,8 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 7
-    open-pull-requests-limit: 3
+      default-days: 1
+    open-pull-requests-limit: 2
     groups:
       dev-dependencies:
         dependency-type: "development"
@@ -37,7 +37,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 7
+      default-days: 1
     open-pull-requests-limit: 1
     groups:
       all-actions:

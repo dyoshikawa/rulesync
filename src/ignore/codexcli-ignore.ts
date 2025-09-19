@@ -9,9 +9,9 @@ import {
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
-export type CodexcliIgnoreParams = {
+export type CodexcliIgnoreParams = ToolIgnoreParams & {
   patterns?: string[];
-} & Omit<ToolIgnoreParams, "patterns">;
+};
 
 export class CodexcliIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {

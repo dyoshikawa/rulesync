@@ -295,7 +295,7 @@ describe("ToolIgnore", () => {
       });
 
       expect(() => {
-        ToolIgnore.fromRulesyncIgnore({
+        void ToolIgnore.fromRulesyncIgnore({
           rulesyncIgnore,
         });
       }).toThrow("Please implement this method in the subclass.");
