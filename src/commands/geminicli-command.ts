@@ -53,7 +53,7 @@ export class GeminiCliCommand extends ToolCommand {
         prompt: validated.prompt,
       };
     } catch (error) {
-      throw new Error(`Failed to parse TOML command file: ${error}`);
+      throw new Error(`Failed to parse TOML command file: ${error}`, { cause: error });
     }
   }
 
