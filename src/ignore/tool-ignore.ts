@@ -18,12 +18,12 @@ export type ToolIgnoreSettablePaths = {
 
 export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
 export abstract class ToolIgnore extends ToolFile {
-  protected readonly patterns: string[];
+  protected patterns: string[];
 
-  constructor({ ...rest }: ToolIgnoreParams) {
+  constructor(params: ToolIgnoreParams) {
     super({
-      ...rest,
-      validate: true, // Skip validation during construction
+      ...params,
+      validate: true,
     });
     this.patterns = this.fileContent
       .split(/\r?\n|\r/)
@@ -31,7 +31,7 @@ export abstract class ToolIgnore extends ToolFile {
       .filter((line) => line.length > 0 && !line.startsWith("#"));
 
     // Validate after setting patterns, if validation was requested
-    if (rest.validate) {
+    if (params.validate) {
       const result = this.validate();
       if (!result.success) {
         throw result.error;

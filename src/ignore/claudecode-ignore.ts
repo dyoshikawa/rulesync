@@ -9,15 +9,20 @@ import {
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 
-export type CodexcliIgnoreParams = ToolIgnoreParams & {
-  patterns?: string[];
-};
+export type ClaudecodeIgnoreParams = ToolIgnoreParams;
 
-export class CodexcliIgnore extends ToolIgnore {
+export class ClaudecodeIgnore extends ToolIgnore {
+  constructor(params: ClaudecodeIgnoreParams) {
+    super(params);
+
+    this.patterns = [];
+    this.fileContent = "";
+  }
+
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
-      relativeDirPath: ".",
-      relativeFilePath: ".codexignore",
+      relativeDirPath: ".claude",
+      relativeFilePath: "settings.local.json",
     };
   }
 
@@ -28,10 +33,10 @@ export class CodexcliIgnore extends ToolIgnore {
   static fromRulesyncIgnore({
     baseDir = ".",
     rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): CodexcliIgnore {
+  }: ToolIgnoreFromRulesyncIgnoreParams): ClaudecodeIgnore {
     const fileContent = rulesyncIgnore.getFileContent();
 
-    return new CodexcliIgnore({
+    return new ClaudecodeIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -43,7 +48,7 @@ export class CodexcliIgnore extends ToolIgnore {
   static async fromFile({
     baseDir = ".",
     validate = true,
-  }: ToolIgnoreFromFileParams): Promise<CodexcliIgnore> {
+  }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -52,7 +57,7 @@ export class CodexcliIgnore extends ToolIgnore {
       ),
     );
 
-    return new CodexcliIgnore({
+    return new ClaudecodeIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
