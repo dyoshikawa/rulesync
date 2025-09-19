@@ -8,20 +8,11 @@ import type {
 } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-/**
- * Represents Gemini CLI Coding Assistant ignore configuration
- *
- * Gemini CLI supports two types of ignore files:
- * 1. .aiexclude (recommended) - Can be placed in any directory, affects subdirectories
- * 2. .gitignore (preview feature) - Only at root working folder
- *
- * When conflicts occur in the same file, .aiexclude takes precedence over .gitignore
- */
 export class GeminiCliIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".aiexclude",
+      relativeFilePath: ".geminiignore",
     };
   }
 

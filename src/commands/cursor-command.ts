@@ -54,6 +54,10 @@ export class CursorCommand extends ToolCommand {
     return { success: true, error: null };
   }
 
+  getBody(): string {
+    return this.getFileContent();
+  }
+
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,

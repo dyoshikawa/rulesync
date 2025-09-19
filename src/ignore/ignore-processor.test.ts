@@ -218,7 +218,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should load GeminiCliIgnore for geminicli target", async () => {
-      await writeFileContent(join(testDir, ".aiexclude"), "*.log\nnode_modules/");
+      await writeFileContent(join(testDir, ".geminiignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
         baseDir: testDir,
