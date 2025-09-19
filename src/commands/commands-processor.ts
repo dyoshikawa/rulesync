@@ -25,7 +25,7 @@ const commandsProcessorToolTargets: ToolTarget[] = [
 ];
 export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
 
-const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot", "codexcli"];
+const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot", "cursor", "codexcli"];
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
 
