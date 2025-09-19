@@ -456,6 +456,7 @@ describe("IgnoreProcessor", () => {
       const expectedTargets = [
         "amazonqcli",
         "augmentcode",
+        "claudecode",
         "cline",
         "codexcli",
         "cursor",
