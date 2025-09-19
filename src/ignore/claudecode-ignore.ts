@@ -58,8 +58,10 @@ export class ClaudecodeIgnore extends ToolIgnore {
     const existingFileContent = exists ? await readFileContent(filePath) : "{}";
     const existingJsonValue: SettingsJsonValue = JSON.parse(existingFileContent);
     const jsonValue: SettingsJsonValue = {
+      ...existingJsonValue,
       permissions: {
-        deny: uniq([...(existingJsonValue.permissions?.deny ?? []), ...deniedValues]),
+        ...existingJsonValue.permissions,
+        deny: uniq([...(existingJsonValue.permissions?.deny ?? []), ...deniedValues].sort()),
       },
     };
 

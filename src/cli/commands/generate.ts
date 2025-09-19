@@ -1,6 +1,7 @@
 import { intersection } from "es-toolkit";
 import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { ClaudecodeIgnore } from "../../ignore/claudecode-ignore.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor, type McpProcessorToolTarget } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
@@ -151,7 +152,16 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
           if (config.getDelete()) {
             const oldToolFiles = await processor.loadToolFiles();
-            await processor.removeAiFiles(oldToolFiles);
+            const oldToolFilesForDelete = oldToolFiles.filter(
+              (toolFile) =>
+                !(
+                  toolFile.getRelativeDirPath() ===
+                    ClaudecodeIgnore.getSettablePaths().relativeDirPath &&
+                  toolFile.getRelativeFilePath() ===
+                    ClaudecodeIgnore.getSettablePaths().relativeFilePath
+                ),
+            );
+            await processor.removeAiFiles(oldToolFilesForDelete);
           }
 
           const rulesyncFiles = await processor.loadRulesyncFiles();

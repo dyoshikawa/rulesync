@@ -6,6 +6,7 @@ import { ToolTarget } from "../types/tool-targets.js";
 import { logger } from "../utils/logger.js";
 import { AmazonqcliIgnore } from "./amazonqcli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
+import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
@@ -21,6 +22,7 @@ import { WindsurfIgnore } from "./windsurf-ignore.js";
 const ignoreProcessorToolTargets: ToolTarget[] = [
   "amazonqcli",
   "augmentcode",
+  "claudecode",
   "cline",
   "codexcli",
   "cursor",
@@ -85,6 +87,8 @@ export class IgnoreProcessor extends FeatureProcessor {
         return [await AmazonqcliIgnore.fromFile({ baseDir: this.baseDir })];
       case "augmentcode":
         return [await AugmentcodeIgnore.fromFile({ baseDir: this.baseDir })];
+      case "claudecode":
+        return [await ClaudecodeIgnore.fromFile({ baseDir: this.baseDir })];
       case "cline":
         return [await ClineIgnore.fromFile({ baseDir: this.baseDir })];
       case "codexcli":
@@ -121,67 +125,74 @@ export class IgnoreProcessor extends FeatureProcessor {
       throw new Error(`No .rulesyncignore found.`);
     }
 
-    const toolIgnores = [rulesyncIgnore].map((rulesyncIgnore) => {
-      switch (this.toolTarget) {
-        case "amazonqcli":
-          return AmazonqcliIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "augmentcode":
-          return AugmentcodeIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "cline":
-          return ClineIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "codexcli":
-          return CodexcliIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "cursor":
-          return CursorIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "geminicli":
-          return GeminiCliIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "junie":
-          return JunieIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "kiro":
-          return KiroIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "qwencode":
-          return QwencodeIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "roo":
-          return RooIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        case "windsurf":
-          return WindsurfIgnore.fromRulesyncIgnore({
-            baseDir: this.baseDir,
-            rulesyncIgnore,
-          });
-        default:
-          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      }
-    });
+    const toolIgnores = await Promise.all(
+      [rulesyncIgnore].map(async (rulesyncIgnore) => {
+        switch (this.toolTarget) {
+          case "amazonqcli":
+            return AmazonqcliIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "augmentcode":
+            return AugmentcodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "claudecode":
+            return await ClaudecodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "cline":
+            return ClineIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "codexcli":
+            return CodexcliIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "cursor":
+            return CursorIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "geminicli":
+            return GeminiCliIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "junie":
+            return JunieIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "kiro":
+            return KiroIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "qwencode":
+            return QwencodeIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "roo":
+            return RooIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          case "windsurf":
+            return WindsurfIgnore.fromRulesyncIgnore({
+              baseDir: this.baseDir,
+              rulesyncIgnore,
+            });
+          default:
+            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        }
+      }),
+    );
 
     return toolIgnores;
   }
