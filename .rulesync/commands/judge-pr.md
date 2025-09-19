@@ -17,4 +17,4 @@ Execute the following in parallel:
 
 Integrate and report the execution results from each subagent.
 
-And then, if the code changes are good, call pr-merge subagent to merge the PR.
+And then, if the code changes are good, call pr-merger subagent to merge the PR.
