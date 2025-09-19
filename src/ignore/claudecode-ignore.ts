@@ -34,7 +34,28 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
+    // Convert ClaudecodeIgnore patterns to RulesyncIgnore format
+    // ClaudecodeIgnore stores patterns as "Read(pattern)" in JSON
+    // RulesyncIgnore expects plain patterns in text format
+    const rulesyncPatterns = this.patterns
+      .map((pattern) => {
+        // Remove "Read(" prefix and ")" suffix if present
+        if (pattern.startsWith("Read(") && pattern.endsWith(")")) {
+          return pattern.slice(5, -1);
+        }
+        return pattern;
+      })
+      .filter((pattern) => pattern.length > 0);
+
+    // Create the content in .rulesyncignore format (one pattern per line)
+    const fileContent = rulesyncPatterns.join("\n");
+
+    return new RulesyncIgnore({
+      baseDir: this.baseDir,
+      relativeDirPath: RulesyncIgnore.getSettablePaths().relativeDirPath,
+      relativeFilePath: RulesyncIgnore.getSettablePaths().relativeFilePath,
+      fileContent,
+    });
   }
 
   static async fromRulesyncIgnore({
