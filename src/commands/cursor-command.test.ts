@@ -4,28 +4,20 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { CursorCommand } from "./cursor-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import {
-  SimulatedCommandFrontmatter,
-  SimulatedCommandFrontmatterSchema,
-} from "./simulated-command.js";
 
 describe("CursorCommand", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
-  const validMarkdownContent = `---
+  const validMarkdownContent = `This is the body of the cursor command.
+It can be multiline.`;
+
+  const markdownContentWithFrontmatter = `---
 description: Test cursor command description
 ---
 
 This is the body of the cursor command.
 It can be multiline.`;
-
-  const invalidMarkdownContent = `---
-# Missing required description field
-invalid: true
----
-
-Body content`;
 
   const markdownWithoutFrontmatter = `This is just plain content without frontmatter.`;
 
@@ -50,43 +42,31 @@ Body content`;
   });
 
   describe("constructor", () => {
-    it("should create instance with valid markdown content", () => {
+    it("should create instance with valid content", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
-        frontmatter: {
-          description: "Test cursor command description",
-        },
-        body: "This is the body of the cursor command.\nIt can be multiline.",
+        fileContent: "This is the body of the cursor command.\nIt can be multiline.",
         validate: true,
       });
 
       expect(command).toBeInstanceOf(CursorCommand);
-      expect(command.getBody()).toBe(
+      expect(command.getFileContent()).toBe(
         "This is the body of the cursor command.\nIt can be multiline.",
       );
-      expect(command.getFrontmatter()).toEqual({
-        description: "Test cursor command description",
-      });
     });
 
-    it("should create instance with empty description", () => {
+    it("should create instance with empty content", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
-        frontmatter: {
-          description: "",
-        },
-        body: "This is a cursor command without description.",
+        fileContent: "",
         validate: true,
       });
 
-      expect(command.getBody()).toBe("This is a cursor command without description.");
-      expect(command.getFrontmatter()).toEqual({
-        description: "",
-      });
+      expect(command.getFileContent()).toBe("");
     });
 
     it("should create instance without validation when validate is false", () => {
@@ -94,86 +74,60 @@ Body content`;
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
-        frontmatter: {
-          description: "Test description",
-        },
-        body: "Test body",
+        fileContent: "Test body",
         validate: false,
       });
 
       expect(command).toBeInstanceOf(CursorCommand);
     });
+  });
 
-    it("should throw error for invalid frontmatter when validation is enabled", () => {
-      expect(
-        () =>
-          new CursorCommand({
-            baseDir: testDir,
-            relativeDirPath: ".cursor/commands",
-            relativeFilePath: "invalid-command.md",
-            frontmatter: {
-              // Missing required description field
-            } as SimulatedCommandFrontmatter,
-            body: "Body content",
-            validate: true,
-          }),
-      ).toThrow();
+  describe("getFileContent", () => {
+    it("should return the file content", () => {
+      const command = new CursorCommand({
+        baseDir: testDir,
+        relativeDirPath: ".cursor/commands",
+        relativeFilePath: "test-command.md",
+        fileContent: "This is the body content.\nWith multiple lines.",
+        validate: true,
+      });
+
+      expect(command.getFileContent()).toBe("This is the body content.\nWith multiple lines.");
     });
   });
 
   describe("getBody", () => {
-    it("should return the body content", () => {
+    it("should return the same as getFileContent", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
-        frontmatter: {
-          description: "Test description",
-        },
-        body: "This is the body content.\nWith multiple lines.",
+        fileContent: "This is the body content.\nWith multiple lines.",
         validate: true,
       });
 
       expect(command.getBody()).toBe("This is the body content.\nWith multiple lines.");
-    });
-  });
-
-  describe("getFrontmatter", () => {
-    it("should return frontmatter with description", () => {
-      const command = new CursorCommand({
-        baseDir: testDir,
-        relativeDirPath: ".cursor/commands",
-        relativeFilePath: "test-command.md",
-        frontmatter: {
-          description: "Test cursor command",
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      const frontmatter = command.getFrontmatter();
-      expect(frontmatter).toEqual({
-        description: "Test cursor command",
-      });
+      expect(command.getBody()).toBe(command.getFileContent());
     });
   });
 
   describe("toRulesyncCommand", () => {
-    it("should throw error as it is a simulated file", () => {
+    it("should convert to RulesyncCommand", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
-        frontmatter: {
-          description: "Test description",
-        },
-        body: "Test body",
+        fileContent: "Test body content",
         validate: true,
       });
 
-      expect(() => command.toRulesyncCommand()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand.getBody()).toBe("Test body content");
+      expect(rulesyncCommand.getFrontmatter().targets).toEqual(["*"]);
+      expect(rulesyncCommand.getFrontmatter().description).toBe("");
+      expect(rulesyncCommand.getRelativeFilePath()).toBe("test-command.md");
+      expect(rulesyncCommand.getFileContent()).toContain("Test body content");
     });
   });
 
@@ -199,10 +153,7 @@ Body content`;
       });
 
       expect(cursorCommand).toBeInstanceOf(CursorCommand);
-      expect(cursorCommand.getBody()).toBe("Test command content");
-      expect(cursorCommand.getFrontmatter()).toEqual({
-        description: "Test description from rulesync",
-      });
+      expect(cursorCommand.getFileContent()).toBe("Test command content");
       expect(cursorCommand.getRelativeFilePath()).toBe("test-command.md");
       expect(cursorCommand.getRelativeDirPath()).toBe(".cursor/commands");
     });
@@ -250,9 +201,7 @@ Body content`;
         validate: true,
       });
 
-      expect(cursorCommand.getFrontmatter()).toEqual({
-        description: "",
-      });
+      expect(cursorCommand.getFileContent()).toBe("Test content");
     });
   });
 
@@ -270,12 +219,9 @@ Body content`;
       });
 
       expect(command).toBeInstanceOf(CursorCommand);
-      expect(command.getBody()).toBe(
+      expect(command.getFileContent()).toBe(
         "This is the body of the cursor command.\nIt can be multiline.",
       );
-      expect(command.getFrontmatter()).toEqual({
-        description: "Test cursor command description",
-      });
       expect(command.getRelativeFilePath()).toBe("test-file-command.md");
     });
 
@@ -292,6 +238,7 @@ Body content`;
       });
 
       expect(command.getRelativeFilePath()).toBe("nested-command.md");
+      expect(command.getRelativeDirPath()).toBe(".cursor/commands");
     });
 
     it("should throw error when file does not exist", async () => {
@@ -304,19 +251,21 @@ Body content`;
       ).rejects.toThrow();
     });
 
-    it("should throw error when file contains invalid frontmatter", async () => {
+    it("should handle file with frontmatter (stripping it)", async () => {
       const commandsDir = join(testDir, ".cursor", "commands");
-      const filePath = join(commandsDir, "invalid-command.md");
+      const filePath = join(commandsDir, "with-frontmatter.md");
 
-      await writeFileContent(filePath, invalidMarkdownContent);
+      await writeFileContent(filePath, markdownContentWithFrontmatter);
 
-      await expect(
-        CursorCommand.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "invalid-command.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
+      const command = await CursorCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "with-frontmatter.md",
+        validate: true,
+      });
+
+      expect(command.getFileContent()).toBe(
+        "This is the body of the cursor command.\nIt can be multiline.",
+      );
     });
 
     it("should handle file without frontmatter", async () => {
@@ -325,76 +274,45 @@ Body content`;
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
-      await expect(
-        CursorCommand.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "no-frontmatter.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
+      const command = await CursorCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "no-frontmatter.md",
+        validate: true,
+      });
+
+      expect(command.getFileContent()).toBe("This is just plain content without frontmatter.");
+    });
+
+    it("should trim whitespace from file content", async () => {
+      const commandsDir = join(testDir, ".cursor", "commands");
+      const filePath = join(commandsDir, "with-whitespace.md");
+      const contentWithWhitespace = "\n\n  This content has whitespace  \n\n";
+
+      await writeFileContent(filePath, contentWithWhitespace);
+
+      const command = await CursorCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "with-whitespace.md",
+        validate: true,
+      });
+
+      expect(command.getFileContent()).toBe("This content has whitespace");
     });
   });
 
   describe("validate", () => {
-    it("should return success for valid frontmatter", () => {
+    it("should always return success", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "valid-command.md",
-        frontmatter: {
-          description: "Valid description",
-        },
-        body: "Valid body",
-        validate: false, // Skip validation in constructor to test validate method
+        fileContent: "Valid body",
+        validate: false,
       });
 
       const result = command.validate();
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
-    });
-
-    it("should handle frontmatter with additional properties", () => {
-      const command = new CursorCommand({
-        baseDir: testDir,
-        relativeDirPath: ".cursor/commands",
-        relativeFilePath: "command-with-extras.md",
-        frontmatter: {
-          description: "Command with extra properties",
-          // Additional properties should be allowed but not validated
-          extra: "property",
-        } as any,
-        body: "Body content",
-        validate: false,
-      });
-
-      const result = command.validate();
-      // The validation should pass as long as required fields are present
-      expect(result.success).toBe(true);
-    });
-  });
-
-  describe("SimulatedCommandFrontmatterSchema", () => {
-    it("should validate valid frontmatter with description", () => {
-      const validFrontmatter = {
-        description: "Test description",
-      };
-
-      const result = SimulatedCommandFrontmatterSchema.parse(validFrontmatter);
-      expect(result).toEqual(validFrontmatter);
-    });
-
-    it("should throw error for frontmatter without description", () => {
-      const invalidFrontmatter = {};
-
-      expect(() => SimulatedCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
-    });
-
-    it("should throw error for frontmatter with invalid types", () => {
-      const invalidFrontmatter = {
-        description: 123, // Should be string
-      };
-
-      expect(() => SimulatedCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
   });
 
@@ -404,17 +322,11 @@ Body content`;
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "empty-body.md",
-        frontmatter: {
-          description: "Command with empty body",
-        },
-        body: "",
+        fileContent: "",
         validate: true,
       });
 
-      expect(command.getBody()).toBe("");
-      expect(command.getFrontmatter()).toEqual({
-        description: "Command with empty body",
-      });
+      expect(command.getFileContent()).toBe("");
     });
 
     it("should handle special characters in content", () => {
@@ -425,17 +337,14 @@ Body content`;
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "special-char.md",
-        frontmatter: {
-          description: "Special characters test",
-        },
-        body: specialContent,
+        fileContent: specialContent,
         validate: true,
       });
 
-      expect(command.getBody()).toBe(specialContent);
-      expect(command.getBody()).toContain("@#$%^&*()");
-      expect(command.getBody()).toContain("你好世界 🌍");
-      expect(command.getBody()).toContain("\"Hello 'World'\"");
+      expect(command.getFileContent()).toBe(specialContent);
+      expect(command.getFileContent()).toContain("@#$%^&*()");
+      expect(command.getFileContent()).toContain("你好世界 🌍");
+      expect(command.getFileContent()).toContain("\"Hello 'World'\"");
     });
 
     it("should handle very long content", () => {
@@ -445,32 +354,12 @@ Body content`;
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "long-content.md",
-        frontmatter: {
-          description: "Long content test",
-        },
-        body: longContent,
+        fileContent: longContent,
         validate: true,
       });
 
-      expect(command.getBody()).toBe(longContent);
-      expect(command.getBody().length).toBe(10000);
-    });
-
-    it("should handle multi-line description", () => {
-      const command = new CursorCommand({
-        baseDir: testDir,
-        relativeDirPath: ".cursor/commands",
-        relativeFilePath: "multiline-desc.md",
-        frontmatter: {
-          description: "This is a multi-line\ndescription with\nmultiple lines",
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      expect(command.getFrontmatter()).toEqual({
-        description: "This is a multi-line\ndescription with\nmultiple lines",
-      });
+      expect(command.getFileContent()).toBe(longContent);
+      expect(command.getFileContent().length).toBe(10000);
     });
 
     it("should handle Windows-style line endings", () => {
@@ -480,27 +369,21 @@ Body content`;
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "windows-lines.md",
-        frontmatter: {
-          description: "Windows line endings test",
-        },
-        body: windowsContent,
+        fileContent: windowsContent,
         validate: true,
       });
 
-      expect(command.getBody()).toBe(windowsContent);
+      expect(command.getFileContent()).toBe(windowsContent);
     });
   });
 
   describe("integration with base classes", () => {
-    it("should properly inherit from SimulatedCommand", () => {
+    it("should properly inherit from ToolCommand", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
-        frontmatter: {
-          description: "Test",
-        },
-        body: "Body",
+        fileContent: "Body",
         validate: true,
       });
 
@@ -516,10 +399,7 @@ Body content`;
         baseDir: customBaseDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
-        frontmatter: {
-          description: "Test",
-        },
-        body: "Body",
+        fileContent: "Body",
         validate: true,
       });
 
@@ -591,6 +471,21 @@ Body content`;
 
       const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
       expect(result).toBe(false);
+    });
+
+    it("should return true for rulesync command with undefined targets (defaults to true)", () => {
+      // Create a RulesyncCommand with undefined targets by bypassing validation
+      const rulesyncCommand = new RulesyncCommand({
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "test.md",
+        frontmatter: { targets: undefined as any, description: "Test" },
+        body: "Body",
+        fileContent: "",
+        validate: false, // Skip validation to allow undefined targets
+      });
+
+      const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
+      expect(result).toBe(true);
     });
   });
 });

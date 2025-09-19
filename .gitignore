@@ -255,3 +255,5 @@ repomix-output.xml
 **/.gemini/subagents/
 **/.github/subagents/
 **/.github/commands/
+
+**/.geminiignore

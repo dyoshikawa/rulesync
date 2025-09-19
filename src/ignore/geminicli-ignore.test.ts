@@ -21,13 +21,13 @@ describe("GeminiCliIgnore", () => {
     it("should create instance with default parameters", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: "*.log\nnode_modules/",
       });
 
       expect(geminiCliIgnore).toBeInstanceOf(GeminiCliIgnore);
       expect(geminiCliIgnore.getRelativeDirPath()).toBe(".");
-      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".aiexclude");
+      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".geminiignore");
       expect(geminiCliIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
@@ -35,18 +35,18 @@ describe("GeminiCliIgnore", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: "/custom/path",
         relativeDirPath: "subdir",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: "*.tmp",
       });
 
-      expect(geminiCliIgnore.getFilePath()).toBe("/custom/path/subdir/.aiexclude");
+      expect(geminiCliIgnore.getFilePath()).toBe("/custom/path/subdir/.geminiignore");
     });
 
     it("should validate content by default", () => {
       expect(() => {
         const _instance = new GeminiCliIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".aiexclude",
+          relativeFilePath: ".geminiignore",
           fileContent: "", // empty content should be valid
         });
       }).not.toThrow();
@@ -56,7 +56,7 @@ describe("GeminiCliIgnore", () => {
       expect(() => {
         const _instance = new GeminiCliIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".aiexclude",
+          relativeFilePath: ".geminiignore",
           fileContent: "any content",
           validate: false,
         });
@@ -70,7 +70,7 @@ describe("GeminiCliIgnore", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent,
       });
 
@@ -86,7 +86,7 @@ describe("GeminiCliIgnore", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: "",
       });
 
@@ -100,7 +100,7 @@ describe("GeminiCliIgnore", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent,
       });
 
@@ -126,7 +126,7 @@ describe("GeminiCliIgnore", () => {
       expect(geminiCliIgnore).toBeInstanceOf(GeminiCliIgnore);
       expect(geminiCliIgnore.getBaseDir()).toBe(".");
       expect(geminiCliIgnore.getRelativeDirPath()).toBe(".");
-      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".aiexclude");
+      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".geminiignore");
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
@@ -144,7 +144,7 @@ describe("GeminiCliIgnore", () => {
       });
 
       expect(geminiCliIgnore.getBaseDir()).toBe("/custom/base");
-      expect(geminiCliIgnore.getFilePath()).toBe("/custom/base/.aiexclude");
+      expect(geminiCliIgnore.getFilePath()).toBe("/custom/base/.geminiignore");
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
@@ -179,9 +179,9 @@ describe("GeminiCliIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .aiexclude file from baseDir with default baseDir", async () => {
+    it("should read .geminiignore file from baseDir with default baseDir", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const aiexcludePath = join(testDir, ".aiexclude");
+      const aiexcludePath = join(testDir, ".geminiignore");
       await writeFileContent(aiexcludePath, fileContent);
 
       const geminiCliIgnore = await GeminiCliIgnore.fromFile({
@@ -191,13 +191,13 @@ describe("GeminiCliIgnore", () => {
       expect(geminiCliIgnore).toBeInstanceOf(GeminiCliIgnore);
       expect(geminiCliIgnore.getBaseDir()).toBe(testDir);
       expect(geminiCliIgnore.getRelativeDirPath()).toBe(".");
-      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".aiexclude");
+      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".geminiignore");
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should read .aiexclude file with validation enabled by default", async () => {
+    it("should read .geminiignore file with validation enabled by default", async () => {
       const fileContent = "*.log\nnode_modules/";
-      const aiexcludePath = join(testDir, ".aiexclude");
+      const aiexcludePath = join(testDir, ".geminiignore");
       await writeFileContent(aiexcludePath, fileContent);
 
       const geminiCliIgnore = await GeminiCliIgnore.fromFile({
@@ -207,9 +207,9 @@ describe("GeminiCliIgnore", () => {
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should read .aiexclude file with validation disabled", async () => {
+    it("should read .geminiignore file with validation disabled", async () => {
       const fileContent = "*.log\nnode_modules/";
-      const aiexcludePath = join(testDir, ".aiexclude");
+      const aiexcludePath = join(testDir, ".geminiignore");
       await writeFileContent(aiexcludePath, fileContent);
 
       const geminiCliIgnore = await GeminiCliIgnore.fromFile({
@@ -220,8 +220,8 @@ describe("GeminiCliIgnore", () => {
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should handle empty .aiexclude file", async () => {
-      const aiexcludePath = join(testDir, ".aiexclude");
+    it("should handle empty .geminiignore file", async () => {
+      const aiexcludePath = join(testDir, ".geminiignore");
       await writeFileContent(aiexcludePath, "");
 
       const geminiCliIgnore = await GeminiCliIgnore.fromFile({
@@ -231,7 +231,7 @@ describe("GeminiCliIgnore", () => {
       expect(geminiCliIgnore.getFileContent()).toBe("");
     });
 
-    it("should handle .aiexclude file with complex patterns", async () => {
+    it("should handle .geminiignore file with complex patterns", async () => {
       const fileContent = `# Build outputs
 build/
 dist/
@@ -262,7 +262,7 @@ logs/
 .DS_Store
 Thumbs.db`;
 
-      const aiexcludePath = join(testDir, ".aiexclude");
+      const aiexcludePath = join(testDir, ".geminiignore");
       await writeFileContent(aiexcludePath, fileContent);
 
       const geminiCliIgnore = await GeminiCliIgnore.fromFile({
@@ -273,7 +273,7 @@ Thumbs.db`;
     });
 
     it("should default baseDir to '.' when not provided", async () => {
-      // Create .aiexclude in current working directory for this test
+      // Create .geminiignore in current working directory for this test
       const cwd = process.cwd();
       const originalCwd = cwd;
 
@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const aiexcludePath = join(testDir, ".aiexclude");
+        const aiexcludePath = join(testDir, ".geminiignore");
         await writeFileContent(aiexcludePath, fileContent);
 
         const geminiCliIgnore = await GeminiCliIgnore.fromFile({});
@@ -295,7 +295,7 @@ Thumbs.db`;
       }
     });
 
-    it("should throw error when .aiexclude file does not exist", async () => {
+    it("should throw error when .geminiignore file does not exist", async () => {
       await expect(
         GeminiCliIgnore.fromFile({
           baseDir: testDir,
@@ -305,7 +305,7 @@ Thumbs.db`;
 
     it("should handle file with Windows line endings", async () => {
       const fileContent = "*.log\r\nnode_modules/\r\n.env";
-      const aiexcludePath = join(testDir, ".aiexclude");
+      const aiexcludePath = join(testDir, ".geminiignore");
       await writeFileContent(aiexcludePath, fileContent);
 
       const geminiCliIgnore = await GeminiCliIgnore.fromFile({
@@ -321,7 +321,7 @@ Thumbs.db`;
       const fileContent = "*.log\nnode_modules/\n.env";
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent,
       });
 
@@ -334,7 +334,7 @@ Thumbs.db`;
     it("should inherit validation method", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: "*.log\nnode_modules/",
       });
 
@@ -348,14 +348,14 @@ Thumbs.db`;
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: "/test/base",
         relativeDirPath: "subdir",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: "*.log",
       });
 
       expect(geminiCliIgnore.getBaseDir()).toBe("/test/base");
       expect(geminiCliIgnore.getRelativeDirPath()).toBe("subdir");
-      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".aiexclude");
-      expect(geminiCliIgnore.getFilePath()).toBe("/test/base/subdir/.aiexclude");
+      expect(geminiCliIgnore.getRelativeFilePath()).toBe(".geminiignore");
+      expect(geminiCliIgnore.getFilePath()).toBe("/test/base/subdir/.geminiignore");
       expect(geminiCliIgnore.getFileContent()).toBe("*.log");
     });
   });
@@ -374,7 +374,7 @@ dist/
       const originalGeminiCliIgnore = new GeminiCliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: originalContent,
       });
 
@@ -387,7 +387,7 @@ dist/
       expect(roundTripGeminiCliIgnore.getFileContent()).toBe(originalContent);
       expect(roundTripGeminiCliIgnore.getBaseDir()).toBe(testDir);
       expect(roundTripGeminiCliIgnore.getRelativeDirPath()).toBe(".");
-      expect(roundTripGeminiCliIgnore.getRelativeFilePath()).toBe(".aiexclude");
+      expect(roundTripGeminiCliIgnore.getRelativeFilePath()).toBe(".geminiignore");
     });
 
     it("should maintain patterns in round-trip conversion", () => {
@@ -396,7 +396,7 @@ dist/
 
       const originalGeminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: originalContent,
       });
 
@@ -413,7 +413,7 @@ dist/
     it("should handle file content with only whitespace", () => {
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: "   \n\t\n   ",
       });
 
@@ -426,7 +426,7 @@ dist/
       const fileContent = "*.log\r\nnode_modules/\n.env\r\nbuild/";
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent,
       });
 
@@ -437,7 +437,7 @@ dist/
       const longPattern = "a".repeat(1000);
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: longPattern,
       });
 
@@ -449,7 +449,7 @@ dist/
       const unicodeContent = "*.log\n節点模块/\n環境.env\n🏗️build/";
       const geminiCliIgnore = new GeminiCliIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent: unicodeContent,
       });
 
@@ -464,7 +464,7 @@ dist/
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent,
       });
 
@@ -488,7 +488,7 @@ dist/
       const geminiCliIgnore = new GeminiCliIgnore({
         baseDir: testDir,
         relativeDirPath: "project/config",
-        relativeFilePath: ".aiexclude",
+        relativeFilePath: ".geminiignore",
         fileContent,
       });
 

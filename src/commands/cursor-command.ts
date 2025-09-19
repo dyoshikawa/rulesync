@@ -1,19 +1,39 @@
 import { basename, join } from "node:path";
+import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
-import { RulesyncCommand } from "./rulesync-command.js";
-import { SimulatedCommand, SimulatedCommandFrontmatterSchema } from "./simulated-command.js";
+import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
+  ToolCommand,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export class CursorCommand extends SimulatedCommand {
+export type CursorCommandParams = AiFileParams;
+
+export class CursorCommand extends ToolCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
     return {
       relativeDirPath: ".cursor/commands",
     };
+  }
+
+  toRulesyncCommand(): RulesyncCommand {
+    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+      targets: ["*"],
+      description: "",
+    };
+
+    return new RulesyncCommand({
+      baseDir: this.baseDir,
+      frontmatter: rulesyncFrontmatter,
+      body: this.getFileContent(),
+      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+      fileContent: this.getFileContent(),
+      validate: true,
+    });
   }
 
   static fromRulesyncCommand({
@@ -21,9 +41,28 @@ export class CursorCommand extends SimulatedCommand {
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): CursorCommand {
-    return new CursorCommand(
-      this.fromRulesyncCommandDefault({ baseDir, rulesyncCommand, validate }),
-    );
+    return new CursorCommand({
+      baseDir: baseDir,
+      fileContent: rulesyncCommand.getBody(),
+      relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath,
+      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      validate,
+    });
+  }
+
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+
+  getBody(): string {
+    return this.getFileContent();
+  }
+
+  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
+    return this.isTargetedByRulesyncCommandDefault({
+      rulesyncCommand,
+      toolTarget: "cursor",
+    });
   }
 
   static async fromFile({
@@ -36,28 +75,16 @@ export class CursorCommand extends SimulatedCommand {
       CursorCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
     );
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
-    const result = SimulatedCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
-    }
+    const fileContent = await readFileContent(filePath);
+    const { body: content } = parseFrontmatter(fileContent);
 
     return new CursorCommand({
       baseDir: baseDir,
       relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
-      frontmatter: result.data,
-      body: content.trim(),
+      fileContent: content.trim(),
       validate,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "cursor",
     });
   }
 }
