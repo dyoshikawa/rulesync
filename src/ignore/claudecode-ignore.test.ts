@@ -19,11 +19,15 @@ describe("ClaudecodeIgnore", () => {
 
   describe("constructor", () => {
     it("should create instance with valid JSON content", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read(node_modules/**)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read(node_modules/**)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -34,13 +38,17 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore).toBeInstanceOf(ClaudecodeIgnore);
       expect(claudecodeIgnore.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
-      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]); 
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
     });
 
     it("should handle empty permissions object", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {},
-      }, null, 2);
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {},
+        },
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -52,11 +60,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should handle null deny array", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: null,
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: null,
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -80,11 +92,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should create instance with custom baseDir", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.tmp)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.tmp)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: "/custom/path",
@@ -111,11 +127,15 @@ describe("ClaudecodeIgnore", () => {
 
   describe("toRulesyncIgnore", () => {
     it("should convert Read() patterns to plain patterns", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read(node_modules/**)", "Read(.env)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read(node_modules/**)", "Read(.env)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
@@ -133,11 +153,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should handle patterns without Read() wrapper", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["*.log", "Read(node_modules/**)", ".env"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["*.log", "Read(node_modules/**)", ".env"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
@@ -152,11 +176,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should filter out empty patterns", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read()", "", "Read(node_modules/**)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read()", "", "Read(node_modules/**)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
@@ -171,11 +199,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should handle empty deny array", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: [],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: [],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
@@ -218,18 +250,19 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should merge with existing permissions", async () => {
-      const existingJsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(existing.txt)", "Read(old.log)"],
+      const existingJsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(existing.txt)", "Read(old.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
-      await writeFileContent(
-        join(claudeDir, "settings.local.json"),
-        existingJsonContent
-      );
+      await writeFileContent(join(claudeDir, "settings.local.json"), existingJsonContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -273,21 +306,22 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should preserve other JSON properties", async () => {
-      const existingJsonContent = JSON.stringify({
-        other: "property",
-        permissions: {
-          allow: ["Write(*.js)"],
-          deny: ["Read(secret.txt)"],
+      const existingJsonContent = JSON.stringify(
+        {
+          other: "property",
+          permissions: {
+            allow: ["Write(*.js)"],
+            deny: ["Read(secret.txt)"],
+          },
+          another: "value",
         },
-        another: "value",
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
-      await writeFileContent(
-        join(claudeDir, "settings.local.json"),
-        existingJsonContent
-      );
+      await writeFileContent(join(claudeDir, "settings.local.json"), existingJsonContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -304,25 +338,23 @@ describe("ClaudecodeIgnore", () => {
       expect(jsonValue.other).toBe("property");
       expect(jsonValue.another).toBe("value");
       expect(jsonValue.permissions.allow).toEqual(["Write(*.js)"]);
-      expect(jsonValue.permissions.deny).toEqual([
-        "Read(*.log)",
-        "Read(secret.txt)",
-      ]);
+      expect(jsonValue.permissions.deny).toEqual(["Read(*.log)", "Read(secret.txt)"]);
     });
 
     it("should remove duplicates and sort patterns", async () => {
-      const existingJsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read(z.txt)", "Read(a.txt)"],
+      const existingJsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read(z.txt)", "Read(a.txt)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
-      await writeFileContent(
-        join(claudeDir, "settings.local.json"),
-        existingJsonContent
-      );
+      await writeFileContent(join(claudeDir, "settings.local.json"), existingJsonContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -398,7 +430,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
-      
+
       const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
       expect(jsonValue.permissions.deny).toEqual(["Read(*.tmp)"]);
     });
@@ -406,11 +438,15 @@ describe("ClaudecodeIgnore", () => {
 
   describe("fromFile", () => {
     it("should read settings.local.json file from .claude directory", async () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read(node_modules/**)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read(node_modules/**)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
@@ -424,15 +460,19 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
       expect(claudecodeIgnore.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
-      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]); 
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
     });
 
     it("should read file with validation enabled by default", async () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
@@ -446,11 +486,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should read file with validation disabled", async () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
@@ -465,16 +509,20 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should handle complex JSON structure", async () => {
-      const jsonContent = JSON.stringify({
-        version: "1.0.0",
-        permissions: {
-          allow: ["Write(*.js)", "Execute(npm)"],
-          deny: ["Read(*.log)", "Read(secrets/**)"],
+      const jsonContent = JSON.stringify(
+        {
+          version: "1.0.0",
+          permissions: {
+            allow: ["Write(*.js)", "Execute(npm)"],
+            deny: ["Read(*.log)", "Read(secrets/**)"],
+          },
+          customSettings: {
+            theme: "dark",
+          },
         },
-        customSettings: {
-          theme: "dark",
-        },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudeDir = join(testDir, ".claude");
       await ensureDir(claudeDir);
@@ -485,7 +533,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       expect(claudecodeIgnore.getFileContent()).toBe(jsonContent);
-      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(secrets/**)"]); 
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(secrets/**)"]);
     });
 
     it("should default baseDir to '.' when not provided", async () => {
@@ -494,11 +542,15 @@ describe("ClaudecodeIgnore", () => {
       try {
         process.chdir(testDir);
 
-        const jsonContent = JSON.stringify({
-          permissions: {
-            deny: ["Read(*.log)"],
+        const jsonContent = JSON.stringify(
+          {
+            permissions: {
+              deny: ["Read(*.log)"],
+            },
           },
-        }, null, 2);
+          null,
+          2,
+        );
 
         const claudeDir = join(testDir, ".claude");
         await ensureDir(claudeDir);
@@ -507,7 +559,7 @@ describe("ClaudecodeIgnore", () => {
         const claudecodeIgnore = await ClaudecodeIgnore.fromFile({});
 
         expect(claudecodeIgnore.getBaseDir()).toBe(".");
-        expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]); 
+        expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
       } finally {
         process.chdir(originalCwd);
       }
@@ -517,7 +569,7 @@ describe("ClaudecodeIgnore", () => {
       await expect(
         ClaudecodeIgnore.fromFile({
           baseDir: testDir,
-        })
+        }),
       ).rejects.toThrow();
     });
   });
@@ -590,16 +642,20 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should handle patterns with special characters", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: [
-            "Read(file with spaces.txt)",
-            "Read(file(with)parens.txt)",
-            "Read(file[with]brackets.txt)",
-            "Read(file{with}braces.txt)",
-          ],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: [
+              "Read(file with spaces.txt)",
+              "Read(file(with)parens.txt)",
+              "Read(file[with]brackets.txt)",
+              "Read(file{with}braces.txt)",
+            ],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -611,18 +667,22 @@ describe("ClaudecodeIgnore", () => {
 
       expect(rulesyncIgnore.getFileContent()).toBe(
         "file with spaces.txt\n" +
-        "file(with)parens.txt\n" +
-        "file[with]brackets.txt\n" +
-        "file{with}braces.txt"
+          "file(with)parens.txt\n" +
+          "file[with]brackets.txt\n" +
+          "file{with}braces.txt",
       );
     });
 
     it("should handle nested Read() patterns", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(Read(nested).txt)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(Read(nested).txt)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -636,11 +696,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should handle patterns with trailing/leading spaces", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["  Read(*.log)  ", "Read(  spaced.txt  )"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["  Read(*.log)  ", "Read(  spaced.txt  )"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -648,18 +712,19 @@ describe("ClaudecodeIgnore", () => {
         fileContent: jsonContent,
       });
 
-      expect(claudecodeIgnore.getPatterns()).toEqual([
-        "  Read(*.log)  ",
-        "Read(  spaced.txt  )",
-      ]);
+      expect(claudecodeIgnore.getPatterns()).toEqual(["  Read(*.log)  ", "Read(  spaced.txt  )"]);
     });
 
     it("should handle unicode characters in patterns", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(文件.log)", "Read(ファイル/**)", "Read(🚀.txt)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(文件.log)", "Read(ファイル/**)", "Read(🚀.txt)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -674,11 +739,15 @@ describe("ClaudecodeIgnore", () => {
 
     it("should handle very long pattern lists", () => {
       const patterns = Array.from({ length: 100 }, (_, i) => `Read(file${i}.txt)`);
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: patterns,
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: patterns,
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -694,11 +763,15 @@ describe("ClaudecodeIgnore", () => {
 
   describe("inheritance from ToolIgnore", () => {
     it("should inherit getPatterns method", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read(node_modules/**)", "Read(.env)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read(node_modules/**)", "Read(.env)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -713,11 +786,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should inherit validation method", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -732,11 +809,15 @@ describe("ClaudecodeIgnore", () => {
     });
 
     it("should inherit file path methods from ToolFile", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: "/test/base",
@@ -755,11 +836,15 @@ describe("ClaudecodeIgnore", () => {
 
   describe("file integration", () => {
     it("should write and read file correctly", async () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)", "Read(node_modules/**)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)", "Read(node_modules/**)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: testDir,
@@ -777,18 +862,22 @@ describe("ClaudecodeIgnore", () => {
       });
 
       expect(readClaudecodeIgnore.getFileContent()).toBe(jsonContent);
-      expect(readClaudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]); 
+      expect(readClaudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
     });
 
     it("should handle subdirectory placement", async () => {
       const subDir = join(testDir, "project");
       await ensureDir(subDir);
 
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         baseDir: subDir,
@@ -811,11 +900,15 @@ describe("ClaudecodeIgnore", () => {
 
   describe("ClaudecodeIgnore-specific behavior", () => {
     it("should use .claude/settings.local.json as the file path", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: ["Read(*.log)"],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -841,27 +934,27 @@ describe("ClaudecodeIgnore", () => {
 
       const fileContent = claudecodeIgnore.getFileContent();
       const jsonValue = JSON.parse(fileContent);
-      
+
       // Check that the JSON has the expected structure
       expect(jsonValue.permissions).toBeDefined();
       expect(jsonValue.permissions.deny).toEqual(["Read(*.log)"]);
-      
+
       // Check that the file is formatted with proper indentation
-      expect(fileContent).toContain("  \""); // Should have 2-space indentation
+      expect(fileContent).toContain('  "'); // Should have 2-space indentation
       expect(fileContent.startsWith("{")).toBe(true);
       expect(fileContent.endsWith("}")).toBe(true);
     });
 
     it("should handle Read() permission format correctly", () => {
-      const jsonContent = JSON.stringify({
-        permissions: {
-          deny: [
-            "Read(**/*.secret)",
-            "Read(private/**)",
-            "Read(*.key)",
-          ],
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(**/*.secret)", "Read(private/**)", "Read(*.key)"],
+          },
         },
-      }, null, 2);
+        null,
+        2,
+      );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
         relativeDirPath: ".claude",
@@ -870,11 +963,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const patterns = claudecodeIgnore.getPatterns();
-      expect(patterns).toEqual([
-        "Read(**/*.secret)",
-        "Read(private/**)",
-        "Read(*.key)",
-      ]);
+      expect(patterns).toEqual(["Read(**/*.secret)", "Read(private/**)", "Read(*.key)"]);
 
       const rulesyncIgnore = claudecodeIgnore.toRulesyncIgnore();
       expect(rulesyncIgnore.getFileContent()).toBe("**/*.secret\nprivate/**\n*.key");
