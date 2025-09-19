@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { readFileContent } from "../utils/file.js";
+import { uniq } from "es-toolkit";
+import { fileExists, readFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
@@ -11,12 +12,18 @@ import {
 
 export type ClaudecodeIgnoreParams = ToolIgnoreParams;
 
+type SettingsJsonValue = {
+  permissions?: {
+    deny?: string[] | null;
+  } | null;
+};
+
 export class ClaudecodeIgnore extends ToolIgnore {
   constructor(params: ClaudecodeIgnoreParams) {
     super(params);
 
-    this.patterns = [];
-    this.fileContent = "";
+    const jsonValue: SettingsJsonValue = JSON.parse(this.fileContent);
+    this.patterns = jsonValue.permissions?.deny ?? [];
   }
 
   static getSettablePaths(): ToolIgnoreSettablePaths {
@@ -30,18 +37,38 @@ export class ClaudecodeIgnore extends ToolIgnore {
     return this.toRulesyncIgnoreDefault();
   }
 
-  static fromRulesyncIgnore({
+  static async fromRulesyncIgnore({
     baseDir = ".",
     rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): ClaudecodeIgnore {
+  }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ClaudecodeIgnore> {
     const fileContent = rulesyncIgnore.getFileContent();
+
+    const patterns = fileContent
+      .split(/\r?\n|\r/)
+      .map((line: string) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const deniedValues = patterns.map((pattern) => `Read(${pattern})`);
+
+    const filePath = join(
+      baseDir,
+      this.getSettablePaths().relativeDirPath,
+      this.getSettablePaths().relativeFilePath,
+    );
+    const exists = await fileExists(filePath);
+    const existingFileContent = exists ? await readFileContent(filePath) : "{}";
+    const existingJsonValue: SettingsJsonValue = JSON.parse(existingFileContent);
+    const jsonValue: SettingsJsonValue = {
+      permissions: {
+        deny: uniq([...(existingJsonValue.permissions?.deny ?? []), ...deniedValues]),
+      },
+    };
 
     return new ClaudecodeIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: fileContent,
-      validate: true, // Skip validation to allow empty patterns
+      fileContent: JSON.stringify(jsonValue, null, 2),
+      validate: true,
     });
   }
 
