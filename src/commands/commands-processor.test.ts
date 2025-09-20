@@ -703,7 +703,7 @@ describe("CommandsProcessor", () => {
         });
 
         mockFindFilesByGlobs.mockResolvedValue([]);
-        
+
         const filesToDelete = await processor.loadToolFilesToDelete();
         expect(filesToDelete).toEqual([]);
       }

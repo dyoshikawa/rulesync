@@ -494,15 +494,13 @@ describe("IgnoreProcessor", () => {
 
       // Load all tool files (should include ClaudecodeIgnore)
       const allFiles = await processor.loadToolFiles();
-      const claudecodeIgnoreFiles = allFiles.filter(
-        (file) => file.constructor.name === "ClaudecodeIgnore",
-      );
+      const claudecodeIgnoreFiles = allFiles.filter((file) => file instanceof ClaudecodeIgnore);
       expect(claudecodeIgnoreFiles).toHaveLength(1);
 
       // Load tool files for deletion (should exclude ClaudecodeIgnore)
       const filesToDelete = await processor.loadToolFilesToDelete();
       const claudecodeIgnoreFilesToDelete = filesToDelete.filter(
-        (file) => file.constructor.name === "ClaudecodeIgnore",
+        (file) => file instanceof ClaudecodeIgnore,
       );
       expect(claudecodeIgnoreFilesToDelete).toHaveLength(0);
     });
@@ -555,9 +553,7 @@ describe("IgnoreProcessor", () => {
 
       const filesToDelete = await processor.loadToolFilesToDelete();
       // Should not include ClaudecodeIgnore but should include other files if any
-      const hasClaudecodeIgnore = filesToDelete.some(
-        (file) => file.constructor.name === "ClaudecodeIgnore",
-      );
+      const hasClaudecodeIgnore = filesToDelete.some((file) => file instanceof ClaudecodeIgnore);
       expect(hasClaudecodeIgnore).toBe(false);
     });
   });

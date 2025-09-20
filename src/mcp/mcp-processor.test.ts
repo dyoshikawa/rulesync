@@ -658,7 +658,7 @@ describe("McpProcessor", () => {
         });
 
         const filesToDelete = await processor.loadToolFilesToDelete();
-        
+
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
       }
@@ -674,7 +674,7 @@ describe("McpProcessor", () => {
       (processor as any).toolTarget = "unsupported";
 
       const filesToDelete = await processor.loadToolFilesToDelete();
-      
+
       // Should return empty array when error occurs
       expect(filesToDelete).toEqual([]);
     });

@@ -913,7 +913,7 @@ Test agent content`;
         });
 
         const filesToDelete = await processor.loadToolFilesToDelete();
-        
+
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
       }
@@ -954,7 +954,7 @@ Second agent`;
       await writeFileContent(join(agentsDir, "agent-2.md"), agent2);
 
       const filesToDelete = await processor.loadToolFilesToDelete();
-      
+
       expect(filesToDelete).toHaveLength(2);
       expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });

@@ -446,7 +446,7 @@ describe("RulesProcessor", () => {
     it("should return the same files as loadToolFiles", async () => {
       await writeFileContent(
         join(testDir, ".claude", "README.md"),
-        "# Root\n\n" + "@.claude/memories/memory1.md\n" + "@.claude/memories/memory2.md",
+        "# Root\n\n@.claude/memories/memory1.md\n@.claude/memories/memory2.md",
       );
       await ensureDir(join(testDir, ".claude", "memories"));
       await writeFileContent(join(testDir, ".claude", "memories", "memory1.md"), "# Memory 1");
@@ -491,7 +491,7 @@ describe("RulesProcessor", () => {
         });
 
         const filesToDelete = await processor.loadToolFilesToDelete();
-        
+
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
       }
@@ -504,7 +504,7 @@ describe("RulesProcessor", () => {
       });
 
       const filesToDelete = await processor.loadToolFilesToDelete();
-      
+
       // Should return empty array when no files exist
       expect(filesToDelete).toEqual([]);
     });
