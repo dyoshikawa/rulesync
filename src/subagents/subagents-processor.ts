@@ -217,6 +217,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
   }
 
+  async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    return this.loadToolFiles();
+  }
+
   /**
    * Load Claude Code subagent configurations from .claude/agents/ directory
    */

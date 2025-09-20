@@ -474,6 +474,10 @@ export class RulesProcessor extends FeatureProcessor {
     }
   }
 
+  async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    return this.loadToolFiles();
+  }
+
   private async loadToolRulesDefault({
     root,
     nonRoot,

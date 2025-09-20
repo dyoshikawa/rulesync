@@ -173,6 +173,10 @@ export class CommandsProcessor extends FeatureProcessor {
     }
   }
 
+  async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    return this.loadToolFiles();
+  }
+
   private async loadToolCommandDefault({
     toolTarget,
     relativeDirPath,
