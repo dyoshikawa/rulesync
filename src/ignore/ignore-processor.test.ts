@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
+import { ensureDir, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
+import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CodexcliIgnore } from "./codexcli-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
@@ -469,6 +470,95 @@ describe("IgnoreProcessor", () => {
       ];
 
       expect(toolTargets).toEqual(expectedTargets);
+    });
+  });
+
+  describe("loadToolFilesToDelete", () => {
+    it("should filter out ClaudecodeIgnore files when loading for deletion", async () => {
+      // Create both .cursorignore and claudecode settings.local.json files
+      await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.local.json"),
+        JSON.stringify({
+          permissions: {
+            deny: ["Read(*.secret)", "Read(*.env)"],
+          },
+        }),
+      );
+
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      // Load all tool files (should include ClaudecodeIgnore)
+      const allFiles = await processor.loadToolFiles();
+      const claudecodeIgnoreFiles = allFiles.filter(
+        (file) => file.constructor.name === "ClaudecodeIgnore",
+      );
+      expect(claudecodeIgnoreFiles).toHaveLength(1);
+
+      // Load tool files for deletion (should exclude ClaudecodeIgnore)
+      const filesToDelete = await processor.loadToolFilesToDelete();
+      const claudecodeIgnoreFilesToDelete = filesToDelete.filter(
+        (file) => file.constructor.name === "ClaudecodeIgnore",
+      );
+      expect(claudecodeIgnoreFilesToDelete).toHaveLength(0);
+    });
+
+    it("should return all files for non-claudecode targets", async () => {
+      await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
+
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const allFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      // For non-claudecode targets, should return the same files
+      expect(filesToDelete).toEqual(allFiles);
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]).toBeInstanceOf(CursorIgnore);
+    });
+
+    it("should return empty array when no tool files exist", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const filesToDelete = await processor.loadToolFilesToDelete();
+      expect(filesToDelete).toHaveLength(0);
+    });
+
+    it("should correctly handle multiple ignore files for claudecode target", async () => {
+      // Create multiple ignore files including ClaudecodeIgnore
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.local.json"),
+        JSON.stringify({
+          permissions: {
+            deny: ["Read(*.secret)"],
+          },
+        }),
+      );
+      // Create additional ignore files that should be included
+      await writeFileContent(join(testDir, ".clineignore"), "*.tmp");
+
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFilesToDelete();
+      // Should not include ClaudecodeIgnore but should include other files if any
+      const hasClaudecodeIgnore = filesToDelete.some(
+        (file) => file.constructor.name === "ClaudecodeIgnore",
+      );
+      expect(hasClaudecodeIgnore).toBe(false);
     });
   });
 });

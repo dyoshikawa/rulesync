@@ -663,4 +663,50 @@ describe("CommandsProcessor", () => {
       expect(targets).toEqual(["claudecode", "geminicli", "roo", "copilot", "cursor", "codexcli"]);
     });
   });
+
+  describe("loadToolFilesToDelete", () => {
+    it("should return the same files as loadToolFiles", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const mockCommands = [
+        new ClaudecodeCommand({
+          baseDir: testDir,
+          relativeDirPath: ".claude/commands",
+          relativeFilePath: "test.md",
+          frontmatter: {
+            description: "test description",
+          },
+          body: "content",
+        }),
+      ];
+
+      mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
+      vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommands[0]!);
+
+      const toolFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      expect(filesToDelete).toEqual(toolFiles);
+      expect(filesToDelete).toHaveLength(1);
+    });
+
+    it("should work for all supported tool targets", async () => {
+      const targets: CommandsProcessorToolTarget[] = ["claudecode", "geminicli", "roo"];
+
+      for (const target of targets) {
+        processor = new CommandsProcessor({
+          baseDir: testDir,
+          toolTarget: target,
+        });
+
+        mockFindFilesByGlobs.mockResolvedValue([]);
+        
+        const filesToDelete = await processor.loadToolFilesToDelete();
+        expect(filesToDelete).toEqual([]);
+      }
+    });
+  });
 });

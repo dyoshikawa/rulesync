@@ -869,4 +869,94 @@ Valid content`,
       expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
     });
   });
+
+  describe("loadToolFilesToDelete", () => {
+    it("should return the same files as loadToolFiles", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      const subagentContent = `---
+name: test-agent
+description: Test agent
+---
+Test agent content`;
+
+      await writeFileContent(join(agentsDir, "test-agent.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      expect(filesToDelete).toEqual(toolFiles);
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
+    });
+
+    it("should work for all supported tool targets", async () => {
+      const targets: SubagentsProcessorToolTarget[] = [
+        "claudecode",
+        "copilot",
+        "cursor",
+        "codexcli",
+        "geminicli",
+        "roo",
+      ];
+
+      for (const target of targets) {
+        const processor = new SubagentsProcessor({
+          baseDir: testDir,
+          toolTarget: target,
+        });
+
+        const filesToDelete = await processor.loadToolFilesToDelete();
+        
+        // Should return empty array since no files exist
+        expect(filesToDelete).toEqual([]);
+      }
+    });
+
+    it("should return empty array when no files exist", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFilesToDelete();
+      expect(filesToDelete).toEqual([]);
+    });
+
+    it("should handle multiple files correctly", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      const agent1 = `---
+name: agent-1
+description: First agent
+---
+First agent`;
+
+      const agent2 = `---
+name: agent-2
+description: Second agent
+---
+Second agent`;
+
+      await writeFileContent(join(agentsDir, "agent-1.md"), agent1);
+      await writeFileContent(join(agentsDir, "agent-2.md"), agent2);
+
+      const filesToDelete = await processor.loadToolFilesToDelete();
+      
+      expect(filesToDelete).toHaveLength(2);
+      expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+    });
+  });
 });
