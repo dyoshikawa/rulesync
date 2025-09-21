@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
-import { readJsonFile } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { configCommand } from "./commands/config.js";
 import { generateCommand } from "./commands/generate.js";
@@ -13,34 +10,12 @@ import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 
-const getVersion = async (): Promise<string> => {
-  try {
-    // Try to read version from package.json dynamically
-    // Use different approaches for ESM and CJS
-    let packageJsonPath: string;
-
-    if (typeof import.meta !== "undefined" && import.meta.url) {
-      // ESM environment
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = join(__filename, "..");
-      packageJsonPath = join(__dirname, "../../package.json");
-    } else {
-      // CJS environment fallback - use process.cwd() as fallback
-      packageJsonPath = join(process.cwd(), "package.json");
-    }
-
-    const packageJson = await readJsonFile<{ version: string }>(packageJsonPath);
-    return packageJson.version;
-  } catch {
-    // Fallback to a hardcoded version if reading fails
-    return "1.2.0";
-  }
-};
+const getVersion = () => "1.2.1";
 
 const main = async () => {
   const program = new Command();
 
-  const version = await getVersion();
+  const version = getVersion();
 
   program.hook("postAction", () => {
     if (ANNOUNCEMENT.length > 0) {

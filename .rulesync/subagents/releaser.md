@@ -25,7 +25,7 @@ Let's resume the release process.
 
 3. Run `git pull`.
 4. Run `git checkout -b release/v${new_version}`.
-5. Update the version in `src/cli/index.ts`. Then, execute `git add` and `git commit`.
+5. Update `getVersion()` function to return the ${new_version} in `src/cli/index.ts`. Then, execute `git add` and `git commit`.
 6. Update the version with `pnpm version ${new_version} --no-git-tag-version`.
 7. Since `package.json` will be modified, execute `git commit` and `git push`.
 8. Run `gh pr create` and `gh pr merge --admin` to merge the release branch into the main branch.
