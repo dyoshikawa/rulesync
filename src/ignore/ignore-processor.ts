@@ -112,6 +112,13 @@ export class IgnoreProcessor extends FeatureProcessor {
     }
   }
 
+  async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    // Claudecode ignore file is settings.local.json, so it should not be deleted.
+    return (await this.loadToolFiles()).filter(
+      (toolFile) => !(toolFile instanceof ClaudecodeIgnore),
+    );
+  }
+
   /**
    * Implementation of abstract method from FeatureProcessor
    * Convert RulesyncFile[] to ToolFile[]

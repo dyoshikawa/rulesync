@@ -609,4 +609,74 @@ describe("McpProcessor", () => {
       ]);
     });
   });
+
+  describe("loadToolFilesToDelete", () => {
+    it("should return the same files as loadToolFiles", async () => {
+      const mockMcp = new CopilotMcp({
+        baseDir: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-mcp.yml",
+        fileContent: JSON.stringify({ servers: {} }),
+      });
+
+      vi.mocked(CopilotMcp.fromFile).mockResolvedValue(mockMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      expect(filesToDelete).toEqual(toolFiles);
+      expect(filesToDelete).toHaveLength(1);
+    });
+
+    it("should work for all supported tool targets", async () => {
+      const targets: McpProcessorToolTarget[] = [
+        "amazonqcli",
+        "claudecode",
+        "cline",
+        "copilot",
+        "cursor",
+        "roo",
+      ];
+
+      // Setup mocks to reject to simulate no files
+      vi.mocked(AmazonqcliMcp.fromFile).mockRejectedValue(new Error("File not found"));
+      vi.mocked(ClaudecodeMcp.fromFile).mockRejectedValue(new Error("File not found"));
+      vi.mocked(ClineMcp.fromFile).mockRejectedValue(new Error("File not found"));
+      vi.mocked(CopilotMcp.fromFile).mockRejectedValue(new Error("File not found"));
+      vi.mocked(CursorMcp.fromFile).mockRejectedValue(new Error("File not found"));
+      vi.mocked(RooMcp.fromFile).mockRejectedValue(new Error("File not found"));
+
+      for (const target of targets) {
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: target,
+        });
+
+        const filesToDelete = await processor.loadToolFilesToDelete();
+
+        // Should return empty array since no files exist
+        expect(filesToDelete).toEqual([]);
+      }
+    });
+
+    it("should handle errors gracefully", async () => {
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+
+      // Override the toolTarget property to simulate an unsupported target
+      (processor as any).toolTarget = "unsupported";
+
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      // Should return empty array when error occurs
+      expect(filesToDelete).toEqual([]);
+    });
+  });
 });

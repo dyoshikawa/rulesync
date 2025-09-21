@@ -62,6 +62,7 @@ describe("generateCommand", () => {
     // Setup default processor mock instance
     mockProcessorInstance = {
       loadToolFiles: vi.fn().mockResolvedValue([]),
+      loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
       removeAiFiles: vi.fn().mockResolvedValue(undefined),
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
       loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -178,12 +179,12 @@ describe("generateCommand", () => {
     it("should remove old files when delete option is enabled", async () => {
       mockConfig.getDelete.mockReturnValue(true);
       const oldFiles = [{ file: "old" }];
-      mockProcessorInstance.loadToolFiles.mockResolvedValue(oldFiles);
+      mockProcessorInstance.loadToolFilesToDelete.mockResolvedValue(oldFiles);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(mockProcessorInstance.loadToolFiles).toHaveBeenCalled();
+      expect(mockProcessorInstance.loadToolFilesToDelete).toHaveBeenCalled();
       expect(mockProcessorInstance.removeAiFiles).toHaveBeenCalledWith(oldFiles);
     });
 
@@ -262,7 +263,7 @@ describe("generateCommand", () => {
     it("should remove old MCP files when delete option is enabled", async () => {
       mockConfig.getDelete.mockReturnValue(true);
       const oldFiles = [{ file: "old-mcp" }];
-      mockProcessorInstance.loadToolFiles.mockResolvedValue(oldFiles);
+      mockProcessorInstance.loadToolFilesToDelete.mockResolvedValue(oldFiles);
       const options: GenerateOptions = {};
 
       await generateCommand(options);

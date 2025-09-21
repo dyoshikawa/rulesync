@@ -1,13 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../utils/file.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
-import { RulesProcessor } from "./rules-processor.js";
+import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { WarpRule } from "./warp-rule.js";
 
 describe("RulesProcessor", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
   describe("convertRulesyncFilesToToolFiles", () => {
     it("should filter out rules not targeted for the specific tool", async () => {
       const processor = new RulesProcessor({
@@ -425,6 +439,74 @@ describe("RulesProcessor", () => {
       expect(content).toContain(
         '@.claude/memories/multi-glob.md description: "Multiple glob patterns" globs: "src/**/*.ts,tests/**/*.test.ts,**/*.config.js"',
       );
+    });
+  });
+
+  describe("loadToolFilesToDelete", () => {
+    it("should return the same files as loadToolFiles", async () => {
+      await writeFileContent(
+        join(testDir, ".claude", "README.md"),
+        "# Root\n\n@.claude/memories/memory1.md\n@.claude/memories/memory2.md",
+      );
+      await ensureDir(join(testDir, ".claude", "memories"));
+      await writeFileContent(join(testDir, ".claude", "memories", "memory1.md"), "# Memory 1");
+      await writeFileContent(join(testDir, ".claude", "memories", "memory2.md"), "# Memory 2");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      expect(filesToDelete).toEqual(toolFiles);
+      expect(filesToDelete.length).toBeGreaterThan(0);
+    });
+
+    it("should work for all supported tool targets", async () => {
+      const targets: RulesProcessorToolTarget[] = [
+        "amazonqcli",
+        "augmentcode",
+        "augmentcode-legacy",
+        "claudecode",
+        "cline",
+        "copilot",
+        "cursor",
+        "codexcli",
+        "geminicli",
+        "junie",
+        "kiro",
+        "opencode",
+        "qwencode",
+        "roo",
+        "warp",
+        "windsurf",
+      ];
+
+      for (const target of targets) {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: target,
+        });
+
+        const filesToDelete = await processor.loadToolFilesToDelete();
+
+        // Should return empty array since no files exist
+        expect(filesToDelete).toEqual([]);
+      }
+    });
+
+    it("should handle errors gracefully", async () => {
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      // Should return empty array when no files exist
+      expect(filesToDelete).toEqual([]);
     });
   });
 });

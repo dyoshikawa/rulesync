@@ -50,6 +50,10 @@ export class McpProcessor extends FeatureProcessor {
     }
   }
 
+  async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    return this.loadToolFiles();
+  }
+
   /**
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific MCP configurations and parse them into ToolMcp instances
