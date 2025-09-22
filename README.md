@@ -16,10 +16,12 @@ A Node.js CLI tool that automatically generates configuration files for various 
 npm install -g rulesync
 # or
 pnpm add -g rulesync
-# or  
+# or
 yarn global add rulesync
 # or
 bun add -g rulesync
+# or
+brew install rulesync
 
 # And then
 rulesync --version
