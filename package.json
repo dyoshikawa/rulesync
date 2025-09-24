@@ -1,6 +1,6 @@
 {
 	"name": "rulesync",
-	"version": "1.2.4",
+	"version": "1.2.5",
 	"description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
 	"keywords": [
 		"ai",
