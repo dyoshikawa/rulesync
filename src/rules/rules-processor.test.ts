@@ -442,7 +442,6 @@ describe("RulesProcessor", () => {
     });
   });
 
-
   describe("loadToolFilesToDelete", () => {
     it("should return the same files as loadToolFiles", async () => {
       await writeFileContent(

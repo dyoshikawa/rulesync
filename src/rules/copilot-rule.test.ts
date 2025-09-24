@@ -560,7 +560,7 @@ description: "Test trimming"
       });
 
       const fileContent = copilotRule.getFileContent();
-      
+
       // Root rule should only contain body, no frontmatter
       expect(fileContent).toBe(body);
       expect(fileContent).not.toContain("---");
@@ -584,7 +584,7 @@ description: "Test trimming"
       });
 
       const fileContent = copilotRule.getFileContent();
-      
+
       // Non-root rule should contain frontmatter
       expect(fileContent).toContain("---");
       expect(fileContent).toContain("description: Non-root rule");
@@ -612,7 +612,7 @@ description: "Test trimming"
     it("should handle complex frontmatter for non-root rule", () => {
       const body = "Complex rule content.";
       const frontmatter = {
-        description: "This is a \"complex\" rule with special characters",
+        description: 'This is a "complex" rule with special characters',
         applyTo: "*.ts,*.tsx,*.js,*.jsx",
       };
       const copilotRule = new CopilotRule({
@@ -625,10 +625,12 @@ description: "Test trimming"
       });
 
       const fileContent = copilotRule.getFileContent();
-      
+
       expect(fileContent).toContain("---");
       // YAML serializer handles quotes
-      expect(fileContent).toContain("description: This is a \"complex\" rule with special characters");
+      expect(fileContent).toContain(
+        'description: This is a "complex" rule with special characters',
+      );
       expect(fileContent).toContain("applyTo: '*.ts,*.tsx,*.js,*.jsx'");
       expect(fileContent).toContain(body);
     });
@@ -645,7 +647,7 @@ description: "Test trimming"
       });
 
       const fileContent = copilotRule.getFileContent();
-      
+
       // With empty frontmatter, YAML serializer may output just the body
       // or empty frontmatter section. Let's just check that body is present.
       expect(fileContent).toContain(body);
