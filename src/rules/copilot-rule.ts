@@ -62,10 +62,10 @@ export class CopilotRule extends ToolRule {
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      // If the rule is a root rule, the file content does not contain frontmatter.
+      fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
     });
 
-    // Set default value for applyTo if not provided
     this.frontmatter = frontmatter;
     this.body = body;
   }

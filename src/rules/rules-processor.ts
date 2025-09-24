@@ -941,17 +941,18 @@ When users call a simulated subagent, it will look for the corresponding markdow
 
 For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(subagents.relativeDirPath, "planner.md")}\`, and execute its contents as the block of operations.`;
 
-    const result = [
-      overview,
-      ...(this.simulateCommands &&
-      CommandsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
-        ? [commandsSection]
-        : []),
-      ...(this.simulateSubagents &&
-      SubagentsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
-        ? [subagentsSection]
-        : []),
-    ].join("\n\n");
+    const result =
+      [
+        overview,
+        ...(this.simulateCommands &&
+        CommandsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
+          ? [commandsSection]
+          : []),
+        ...(this.simulateSubagents &&
+        SubagentsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
+          ? [subagentsSection]
+          : []),
+      ].join("\n\n") + "\n\n";
     return result;
   }
 }
