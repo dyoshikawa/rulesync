@@ -544,6 +544,114 @@ description: "Test trimming"
     });
   });
 
+  describe("getFileContent", () => {
+    it("should return only body for root rule (without frontmatter)", () => {
+      const body = "This is the root rule content.";
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        frontmatter: {
+          description: "Root rule",
+          applyTo: "**",
+        },
+        body,
+        root: true,
+      });
+
+      const fileContent = copilotRule.getFileContent();
+      
+      // Root rule should only contain body, no frontmatter
+      expect(fileContent).toBe(body);
+      expect(fileContent).not.toContain("---");
+      expect(fileContent).not.toContain("description:");
+      expect(fileContent).not.toContain("applyTo:");
+    });
+
+    it("should return body with frontmatter for non-root rule", () => {
+      const body = "This is a non-root rule content.";
+      const frontmatter = {
+        description: "Non-root rule",
+        applyTo: "*.js",
+      };
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github/instructions",
+        relativeFilePath: "test.instructions.md",
+        frontmatter,
+        body,
+        root: false,
+      });
+
+      const fileContent = copilotRule.getFileContent();
+      
+      // Non-root rule should contain frontmatter
+      expect(fileContent).toContain("---");
+      expect(fileContent).toContain("description: Non-root rule");
+      expect(fileContent).toContain("applyTo: '*.js'"); // YAML uses single quotes
+      expect(fileContent).toContain(body);
+    });
+
+    it("should handle empty body for root rule", () => {
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        frontmatter: {
+          description: "",
+          applyTo: "**",
+        },
+        body: "",
+        root: true,
+      });
+
+      const fileContent = copilotRule.getFileContent();
+      expect(fileContent).toBe("");
+    });
+
+    it("should handle complex frontmatter for non-root rule", () => {
+      const body = "Complex rule content.";
+      const frontmatter = {
+        description: "This is a \"complex\" rule with special characters",
+        applyTo: "*.ts,*.tsx,*.js,*.jsx",
+      };
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github/instructions",
+        relativeFilePath: "complex.instructions.md",
+        frontmatter,
+        body,
+        root: false,
+      });
+
+      const fileContent = copilotRule.getFileContent();
+      
+      expect(fileContent).toContain("---");
+      // YAML serializer handles quotes
+      expect(fileContent).toContain("description: This is a \"complex\" rule with special characters");
+      expect(fileContent).toContain("applyTo: '*.ts,*.tsx,*.js,*.jsx'");
+      expect(fileContent).toContain(body);
+    });
+
+    it("should handle minimal frontmatter for non-root rule", () => {
+      const body = "Minimal rule content.";
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github/instructions",
+        relativeFilePath: "minimal.instructions.md",
+        frontmatter: {},
+        body,
+        root: false,
+      });
+
+      const fileContent = copilotRule.getFileContent();
+      
+      // With empty frontmatter, YAML serializer may output just the body
+      // or empty frontmatter section. Let's just check that body is present.
+      expect(fileContent).toContain(body);
+    });
+  });
+
   describe("CopilotRuleFrontmatterSchema", () => {
     it("should validate valid frontmatter", () => {
       const validFrontmatter = {
