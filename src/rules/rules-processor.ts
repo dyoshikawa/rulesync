@@ -7,7 +7,6 @@ import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
 import { GeminiCliCommand } from "../commands/geminicli-command.js";
 import { RooCommand } from "../commands/roo-command.js";
-import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
 import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { CursorSubagent } from "../subagents/cursor-subagent.js";
@@ -409,7 +408,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const files = await findFilesByGlobs(join(RULESYNC_RULES_DIR, "*.md"));
+    const files = await findFilesByGlobs(join(".rulesync/rules", "*.md"));
     logger.debug(`Found ${files.length} rulesync files`);
     return Promise.all(
       files.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
@@ -417,7 +416,7 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   async loadRulesyncFilesLegacy(): Promise<RulesyncFile[]> {
-    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
+    const legacyFiles = await findFilesByGlobs(join(".rulesync", "*.md"));
     logger.debug(`Found ${legacyFiles.length} legacy rulesync files`);
     return Promise.all(
       legacyFiles.map((file) => RulesyncRule.fromFileLegacy({ relativeFilePath: basename(file) })),

@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
@@ -118,7 +117,7 @@ export abstract class ToolRule extends ToolFile {
   protected toRulesyncRuleDefault(): RulesyncRule {
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeDirPath: ".rulesync/rules",
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {
         root: this.isRoot(),

@@ -1,18 +1,17 @@
 import { join } from "node:path";
 import { RulesyncCommand } from "../../commands/rulesync-command.js";
-import { RULESYNC_DIR, RULESYNC_RULES_DIR, RULESYNC_SUBAGENTS_DIR } from "../../constants/paths.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 export async function initCommand(): Promise<void> {
   logger.info("Initializing rulesync...");
 
-  await ensureDir(RULESYNC_DIR);
+  await ensureDir(".rulesync");
   await createSampleFiles();
 
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
-  logger.info(`1. Edit rule files in ${RULESYNC_RULES_DIR}/`);
+  logger.info(`1. Edit rule files in .rulesync/rules/`);
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }
 
@@ -53,10 +52,10 @@ globs: ["**/*"]
 `,
   };
 
-  const filepath = join(RULESYNC_RULES_DIR, sampleFile.filename);
-  await ensureDir(RULESYNC_RULES_DIR);
+  const filepath = join(".rulesync/rules", sampleFile.filename);
+  await ensureDir(".rulesync/rules");
   await ensureDir(RulesyncCommand.getSettablePaths().relativeDirPath);
-  await ensureDir(RULESYNC_SUBAGENTS_DIR);
+  await ensureDir(".rulesync/subagents");
   if (!(await fileExists(filepath))) {
     await writeFileContent(filepath, sampleFile.content);
     logger.success(`Created ${filepath}`);

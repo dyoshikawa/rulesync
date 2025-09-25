@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RulesyncCommand } from "../../commands/rulesync-command.js";
-import { RULESYNC_DIR, RULESYNC_RULES_DIR, RULESYNC_SUBAGENTS_DIR } from "../../constants/paths.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { initCommand } from "./init.js";
@@ -39,7 +38,7 @@ describe("initCommand", () => {
       expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
-      expect(logger.info).toHaveBeenCalledWith(`1. Edit rule files in ${RULESYNC_RULES_DIR}/`);
+      expect(logger.info).toHaveBeenCalledWith(`1. Edit rule files in ${".rulesync/rules"}/`);
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
       );
@@ -48,10 +47,10 @@ describe("initCommand", () => {
     it("should create required directories", async () => {
       await initCommand();
 
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_DIR);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync/rules");
       expect(ensureDir).toHaveBeenCalledWith(".rulesync/commands");
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync/subagents");
       expect(ensureDir).toHaveBeenCalledTimes(4);
     });
 
@@ -59,7 +58,7 @@ describe("initCommand", () => {
       await initCommand();
 
       // Verify that sample file creation was called
-      const expectedFilePath = join(RULESYNC_RULES_DIR, "overview.md");
+      const expectedFilePath = join(".rulesync/rules", "overview.md");
       expect(fileExists).toHaveBeenCalledWith(expectedFilePath);
       expect(writeFileContent).toHaveBeenCalledWith(expectedFilePath, expect.any(String));
     });
@@ -71,7 +70,7 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      const expectedFilePath = join(RULESYNC_RULES_DIR, "overview.md");
+      const expectedFilePath = join(".rulesync/rules", "overview.md");
       expect(fileExists).toHaveBeenCalledWith(expectedFilePath);
       expect(writeFileContent).toHaveBeenCalledWith(
         expectedFilePath,
@@ -81,7 +80,7 @@ describe("initCommand", () => {
     });
 
     it("should skip creating overview.md when it already exists", async () => {
-      const expectedFilePath = join(RULESYNC_RULES_DIR, "overview.md");
+      const expectedFilePath = join(".rulesync/rules", "overview.md");
       vi.mocked(fileExists).mockResolvedValue(true);
 
       await initCommand();
@@ -140,7 +139,7 @@ describe("initCommand", () => {
       await expect(initCommand()).rejects.toThrow("Permission denied");
 
       expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
       expect(logger.success).not.toHaveBeenCalled();
     });
 
@@ -151,8 +150,8 @@ describe("initCommand", () => {
 
       await expect(initCommand()).rejects.toThrow("Disk full");
 
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_DIR);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync/rules");
     });
 
     it("should handle fileExists errors", async () => {
@@ -161,7 +160,7 @@ describe("initCommand", () => {
       await expect(initCommand()).rejects.toThrow("File system error");
 
       expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
     });
 
     it("should handle writeFileContent errors", async () => {
@@ -181,8 +180,8 @@ describe("initCommand", () => {
 
       await expect(initCommand()).rejects.toThrow("Command configuration error");
 
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_DIR);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync/rules");
     });
   });
 
@@ -194,10 +193,10 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_DIR);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync/rules");
       expect(ensureDir).toHaveBeenCalledWith(".rulesync/commands");
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_DIR);
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync/subagents");
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
     });
 
@@ -220,10 +219,10 @@ describe("initCommand", () => {
       await initCommand();
 
       expect(ensureDirCalls).toEqual([
-        RULESYNC_DIR,
-        RULESYNC_RULES_DIR,
+        ".rulesync",
+        ".rulesync/rules",
         ".rulesync/commands",
-        RULESYNC_SUBAGENTS_DIR,
+        ".rulesync/subagents",
       ]);
     });
   });
@@ -246,7 +245,7 @@ describe("initCommand", () => {
       await initCommand();
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
-      expect(logger.info).toHaveBeenCalledWith(`1. Edit rule files in ${RULESYNC_RULES_DIR}/`);
+      expect(logger.info).toHaveBeenCalledWith(`1. Edit rule files in ${".rulesync/rules"}/`);
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
       );
@@ -257,7 +256,7 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      const expectedFilePath = join(RULESYNC_RULES_DIR, "overview.md");
+      const expectedFilePath = join(".rulesync/rules", "overview.md");
       expect(logger.success).toHaveBeenCalledWith(`Created ${expectedFilePath}`);
     });
 
@@ -266,7 +265,7 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      const expectedFilePath = join(RULESYNC_RULES_DIR, "overview.md");
+      const expectedFilePath = join(".rulesync/rules", "overview.md");
       expect(logger.info).toHaveBeenCalledWith(`Skipped ${expectedFilePath} (already exists)`);
     });
   });

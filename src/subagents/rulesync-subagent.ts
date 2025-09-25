@@ -1,6 +1,5 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
-import { RULESYNC_SUBAGENTS_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import {
   RulesyncFile,
@@ -91,7 +90,7 @@ export class RulesyncSubagent extends RulesyncFile {
     relativeFilePath,
   }: RulesyncSubagentFromFileParams): Promise<RulesyncSubagent> {
     // Read file content
-    const fileContent = await readFileContent(join(RULESYNC_SUBAGENTS_DIR, relativeFilePath));
+    const fileContent = await readFileContent(join(".rulesync/subagents", relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using SubagentFrontmatterSchema
