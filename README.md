@@ -96,7 +96,7 @@ Avoid lock-in completely. If you decide to stop using Rulesync, you can continue
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
 
 ### 🌏 **Global Mode**
-You can use global(also, called as user scope) settings via Rulesync by enabling `--experimental-global` option.
+You can use global(also, called as user scope) mode via Rulesync by enabling `--experimental-global` option.
 
 ### 🎮 **Simulated Commands and Subagents**
 Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
@@ -281,15 +281,15 @@ credentials/
 
 ## Global Mode(Experimental Feature)
 
-You can use global(also, called as user scope) settings via Rulesync by enabling `--experimental-global` option.
+You can use global(also, called as user scope) mode via Rulesync by enabling `--experimental-global` option.
 
-Currently, only supports rules generation. Import for global settings is still not supported.
+Currently, only supports rules generation. Import for global files is still not supported.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
     ```bash
     mkdir -p ~/.aiglobal
     ```
-2. Initialize files for global settings in the directory.
+2. Initialize files for global files in the directory.
     ```bash
     cd ~/.aiglobal
     npx rulesync init
@@ -316,7 +316,7 @@ Currently, only supports rules generation. Import for global settings is still n
     ```
 
 > [!WARNING]
-> Currently, when global mode is enabled:
+> Currently, when in the directory enabled global mode:
 > * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` only. Other parameters are ignored.
 > * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 
