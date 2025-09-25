@@ -280,6 +280,8 @@ credentials/
 
 You can use global(also, called as user scope) settings via Rulesync by creating the `~/.rulesync/` directory and files in it.
 
+Currently, only supports rules generation. Import for global settings is still not supported.
+
 ## Simulate Commands and Subagents(Experimental Feature)
 
 Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
