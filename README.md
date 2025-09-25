@@ -313,8 +313,6 @@ Usage:
 > * `~/.rulesync/rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` only. Other parameters are ignored.
 > * `~/.rulesync/rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 
-
-
 ## Simulate Commands and Subagents(Experimental Feature)
 
 Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
