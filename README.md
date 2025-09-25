@@ -96,7 +96,6 @@ Avoid lock-in completely. If you decide to stop using Rulesync, you can continue
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
 
 ### 🌏 **Global Mode**
-
 You can use global(also, called as user scope) settings via Rulesync by creating the `~/.rulesync/` directory and files in it.
 
 ### 🎮 **Simulated Commands and Subagents**
