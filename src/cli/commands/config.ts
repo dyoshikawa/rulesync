@@ -12,7 +12,7 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
     return;
   }
 
-  logger.info(`Please run \`rulesync config --init\` to create a new configuration file`);
+  logger.info(`Please run \`rulesync config init\` to create a new configuration file`);
 }
 
 async function initConfig(): Promise<void> {

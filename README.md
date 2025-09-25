@@ -34,7 +34,7 @@ rulesync --help
 # Create necessary directories and sample rule files
 npx rulesync init
 # Create a new configuration file
-npx rulesync config --init
+npx rulesync config init
 ```
 
 On the other hand, if you already have AI tool configurations:
@@ -276,7 +276,11 @@ tmp/
 credentials/
 ```
 
-## Simulate Commands and Subagents
+## Global Settings(Experimental Feature)
+
+You can use global(also, called as user scope) settings via Rulesync by creating the `~/.rulesync/` directory and files in it.
+
+## Simulate Commands and Subagents(Experimental Feature)
 
 Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
 

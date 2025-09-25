@@ -121,11 +121,21 @@ const main = async () => {
       }
     });
 
-  program
+  const config = program
     .command("config")
-    .description("Show or initialize rulesync configuration")
-    .option("--init", "Initialize a new configuration file")
-    .action(configCommand);
+    .description("Manage rulesync configuration");
+  
+  config
+    .command("init")
+    .description("Initialize a new configuration file")
+    .action(async () => {
+      await configCommand({ init: true });
+    });
+  
+  config
+    .action(async () => {
+      await configCommand({ init: false });
+    });
 
   program.parse();
 };

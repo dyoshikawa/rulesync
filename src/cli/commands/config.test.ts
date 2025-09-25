@@ -38,7 +38,7 @@ describe("configCommand", () => {
       await configCommand(options);
 
       expect(logger.info).toHaveBeenCalledWith(
-        "Please run `rulesync config --init` to create a new configuration file",
+        "Please run `rulesync config init` to create a new configuration file",
       );
       expect(fileExists).not.toHaveBeenCalled();
       expect(writeFileContent).not.toHaveBeenCalled();
@@ -50,7 +50,7 @@ describe("configCommand", () => {
       await configCommand(options);
 
       expect(logger.info).toHaveBeenCalledWith(
-        "Please run `rulesync config --init` to create a new configuration file",
+        "Please run `rulesync config init` to create a new configuration file",
       );
       expect(fileExists).not.toHaveBeenCalled();
       expect(writeFileContent).not.toHaveBeenCalled();
