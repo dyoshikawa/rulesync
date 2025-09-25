@@ -76,7 +76,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Warp               |  ✅   |        |      |         |          |
 
 
-🌏: Supports global(means user scope settings) option (Experimental Feature, `~/.rulesync`)
+🌏: Supports global(means user scope) mode (Experimental Feature, `~/.rulesync`)
 🎮: Simulated Commands/Subagents (Experimental Feature)
 
 ## Why Rulesync?
