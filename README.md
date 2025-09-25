@@ -152,6 +152,7 @@ Example:
   "verbose": false,
 
   // Experimental features
+  "experimentalGlobal": false, // Unless it is located in the `~/.rulesync/`, it is ignored.
   "experimentalSimulateCommands": false,
   "experimentalSimulateSubagents": false
 }
@@ -276,11 +277,43 @@ tmp/
 credentials/
 ```
 
-## Global Settings(Experimental Feature)
+## Global Mode(Experimental Feature)
 
 You can use global(also, called as user scope) settings via Rulesync by creating the `~/.rulesync/` directory and files in it.
 
 Currently, only supports rules generation. Import for global settings is still not supported.
+
+Usage:
+
+1. Initialize files for global settings.
+    ```bash
+    npx rulesync init --global
+    npx rulesync config init --global
+    ```
+2. Generate rules for global settings.
+    ```bash
+    npx rulesync generate --targets "*" --features "*" --global
+    ```
+3. Edit `~/.rulesync/rules/overview.md` to your preferences.
+    ```md
+    ---
+    root: true
+    ---
+    # The Project Overview
+    ...
+    ```
+4. Generate rules for global settings.
+    ```bash
+    # Run in the `~/.rulesync/` directory.
+    npx rulesync generate
+    ```
+
+> [!WARNING]
+> * About `rulesync.jsonc` location, when existing project scope mode, it located in the project root directory, out of the `~/.rulesync/`. Howewber when global scope mode, it located in `~/.rulesync/`. It may confuse you, attention.
+> * `~/.rulesync/rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` only. Other parameters are ignored.
+> * `~/.rulesync/rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
+
+
 
 ## Simulate Commands and Subagents(Experimental Feature)
 
