@@ -311,7 +311,7 @@ Usage:
     ```
 
 > [!WARNING]
-> * About `rulesync.jsonc` location, when existing project scope mode, it located in the project root directory, out of the `~/.rulesync/`. Howewber when global scope mode, it located in `~/.rulesync/`. It may confuse you, attention.
+> * About `rulesync.jsonc` location, when existing project scope mode, it located in the project root directory, out of the `~/.rulesync/`. However when global scope mode, it located in `~/.rulesync/`. It may confuse you, attention.
 > * `~/.rulesync/rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` only. Other parameters are ignored.
 > * `~/.rulesync/rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 
