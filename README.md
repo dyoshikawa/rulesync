@@ -287,12 +287,12 @@ Usage:
 
 1. Initialize files for global settings.
     ```bash
-    npx rulesync init --global
-    npx rulesync config init --global
+    npx rulesync init --experimental-global
+    npx rulesync config init --experimental-global
     ```
 2. Generate rules for global settings.
     ```bash
-    npx rulesync generate --targets "*" --features "*" --global
+    npx rulesync generate --targets "*" --features "*" --experimental-global
     ```
 3. Edit `~/.rulesync/rules/overview.md` to your preferences.
     ```md
