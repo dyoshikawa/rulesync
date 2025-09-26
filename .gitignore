@@ -257,3 +257,5 @@ repomix-output.xml
 **/.github/commands/
 
 **/.geminiignore
+
+.devcontainer/.devcontainer.json
