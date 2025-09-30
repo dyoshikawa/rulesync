@@ -14,9 +14,6 @@ export async function setupTestDirectory(
   cleanup: () => Promise<void>;
 }> {
   const testsDir = join(tmpdir(), "tests");
-
-  await ensureDir(testsDir);
-
   const testDir = global
     ? join(testsDir, "home", getVitestWorkerId())
     : join(testsDir, "projects", getVitestWorkerId());
