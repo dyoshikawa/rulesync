@@ -9,7 +9,7 @@ globs: ["**/*.test.ts"]
 
 - Test code files should be placed next to the implementation. This is called the co-location pattern.
     - For example, if the implementation file is `src/a.ts`, the test code file should be `src/a.test.ts`.
-- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `/tmp/tests/{random-string}` as the directory.
+- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `/tmp/tests/home/{VITEST_WORKER_ID}` or `/tmp/tests/projects/{VITEST_WORKER_ID}` as the directory.
     - To use the unified test directory, you should use the `setupTestDirectory` function from `src/test-utils/test-directories.ts`.
     ```typescript
     // Example

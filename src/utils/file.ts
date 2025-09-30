@@ -171,14 +171,19 @@ export async function removeFile(filepath: string): Promise<void> {
   }
 }
 
-export async function createTempDirectory(prefix: string): Promise<string> {
-  return await mkdtemp(prefix);
-}
-
 export function getHomeDirectory(): string {
   if (isEnvTest) {
-    return "/tmp/rulesync";
+    // Have to match the value in setupTestDirectory() in src/test-utils/test-directories.ts
+    return join(os.tmpdir(), "tests", "home", getVitestWorkerId());
   }
 
   return os.homedir();
+}
+
+function getVitestWorkerId(): string {
+  const vitestWorkerId = process.env.VITEST_WORKER_ID;
+  if (!vitestWorkerId) {
+    throw new Error("VITEST_WORKER_ID is not set");
+  }
+  return vitestWorkerId;
 }
