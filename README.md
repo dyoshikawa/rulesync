@@ -223,7 +223,7 @@ description: >- # subagent description
   suggest a specification, implement a new feature, refactor the codebase, or
   fix a bug. This agent can be called by the user explicitly only.
 claudecode: # for claudecode-specific rules
-  model: opus # opus, sonnet, haiku or inherit
+  model: inherit # opus, sonnet, haiku or inherit
 ---
 
 You are the planner for any tasks.

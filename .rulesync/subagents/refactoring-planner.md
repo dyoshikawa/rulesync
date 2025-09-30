@@ -6,7 +6,7 @@ description: >-
   patterns, detect dead code, and create comprehensive refactoring plans to
   improve code quality. This agent can be called by the user explicitly only.
 claudecode:
-  model: opus
+  model: inherit
 ---
 
 First, execute the following commands:

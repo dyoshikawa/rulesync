@@ -1,5 +1,6 @@
 import { intersection } from "es-toolkit";
 import { CommandsProcessor } from "../../commands/commands-processor.js";
+import { Config } from "../../config/config.js";
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor, type McpProcessorToolTarget } from "../../mcp/mcp-processor.js";
@@ -26,37 +27,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   logger.info(`Base directories: ${config.getBaseDirs().join(", ")}`);
   // Generate rule files (rules feature)
-  let totalRulesOutputs = 0;
-  if (config.getFeatures().includes("rules")) {
-    logger.info("Generating rule files...");
-    for (const baseDir of config.getBaseDirs()) {
-      for (const toolTarget of intersection(config.getTargets(), RulesProcessor.getToolTargets())) {
-        const processor = new RulesProcessor({
-          baseDir: baseDir,
-          toolTarget: toolTarget,
-          simulateCommands: config.getExperimentalSimulateCommands(),
-          simulateSubagents: config.getExperimentalSimulateSubagents(),
-        });
-
-        if (config.getDelete()) {
-          const oldToolFiles = await processor.loadToolFilesToDelete();
-          await processor.removeAiFiles(oldToolFiles);
-        }
-
-        let rulesyncFiles = await processor.loadRulesyncFiles();
-        if (rulesyncFiles.length === 0) {
-          rulesyncFiles = await processor.loadRulesyncFilesLegacy();
-        }
-
-        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-        const writtenCount = await processor.writeAiFiles(toolFiles);
-        totalRulesOutputs += writtenCount;
-        logger.success(`Generated ${writtenCount} ${toolTarget} rule(s) in ${baseDir}`);
-      }
-    }
-  } else {
-    logger.info("Skipping rule generation (not in --features)");
-  }
+  const totalRulesOutputs = generateRules(config);
 
   // Generate MCP configurations (mcp feature)
   let totalMcpOutputs = 0;
@@ -226,4 +197,62 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
     logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   }
+}
+
+async function generateRules(config: Config): Promise<number> {
+  if (!config.getFeatures().includes("rules")) {
+    logger.info("Skipping rule generation (not in --features)");
+    return 0;
+  }
+
+  let totalRulesOutputs = 0;
+  logger.info("Generating rule files...");
+
+  if (config.getExperimentalGlobal()) {
+    for (const toolTarget of intersection(
+      config.getTargets(),
+      RulesProcessor.getToolTargetsGlobal(),
+    )) {
+      const baseDir = ".";
+      const processor = new RulesProcessor({
+        baseDir: baseDir,
+        toolTarget: toolTarget,
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      const writtenCount = await processor.writeAiFiles(toolFiles);
+      totalRulesOutputs += writtenCount;
+      logger.success(`Generated ${writtenCount} ${toolTarget} rule(s) in ${baseDir}`);
+    }
+
+    return totalRulesOutputs;
+  }
+
+  for (const baseDir of config.getBaseDirs()) {
+    for (const toolTarget of intersection(config.getTargets(), RulesProcessor.getToolTargets())) {
+      const processor = new RulesProcessor({
+        baseDir: baseDir,
+        toolTarget: toolTarget,
+        simulateCommands: config.getExperimentalSimulateCommands(),
+        simulateSubagents: config.getExperimentalSimulateSubagents(),
+      });
+
+      if (config.getDelete()) {
+        const oldToolFiles = await processor.loadToolFilesToDelete();
+        await processor.removeAiFiles(oldToolFiles);
+      }
+
+      let rulesyncFiles = await processor.loadRulesyncFiles();
+      if (rulesyncFiles.length === 0) {
+        rulesyncFiles = await processor.loadRulesyncFilesLegacy();
+      }
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      const writtenCount = await processor.writeAiFiles(toolFiles);
+      totalRulesOutputs += writtenCount;
+      logger.success(`Generated ${writtenCount} ${toolTarget} rule(s) in ${baseDir}`);
+    }
+  }
+  return totalRulesOutputs;
 }

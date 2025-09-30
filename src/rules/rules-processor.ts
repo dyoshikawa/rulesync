@@ -59,27 +59,32 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "windsurf",
 ];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
-
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
+
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
 
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
+  private readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    baseDir = ".",
     toolTarget,
     simulateCommands = false,
     simulateSubagents = false,
+    global = false,
   }: {
     baseDir?: string;
     toolTarget: RulesProcessorToolTarget;
+    global?: boolean;
     simulateCommands?: boolean;
     simulateSubagents?: boolean;
   }) {
     super({ baseDir });
     this.toolTarget = RulesProcessorToolTargetSchema.parse(toolTarget);
+    this.global = global;
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;
   }
@@ -619,7 +624,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Claude Code rule configuration from CLAUDE.md file
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
-    const settablePaths = ClaudecodeRule.getSettablePaths();
+    const settablePaths = ClaudecodeRule.getSettablePaths({ global: this.global });
     return await this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
@@ -824,6 +829,10 @@ export class RulesProcessor extends FeatureProcessor {
    */
   static getToolTargets(): ToolTarget[] {
     return rulesProcessorToolTargets;
+  }
+
+  static getToolTargetsGlobal(): ToolTarget[] {
+    return rulesProcessorToolTargetsGlobal;
   }
 
   private generateXmlReferencesSection(toolRules: ToolRule[]): string {

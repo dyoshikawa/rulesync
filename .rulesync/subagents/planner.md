@@ -6,7 +6,7 @@ description: >-
   suggest a specification, implement a new feature, refactor the codebase, or
   fix a bug. This agent can be called by the user explicitly only.
 claudecode:
-  model: opus
+  model: inherit
 ---
 
 You are the planner for any tasks.

@@ -5,7 +5,7 @@ description: >-
   This is the code fix planner. The user asks the agent to plan to fix and
   stabilize the code. This agent can be called by the user explicitly only.
 claudecode:
-  model: opus
+  model: inherit
 ---
 
 You are the planner for code fix tasks.

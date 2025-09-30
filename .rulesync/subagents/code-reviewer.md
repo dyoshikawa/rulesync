@@ -6,7 +6,7 @@ description: >-
   on general software engineering principles like DRY, SOLID, maintainability,
   and best practices.
 claudecode:
-  model: opus
+  model: inherit
 ---
 
 Reviews code from a general software engineering perspective.
