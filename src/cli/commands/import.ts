@@ -31,9 +31,12 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   let rulesCreated = 0;
   if (config.getFeatures().includes("rules")) {
     if (RulesProcessor.getToolTargets().includes(tool)) {
+      const isGlobal = config.getExperimentalGlobal() &&
+        RulesProcessor.getToolTargetsGlobal().includes(tool);
       const rulesProcessor = new RulesProcessor({
         baseDir: ".",
         toolTarget: tool,
+        ...(isGlobal && { global: true }),
       });
 
       const toolFiles = await rulesProcessor.loadToolFiles();
