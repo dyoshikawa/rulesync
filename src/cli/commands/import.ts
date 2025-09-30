@@ -38,11 +38,11 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // Create MCP files if mcp feature is enabled
   await importMcp(config, tool);
 
-  // Create subagent files if subagents feature is enabled
-  await importSubagents(config, tool);
-
   // Create command files using CommandsProcessor if commands feature is enabled
   await importCommands(config, tool);
+
+  // Create subagent files if subagents feature is enabled
+  await importSubagents(config, tool);
 }
 
 async function importRules(config: Config, tool: ToolTarget): Promise<number> {
@@ -153,42 +153,6 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
   return writtenCount;
 }
 
-async function importSubagents(config: Config, tool: ToolTarget): Promise<number> {
-  if (!config.getFeatures().includes("subagents")) {
-    return 0;
-  }
-
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping subagent file import (not supported in global mode)");
-    return 0;
-  }
-
-  // Use SubagentsProcessor for supported tools, excluding simulated ones
-  const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
-  if (!supportedTargets.includes(tool)) {
-    return 0;
-  }
-
-  const subagentsProcessor = new SubagentsProcessor({
-    baseDir: ".",
-    toolTarget: tool,
-  });
-
-  const toolFiles = await subagentsProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    return 0;
-  }
-
-  const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} subagent files`);
-  }
-
-  return writtenCount;
-}
-
 async function importCommands(config: Config, tool: ToolTarget): Promise<number> {
   if (!config.getFeatures().includes("commands")) {
     return 0;
@@ -220,6 +184,42 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} command files`);
+  }
+
+  return writtenCount;
+}
+
+async function importSubagents(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("subagents")) {
+    return 0;
+  }
+
+  if (config.getExperimentalGlobal()) {
+    logger.debug("Skipping subagent file import (not supported in global mode)");
+    return 0;
+  }
+
+  // Use SubagentsProcessor for supported tools, excluding simulated ones
+  const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const subagentsProcessor = new SubagentsProcessor({
+    baseDir: ".",
+    toolTarget: tool,
+  });
+
+  const toolFiles = await subagentsProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} subagent files`);
   }
 
   return writtenCount;

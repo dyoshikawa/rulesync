@@ -29,14 +29,14 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   // Generate rule files (rules feature)
   const totalRulesOutputs = await generateRules(config);
 
+  // Generate ignore files (ignore feature)
+  const totalIgnoreOutputs = await generateIgnore(config);
+
   // Generate MCP configurations (mcp feature)
   const totalMcpOutputs = await generateMcp(config);
 
   // Generate command files (commands feature)
   const totalCommandOutputs = await generateCommands(config);
-
-  // Generate ignore files (ignore feature)
-  const totalIgnoreOutputs = await generateIgnore(config);
 
   // Generate subagent files (subagents feature)
   const totalSubagentOutputs = await generateSubagents(config);
@@ -124,6 +124,53 @@ async function generateRules(config: Config): Promise<number> {
     }
   }
   return totalRulesOutputs;
+}
+
+async function generateIgnore(config: Config): Promise<number> {
+  if (!config.getFeatures().includes("ignore")) {
+    logger.debug("Skipping ignore file generation (not in --features)");
+    return 0;
+  }
+
+  if (config.getExperimentalGlobal()) {
+    logger.debug("Skipping ignore file generation (not supported in global mode)");
+    return 0;
+  }
+
+  let totalIgnoreOutputs = 0;
+  logger.info("Generating ignore files...");
+
+  for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
+    for (const baseDir of config.getBaseDirs()) {
+      try {
+        const processor = new IgnoreProcessor({
+          baseDir: baseDir === process.cwd() ? "." : baseDir,
+          toolTarget,
+        });
+
+        if (config.getDelete()) {
+          const oldToolFiles = await processor.loadToolFilesToDelete();
+          await processor.removeAiFiles(oldToolFiles);
+        }
+
+        const rulesyncFiles = await processor.loadRulesyncFiles();
+        if (rulesyncFiles.length > 0) {
+          const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+          const writtenCount = await processor.writeAiFiles(toolFiles);
+          totalIgnoreOutputs += writtenCount;
+          logger.success(`Generated ${writtenCount} ${toolTarget} ignore file(s) in ${baseDir}`);
+        }
+      } catch (error) {
+        logger.warn(
+          `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
+          error instanceof Error ? error.message : String(error),
+        );
+        continue;
+      }
+    }
+  }
+
+  return totalIgnoreOutputs;
 }
 
 async function generateMcp(config: Config): Promise<number> {
@@ -218,53 +265,6 @@ async function generateCommands(config: Config): Promise<number> {
   }
 
   return totalCommandOutputs;
-}
-
-async function generateIgnore(config: Config): Promise<number> {
-  if (!config.getFeatures().includes("ignore")) {
-    logger.debug("Skipping ignore file generation (not in --features)");
-    return 0;
-  }
-
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping ignore file generation (not supported in global mode)");
-    return 0;
-  }
-
-  let totalIgnoreOutputs = 0;
-  logger.info("Generating ignore files...");
-
-  for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
-    for (const baseDir of config.getBaseDirs()) {
-      try {
-        const processor = new IgnoreProcessor({
-          baseDir: baseDir === process.cwd() ? "." : baseDir,
-          toolTarget,
-        });
-
-        if (config.getDelete()) {
-          const oldToolFiles = await processor.loadToolFilesToDelete();
-          await processor.removeAiFiles(oldToolFiles);
-        }
-
-        const rulesyncFiles = await processor.loadRulesyncFiles();
-        if (rulesyncFiles.length > 0) {
-          const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-          const writtenCount = await processor.writeAiFiles(toolFiles);
-          totalIgnoreOutputs += writtenCount;
-          logger.success(`Generated ${writtenCount} ${toolTarget} ignore file(s) in ${baseDir}`);
-        }
-      } catch (error) {
-        logger.warn(
-          `Failed to generate ${toolTarget} ignore files for ${baseDir}:`,
-          error instanceof Error ? error.message : String(error),
-        );
-        continue;
-      }
-    }
-  }
-
-  return totalIgnoreOutputs;
 }
 
 async function generateSubagents(config: Config): Promise<number> {
