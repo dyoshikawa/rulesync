@@ -86,6 +86,11 @@ async function importIgnore(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
+  if (config.getExperimentalGlobal()) {
+    logger.debug("Skipping ignore file import (not supported in global mode)");
+    return 0;
+  }
+
   if (!IgnoreProcessor.getToolTargets().includes(tool)) {
     return 0;
   }
@@ -119,6 +124,11 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
+  if (config.getExperimentalGlobal()) {
+    logger.debug("Skipping MCP file import (not supported in global mode)");
+    return 0;
+  }
+
   if (!McpProcessor.getToolTargets().includes(tool)) {
     return 0;
   }
@@ -145,6 +155,11 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
 
 async function importSubagents(config: Config, tool: ToolTarget): Promise<number> {
   if (!config.getFeatures().includes("subagents")) {
+    return 0;
+  }
+
+  if (config.getExperimentalGlobal()) {
+    logger.debug("Skipping subagent file import (not supported in global mode)");
     return 0;
   }
 
@@ -176,6 +191,11 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
 
 async function importCommands(config: Config, tool: ToolTarget): Promise<number> {
   if (!config.getFeatures().includes("commands")) {
+    return 0;
+  }
+
+  if (config.getExperimentalGlobal()) {
+    logger.debug("Skipping command file import (not supported in global mode)");
     return 0;
   }
 
