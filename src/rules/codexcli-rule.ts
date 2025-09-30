@@ -30,7 +30,7 @@ export class CodexcliRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: getHomeDirectory(),
+          relativeDirPath: join(getHomeDirectory(), ".codex"),
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
