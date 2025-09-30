@@ -77,14 +77,16 @@ export class CodexcliRule extends ToolRule {
     baseDir = ".",
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
+    const paths = this.getSettablePaths({ global });
     return new CodexcliRule(
       this.buildToolRuleParamsAgentsmd({
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }

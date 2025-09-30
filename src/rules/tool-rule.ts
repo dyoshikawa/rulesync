@@ -15,6 +15,7 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncRule: RulesyncRule;
+  global?: boolean;
 };
 
 export type ToolRuleFromFileParams = AiFileFromFileParams;

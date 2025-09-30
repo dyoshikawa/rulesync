@@ -85,6 +85,7 @@ async function generateRules(config: Config): Promise<number> {
       const processor = new RulesProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
+        global: true,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();

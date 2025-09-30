@@ -79,14 +79,16 @@ export class ClaudecodeRule extends ToolRule {
     baseDir = ".",
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
+    const paths = this.getSettablePaths({ global });
     return new ClaudecodeRule(
       this.buildToolRuleParamsDefault({
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }

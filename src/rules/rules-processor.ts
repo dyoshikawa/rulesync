@@ -141,6 +141,7 @@ export class RulesProcessor extends FeatureProcessor {
               baseDir: this.baseDir,
               rulesyncRule: rulesyncRule,
               validate: true,
+              global: this.global,
             });
           case "cline":
             if (!ClineRule.isTargetedByRulesyncRule(rulesyncRule)) {
@@ -159,6 +160,7 @@ export class RulesProcessor extends FeatureProcessor {
               baseDir: this.baseDir,
               rulesyncRule: rulesyncRule,
               validate: true,
+              global: this.global,
             });
           case "copilot":
             if (!CopilotRule.isTargetedByRulesyncRule(rulesyncRule)) {

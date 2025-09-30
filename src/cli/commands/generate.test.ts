@@ -538,6 +538,7 @@ describe("generateCommand", () => {
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: true,
       });
       expect(RulesProcessor).not.toHaveBeenCalledWith(
         expect.objectContaining({
@@ -583,6 +584,7 @@ describe("generateCommand", () => {
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: true,
       });
       expect(RulesProcessor).toHaveBeenCalledTimes(1); // Only once, not for each baseDir
     });
