@@ -131,6 +131,11 @@ async function generateMcp(config: Config): Promise<number> {
     return 0;
   }
 
+  if (config.getExperimentalGlobal()) {
+    logger.info("Skipping MCP configuration generation (not supported in global mode)");
+    return 0;
+  }
+
   let totalMcpOutputs = 0;
   logger.info("Generating MCP files...");
 
@@ -180,6 +185,11 @@ async function generateCommands(config: Config): Promise<number> {
     return 0;
   }
 
+  if (config.getExperimentalGlobal()) {
+    logger.info("Skipping command file generation (not supported in global mode)");
+    return 0;
+  }
+
   let totalCommandOutputs = 0;
   logger.info("Generating command files...");
 
@@ -214,6 +224,11 @@ async function generateCommands(config: Config): Promise<number> {
 async function generateIgnore(config: Config): Promise<number> {
   if (!config.getFeatures().includes("ignore")) {
     logger.info("Skipping ignore file generation (not in --features)");
+    return 0;
+  }
+
+  if (config.getExperimentalGlobal()) {
+    logger.info("Skipping ignore file generation (not supported in global mode)");
     return 0;
   }
 
@@ -256,6 +271,11 @@ async function generateIgnore(config: Config): Promise<number> {
 async function generateSubagents(config: Config): Promise<number> {
   if (!config.getFeatures().includes("subagents")) {
     logger.info("Skipping subagent file generation (not in --features)");
+    return 0;
+  }
+
+  if (config.getExperimentalGlobal()) {
+    logger.info("Skipping subagent file generation (not supported in global mode)");
     return 0;
   }
 
