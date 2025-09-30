@@ -105,6 +105,7 @@ describe("importCommand", () => {
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: false,
       });
       expect(mockRulesProcessor.loadToolFiles).toHaveBeenCalled();
       expect(mockRulesProcessor.convertToolFilesToRulesyncFiles).toHaveBeenCalled();

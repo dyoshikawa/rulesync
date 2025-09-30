@@ -31,12 +31,16 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   let rulesCreated = 0;
   if (config.getFeatures().includes("rules")) {
     if (RulesProcessor.getToolTargets().includes(tool)) {
-      const isGlobal = config.getExperimentalGlobal() &&
-        RulesProcessor.getToolTargetsGlobal().includes(tool);
+      const global = config.getExperimentalGlobal();
+      if (global && !RulesProcessor.getToolTargetsGlobal().includes(tool)) {
+        logger.error(`${tool} is not supported in global mode`);
+        return;
+      }
+
       const rulesProcessor = new RulesProcessor({
         baseDir: ".",
         toolTarget: tool,
-        ...(isGlobal && { global: true }),
+        global,
       });
 
       const toolFiles = await rulesProcessor.loadToolFiles();
