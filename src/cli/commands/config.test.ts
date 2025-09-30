@@ -126,6 +126,41 @@ describe("configCommand", () => {
     });
   });
 
+  describe("experimentalGlobal configuration", () => {
+    it("should include experimentalGlobal set to false by default", async () => {
+      const options: ConfigCommandOptions = { init: true };
+
+      await configCommand(options);
+
+      const writeCall = vi.mocked(writeFileContent).mock.calls[0];
+      const jsonContent = writeCall![1];
+      const configObject = JSON.parse(jsonContent);
+
+      expect(configObject).toHaveProperty("experimentalGlobal");
+      expect(configObject.experimentalGlobal).toBe(false);
+    });
+
+    it("should include experimentalGlobal in the generated config alongside other experimental features", async () => {
+      const options: ConfigCommandOptions = { init: true };
+
+      await configCommand(options);
+
+      const writeCall = vi.mocked(writeFileContent).mock.calls[0];
+      const jsonContent = writeCall![1];
+      const configObject = JSON.parse(jsonContent);
+
+      // Verify all experimental features are present
+      expect(configObject).toHaveProperty("experimentalGlobal");
+      expect(configObject).toHaveProperty("experimentalSimulateCommands");
+      expect(configObject).toHaveProperty("experimentalSimulateSubagents");
+
+      // All should default to false
+      expect(configObject.experimentalGlobal).toBe(false);
+      expect(configObject.experimentalSimulateCommands).toBe(false);
+      expect(configObject.experimentalSimulateSubagents).toBe(false);
+    });
+  });
+
   describe("error handling", () => {
     it("should handle file existence check errors", async () => {
       vi.mocked(fileExists).mockRejectedValue(new Error("File system error"));

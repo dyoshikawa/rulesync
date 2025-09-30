@@ -509,4 +509,39 @@ describe("RulesProcessor", () => {
       expect(filesToDelete).toEqual([]);
     });
   });
+
+  describe("getToolTargetsGlobal", () => {
+    it("should return only claudecode as global target", () => {
+      const globalTargets = RulesProcessor.getToolTargetsGlobal();
+
+      expect(globalTargets).toEqual(["claudecode"]);
+    });
+
+    it("should return a subset of regular tool targets", () => {
+      const globalTargets = RulesProcessor.getToolTargetsGlobal();
+      const regularTargets = RulesProcessor.getToolTargets();
+
+      // All global targets should be in regular targets
+      for (const target of globalTargets) {
+        expect(regularTargets).toContain(target);
+      }
+
+      // Global targets should be fewer than regular targets
+      expect(globalTargets.length).toBeLessThan(regularTargets.length);
+    });
+
+    it("should only include targets that support global mode", () => {
+      const globalTargets = RulesProcessor.getToolTargetsGlobal();
+
+      // Currently only claudecode supports global mode
+      expect(globalTargets).toContain("claudecode");
+      expect(globalTargets.length).toBe(1);
+
+      // These targets should NOT be in global mode
+      expect(globalTargets).not.toContain("codexcli");
+      expect(globalTargets).not.toContain("cursor");
+      expect(globalTargets).not.toContain("copilot");
+      expect(globalTargets).not.toContain("warp");
+    });
+  });
 });

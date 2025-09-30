@@ -8,6 +8,7 @@ import {
   fileExists,
   findFiles,
   findRuleFiles,
+  getHomeDirectory,
   listDirectoryFiles,
   readFileContent,
   readJsonFile,
@@ -356,6 +357,39 @@ describe("file utilities", () => {
         const dirPath = join(testDir, "nonexistent");
         await expect(removeDirectory(dirPath)).resolves.toBeUndefined();
       });
+    });
+  });
+
+  describe("getHomeDirectory", () => {
+    it("should return test directory path when NODE_ENV=test", () => {
+      // This test is running in test environment, so it should return test path
+      const homeDir = getHomeDirectory();
+
+      expect(homeDir).toContain("/tmp/tests/home/");
+      expect(homeDir).toMatch(/\/tmp\/tests\/home\/\d+/);
+    });
+
+    it("should include worker ID for parallel test isolation", () => {
+      const homeDir = getHomeDirectory();
+
+      // Worker ID should be a number
+      const match = homeDir.match(/\/tmp\/tests\/home\/(\d+)/);
+      expect(match).not.toBeNull();
+      expect(match![1]).toMatch(/^\d+$/);
+    });
+
+    it("should return consistent path within same test", () => {
+      const homeDir1 = getHomeDirectory();
+      const homeDir2 = getHomeDirectory();
+
+      expect(homeDir1).toBe(homeDir2);
+    });
+
+    it("should have correct path format matching test setup", () => {
+      const homeDir = getHomeDirectory();
+
+      // Should match the format from setupTestDirectory in test-directories.ts
+      expect(homeDir).toMatch(/^\/tmp\/tests\/home\/\d+$/);
     });
   });
 });
