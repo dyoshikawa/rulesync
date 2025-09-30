@@ -640,7 +640,9 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Generated 5 file(s) total (5 rules)");
+      expect(logger.success).toHaveBeenCalledWith(
+        "🎉 All done! Generated 5 file(s) total (5 rules)",
+      );
     });
 
     it("should only process rules when global mode is enabled with multiple features", async () => {
