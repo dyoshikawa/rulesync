@@ -27,7 +27,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   logger.info(`Base directories: ${config.getBaseDirs().join(", ")}`);
   // Generate rule files (rules feature)
-  const totalRulesOutputs = generateRules(config);
+  const totalRulesOutputs = await generateRules(config);
 
   // Generate MCP configurations (mcp feature)
   let totalMcpOutputs = 0;
