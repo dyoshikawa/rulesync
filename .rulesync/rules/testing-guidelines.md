@@ -34,5 +34,5 @@ globs: ["**/*.test.ts"]
     });
     ```
 - When `NODE_ENV` is `test`:
-  - All logs by `Logger` are suppressed.
+  - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
   - `getHomeDirectory()` in `src/utils/file.ts` returns `/tmp/tests/home/{VITEST_WORKER_ID}`.
