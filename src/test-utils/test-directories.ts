@@ -30,5 +30,3 @@ function getVitestWorkerId(): string {
   }
   return vitestWorkerId;
 }
-
-export * from "./logger-mock.js";

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   createPathResolver,
-  createTempDirectory,
   directoryExists,
   ensureDir,
   fileExists,
@@ -357,15 +356,6 @@ describe("file utilities", () => {
         const dirPath = join(testDir, "nonexistent");
         await expect(removeDirectory(dirPath)).resolves.toBeUndefined();
       });
-    });
-  });
-
-  describe("createTempDirectory", () => {
-    it("should create temporary directory with prefix", async () => {
-      const tempDir = await createTempDirectory(join(testDir, "temp-"));
-
-      expect(await directoryExists(tempDir)).toBe(true);
-      expect(tempDir).toMatch(/temp-/);
     });
   });
 });
