@@ -229,7 +229,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith("Skipping rule generation (not in --features)");
+      expect(logger.debug).toHaveBeenCalledWith("Skipping rule generation (not in --features)");
       expect(RulesProcessor).not.toHaveBeenCalled();
     });
   });
@@ -278,7 +278,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         "Skipping MCP configuration generation (not in --features)",
       );
       expect(McpProcessor).not.toHaveBeenCalled();
@@ -319,7 +319,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         "Skipping command file generation (not in --features)",
       );
       expect(CommandsProcessor).not.toHaveBeenCalled();
@@ -594,7 +594,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         "Skipping MCP configuration generation (not supported in global mode)",
       );
       expect(McpProcessor).not.toHaveBeenCalled();
@@ -605,7 +605,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         "Skipping command file generation (not supported in global mode)",
       );
       expect(CommandsProcessor).not.toHaveBeenCalled();
@@ -616,7 +616,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         "Skipping ignore file generation (not supported in global mode)",
       );
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -627,7 +627,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         "Skipping subagent file generation (not supported in global mode)",
       );
       expect(SubagentsProcessor).not.toHaveBeenCalled();
