@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { getHomeDirectory, readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -26,14 +26,28 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  static getSettablePaths(): ClaudecodeRuleSettablePaths {
+  static getSettablePaths(
+    { global }: { global: boolean } = { global: false },
+  ): ClaudecodeRuleSettablePaths {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: getHomeDirectory(),
+          relativeFilePath: "CLAUDE.md",
+        },
+        nonRoot: {
+          relativeDirPath: join(getHomeDirectory(), ".claude", "memories"),
+        },
+      };
+    }
+
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: "CLAUDE.md",
       },
       nonRoot: {
-        relativeDirPath: ".claude/memories",
+        relativeDirPath: join(".claude", "memories"),
       },
     };
   }

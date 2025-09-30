@@ -43,6 +43,10 @@ type BuildToolRuleParamsResult = Omit<ToolRuleParams, "root"> & {
   root: boolean;
 };
 
+type getSettablePathsParams = {
+  global: boolean;
+};
+
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
   protected readonly description?: string | undefined;
@@ -55,7 +59,11 @@ export abstract class ToolRule extends ToolFile {
     this.globs = globs;
   }
 
-  static async fromFile(_params: ToolRuleFromFileParams): Promise<ToolRule> {
+  static getSettablePaths(_params: getSettablePathsParams): ToolRuleSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  static async fromFile(_params: ToolRuleFromFileParams | undefined): Promise<ToolRule> {
     throw new Error("Please implement this method in the subclass.");
   }
 

@@ -1,5 +1,6 @@
 import { globSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
 
@@ -170,4 +171,8 @@ export async function removeFile(filepath: string): Promise<void> {
 
 export async function createTempDirectory(prefix: string): Promise<string> {
   return await mkdtemp(prefix);
+}
+
+export function getHomeDirectory(): string {
+  return os.homedir();
 }
