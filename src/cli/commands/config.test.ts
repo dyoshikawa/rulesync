@@ -104,6 +104,7 @@ describe("configCommand", () => {
         baseDirs: ["."],
         delete: true,
         verbose: false,
+        experimentalGlobal: false,
         experimentalSimulateCommands: false,
         experimentalSimulateSubagents: false,
       });

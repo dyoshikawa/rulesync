@@ -170,9 +170,7 @@ async function generateMcp(config: Config): Promise<number> {
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalMcpOutputs += writtenCount;
-      logger.success(
-        `Generated ${writtenCount} ${toolTarget} MCP configuration(s) in ${baseDir}`,
-      );
+      logger.success(`Generated ${writtenCount} ${toolTarget} MCP configuration(s) in ${baseDir}`);
     }
   }
 

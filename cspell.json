@@ -19,6 +19,7 @@
         "agentsignore",
         "agentsmd",
         "aiexclude",
+        "aiglobal",
         "aiignore",
         "amazonq",
         "amazonqcli",

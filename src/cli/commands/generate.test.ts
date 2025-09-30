@@ -42,6 +42,7 @@ describe("generateCommand", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getDelete: vi.fn().mockReturnValue(false),
+      getExperimentalGlobal: vi.fn().mockReturnValue(false),
       getExperimentalSimulateCommands: vi.fn().mockReturnValue(false),
       getExperimentalSimulateSubagents: vi.fn().mockReturnValue(false),
     };
