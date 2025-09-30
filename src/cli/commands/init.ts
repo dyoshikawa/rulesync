@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { RulesyncCommand } from "../../commands/rulesync-command.js";
+import { ConfigParams } from "../../config/config.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
@@ -8,11 +9,39 @@ export async function initCommand(): Promise<void> {
 
   await ensureDir(".rulesync");
   await createSampleFiles();
+  await createConfigFile();
 
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
   logger.info(`1. Edit rule files in .rulesync/rules/`);
   logger.info("2. Run 'rulesync generate' to create configuration files");
+}
+
+async function createConfigFile(): Promise<void> {
+  if (await fileExists("rulesync.jsonc")) {
+    logger.info("Skipped rulesync.jsonc (already exists)");
+    return;
+  }
+
+  await writeFileContent(
+    "rulesync.jsonc",
+    JSON.stringify(
+      {
+        targets: ["copilot", "cursor", "claudecode", "codexcli"],
+        features: ["rules", "ignore", "mcp", "commands", "subagents"],
+        baseDirs: ["."],
+        delete: true,
+        verbose: false,
+        experimentalGlobal: false,
+        experimentalSimulateCommands: false,
+        experimentalSimulateSubagents: false,
+      } satisfies ConfigParams,
+      null,
+      2,
+    ),
+  );
+
+  logger.success("Created rulesync.jsonc");
 }
 
 async function createSampleFiles(): Promise<void> {

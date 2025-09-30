@@ -4,7 +4,6 @@ import { Command } from "commander";
 import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { logger } from "../utils/logger.js";
-import { configCommand } from "./commands/config.js";
 import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
@@ -121,19 +120,6 @@ const main = async () => {
         process.exit(1);
       }
     });
-
-  const config = program.command("config").description("Manage rulesync configuration");
-
-  config
-    .command("init")
-    .description("Initialize a new configuration file")
-    .action(async () => {
-      await configCommand({ init: true });
-    });
-
-  config.action(async () => {
-    await configCommand({ init: false });
-  });
 
   program.parse();
 };
