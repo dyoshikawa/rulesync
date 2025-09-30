@@ -1,9 +1,11 @@
 import { CommandsProcessor } from "../../commands/commands-processor.js";
+import { Config } from "../../config/config.js";
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { logger } from "../../utils/logger.js";
 
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
@@ -28,128 +30,177 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   const tool = config.getTargets()[0]!;
 
   // Import rule files using RulesProcessor if rules feature is enabled
-  let rulesCreated = 0;
-  if (config.getFeatures().includes("rules")) {
-    if (RulesProcessor.getToolTargets().includes(tool)) {
-      const global = config.getExperimentalGlobal();
-      if (global && !RulesProcessor.getToolTargetsGlobal().includes(tool)) {
-        logger.error(`${tool} is not supported in global mode`);
-        return;
-      }
-
-      const rulesProcessor = new RulesProcessor({
-        baseDir: ".",
-        toolTarget: tool,
-        global,
-      });
-
-      const toolFiles = await rulesProcessor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-        const writtenCount = await rulesProcessor.writeAiFiles(rulesyncFiles);
-        rulesCreated = writtenCount;
-      }
-
-      if (config.getVerbose() && rulesCreated > 0) {
-        logger.success(`Created ${rulesCreated} rule files`);
-      }
-    }
-  }
+  await importRules(config, tool);
 
   // Process ignore files if ignore feature is enabled
-  let ignoreFileCreated = 0;
-  if (config.getFeatures().includes("ignore")) {
-    if (IgnoreProcessor.getToolTargets().includes(tool)) {
-      const ignoreProcessor = new IgnoreProcessor({
-        baseDir: ".",
-        toolTarget: tool,
-      });
-
-      const toolFiles = await ignoreProcessor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-        const writtenCount = await ignoreProcessor.writeAiFiles(rulesyncFiles);
-        ignoreFileCreated = writtenCount;
-        if (config.getVerbose()) {
-          logger.success(
-            `Created ignore files from ${toolFiles.length} tool ignore configurations`,
-          );
-        }
-      }
-    }
-
-    if (config.getVerbose() && ignoreFileCreated > 0) {
-      logger.success(`Created ${ignoreFileCreated} ignore files`);
-    }
-  }
+  await importIgnore(config, tool);
 
   // Create MCP files if mcp feature is enabled
-  let mcpCreated = 0;
-  if (config.getFeatures().includes("mcp")) {
-    if (McpProcessor.getToolTargets().includes(tool)) {
-      const mcpProcessor = new McpProcessor({
-        baseDir: ".",
-        toolTarget: tool,
-      });
-
-      const toolFiles = await mcpProcessor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-        const writtenCount = await mcpProcessor.writeAiFiles(rulesyncFiles);
-        mcpCreated = writtenCount;
-      }
-    }
-  }
-
-  if (config.getVerbose() && mcpCreated > 0) {
-    logger.success(`Created ${mcpCreated} MCP files`);
-  }
+  await importMcp(config, tool);
 
   // Create subagent files if subagents feature is enabled
-  let subagentsCreated = 0;
-  if (config.getFeatures().includes("subagents")) {
-    // Use SubagentsProcessor for supported tools, excluding simulated ones
-    const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
-    if (supportedTargets.includes(tool)) {
-      const subagentsProcessor = new SubagentsProcessor({
-        baseDir: ".",
-        toolTarget: tool,
-      });
-
-      const toolFiles = await subagentsProcessor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-        const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
-        subagentsCreated += writtenCount;
-      }
-    }
-
-    if (config.getVerbose() && subagentsCreated > 0) {
-      logger.success(`Created ${subagentsCreated} subagent files`);
-    }
-  }
+  await importSubagents(config, tool);
 
   // Create command files using CommandsProcessor if commands feature is enabled
-  let commandsCreated = 0;
-  if (config.getFeatures().includes("commands")) {
-    // Use CommandsProcessor for supported tools, excluding simulated ones
-    const supportedTargets = CommandsProcessor.getToolTargets({ includeSimulated: false });
-    if (supportedTargets.includes(tool)) {
-      const commandsProcessor = new CommandsProcessor({
-        baseDir: ".",
-        toolTarget: tool,
-      });
+  await importCommands(config, tool);
+}
 
-      const toolFiles = await commandsProcessor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-        const writtenCount = await commandsProcessor.writeAiFiles(rulesyncFiles);
-        commandsCreated = writtenCount;
-      }
-    }
-
-    if (config.getVerbose() && commandsCreated > 0) {
-      logger.success(`Created ${commandsCreated} command files`);
-    }
+async function importRules(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("rules")) {
+    return 0;
   }
+
+  if (!RulesProcessor.getToolTargets().includes(tool)) {
+    return 0;
+  }
+
+  const global = config.getExperimentalGlobal();
+  if (global && !RulesProcessor.getToolTargetsGlobal().includes(tool)) {
+    logger.error(`${tool} is not supported in global mode`);
+    return 0;
+  }
+
+  const rulesProcessor = new RulesProcessor({
+    baseDir: ".",
+    toolTarget: tool,
+    global,
+  });
+
+  const toolFiles = await rulesProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await rulesProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} rule files`);
+  }
+
+  return writtenCount;
+}
+
+async function importIgnore(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("ignore")) {
+    return 0;
+  }
+
+  if (!IgnoreProcessor.getToolTargets().includes(tool)) {
+    return 0;
+  }
+
+  const ignoreProcessor = new IgnoreProcessor({
+    baseDir: ".",
+    toolTarget: tool,
+  });
+
+  const toolFiles = await ignoreProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await ignoreProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose()) {
+    logger.success(`Created ignore files from ${toolFiles.length} tool ignore configurations`);
+  }
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} ignore files`);
+  }
+
+  return writtenCount;
+}
+
+async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("mcp")) {
+    return 0;
+  }
+
+  if (!McpProcessor.getToolTargets().includes(tool)) {
+    return 0;
+  }
+
+  const mcpProcessor = new McpProcessor({
+    baseDir: ".",
+    toolTarget: tool,
+  });
+
+  const toolFiles = await mcpProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await mcpProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} MCP files`);
+  }
+
+  return writtenCount;
+}
+
+async function importSubagents(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("subagents")) {
+    return 0;
+  }
+
+  // Use SubagentsProcessor for supported tools, excluding simulated ones
+  const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const subagentsProcessor = new SubagentsProcessor({
+    baseDir: ".",
+    toolTarget: tool,
+  });
+
+  const toolFiles = await subagentsProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} subagent files`);
+  }
+
+  return writtenCount;
+}
+
+async function importCommands(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("commands")) {
+    return 0;
+  }
+
+  // Use CommandsProcessor for supported tools, excluding simulated ones
+  const supportedTargets = CommandsProcessor.getToolTargets({ includeSimulated: false });
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const commandsProcessor = new CommandsProcessor({
+    baseDir: ".",
+    toolTarget: tool,
+  });
+
+  const toolFiles = await commandsProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await commandsProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} command files`);
+  }
+
+  return writtenCount;
 }
