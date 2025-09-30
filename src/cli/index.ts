@@ -73,7 +73,6 @@ const main = async () => {
   program
     .command("generate")
     .description("Generate configuration files for AI tools")
-    .option("--all", "[DEPRECATED] Generate for all supported AI tools (use --targets * instead)")
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
@@ -95,6 +94,7 @@ const main = async () => {
     )
     .option("-V, --verbose", "Verbose output")
     .option("-c, --config <path>", "Path to configuration file")
+    .option("--experimental-global", "Generate for global(user scope) configuration files")
     .option(
       "--experimental-simulate-commands",
       "Generate simulated commands (experimental feature). This feature is only available for copilot, cursor and codexcli.",
@@ -112,6 +112,7 @@ const main = async () => {
           delete: options.delete,
           baseDirs: options.baseDirs,
           configPath: options.config,
+          experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,
         });

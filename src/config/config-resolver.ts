@@ -15,6 +15,7 @@ const defaults: Required<ConfigResolverResolveParams> = {
   delete: false,
   baseDirs: ["."],
   configPath: "rulesync.jsonc",
+  experimentalGlobal: false,
   experimentalSimulateCommands: false,
   experimentalSimulateSubagents: false,
 };
@@ -28,6 +29,7 @@ export class ConfigResolver {
     delete: isDelete,
     baseDirs,
     configPath = defaults.configPath,
+    experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
@@ -38,6 +40,7 @@ export class ConfigResolver {
         verbose: verbose ?? defaults.verbose,
         delete: isDelete ?? defaults.delete,
         baseDirs: baseDirs ?? defaults.baseDirs,
+        experimentalGlobal: experimentalGlobal ?? defaults.experimentalGlobal,
         experimentalSimulateCommands:
           experimentalSimulateCommands ?? defaults.experimentalSimulateCommands,
         experimentalSimulateSubagents:
@@ -64,6 +67,8 @@ export class ConfigResolver {
       verbose: verbose ?? configByFile.verbose ?? defaults.verbose,
       delete: isDelete ?? configByFile.delete ?? defaults.delete,
       baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
+      experimentalGlobal:
+        experimentalGlobal ?? configByFile.experimentalGlobal ?? defaults.experimentalGlobal,
       experimentalSimulateCommands:
         experimentalSimulateCommands ??
         configByFile.experimentalSimulateCommands ??
