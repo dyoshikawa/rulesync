@@ -33,3 +33,6 @@ globs: ["**/*.test.ts"]
       });
     });
     ```
+- When `NODE_ENV` is `test`:
+  - All logs by `Logger` are suppressed.
+  - 

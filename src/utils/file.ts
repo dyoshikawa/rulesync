@@ -4,6 +4,8 @@ import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
 
+const isEnvTest = process.env.NODE_ENV === "test";
+
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
     await stat(dirPath);
@@ -174,5 +176,9 @@ export async function createTempDirectory(prefix: string): Promise<string> {
 }
 
 export function getHomeDirectory(): string {
+  if (isEnvTest) {
+    return "/tmp/rulesync";
+  }
+
   return os.homedir();
 }
