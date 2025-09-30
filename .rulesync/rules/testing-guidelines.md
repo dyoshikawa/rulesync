@@ -35,4 +35,4 @@ globs: ["**/*.test.ts"]
     ```
 - When `NODE_ENV` is `test`:
   - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
-  - `getHomeDirectory()` in `src/utils/file.ts` returns `/tmp/tests/home/{VITEST_WORKER_ID}`.
+  - `getHomeDirectory()` in `src/utils/file.ts` returns `/tmp/tests/home/{VITEST_WORKER_ID}`. That behavior is to make it easier to test some behavior in global mode and avoid polluting the user's actual home directory.
