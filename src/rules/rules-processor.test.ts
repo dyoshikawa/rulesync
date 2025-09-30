@@ -511,10 +511,10 @@ describe("RulesProcessor", () => {
   });
 
   describe("getToolTargetsGlobal", () => {
-    it("should return only claudecode as global target", () => {
+    it("should return claudecode and codexcli as global targets", () => {
       const globalTargets = RulesProcessor.getToolTargetsGlobal();
 
-      expect(globalTargets).toEqual(["claudecode"]);
+      expect(globalTargets).toEqual(["claudecode", "codexcli"]);
     });
 
     it("should return a subset of regular tool targets", () => {
@@ -533,12 +533,12 @@ describe("RulesProcessor", () => {
     it("should only include targets that support global mode", () => {
       const globalTargets = RulesProcessor.getToolTargetsGlobal();
 
-      // Currently only claudecode supports global mode
+      // These are the targets that support global mode
       expect(globalTargets).toContain("claudecode");
-      expect(globalTargets.length).toBe(1);
+      expect(globalTargets).toContain("codexcli");
+      expect(globalTargets.length).toBe(2);
 
       // These targets should NOT be in global mode
-      expect(globalTargets).not.toContain("codexcli");
       expect(globalTargets).not.toContain("cursor");
       expect(globalTargets).not.toContain("copilot");
       expect(globalTargets).not.toContain("warp");

@@ -515,7 +515,7 @@ describe("generateCommand", () => {
 
     it("should use getToolTargetsGlobal when experimentalGlobal is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -529,7 +529,7 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -549,7 +549,7 @@ describe("generateCommand", () => {
     it("should not process delete option in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getDelete.mockReturnValue(true);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -562,7 +562,7 @@ describe("generateCommand", () => {
     it("should not call loadRulesyncFilesLegacy in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockProcessorInstance.loadRulesyncFiles.mockResolvedValue([]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -574,7 +574,7 @@ describe("generateCommand", () => {
     it("should always use baseDir '.' in global mode regardless of config", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2", "dir3"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -634,7 +634,7 @@ describe("generateCommand", () => {
     it("should show success message with only rules count in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockProcessorInstance.writeAiFiles.mockResolvedValue(5);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -645,19 +645,19 @@ describe("generateCommand", () => {
 
     it("should only process rules when global mode is enabled with multiple features", async () => {
       mockProcessorInstance.writeAiFiles.mockResolvedValue(3);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
-      vi.mocked(intersection).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(intersection).mockReturnValue(["claudecode", "codexcli"]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(RulesProcessor).toHaveBeenCalledTimes(1); // Once for claudecode
+      expect(RulesProcessor).toHaveBeenCalledTimes(2); // Once for claudecode, once for codexcli
       expect(McpProcessor).not.toHaveBeenCalled();
       expect(CommandsProcessor).not.toHaveBeenCalled();
       expect(IgnoreProcessor).not.toHaveBeenCalled();
       expect(SubagentsProcessor).not.toHaveBeenCalled();
       expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 3 file(s) total (3 rules)",
+        "🎉 All done! Generated 6 file(s) total (6 rules)",
       );
     });
   });

@@ -61,7 +61,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
 
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli"];
 
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;

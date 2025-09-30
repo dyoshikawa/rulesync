@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { getHomeDirectory, readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -24,7 +24,21 @@ export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
  * hierarchical loading (global, project, directory-specific).
  */
 export class CodexcliRule extends ToolRule {
-  static getSettablePaths(): CodexcliRuleSettablePaths {
+  static getSettablePaths(
+    { global }: { global: boolean } = { global: false },
+  ): CodexcliRuleSettablePaths {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: getHomeDirectory(),
+          relativeFilePath: "AGENTS.md",
+        },
+        nonRoot: {
+          relativeDirPath: join(getHomeDirectory(), ".codex", "memories"),
+        },
+      };
+    }
+
     return {
       root: {
         relativeDirPath: ".",
