@@ -629,18 +629,22 @@ export class RulesProcessor extends FeatureProcessor {
     const settablePaths = this.global
       ? ClaudecodeRule.getSettablePathsGlobal()
       : ClaudecodeRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
+
+    const loadToolRulesDefaultParams: Parameters<typeof this.loadToolRulesDefault>[0] = {
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
         relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => ClaudecodeRule.fromFile(params),
       },
-      nonRoot: {
+    };
+    if (settablePaths.nonRoot) {
+      loadToolRulesDefaultParams.nonRoot = {
         relativeDirPath: settablePaths.nonRoot.relativeDirPath,
         fromFile: (params) => ClaudecodeRule.fromFile(params),
         extension: "md",
-      },
-    });
+      };
+    }
+    return this.loadToolRulesDefault(loadToolRulesDefaultParams);
   }
 
   /**
