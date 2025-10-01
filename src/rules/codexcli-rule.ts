@@ -7,6 +7,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 
 export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
@@ -16,6 +17,8 @@ export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
   };
 };
 
+export type CodexcliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
+
 /**
  * Rule generator for OpenAI Codex CLI
  *
@@ -24,21 +27,7 @@ export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
  * hierarchical loading (global, project, directory-specific).
  */
 export class CodexcliRule extends ToolRule {
-  static getSettablePaths(
-    { global }: { global: boolean } = { global: false },
-  ): CodexcliRuleSettablePaths {
-    if (global) {
-      return {
-        root: {
-          relativeDirPath: join(getHomeDirectory(), ".codex"),
-          relativeFilePath: "AGENTS.md",
-        },
-        nonRoot: {
-          relativeDirPath: join(getHomeDirectory(), ".codex", "memories"),
-        },
-      };
-    }
-
+  static getSettablePaths(): CodexcliRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",
@@ -50,22 +39,30 @@ export class CodexcliRule extends ToolRule {
     };
   }
 
+  static getSettablePathsGlobal(): CodexcliRuleSettablePathsGlobal {
+    return {
+      root: {
+        relativeDirPath: join(getHomeDirectory(), ".codex"),
+        relativeFilePath: "AGENTS.md",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CodexcliRule> {
+    const paths = this.getSettablePaths();
     const isRoot = relativeFilePath === "AGENTS.md";
     const relativePath = isRoot
       ? "AGENTS.md"
-      : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
+      : join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new CodexcliRule({
       baseDir,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: isRoot ? paths.root.relativeDirPath : paths.nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
       validate,
@@ -79,7 +76,7 @@ export class CodexcliRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
-    const paths = this.getSettablePaths({ global });
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     return new CodexcliRule(
       this.buildToolRuleParamsAgentsmd({
         baseDir,

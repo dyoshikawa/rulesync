@@ -30,22 +30,28 @@ export type ToolRuleSettablePaths = {
   };
 };
 
+export type ToolRuleSettablePathsGlobal = {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot?: undefined;
+};
+
 type BuildToolRuleParamsParams = ToolRuleFromRulesyncRuleParams & {
   rootPath?: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRootPath?: {
-    relativeDirPath: string;
-  };
+  nonRootPath?:
+    | {
+        relativeDirPath: string;
+      }
+    | undefined;
 };
 
 type BuildToolRuleParamsResult = Omit<ToolRuleParams, "root"> & {
   root: boolean;
-};
-
-type getSettablePathsParams = {
-  global: boolean;
 };
 
 export abstract class ToolRule extends ToolFile {
@@ -60,7 +66,11 @@ export abstract class ToolRule extends ToolFile {
     this.globs = globs;
   }
 
-  static getSettablePaths(_params: getSettablePathsParams): ToolRuleSettablePaths {
+  static getSettablePaths(): ToolRuleSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  static getSettablePathsGlobal(): ToolRuleSettablePathsGlobal {
     throw new Error("Please implement this method in the subclass.");
   }
 

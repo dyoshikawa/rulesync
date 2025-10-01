@@ -626,7 +626,9 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Claude Code rule configuration from CLAUDE.md file
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
-    const settablePaths = ClaudecodeRule.getSettablePaths({ global: this.global });
+    const settablePaths = this.global
+      ? ClaudecodeRule.getSettablePathsGlobal()
+      : ClaudecodeRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
