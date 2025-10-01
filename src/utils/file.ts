@@ -178,23 +178,3 @@ export function getHomeDirectory(): string {
 
   return os.homedir();
 }
-
-export function getBaseDirInLightOfGlobal({
-  baseDir,
-  global,
-}: {
-  baseDir: string;
-  global: boolean;
-}): string {
-  if (isEnvTest) {
-    // When in test environment, the base directory is always the relative directory from the project root
-    return join(".", baseDir);
-  }
-
-  if (global) {
-    // When global is true, the base directory is always the root directory
-    return "/";
-  }
-
-  return baseDir;
-}
