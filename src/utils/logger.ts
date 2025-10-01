@@ -1,6 +1,5 @@
 import { consola } from "consola";
-
-const isEnvTest = process.env.NODE_ENV === "test";
+import { isEnvTest } from "./vitest.js";
 
 // Global logger instance with configurable verbosity
 class Logger {

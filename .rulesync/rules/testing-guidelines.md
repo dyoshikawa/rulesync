@@ -9,7 +9,7 @@ globs: ["**/*.test.ts"]
 
 - Test code files should be placed next to the implementation. This is called the co-location pattern.
     - For example, if the implementation file is `src/a.ts`, the test code file should be `src/a.test.ts`.
-- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `/tmp/tests/projects/{VITEST_WORKER_ID}` as the project directory or `/tmp/tests/home/{VITEST_WORKER_ID}` as the pseudo-home directory.
+- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `./tmp/tests/projects/{VITEST_WORKER_ID}` as the project directory or `./tmp/tests/home/{VITEST_WORKER_ID}` as the pseudo-home directory.
     - To use the unified test directory, you should use the `setupTestDirectory` function from `src/test-utils/test-directories.ts`. If you want to test some behavior in global mode, use the pseudo-home directory by `setupTestDirectory({ global: true })`.
     ```typescript
     // Example
@@ -33,6 +33,8 @@ globs: ["**/*.test.ts"]
       });
     });
     ```
+- In test, don't change dirs or files out of the project directory even though it's in global mode to make it easier to test some behavior and avoid polluting those.
 - When `NODE_ENV` is `test`:
   - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
-  - `getHomeDirectory()` in `src/utils/file.ts` returns `/tmp/tests/home/{VITEST_WORKER_ID}`. That behavior is to make it easier to test some behavior in global mode and avoid polluting the user's actual home directory.
+  - `getHomeDirectory()` in `src/utils/file.ts` returns `./tmp/tests/home/{VITEST_WORKER_ID}`.
+  - `getBaseDirInLightOfGlobal()` in `src/utils/file.ts` always returns `./{baseDir}` even though it's in global mode.

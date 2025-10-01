@@ -1,5 +1,3 @@
-// eslint-disable-next-line strict-dependencies/strict-dependencies
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureDir, removeDirectory } from "../utils/file.js";
 import { getVitestWorkerId } from "../utils/vitest.js";
@@ -14,7 +12,7 @@ export async function setupTestDirectory(
   testDir: string;
   cleanup: () => Promise<void>;
 }> {
-  const testsDir = join(tmpdir(), "tests");
+  const testsDir = join("./tmp", "tests");
   const testDir = global
     ? join(testsDir, "home", getVitestWorkerId())
     : join(testsDir, "projects", getVitestWorkerId());

@@ -3,9 +3,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
-import { getVitestWorkerId } from "./vitest.js";
-
-const isEnvTest = process.env.NODE_ENV === "test";
+import { getVitestWorkerId, isEnvTest } from "./vitest.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
@@ -175,8 +173,28 @@ export async function removeFile(filepath: string): Promise<void> {
 export function getHomeDirectory(): string {
   if (isEnvTest) {
     // Have to match the value in setupTestDirectory() in src/test-utils/test-directories.ts
-    return join(os.tmpdir(), "tests", "home", getVitestWorkerId());
+    return join("./tmp", "tests", "home", getVitestWorkerId());
   }
 
   return os.homedir();
+}
+
+export function getBaseDirInLightOfGlobal({
+  baseDir,
+  global,
+}: {
+  baseDir: string;
+  global: boolean;
+}): string {
+  if (isEnvTest) {
+    // When in test environment, the base directory is always the relative directory from the project root
+    return join(".", baseDir);
+  }
+
+  if (global) {
+    // When global is true, the base directory is always the root directory
+    return "/";
+  }
+
+  return baseDir;
 }
