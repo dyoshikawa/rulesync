@@ -544,4 +544,125 @@ describe("RulesProcessor", () => {
       expect(globalTargets).not.toContain("warp");
     });
   });
+
+  describe("RulesProcessor with global flag", () => {
+    describe("constructor", () => {
+      it("should accept global parameter", () => {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        expect(processor).toBeInstanceOf(RulesProcessor);
+      });
+
+      it("should default global to false when not specified", () => {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+        });
+
+        expect(processor).toBeInstanceOf(RulesProcessor);
+      });
+    });
+
+    describe("loadRulesyncFiles in global mode", () => {
+      it("should accept global parameter in constructor", () => {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        expect(processor).toBeInstanceOf(RulesProcessor);
+      });
+    });
+
+    describe("convertRulesyncFilesToToolFiles in global mode", () => {
+      it("should convert using global paths when global=true for claudecode", async () => {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const rulesyncRules = [
+          new RulesyncRule({
+            baseDir: testDir,
+            relativeDirPath: ".rulesync/rules",
+            relativeFilePath: "root.md",
+            frontmatter: {
+              root: true,
+              targets: ["*"],
+            },
+            body: "# Global Root Rule",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeInstanceOf(ClaudecodeRule);
+        expect(result[0]?.getRelativeDirPath()).toBe(".claude");
+        expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
+      });
+
+      it("should convert using global paths when global=true for codexcli", async () => {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: "codexcli",
+          global: true,
+        });
+
+        const rulesyncRules = [
+          new RulesyncRule({
+            baseDir: testDir,
+            relativeDirPath: ".rulesync/rules",
+            relativeFilePath: "root.md",
+            frontmatter: {
+              root: true,
+              targets: ["*"],
+            },
+            body: "# Global Root Rule",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(1);
+        const codexcliRule = result[0];
+        expect(codexcliRule?.getRelativeDirPath()).toBe(".codex");
+        expect(codexcliRule?.getRelativeFilePath()).toBe("AGENTS.md");
+      });
+
+      it("should use regular paths when global=false", async () => {
+        const processor = new RulesProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: false,
+        });
+
+        const rulesyncRules = [
+          new RulesyncRule({
+            baseDir: testDir,
+            relativeDirPath: ".rulesync/rules",
+            relativeFilePath: "root.md",
+            frontmatter: {
+              root: true,
+              targets: ["*"],
+            },
+            body: "# Regular Root Rule",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeInstanceOf(ClaudecodeRule);
+        expect(result[0]?.getRelativeDirPath()).toBe(".");
+        expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
+      });
+    });
+  });
 });

@@ -589,6 +589,145 @@ More detailed instructions here.`;
     });
   });
 
+  describe("getSettablePathsGlobal", () => {
+    it("should return global-specific paths", () => {
+      const paths = CodexcliRule.getSettablePathsGlobal();
+
+      expect(paths).toHaveProperty("root");
+      expect(paths.root).toEqual({
+        relativeDirPath: ".codex",
+        relativeFilePath: "AGENTS.md",
+      });
+      expect(paths).not.toHaveProperty("nonRoot");
+    });
+
+    it("should have different paths than regular getSettablePaths", () => {
+      const globalPaths = CodexcliRule.getSettablePathsGlobal();
+      const regularPaths = CodexcliRule.getSettablePaths();
+
+      expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
+      expect(globalPaths.root.relativeFilePath).toBe(regularPaths.root.relativeFilePath);
+    });
+  });
+
+  describe("fromFile with global flag", () => {
+    it("should load root file from .codex/AGENTS.md when global=true", async () => {
+      const globalDir = join(testDir, ".codex");
+      await ensureDir(globalDir);
+      const testContent = "# Global Codex CLI\n\nGlobal user configuration.";
+      await writeFileContent(join(globalDir, "AGENTS.md"), testContent);
+
+      const codexcliRule = await CodexcliRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      expect(codexcliRule.getRelativeDirPath()).toBe(".codex");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(codexcliRule.getFileContent()).toBe(testContent);
+      expect(codexcliRule.getFilePath()).toBe(join(testDir, ".codex/AGENTS.md"));
+    });
+
+    it("should use global paths when global=true", async () => {
+      const globalDir = join(testDir, ".codex");
+      await ensureDir(globalDir);
+      const testContent = "# Global Mode Test";
+      await writeFileContent(join(globalDir, "AGENTS.md"), testContent);
+
+      const codexcliRule = await CodexcliRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      const globalPaths = CodexcliRule.getSettablePathsGlobal();
+      expect(codexcliRule.getRelativeDirPath()).toBe(globalPaths.root.relativeDirPath);
+      expect(codexcliRule.getRelativeFilePath()).toBe(globalPaths.root.relativeFilePath);
+    });
+
+    it("should use regular paths when global=false", async () => {
+      const testContent = "# Non-Global Mode Test";
+      await writeFileContent(join(testDir, "AGENTS.md"), testContent);
+
+      const codexcliRule = await CodexcliRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: false,
+      });
+
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+  });
+
+  describe("fromRulesyncRule with global flag", () => {
+    it("should use global paths when global=true for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Global Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(codexcliRule.getRelativeDirPath()).toBe(".codex");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should use regular paths when global=false for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Regular Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        rulesyncRule,
+        global: false,
+      });
+
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should default to regular paths when global is not specified", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Default Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+  });
+
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting codexcli", () => {
       const rulesyncRule = new RulesyncRule({
