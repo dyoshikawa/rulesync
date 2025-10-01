@@ -9,8 +9,8 @@ globs: ["**/*.test.ts"]
 
 - Test code files should be placed next to the implementation. This is called the co-location pattern.
     - For example, if the implementation file is `src/a.ts`, the test code file should be `src/a.test.ts`.
-- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `./tmp/tests/projects/{VITEST_WORKER_ID}` as the project directory or `./tmp/tests/home/{VITEST_WORKER_ID}` as the pseudo-home directory.
-    - To use the unified test directory, you should use the `setupTestDirectory` function from `src/test-utils/test-directories.ts`. If you want to test some behavior in global mode, use the pseudo-home directory by `setupTestDirectory({ global: true })`.
+- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `./tmp/tests/projects/{RANDOM_STRING}` as the project directory or `./tmp/tests/home/{VITEST_WORKER_ID}` as the pseudo-home directory.
+    - To use the unified test directory, you should use the `setupTestDirectory` function from `src/test-utils/test-directories.ts`. If you want to test some behavior in global mode, use the pseudo-home directory by `setupTestDirectory({ home: true })`.
     ```typescript
     // Example
     describe("Test Name", () => {
@@ -18,7 +18,7 @@ globs: ["**/*.test.ts"]
       let cleanup: () => Promise<void>;
 
       beforeEach(async () => {
-        ({ testDir, cleanup } = await setupTestDirectory()); // or `setupTestDirectory({ global: true })`
+        ({ testDir, cleanup } = await setupTestDirectory()); // or `setupTestDirectory({ home: true })`
       });
 
       afterEach(async () => {
