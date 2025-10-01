@@ -450,7 +450,7 @@ Second agent content`;
 
       const names = rulesyncFiles
         .map((file) => (file as RulesyncSubagent).getFrontmatter().name)
-        .sort();
+        .toSorted();
       expect(names).toEqual(["agent-1", "agent-2"]);
     });
 
