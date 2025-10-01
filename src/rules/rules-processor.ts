@@ -629,22 +629,22 @@ export class RulesProcessor extends FeatureProcessor {
     const settablePaths = this.global
       ? ClaudecodeRule.getSettablePathsGlobal()
       : ClaudecodeRule.getSettablePaths();
-
-    const loadToolRulesDefaultParams: Parameters<typeof this.loadToolRulesDefault>[0] = {
+    return this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
         relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => ClaudecodeRule.fromFile(params),
       },
-    };
-    if (settablePaths.nonRoot) {
-      loadToolRulesDefaultParams.nonRoot = {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => ClaudecodeRule.fromFile(params),
-        extension: "md",
-      };
-    }
-    return this.loadToolRulesDefault(loadToolRulesDefaultParams);
+      ...(settablePaths.nonRoot
+        ? {
+            nonRoot: {
+              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
+              fromFile: (params) => ClaudecodeRule.fromFile(params),
+              extension: "md",
+            },
+          }
+        : {}),
+    });
   }
 
   /**
@@ -665,18 +665,25 @@ export class RulesProcessor extends FeatureProcessor {
    * Load OpenAI Codex CLI rule configuration from AGENTS.md and .codex/memories/*.md files
    */
   private async loadCodexcliRules(): Promise<ToolRule[]> {
-    const settablePaths = CodexcliRule.getSettablePaths();
+    const settablePaths = this.global
+      ? CodexcliRule.getSettablePathsGlobal()
+      : CodexcliRule.getSettablePaths();
+
     return await this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
         relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => CodexcliRule.fromFile(params),
       },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => CodexcliRule.fromFile(params),
-        extension: "md",
-      },
+      ...(settablePaths.nonRoot
+        ? {
+            nonRoot: {
+              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
+              fromFile: (params) => CodexcliRule.fromFile(params),
+              extension: "md",
+            },
+          }
+        : {}),
     });
   }
 
