@@ -191,31 +191,23 @@ export function validateBaseDir(baseDir: string): void {
 
   // Reject path traversal (..) - check before normalization
   if (baseDir.includes("..")) {
-    throw new Error(
-      `baseDir cannot contain directory traversal (..): ${baseDir}`,
-    );
+    throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
   }
 
   // Reject absolute paths (Unix-style)
   if (baseDir.startsWith("/")) {
-    throw new Error(
-      `baseDir must be a relative path. Absolute path not allowed: ${baseDir}`,
-    );
+    throw new Error(`baseDir must be a relative path. Absolute path not allowed: ${baseDir}`);
   }
 
   // Reject absolute paths (Windows-style drive letters)
   if (/^[a-zA-Z]:[/\\]/.test(baseDir)) {
-    throw new Error(
-      `baseDir must be a relative path. Absolute path not allowed: ${baseDir}`,
-    );
+    throw new Error(`baseDir must be a relative path. Absolute path not allowed: ${baseDir}`);
   }
 
   // Additional check: ensure normalized path doesn't escape current directory
   const normalized = resolve(".", baseDir);
   const rel = relative(".", normalized);
   if (rel.startsWith("..")) {
-    throw new Error(
-      `baseDir cannot contain directory traversal (..): ${baseDir}`,
-    );
+    throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
   }
 }

@@ -28,7 +28,7 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.experimentalGlobal).toBe(true);
+      expect(config.getExperimentalGlobal()).toBe(true);
     });
 
     it("should load experimentalGlobal: false from config file", async () => {
@@ -42,7 +42,7 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.experimentalGlobal).toBe(false);
+      expect(config.getExperimentalGlobal()).toBe(false);
     });
 
     it("should default experimentalGlobal to false when not specified", async () => {
@@ -55,7 +55,7 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.experimentalGlobal).toBe(false);
+      expect(config.getExperimentalGlobal()).toBe(false);
     });
 
     it("should allow CLI flag to override config file", async () => {
@@ -70,7 +70,7 @@ describe("config-resolver", () => {
         experimentalGlobal: true,
       });
 
-      expect(config.experimentalGlobal).toBe(true);
+      expect(config.getExperimentalGlobal()).toBe(true);
     });
 
     it("should use getExperimentalGlobal() method", async () => {
@@ -101,8 +101,8 @@ describe("config-resolver", () => {
       });
 
       // baseDirs might be normalized (`./ ` prefix removed)
-      expect(config.baseDirs).toContain("src");
-      expect(config.baseDirs).toContain("packages");
+      expect(config.getBaseDirs()).toContain("src");
+      expect(config.getBaseDirs()).toContain("packages");
     });
 
     it("should handle multiple baseDirs", async () => {
@@ -116,10 +116,10 @@ describe("config-resolver", () => {
       });
 
       // baseDirs might be normalized (`./ ` prefix removed)
-      expect(config.baseDirs).toHaveLength(3);
-      expect(config.baseDirs).toContain("app1");
-      expect(config.baseDirs).toContain("app2");
-      expect(config.baseDirs).toContain("app3");
+      expect(config.getBaseDirs()).toHaveLength(3);
+      expect(config.getBaseDirs()).toContain("app1");
+      expect(config.getBaseDirs()).toContain("app2");
+      expect(config.getBaseDirs()).toContain("app3");
     });
   });
 });

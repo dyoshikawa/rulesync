@@ -1,5 +1,4 @@
-import path from "node:path";
-import { resolve, relative } from "node:path";
+import path, { relative, resolve } from "node:path";
 
 export type ValidationResult =
   | {
@@ -100,8 +99,8 @@ export abstract class AiFile {
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       throw new Error(
         `Path traversal detected: Final path escapes baseDir. ` +
-        `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}", ` +
-        `relativeFilePath="${this.relativeFilePath}"`,
+          `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}", ` +
+          `relativeFilePath="${this.relativeFilePath}"`,
       );
     }
 
