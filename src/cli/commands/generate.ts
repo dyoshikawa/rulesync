@@ -76,33 +76,15 @@ async function generateRules(config: Config): Promise<number> {
   let totalRulesOutputs = 0;
   logger.info("Generating rule files...");
 
-  if (config.getExperimentalGlobal()) {
-    for (const toolTarget of intersection(
-      config.getTargets(),
-      RulesProcessor.getToolTargetsGlobal(),
-    )) {
-      const baseDir = ".";
-      const processor = new RulesProcessor({
-        baseDir: baseDir,
-        toolTarget: toolTarget,
-        global: true,
-      });
-
-      const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-      const writtenCount = await processor.writeAiFiles(toolFiles);
-      totalRulesOutputs += writtenCount;
-      logger.success(`Generated ${writtenCount} ${toolTarget} rule(s) in ${baseDir}`);
-    }
-
-    return totalRulesOutputs;
-  }
-
+  const toolTargets = config.getExperimentalGlobal()
+    ? intersection(config.getTargets(), RulesProcessor.getToolTargetsGlobal())
+    : intersection(config.getTargets(), RulesProcessor.getToolTargets());
   for (const baseDir of config.getBaseDirs()) {
-    for (const toolTarget of intersection(config.getTargets(), RulesProcessor.getToolTargets())) {
+    for (const toolTarget of toolTargets) {
       const processor = new RulesProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
+        global: config.getExperimentalGlobal(),
         simulateCommands: config.getExperimentalSimulateCommands(),
         simulateSubagents: config.getExperimentalSimulateSubagents(),
       });
