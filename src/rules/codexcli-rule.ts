@@ -52,21 +52,38 @@ export class CodexcliRule extends ToolRule {
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<CodexcliRule> {
-    const paths = this.getSettablePaths();
-    const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot
-      ? "AGENTS.md"
-      : join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
+    if (isRoot) {
+      const relativePath = paths.root.relativeFilePath;
+      const fileContent = await readFileContent(join(baseDir, relativePath));
+
+      return new CodexcliRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error("nonRoot path is not set");
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new CodexcliRule({
       baseDir,
-      relativeDirPath: isRoot ? paths.root.relativeDirPath : paths.nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: false,
     });
   }
 
