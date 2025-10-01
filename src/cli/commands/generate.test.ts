@@ -156,6 +156,7 @@ describe("generateCommand", () => {
       expect(logger.info).toHaveBeenCalledWith("Generating rule files...");
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
+        global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
@@ -171,6 +172,7 @@ describe("generateCommand", () => {
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
+        global: false,
         toolTarget: "claudecode",
         simulateCommands: true,
         simulateSubagents: true,
@@ -211,12 +213,14 @@ describe("generateCommand", () => {
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir1",
+        global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
+        global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
@@ -525,7 +529,7 @@ describe("generateCommand", () => {
       expect(RulesProcessor.getToolTargets).not.toHaveBeenCalled();
     });
 
-    it("should not pass simulation options to RulesProcessor in global mode", async () => {
+    it("should pass simulation options to RulesProcessor in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
@@ -539,15 +543,12 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: true,
+        simulateCommands: true,
+        simulateSubagents: true,
       });
-      expect(RulesProcessor).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          simulateCommands: true,
-        }),
-      );
     });
 
-    it("should not process delete option in global mode", async () => {
+    it("should process delete option in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getDelete.mockReturnValue(true);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
@@ -556,11 +557,11 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(mockProcessorInstance.loadToolFilesToDelete).not.toHaveBeenCalled();
-      expect(mockProcessorInstance.removeAiFiles).not.toHaveBeenCalled();
+      expect(mockProcessorInstance.loadToolFilesToDelete).toHaveBeenCalled();
+      expect(mockProcessorInstance.removeAiFiles).toHaveBeenCalled();
     });
 
-    it("should not call loadRulesyncFilesLegacy in global mode", async () => {
+    it("should call loadRulesyncFilesLegacy in global mode when loadRulesyncFiles returns empty", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockProcessorInstance.loadRulesyncFiles.mockResolvedValue([]);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
@@ -569,10 +570,10 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(mockProcessorInstance.loadRulesyncFilesLegacy).not.toHaveBeenCalled();
+      expect(mockProcessorInstance.loadRulesyncFilesLegacy).toHaveBeenCalled();
     });
 
-    it("should always use baseDir '.' in global mode regardless of config", async () => {
+    it("should use each baseDir in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2", "dir3"]);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
@@ -582,11 +583,27 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: "dir1",
         toolTarget: "claudecode",
         global: true,
+        simulateCommands: false,
+        simulateSubagents: false,
       });
-      expect(RulesProcessor).toHaveBeenCalledTimes(1); // Only once, not for each baseDir
+      expect(RulesProcessor).toHaveBeenCalledWith({
+        baseDir: "dir2",
+        toolTarget: "claudecode",
+        global: true,
+        simulateCommands: false,
+        simulateSubagents: false,
+      });
+      expect(RulesProcessor).toHaveBeenCalledWith({
+        baseDir: "dir3",
+        toolTarget: "claudecode",
+        global: true,
+        simulateCommands: false,
+        simulateSubagents: false,
+      });
+      expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
     });
 
     it("should skip MCP generation in global mode with log message", async () => {
