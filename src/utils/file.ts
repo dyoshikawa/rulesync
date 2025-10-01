@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
+import { getVitestWorkerId } from "./vitest.js";
 
 const isEnvTest = process.env.NODE_ENV === "test";
 
@@ -178,12 +179,4 @@ export function getHomeDirectory(): string {
   }
 
   return os.homedir();
-}
-
-function getVitestWorkerId(): string {
-  const vitestWorkerId = process.env.VITEST_WORKER_ID;
-  if (!vitestWorkerId) {
-    throw new Error("VITEST_WORKER_ID is not set");
-  }
-  return vitestWorkerId;
 }

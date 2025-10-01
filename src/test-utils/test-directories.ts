@@ -2,6 +2,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureDir, removeDirectory } from "../utils/file.js";
+import { getVitestWorkerId } from "../utils/vitest.js";
 
 /**
  * Helper for test setup and cleanup
@@ -21,12 +22,4 @@ export async function setupTestDirectory(
 
   const cleanup = () => removeDirectory(testDir);
   return { testDir, cleanup };
-}
-
-function getVitestWorkerId(): string {
-  const vitestWorkerId = process.env.VITEST_WORKER_ID;
-  if (!vitestWorkerId) {
-    throw new Error("VITEST_WORKER_ID is not set");
-  }
-  return vitestWorkerId;
 }
