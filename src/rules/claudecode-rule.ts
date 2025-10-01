@@ -7,6 +7,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 
 export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -19,15 +20,7 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
   };
 };
 
-export type ClaudecodeRuleSettablePathsGlobal = Omit<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot: {
-    relativeDirPath: string;
-  };
-};
+export type ClaudecodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 /**
  * Rule generator for Claude Code AI assistant
@@ -53,9 +46,6 @@ export class ClaudecodeRule extends ToolRule {
       root: {
         relativeDirPath: getHomeDirectory(),
         relativeFilePath: "CLAUDE.md",
-      },
-      nonRoot: {
-        relativeDirPath: join(getHomeDirectory(), ".claude", "memories"),
       },
     };
   }
