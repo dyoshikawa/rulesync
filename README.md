@@ -31,10 +31,8 @@ rulesync --help
 ## Getting Started
 
 ```bash
-# Create necessary directories and sample rule files
+# Create necessary directories, sample rule files, and configuration file
 npx rulesync init
-# Create a new configuration file
-npx rulesync config init
 ```
 
 On the other hand, if you already have AI tool configurations:
@@ -293,7 +291,6 @@ Currently, only supports rules generation. Import for global files is still not 
     ```bash
     cd ~/.aiglobal
     npx rulesync init
-    npx rulesync config init
     ``` 
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
     ```jsonc

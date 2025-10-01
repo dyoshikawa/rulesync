@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { loadConfig } from "c12";
-import { fileExists, getHomeDirectory } from "../utils/file.js";
+import { fileExists, getHomeDirectory, validateBaseDir } from "../utils/file.js";
 import { isEnvTest } from "../utils/vitest.js";
 import { Config, ConfigParams } from "./config.js";
 
@@ -35,7 +35,7 @@ export class ConfigResolver {
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
-    if (!fileExists(configPath)) {
+    if (!(await fileExists(configPath))) {
       return new Config({
         targets: targets ?? defaults.targets,
         features: features ?? defaults.features,
@@ -106,6 +106,11 @@ function getBaseDirsInLightOfGlobal({
     // When global is true, the base directory is always the home directory
     return [getHomeDirectory()];
   }
+
+  // Validate each baseDir for security
+  baseDirs.forEach((baseDir) => {
+    validateBaseDir(baseDir);
+  });
 
   return baseDirs;
 }

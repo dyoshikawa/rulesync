@@ -15,6 +15,7 @@ import {
   removeDirectory,
   removeFile,
   resolvePath,
+  validateBaseDir,
   writeFileContent,
   writeJsonFile,
 } from "./file.js";
@@ -390,6 +391,108 @@ describe("file utilities", () => {
 
       // Should match the format from setupTestDirectory in test-directories.ts
       expect(homeDir).toMatch(/^(\.\/)?tmp\/tests\/home\/\d+$/);
+    });
+  });
+
+  describe("validateBaseDir", () => {
+    describe("should allow safe relative paths", () => {
+      it("should allow current directory", () => {
+        expect(() => validateBaseDir(".")).not.toThrow();
+      });
+
+      it("should allow simple directory names", () => {
+        expect(() => validateBaseDir("src")).not.toThrow();
+        expect(() => validateBaseDir("config")).not.toThrow();
+      });
+
+      it("should allow nested relative paths", () => {
+        expect(() => validateBaseDir("path/to/dir")).not.toThrow();
+        expect(() => validateBaseDir("deeply/nested/path/here")).not.toThrow();
+      });
+
+      it("should allow paths with dots in names", () => {
+        expect(() => validateBaseDir(".rulesync")).not.toThrow();
+        expect(() => validateBaseDir("my.project")).not.toThrow();
+      });
+    });
+
+    describe("should reject absolute paths", () => {
+      it("should reject Unix absolute paths", () => {
+        expect(() => validateBaseDir("/etc")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/home/user")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/var/log")).toThrow("must be a relative path");
+      });
+
+      it("should reject Windows absolute paths", () => {
+        expect(() => validateBaseDir("C:\\Windows")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("D:\\data")).toThrow("must be a relative path");
+      });
+    });
+
+    describe("should reject path traversal", () => {
+      it("should reject parent directory reference", () => {
+        expect(() => validateBaseDir("..")).toThrow("cannot contain directory traversal");
+      });
+
+      it("should reject multiple parent directory references", () => {
+        expect(() => validateBaseDir("../..")).toThrow("cannot contain directory traversal");
+        expect(() => validateBaseDir("../../../../../../etc")).toThrow(
+          "cannot contain directory traversal",
+        );
+      });
+
+      it("should reject path traversal in middle of path", () => {
+        expect(() => validateBaseDir("foo/../bar")).toThrow("cannot contain directory traversal");
+        expect(() => validateBaseDir("path/../../sensitive")).toThrow(
+          "cannot contain directory traversal",
+        );
+      });
+
+      it("should reject path traversal at end", () => {
+        expect(() => validateBaseDir("foo/bar/..")).toThrow("cannot contain directory traversal");
+      });
+    });
+
+    describe("should reject empty strings", () => {
+      it("should reject empty string", () => {
+        expect(() => validateBaseDir("")).toThrow("cannot be an empty string");
+      });
+
+      it("should reject whitespace-only strings", () => {
+        expect(() => validateBaseDir("   ")).toThrow("cannot be an empty string");
+        expect(() => validateBaseDir("\t")).toThrow("cannot be an empty string");
+        expect(() => validateBaseDir("\n")).toThrow("cannot be an empty string");
+      });
+    });
+
+    describe("should reject dangerous system directories", () => {
+      it("should reject root directory", () => {
+        expect(() => validateBaseDir("/")).toThrow("must be a relative path");
+      });
+
+      it("should reject critical system directories", () => {
+        expect(() => validateBaseDir("/etc")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/usr")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/bin")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/lib")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/var")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/sys")).toThrow("must be a relative path");
+        expect(() => validateBaseDir("/proc")).toThrow("must be a relative path");
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should handle normalized paths correctly", () => {
+        // After normalization, these should be caught
+        expect(() => validateBaseDir("./foo/../../../etc")).toThrow(
+          "cannot contain directory traversal",
+        );
+      });
+
+      it("should allow dot directories that are not parent references", () => {
+        expect(() => validateBaseDir(".config")).not.toThrow();
+        expect(() => validateBaseDir(".local/share")).not.toThrow();
+      });
     });
   });
 });
