@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
-import { getHomeDirectory, readFileContent } from "../utils/file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -44,7 +44,7 @@ export class ClaudecodeRule extends ToolRule {
   static getSettablePathsGlobal(): ClaudecodeRuleSettablePathsGlobal {
     return {
       root: {
-        relativeDirPath: getHomeDirectory(),
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
       },
     };

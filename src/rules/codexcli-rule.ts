@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
-import { getHomeDirectory, readFileContent } from "../utils/file.js";
+import { readFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -42,7 +42,7 @@ export class CodexcliRule extends ToolRule {
   static getSettablePathsGlobal(): CodexcliRuleSettablePathsGlobal {
     return {
       root: {
-        relativeDirPath: join(getHomeDirectory(), ".codex"),
+        relativeDirPath: ".codex",
         relativeFilePath: "AGENTS.md",
       },
     };

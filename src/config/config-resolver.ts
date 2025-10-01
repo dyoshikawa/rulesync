@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { loadConfig } from "c12";
-import { fileExists } from "../utils/file.js";
+import { fileExists, getHomeDirectory } from "../utils/file.js";
 import { isEnvTest } from "../utils/vitest.js";
 import { Config, ConfigParams } from "./config.js";
 
@@ -103,8 +103,8 @@ function getBaseDirsInLightOfGlobal({
   }
 
   if (global) {
-    // When global is true, the base directory is always the root directory
-    return ["/"];
+    // When global is true, the base directory is always the home directory
+    return [getHomeDirectory()];
   }
 
   return baseDirs;
