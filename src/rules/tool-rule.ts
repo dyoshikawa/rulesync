@@ -87,21 +87,35 @@ export abstract class ToolRule extends ToolFile {
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
-    nonRootPath = { relativeDirPath: ".agents/memories" },
+    nonRootPath,
   }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const fileContent = rulesyncRule.getBody();
+    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
+
+    if (isRoot) {
+      return {
+        baseDir,
+        relativeDirPath: rootPath.relativeDirPath,
+        relativeFilePath: rootPath.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+        description: rulesyncRule.getFrontmatter().description,
+        globs: rulesyncRule.getFrontmatter().globs,
+      };
+    }
+
+    if (!nonRootPath) {
+      throw new Error("nonRootPath is not set");
+    }
 
     return {
       baseDir,
-      relativeDirPath: rulesyncRule.getFrontmatter().root
-        ? rootPath.relativeDirPath
-        : nonRootPath.relativeDirPath,
-      relativeFilePath: rulesyncRule.getFrontmatter().root
-        ? rootPath.relativeFilePath
-        : rulesyncRule.getRelativeFilePath(),
+      relativeDirPath: nonRootPath.relativeDirPath,
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
       fileContent,
       validate,
-      root: rulesyncRule.getFrontmatter().root ?? false,
+      root: false,
       description: rulesyncRule.getFrontmatter().description,
       globs: rulesyncRule.getFrontmatter().globs,
     };
