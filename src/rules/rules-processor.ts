@@ -512,6 +512,7 @@ export class RulesProcessor extends FeatureProcessor {
           root.fromFile({
             baseDir: this.baseDir,
             relativeFilePath: basename(filePath),
+            global: this.global,
           }),
         ),
       );
@@ -531,6 +532,7 @@ export class RulesProcessor extends FeatureProcessor {
           nonRoot.fromFile({
             baseDir: this.baseDir,
             relativeFilePath: basename(filePath),
+            global: this.global,
           }),
         ),
       );

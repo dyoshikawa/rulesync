@@ -61,7 +61,9 @@ export class ClaudecodeRule extends ToolRule {
 
     if (isRoot) {
       const relativePath = paths.root.relativeFilePath;
-      const fileContent = await readFileContent(join(baseDir, relativePath));
+      const fileContent = await readFileContent(
+        join(baseDir, paths.root.relativeDirPath, relativePath),
+      );
 
       return new ClaudecodeRule({
         baseDir,
