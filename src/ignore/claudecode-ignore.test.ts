@@ -595,7 +595,7 @@ describe("ClaudecodeIgnore", () => {
       const originalPatternsList = originalContent.split("\n");
 
       // Check that all original patterns are present (order may differ due to sorting)
-      expect(convertedPatterns.sort()).toEqual(originalPatternsList.sort());
+      expect(convertedPatterns.toSorted()).toEqual(originalPatternsList.toSorted());
     });
 
     it("should handle complex patterns in round-trip", async () => {
@@ -626,7 +626,7 @@ describe("ClaudecodeIgnore", () => {
       const originalPatternsList = originalContent.split("\n");
 
       // Check that all original patterns are present (order may differ due to sorting)
-      expect(convertedPatterns.sort()).toEqual(originalPatternsList.sort());
+      expect(convertedPatterns.toSorted()).toEqual(originalPatternsList.toSorted());
     });
   });
 

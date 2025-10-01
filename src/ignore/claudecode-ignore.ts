@@ -82,7 +82,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
       ...existingJsonValue,
       permissions: {
         ...existingJsonValue.permissions,
-        deny: uniq([...(existingJsonValue.permissions?.deny ?? []), ...deniedValues].sort()),
+        deny: uniq([...(existingJsonValue.permissions?.deny ?? []), ...deniedValues].toSorted()),
       },
     };
 
