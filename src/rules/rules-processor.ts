@@ -417,9 +417,29 @@ export class RulesProcessor extends FeatureProcessor {
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const files = await findFilesByGlobs(join(".rulesync/rules", "*.md"));
     logger.debug(`Found ${files.length} rulesync files`);
-    return Promise.all(
+    const rulesyncRules = await Promise.all(
       files.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
     );
+
+    const rootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().root);
+
+    // A root file should be only one
+    if (rootRules.length > 1) {
+      throw new Error("Multiple root rulesync rules found");
+    }
+
+    // If global is true, return only the root rule
+    if (this.global) {
+      const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
+      if (nonRootRules.length > 0) {
+        logger.warn(
+          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them`,
+        );
+      }
+      return rootRules;
+    }
+
+    return rulesyncRules;
   }
 
   async loadRulesyncFilesLegacy(): Promise<RulesyncFile[]> {
