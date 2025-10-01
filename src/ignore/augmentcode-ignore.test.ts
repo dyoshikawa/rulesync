@@ -324,7 +324,7 @@ desktop.ini
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const augmentignorePath = join(testDir, ".augmentignore");
+        const augmentignorePath = ".augmentignore";
         await writeFileContent(augmentignorePath, fileContent);
 
         const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({});

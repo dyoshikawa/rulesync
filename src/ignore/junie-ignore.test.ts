@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const junieignorePath = join(testDir, ".junieignore");
+        const junieignorePath = ".junieignore";
         await writeFileContent(junieignorePath, fileContent);
 
         const junieIgnore = await JunieIgnore.fromFile({});

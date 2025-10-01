@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const aiexcludePath = join(testDir, ".geminiignore");
+        const aiexcludePath = ".geminiignore";
         await writeFileContent(aiexcludePath, fileContent);
 
         const geminiCliIgnore = await GeminiCliIgnore.fromFile({});

@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const cursorignorePath = join(testDir, ".cursorignore");
+        const cursorignorePath = ".cursorignore";
         await writeFileContent(cursorignorePath, fileContent);
 
         const cursorIgnore = await CursorIgnore.fromFile({});

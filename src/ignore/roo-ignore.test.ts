@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const rooignorePath = join(testDir, ".rooignore");
+        const rooignorePath = ".rooignore";
         await writeFileContent(rooignorePath, fileContent);
 
         const rooIgnore = await RooIgnore.fromFile({});

@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const clineignorePath = join(testDir, ".clineignore");
+        const clineignorePath = ".clineignore";
         await writeFileContent(clineignorePath, fileContent);
 
         const clineIgnore = await ClineIgnore.fromFile({});

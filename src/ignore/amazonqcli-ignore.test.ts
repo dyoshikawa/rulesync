@@ -331,7 +331,7 @@ q-temp/`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const amazonqignorePath = join(testDir, ".amazonqignore");
+        const amazonqignorePath = ".amazonqignore";
         await writeFileContent(amazonqignorePath, fileContent);
 
         const amazonqcliIgnore = await AmazonqcliIgnore.fromFile({});

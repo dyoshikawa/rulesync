@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
@@ -57,7 +57,7 @@ describe("file utilities", () => {
 
     it("should resolve relative path correctly", () => {
       const resolved = resolvePath("subdir/file.txt", testDir);
-      expect(resolved).toBe(join(testDir, "subdir/file.txt"));
+      expect(resolved).toBe(resolve(testDir, "subdir/file.txt"));
     });
 
     it("should prevent path traversal attacks", () => {
@@ -68,7 +68,7 @@ describe("file utilities", () => {
     it("should handle absolute paths safely", () => {
       const absolutePath = join(testDir, "safe", "path");
       const resolved = resolvePath(absolutePath, testDir);
-      expect(resolved).toBe(absolutePath);
+      expect(resolved).toBe(resolve(testDir, absolutePath));
     });
   });
 
@@ -76,7 +76,7 @@ describe("file utilities", () => {
     it("should create a resolver function bound to baseDir", () => {
       const resolver = createPathResolver(testDir);
       const resolved = resolver("subdir/file.txt");
-      expect(resolved).toBe(join(testDir, "subdir/file.txt"));
+      expect(resolved).toBe(resolve(testDir, "subdir/file.txt"));
     });
 
     it("should work without baseDir", () => {
@@ -365,15 +365,15 @@ describe("file utilities", () => {
       // This test is running in test environment, so it should return test path
       const homeDir = getHomeDirectory();
 
-      expect(homeDir).toContain("/tmp/tests/home/");
-      expect(homeDir).toMatch(/\/tmp\/tests\/home\/\d+/);
+      expect(homeDir).toContain("tmp/tests/home/");
+      expect(homeDir).toMatch(/tmp\/tests\/home\/\d+/);
     });
 
     it("should include worker ID for parallel test isolation", () => {
       const homeDir = getHomeDirectory();
 
       // Worker ID should be a number
-      const match = homeDir.match(/\/tmp\/tests\/home\/(\d+)/);
+      const match = homeDir.match(/tmp\/tests\/home\/(\d+)/);
       expect(match).not.toBeNull();
       expect(match![1]).toMatch(/^\d+$/);
     });
@@ -389,7 +389,7 @@ describe("file utilities", () => {
       const homeDir = getHomeDirectory();
 
       // Should match the format from setupTestDirectory in test-directories.ts
-      expect(homeDir).toMatch(/^\/tmp\/tests\/home\/\d+$/);
+      expect(homeDir).toMatch(/^(\.\/)?tmp\/tests\/home\/\d+$/);
     });
   });
 });

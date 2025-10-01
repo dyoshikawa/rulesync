@@ -297,7 +297,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const codexignorePath = join(testDir, ".codexignore");
+        const codexignorePath = ".codexignore";
         await writeFileContent(codexignorePath, fileContent);
 
         const codexcliIgnore = await CodexcliIgnore.fromFile({});
