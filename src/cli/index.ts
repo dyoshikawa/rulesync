@@ -96,11 +96,11 @@ const main = async () => {
     .option("-c, --config <path>", "Path to configuration file")
     .option("-g, --experimental-global", "Generate for global(user scope) configuration files")
     .option(
-      "-sc, --experimental-simulate-commands",
+      "--experimental-simulate-commands",
       "Generate simulated commands (experimental feature). This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
-      "-ss, -experimental-simulate-subagents",
+      "--experimental-simulate-subagents",
       "Generate simulated subagents (experimental feature). This feature is only available for copilot, cursor and codexcli.",
     )
     .action(async (options) => {
