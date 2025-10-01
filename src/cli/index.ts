@@ -55,6 +55,7 @@ const main = async () => {
       },
     )
     .option("-V, --verbose", "Verbose output")
+    .option("-g, --experimental-global", "Import for global(user scope) configuration files")
     .action(async (options) => {
       try {
         await importCommand({
@@ -93,13 +94,13 @@ const main = async () => {
     )
     .option("-V, --verbose", "Verbose output")
     .option("-c, --config <path>", "Path to configuration file")
-    .option("--experimental-global", "Generate for global(user scope) configuration files")
+    .option("-g, --experimental-global", "Generate for global(user scope) configuration files")
     .option(
-      "--experimental-simulate-commands",
+      "-sc, --experimental-simulate-commands",
       "Generate simulated commands (experimental feature). This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
-      "--experimental-simulate-subagents",
+      "-ss, -experimental-simulate-subagents",
       "Generate simulated subagents (experimental feature). This feature is only available for copilot, cursor and codexcli.",
     )
     .action(async (options) => {
