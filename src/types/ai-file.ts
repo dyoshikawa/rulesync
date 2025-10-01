@@ -16,9 +16,13 @@ export type AiFileParams = {
   relativeFilePath: string;
   fileContent: string;
   validate?: boolean;
+  global?: boolean;
 };
 
-export type AiFileFromFileParams = Pick<AiFileParams, "baseDir" | "validate" | "relativeFilePath">;
+export type AiFileFromFileParams = Pick<
+  AiFileParams,
+  "baseDir" | "validate" | "relativeFilePath" | "global"
+>;
 export abstract class AiFile {
   /**
    * @example "."
@@ -39,17 +43,24 @@ export abstract class AiFile {
    */
   protected fileContent: string;
 
+  /**
+   * @example true
+   */
+  protected readonly global: boolean;
+
   constructor({
     baseDir = ".",
     relativeDirPath,
     relativeFilePath,
     fileContent,
     validate = true,
+    global = false,
   }: AiFileParams) {
     this.baseDir = baseDir;
     this.relativeDirPath = relativeDirPath;
     this.relativeFilePath = relativeFilePath;
     this.fileContent = fileContent;
+    this.global = global;
 
     if (validate) {
       const result = this.validate();

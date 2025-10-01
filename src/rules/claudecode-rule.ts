@@ -54,21 +54,38 @@ export class ClaudecodeRule extends ToolRule {
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<ClaudecodeRule> {
-    const paths = this.getSettablePaths();
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
-    const relativePath = isRoot
-      ? paths.root.relativeFilePath
-      : join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
 
+    if (isRoot) {
+      const relativePath = paths.root.relativeFilePath;
+      const fileContent = await readFileContent(join(baseDir, relativePath));
+
+      return new ClaudecodeRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error("nonRoot path is not set");
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new ClaudecodeRule({
       baseDir,
-      relativeDirPath: isRoot ? paths.root.relativeDirPath : paths.nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? paths.root.relativeFilePath : relativeFilePath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: false,
     });
   }
 
