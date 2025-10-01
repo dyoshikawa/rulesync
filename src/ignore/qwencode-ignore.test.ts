@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const geminiignorePath = join(testDir, ".geminiignore");
+        const geminiignorePath = ".geminiignore";
         await writeFileContent(geminiignorePath, fileContent);
 
         const qwencodeIgnore = await QwencodeIgnore.fromFile({});

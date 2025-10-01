@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
@@ -16,6 +15,7 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncRule: RulesyncRule;
+  global?: boolean;
 };
 
 export type ToolRuleFromFileParams = AiFileFromFileParams;
@@ -30,14 +30,24 @@ export type ToolRuleSettablePaths = {
   };
 };
 
+export type ToolRuleSettablePathsGlobal = {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot?: undefined;
+};
+
 type BuildToolRuleParamsParams = ToolRuleFromRulesyncRuleParams & {
   rootPath?: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRootPath?: {
-    relativeDirPath: string;
-  };
+  nonRootPath?:
+    | {
+        relativeDirPath: string;
+      }
+    | undefined;
 };
 
 type BuildToolRuleParamsResult = Omit<ToolRuleParams, "root"> & {
@@ -56,7 +66,15 @@ export abstract class ToolRule extends ToolFile {
     this.globs = globs;
   }
 
-  static async fromFile(_params: ToolRuleFromFileParams): Promise<ToolRule> {
+  static getSettablePaths(): ToolRuleSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  static getSettablePathsGlobal(): ToolRuleSettablePathsGlobal {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  static async fromFile(_params: ToolRuleFromFileParams | undefined): Promise<ToolRule> {
     throw new Error("Please implement this method in the subclass.");
   }
 
@@ -69,21 +87,35 @@ export abstract class ToolRule extends ToolFile {
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
-    nonRootPath = { relativeDirPath: ".agents/memories" },
+    nonRootPath,
   }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const fileContent = rulesyncRule.getBody();
+    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
+
+    if (isRoot) {
+      return {
+        baseDir,
+        relativeDirPath: rootPath.relativeDirPath,
+        relativeFilePath: rootPath.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+        description: rulesyncRule.getFrontmatter().description,
+        globs: rulesyncRule.getFrontmatter().globs,
+      };
+    }
+
+    if (!nonRootPath) {
+      throw new Error("nonRootPath is not set");
+    }
 
     return {
       baseDir,
-      relativeDirPath: rulesyncRule.getFrontmatter().root
-        ? rootPath.relativeDirPath
-        : nonRootPath.relativeDirPath,
-      relativeFilePath: rulesyncRule.getFrontmatter().root
-        ? rootPath.relativeFilePath
-        : rulesyncRule.getRelativeFilePath(),
+      relativeDirPath: nonRootPath.relativeDirPath,
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
       fileContent,
       validate,
-      root: rulesyncRule.getFrontmatter().root ?? false,
+      root: false,
       description: rulesyncRule.getFrontmatter().description,
       globs: rulesyncRule.getFrontmatter().globs,
     };
@@ -118,7 +150,7 @@ export abstract class ToolRule extends ToolFile {
   protected toRulesyncRuleDefault(): RulesyncRule {
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
-      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeDirPath: ".rulesync/rules",
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {
         root: this.isRoot(),

@@ -282,7 +282,7 @@ Thumbs.db`;
         process.chdir(testDir);
 
         const fileContent = "*.log\nnode_modules/";
-        const aiignorePath = join(testDir, ".aiignore");
+        const aiignorePath = ".aiignore";
         await writeFileContent(aiignorePath, fileContent);
 
         const kiroIgnore = await KiroIgnore.fromFile({});

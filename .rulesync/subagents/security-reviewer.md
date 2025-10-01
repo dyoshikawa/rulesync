@@ -6,7 +6,7 @@ description: >-
   specifically looking for vulnerabilities and malicious code. This agent can be
   called by user explicitly only.
 claudecode:
-  model: opus
+  model: inherit
 ---
 
 Reviews code specifically for vulnerabilities and malicious code.

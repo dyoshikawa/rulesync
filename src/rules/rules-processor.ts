@@ -7,7 +7,6 @@ import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
 import { GeminiCliCommand } from "../commands/geminicli-command.js";
 import { RooCommand } from "../commands/roo-command.js";
-import { RULESYNC_RULES_DIR, RULESYNC_RULES_DIR_LEGACY } from "../constants/paths.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
 import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { CursorSubagent } from "../subagents/cursor-subagent.js";
@@ -60,27 +59,32 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "windsurf",
 ];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
-
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
+
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli"];
 
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
+  private readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    baseDir = ".",
     toolTarget,
     simulateCommands = false,
     simulateSubagents = false,
+    global = false,
   }: {
     baseDir?: string;
     toolTarget: RulesProcessorToolTarget;
+    global?: boolean;
     simulateCommands?: boolean;
     simulateSubagents?: boolean;
   }) {
     super({ baseDir });
     this.toolTarget = RulesProcessorToolTargetSchema.parse(toolTarget);
+    this.global = global;
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;
   }
@@ -137,6 +141,7 @@ export class RulesProcessor extends FeatureProcessor {
               baseDir: this.baseDir,
               rulesyncRule: rulesyncRule,
               validate: true,
+              global: this.global,
             });
           case "cline":
             if (!ClineRule.isTargetedByRulesyncRule(rulesyncRule)) {
@@ -155,6 +160,7 @@ export class RulesProcessor extends FeatureProcessor {
               baseDir: this.baseDir,
               rulesyncRule: rulesyncRule,
               validate: true,
+              global: this.global,
             });
           case "copilot":
             if (!CopilotRule.isTargetedByRulesyncRule(rulesyncRule)) {
@@ -409,15 +415,35 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const files = await findFilesByGlobs(join(RULESYNC_RULES_DIR, "*.md"));
+    const files = await findFilesByGlobs(join(".rulesync/rules", "*.md"));
     logger.debug(`Found ${files.length} rulesync files`);
-    return Promise.all(
+    const rulesyncRules = await Promise.all(
       files.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
     );
+
+    const rootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().root);
+
+    // A root file should be only one
+    if (rootRules.length > 1) {
+      throw new Error("Multiple root rulesync rules found");
+    }
+
+    // If global is true, return only the root rule
+    if (this.global) {
+      const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
+      if (nonRootRules.length > 0) {
+        logger.warn(
+          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them`,
+        );
+      }
+      return rootRules;
+    }
+
+    return rulesyncRules;
   }
 
   async loadRulesyncFilesLegacy(): Promise<RulesyncFile[]> {
-    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RULES_DIR_LEGACY, "*.md"));
+    const legacyFiles = await findFilesByGlobs(join(".rulesync", "*.md"));
     logger.debug(`Found ${legacyFiles.length} legacy rulesync files`);
     return Promise.all(
       legacyFiles.map((file) => RulesyncRule.fromFileLegacy({ relativeFilePath: basename(file) })),
@@ -506,6 +532,7 @@ export class RulesProcessor extends FeatureProcessor {
           root.fromFile({
             baseDir: this.baseDir,
             relativeFilePath: basename(filePath),
+            global: this.global,
           }),
         ),
       );
@@ -525,6 +552,7 @@ export class RulesProcessor extends FeatureProcessor {
           nonRoot.fromFile({
             baseDir: this.baseDir,
             relativeFilePath: basename(filePath),
+            global: this.global,
           }),
         ),
       );
@@ -620,18 +648,24 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Claude Code rule configuration from CLAUDE.md file
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
-    const settablePaths = ClaudecodeRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
+    const settablePaths = this.global
+      ? ClaudecodeRule.getSettablePathsGlobal()
+      : ClaudecodeRule.getSettablePaths();
+    return this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
         relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => ClaudecodeRule.fromFile(params),
       },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => ClaudecodeRule.fromFile(params),
-        extension: "md",
-      },
+      ...(settablePaths.nonRoot
+        ? {
+            nonRoot: {
+              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
+              fromFile: (params) => ClaudecodeRule.fromFile(params),
+              extension: "md",
+            },
+          }
+        : {}),
     });
   }
 
@@ -653,18 +687,25 @@ export class RulesProcessor extends FeatureProcessor {
    * Load OpenAI Codex CLI rule configuration from AGENTS.md and .codex/memories/*.md files
    */
   private async loadCodexcliRules(): Promise<ToolRule[]> {
-    const settablePaths = CodexcliRule.getSettablePaths();
+    const settablePaths = this.global
+      ? CodexcliRule.getSettablePathsGlobal()
+      : CodexcliRule.getSettablePaths();
+
     return await this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
         relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => CodexcliRule.fromFile(params),
       },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => CodexcliRule.fromFile(params),
-        extension: "md",
-      },
+      ...(settablePaths.nonRoot
+        ? {
+            nonRoot: {
+              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
+              fromFile: (params) => CodexcliRule.fromFile(params),
+              extension: "md",
+            },
+          }
+        : {}),
     });
   }
 
@@ -825,6 +866,10 @@ export class RulesProcessor extends FeatureProcessor {
    */
   static getToolTargets(): ToolTarget[] {
     return rulesProcessorToolTargets;
+  }
+
+  static getToolTargetsGlobal(): ToolTarget[] {
+    return rulesProcessorToolTargetsGlobal;
   }
 
   private generateXmlReferencesSection(toolRules: ToolRule[]): string {

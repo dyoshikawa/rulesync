@@ -7,6 +7,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 
 export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
@@ -15,6 +16,8 @@ export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
     relativeFilePath: string;
   };
 };
+
+export type CodexcliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 /**
  * Rule generator for OpenAI Codex CLI
@@ -36,26 +39,53 @@ export class CodexcliRule extends ToolRule {
     };
   }
 
+  static getSettablePathsGlobal(): CodexcliRuleSettablePathsGlobal {
+    return {
+      root: {
+        relativeDirPath: ".codex",
+        relativeFilePath: "AGENTS.md",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<CodexcliRule> {
-    const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot
-      ? "AGENTS.md"
-      : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
+    if (isRoot) {
+      const relativePath = paths.root.relativeFilePath;
+      const fileContent = await readFileContent(
+        join(baseDir, paths.root.relativeDirPath, relativePath),
+      );
+
+      return new CodexcliRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error("nonRoot path is not set");
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new CodexcliRule({
       baseDir,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: false,
     });
   }
 
@@ -63,14 +93,16 @@ export class CodexcliRule extends ToolRule {
     baseDir = ".",
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     return new CodexcliRule(
       this.buildToolRuleParamsAgentsmd({
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }

@@ -31,10 +31,8 @@ rulesync --help
 ## Getting Started
 
 ```bash
-# Create necessary directories and sample rule files
+# Create necessary directories, sample rule files, and configuration file
 npx rulesync init
-# Create a new configuration file
-npx rulesync config --init
 ```
 
 On the other hand, if you already have AI tool configurations:
@@ -59,8 +57,8 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Tool                  | rules | ignore | mcp   | commands | subagents |
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
 | AGENTS.md            |  ✅   |      |       |          |           |
-| Claude Code            |  ✅   |  ✅   |  ✅    |    ✅     |    ✅      |
-| Codex CLI              |  ✅   |   ✅   |      |    🎮     |    🎮      |
+| Claude Code            |  ✅ 🌏   |  ✅   |  ✅    |    ✅     |    ✅      |
+| Codex CLI              |  ✅ 🌏   |   ✅   |      |    🎮     |    🎮      |
 | Gemini CLI             |  ✅   |   ✅   |      |     ✅   |      🎮     |
 | GitHub Copilot         |  ✅    |       |  ✅    |    🎮      |    🎮      |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅    |     🎮     |
@@ -75,7 +73,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Windsurf               |  ✅   |   ✅    |      |         |          |
 | Warp               |  ✅   |        |      |         |          |
 
-
+🌏: Supports global(means user scope) mode (Experimental Feature)
 🎮: Simulated Commands/Subagents (Experimental Feature)
 
 ## Why Rulesync?
@@ -94,6 +92,9 @@ Avoid lock-in completely. If you decide to stop using Rulesync, you can continue
 
 ### 🎯 **Consistency Across Tools**
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
+
+### 🌏 **Global Mode**
+You can use global(also, called as user scope) mode via Rulesync by enabling `--experimental-global` option.
 
 ### 🎮 **Simulated Commands and Subagents**
 Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
@@ -151,6 +152,7 @@ Example:
   "verbose": false,
 
   // Experimental features
+  "experimentalGlobal": false,
   "experimentalSimulateCommands": false,
   "experimentalSimulateSubagents": false
 }
@@ -219,7 +221,7 @@ description: >- # subagent description
   suggest a specification, implement a new feature, refactor the codebase, or
   fix a bug. This agent can be called by the user explicitly only.
 claudecode: # for claudecode-specific rules
-  model: opus # opus, sonnet, haiku or inherit
+  model: inherit # opus, sonnet, haiku or inherit
 ---
 
 You are the planner for any tasks.
@@ -275,7 +277,47 @@ tmp/
 credentials/
 ```
 
-## Simulate Commands and Subagents
+## Global Mode(Experimental Feature)
+
+You can use global(also, called as user scope) mode via Rulesync by enabling `--experimental-global` option.
+
+Currently, only supports rules generation. Import for global files is still not supported.
+
+1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
+    ```bash
+    mkdir -p ~/.aiglobal
+    ```
+2. Initialize files for global files in the directory.
+    ```bash
+    cd ~/.aiglobal
+    npx rulesync init
+    ``` 
+3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
+    ```jsonc
+    {
+      "experimentalGlobal": true
+    }
+    ```
+4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.
+    ```md
+    ---
+    root: true
+    ---
+    # The Project Overview
+    ...
+    ```
+5. Generate rules for global settings.
+    ```bash
+    # Run in the `~/.aiglobal` directory
+    npx rulesync generate
+    ```
+
+> [!WARNING]
+> Currently, when in the directory enabled global mode:
+> * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` only. Other parameters are ignored.
+> * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
+
+## Simulate Commands and Subagents(Experimental Feature)
 
 Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
 

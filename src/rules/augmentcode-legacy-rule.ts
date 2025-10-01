@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { RULESYNC_RULES_DIR } from "../constants/paths.js";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
@@ -36,7 +35,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
       baseDir: this.getBaseDir(),
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
-      relativeDirPath: RULESYNC_RULES_DIR,
+      relativeDirPath: ".rulesync/rules",
       relativeFilePath: this.getRelativeFilePath(),
       validate: true,
     });

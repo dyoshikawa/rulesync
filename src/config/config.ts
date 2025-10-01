@@ -7,6 +7,7 @@ export type ConfigParams = {
   features: RulesyncFeatures;
   verbose: boolean;
   delete: boolean;
+  experimentalGlobal: boolean;
   experimentalSimulateCommands: boolean;
   experimentalSimulateSubagents: boolean;
 };
@@ -17,6 +18,7 @@ export class Config {
   private readonly features: RulesyncFeatures;
   private readonly verbose: boolean;
   private readonly delete: boolean;
+  private readonly experimentalGlobal: boolean;
   private readonly experimentalSimulateCommands: boolean;
   private readonly experimentalSimulateSubagents: boolean;
 
@@ -26,6 +28,7 @@ export class Config {
     features,
     verbose,
     delete: isDelete,
+    experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigParams) {
@@ -34,6 +37,7 @@ export class Config {
     this.features = features;
     this.verbose = verbose;
     this.delete = isDelete;
+    this.experimentalGlobal = experimentalGlobal;
     this.experimentalSimulateCommands = experimentalSimulateCommands;
     this.experimentalSimulateSubagents = experimentalSimulateSubagents;
   }
@@ -64,6 +68,10 @@ export class Config {
 
   public getDelete(): boolean {
     return this.delete;
+  }
+
+  public getExperimentalGlobal(): boolean {
+    return this.experimentalGlobal;
   }
 
   public getExperimentalSimulateCommands(): boolean {

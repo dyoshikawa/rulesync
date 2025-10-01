@@ -1,5 +1,7 @@
+import { join } from "node:path";
 import { loadConfig } from "c12";
-import { fileExists } from "../utils/file.js";
+import { fileExists, getHomeDirectory, validateBaseDir } from "../utils/file.js";
+import { isEnvTest } from "../utils/vitest.js";
 import { Config, ConfigParams } from "./config.js";
 
 export type ConfigResolverResolveParams = Partial<
@@ -15,6 +17,7 @@ const defaults: Required<ConfigResolverResolveParams> = {
   delete: false,
   baseDirs: ["."],
   configPath: "rulesync.jsonc",
+  experimentalGlobal: false,
   experimentalSimulateCommands: false,
   experimentalSimulateSubagents: false,
 };
@@ -28,16 +31,21 @@ export class ConfigResolver {
     delete: isDelete,
     baseDirs,
     configPath = defaults.configPath,
+    experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
-    if (!fileExists(configPath)) {
+    if (!(await fileExists(configPath))) {
       return new Config({
         targets: targets ?? defaults.targets,
         features: features ?? defaults.features,
         verbose: verbose ?? defaults.verbose,
         delete: isDelete ?? defaults.delete,
-        baseDirs: baseDirs ?? defaults.baseDirs,
+        baseDirs: getBaseDirsInLightOfGlobal({
+          baseDirs: baseDirs ?? defaults.baseDirs,
+          global: experimentalGlobal ?? false,
+        }),
+        experimentalGlobal: experimentalGlobal ?? defaults.experimentalGlobal,
         experimentalSimulateCommands:
           experimentalSimulateCommands ?? defaults.experimentalSimulateCommands,
         experimentalSimulateSubagents:
@@ -63,7 +71,12 @@ export class ConfigResolver {
       features: features ?? configByFile.features ?? defaults.features,
       verbose: verbose ?? configByFile.verbose ?? defaults.verbose,
       delete: isDelete ?? configByFile.delete ?? defaults.delete,
-      baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
+      baseDirs: getBaseDirsInLightOfGlobal({
+        baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
+        global: experimentalGlobal ?? false,
+      }),
+      experimentalGlobal:
+        experimentalGlobal ?? configByFile.experimentalGlobal ?? defaults.experimentalGlobal,
       experimentalSimulateCommands:
         experimentalSimulateCommands ??
         configByFile.experimentalSimulateCommands ??
@@ -75,4 +88,29 @@ export class ConfigResolver {
     };
     return new Config(configParams);
   }
+}
+
+function getBaseDirsInLightOfGlobal({
+  baseDirs,
+  global,
+}: {
+  baseDirs: string[];
+  global: boolean;
+}): string[] {
+  if (isEnvTest) {
+    // When in test environment, the base directory is always the relative directory from the project root
+    return baseDirs.map((baseDir) => join(".", baseDir));
+  }
+
+  if (global) {
+    // When global is true, the base directory is always the home directory
+    return [getHomeDirectory()];
+  }
+
+  // Validate each baseDir for security
+  baseDirs.forEach((baseDir) => {
+    validateBaseDir(baseDir);
+  });
+
+  return baseDirs;
 }

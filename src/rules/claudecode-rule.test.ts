@@ -541,6 +541,148 @@ describe("ClaudecodeRule", () => {
     });
   });
 
+  describe("getSettablePathsGlobal", () => {
+    it("should return global-specific paths", () => {
+      const paths = ClaudecodeRule.getSettablePathsGlobal();
+
+      expect(paths).toHaveProperty("root");
+      expect(paths.root).toEqual({
+        relativeDirPath: ".claude",
+        relativeFilePath: "CLAUDE.md",
+      });
+      expect(paths).not.toHaveProperty("nonRoot");
+    });
+
+    it("should have different paths than regular getSettablePaths", () => {
+      const globalPaths = ClaudecodeRule.getSettablePathsGlobal();
+      const regularPaths = ClaudecodeRule.getSettablePaths();
+
+      expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
+      expect(globalPaths.root.relativeFilePath).toBe(regularPaths.root.relativeFilePath);
+    });
+  });
+
+  describe("fromFile with global flag", () => {
+    it("should load root file from .claude/CLAUDE.md when global=true", async () => {
+      const globalDir = join(testDir, ".claude");
+      await ensureDir(globalDir);
+      const testContent = "# Global Claude Code\n\nGlobal user configuration.";
+      await writeFileContent(join(globalDir, "CLAUDE.md"), testContent);
+
+      const claudecodeRule = await ClaudecodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "CLAUDE.md",
+        global: true,
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(claudecodeRule.getFileContent()).toBe(testContent);
+      expect(claudecodeRule.getFilePath()).toBe(join(testDir, ".claude/CLAUDE.md"));
+      expect(claudecodeRule.isRoot()).toBe(true);
+    });
+
+    it("should use global paths when global=true", async () => {
+      const globalDir = join(testDir, ".claude");
+      await ensureDir(globalDir);
+      const testContent = "# Global Mode Test";
+      await writeFileContent(join(globalDir, "CLAUDE.md"), testContent);
+
+      const claudecodeRule = await ClaudecodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "CLAUDE.md",
+        global: true,
+      });
+
+      const globalPaths = ClaudecodeRule.getSettablePathsGlobal();
+      expect(claudecodeRule.getRelativeDirPath()).toBe(globalPaths.root.relativeDirPath);
+      expect(claudecodeRule.getRelativeFilePath()).toBe(globalPaths.root.relativeFilePath);
+    });
+
+    it("should use regular paths when global=false", async () => {
+      const testContent = "# Non-Global Mode Test";
+      await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
+
+      const claudecodeRule = await ClaudecodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "CLAUDE.md",
+        global: false,
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
+    });
+  });
+
+  describe("fromRulesyncRule with global flag", () => {
+    it("should use global paths when global=true for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Global Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(claudecodeRule.isRoot()).toBe(true);
+    });
+
+    it("should use regular paths when global=false for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Regular Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
+        rulesyncRule,
+        global: false,
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(claudecodeRule.isRoot()).toBe(true);
+    });
+
+    it("should default to regular paths when global is not specified", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Default Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
+    });
+  });
+
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({

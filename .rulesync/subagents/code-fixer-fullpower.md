@@ -6,7 +6,7 @@ description: >-
   linting issues, and test failures by running pnpm typecheck, pnpm fix, and
   pnpm test commands until all pass successfully.
 claudecode:
-  model: opus
+  model: inherit
 ---
 
 Execute the following commands and fix any failures until they PASS:

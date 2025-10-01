@@ -1,4 +1,4 @@
-import path from "node:path";
+import path, { relative, resolve } from "node:path";
 
 export type ValidationResult =
   | {
@@ -16,9 +16,13 @@ export type AiFileParams = {
   relativeFilePath: string;
   fileContent: string;
   validate?: boolean;
+  global?: boolean;
 };
 
-export type AiFileFromFileParams = Pick<AiFileParams, "baseDir" | "validate" | "relativeFilePath">;
+export type AiFileFromFileParams = Pick<
+  AiFileParams,
+  "baseDir" | "validate" | "relativeFilePath" | "global"
+>;
 export abstract class AiFile {
   /**
    * @example "."
@@ -39,17 +43,24 @@ export abstract class AiFile {
    */
   protected fileContent: string;
 
+  /**
+   * @example true
+   */
+  protected readonly global: boolean;
+
   constructor({
     baseDir = ".",
     relativeDirPath,
     relativeFilePath,
     fileContent,
     validate = true,
+    global = false,
   }: AiFileParams) {
     this.baseDir = baseDir;
     this.relativeDirPath = relativeDirPath;
     this.relativeFilePath = relativeFilePath;
     this.fileContent = fileContent;
+    this.global = global;
 
     if (validate) {
       const result = this.validate();
@@ -76,7 +87,24 @@ export abstract class AiFile {
   }
 
   getFilePath(): string {
-    return path.join(this.baseDir, this.relativeDirPath, this.relativeFilePath);
+    const fullPath = path.join(this.baseDir, this.relativeDirPath, this.relativeFilePath);
+
+    // Security check: ensure the final path doesn't escape baseDir via path traversal
+    // This prevents attacks like: new AiFile({ relativeDirPath: "../../etc", ... })
+    const resolvedFull = resolve(fullPath);
+    const resolvedBase = resolve(this.baseDir);
+    const rel = relative(resolvedBase, resolvedFull);
+
+    // Check if the resolved path is outside baseDir
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      throw new Error(
+        `Path traversal detected: Final path escapes baseDir. ` +
+          `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}", ` +
+          `relativeFilePath="${this.relativeFilePath}"`,
+      );
+    }
+
+    return fullPath;
   }
 
   getFileContent(): string {

@@ -552,7 +552,7 @@ describe("ClaudecodeIgnore", () => {
           2,
         );
 
-        const claudeDir = join(testDir, ".claude");
+        const claudeDir = ".claude";
         await ensureDir(claudeDir);
         await writeFileContent(join(claudeDir, "settings.local.json"), jsonContent);
 

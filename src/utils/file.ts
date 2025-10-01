@@ -1,7 +1,9 @@
 import { globSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
+import { getVitestWorkerId, isEnvTest } from "./vitest.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
@@ -168,6 +170,44 @@ export async function removeFile(filepath: string): Promise<void> {
   }
 }
 
-export async function createTempDirectory(prefix: string): Promise<string> {
-  return await mkdtemp(prefix);
+export function getHomeDirectory(): string {
+  if (isEnvTest) {
+    // Have to match the value in setupTestDirectory() in src/test-utils/test-directories.ts
+    return join("./tmp", "tests", "home", getVitestWorkerId());
+  }
+
+  return os.homedir();
+}
+
+/**
+ * Validates that a baseDir is safe to use
+ * @throws {Error} if the baseDir is dangerous or contains path traversal
+ */
+export function validateBaseDir(baseDir: string): void {
+  // Reject empty strings
+  if (baseDir.trim() === "") {
+    throw new Error("baseDir cannot be an empty string");
+  }
+
+  // Reject path traversal (..) - check before normalization
+  if (baseDir.includes("..")) {
+    throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
+  }
+
+  // Reject absolute paths (Unix-style)
+  if (baseDir.startsWith("/")) {
+    throw new Error(`baseDir must be a relative path. Absolute path not allowed: ${baseDir}`);
+  }
+
+  // Reject absolute paths (Windows-style drive letters)
+  if (/^[a-zA-Z]:[/\\]/.test(baseDir)) {
+    throw new Error(`baseDir must be a relative path. Absolute path not allowed: ${baseDir}`);
+  }
+
+  // Additional check: ensure normalized path doesn't escape current directory
+  const normalized = resolve(".", baseDir);
+  const rel = relative(".", normalized);
+  if (rel.startsWith("..")) {
+    throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
+  }
 }

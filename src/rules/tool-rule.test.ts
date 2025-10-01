@@ -686,6 +686,7 @@ describe("ToolRule", () => {
 
       const params = (TestToolRule as any).buildToolRuleParamsDefault({
         rulesyncRule,
+        nonRootPath: { relativeDirPath: ".agents/memories" },
       });
 
       expect(params).toEqual({
@@ -742,6 +743,7 @@ describe("ToolRule", () => {
 
       const params = (TestToolRule as any).buildToolRuleParamsDefault({
         rulesyncRule,
+        nonRootPath: { relativeDirPath: ".agents/memories" },
       });
 
       expect(params.description).toBeUndefined();
@@ -764,6 +766,7 @@ describe("ToolRule", () => {
       const params = (TestToolRule as any).buildToolRuleParamsDefault({
         baseDir: "/custom/path",
         rulesyncRule,
+        nonRootPath: { relativeDirPath: ".agents/memories" },
       });
 
       expect(params.baseDir).toBe("/custom/path");
@@ -785,6 +788,7 @@ describe("ToolRule", () => {
       const params = (TestToolRule as any).buildToolRuleParamsDefault({
         rulesyncRule,
         validate: false,
+        nonRootPath: { relativeDirPath: ".agents/memories" },
       });
 
       expect(params.validate).toBe(false);

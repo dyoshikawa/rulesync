@@ -4,7 +4,6 @@ import { Command } from "commander";
 import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { logger } from "../utils/logger.js";
-import { configCommand } from "./commands/config.js";
 import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
@@ -56,6 +55,7 @@ const main = async () => {
       },
     )
     .option("-V, --verbose", "Verbose output")
+    .option("-g, --experimental-global", "Import for global(user scope) configuration files")
     .action(async (options) => {
       try {
         await importCommand({
@@ -73,7 +73,6 @@ const main = async () => {
   program
     .command("generate")
     .description("Generate configuration files for AI tools")
-    .option("--all", "[DEPRECATED] Generate for all supported AI tools (use --targets * instead)")
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
@@ -95,6 +94,7 @@ const main = async () => {
     )
     .option("-V, --verbose", "Verbose output")
     .option("-c, --config <path>", "Path to configuration file")
+    .option("-g, --experimental-global", "Generate for global(user scope) configuration files")
     .option(
       "--experimental-simulate-commands",
       "Generate simulated commands (experimental feature). This feature is only available for copilot, cursor and codexcli.",
@@ -112,6 +112,7 @@ const main = async () => {
           delete: options.delete,
           baseDirs: options.baseDirs,
           configPath: options.config,
+          experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,
         });
@@ -120,12 +121,6 @@ const main = async () => {
         process.exit(1);
       }
     });
-
-  program
-    .command("config")
-    .description("Show or initialize rulesync configuration")
-    .option("--init", "Initialize a new configuration file")
-    .action(configCommand);
 
   program.parse();
 };
