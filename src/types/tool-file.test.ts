@@ -138,4 +138,93 @@ describe("ToolFile", () => {
       expect(toolFile.getFileContent()).toBe("typed content");
     });
   });
+
+  describe("path traversal security", () => {
+    it("should prevent path traversal via relativeDirPath", () => {
+      const file = new TestToolFile({
+        baseDir: ".",
+        relativeDirPath: "../../etc",
+        relativeFilePath: "passwd",
+        fileContent: "malicious content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).toThrow("Path traversal detected");
+    });
+
+    it("should prevent path traversal via relativeFilePath", () => {
+      const file = new TestToolFile({
+        baseDir: ".",
+        relativeDirPath: ".tool",
+        relativeFilePath: "../../etc/passwd",
+        fileContent: "malicious content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).toThrow("Path traversal detected");
+    });
+
+    it("should prevent complex path traversal attacks", () => {
+      const file = new TestToolFile({
+        baseDir: ".",
+        relativeDirPath: "foo/../../..",
+        relativeFilePath: "etc/passwd",
+        fileContent: "malicious content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).toThrow("Path traversal detected");
+    });
+
+    it("should allow safe relative paths within baseDir", () => {
+      const file = new TestToolFile({
+        baseDir: ".",
+        relativeDirPath: ".tool/config",
+        relativeFilePath: "settings.txt",
+        fileContent: "safe content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).not.toThrow();
+      expect(file.getFilePath()).toBe(".tool/config/settings.txt");
+    });
+
+    it("should allow nested directories within baseDir", () => {
+      const file = new TestToolFile({
+        baseDir: ".",
+        relativeDirPath: "deeply/nested/path",
+        relativeFilePath: "file.txt",
+        fileContent: "safe content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).not.toThrow();
+      expect(file.getFilePath()).toBe("deeply/nested/path/file.txt");
+    });
+
+    it("should handle baseDir with subdirectory correctly", () => {
+      const file = new TestToolFile({
+        baseDir: "./project",
+        relativeDirPath: "src",
+        relativeFilePath: "index.ts",
+        fileContent: "safe content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).not.toThrow();
+      expect(file.getFilePath()).toBe("project/src/index.ts");
+    });
+
+    it("should prevent escaping from nested baseDir", () => {
+      const file = new TestToolFile({
+        baseDir: "./project/src",
+        relativeDirPath: "../../etc",
+        relativeFilePath: "passwd",
+        fileContent: "malicious content",
+        validate: false,
+      });
+
+      expect(() => file.getFilePath()).toThrow("Path traversal detected");
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { resolve, relative } from "node:path";
 
 export type ValidationResult =
   | {
@@ -87,7 +88,24 @@ export abstract class AiFile {
   }
 
   getFilePath(): string {
-    return path.join(this.baseDir, this.relativeDirPath, this.relativeFilePath);
+    const fullPath = path.join(this.baseDir, this.relativeDirPath, this.relativeFilePath);
+
+    // Security check: ensure the final path doesn't escape baseDir via path traversal
+    // This prevents attacks like: new AiFile({ relativeDirPath: "../../etc", ... })
+    const resolvedFull = resolve(fullPath);
+    const resolvedBase = resolve(this.baseDir);
+    const rel = relative(resolvedBase, resolvedFull);
+
+    // Check if the resolved path is outside baseDir
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      throw new Error(
+        `Path traversal detected: Final path escapes baseDir. ` +
+        `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}", ` +
+        `relativeFilePath="${this.relativeFilePath}"`,
+      );
+    }
+
+    return fullPath;
   }
 
   getFileContent(): string {
