@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { findFilesByGlobs } from "../utils/file.js";
@@ -48,6 +49,9 @@ vi.mocked(ClaudecodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnVal
 vi.mocked(ClaudecodeCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: ".claude/commands" });
+vi.mocked(ClaudecodeCommand).getSettablePathsGlobal = vi
+  .fn()
+  .mockReturnValue({ relativeDirPath: join(".claude", "commands") });
 
 // Set up static methods after mocking
 vi.mocked(GeminiCliCommand).fromFile = vi.fn();
@@ -103,6 +107,23 @@ describe("CommandsProcessor", () => {
       });
       expect(processor).toBeInstanceOf(CommandsProcessor);
     });
+
+    it("should accept global parameter", () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+      expect(processor).toBeInstanceOf(CommandsProcessor);
+    });
+
+    it("should default global to false", () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+      expect((processor as any).global).toBe(false);
+    });
   });
 
   describe("convertRulesyncFilesToToolFiles", () => {
@@ -143,8 +164,49 @@ describe("CommandsProcessor", () => {
       expect(ClaudecodeCommand.fromRulesyncCommand).toHaveBeenCalledWith({
         baseDir: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
+        global: false,
       });
       expect(result).toEqual([mockClaudecodeCommand]);
+    });
+
+    it("should pass global parameter to ClaudecodeCommand.fromRulesyncCommand", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const mockRulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "test.md",
+        fileContent: "test content",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "test description",
+        },
+        body: "test content",
+      });
+
+      const mockClaudecodeCommand = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".claude", "commands"),
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "test description",
+        },
+        body: "converted content",
+      });
+
+      vi.mocked(ClaudecodeCommand.fromRulesyncCommand).mockReturnValue(mockClaudecodeCommand);
+
+      await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
+
+      expect(ClaudecodeCommand.fromRulesyncCommand).toHaveBeenCalledWith({
+        baseDir: expect.any(String),
+        rulesyncCommand: mockRulesyncCommand,
+        global: true,
+      });
     });
 
     it("should convert rulesync commands to geminicli commands", async () => {
@@ -464,6 +526,33 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual(mockCommands);
     });
 
+    it("should load claudecode commands with global paths", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const mockCommands = [
+        new ClaudecodeCommand({
+          baseDir: testDir,
+          relativeDirPath: join(".claude", "commands"),
+          relativeFilePath: "test.md",
+          frontmatter: {
+            description: "test description",
+          },
+          body: "content",
+        }),
+      ];
+
+      mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
+      vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommands[0]!);
+
+      const result = await processor.loadToolFiles();
+
+      expect(result).toEqual(mockCommands);
+    });
+
     it("should load geminicli commands", async () => {
       processor = new CommandsProcessor({
         baseDir: testDir,
@@ -561,7 +650,10 @@ describe("CommandsProcessor", () => {
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
         expect.stringContaining("/.claude/commands/*.md"),
       );
-      expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "test.md" });
+      expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
+        relativeFilePath: "test.md",
+        global: false,
+      });
       expect(logger.info).toHaveBeenCalledWith("Successfully loaded 1 .claude/commands commands");
       expect(result).toEqual([mockCommand]);
     });
@@ -637,6 +729,39 @@ describe("CommandsProcessor", () => {
 
       expect(result).toEqual([mockCommand]);
       expect(logger.info).toHaveBeenCalledWith("Successfully loaded 1 .claude/commands commands");
+    });
+
+    it("should pass global parameter when loading claudecode commands", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const mockPaths = [`${testDir}/.claude/commands/test.md`];
+      const mockCommand = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".claude", "commands"),
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "test description",
+        },
+        body: "content",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommand);
+
+      await (processor as any).loadToolCommandDefault({
+        toolTarget: "claudecode",
+        relativeDirPath: join(".claude", "commands"),
+        extension: "md",
+      });
+
+      expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
+        relativeFilePath: "test.md",
+        global: true,
+      });
     });
 
     it("should throw error for unsupported tool target", async () => {
