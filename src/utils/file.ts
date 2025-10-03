@@ -79,6 +79,7 @@ export async function directoryExists(dirPath: string): Promise<boolean> {
 }
 
 export async function readFileContent(filepath: string): Promise<string> {
+  logger.debug(`Reading file: ${filepath}`);
   return readFile(filepath, "utf-8");
 }
 
