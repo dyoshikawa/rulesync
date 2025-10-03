@@ -7,6 +7,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 
 export type GeminiCliRuleParams = ToolRuleParams;
@@ -17,6 +18,8 @@ export type GeminiCliRuleSettablePaths = ToolRuleSettablePaths & {
     relativeFilePath: string;
   };
 };
+
+export type GeminiCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 /**
  * Represents a rule file for Gemini CLI
@@ -35,24 +38,53 @@ export class GeminiCliRule extends ToolRule {
     };
   }
 
+  static getSettablePathsGlobal(): GeminiCliRuleSettablePathsGlobal {
+    return {
+      root: {
+        relativeDirPath: ".gemini",
+        relativeFilePath: "GEMINI.md",
+      },
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<GeminiCliRule> {
-    const isRoot = relativeFilePath === "GEMINI.md";
-    const relativePath = isRoot ? "GEMINI.md" : join(".gemini/memories", relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
+    if (isRoot) {
+      const relativePath = paths.root.relativeFilePath;
+      const fileContent = await readFileContent(
+        join(baseDir, paths.root.relativeDirPath, relativePath),
+      );
+
+      return new GeminiCliRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error("nonRoot path is not set");
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new GeminiCliRule({
       baseDir,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "GEMINI.md" : relativeFilePath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: false,
     });
   }
 
@@ -60,14 +92,16 @@ export class GeminiCliRule extends ToolRule {
     baseDir = ".",
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): GeminiCliRule {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     return new GeminiCliRule(
       this.buildToolRuleParamsDefault({
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }
