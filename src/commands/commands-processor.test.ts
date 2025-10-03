@@ -256,6 +256,7 @@ describe("CommandsProcessor", () => {
       expect(GeminiCliCommand.fromRulesyncCommand).toHaveBeenCalledWith({
         baseDir: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
+        global: false,
       });
       expect(result).toEqual([mockGeminiCliCommand]);
     });
@@ -901,7 +902,7 @@ describe("CommandsProcessor", () => {
   describe("getToolTargetsGlobal", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargetsGlobal();
-      expect(targets).toEqual(["claudecode", "cursor"]);
+      expect(targets).toEqual(["claudecode", "cursor", "geminicli"]);
     });
   });
 
