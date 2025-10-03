@@ -61,7 +61,11 @@ const rulesProcessorToolTargets: ToolTarget[] = [
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
 
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli"];
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = [
+  "claudecode",
+  "codexcli",
+  "geminicli",
+];
 
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
@@ -188,6 +192,7 @@ export class RulesProcessor extends FeatureProcessor {
               baseDir: this.baseDir,
               rulesyncRule: rulesyncRule,
               validate: true,
+              global: this.global,
             });
           case "junie":
             if (!JunieRule.isTargetedByRulesyncRule(rulesyncRule)) {
@@ -746,18 +751,24 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Gemini CLI rule configuration from GEMINI.md file
    */
   private async loadGeminicliRules(): Promise<ToolRule[]> {
-    const settablePaths = GeminiCliRule.getSettablePaths();
+    const settablePaths = this.global
+      ? GeminiCliRule.getSettablePathsGlobal()
+      : GeminiCliRule.getSettablePaths();
     return await this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
         relativeFilePath: settablePaths.root.relativeFilePath,
         fromFile: (params) => GeminiCliRule.fromFile(params),
       },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => GeminiCliRule.fromFile(params),
-        extension: "md",
-      },
+      ...(settablePaths.nonRoot
+        ? {
+            nonRoot: {
+              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
+              fromFile: (params) => GeminiCliRule.fromFile(params),
+              extension: "md",
+            },
+          }
+        : {}),
     });
   }
 

@@ -60,7 +60,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | AGENTS.md            |  ✅   |      |       |          |           |
 | Claude Code            |  ✅ 🌏   |  ✅   |  ✅    |    ✅ 🌏     |    ✅      |
 | Codex CLI              |  ✅ 🌏   |   ✅   |      |    🎮     |    🎮      |
-| Gemini CLI             |  ✅   |   ✅   |      |     ✅   |      🎮     |
+| Gemini CLI             |  ✅ 🌏  |   ✅   |      |     ✅ 🌏  |      🎮     |
 | GitHub Copilot         |  ✅    |       |  ✅    |    🎮      |    🎮      |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |
 | OpenCode               |  ✅   |       |       |         |          |
@@ -75,8 +75,8 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Warp               |  ✅   |        |      |         |          |
 
 * ✅: Supports project mode
-* 🌏: Supports global mode (Experimental Feature)
-* 🎮: Supports Simulated Commands/Subagents (Experimental Feature)
+* 🌏: Supports global mode (Experimental)
+* 🎮: Supports simulated commands/subagents (Project mode only, experimental)
 
 ## Why Rulesync?
 
