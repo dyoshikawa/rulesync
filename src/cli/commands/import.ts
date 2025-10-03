@@ -61,7 +61,7 @@ async function importRules(config: Config, tool: ToolTarget): Promise<number> {
   }
 
   const rulesProcessor = new RulesProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
     global,
   });
@@ -96,7 +96,7 @@ async function importIgnore(config: Config, tool: ToolTarget): Promise<number> {
   }
 
   const ignoreProcessor = new IgnoreProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
   });
 
@@ -134,7 +134,7 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
   }
 
   const mcpProcessor = new McpProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
   });
 
@@ -158,20 +158,24 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping command file import (not supported in global mode)");
-    return 0;
-  }
+  const global = config.getExperimentalGlobal();
 
-  // Use CommandsProcessor for supported tools, excluding simulated ones
-  const supportedTargets = CommandsProcessor.getToolTargets({ includeSimulated: false });
+  // Check if tool is supported
+  const supportedTargets = global
+    ? CommandsProcessor.getToolTargetsGlobal()
+    : CommandsProcessor.getToolTargets({ includeSimulated: false });
+
   if (!supportedTargets.includes(tool)) {
+    if (global) {
+      logger.debug(`${tool} is not supported for commands in global mode`);
+    }
     return 0;
   }
 
   const commandsProcessor = new CommandsProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
+    global,
   });
 
   const toolFiles = await commandsProcessor.loadToolFiles();
@@ -206,7 +210,7 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
   }
 
   const subagentsProcessor = new SubagentsProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
   });
 

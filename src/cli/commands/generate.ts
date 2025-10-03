@@ -213,24 +213,24 @@ async function generateCommands(config: Config): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping command file generation (not supported in global mode)");
-    return 0;
-  }
-
   let totalCommandOutputs = 0;
   logger.info("Generating command files...");
 
+  const toolTargets = config.getExperimentalGlobal()
+    ? intersection(config.getTargets(), CommandsProcessor.getToolTargetsGlobal())
+    : intersection(
+        config.getTargets(),
+        CommandsProcessor.getToolTargets({
+          includeSimulated: config.getExperimentalSimulateCommands(),
+        }),
+      );
+
   for (const baseDir of config.getBaseDirs()) {
-    for (const toolTarget of intersection(
-      config.getTargets(),
-      CommandsProcessor.getToolTargets({
-        includeSimulated: config.getExperimentalSimulateCommands(),
-      }),
-    )) {
+    for (const toolTarget of toolTargets) {
       const processor = new CommandsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
+        global: config.getExperimentalGlobal(),
       });
 
       if (config.getDelete()) {

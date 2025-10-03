@@ -230,6 +230,54 @@ describe("ClaudecodeCommand", () => {
       expect(claudecodeCommand.getBaseDir()).toBe(testDir);
     });
 
+    it("should use global paths when global is true", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "global-test.md",
+        frontmatter: {
+          targets: ["*"],
+          description: "Global test command",
+        },
+        body: "Global command body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+        global: true,
+      });
+
+      expect(claudecodeCommand).toBeInstanceOf(ClaudecodeCommand);
+      expect(claudecodeCommand.getRelativeDirPath()).toBe(join(".claude", "commands"));
+      expect(claudecodeCommand.getBody()).toBe("Global command body");
+    });
+
+    it("should use local paths when global is false", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "local-test.md",
+        frontmatter: {
+          targets: ["*"],
+          description: "Local test command",
+        },
+        body: "Local command body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+        global: false,
+      });
+
+      expect(claudecodeCommand).toBeInstanceOf(ClaudecodeCommand);
+      expect(claudecodeCommand.getRelativeDirPath()).toBe(".claude/commands");
+      expect(claudecodeCommand.getBody()).toBe("Local command body");
+    });
+
     it("should use default baseDir when not provided", () => {
       const rulesyncCommand = new RulesyncCommand({
         relativeDirPath: ".rulesync/commands",
@@ -392,6 +440,55 @@ description: Whitespace test
       expect(command.getBody()).toBe("Body with leading and trailing whitespace");
     });
 
+    it("should load from global path when global is true", async () => {
+      const commandsDir = join(testDir, ".claude", "commands");
+      await ensureDir(commandsDir);
+
+      const fileContent = `---
+description: Global command
+---
+Global command body`;
+
+      const filePath = join(commandsDir, "global-test.md");
+      await writeFileContent(filePath, fileContent);
+
+      const command = await ClaudecodeCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "global-test.md",
+        global: true,
+      });
+
+      expect(command).toBeInstanceOf(ClaudecodeCommand);
+      expect(command.getBody()).toBe("Global command body");
+      expect(command.getFrontmatter()).toEqual({
+        description: "Global command",
+      });
+      expect(command.getRelativeDirPath()).toBe(join(".claude", "commands"));
+    });
+
+    it("should load from local path when global is false", async () => {
+      const commandsDir = join(testDir, ".claude", "commands");
+      await ensureDir(commandsDir);
+
+      const fileContent = `---
+description: Local command
+---
+Local command body`;
+
+      const filePath = join(commandsDir, "local-test.md");
+      await writeFileContent(filePath, fileContent);
+
+      const command = await ClaudecodeCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "local-test.md",
+        global: false,
+      });
+
+      expect(command).toBeInstanceOf(ClaudecodeCommand);
+      expect(command.getBody()).toBe("Local command body");
+      expect(command.getRelativeDirPath()).toBe(".claude/commands");
+    });
+
     it("should disable validation when specified", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
       await ensureDir(commandsDir);
@@ -411,6 +508,13 @@ Command body`;
       });
 
       expect(command).toBeInstanceOf(ClaudecodeCommand);
+    });
+  });
+
+  describe("getSettablePathsGlobal", () => {
+    it("should return global paths", () => {
+      const paths = ClaudecodeCommand.getSettablePathsGlobal();
+      expect(paths.relativeDirPath).toBe(join(".claude", "commands"));
     });
   });
 

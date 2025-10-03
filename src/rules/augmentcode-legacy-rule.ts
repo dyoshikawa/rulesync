@@ -32,7 +32,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     };
 
     return new RulesyncRule({
-      baseDir: this.getBaseDir(),
+      baseDir: ".", // RulesyncRule baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: ".rulesync/rules",

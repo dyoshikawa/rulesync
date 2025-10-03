@@ -63,6 +63,7 @@ const main = async () => {
           features: options.features,
           verbose: options.verbose,
           configPath: options.config,
+          experimentalGlobal: options.experimentalGlobal,
         });
       } catch (error) {
         logger.error(error instanceof Error ? error.message : String(error));

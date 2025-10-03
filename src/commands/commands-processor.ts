@@ -31,13 +31,16 @@ export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTa
 
 export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
+  private readonly global: boolean;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
-  }: { baseDir?: string; toolTarget: CommandsProcessorToolTarget }) {
+    global = false,
+  }: { baseDir?: string; toolTarget: CommandsProcessorToolTarget; global?: boolean }) {
     super({ baseDir });
     this.toolTarget = CommandsProcessorToolTargetSchema.parse(toolTarget);
+    this.global = global;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -55,6 +58,7 @@ export class CommandsProcessor extends FeatureProcessor {
             return ClaudecodeCommand.fromRulesyncCommand({
               baseDir: this.baseDir,
               rulesyncCommand: rulesyncCommand,
+              global: this.global,
             });
           case "geminicli":
             if (!GeminiCliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
@@ -195,17 +199,36 @@ export class CommandsProcessor extends FeatureProcessor {
         commandFilePaths.map((path) => {
           switch (toolTarget) {
             case "claudecode":
-              return ClaudecodeCommand.fromFile({ relativeFilePath: basename(path) });
+              return ClaudecodeCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+                global: this.global,
+              });
             case "geminicli":
-              return GeminiCliCommand.fromFile({ relativeFilePath: basename(path) });
+              return GeminiCliCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "roo":
-              return RooCommand.fromFile({ relativeFilePath: basename(path) });
+              return RooCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "copilot":
-              return CopilotCommand.fromFile({ relativeFilePath: basename(path) });
+              return CopilotCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "cursor":
-              return CursorCommand.fromFile({ relativeFilePath: basename(path) });
+              return CursorCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "codexcli":
-              return CodexCliCommand.fromFile({ relativeFilePath: basename(path) });
+              return CodexCliCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             default:
               throw new Error(`Unsupported tool target: ${toolTarget}`);
           }
@@ -235,9 +258,12 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load Claude Code command configurations from .claude/commands/ directory
    */
   private async loadClaudecodeCommands(): Promise<ToolCommand[]> {
+    const paths = this.global
+      ? ClaudecodeCommand.getSettablePathsGlobal()
+      : ClaudecodeCommand.getSettablePaths();
     return await this.loadToolCommandDefault({
       toolTarget: "claudecode",
-      relativeDirPath: ClaudecodeCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       extension: "md",
     });
   }
@@ -306,5 +332,9 @@ export class CommandsProcessor extends FeatureProcessor {
 
   static getToolTargetsSimulated(): ToolTarget[] {
     return commandsProcessorToolTargetsSimulated;
+  }
+
+  static getToolTargetsGlobal(): ToolTarget[] {
+    return ["claudecode"];
   }
 }

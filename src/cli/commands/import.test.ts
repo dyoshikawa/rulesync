@@ -34,6 +34,7 @@ describe("importCommand", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "subagents", "commands"]),
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
+      getBaseDirs: vi.fn().mockReturnValue(["."]),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
@@ -48,6 +49,7 @@ describe("importCommand", () => {
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
+    vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
 
     // Mock processor instances
     const mockProcessorMethods = {
@@ -204,6 +206,7 @@ describe("importCommand", () => {
       expect(CommandsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: false,
       });
       expect(mockCommandsProcessor.loadToolFiles).toHaveBeenCalled();
       expect(mockCommandsProcessor.convertToolFilesToRulesyncFiles).toHaveBeenCalled();

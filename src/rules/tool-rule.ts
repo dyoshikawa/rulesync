@@ -149,7 +149,7 @@ export abstract class ToolRule extends ToolFile {
 
   protected toRulesyncRuleDefault(): RulesyncRule {
     return new RulesyncRule({
-      baseDir: this.getBaseDir(),
+      baseDir: ".", // RulesyncRule baseDir is always the project root directory
       relativeDirPath: ".rulesync/rules",
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {

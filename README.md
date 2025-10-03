@@ -58,7 +58,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Tool                  | rules | ignore | mcp   | commands | subagents |
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
 | AGENTS.md            |  ✅   |      |       |          |           |
-| Claude Code            |  ✅ 🌏   |  ✅   |  ✅    |    ✅     |    ✅      |
+| Claude Code            |  ✅ 🌏   |  ✅   |  ✅    |    ✅ 🌏     |    ✅      |
 | Codex CLI              |  ✅ 🌏   |   ✅   |      |    🎮     |    🎮      |
 | Gemini CLI             |  ✅   |   ✅   |      |     ✅   |      🎮     |
 | GitHub Copilot         |  ✅    |       |  ✅    |    🎮      |    🎮      |
@@ -74,9 +74,9 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Windsurf               |  ✅   |   ✅    |      |         |          |
 | Warp               |  ✅   |        |      |         |          |
 
-✅: Supports project mode  
-🌏: Supports global mode (Experimental Feature)  
-🎮: Supports Simulated Commands/Subagents (Experimental Feature)  
+* ✅: Supports project mode
+* 🌏: Supports global mode (Experimental Feature)
+* 🎮: Supports Simulated Commands/Subagents (Experimental Feature)
 
 ## Why Rulesync?
 
@@ -283,7 +283,7 @@ credentials/
 
 You can use global mode via Rulesync by enabling `--experimental-global` option. It can also be called as user scope mode.
 
-Currently, only supports rules generation. Import for global files is still not supported.
+Currently, supports rules and commands generation for Claude Code. Import for global files is supported for rules and commands.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
     ```bash
@@ -316,8 +316,9 @@ Currently, only supports rules generation. Import for global files is still not 
 
 > [!WARNING]
 > Currently, when in the directory enabled global mode:
-> * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` only. Other parameters are ignored.
+> * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
 > * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
+> * Only Claude Code is supported for global mode commands.
 
 ## Simulate Commands and Subagents(Experimental Feature)
 
