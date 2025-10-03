@@ -91,6 +91,7 @@ export class CommandsProcessor extends FeatureProcessor {
             return CursorCommand.fromRulesyncCommand({
               baseDir: this.baseDir,
               rulesyncCommand: rulesyncCommand,
+              global: this.global,
             });
           case "codexcli":
             if (!CodexCliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
@@ -223,6 +224,7 @@ export class CommandsProcessor extends FeatureProcessor {
               return CursorCommand.fromFile({
                 baseDir: this.baseDir,
                 relativeFilePath: basename(path),
+                global: this.global,
               });
             case "codexcli":
               return CodexCliCommand.fromFile({
@@ -269,12 +271,15 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load Gemini CLI command configurations from .gemini/commands/ directory
+   * Load Cursor command configurations from .cursor/commands/ directory
    */
   private async loadCursorCommands(): Promise<ToolCommand[]> {
+    const paths = this.global
+      ? CursorCommand.getSettablePathsGlobal()
+      : CursorCommand.getSettablePaths();
     return await this.loadToolCommandDefault({
       toolTarget: "cursor",
-      relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       extension: "md",
     });
   }
@@ -335,6 +340,6 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   static getToolTargetsGlobal(): ToolTarget[] {
-    return ["claudecode"];
+    return ["claudecode", "cursor"];
   }
 }

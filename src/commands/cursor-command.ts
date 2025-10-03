@@ -15,7 +15,13 @@ export type CursorCommandParams = AiFileParams;
 export class CursorCommand extends ToolCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
     return {
-      relativeDirPath: ".cursor/commands",
+      relativeDirPath: join(".cursor", "commands"),
+    };
+  }
+
+  static getSettablePathsGlobal(): ToolCommandSettablePaths {
+    return {
+      relativeDirPath: join(".cursor", "commands"),
     };
   }
 
@@ -40,11 +46,14 @@ export class CursorCommand extends ToolCommand {
     baseDir = ".",
     rulesyncCommand,
     validate = true,
+    global = false,
   }: ToolCommandFromRulesyncCommandParams): CursorCommand {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+
     return new CursorCommand({
       baseDir: baseDir,
       fileContent: rulesyncCommand.getBody(),
-      relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       validate,
     });
@@ -69,19 +78,17 @@ export class CursorCommand extends ToolCommand {
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolCommandFromFileParams): Promise<CursorCommand> {
-    const filePath = join(
-      baseDir,
-      CursorCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath,
-    );
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
     const { body: content } = parseFrontmatter(fileContent);
 
     return new CursorCommand({
       baseDir: baseDir,
-      relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       fileContent: content.trim(),
       validate,

@@ -36,8 +36,15 @@ It can be multiline.`;
     it("should return correct paths for cursor commands", () => {
       const paths = CursorCommand.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".cursor/commands",
+        relativeDirPath: join(".cursor", "commands"),
       });
+    });
+  });
+
+  describe("getSettablePathsGlobal", () => {
+    it("should return global paths", () => {
+      const paths = CursorCommand.getSettablePathsGlobal();
+      expect(paths.relativeDirPath).toBe(join(".cursor", "commands"));
     });
   });
 
@@ -203,6 +210,54 @@ It can be multiline.`;
 
       expect(cursorCommand.getFileContent()).toBe("Test content");
     });
+
+    it("should use global paths when global is true", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "global-test.md",
+        frontmatter: {
+          targets: ["*"],
+          description: "Global test command",
+        },
+        body: "Global command body",
+        fileContent: "",
+      });
+
+      const cursorCommand = CursorCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+        global: true,
+      });
+
+      expect(cursorCommand).toBeInstanceOf(CursorCommand);
+      expect(cursorCommand.getRelativeDirPath()).toBe(join(".cursor", "commands"));
+      expect(cursorCommand.getBody()).toBe("Global command body");
+    });
+
+    it("should use local paths when global is false", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "local-test.md",
+        frontmatter: {
+          targets: ["*"],
+          description: "Local test command",
+        },
+        body: "Local command body",
+        fileContent: "",
+      });
+
+      const cursorCommand = CursorCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+        global: false,
+      });
+
+      expect(cursorCommand).toBeInstanceOf(CursorCommand);
+      expect(cursorCommand.getRelativeDirPath()).toBe(join(".cursor", "commands"));
+      expect(cursorCommand.getBody()).toBe("Local command body");
+    });
   });
 
   describe("fromFile", () => {
@@ -297,6 +352,40 @@ It can be multiline.`;
       });
 
       expect(command.getFileContent()).toBe("This content has whitespace");
+    });
+
+    it("should load from global path when global is true", async () => {
+      const commandsDir = join(testDir, ".cursor", "commands");
+      const filePath = join(commandsDir, "global-test.md");
+
+      await writeFileContent(filePath, "Global command body");
+
+      const command = await CursorCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "global-test.md",
+        global: true,
+      });
+
+      expect(command).toBeInstanceOf(CursorCommand);
+      expect(command.getBody()).toBe("Global command body");
+      expect(command.getRelativeDirPath()).toBe(join(".cursor", "commands"));
+    });
+
+    it("should load from local path when global is false", async () => {
+      const commandsDir = join(testDir, ".cursor", "commands");
+      const filePath = join(commandsDir, "local-test.md");
+
+      await writeFileContent(filePath, "Local command body");
+
+      const command = await CursorCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "local-test.md",
+        global: false,
+      });
+
+      expect(command).toBeInstanceOf(CursorCommand);
+      expect(command.getBody()).toBe("Local command body");
+      expect(command.getRelativeDirPath()).toBe(join(".cursor", "commands"));
     });
   });
 

@@ -5,6 +5,7 @@ import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
+import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
@@ -26,6 +27,9 @@ vi.mock("./geminicli-command.js", () => ({
 }));
 vi.mock("./roo-command.js", () => ({
   RooCommand: vi.fn().mockImplementation((config) => config),
+}));
+vi.mock("./cursor-command.js", () => ({
+  CursorCommand: vi.fn().mockImplementation((config) => config),
 }));
 
 const mockFindFilesByGlobs = findFilesByGlobs as MockedFunction<typeof findFilesByGlobs>;
@@ -68,6 +72,17 @@ vi.mocked(RooCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true
 vi.mocked(RooCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: ".roo/commands" });
+
+// Set up static methods after mocking
+vi.mocked(CursorCommand).fromFile = vi.fn();
+vi.mocked(CursorCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(CursorCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
+vi.mocked(CursorCommand).getSettablePaths = vi
+  .fn()
+  .mockReturnValue({ relativeDirPath: join(".cursor", "commands") });
+vi.mocked(CursorCommand).getSettablePathsGlobal = vi
+  .fn()
+  .mockReturnValue({ relativeDirPath: join(".cursor", "commands") });
 
 describe("CommandsProcessor", () => {
   let testDir: string;
@@ -283,6 +298,43 @@ describe("CommandsProcessor", () => {
         rulesyncCommand: mockRulesyncCommand,
       });
       expect(result).toEqual([mockRooCommand]);
+    });
+
+    it("should pass global parameter to CursorCommand.fromRulesyncCommand", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+        global: true,
+      });
+
+      const mockRulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "test.md",
+        fileContent: "test content",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "test description",
+        },
+        body: "test content",
+      });
+
+      const mockCursorCommand = new CursorCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".cursor", "commands"),
+        relativeFilePath: "test.md",
+        fileContent: "converted content",
+      });
+
+      vi.mocked(CursorCommand.fromRulesyncCommand).mockReturnValue(mockCursorCommand);
+
+      await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
+
+      expect(CursorCommand.fromRulesyncCommand).toHaveBeenCalledWith({
+        baseDir: expect.any(String),
+        rulesyncCommand: mockRulesyncCommand,
+        global: true,
+      });
     });
 
     it("should filter out non-rulesync command files", async () => {
@@ -553,6 +605,30 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual(mockCommands);
     });
 
+    it("should load cursor commands with global paths", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+        global: true,
+      });
+
+      const mockCommands = [
+        new CursorCommand({
+          baseDir: testDir,
+          relativeDirPath: join(".cursor", "commands"),
+          relativeFilePath: "test.md",
+          fileContent: "content",
+        }),
+      ];
+
+      mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
+      vi.mocked(CursorCommand.fromFile).mockResolvedValue(mockCommands[0]!);
+
+      const result = await processor.loadToolFiles();
+
+      expect(result).toEqual(mockCommands);
+    });
+
     it("should load geminicli commands", async () => {
       processor = new CommandsProcessor({
         baseDir: testDir,
@@ -766,6 +842,37 @@ describe("CommandsProcessor", () => {
       });
     });
 
+    it("should pass global parameter when loading cursor commands", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+        global: true,
+      });
+
+      const mockPaths = [`${testDir}/.cursor/commands/test.md`];
+      const mockCommand = new CursorCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".cursor", "commands"),
+        relativeFilePath: "test.md",
+        fileContent: "content",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      vi.mocked(CursorCommand.fromFile).mockResolvedValue(mockCommand);
+
+      await (processor as any).loadToolCommandDefault({
+        toolTarget: "cursor",
+        relativeDirPath: join(".cursor", "commands"),
+        extension: "md",
+      });
+
+      expect(CursorCommand.fromFile).toHaveBeenCalledWith({
+        baseDir: testDir,
+        relativeFilePath: "test.md",
+        global: true,
+      });
+    });
+
     it("should throw error for unsupported tool target", async () => {
       mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
 
@@ -792,9 +899,9 @@ describe("CommandsProcessor", () => {
   });
 
   describe("getToolTargetsGlobal", () => {
-    it("should return only claudecode for global mode", () => {
+    it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargetsGlobal();
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "cursor"]);
     });
   });
 
