@@ -44,6 +44,12 @@ export class GeminiCliCommand extends ToolCommand {
     };
   }
 
+  static getSettablePathsGlobal(): ToolCommandSettablePaths {
+    return {
+      relativeDirPath: join(".gemini", "commands"),
+    };
+  }
+
   private parseTomlContent(content: string): GeminiCliCommandFrontmatter {
     try {
       const parsed = parseToml(content);
@@ -92,6 +98,7 @@ export class GeminiCliCommand extends ToolCommand {
     baseDir = ".",
     rulesyncCommand,
     validate = true,
+    global = false,
   }: ToolCommandFromRulesyncCommandParams): GeminiCliCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
@@ -106,9 +113,11 @@ prompt = """
 ${geminiFrontmatter.prompt}
 """`;
 
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+
     return new GeminiCliCommand({
       baseDir: baseDir,
-      relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath().replace(".md", ".toml"),
       fileContent: tomlContent,
       validate,
@@ -119,18 +128,16 @@ ${geminiFrontmatter.prompt}
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolCommandFromFileParams): Promise<GeminiCliCommand> {
-    const filePath = join(
-      baseDir,
-      GeminiCliCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath,
-    );
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
 
     return new GeminiCliCommand({
       baseDir: baseDir,
-      relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       fileContent,
       validate,

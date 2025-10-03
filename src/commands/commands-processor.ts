@@ -67,6 +67,7 @@ export class CommandsProcessor extends FeatureProcessor {
             return GeminiCliCommand.fromRulesyncCommand({
               baseDir: this.baseDir,
               rulesyncCommand: rulesyncCommand,
+              global: this.global,
             });
           case "roo":
             if (!RooCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
@@ -209,6 +210,7 @@ export class CommandsProcessor extends FeatureProcessor {
               return GeminiCliCommand.fromFile({
                 baseDir: this.baseDir,
                 relativeFilePath: basename(path),
+                global: this.global,
               });
             case "roo":
               return RooCommand.fromFile({
@@ -288,10 +290,13 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load Gemini CLI command configurations from .gemini/commands/ directory
    */
   private async loadGeminicliCommands(): Promise<ToolCommand[]> {
+    const paths = this.global
+      ? GeminiCliCommand.getSettablePathsGlobal()
+      : GeminiCliCommand.getSettablePaths();
     return await this.loadToolCommandDefault({
       toolTarget: "geminicli",
-      relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath,
-      extension: "md",
+      relativeDirPath: paths.relativeDirPath,
+      extension: "toml",
     });
   }
 
@@ -340,6 +345,6 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   static getToolTargetsGlobal(): ToolTarget[] {
-    return ["claudecode", "cursor"];
+    return ["claudecode", "cursor", "geminicli"];
   }
 }
