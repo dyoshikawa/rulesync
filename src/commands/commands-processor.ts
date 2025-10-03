@@ -7,7 +7,7 @@ import { ToolTarget } from "../types/tool-targets.js";
 import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
-import { CodexCliCommand } from "./codexcli-command.js";
+import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -95,10 +95,10 @@ export class CommandsProcessor extends FeatureProcessor {
               global: this.global,
             });
           case "codexcli":
-            if (!CodexCliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
+            if (!CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
               return null;
             }
-            return CodexCliCommand.fromRulesyncCommand({
+            return CodexcliCommand.fromRulesyncCommand({
               baseDir: this.baseDir,
               rulesyncCommand: rulesyncCommand,
             });
@@ -115,7 +115,7 @@ export class CommandsProcessor extends FeatureProcessor {
           | RooCommand
           | CopilotCommand
           | CursorCommand
-          | CodexCliCommand => command !== null,
+          | CodexcliCommand => command !== null,
       );
 
     return toolCommands;
@@ -229,7 +229,7 @@ export class CommandsProcessor extends FeatureProcessor {
                 global: this.global,
               });
             case "codexcli":
-              return CodexCliCommand.fromFile({
+              return CodexcliCommand.fromFile({
                 baseDir: this.baseDir,
                 relativeFilePath: basename(path),
               });
@@ -306,7 +306,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private async loadCodexcliCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "codexcli",
-      relativeDirPath: CodexCliCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: CodexcliCommand.getSettablePaths().relativeDirPath,
       extension: "md",
     });
   }
