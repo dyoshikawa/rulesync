@@ -61,7 +61,7 @@ async function importRules(config: Config, tool: ToolTarget): Promise<number> {
   }
 
   const rulesProcessor = new RulesProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
     global,
   });
@@ -96,7 +96,7 @@ async function importIgnore(config: Config, tool: ToolTarget): Promise<number> {
   }
 
   const ignoreProcessor = new IgnoreProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
   });
 
@@ -134,7 +134,7 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
   }
 
   const mcpProcessor = new McpProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
   });
 
@@ -173,7 +173,7 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
   }
 
   const commandsProcessor = new CommandsProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
     global,
   });
@@ -210,7 +210,7 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
   }
 
   const subagentsProcessor = new SubagentsProcessor({
-    baseDir: ".",
+    baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
   });
 
