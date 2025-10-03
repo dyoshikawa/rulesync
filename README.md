@@ -74,9 +74,9 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Windsurf               |  ✅   |   ✅    |      |         |          |
 | Warp               |  ✅   |        |      |         |          |
 
-✅: Supports project mode  
-🌏: Supports global mode (Experimental Feature)  
-🎮: Supports Simulated Commands/Subagents (Experimental Feature)  
+* ✅: Supports project mode
+* 🌏: Supports global mode (Experimental Feature)
+* 🎮: Supports Simulated Commands/Subagents (Experimental Feature)
 
 ## Why Rulesync?
 
