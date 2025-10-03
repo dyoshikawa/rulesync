@@ -190,7 +190,6 @@ describe("IgnoreProcessor", () => {
       expect(ignores[0]).toBeInstanceOf(ClineIgnore);
     });
 
-
     it("should load CursorIgnore for cursor target", async () => {
       await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
 

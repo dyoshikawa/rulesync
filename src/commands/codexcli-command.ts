@@ -14,8 +14,9 @@ export type CodexcliCommandParams = AiFileParams;
 
 export class CodexcliCommand extends ToolCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
-    // Codex CLI does not support project scope prompts(commands)
-    throw new Error("getSettablePaths is not supported for CodexCliCommand");
+    return {
+      relativeDirPath: join(".codex", "prompts"),
+    };
   }
 
   static getSettablePathsGlobal(): ToolCommandSettablePaths {
