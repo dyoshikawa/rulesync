@@ -168,7 +168,7 @@ describe("RooCommand", () => {
       });
       expect(rulesyncCommand.getRelativeDirPath()).toBe(".rulesync/commands");
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
-      expect(rulesyncCommand.getBaseDir()).toBe("/test/base");
+      expect(rulesyncCommand.getBaseDir()).toBe(".");
     });
   });
 

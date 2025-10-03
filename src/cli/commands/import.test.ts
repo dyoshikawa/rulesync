@@ -34,6 +34,7 @@ describe("importCommand", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "subagents", "commands"]),
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
+      getBaseDirs: vi.fn().mockReturnValue(["."]),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);

@@ -295,7 +295,7 @@ describe("GeminiCliRule", () => {
 
       const rulesyncRule = geminiCliRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe("/test/path/.rulesync/rules/GEMINI.md");
+      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/GEMINI.md");
       expect(rulesyncRule.getFileContent()).toContain("# Root Gemini Rule\n\nRoot content.");
     });
   });

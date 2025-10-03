@@ -651,6 +651,7 @@ describe("CommandsProcessor", () => {
         expect.stringContaining("/.claude/commands/*.md"),
       );
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
+        baseDir: testDir,
         relativeFilePath: "test.md",
         global: false,
       });
@@ -759,6 +760,7 @@ describe("CommandsProcessor", () => {
       });
 
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
+        baseDir: testDir,
         relativeFilePath: "test.md",
         global: true,
       });

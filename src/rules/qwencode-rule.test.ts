@@ -391,7 +391,7 @@ describe("QwencodeRule", () => {
 
       const rulesyncRule = qwencodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe("/test/path/.rulesync/rules/metadata-test.md");
+      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/metadata-test.md");
       expect(rulesyncRule.getBody()).toBe("# Metadata Test\n\nContent with metadata.");
     });
   });
