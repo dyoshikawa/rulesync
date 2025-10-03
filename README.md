@@ -58,7 +58,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Tool                  | rules | ignore | mcp   | commands | subagents |
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
 | AGENTS.md            |  ✅   |      |       |          |           |
-| Claude Code            |  ✅ 🌏   |  ✅   |  ✅    |    ✅     |    ✅      |
+| Claude Code            |  ✅ 🌏   |  ✅   |  ✅    |    ✅ 🌏     |    ✅      |
 | Codex CLI              |  ✅ 🌏   |   ✅   |      |    🎮     |    🎮      |
 | Gemini CLI             |  ✅   |   ✅   |      |     ✅   |      🎮     |
 | GitHub Copilot         |  ✅    |       |  ✅    |    🎮      |    🎮      |
@@ -316,7 +316,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 
 > [!WARNING]
 > Currently, when in the directory enabled global mode:
-> * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"` for Claude Code. Other parameters are ignored.
+> * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
 > * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 > * Only Claude Code is supported for global mode commands.
 
