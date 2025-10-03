@@ -158,20 +158,24 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping command file import (not supported in global mode)");
-    return 0;
-  }
+  const global = config.getExperimentalGlobal();
 
-  // Use CommandsProcessor for supported tools, excluding simulated ones
-  const supportedTargets = CommandsProcessor.getToolTargets({ includeSimulated: false });
+  // Check if tool is supported
+  const supportedTargets = global
+    ? CommandsProcessor.getToolTargetsGlobal()
+    : CommandsProcessor.getToolTargets({ includeSimulated: false });
+
   if (!supportedTargets.includes(tool)) {
+    if (global) {
+      logger.debug(`${tool} is not supported for commands in global mode`);
+    }
     return 0;
   }
 
   const commandsProcessor = new CommandsProcessor({
     baseDir: ".",
     toolTarget: tool,
+    global,
   });
 
   const toolFiles = await commandsProcessor.loadToolFiles();

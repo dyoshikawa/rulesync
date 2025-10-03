@@ -317,4 +317,8 @@ export class CommandsProcessor extends FeatureProcessor {
   static getToolTargetsSimulated(): ToolTarget[] {
     return commandsProcessorToolTargetsSimulated;
   }
+
+  static getToolTargetsGlobal(): ToolTarget[] {
+    return ["claudecode"];
+  }
 }

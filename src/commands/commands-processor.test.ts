@@ -789,6 +789,13 @@ describe("CommandsProcessor", () => {
     });
   });
 
+  describe("getToolTargetsGlobal", () => {
+    it("should return only claudecode for global mode", () => {
+      const targets = CommandsProcessor.getToolTargetsGlobal();
+      expect(targets).toEqual(["claudecode"]);
+    });
+  });
+
   describe("loadToolFilesToDelete", () => {
     it("should return the same files as loadToolFiles", async () => {
       processor = new CommandsProcessor({
