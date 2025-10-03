@@ -271,7 +271,7 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load Gemini CLI command configurations from .gemini/commands/ directory
+   * Load Cursor command configurations from .cursor/commands/ directory
    */
   private async loadCursorCommands(): Promise<ToolCommand[]> {
     const paths = this.global
