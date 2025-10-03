@@ -8,7 +8,6 @@ import { AmazonqcliIgnore } from "./amazonqcli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
-import { CodexcliIgnore } from "./codexcli-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
@@ -24,7 +23,6 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "augmentcode",
   "claudecode",
   "cline",
-  "codexcli",
   "cursor",
   "geminicli",
   "junie",
@@ -91,8 +89,6 @@ export class IgnoreProcessor extends FeatureProcessor {
         return [await ClaudecodeIgnore.fromFile({ baseDir: this.baseDir })];
       case "cline":
         return [await ClineIgnore.fromFile({ baseDir: this.baseDir })];
-      case "codexcli":
-        return [await CodexcliIgnore.fromFile({ baseDir: this.baseDir })];
       case "cursor":
         return [await CursorIgnore.fromFile({ baseDir: this.baseDir })];
       case "geminicli":
@@ -152,11 +148,6 @@ export class IgnoreProcessor extends FeatureProcessor {
             });
           case "cline":
             return ClineIgnore.fromRulesyncIgnore({
-              baseDir: this.baseDir,
-              rulesyncIgnore,
-            });
-          case "codexcli":
-            return CodexcliIgnore.fromRulesyncIgnore({
               baseDir: this.baseDir,
               rulesyncIgnore,
             });
