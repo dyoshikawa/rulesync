@@ -200,19 +200,35 @@ export class CommandsProcessor extends FeatureProcessor {
           switch (toolTarget) {
             case "claudecode":
               return ClaudecodeCommand.fromFile({
+                baseDir: this.baseDir,
                 relativeFilePath: basename(path),
                 global: this.global,
               });
             case "geminicli":
-              return GeminiCliCommand.fromFile({ relativeFilePath: basename(path) });
+              return GeminiCliCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "roo":
-              return RooCommand.fromFile({ relativeFilePath: basename(path) });
+              return RooCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "copilot":
-              return CopilotCommand.fromFile({ relativeFilePath: basename(path) });
+              return CopilotCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "cursor":
-              return CursorCommand.fromFile({ relativeFilePath: basename(path) });
+              return CursorCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "codexcli":
-              return CodexCliCommand.fromFile({ relativeFilePath: basename(path) });
+              return CodexCliCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             default:
               throw new Error(`Unsupported tool target: ${toolTarget}`);
           }
