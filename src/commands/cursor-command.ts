@@ -26,7 +26,7 @@ export class CursorCommand extends ToolCommand {
     };
 
     return new RulesyncCommand({
-      baseDir: this.baseDir,
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
