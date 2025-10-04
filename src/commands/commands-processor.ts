@@ -7,7 +7,7 @@ import { ToolTarget } from "../types/tool-targets.js";
 import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
-import { CodexCliCommand } from "./codexcli-command.js";
+import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -25,7 +25,7 @@ const commandsProcessorToolTargets: ToolTarget[] = [
 ];
 export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
 
-const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot", "codexcli"];
+const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot"];
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
 
@@ -95,12 +95,13 @@ export class CommandsProcessor extends FeatureProcessor {
               global: this.global,
             });
           case "codexcli":
-            if (!CodexCliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
+            if (!CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
               return null;
             }
-            return CodexCliCommand.fromRulesyncCommand({
+            return CodexcliCommand.fromRulesyncCommand({
               baseDir: this.baseDir,
               rulesyncCommand: rulesyncCommand,
+              global: this.global,
             });
           default:
             throw new Error(`Unsupported tool target: ${this.toolTarget}`);
@@ -115,7 +116,7 @@ export class CommandsProcessor extends FeatureProcessor {
           | RooCommand
           | CopilotCommand
           | CursorCommand
-          | CodexCliCommand => command !== null,
+          | CodexcliCommand => command !== null,
       );
 
     return toolCommands;
@@ -229,9 +230,10 @@ export class CommandsProcessor extends FeatureProcessor {
                 global: this.global,
               });
             case "codexcli":
-              return CodexCliCommand.fromFile({
+              return CodexcliCommand.fromFile({
                 baseDir: this.baseDir,
                 relativeFilePath: basename(path),
+                global: this.global,
               });
             default:
               throw new Error(`Unsupported tool target: ${toolTarget}`);
@@ -301,12 +303,15 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load Roo Code command configurations from .roo/commands/ directory
+   * Load Codex CLI command configurations from .codex/prompts/ directory
    */
   private async loadCodexcliCommands(): Promise<ToolCommand[]> {
+    const paths = this.global
+      ? CodexcliCommand.getSettablePathsGlobal()
+      : CodexcliCommand.getSettablePaths();
     return await this.loadToolCommandDefault({
       toolTarget: "codexcli",
-      relativeDirPath: CodexCliCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: paths.relativeDirPath,
       extension: "md",
     });
   }
@@ -345,6 +350,6 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   static getToolTargetsGlobal(): ToolTarget[] {
-    return ["claudecode", "cursor", "geminicli"];
+    return ["claudecode", "cursor", "geminicli", "codexcli"];
   }
 }

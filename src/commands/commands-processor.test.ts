@@ -890,7 +890,7 @@ describe("CommandsProcessor", () => {
   describe("getToolTargets", () => {
     it("should exclude simulated targets by default", () => {
       const targets = CommandsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "geminicli", "roo", "cursor"]);
+      expect(targets).toEqual(["claudecode", "geminicli", "roo", "cursor", "codexcli"]);
     });
 
     it("should include simulated targets when includeSimulated is true", () => {
@@ -902,7 +902,7 @@ describe("CommandsProcessor", () => {
   describe("getToolTargetsGlobal", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargetsGlobal();
-      expect(targets).toEqual(["claudecode", "cursor", "geminicli"]);
+      expect(targets).toEqual(["claudecode", "cursor", "geminicli", "codexcli"]);
     });
   });
 

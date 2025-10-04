@@ -1,7 +1,7 @@
 import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
-import { CodexCliCommand } from "../commands/codexcli-command.js";
+import { CodexcliCommand } from "../commands/codexcli-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
@@ -335,7 +335,7 @@ export class RulesProcessor extends FeatureProcessor {
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) +
             this.generateAdditionalConventionsSection({
-              commands: { relativeDirPath: CodexCliCommand.getSettablePaths().relativeDirPath },
+              commands: { relativeDirPath: CodexcliCommand.getSettablePaths().relativeDirPath },
               subagents: {
                 relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
               },
