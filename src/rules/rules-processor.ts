@@ -335,7 +335,6 @@ export class RulesProcessor extends FeatureProcessor {
         rootRule?.setFileContent(
           this.generateXmlReferencesSection(toolRules) +
             this.generateAdditionalConventionsSection({
-              commands: { relativeDirPath: CodexcliCommand.getSettablePaths().relativeDirPath },
               subagents: {
                 relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
               },
@@ -961,10 +960,10 @@ export class RulesProcessor extends FeatureProcessor {
     commands,
     subagents,
   }: {
-    commands: {
+    commands?: {
       relativeDirPath: string;
     };
-    subagents: {
+    subagents?: {
       relativeDirPath: string;
     };
   }): string {
@@ -972,7 +971,8 @@ export class RulesProcessor extends FeatureProcessor {
 
 As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.`;
 
-    const commandsSection = `## Simulated Custom Slash Commands
+    const commandsSection = commands
+      ? `## Simulated Custom Slash Commands
 
 Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
 
@@ -987,15 +987,18 @@ s/<command> [arguments]
 This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.  
 The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
 
-When users call a custom slash command, you have to look for the markdown file, \`${join(commands.relativeDirPath, "{command}.md")}\`, then execute the contents of that file as the block of operations.`;
+When users call a custom slash command, you have to look for the markdown file, \`${join(commands.relativeDirPath, "{command}.md")}\`, then execute the contents of that file as the block of operations.`
+      : "";
 
-    const subagentsSection = `## Simulated Subagents
+    const subagentsSection = subagents
+      ? `## Simulated Subagents
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
 
 When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(subagents.relativeDirPath, "{subagent}.md")}\`, and execute its contents as the block of operations.
 
-For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(subagents.relativeDirPath, "planner.md")}\`, and execute its contents as the block of operations.`;
+For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(subagents.relativeDirPath, "planner.md")}\`, and execute its contents as the block of operations.`
+      : "";
 
     const result =
       [

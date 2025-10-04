@@ -21,11 +21,15 @@ const commandsProcessorToolTargets: ToolTarget[] = [
   "roo",
   "copilot",
   "cursor",
-  "codexcli",
 ];
 export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
 
 const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot"];
+export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [
+  "claudecode",
+  "codexcli",
+  "geminicli",
+];
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
 
@@ -350,6 +354,6 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   static getToolTargetsGlobal(): ToolTarget[] {
-    return ["claudecode", "cursor", "geminicli", "codexcli"];
+    return commandsProcessorToolTargetsGlobal;
   }
 }

@@ -14,9 +14,7 @@ export type CodexcliCommandParams = AiFileParams;
 
 export class CodexcliCommand extends ToolCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
-    return {
-      relativeDirPath: join(".codex", "prompts"),
-    };
+    throw new Error("getSettablePaths is not supported for CodexcliCommand");
   }
 
   static getSettablePathsGlobal(): ToolCommandSettablePaths {
