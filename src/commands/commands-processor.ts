@@ -8,7 +8,6 @@ import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
-import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -23,7 +22,10 @@ const commandsProcessorToolTargets: ToolTarget[] = [
   "copilot",
   "cursor",
 ];
-export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
+export const CommandsProcessorToolTargetSchema = z.enum(
+  // codexcli is not in the list of tool targets but we add it here because it is a valid tool target for global mode generation
+  commandsProcessorToolTargets.concat("codexcli"),
+);
 
 const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot"];
 export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [

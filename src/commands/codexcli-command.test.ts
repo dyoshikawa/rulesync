@@ -32,7 +32,6 @@ It can be multiline.`;
       const paths = CodexcliCommand.getSettablePathsGlobal();
       expect(paths).toEqual({
         relativeDirPath: ".codex/prompts",
-        relativeDirPath: ".codex/prompts",
       });
     });
   });
