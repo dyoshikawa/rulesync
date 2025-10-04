@@ -1,7 +1,6 @@
 import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
-import { CodexcliCommand } from "../commands/codexcli-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
