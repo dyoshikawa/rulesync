@@ -4,10 +4,7 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import {
-  SimulatedCommandFrontmatter,
-  SimulatedCommandFrontmatterSchema,
-} from "./simulated-command.js";
+import { SimulatedCommandFrontmatter } from "./simulated-command.js";
 
 describe("AgentsmdCommand", () => {
   let testDir: string;

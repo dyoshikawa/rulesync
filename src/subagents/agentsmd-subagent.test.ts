@@ -4,10 +4,7 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import {
-  SimulatedSubagentFrontmatter,
-  SimulatedSubagentFrontmatterSchema,
-} from "./simulated-subagent.js";
+import { SimulatedSubagentFrontmatter } from "./simulated-subagent.js";
 
 describe("AgentsmdSubagent", () => {
   let testDir: string;
