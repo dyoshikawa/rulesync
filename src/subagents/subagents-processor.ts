@@ -6,6 +6,7 @@ import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
@@ -17,6 +18,7 @@ import { SimulatedSubagent } from "./simulated-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
 
 export const subagentsProcessorToolTargets: ToolTarget[] = [
+  "agentsmd",
   "claudecode",
   "copilot",
   "cursor",
@@ -26,6 +28,7 @@ export const subagentsProcessorToolTargets: ToolTarget[] = [
 ];
 
 export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = [
+  "agentsmd",
   "copilot",
   "cursor",
   "codexcli",
@@ -55,6 +58,15 @@ export class SubagentsProcessor extends FeatureProcessor {
     const toolSubagents = rulesyncSubagents
       .map((rulesyncSubagent) => {
         switch (this.toolTarget) {
+          case "agentsmd":
+            if (!AgentsmdSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
+              return null;
+            }
+            return AgentsmdSubagent.fromRulesyncSubagent({
+              baseDir: this.baseDir,
+              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+              rulesyncSubagent: rulesyncSubagent,
+            });
           case "claudecode":
             if (!ClaudecodeSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
               return null;
@@ -200,6 +212,8 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   async loadToolFiles(): Promise<ToolFile[]> {
     switch (this.toolTarget) {
+      case "agentsmd":
+        return await this.loadAgentsmdSubagents();
       case "claudecode":
         return await this.loadClaudecodeSubagents();
       case "copilot":
@@ -219,6 +233,16 @@ export class SubagentsProcessor extends FeatureProcessor {
 
   async loadToolFilesToDelete(): Promise<ToolFile[]> {
     return this.loadToolFiles();
+  }
+
+  /**
+   * Load Agents.md subagent configurations from .agents/subagents/ directory
+   */
+  private async loadAgentsmdSubagents(): Promise<ToolSubagent[]> {
+    return await this.loadToolSubagentsDefault({
+      relativeDirPath: AgentsmdSubagent.getSettablePaths().relativeDirPath,
+      fromFile: (relativeFilePath) => AgentsmdSubagent.fromFile({ relativeFilePath }),
+    });
   }
 
   /**
