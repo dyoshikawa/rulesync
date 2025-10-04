@@ -27,9 +27,9 @@ It can be multiline.`;
     vi.restoreAllMocks();
   });
 
-  describe("getSettablePaths", () => {
-    it("should return correct paths for codexcli commands", () => {
-      const paths = CodexcliCommand.getSettablePaths();
+  describe("getSettablePathsGlobal", () => {
+    it("should return correct paths for codexcli commands in global mode", () => {
+      const paths = CodexcliCommand.getSettablePathsGlobal();
       expect(paths).toEqual({
         relativeDirPath: ".codex/prompts",
       });
@@ -114,6 +114,7 @@ It can be multiline.`;
         baseDir: testDir,
         rulesyncCommand,
         validate: true,
+        global: true,
       });
 
       expect(codexcliCommand).toBeInstanceOf(CodexcliCommand);
@@ -140,6 +141,7 @@ It can be multiline.`;
         baseDir: testDir,
         rulesyncCommand,
         validate: true,
+        global: true,
       });
 
       expect(codexcliCommand.getRelativeFilePath()).toBe("complex-command.txt");
@@ -163,6 +165,7 @@ It can be multiline.`;
         baseDir: testDir,
         rulesyncCommand,
         validate: true,
+        global: true,
       });
 
       expect(codexcliCommand.getBody()).toBe("");
@@ -180,6 +183,7 @@ It can be multiline.`;
         baseDir: testDir,
         relativeFilePath: "test-file-command.md",
         validate: true,
+        global: true,
       });
 
       expect(command).toBeInstanceOf(CodexcliCommand);
@@ -195,6 +199,7 @@ It can be multiline.`;
           baseDir: testDir,
           relativeFilePath: "non-existent-command.md",
           validate: true,
+          global: true,
         }),
       ).rejects.toThrow();
     });

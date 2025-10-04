@@ -27,8 +27,9 @@ export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTar
 const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot"];
 export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [
   "claudecode",
-  "codexcli",
+  "cursor",
   "geminicli",
+  "codexcli",
 ];
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
