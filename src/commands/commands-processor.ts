@@ -21,11 +21,19 @@ const commandsProcessorToolTargets: ToolTarget[] = [
   "roo",
   "copilot",
   "cursor",
-  "codexcli",
 ];
-export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargets);
+export const CommandsProcessorToolTargetSchema = z.enum(
+  // codexcli is not in the list of tool targets but we add it here because it is a valid tool target for global mode generation
+  commandsProcessorToolTargets.concat("codexcli"),
+);
 
 const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot"];
+export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [
+  "claudecode",
+  "cursor",
+  "geminicli",
+  "codexcli",
+];
 
 export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
 
@@ -350,6 +358,6 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   static getToolTargetsGlobal(): ToolTarget[] {
-    return ["claudecode", "cursor", "geminicli", "codexcli"];
+    return commandsProcessorToolTargetsGlobal;
   }
 }
