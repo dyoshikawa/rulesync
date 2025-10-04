@@ -6,6 +6,7 @@ import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { AgentsmdCommand } from "./agentsmd-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
@@ -16,6 +17,7 @@ import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
 
 const commandsProcessorToolTargets: ToolTarget[] = [
+  "agentsmd",
   "claudecode",
   "geminicli",
   "roo",
@@ -27,7 +29,7 @@ export const CommandsProcessorToolTargetSchema = z.enum(
   commandsProcessorToolTargets.concat("codexcli"),
 );
 
-const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot"];
+const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["agentsmd", "copilot"];
 export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [
   "claudecode",
   "cursor",
@@ -59,6 +61,14 @@ export class CommandsProcessor extends FeatureProcessor {
     const toolCommands = rulesyncCommands
       .map((rulesyncCommand) => {
         switch (this.toolTarget) {
+          case "agentsmd":
+            if (!AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
+              return null;
+            }
+            return AgentsmdCommand.fromRulesyncCommand({
+              baseDir: this.baseDir,
+              rulesyncCommand: rulesyncCommand,
+            });
           case "claudecode":
             if (!ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
               return null;
@@ -119,6 +129,7 @@ export class CommandsProcessor extends FeatureProcessor {
         (
           command,
         ): command is
+          | AgentsmdCommand
           | ClaudecodeCommand
           | GeminiCliCommand
           | RooCommand
@@ -171,6 +182,8 @@ export class CommandsProcessor extends FeatureProcessor {
    */
   async loadToolFiles(): Promise<ToolFile[]> {
     switch (this.toolTarget) {
+      case "agentsmd":
+        return await this.loadAgentsmdCommands();
       case "claudecode":
         return await this.loadClaudecodeCommands();
       case "geminicli":
@@ -197,7 +210,7 @@ export class CommandsProcessor extends FeatureProcessor {
     relativeDirPath,
     extension,
   }: {
-    toolTarget: "claudecode" | "geminicli" | "roo" | "copilot" | "cursor" | "codexcli";
+    toolTarget: "agentsmd" | "claudecode" | "geminicli" | "roo" | "copilot" | "cursor" | "codexcli";
     relativeDirPath: string;
     extension: "md" | "toml";
   }): Promise<ToolCommand[]> {
@@ -209,6 +222,11 @@ export class CommandsProcessor extends FeatureProcessor {
       await Promise.allSettled(
         commandFilePaths.map((path) => {
           switch (toolTarget) {
+            case "agentsmd":
+              return AgentsmdCommand.fromFile({
+                baseDir: this.baseDir,
+                relativeFilePath: basename(path),
+              });
             case "claudecode":
               return ClaudecodeCommand.fromFile({
                 baseDir: this.baseDir,
@@ -258,7 +276,18 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load Claude Code command configurations from .claude/commands/ directory
+   * Load Agents.md command configurations from .agents/commands/ directory
+   */
+  private async loadAgentsmdCommands(): Promise<ToolCommand[]> {
+    return await this.loadToolCommandDefault({
+      toolTarget: "agentsmd",
+      relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath,
+      extension: "md",
+    });
+  }
+
+  /**
+   * Load Copilot command configurations from .github/commands/ directory
    */
   private async loadCopilotCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({

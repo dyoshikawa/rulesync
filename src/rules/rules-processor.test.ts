@@ -466,6 +466,7 @@ describe("RulesProcessor", () => {
 
     it("should work for all supported tool targets", async () => {
       const targets: RulesProcessorToolTarget[] = [
+        "agentsmd",
         "amazonqcli",
         "augmentcode",
         "augmentcode-legacy",

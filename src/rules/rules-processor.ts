@@ -1,11 +1,13 @@
 import { basename, join } from "node:path";
 import { XMLBuilder } from "fast-xml-parser";
 import { z } from "zod/mini";
+import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
 import { GeminiCliCommand } from "../commands/geminicli-command.js";
 import { RooCommand } from "../commands/roo-command.js";
+import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
 import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { CursorSubagent } from "../subagents/cursor-subagent.js";
@@ -311,7 +313,14 @@ export class RulesProcessor extends FeatureProcessor {
       case "agentsmd": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateXmlReferencesSection(toolRules) +
+            this.generateAdditionalConventionsSection({
+              commands: { relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath },
+              subagents: {
+                relativeDirPath: AgentsmdSubagent.getSettablePaths().relativeDirPath,
+              },
+            }) +
+            rootRule.getFileContent(),
         );
         return toolRules;
       }

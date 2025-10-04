@@ -764,6 +764,7 @@ Valid content`,
 
     it("should export subagentsProcessorToolTargets constant", () => {
       expect(subagentsProcessorToolTargets).toEqual([
+        "agentsmd",
         "claudecode",
         "copilot",
         "cursor",
@@ -776,6 +777,7 @@ Valid content`,
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
       expect(subagentsProcessorToolTargetsSimulated).toEqual([
+        "agentsmd",
         "copilot",
         "cursor",
         "codexcli",
@@ -787,6 +789,7 @@ Valid content`,
 
     it("should have valid SubagentsProcessorToolTarget type", () => {
       const validTargets: SubagentsProcessorToolTarget[] = [
+        "agentsmd",
         "claudecode",
         "copilot",
         "cursor",
@@ -898,6 +901,7 @@ Test agent content`;
 
     it("should work for all supported tool targets", async () => {
       const targets: SubagentsProcessorToolTarget[] = [
+        "agentsmd",
         "claudecode",
         "copilot",
         "cursor",
