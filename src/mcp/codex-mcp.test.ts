@@ -82,7 +82,7 @@ NODE_ENV = "development"
         fileContent: tomlContent,
       });
 
-      const json = codexcliMcp.getJson();
+      const json = codexcliMcp.getToml();
       expect(json.mcpServers).toBeDefined();
       expect((json.mcpServers as any)["test-server"]).toEqual({
         command: "node",
@@ -102,7 +102,7 @@ NODE_ENV = "development"
         fileContent: emptyTomlContent,
       });
 
-      expect(codexcliMcp.getJson()).toEqual({});
+      expect(codexcliMcp.getToml()).toEqual({});
     });
 
     it("should validate content by default", () => {
@@ -161,7 +161,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
         fileContent: tomlWithComments,
       });
 
-      const json = codexcliMcp.getJson();
+      const json = codexcliMcp.getToml();
       expect((json as any).general).toEqual({ theme: "dark" });
       expect((json.mcpServers as any)?.filesystem).toBeDefined();
     });
@@ -198,7 +198,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "${testDir}"]
       });
 
       expect(codexcliMcp).toBeInstanceOf(CodexcliMcp);
-      expect((codexcliMcp.getJson().mcpServers as any)?.filesystem).toBeDefined();
+      expect((codexcliMcp.getToml().mcpServers as any)?.filesystem).toBeDefined();
       expect(codexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
 
@@ -218,7 +218,7 @@ args = ["git-server.js"]
       });
 
       expect(codexcliMcp.getFilePath()).toBe(join(customDir, ".codex/config.toml"));
-      expect((codexcliMcp.getJson().mcpServers as any)?.git).toBeDefined();
+      expect((codexcliMcp.getToml().mcpServers as any)?.git).toBeDefined();
     });
 
     it("should handle validation when validate is true", async () => {
@@ -235,7 +235,7 @@ args = ["server.js"]
         global: true,
       });
 
-      expect((codexcliMcp.getJson().mcpServers as any)?.["valid-server"]).toBeDefined();
+      expect((codexcliMcp.getToml().mcpServers as any)?.["valid-server"]).toBeDefined();
     });
 
     it("should skip validation when validate is false", async () => {
@@ -250,7 +250,7 @@ args = ["server.js"]
         global: true,
       });
 
-      expect(codexcliMcp.getJson().mcpServers).toBeDefined();
+      expect(codexcliMcp.getToml().mcpServers).toBeDefined();
     });
 
     it("should throw error if file does not exist", async () => {
@@ -309,7 +309,7 @@ args = ["server.js"]
       });
 
       expect(codexcliMcp).toBeInstanceOf(CodexcliMcp);
-      expect(codexcliMcp.getJson().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
       expect(codexcliMcp.getRelativeDirPath()).toBe(".codex");
       expect(codexcliMcp.getRelativeFilePath()).toBe("config.toml");
     });
@@ -346,7 +346,7 @@ fontSize = 14
         global: true,
       });
 
-      const json = codexcliMcp.getJson();
+      const json = codexcliMcp.getToml();
       expect(json.general).toEqual({ theme: "dark", language: "en" });
       expect(json.editor).toEqual({ fontSize: 14 });
       expect(json.mcpServers).toEqual(jsonData.mcpServers);
@@ -378,7 +378,7 @@ fontSize = 14
       });
 
       expect(codexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
-      expect(codexcliMcp.getJson().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
     });
 
     it("should handle validation when validate is true", async () => {
@@ -403,7 +403,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getJson().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
     });
 
     it("should skip validation when validate is false", async () => {
@@ -423,7 +423,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getJson().mcpServers).toEqual({});
+      expect(codexcliMcp.getToml().mcpServers).toEqual({});
     });
 
     it("should handle empty mcpServers object", async () => {
@@ -442,7 +442,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getJson().mcpServers).toEqual({});
+      expect(codexcliMcp.getToml().mcpServers).toEqual({});
     });
 
     it("should handle complex nested MCP server configuration", async () => {
@@ -471,7 +471,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getJson().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
     });
   });
 
@@ -676,8 +676,8 @@ NODE_ENV = "test"
       });
 
       // Verify data integrity for mcpServers
-      const originalJson = originalCodexcliMcp.getJson();
-      const newJson = newCodexcliMcp.getJson();
+      const originalJson = originalCodexcliMcp.getToml();
+      const newJson = newCodexcliMcp.getToml();
       expect(newJson.mcpServers).toEqual(originalJson.mcpServers);
       expect(newCodexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
@@ -717,8 +717,8 @@ PYTHONPATH = "/app/lib"
       });
 
       // Verify mcpServers data is preserved
-      const originalMcpServers = codexcliMcp.getJson().mcpServers;
-      const newMcpServers = newCodexcliMcp.getJson().mcpServers;
+      const originalMcpServers = codexcliMcp.getToml().mcpServers;
+      const newMcpServers = newCodexcliMcp.getToml().mcpServers;
       expect(newMcpServers).toEqual(originalMcpServers);
       expect(newCodexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
@@ -754,7 +754,7 @@ fontSize = 14
         global: true,
       });
 
-      const newJson = newCodexcliMcp.getJson();
+      const newJson = newCodexcliMcp.getToml();
       expect((newJson as any).general).toEqual({ theme: "dark", language: "en" });
       expect((newJson as any).editor).toEqual({ fontSize: 14 });
       expect((newJson.mcpServers as any)?.filesystem).toBeDefined();

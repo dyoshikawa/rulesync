@@ -100,7 +100,7 @@ export class CodexcliMcp extends ToolMcp {
       baseDir: this.baseDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
-      fileContent: JSON.stringify(this.toml),
+      fileContent: JSON.stringify({ mcpServers: this.toml.mcpServers }),
     });
   }
 
