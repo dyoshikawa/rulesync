@@ -15,7 +15,7 @@ export class ClaudecodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
+    this.json = JSON.parse(this.fileContent || "{}");
   }
 
   getJson(): Record<string, unknown> {
