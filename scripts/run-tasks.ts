@@ -1,8 +1,7 @@
 // oxlint-disable no-console
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
+// @ts-expect-error
 import { model, tasks } from "../tmp/tasks/tasks.ts";
 
 const runClaudeCode = async (task: string) => {
