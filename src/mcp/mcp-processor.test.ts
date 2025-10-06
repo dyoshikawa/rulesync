@@ -182,6 +182,33 @@ describe("McpProcessor", () => {
           global: false,
         });
       });
+
+      it("should load ClaudecodeMcp files in global mode", async () => {
+        const mockMcp = new ClaudecodeMcp({
+          baseDir: testDir,
+          relativeDirPath: ".claude",
+          relativeFilePath: ".claude.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
+
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: true,
+        });
+      });
     });
 
     describe("cline", () => {
@@ -370,7 +397,7 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ servers: {} }),
       });
 
-      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
+      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
         baseDir: testDir,
@@ -385,6 +412,40 @@ describe("McpProcessor", () => {
         baseDir: testDir,
         rulesyncMcp,
         global: false,
+      });
+    });
+
+    it("should convert rulesync files to claudecode tool files in global mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = new ClaudecodeMcp({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: ".claude.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(ClaudecodeMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
       });
     });
 
