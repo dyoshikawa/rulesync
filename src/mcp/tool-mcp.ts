@@ -38,6 +38,10 @@ export abstract class ToolMcp extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
+  static getToolTargetsGlobal(): ToolMcpSettablePaths {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
   abstract toRulesyncMcp(): RulesyncMcp;
 
   protected toRulesyncMcpDefault(): RulesyncMcp {

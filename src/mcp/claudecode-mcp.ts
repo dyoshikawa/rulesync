@@ -29,6 +29,13 @@ export class ClaudecodeMcp extends ToolMcp {
     };
   }
 
+  static getToolTargetsGlobal(): ToolMcpSettablePaths {
+    return {
+      relativeDirPath: ".claude",
+      relativeFilePath: ".claude.json",
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     validate = true,
