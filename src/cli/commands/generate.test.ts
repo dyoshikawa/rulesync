@@ -76,6 +76,7 @@ describe("generateCommand", () => {
     vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
@@ -254,6 +255,7 @@ describe("generateCommand", () => {
       expect(McpProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: false,
       });
     });
 
@@ -264,7 +266,10 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(intersection).toHaveBeenCalledWith(["claudecode", "cursor"], ["claudecode"]);
+      expect(intersection).toHaveBeenCalledWith(
+        ["claudecode", "cursor", "unsupported"],
+        ["claudecode"],
+      );
     });
 
     it("should remove old MCP files when delete option is enabled", async () => {
@@ -609,14 +614,15 @@ describe("generateCommand", () => {
       expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
     });
 
-    it("should skip MCP generation in global mode with log message", async () => {
+    it("should skip MCP generation in global mode when no targets match", async () => {
+      // When targets is ["claudecode"] and global targets is ["codexcli"], intersection is empty
+      vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["codexcli"]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        "Skipping MCP configuration generation (not supported in global mode)",
-      );
+      expect(logger.info).toHaveBeenCalledWith("Generating MCP files...");
+      // McpProcessor should not be called because intersection of targets is empty
       expect(McpProcessor).not.toHaveBeenCalled();
     });
 
@@ -669,22 +675,23 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should only process rules and commands when global mode is enabled with multiple features", async () => {
+    it("should only process rules, commands, and mcp when global mode is enabled with multiple features", async () => {
       mockProcessorInstance.writeAiFiles.mockResolvedValue(3);
       mockConfig.getTargets.mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["codexcli"]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledTimes(2); // Once for claudecode, once for codexcli
       expect(CommandsProcessor).toHaveBeenCalledTimes(1); // Once for claudecode
-      expect(McpProcessor).not.toHaveBeenCalled();
+      expect(McpProcessor).toHaveBeenCalledTimes(1); // Once for codexcli in global mode
       expect(IgnoreProcessor).not.toHaveBeenCalled();
       expect(SubagentsProcessor).not.toHaveBeenCalled();
       expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 9 file(s) total (6 rules + 3 commands)",
+        "🎉 All done! Generated 12 file(s) total (6 rules + 3 MCP files + 3 commands)",
       );
     });
   });
