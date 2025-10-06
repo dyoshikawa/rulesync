@@ -13,6 +13,18 @@ export async function ensureDir(dirPath: string): Promise<void> {
   }
 }
 
+export async function readOrInitializeFileContent(
+  filePath: string,
+  initialContent: string = "",
+): Promise<string> {
+  if (await fileExists(filePath)) {
+    return await readFileContent(filePath);
+  } else {
+    await ensureDir(dirname(filePath));
+    return initialContent;
+  }
+}
+
 /**
  * Resolves a path relative to a base directory, handling both absolute and relative paths
  * Includes protection against path traversal attacks

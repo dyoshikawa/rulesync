@@ -61,7 +61,7 @@ export abstract class ToolMcp extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  static fromRulesyncMcp(_params: ToolMcpFromRulesyncMcpParams): ToolMcp {
+  static fromRulesyncMcp(_params: ToolMcpFromRulesyncMcpParams): ToolMcp | Promise<ToolMcp> {
     throw new Error("Please implement this method in the subclass.");
   }
 }
