@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { join } from "node:path";
 import * as toml from "smol-toml";
 import { ValidationResult } from "../types/ai-file.js";
@@ -7,10 +8,41 @@ import {
   ToolMcp,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
+  type ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
 export class CodexcliMcp extends ToolMcp {
+  constructor({ fileContent, ...rest }: ToolMcpParams) {
+    // Temporarily store the actual TOML file content
+    const actualFileContent = fileContent;
+
+    // Call parent constructor with empty JSON to avoid parsing error
+    super({
+      ...rest,
+      fileContent: "{}",
+      validate: false,
+    });
+
+    // Restore the actual TOML file content
+    // biome-ignore lint/suspicious/noExplicitAny: Required to override parent property
+    // @ts-expect-error - Need to override parent property with TOML content
+    (this as any).fileContent = actualFileContent;
+
+    // Parse TOML and override the json property
+    // biome-ignore lint/suspicious/noExplicitAny: Required to override parent property
+    // @ts-expect-error - Need to override parent property with parsed TOML
+    (this as any).json = toml.parse(actualFileContent);
+
+    // Validate after setting patterns, if validation was requested
+    if (rest.validate) {
+      const result = this.validate();
+      if (!result.success) {
+        throw result.error;
+      }
+    }
+  }
+
   static getSettablePaths(): ToolMcpSettablePaths {
     throw new Error("getSettablePaths is not supported for CodexcliMcp");
   }
@@ -61,15 +93,23 @@ export class CodexcliMcp extends ToolMcp {
 
     return new CodexcliMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: toml.stringify(configToml),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    // Convert only mcpServers from TOML json to JSON string
+    const mcpServersOnly = this.json.mcpServers ? { mcpServers: this.json.mcpServers } : {};
+
+    return new RulesyncMcp({
+      baseDir: this.baseDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify(mcpServersOnly),
+    });
   }
 
   validate(): ValidationResult {

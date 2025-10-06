@@ -13,6 +13,7 @@ import {
   listDirectoryFiles,
   readFileContent,
   readJsonFile,
+  readOrInitializeFileContent,
   removeDirectory,
   removeFile,
   resolvePath,
@@ -238,6 +239,82 @@ describe("file utilities", () => {
 
         expect(await directoryExists(join(testDir, "nested"))).toBe(true);
         expect(await fileExists(testFilePath)).toBe(true);
+      });
+    });
+
+    describe("readOrInitializeFileContent", () => {
+      it("should return existing file content if file exists", async () => {
+        const filePath = join(testDir, "existing.txt");
+        const existingContent = "existing content";
+        await writeFileContent(filePath, existingContent);
+
+        const content = await readOrInitializeFileContent(filePath, "initial content");
+
+        expect(content).toBe(existingContent);
+      });
+
+      it("should return initial content if file does not exist", async () => {
+        const filePath = join(testDir, "nonexistent.txt");
+        const initialContent = "initial content";
+
+        const content = await readOrInitializeFileContent(filePath, initialContent);
+
+        expect(content).toBe(initialContent);
+      });
+
+      it("should not create file when file does not exist", async () => {
+        const filePath = join(testDir, "nonexistent.txt");
+        const initialContent = "initial content";
+
+        await readOrInitializeFileContent(filePath, initialContent);
+
+        expect(await fileExists(filePath)).toBe(false);
+      });
+
+      it("should create parent directories when file does not exist", async () => {
+        const filePath = join(testDir, "nested", "deep", "file.txt");
+        const initialContent = "initial content";
+
+        await readOrInitializeFileContent(filePath, initialContent);
+
+        expect(await directoryExists(join(testDir, "nested", "deep"))).toBe(true);
+      });
+
+      it("should handle empty existing file", async () => {
+        const filePath = join(testDir, "empty.txt");
+        await writeFileContent(filePath, "");
+
+        const content = await readOrInitializeFileContent(filePath, "initial content");
+
+        expect(content).toBe("");
+      });
+
+      it("should handle empty initial content", async () => {
+        const filePath = join(testDir, "new-empty.txt");
+
+        const content = await readOrInitializeFileContent(filePath, "");
+
+        expect(content).toBe("");
+      });
+
+      it("should preserve multiline content from existing file", async () => {
+        const filePath = join(testDir, "multiline.txt");
+        const multilineContent = "line1\nline2\nline3\n";
+        await writeFileContent(filePath, multilineContent);
+
+        const content = await readOrInitializeFileContent(filePath, "initial");
+
+        expect(content).toBe(multilineContent);
+      });
+
+      it("should handle special characters in file content", async () => {
+        const filePath = join(testDir, "special.txt");
+        const specialContent = 'content with "quotes" and \n special chars: <>?*|';
+        await writeFileContent(filePath, specialContent);
+
+        const content = await readOrInitializeFileContent(filePath, "initial");
+
+        expect(content).toBe(specialContent);
       });
     });
 
