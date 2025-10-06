@@ -59,9 +59,8 @@ export class CodexcliMcp extends ToolMcp {
     );
 
     const configToml = toml.parse(configTomlFileContent);
-    const rulesyncMcpJson = rulesyncMcp.getJson();
-    const mcpServers: toml.TomlTable = rulesyncMcpJson.mcpServers;
-    configToml["mcpServers"] = mcpServers;
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    configToml["mcpServers"] = rulesyncMcp.getJson().mcpServers as toml.TomlTable;
 
     return new CodexcliMcp({
       baseDir,
