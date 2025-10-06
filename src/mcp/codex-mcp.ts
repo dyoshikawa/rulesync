@@ -17,8 +17,8 @@ export class CodexcliMcp extends ToolMcp {
 
   static getSettablePathsGlobal(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: join(".codex", "config.toml"),
-      relativeFilePath: "",
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
     };
   }
 
