@@ -43,11 +43,15 @@ export default defineConfig([
     plugins: {
       "strict-dependencies": strictDependencies,
       import: importPlugin,
+      "no-type-assertion": noTypeAssertion,
+      "zod-import": zodImport,
     },
     rules: {
       "@typescript-eslint/consistent-type-definitions": ["error", "type"],
       "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/ban-ts-comment": "off",
       "import/no-restricted-paths": "error",
+      "no-type-assertion/no-type-assertion": "warn",
       "strict-dependencies/strict-dependencies": [
         "error",
         [
@@ -68,24 +72,6 @@ export default defineConfig([
           },
         ],
       ],
-    },
-  },
-
-  {
-    files: ["**/*.ts", "**/*.mts"],
-    languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: {
-        project: "./tsconfig.json",
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    plugins: {
-      "no-type-assertion": noTypeAssertion,
-      "zod-import": zodImport,
-    },
-    rules: {
-      "no-type-assertion/no-type-assertion": "warn",
       "zod-import/zod-import": ["error", { variant: "zod-mini" }],
     },
   },

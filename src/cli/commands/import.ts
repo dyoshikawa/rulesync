@@ -50,13 +50,13 @@ async function importRules(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
-  if (!RulesProcessor.getToolTargets().includes(tool)) {
-    return 0;
-  }
-
   const global = config.getExperimentalGlobal();
-  if (global && !RulesProcessor.getToolTargetsGlobal().includes(tool)) {
-    logger.error(`${tool} is not supported in global mode`);
+
+  const supportedTargets = global
+    ? RulesProcessor.getToolTargetsGlobal()
+    : RulesProcessor.getToolTargets();
+
+  if (!supportedTargets.includes(tool)) {
     return 0;
   }
 
@@ -124,18 +124,20 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping MCP file import (not supported in global mode)");
-    return 0;
-  }
+  const global = config.getExperimentalGlobal();
 
-  if (!McpProcessor.getToolTargets().includes(tool)) {
+  const supportedTargets = global
+    ? McpProcessor.getToolTargetsGlobal()
+    : McpProcessor.getToolTargets();
+
+  if (!supportedTargets.includes(tool)) {
     return 0;
   }
 
   const mcpProcessor = new McpProcessor({
     baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
+    global,
   });
 
   const toolFiles = await mcpProcessor.loadToolFiles();
@@ -160,15 +162,11 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
 
   const global = config.getExperimentalGlobal();
 
-  // Check if tool is supported
   const supportedTargets = global
     ? CommandsProcessor.getToolTargetsGlobal()
     : CommandsProcessor.getToolTargets({ includeSimulated: false });
 
   if (!supportedTargets.includes(tool)) {
-    if (global) {
-      logger.debug(`${tool} is not supported for commands in global mode`);
-    }
     return 0;
   }
 

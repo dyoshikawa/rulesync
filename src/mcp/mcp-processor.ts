@@ -7,6 +7,7 @@ import { logger } from "../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
+import { CodexcliMcp } from "./codex-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -22,19 +23,26 @@ export const mcpProcessorToolTargets: ToolTarget[] = [
   "roo",
 ];
 
-export const McpProcessorToolTargetSchema = z.enum(mcpProcessorToolTargets);
-
+export const McpProcessorToolTargetSchema = z.enum(
+  // codexcli is not in the list of tool targets but we add it here because it is a valid tool target for global mode generation
+  mcpProcessorToolTargets.concat("codexcli"),
+);
 export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
+
+export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["codexcli"];
 
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
+  private readonly global: boolean;
 
   constructor({
     baseDir = ".",
     toolTarget,
-  }: { baseDir?: string; toolTarget: McpProcessorToolTarget }) {
+    global = false,
+  }: { baseDir?: string; toolTarget: McpProcessorToolTarget; global?: boolean }) {
     super({ baseDir });
     this.toolTarget = McpProcessorToolTargetSchema.parse(toolTarget);
+    this.global = global;
   }
 
   /**
@@ -83,6 +91,15 @@ export class McpProcessor extends FeatureProcessor {
               await ClineMcp.fromFile({
                 baseDir: this.baseDir,
                 validate: true,
+              }),
+            ];
+          }
+          case "codexcli": {
+            return [
+              await CodexcliMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+                global: this.global,
               }),
             ];
           }
@@ -135,42 +152,50 @@ export class McpProcessor extends FeatureProcessor {
       throw new Error(`No .rulesync/.mcp.json found.`);
     }
 
-    const toolMcps = [rulesyncMcp].map((rulesyncMcp) => {
-      switch (this.toolTarget) {
-        case "amazonqcli":
-          return AmazonqcliMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            rulesyncMcp,
-          });
-        case "claudecode":
-          return ClaudecodeMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            rulesyncMcp,
-          });
-        case "cline":
-          return ClineMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            rulesyncMcp,
-          });
-        case "copilot":
-          return CopilotMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            rulesyncMcp,
-          });
-        case "cursor":
-          return CursorMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            rulesyncMcp,
-          });
-        case "roo":
-          return RooMcp.fromRulesyncMcp({
-            baseDir: this.baseDir,
-            rulesyncMcp,
-          });
-        default:
-          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      }
-    });
+    const toolMcps = await Promise.all(
+      [rulesyncMcp].map(async (rulesyncMcp) => {
+        switch (this.toolTarget) {
+          case "amazonqcli":
+            return AmazonqcliMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          case "claudecode":
+            return ClaudecodeMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          case "cline":
+            return ClineMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          case "copilot":
+            return CopilotMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          case "cursor":
+            return CursorMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          case "codexcli":
+            return await CodexcliMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+              global: this.global,
+            });
+          case "roo":
+            return RooMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          default:
+            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        }
+      }),
+    );
 
     return toolMcps;
   }
@@ -195,5 +220,9 @@ export class McpProcessor extends FeatureProcessor {
    */
   static getToolTargets(): ToolTarget[] {
     return mcpProcessorToolTargets;
+  }
+
+  static getToolTargetsGlobal(): ToolTarget[] {
+    return mcpProcessorToolTargetsGlobal;
   }
 }

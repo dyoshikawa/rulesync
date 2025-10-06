@@ -30,18 +30,16 @@ const McpServerBaseSchema = z.object({
   headers: z.optional(z.record(z.string(), z.string())),
 });
 
-const RulesyncMcpServerSchema = z.extend(McpServerBaseSchema, {
+const RulesyncMcpServersSchema = z.extend(McpServerBaseSchema, {
   targets: z.optional(RulesyncTargetsSchema),
 });
 
 const RulesyncMcpConfigSchema = z.object({
-  mcpServers: z.record(z.string(), RulesyncMcpServerSchema),
+  mcpServers: z.record(z.string(), RulesyncMcpServersSchema),
 });
+type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
 export type RulesyncMcpParams = RulesyncFileParams;
-
-// Re-export schema for validation consistency
-export { RulesyncMcpConfigSchema as RulesyncMcpJsonSchema };
 
 export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
 
@@ -51,7 +49,7 @@ export type RulesyncMcpSettablePaths = {
 };
 
 export class RulesyncMcp extends RulesyncFile {
-  private readonly json: Record<string, unknown>;
+  private readonly json: RulesyncMcpConfig;
 
   constructor({ ...rest }: RulesyncMcpParams) {
     super({ ...rest });
@@ -91,7 +89,7 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getJson(): Record<string, unknown> {
+  getJson(): RulesyncMcpConfig {
     return this.json;
   }
 }

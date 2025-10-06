@@ -6,10 +6,22 @@ import {
   ToolMcp,
   type ToolMcpFromFileParams,
   type ToolMcpFromRulesyncMcpParams,
+  type ToolMcpParams,
 } from "./tool-mcp.js";
 
 // Create a concrete test implementation of the abstract ToolMcp class
 class TestToolMcp extends ToolMcp {
+  private readonly json: Record<string, unknown>;
+
+  constructor(params: ToolMcpParams) {
+    super(params);
+    this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
+  }
+
+  getJson(): Record<string, unknown> {
+    return this.json;
+  }
+
   validate(): ValidationResult {
     return {
       success: true,
@@ -419,18 +431,18 @@ describe("ToolMcp", () => {
       ).rejects.toThrow("Please implement this method in the subclass.");
     });
 
-    it("should throw error for abstract fromRulesyncMcp method", () => {
+    it("should throw error for abstract fromRulesyncMcp method", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
-      expect(() => {
-        ToolMcp.fromRulesyncMcp({
+      await expect(async () => {
+        await ToolMcp.fromRulesyncMcp({
           rulesyncMcp,
         });
-      }).toThrow("Please implement this method in the subclass.");
+      }).rejects.toThrow("Please implement this method in the subclass.");
     });
 
     it("should throw error for fromFile with custom parameters", async () => {
@@ -442,7 +454,7 @@ describe("ToolMcp", () => {
       ).rejects.toThrow("Please implement this method in the subclass.");
     });
 
-    it("should throw error for fromRulesyncMcp with custom parameters", () => {
+    it("should throw error for fromRulesyncMcp with custom parameters", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: "/custom",
         relativeDirPath: ".rulesync",
@@ -457,13 +469,13 @@ describe("ToolMcp", () => {
         }),
       });
 
-      expect(() => {
-        ToolMcp.fromRulesyncMcp({
+      await expect(async () => {
+        await ToolMcp.fromRulesyncMcp({
           baseDir: "/target",
           rulesyncMcp,
           validate: false,
         });
-      }).toThrow("Please implement this method in the subclass.");
+      }).rejects.toThrow("Please implement this method in the subclass.");
     });
   });
 
