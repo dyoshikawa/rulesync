@@ -78,6 +78,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH=$PATH:/home/node/.local/bin
+RUN claude update
 
 # Install mise
 RUN curl https://mise.run | sh
