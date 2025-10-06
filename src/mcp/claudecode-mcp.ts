@@ -29,7 +29,7 @@ export class ClaudecodeMcp extends ToolMcp {
     };
   }
 
-  static getToolTargetsGlobal(): ToolMcpSettablePaths {
+  static getSettablePathsGlobal(): ToolMcpSettablePaths {
     return {
       relativeDirPath: ".claude",
       relativeFilePath: ".claude.json",
@@ -39,19 +39,17 @@ export class ClaudecodeMcp extends ToolMcp {
   static async fromFile({
     baseDir = ".",
     validate = true,
+    global = false,
   }: ToolMcpFromFileParams): Promise<ClaudecodeMcp> {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     const fileContent = await readFileContent(
-      join(
-        baseDir,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
     );
 
     return new ClaudecodeMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
     });
@@ -61,11 +59,13 @@ export class ClaudecodeMcp extends ToolMcp {
     baseDir = ".",
     rulesyncMcp,
     validate = true,
+    global = false,
   }: ToolMcpFromRulesyncMcpParams): ClaudecodeMcp {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     return new ClaudecodeMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: rulesyncMcp.getFileContent(),
       validate,
     });

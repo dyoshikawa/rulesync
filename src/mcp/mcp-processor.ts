@@ -29,7 +29,7 @@ export const McpProcessorToolTargetSchema = z.enum(
 );
 export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["codexcli"];
+export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli"];
 
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
@@ -83,6 +83,7 @@ export class McpProcessor extends FeatureProcessor {
               await ClaudecodeMcp.fromFile({
                 baseDir: this.baseDir,
                 validate: true,
+                global: this.global,
               }),
             ];
           }
@@ -164,6 +165,7 @@ export class McpProcessor extends FeatureProcessor {
             return ClaudecodeMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
+              global: this.global,
             });
           case "cline":
             return ClineMcp.fromRulesyncMcp({
