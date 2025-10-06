@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import * as toml from "smol-toml";
+import * as smolToml from "smol-toml";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent, readOrInitializeFileContent } from "../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -12,7 +12,7 @@ import {
 } from "./tool-mcp.js";
 
 export class CodexcliMcp extends ToolMcp {
-  private readonly json: Record<string, unknown>;
+  private readonly toml: smolToml.TomlTable;
 
   constructor({ ...rest }: ToolMcpParams) {
     super({
@@ -20,7 +20,7 @@ export class CodexcliMcp extends ToolMcp {
       validate: false,
     });
 
-    this.json = this.fileContent !== undefined ? toml.parse(this.fileContent) : {};
+    this.toml = smolToml.parse(this.fileContent);
 
     if (rest.validate) {
       const result = this.validate();
@@ -30,8 +30,8 @@ export class CodexcliMcp extends ToolMcp {
     }
   }
 
-  getJson(): Record<string, unknown> {
-    return this.json;
+  getToml(): smolToml.TomlTable {
+    return this.toml;
   }
 
   static getSettablePaths(): ToolMcpSettablePaths {
@@ -75,30 +75,28 @@ export class CodexcliMcp extends ToolMcp {
     const configTomlFilePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     const configTomlFileContent = await readOrInitializeFileContent(
       configTomlFilePath,
-      toml.stringify({}),
+      smolToml.stringify({}),
     );
 
-    const configToml = toml.parse(configTomlFileContent);
+    const configToml = smolToml.parse(configTomlFileContent);
     // eslint-disable-next-line no-type-assertion/no-type-assertion
-    configToml["mcpServers"] = rulesyncMcp.getJson().mcpServers as toml.TomlTable;
+    configToml["mcpServers"] = rulesyncMcp.getJson().mcpServers as smolToml.TomlTable;
 
     return new CodexcliMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: toml.stringify(configToml),
+      fileContent: smolToml.stringify(configToml),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const mcpServersOnly = this.json.mcpServers ? { mcpServers: this.json.mcpServers } : {};
-
     return new RulesyncMcp({
       baseDir: this.baseDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
-      fileContent: JSON.stringify(mcpServersOnly),
+      fileContent: JSON.stringify(this.toml),
     });
   }
 
