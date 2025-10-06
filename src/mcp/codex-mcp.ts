@@ -79,8 +79,12 @@ export class CodexcliMcp extends ToolMcp {
     );
 
     const configToml = smolToml.parse(configTomlFileContent);
+
+    const mcpServers = rulesyncMcp.getJson().mcpServers;
+    const filteredMcpServers = this.removeEmptyEntries(mcpServers);
+
     // eslint-disable-next-line no-type-assertion/no-type-assertion
-    configToml["mcpServers"] = rulesyncMcp.getJson().mcpServers as smolToml.TomlTable;
+    configToml["mcpServers"] = filteredMcpServers as smolToml.TomlTable;
 
     return new CodexcliMcp({
       baseDir,
@@ -102,5 +106,19 @@ export class CodexcliMcp extends ToolMcp {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  private static removeEmptyEntries(obj: Record<string, unknown>): Record<string, unknown> {
+    const filtered: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(obj)) {
+      // Skip null values and empty objects
+      if (value === null) continue;
+      if (typeof value === "object" && Object.keys(value).length === 0) continue;
+
+      filtered[key] = value;
+    }
+
+    return filtered;
   }
 }
