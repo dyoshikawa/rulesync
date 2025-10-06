@@ -895,7 +895,7 @@ describe("CommandsProcessor", () => {
 
     it("should include simulated targets when includeSimulated is true", () => {
       const targets = CommandsProcessor.getToolTargets({ includeSimulated: true });
-      expect(targets).toEqual(["claudecode", "geminicli", "roo", "copilot", "cursor"]);
+      expect(targets).toEqual(["agentsmd", "claudecode", "geminicli", "roo", "copilot", "cursor"]);
     });
   });
 
