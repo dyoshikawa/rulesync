@@ -25,19 +25,17 @@ export class CodexcliMcp extends ToolMcp {
   static async fromFile({
     baseDir = ".",
     validate = true,
+    global = false,
   }: ToolMcpFromFileParams): Promise<CodexcliMcp> {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     const fileContent = await readFileContent(
-      join(
-        baseDir,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
     );
 
     return new CodexcliMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
     });
@@ -49,7 +47,6 @@ export class CodexcliMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<CodexcliMcp> {
-    rulesyncMcp.getJson();
     const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
 
     const configTomlFilePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);

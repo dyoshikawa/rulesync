@@ -11,7 +11,7 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
   rulesyncMcp: RulesyncMcp;
 };
 
-export type ToolMcpFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
+export type ToolMcpFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate" | "global">;
 
 export type ToolMcpSettablePaths = {
   relativeDirPath: string;
