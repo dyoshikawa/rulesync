@@ -1,4 +1,4 @@
-import { removeFile, writeFileContent } from "../utils/file.js";
+import { addTrailingNewline, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
@@ -34,7 +34,8 @@ export abstract class FeatureProcessor {
    */
   async writeAiFiles(aiFiles: AiFile[]): Promise<number> {
     for (const aiFile of aiFiles) {
-      await writeFileContent(aiFile.getFilePath(), aiFile.getFileContent());
+      const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
+      await writeFileContent(aiFile.getFilePath(), contentWithNewline);
     }
 
     return aiFiles.length;

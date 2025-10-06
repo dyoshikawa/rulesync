@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
+  addTrailingNewline,
   createPathResolver,
   directoryExists,
   ensureDir,
@@ -47,6 +48,48 @@ describe("file utilities", () => {
 
       await expect(ensureDir(dirPath)).resolves.toBeUndefined();
       expect(await directoryExists(dirPath)).toBe(true);
+    });
+  });
+
+  describe("addTrailingNewline", () => {
+    it("should add newline to content without trailing newline", () => {
+      const result = addTrailingNewline("content");
+      expect(result).toBe("content\n");
+    });
+
+    it("should keep single newline if already present", () => {
+      const result = addTrailingNewline("content\n");
+      expect(result).toBe("content\n");
+    });
+
+    it("should reduce multiple trailing newlines to one", () => {
+      const result = addTrailingNewline("content\n\n\n");
+      expect(result).toBe("content\n");
+    });
+
+    it("should handle empty string", () => {
+      const result = addTrailingNewline("");
+      expect(result).toBe("\n");
+    });
+
+    it("should remove trailing spaces and tabs before newline", () => {
+      const result = addTrailingNewline("content  \t  ");
+      expect(result).toBe("content\n");
+    });
+
+    it("should handle content with mixed trailing whitespace", () => {
+      const result = addTrailingNewline("content \n \t\n");
+      expect(result).toBe("content\n");
+    });
+
+    it("should handle Windows line endings", () => {
+      const result = addTrailingNewline("content\r\n");
+      expect(result).toBe("content\n");
+    });
+
+    it("should handle multiple lines with trailing whitespace", () => {
+      const result = addTrailingNewline("line1\nline2  \t");
+      expect(result).toBe("line1\nline2\n");
     });
   });
 

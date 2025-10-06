@@ -95,6 +95,18 @@ export async function readFileContent(filepath: string): Promise<string> {
   return readFile(filepath, "utf-8");
 }
 
+/**
+ * Adds exactly one trailing newline to content.
+ * Removes any existing trailing whitespace and appends a single newline.
+ */
+export function addTrailingNewline(content: string): string {
+  if (!content) {
+    return "\n";
+  }
+
+  return content.trimEnd() + "\n";
+}
+
 export async function writeFileContent(filepath: string, content: string): Promise<void> {
   logger.debug(`Writing file: ${filepath}`);
 
