@@ -12,11 +12,15 @@ import {
 } from "./tool-mcp.js";
 
 export class CodexcliMcp extends ToolMcp {
+  private readonly json: Record<string, unknown>;
+
   constructor({ ...rest }: ToolMcpParams) {
     super({
       ...rest,
       validate: false,
     });
+
+    this.json = this.fileContent !== undefined ? toml.parse(this.fileContent) : {};
 
     if (rest.validate) {
       const result = this.validate();
@@ -24,6 +28,10 @@ export class CodexcliMcp extends ToolMcp {
         throw result.error;
       }
     }
+  }
+
+  getJson(): Record<string, unknown> {
+    return this.json;
   }
 
   static getSettablePaths(): ToolMcpSettablePaths {

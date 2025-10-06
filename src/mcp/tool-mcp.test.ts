@@ -6,10 +6,22 @@ import {
   ToolMcp,
   type ToolMcpFromFileParams,
   type ToolMcpFromRulesyncMcpParams,
+  type ToolMcpParams,
 } from "./tool-mcp.js";
 
 // Create a concrete test implementation of the abstract ToolMcp class
 class TestToolMcp extends ToolMcp {
+  private readonly json: Record<string, unknown>;
+
+  constructor(params: ToolMcpParams) {
+    super(params);
+    this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
+  }
+
+  getJson(): Record<string, unknown> {
+    return this.json;
+  }
+
   validate(): ValidationResult {
     return {
       success: true,

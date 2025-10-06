@@ -6,10 +6,22 @@ import {
   ToolMcp,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
+  ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
 export class ClaudecodeMcp extends ToolMcp {
+  private readonly json: Record<string, unknown>;
+
+  constructor(params: ToolMcpParams) {
+    super(params);
+    this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
+  }
+
+  getJson(): Record<string, unknown> {
+    return this.json;
+  }
+
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
       relativeDirPath: ".",

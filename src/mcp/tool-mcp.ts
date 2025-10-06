@@ -19,15 +19,11 @@ export type ToolMcpSettablePaths = {
 };
 
 export abstract class ToolMcp extends ToolFile {
-  protected readonly json: Record<string, unknown>;
-
   constructor({ ...rest }: ToolMcpParams) {
     super({
       ...rest,
       validate: true, // Skip validation during construction
     });
-
-    this.json = JSON.parse(this.fileContent);
 
     // Validate after setting patterns, if validation was requested
     if (rest.validate) {
@@ -36,10 +32,6 @@ export abstract class ToolMcp extends ToolFile {
         throw result.error;
       }
     }
-  }
-
-  getJson(): Record<string, unknown> {
-    return this.json;
   }
 
   static getSettablePaths(): ToolMcpSettablePaths {
