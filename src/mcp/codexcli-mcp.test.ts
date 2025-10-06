@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
-import { CodexcliMcp } from "./codex-mcp.js";
+import { CodexcliMcp } from "./codexcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("CodexcliMcp", () => {

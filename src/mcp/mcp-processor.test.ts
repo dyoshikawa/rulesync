@@ -179,6 +179,7 @@ describe("McpProcessor", () => {
         expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
         });
       });
     });
@@ -383,6 +384,7 @@ describe("McpProcessor", () => {
       expect(ClaudecodeMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
       });
     });
 

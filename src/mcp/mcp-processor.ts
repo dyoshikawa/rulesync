@@ -7,7 +7,7 @@ import { logger } from "../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
-import { CodexcliMcp } from "./codex-mcp.js";
+import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { RooMcp } from "./roo-mcp.js";

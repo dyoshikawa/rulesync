@@ -17,6 +17,24 @@ describe("ClaudecodeMcp", () => {
     await cleanup();
   });
 
+  describe("getSettablePaths", () => {
+    it("should return correct paths for local mode", () => {
+      const paths = ClaudecodeMcp.getSettablePaths();
+
+      expect(paths.relativeDirPath).toBe(".");
+      expect(paths.relativeFilePath).toBe(".mcp.json");
+    });
+  });
+
+  describe("getSettablePathsGlobal", () => {
+    it("should return correct paths for global mode", () => {
+      const paths = ClaudecodeMcp.getSettablePathsGlobal();
+
+      expect(paths.relativeDirPath).toBe(".claude");
+      expect(paths.relativeFilePath).toBe(".claude.json");
+    });
+  });
+
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const validJsonContent = JSON.stringify({
@@ -215,6 +233,51 @@ describe("ClaudecodeMcp", () => {
         }),
       ).rejects.toThrow();
     });
+
+    it("should create instance from file in global mode", async () => {
+      const jsonData = {
+        mcpServers: {
+          filesystem: {
+            command: "npx",
+            args: ["-y", "@modelcontextprotocol/server-filesystem", testDir],
+          },
+        },
+      };
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude/.claude.json"),
+        JSON.stringify(jsonData, null, 2),
+      );
+
+      const claudecodeMcp = await ClaudecodeMcp.fromFile({
+        baseDir: testDir,
+        global: true,
+      });
+
+      expect(claudecodeMcp).toBeInstanceOf(ClaudecodeMcp);
+      expect(claudecodeMcp.getJson()).toEqual(jsonData);
+      expect(claudecodeMcp.getFilePath()).toBe(join(testDir, ".claude/.claude.json"));
+    });
+
+    it("should create instance from file in local mode (default)", async () => {
+      const jsonData = {
+        mcpServers: {
+          git: {
+            command: "node",
+            args: ["git-server.js"],
+          },
+        },
+      };
+      await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
+
+      const claudecodeMcp = await ClaudecodeMcp.fromFile({
+        baseDir: testDir,
+        global: false,
+      });
+
+      expect(claudecodeMcp.getFilePath()).toBe(join(testDir, ".mcp.json"));
+      expect(claudecodeMcp.getJson()).toEqual(jsonData);
+    });
   });
 
   describe("fromRulesyncMcp", () => {
@@ -327,6 +390,59 @@ describe("ClaudecodeMcp", () => {
       });
 
       expect(claudecodeMcp.getJson()).toEqual(jsonData);
+    });
+
+    it("should create instance from RulesyncMcp in global mode", () => {
+      const jsonData = {
+        mcpServers: {
+          "global-server": {
+            command: "node",
+            args: ["global-server.js"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        global: true,
+      });
+
+      expect(claudecodeMcp).toBeInstanceOf(ClaudecodeMcp);
+      expect(claudecodeMcp.getJson()).toEqual(jsonData);
+      expect(claudecodeMcp.getRelativeDirPath()).toBe(".claude");
+      expect(claudecodeMcp.getRelativeFilePath()).toBe(".claude.json");
+    });
+
+    it("should create instance from RulesyncMcp in local mode (default)", () => {
+      const jsonData = {
+        mcpServers: {
+          "local-server": {
+            command: "python",
+            args: ["local-server.py"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const claudecodeMcp = ClaudecodeMcp.fromRulesyncMcp({
+        baseDir: "/test/dir",
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect(claudecodeMcp.getFilePath()).toBe("/test/dir/.mcp.json");
+      expect(claudecodeMcp.getJson()).toEqual(jsonData);
+      expect(claudecodeMcp.getRelativeDirPath()).toBe(".");
+      expect(claudecodeMcp.getRelativeFilePath()).toBe(".mcp.json");
     });
   });
 
