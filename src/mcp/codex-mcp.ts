@@ -84,7 +84,7 @@ export class CodexcliMcp extends ToolMcp {
     const filteredMcpServers = this.removeEmptyEntries(mcpServers);
 
     // eslint-disable-next-line no-type-assertion/no-type-assertion
-    configToml["mcpServers"] = filteredMcpServers as smolToml.TomlTable;
+    configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
 
     return new CodexcliMcp({
       baseDir,
