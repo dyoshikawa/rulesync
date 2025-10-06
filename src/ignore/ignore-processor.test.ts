@@ -540,4 +540,88 @@ describe("IgnoreProcessor", () => {
       expect(hasClaudecodeIgnore).toBe(false);
     });
   });
+
+  describe("writeAiFiles with trailing newlines", () => {
+    it("should write ignore files with exactly one trailing newline", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      // Create a mock CursorIgnore file
+      const mockCursorIgnore = new CursorIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: ".cursorignore",
+        fileContent: "*.log\nnode_modules/\n*.tmp",
+      });
+
+      // Write the file using writeAiFiles
+      await processor.writeAiFiles([mockCursorIgnore]);
+
+      // Read the generated file directly to check for trailing newline
+      const { readFile } = await import("node:fs/promises");
+      const cursorIgnorePath = join(testDir, ".cursorignore");
+      const content = await readFile(cursorIgnorePath, "utf-8");
+
+      // Check that file ends with exactly one newline
+      expect(content).toMatch(/[^\n]\n$/);
+      expect(content).not.toMatch(/\n\n$/);
+
+      // Check content is preserved correctly
+      expect(content).toBe("*.log\nnode_modules/\n*.tmp\n");
+    });
+
+    it("should handle files already ending with newline", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "cline",
+      });
+
+      // Create a mock ClineIgnore file with trailing newline
+      const mockClineIgnore = new ClineIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: ".clineignore",
+        fileContent: "*.log\nnode_modules/\n",
+      });
+
+      // Write the file using writeAiFiles
+      await processor.writeAiFiles([mockClineIgnore]);
+
+      const { readFile } = await import("node:fs/promises");
+      const clineIgnorePath = join(testDir, ".clineignore");
+      const content = await readFile(clineIgnorePath, "utf-8");
+
+      // Should still have exactly one trailing newline
+      expect(content).toBe("*.log\nnode_modules/\n");
+      expect(content).not.toMatch(/\n\n$/);
+    });
+
+    it("should handle files with multiple trailing newlines", async () => {
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "windsurf",
+      });
+
+      // Create a mock WindsurfIgnore file with multiple trailing newlines
+      const mockWindsurfIgnore = new WindsurfIgnore({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: ".windsurfignore",
+        fileContent: "*.log\n\n\n",
+      });
+
+      // Write the file using writeAiFiles
+      await processor.writeAiFiles([mockWindsurfIgnore]);
+
+      const { readFile } = await import("node:fs/promises");
+      const windsurfIgnorePath = join(testDir, ".windsurfignore");
+      const content = await readFile(windsurfIgnorePath, "utf-8");
+
+      // Should have exactly one trailing newline
+      expect(content).toBe("*.log\n");
+      expect(content).not.toMatch(/\n\n$/);
+    });
+  });
 });
