@@ -83,7 +83,9 @@ export class ClaudecodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify({ mcpServers: this.json.mcpServers }),
+    });
   }
 
   validate(): ValidationResult {
