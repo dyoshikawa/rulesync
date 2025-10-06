@@ -3,7 +3,7 @@ import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { Config } from "../../config/config.js";
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
-import { McpProcessor, type McpProcessorToolTarget } from "../../mcp/mcp-processor.js";
+import { McpProcessor } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
@@ -161,34 +161,18 @@ async function generateMcp(config: Config): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping MCP configuration generation (not supported in global mode)");
-    return 0;
-  }
-
   let totalMcpOutputs = 0;
   logger.info("Generating MCP files...");
 
-  // Check which targets support MCP
-  const supportedMcpTargets: McpProcessorToolTarget[] = [
-    "amazonqcli",
-    "claudecode",
-    "cline",
-    "copilot",
-    "cursor",
-    "roo",
-  ];
-  const mcpSupportedTargets = config
-    .getTargets()
-    .filter((target): target is McpProcessorToolTarget => {
-      return supportedMcpTargets.some((supportedTarget) => supportedTarget === target);
-    });
-
+  const toolTargets = config.getExperimentalGlobal()
+    ? intersection(config.getTargets(), McpProcessor.getToolTargetsGlobal())
+    : intersection(config.getTargets(), McpProcessor.getToolTargets());
   for (const baseDir of config.getBaseDirs()) {
-    for (const toolTarget of intersection(mcpSupportedTargets, McpProcessor.getToolTargets())) {
+    for (const toolTarget of toolTargets) {
       const processor = new McpProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
+        global: config.getExperimentalGlobal(),
       });
 
       if (config.getDelete()) {
