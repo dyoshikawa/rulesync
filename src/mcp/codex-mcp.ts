@@ -100,7 +100,7 @@ export class CodexcliMcp extends ToolMcp {
       baseDir: this.baseDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
-      fileContent: JSON.stringify({ mcpServers: this.toml.mcpServers }),
+      fileContent: JSON.stringify({ mcpServers: this.toml.mcp_servers ?? {} }),
     });
   }
 
@@ -108,7 +108,11 @@ export class CodexcliMcp extends ToolMcp {
     return { success: true, error: null };
   }
 
-  private static removeEmptyEntries(obj: Record<string, unknown>): Record<string, unknown> {
+  private static removeEmptyEntries(
+    obj: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    if (!obj) return {};
+
     const filtered: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {

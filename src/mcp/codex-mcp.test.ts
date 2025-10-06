@@ -309,7 +309,7 @@ args = ["server.js"]
       });
 
       expect(codexcliMcp).toBeInstanceOf(CodexcliMcp);
-      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcp_servers).toEqual(jsonData.mcpServers);
       expect(codexcliMcp.getRelativeDirPath()).toBe(".codex");
       expect(codexcliMcp.getRelativeFilePath()).toBe("config.toml");
     });
@@ -349,7 +349,7 @@ fontSize = 14
       const json = codexcliMcp.getToml();
       expect(json.general).toEqual({ theme: "dark", language: "en" });
       expect(json.editor).toEqual({ fontSize: 14 });
-      expect(json.mcpServers).toEqual(jsonData.mcpServers);
+      expect(json.mcp_servers).toEqual(jsonData.mcpServers);
     });
 
     it("should create instance from RulesyncMcp with custom baseDir", async () => {
@@ -378,7 +378,7 @@ fontSize = 14
       });
 
       expect(codexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
-      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcp_servers).toEqual(jsonData.mcpServers);
     });
 
     it("should handle validation when validate is true", async () => {
@@ -403,7 +403,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcp_servers).toEqual(jsonData.mcpServers);
     });
 
     it("should skip validation when validate is false", async () => {
@@ -423,7 +423,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getToml().mcpServers).toEqual({});
+      expect(codexcliMcp.getToml().mcp_servers).toEqual({});
     });
 
     it("should handle empty mcpServers object", async () => {
@@ -442,7 +442,7 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getToml().mcpServers).toEqual({});
+      expect(codexcliMcp.getToml().mcp_servers).toEqual({});
     });
 
     it("should handle complex nested MCP server configuration", async () => {
@@ -471,13 +471,13 @@ fontSize = 14
         global: true,
       });
 
-      expect(codexcliMcp.getToml().mcpServers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getToml().mcp_servers).toEqual(jsonData.mcpServers);
     });
   });
 
   describe("toRulesyncMcp", () => {
     it("should convert to RulesyncMcp with default configuration", () => {
-      const tomlContent = `[mcpServers.filesystem]
+      const tomlContent = `[mcp_servers.filesystem]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 `;
@@ -498,15 +498,15 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     });
 
     it("should preserve MCP server data when converting to RulesyncMcp", () => {
-      const tomlContent = `[mcpServers."complex-server"]
+      const tomlContent = `[mcp_servers."complex-server"]
 command = "node"
 args = ["complex-server.js", "--port", "3000"]
 
-[mcpServers."complex-server".env]
+[mcp_servers."complex-server".env]
 NODE_ENV = "production"
 DEBUG = "mcp:*"
 
-[mcpServers."another-server"]
+[mcp_servers."another-server"]
 command = "python"
 args = ["another-server.py"]
 `;
@@ -540,7 +540,7 @@ args = ["another-server.py"]
       const tomlContent = `[general]
 theme = "dark"
 
-[mcpServers.filesystem]
+[mcp_servers.filesystem]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
@@ -574,7 +574,7 @@ theme = "dark"
       const rulesyncMcp = codexcliMcp.toRulesyncMcp();
 
       const json = JSON.parse(rulesyncMcp.getFileContent());
-      expect(json.mcpServers).toBeUndefined();
+      expect(json.mcpServers).toEqual({});
     });
   });
 
@@ -649,11 +649,11 @@ DEBUG = "true"
 
   describe("integration", () => {
     it("should handle complete workflow: fromFile -> toRulesyncMcp -> fromRulesyncMcp", async () => {
-      const originalTomlData = `[mcpServers."workflow-server"]
+      const originalTomlData = `[mcp_servers."workflow-server"]
 command = "node"
 args = ["workflow-server.js", "--config", "config.json"]
 
-[mcpServers."workflow-server".env]
+[mcp_servers."workflow-server".env]
 NODE_ENV = "test"
 `;
       await ensureDir(join(testDir, ".codex"));
@@ -683,20 +683,20 @@ NODE_ENV = "test"
     });
 
     it("should maintain MCP server data consistency across transformations", async () => {
-      const complexTomlData = `[mcpServers."primary-server"]
+      const complexTomlData = `[mcp_servers."primary-server"]
 command = "node"
 args = ["primary.js", "--mode", "production"]
 
-[mcpServers."primary-server".env]
+[mcp_servers."primary-server".env]
 NODE_ENV = "production"
 LOG_LEVEL = "info"
 API_KEY = "secret"
 
-[mcpServers."secondary-server"]
+[mcp_servers."secondary-server"]
 command = "python"
 args = ["secondary.py", "--workers", "4"]
 
-[mcpServers."secondary-server".env]
+[mcp_servers."secondary-server".env]
 PYTHONPATH = "/app/lib"
 `;
 
@@ -717,8 +717,8 @@ PYTHONPATH = "/app/lib"
       });
 
       // Verify mcpServers data is preserved
-      const originalMcpServers = codexcliMcp.getToml().mcpServers;
-      const newMcpServers = newCodexcliMcp.getToml().mcpServers;
+      const originalMcpServers = codexcliMcp.getToml().mcp_servers;
+      const newMcpServers = newCodexcliMcp.getToml().mcp_servers;
       expect(newMcpServers).toEqual(originalMcpServers);
       expect(newCodexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
@@ -728,7 +728,7 @@ PYTHONPATH = "/app/lib"
 theme = "dark"
 language = "en"
 
-[mcpServers.filesystem]
+[mcp_servers.filesystem]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
@@ -757,7 +757,7 @@ fontSize = 14
       const newJson = newCodexcliMcp.getToml();
       expect((newJson as any).general).toEqual({ theme: "dark", language: "en" });
       expect((newJson as any).editor).toEqual({ fontSize: 14 });
-      expect((newJson.mcpServers as any)?.filesystem).toBeDefined();
+      expect((newJson.mcp_servers as any)?.filesystem).toBeDefined();
     });
   });
 });
