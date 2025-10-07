@@ -262,13 +262,15 @@ describe("file utilities", () => {
         expect(content).toBe(initialContent);
       });
 
-      it("should not create file when file does not exist", async () => {
+      it("should create file with initial content when file does not exist", async () => {
         const filePath = join(testDir, "nonexistent.txt");
         const initialContent = "initial content";
 
-        await readOrInitializeFileContent(filePath, initialContent);
+        const content = await readOrInitializeFileContent(filePath, initialContent);
 
-        expect(await fileExists(filePath)).toBe(false);
+        expect(await fileExists(filePath)).toBe(true);
+        expect(content).toBe(initialContent);
+        expect(await readFileContent(filePath)).toBe(initialContent);
       });
 
       it("should create parent directories when file does not exist", async () => {
