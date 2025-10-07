@@ -44,7 +44,7 @@ export class ClaudecodeMcp extends ToolMcp {
     const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
     const fileContent = await readOrInitializeFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }),
+      JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
@@ -53,7 +53,7 @@ export class ClaudecodeMcp extends ToolMcp {
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson),
+      fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
   }
@@ -77,14 +77,14 @@ export class ClaudecodeMcp extends ToolMcp {
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson),
+      fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: this.json.mcpServers }),
+      fileContent: JSON.stringify({ mcpServers: this.json.mcpServers }, null, 2),
     });
   }
 
