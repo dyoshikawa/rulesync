@@ -7,7 +7,7 @@ import { logger } from "../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
-import { CodexcliMcp } from "./codex-mcp.js";
+import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -29,7 +29,7 @@ export const McpProcessorToolTargetSchema = z.enum(
 );
 export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["codexcli"];
+export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli"];
 
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
@@ -59,6 +59,13 @@ export class McpProcessor extends FeatureProcessor {
   }
 
   async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    // When global mode, "~/.claude/.claude.json" should not be deleted.
+    if (this.global) {
+      return (await this.loadToolFiles()).filter(
+        (toolFile) => !(toolFile instanceof ClaudecodeMcp),
+      );
+    }
+
     return this.loadToolFiles();
   }
 
@@ -83,6 +90,7 @@ export class McpProcessor extends FeatureProcessor {
               await ClaudecodeMcp.fromFile({
                 baseDir: this.baseDir,
                 validate: true,
+                global: this.global,
               }),
             ];
           }
@@ -164,6 +172,7 @@ export class McpProcessor extends FeatureProcessor {
             return ClaudecodeMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
+              global: this.global,
             });
           case "cline":
             return ClineMcp.fromRulesyncMcp({

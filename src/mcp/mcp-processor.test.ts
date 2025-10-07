@@ -3,6 +3,7 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
+import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import {
@@ -18,6 +19,7 @@ import { RulesyncMcp } from "./rulesync-mcp.js";
 vi.mock("./amazonqcli-mcp.js");
 vi.mock("./claudecode-mcp.js");
 vi.mock("./cline-mcp.js");
+vi.mock("./codexcli-mcp.js");
 vi.mock("./copilot-mcp.js");
 vi.mock("./cursor-mcp.js");
 vi.mock("./roo-mcp.js");
@@ -49,6 +51,8 @@ describe("McpProcessor", () => {
     (ClaudecodeMcp as any).fromRulesyncMcp = vi.fn();
     (ClineMcp as any).fromFile = vi.fn();
     (ClineMcp as any).fromRulesyncMcp = vi.fn();
+    (CodexcliMcp as any).fromFile = vi.fn();
+    (CodexcliMcp as any).fromRulesyncMcp = vi.fn();
     (CopilotMcp as any).fromFile = vi.fn();
     (CopilotMcp as any).fromRulesyncMcp = vi.fn();
     (CursorMcp as any).fromFile = vi.fn();
@@ -179,6 +183,34 @@ describe("McpProcessor", () => {
         expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
+        });
+      });
+
+      it("should load ClaudecodeMcp files in global mode", async () => {
+        const mockMcp = new ClaudecodeMcp({
+          baseDir: testDir,
+          relativeDirPath: ".claude",
+          relativeFilePath: ".claude.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
+
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: true,
         });
       });
     });
@@ -261,6 +293,49 @@ describe("McpProcessor", () => {
           baseDir: testDir,
           validate: true,
         });
+      });
+    });
+
+    describe("codexcli", () => {
+      it("should load CodexcliMcp files in global mode", async () => {
+        const mockMcp = {
+          getRelativeDirPath: () => ".codex",
+          getRelativeFilePath: () => "config.toml",
+        } as any;
+
+        vi.mocked(CodexcliMcp.fromFile).mockResolvedValue(mockMcp);
+
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "codexcli",
+          global: true,
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(CodexcliMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: true,
+        });
+      });
+
+      it("should throw error when used in local mode", async () => {
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "codexcli",
+          global: false,
+        });
+
+        vi.mocked(CodexcliMcp.fromFile).mockRejectedValue(
+          new Error("getSettablePaths is not supported for CodexcliMcp"),
+        );
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(0);
       });
     });
 
@@ -369,7 +444,7 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ servers: {} }),
       });
 
-      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
+      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
         baseDir: testDir,
@@ -383,6 +458,41 @@ describe("McpProcessor", () => {
       expect(ClaudecodeMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
+      });
+    });
+
+    it("should convert rulesync files to claudecode tool files in global mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = new ClaudecodeMcp({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: ".claude.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(ClaudecodeMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
       });
     });
 
@@ -479,6 +589,38 @@ describe("McpProcessor", () => {
       expect(CursorMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+      });
+    });
+
+    it("should convert rulesync files to codexcli tool files in global mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = {
+        getRelativeDirPath: () => ".codex",
+        getRelativeFilePath: () => "config.toml",
+      } as any;
+
+      vi.mocked(CodexcliMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(CodexcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
       });
     });
 
@@ -584,6 +726,7 @@ describe("McpProcessor", () => {
       expect(() => McpProcessorToolTargetSchema.parse("amazonqcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
+      expect(() => McpProcessorToolTargetSchema.parse("codexcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("roo")).not.toThrow();
     });
 
@@ -677,6 +820,58 @@ describe("McpProcessor", () => {
 
       // Should return empty array when error occurs
       expect(filesToDelete).toEqual([]);
+    });
+
+    it("should filter out ClaudecodeMcp files in global mode", async () => {
+      const mockMcp = new ClaudecodeMcp({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: ".claude.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      // loadToolFiles should return the ClaudecodeMcp file
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockMcp);
+
+      // loadToolFilesToDelete should filter it out in global mode
+      expect(filesToDelete).toHaveLength(0);
+    });
+
+    it("should not filter out ClaudecodeMcp files in local mode", async () => {
+      const mockMcp = new ClaudecodeMcp({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: false,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      const filesToDelete = await processor.loadToolFilesToDelete();
+
+      // Both should return the same file in local mode
+      expect(toolFiles).toHaveLength(1);
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete).toEqual(toolFiles);
     });
   });
 });

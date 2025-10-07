@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { readOrInitializeFileContent } from "../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -15,7 +15,7 @@ export class ClaudecodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
+    this.json = JSON.parse(this.fileContent || "{}");
   }
 
   getJson(): Record<string, unknown> {
@@ -29,43 +29,63 @@ export class ClaudecodeMcp extends ToolMcp {
     };
   }
 
+  static getSettablePathsGlobal(): ToolMcpSettablePaths {
+    return {
+      relativeDirPath: ".claude",
+      relativeFilePath: ".claude.json",
+    };
+  }
+
   static async fromFile({
     baseDir = ".",
     validate = true,
+    global = false,
   }: ToolMcpFromFileParams): Promise<ClaudecodeMcp> {
-    const fileContent = await readFileContent(
-      join(
-        baseDir,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const fileContent = await readOrInitializeFileContent(
+      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      JSON.stringify({ mcpServers: {} }, null, 2),
     );
+    const json = JSON.parse(fileContent);
+    const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new ClaudecodeMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
   }
 
-  static fromRulesyncMcp({
+  static async fromRulesyncMcp({
     baseDir = ".",
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): ClaudecodeMcp {
+    global = false,
+  }: ToolMcpFromRulesyncMcpParams): Promise<ClaudecodeMcp> {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+
+    const fileContent = await readOrInitializeFileContent(
+      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      JSON.stringify({ mcpServers: {} }, null, 2),
+    );
+    const json = JSON.parse(fileContent);
+    const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
+
     return new ClaudecodeMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncMcp.getFileContent(),
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify({ mcpServers: this.json.mcpServers }, null, 2),
+    });
   }
 
   validate(): ValidationResult {
