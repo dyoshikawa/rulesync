@@ -358,4 +358,8 @@ git clone https://github.com/dyoshikawa/rulesync # Should be your fork repositor
 cd rulesync
 pnpm i
 pnpm cicheck # Run code style check, type check, and tests
+
+# Manual test using current code
+pnpm dev generate -t claudecode -f "*"
+pnpm dev import -t claudecode -f "*"
 ```
