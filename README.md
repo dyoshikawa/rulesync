@@ -351,4 +351,15 @@ MIT License
 
 Issues and Pull Requests are welcome!
 
-For development setup and contribution guidelines, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+For development setup:
+
+```bash
+git clone https://github.com/dyoshikawa/rulesync # Should be your fork repository url actually
+cd rulesync
+pnpm i
+pnpm cicheck # Run code style check, type check, and tests
+
+# Manual test using current code
+pnpm dev generate -t claudecode -f "*"
+pnpm dev import -t claudecode -f "*"
+```
