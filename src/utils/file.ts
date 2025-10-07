@@ -21,6 +21,7 @@ export async function readOrInitializeFileContent(
     return await readFileContent(filePath);
   } else {
     await ensureDir(dirname(filePath));
+    await writeFileContent(filePath, initialContent);
     return initialContent;
   }
 }

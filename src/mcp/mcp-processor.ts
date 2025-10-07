@@ -59,6 +59,13 @@ export class McpProcessor extends FeatureProcessor {
   }
 
   async loadToolFilesToDelete(): Promise<ToolFile[]> {
+    // When global mode, "~/.claude/.claude.json" should not be deleted.
+    if (this.global) {
+      return (await this.loadToolFiles()).filter(
+        (toolFile) => !(toolFile instanceof ClaudecodeMcp),
+      );
+    }
+
     return this.loadToolFiles();
   }
 

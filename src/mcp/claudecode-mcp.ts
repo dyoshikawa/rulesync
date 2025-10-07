@@ -68,7 +68,7 @@ export class ClaudecodeMcp extends ToolMcp {
 
     const fileContent = await readOrInitializeFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }),
+      JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
