@@ -314,7 +314,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
     npx rulesync generate
     ```
 
-> [!WARNING]
+> [!NOTE]
 > Currently, when in the directory enabled global mode:
 > * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
 > * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
