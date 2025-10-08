@@ -71,7 +71,7 @@
 		"js-yaml": "4.1.0",
 		"micromatch": "4.0.8",
 		"smol-toml": "1.4.2",
-		"zod": "4.1.11"
+		"zod": "4.1.12"
 	},
 	"devDependencies": {
 		"@anthropic-ai/claude-agent-sdk": "0.1.8",
