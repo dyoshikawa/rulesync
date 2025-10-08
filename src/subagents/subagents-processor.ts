@@ -260,7 +260,11 @@ export class SubagentsProcessor extends FeatureProcessor {
     return await this.loadToolSubagentsDefault({
       relativeDirPath: paths.relativeDirPath,
       fromFile: (relativeFilePath) =>
-        ClaudecodeSubagent.fromFile({ relativeFilePath, global: this.global }),
+        ClaudecodeSubagent.fromFile({
+          baseDir: this.baseDir,
+          relativeFilePath,
+          global: this.global,
+        }),
     });
   }
 
