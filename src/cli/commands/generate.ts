@@ -247,7 +247,7 @@ async function generateSubagents(config: Config): Promise<number> {
     : intersection(
         config.getTargets(),
         SubagentsProcessor.getToolTargets({
-          includeSimulated: config.getExperimentalSimulateCommands(),
+          includeSimulated: config.getExperimentalSimulateSubagents(),
         }),
       );
 

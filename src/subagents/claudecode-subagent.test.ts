@@ -342,7 +342,7 @@ describe("ClaudecodeSubagent", () => {
       expect(rulesyncFrontmatter.claudecode?.model).toBe("opus");
     });
 
-    it("should preserve baseDir and relativeFilePath", () => {
+    it("should preserve relativeFilePath and use project root as baseDir", () => {
       const frontmatter: ClaudecodeSubagentFrontmatter = {
         name: "test-agent",
         description: "A test agent",
@@ -359,7 +359,8 @@ describe("ClaudecodeSubagent", () => {
 
       const rulesyncSubagent = subagent.toRulesyncSubagent();
 
-      expect(rulesyncSubagent.getBaseDir()).toBe(testDir);
+      // RulesyncSubagent baseDir is always the project root directory
+      expect(rulesyncSubagent.getBaseDir()).toBe(".");
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("custom/test-agent.md");
     });
   });
