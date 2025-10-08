@@ -239,11 +239,6 @@ async function generateSubagents(config: Config): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping subagent file generation (not supported in global mode)");
-    return 0;
-  }
-
   let totalSubagentOutputs = 0;
   logger.info("Generating subagent files...");
 
@@ -257,6 +252,7 @@ async function generateSubagents(config: Config): Promise<number> {
       const processor = new SubagentsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
+        global: config.getExperimentalGlobal(),
       });
 
       if (config.getDelete()) {

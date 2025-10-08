@@ -181,6 +181,7 @@ describe("importCommand", () => {
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: false,
       });
       expect(mockSubagentsProcessor.loadToolFiles).toHaveBeenCalled();
       expect(mockSubagentsProcessor.convertToolFilesToRulesyncFiles).toHaveBeenCalled();

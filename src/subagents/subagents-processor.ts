@@ -35,19 +35,23 @@ export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = [
   "geminicli",
   "roo",
 ];
+export const subagentsProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
 export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
 
 export type SubagentsProcessorToolTarget = z.infer<typeof SubagentsProcessorToolTargetSchema>;
 
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
+  private readonly global: boolean;
 
   constructor({
     baseDir = ".",
     toolTarget,
-  }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget }) {
+    global = false,
+  }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget; global?: boolean }) {
     super({ baseDir });
     this.toolTarget = SubagentsProcessorToolTargetSchema.parse(toolTarget);
+    this.global = global;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -75,6 +79,7 @@ export class SubagentsProcessor extends FeatureProcessor {
               baseDir: this.baseDir,
               relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
               rulesyncSubagent: rulesyncSubagent,
+              global: this.global,
             });
           case "copilot":
             if (!CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
@@ -249,9 +254,13 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load Claude Code subagent configurations from .claude/agents/ directory
    */
   private async loadClaudecodeSubagents(): Promise<ToolSubagent[]> {
+    const paths = this.global
+      ? ClaudecodeSubagent.getSettablePathsGlobal()
+      : ClaudecodeSubagent.getSettablePaths();
     return await this.loadToolSubagentsDefault({
-      relativeDirPath: ClaudecodeSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => ClaudecodeSubagent.fromFile({ relativeFilePath }),
+      relativeDirPath: paths.relativeDirPath,
+      fromFile: (relativeFilePath) =>
+        ClaudecodeSubagent.fromFile({ relativeFilePath, global: this.global }),
     });
   }
 

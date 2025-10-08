@@ -364,6 +364,13 @@ describe("ClaudecodeSubagent", () => {
     });
   });
 
+  describe("getSettablePathsGlobal", () => {
+    it("should return global paths", () => {
+      const paths = ClaudecodeSubagent.getSettablePathsGlobal();
+      expect(paths.relativeDirPath).toBe(join(".claude", "agents"));
+    });
+  });
+
   describe("fromRulesyncSubagent", () => {
     it("should convert from RulesyncSubagent without model", () => {
       const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
@@ -455,6 +462,66 @@ describe("ClaudecodeSubagent", () => {
       });
 
       expect(claudecodeSubagent.getBaseDir()).toBe(".");
+    });
+
+    it("should use global paths when global is true", () => {
+      const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+        targets: ["claudecode"],
+        name: "global-agent",
+        description: "A global agent",
+      };
+
+      const body = "Global agent content";
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "global-agent.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent,
+        validate: true,
+        global: true,
+      }) as ClaudecodeSubagent;
+
+      expect(claudecodeSubagent).toBeInstanceOf(ClaudecodeSubagent);
+      expect(claudecodeSubagent.getRelativeDirPath()).toBe(join(".claude", "agents"));
+      expect(claudecodeSubagent.getBody()).toBe(body);
+    });
+
+    it("should use local paths when global is false", () => {
+      const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+        targets: ["claudecode"],
+        name: "local-agent",
+        description: "A local agent",
+      };
+
+      const body = "Local agent content";
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "local-agent.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent,
+        validate: true,
+        global: false,
+      }) as ClaudecodeSubagent;
+
+      expect(claudecodeSubagent).toBeInstanceOf(ClaudecodeSubagent);
+      expect(claudecodeSubagent.getRelativeDirPath()).toBe(".claude/agents");
+      expect(claudecodeSubagent.getBody()).toBe(body);
     });
   });
 
@@ -662,6 +729,33 @@ describe("ClaudecodeSubagent", () => {
       });
 
       expect(subagent.getBody()).toBe("This content has whitespace");
+    });
+
+    it("should load from global path when global is true", async () => {
+      const agentsDir = join(testDir, ".claude", "agents");
+      const frontmatter: ClaudecodeSubagentFrontmatter = {
+        name: "global-test-agent",
+        description: "A global test agent",
+        model: "opus",
+      };
+
+      const body = "Global agent body";
+      const fileContent = stringifyFrontmatter(body, frontmatter);
+
+      const filePath = join(agentsDir, "global-test-agent.md");
+      await writeFileContent(filePath, fileContent);
+
+      const subagent = await ClaudecodeSubagent.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "global-test-agent.md",
+        validate: true,
+        global: true,
+      });
+
+      expect(subagent).toBeInstanceOf(ClaudecodeSubagent);
+      expect(subagent.getBody()).toBe(body);
+      expect(subagent.getFrontmatter()).toEqual(frontmatter);
+      expect(subagent.getRelativeDirPath()).toBe(join(".claude", "agents"));
     });
   });
 });
