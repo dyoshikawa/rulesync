@@ -47,6 +47,7 @@ describe("importCommand", () => {
     vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
     vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
     vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
@@ -181,6 +182,7 @@ describe("importCommand", () => {
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        global: false,
       });
       expect(mockSubagentsProcessor.loadToolFiles).toHaveBeenCalled();
       expect(mockSubagentsProcessor.convertToolFilesToRulesyncFiles).toHaveBeenCalled();
@@ -339,6 +341,111 @@ describe("importCommand", () => {
       // Only the setVerbose call should have been made, no success messages
       expect(logger.setVerbose).toHaveBeenCalledWith(true);
       expect(logger.success).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("global mode", () => {
+    beforeEach(() => {
+      mockConfig.getExperimentalGlobal.mockReturnValue(true);
+    });
+
+    it("should pass global flag to SubagentsProcessor when importing in global mode", async () => {
+      const mockSubagentsProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+      };
+      vi.mocked(SubagentsProcessor).mockImplementation(() => mockSubagentsProcessor as any);
+      vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      const options: ImportOptions = {
+        targets: ["claudecode"],
+      };
+
+      await importCommand(options);
+
+      expect(SubagentsProcessor).toHaveBeenCalledWith({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: true,
+      });
+    });
+
+    it("should pass global flag to other processors when importing in global mode", async () => {
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+      };
+
+      vi.mocked(RulesProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(McpProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(CommandsProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(SubagentsProcessor).mockImplementation(() => mockProcessor as any);
+
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+
+      const options: ImportOptions = {
+        targets: ["claudecode"],
+      };
+
+      await importCommand(options);
+
+      expect(RulesProcessor).toHaveBeenCalledWith({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: true,
+      });
+      expect(McpProcessor).toHaveBeenCalledWith({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: true,
+      });
+      expect(CommandsProcessor).toHaveBeenCalledWith({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: true,
+      });
+      expect(SubagentsProcessor).toHaveBeenCalledWith({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: true,
+      });
+    });
+
+    it("should use getToolTargetsGlobal for supported processors in global mode", async () => {
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+      };
+
+      vi.mocked(RulesProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(McpProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(CommandsProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(SubagentsProcessor).mockImplementation(() => mockProcessor as any);
+
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
+      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
+      vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+
+      const options: ImportOptions = {
+        targets: ["claudecode"],
+      };
+
+      await importCommand(options);
+
+      // Verify getToolTargetsGlobal is called for processors that support it
+      expect(RulesProcessor.getToolTargetsGlobal).toHaveBeenCalled();
+      expect(CommandsProcessor.getToolTargetsGlobal).toHaveBeenCalled();
     });
   });
 });

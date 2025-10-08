@@ -196,11 +196,6 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping subagent file import (not supported in global mode)");
-    return 0;
-  }
-
   // Use SubagentsProcessor for supported tools, excluding simulated ones
   const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
   if (!supportedTargets.includes(tool)) {
@@ -210,6 +205,7 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
   const subagentsProcessor = new SubagentsProcessor({
     baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
+    global: config.getExperimentalGlobal(),
   });
 
   const toolFiles = await subagentsProcessor.loadToolFiles();

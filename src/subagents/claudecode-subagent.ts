@@ -51,6 +51,12 @@ export class ClaudecodeSubagent extends ToolSubagent {
     };
   }
 
+  static getSettablePathsGlobal(): ToolSubagentSettablePaths {
+    return {
+      relativeDirPath: join(".claude", "agents"),
+    };
+  }
+
   getFrontmatter(): ClaudecodeSubagentFrontmatter {
     return this.frontmatter;
   }
@@ -75,9 +81,9 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncSubagent({
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      baseDir: this.baseDir,
       relativeDirPath: ".rulesync/subagents",
       relativeFilePath: this.getRelativeFilePath(),
       fileContent,
@@ -89,6 +95,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     baseDir = ".",
     rulesyncSubagent,
     validate = true,
+    global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const claudecodeFrontmatter: ClaudecodeSubagentFrontmatter = {
@@ -101,11 +108,13 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, claudecodeFrontmatter);
 
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+
     return new ClaudecodeSubagent({
       baseDir: baseDir,
       frontmatter: claudecodeFrontmatter,
       body,
-      relativeDirPath: ".claude/agents",
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       fileContent,
       validate,
@@ -137,20 +146,23 @@ export class ClaudecodeSubagent extends ToolSubagent {
     baseDir = ".",
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolSubagentFromFileParams): Promise<ClaudecodeSubagent> {
+    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
-    const fileContent = await readFileContent(join(baseDir, ".claude/agents", relativeFilePath));
+    const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
     const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
     }
 
     return new ClaudecodeSubagent({
       baseDir: baseDir,
-      relativeDirPath: ".claude/agents",
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath: relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),

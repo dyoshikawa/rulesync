@@ -239,24 +239,24 @@ async function generateSubagents(config: Config): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
-    logger.debug("Skipping subagent file generation (not supported in global mode)");
-    return 0;
-  }
-
   let totalSubagentOutputs = 0;
   logger.info("Generating subagent files...");
 
+  const toolTargets = config.getExperimentalGlobal()
+    ? intersection(config.getTargets(), SubagentsProcessor.getToolTargetsGlobal())
+    : intersection(
+        config.getTargets(),
+        SubagentsProcessor.getToolTargets({
+          includeSimulated: config.getExperimentalSimulateSubagents(),
+        }),
+      );
+
   for (const baseDir of config.getBaseDirs()) {
-    for (const toolTarget of intersection(
-      config.getTargets(),
-      SubagentsProcessor.getToolTargets({
-        includeSimulated: config.getExperimentalSimulateSubagents(),
-      }),
-    )) {
+    for (const toolTarget of toolTargets) {
       const processor = new SubagentsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
+        global: config.getExperimentalGlobal(),
       });
 
       if (config.getDelete()) {

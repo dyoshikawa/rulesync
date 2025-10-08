@@ -118,6 +118,41 @@ Test agent content`,
       expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
     });
 
+    it("should convert with global flag when processor is in global mode", async () => {
+      const globalProcessor = new SubagentsProcessor({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: ".",
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "global-test-agent.md",
+        fileContent: `---
+name: global-test-agent
+description: Global test agent description
+targets: ["*"]
+---
+Global test agent content`,
+        frontmatter: {
+          name: "global-test-agent",
+          description: "Global test agent description",
+          targets: ["*"],
+        },
+        body: "Global test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await globalProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+      // The global flag should be passed through to ClaudecodeSubagent.fromRulesyncSubagent
+      const claudecodeSubagent = toolFiles[0] as ClaudecodeSubagent;
+      expect(claudecodeSubagent.getFrontmatter().name).toBe("global-test-agent");
+    });
+
     it("should handle empty rulesync files array", async () => {
       const toolFiles = await processor.convertRulesyncFilesToToolFiles([]);
       expect(toolFiles).toEqual([]);
@@ -716,6 +751,83 @@ Valid content`,
       expect(toolFiles.length).toBeGreaterThanOrEqual(1);
       expect(toolFiles.some((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });
+
+    describe("global mode", () => {
+      it("should use global paths when global=true", async () => {
+        const globalProcessor = new SubagentsProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        // In test mode, global paths still resolve relative to testDir
+        const globalAgentsDir = join(testDir, ".claude", "agents");
+        await ensureDir(globalAgentsDir);
+
+        const subagentContent = `---
+name: global-agent
+description: Global agent description
+---
+Global agent content`;
+
+        await writeFileContent(join(globalAgentsDir, "global-agent.md"), subagentContent);
+
+        const toolFiles = await globalProcessor.loadToolFiles();
+
+        expect(toolFiles).toHaveLength(1);
+        expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+        const claudecodeSubagent = toolFiles[0] as ClaudecodeSubagent;
+        expect(claudecodeSubagent.getFrontmatter().name).toBe("global-agent");
+        expect(claudecodeSubagent.getRelativeDirPath()).toBe(join(".claude", "agents"));
+      });
+
+      it("should return empty array when global agents directory does not exist", async () => {
+        const globalProcessor = new SubagentsProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const toolFiles = await globalProcessor.loadToolFiles();
+        expect(toolFiles).toEqual([]);
+      });
+
+      it("should load multiple global subagent files", async () => {
+        const globalProcessor = new SubagentsProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const globalAgentsDir = join(testDir, ".claude", "agents");
+        await ensureDir(globalAgentsDir);
+
+        const agent1Content = `---
+name: global-agent-1
+description: First global agent
+---
+First global content`;
+
+        const agent2Content = `---
+name: global-agent-2
+description: Second global agent
+---
+Second global content`;
+
+        await writeFileContent(join(globalAgentsDir, "global-agent-1.md"), agent1Content);
+        await writeFileContent(join(globalAgentsDir, "global-agent-2.md"), agent2Content);
+
+        const toolFiles = await globalProcessor.loadToolFiles();
+
+        expect(toolFiles).toHaveLength(2);
+        expect(toolFiles.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+
+        const names = toolFiles
+          .map((file) => (file as ClaudecodeSubagent).getFrontmatter().name)
+          .toSorted();
+        expect(names).toEqual(["global-agent-1", "global-agent-2"]);
+      });
+    });
   });
 
   describe("getToolTargets", () => {
@@ -752,6 +864,30 @@ Valid content`,
 
     it("should be callable without instance", () => {
       expect(() => SubagentsProcessor.getToolTargets()).not.toThrow();
+    });
+  });
+
+  describe("getToolTargetsGlobal", () => {
+    it("should return only claudecode as global-supported target", () => {
+      const toolTargets = SubagentsProcessor.getToolTargetsGlobal();
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toEqual(["claudecode"]);
+    });
+
+    it("should not include simulated targets", () => {
+      const toolTargets = SubagentsProcessor.getToolTargetsGlobal();
+
+      expect(toolTargets).not.toContain("copilot");
+      expect(toolTargets).not.toContain("cursor");
+      expect(toolTargets).not.toContain("codexcli");
+      expect(toolTargets).not.toContain("agentsmd");
+      expect(toolTargets).not.toContain("geminicli");
+      expect(toolTargets).not.toContain("roo");
+    });
+
+    it("should be callable without instance", () => {
+      expect(() => SubagentsProcessor.getToolTargetsGlobal()).not.toThrow();
     });
   });
 
