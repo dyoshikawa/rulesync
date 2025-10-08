@@ -162,7 +162,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const subagentsDir = join(this.baseDir, RulesyncSubagent.getSettablePaths().relativeDirPath);
+    const subagentsDir = join(RulesyncSubagent.getSettablePaths().relativeDirPath);
 
     // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);
