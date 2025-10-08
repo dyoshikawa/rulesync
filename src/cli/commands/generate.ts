@@ -242,13 +242,17 @@ async function generateSubagents(config: Config): Promise<number> {
   let totalSubagentOutputs = 0;
   logger.info("Generating subagent files...");
 
+  const toolTargets = config.getExperimentalGlobal()
+    ? intersection(config.getTargets(), SubagentsProcessor.getToolTargetsGlobal())
+    : intersection(
+        config.getTargets(),
+        SubagentsProcessor.getToolTargets({
+          includeSimulated: config.getExperimentalSimulateCommands(),
+        }),
+      );
+
   for (const baseDir of config.getBaseDirs()) {
-    for (const toolTarget of intersection(
-      config.getTargets(),
-      SubagentsProcessor.getToolTargets({
-        includeSimulated: config.getExperimentalSimulateSubagents(),
-      }),
-    )) {
+    for (const toolTarget of toolTargets) {
       const processor = new SubagentsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
