@@ -43,7 +43,7 @@ export class ConfigResolver {
         delete: isDelete ?? defaults.delete,
         baseDirs: getBaseDirsInLightOfGlobal({
           baseDirs: baseDirs ?? defaults.baseDirs,
-          global: experimentalGlobal ?? false,
+          global: experimentalGlobal ?? defaults.experimentalGlobal,
         }),
         experimentalGlobal: experimentalGlobal ?? defaults.experimentalGlobal,
         experimentalSimulateCommands:
@@ -73,7 +73,8 @@ export class ConfigResolver {
       delete: isDelete ?? configByFile.delete ?? defaults.delete,
       baseDirs: getBaseDirsInLightOfGlobal({
         baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
-        global: experimentalGlobal ?? false,
+        global:
+          experimentalGlobal ?? configByFile.experimentalGlobal ?? defaults.experimentalGlobal,
       }),
       experimentalGlobal:
         experimentalGlobal ?? configByFile.experimentalGlobal ?? defaults.experimentalGlobal,
