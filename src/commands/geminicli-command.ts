@@ -55,9 +55,7 @@ export class GeminiCliCommand extends ToolCommand {
       const parsed = parseToml(content);
       const result = GeminiCliCommandFrontmatterSchema.safeParse(parsed);
       if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in Gemini CLI command file: ${result.error.message}`,
-        );
+        throw new Error(`Invalid frontmatter in Gemini CLI command file: ${result.error.message}`);
       }
       return {
         description: result.data.description || "",
