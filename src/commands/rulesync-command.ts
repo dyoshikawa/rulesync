@@ -31,11 +31,12 @@ export class RulesyncCommand extends RulesyncFile {
   private readonly body: string;
 
   constructor({ frontmatter, body, ...rest }: RulesyncCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate) {
       const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
-        throw result.error;
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.baseDir ?? ".", rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+        );
       }
     }
 
