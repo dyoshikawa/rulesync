@@ -65,7 +65,7 @@
 		"chokidar": "4.0.3",
 		"commander": "14.0.1",
 		"consola": "3.4.2",
-		"es-toolkit": "1.39.10",
+		"es-toolkit": "1.40.0",
 		"fast-xml-parser": "5.3.0",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.0",
