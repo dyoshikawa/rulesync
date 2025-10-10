@@ -53,10 +53,13 @@ export class GeminiCliCommand extends ToolCommand {
   private parseTomlContent(content: string): GeminiCliCommandFrontmatter {
     try {
       const parsed = parseToml(content);
-      const validated = GeminiCliCommandFrontmatterSchema.parse(parsed);
+      const result = GeminiCliCommandFrontmatterSchema.safeParse(parsed);
+      if (!result.success) {
+        throw new Error(`Invalid frontmatter in Gemini CLI command file: ${result.error.message}`);
+      }
       return {
-        description: validated.description || "",
-        prompt: validated.prompt,
+        description: result.data.description || "",
+        prompt: result.data.prompt,
       };
     } catch (error) {
       throw new Error(`Failed to parse TOML command file: ${error}`, { cause: error });

@@ -88,7 +88,13 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSubagents?: boolean;
   }) {
     super({ baseDir });
-    this.toolTarget = RulesProcessorToolTargetSchema.parse(toolTarget);
+    const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tool target for RulesProcessor: ${toolTarget}. ${result.error.message}`,
+      );
+    }
+    this.toolTarget = result.data;
     this.global = global;
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;

@@ -41,7 +41,13 @@ export class McpProcessor extends FeatureProcessor {
     global = false,
   }: { baseDir?: string; toolTarget: McpProcessorToolTarget; global?: boolean }) {
     super({ baseDir });
-    this.toolTarget = McpProcessorToolTargetSchema.parse(toolTarget);
+    const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tool target for McpProcessor: ${toolTarget}. ${result.error.message}`,
+      );
+    }
+    this.toolTarget = result.data;
     this.global = global;
   }
 
