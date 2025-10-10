@@ -55,7 +55,9 @@ export class RulesyncRule extends RulesyncFile {
     if (rest.validate !== false) {
       const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
-        throw result.error;
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+        );
       }
     }
 

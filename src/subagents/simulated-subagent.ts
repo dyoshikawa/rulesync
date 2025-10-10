@@ -30,7 +30,9 @@ export abstract class SimulatedSubagent extends ToolSubagent {
     if (rest.validate) {
       const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
-        throw result.error;
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+        );
       }
     }
 

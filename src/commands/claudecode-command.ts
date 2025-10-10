@@ -31,7 +31,9 @@ export class ClaudecodeCommand extends ToolCommand {
     if (rest.validate) {
       const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
-        throw result.error;
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+        );
       }
     }
 

@@ -50,7 +50,13 @@ export class SubagentsProcessor extends FeatureProcessor {
     global = false,
   }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget; global?: boolean }) {
     super({ baseDir });
-    this.toolTarget = SubagentsProcessorToolTargetSchema.parse(toolTarget);
+    const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tool target for SubagentsProcessor: ${toolTarget}. ${result.error.message}`,
+      );
+    }
+    this.toolTarget = result.data;
     this.global = global;
   }
 

@@ -44,7 +44,13 @@ export class IgnoreProcessor extends FeatureProcessor {
     toolTarget,
   }: { baseDir?: string; toolTarget: IgnoreProcessorToolTarget }) {
     super({ baseDir });
-    this.toolTarget = IgnoreProcessorToolTargetSchema.parse(toolTarget);
+    const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tool target for IgnoreProcessor: ${toolTarget}. ${result.error.message}`,
+      );
+    }
+    this.toolTarget = result.data;
   }
 
   async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {

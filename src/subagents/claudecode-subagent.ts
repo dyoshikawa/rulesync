@@ -33,7 +33,9 @@ export class ClaudecodeSubagent extends ToolSubagent {
     if (rest.validate !== false) {
       const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
-        throw result.error;
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+        );
       }
     }
 

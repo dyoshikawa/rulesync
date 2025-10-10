@@ -49,7 +49,13 @@ export class CommandsProcessor extends FeatureProcessor {
     global = false,
   }: { baseDir?: string; toolTarget: CommandsProcessorToolTarget; global?: boolean }) {
     super({ baseDir });
-    this.toolTarget = CommandsProcessorToolTargetSchema.parse(toolTarget);
+    const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tool target for CommandsProcessor: ${toolTarget}. ${result.error.message}`,
+      );
+    }
+    this.toolTarget = result.data;
     this.global = global;
   }
 
