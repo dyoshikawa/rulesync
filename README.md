@@ -4,6 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/rulesync)](https://www.npmjs.com/package/rulesync)
 [![npm downloads](https://img.shields.io/npm/dt/rulesync)](https://www.npmjs.com/package/rulesync)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/dyoshikawa/rulesync)
+[![Mentioned in Awesome Gemini CLI](https://awesome.re/mentioned-badge.svg)](https://github.com/Piebald-AI/awesome-gemini-cli)
 
 A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, and subagents. Uses the recommended `.rulesync/rules/*.md` structure, with full backward compatibility for legacy `.rulesync/*.md` layouts.
 
@@ -343,10 +344,6 @@ Simulated commands and subagents are experimental features that allow you to gen
       Call your-subagent to achieve something.
       ```
 
-## License
-
-MIT License
-
 ## Contributing
 
 Issues and Pull Requests are welcome!
@@ -363,3 +360,7 @@ pnpm cicheck # Run code style check, type check, and tests
 pnpm dev generate -t claudecode -f "*"
 pnpm dev import -t claudecode -f "*"
 ```
+
+## License
+
+MIT License
