@@ -890,7 +890,7 @@ describe("CommandsProcessor", () => {
   describe("getToolTargets", () => {
     it("should exclude simulated targets by default", () => {
       const targets = CommandsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "geminicli", "roo", "cursor"]);
+      expect(targets).toEqual(["claudecode", "geminicli", "roo", "copilot", "cursor"]);
     });
 
     it("should include simulated targets when includeSimulated is true", () => {

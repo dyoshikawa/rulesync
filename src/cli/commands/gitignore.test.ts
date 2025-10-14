@@ -65,6 +65,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.mcp.json");
       expect(content).toContain("**/.github/commands/");
       expect(content).toContain("**/.github/subagents/");
+      expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
       expect(content).toContain("**/.codex/");
     });
@@ -208,6 +209,7 @@ describe("gitignoreCommand", () => {
 **/.amazonq/
 **/.github/copilot-instructions.md
 **/.github/instructions/
+**/.github/prompts/
 **/.cursor/
 **/.cursorignore
 **/.clinerules/

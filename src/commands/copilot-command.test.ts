@@ -2,18 +2,19 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
-import { CopilotCommand } from "./copilot-command.js";
-import { RulesyncCommand } from "./rulesync-command.js";
 import {
-  SimulatedCommandFrontmatter,
-  SimulatedCommandFrontmatterSchema,
-} from "./simulated-command.js";
+  CopilotCommand,
+  CopilotCommandFrontmatter,
+  CopilotCommandFrontmatterSchema,
+} from "./copilot-command.js";
+import { RulesyncCommand } from "./rulesync-command.js";
 
 describe("CopilotCommand", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
   const validMarkdownContent = `---
+mode: agent
 description: Test copilot command description
 ---
 
@@ -21,8 +22,8 @@ This is the body of the copilot command.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required description field
-invalid: true
+# Missing required mode field
+description: Test
 ---
 
 Body content`;
@@ -44,7 +45,7 @@ Body content`;
     it("should return correct paths for copilot commands", () => {
       const paths = CopilotCommand.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".github/commands",
+        relativeDirPath: join(".github", "prompts"),
       });
     });
   });
@@ -53,9 +54,10 @@ Body content`;
     it("should create instance with valid markdown content", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test copilot command description",
         },
         body: "This is the body of the copilot command.\nIt can be multiline.",
@@ -67,6 +69,7 @@ Body content`;
         "This is the body of the copilot command.\nIt can be multiline.",
       );
       expect(command.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "Test copilot command description",
       });
     });
@@ -74,9 +77,10 @@ Body content`;
     it("should create instance with empty description", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "",
         },
         body: "This is a copilot command without description.",
@@ -85,6 +89,7 @@ Body content`;
 
       expect(command.getBody()).toBe("This is a copilot command without description.");
       expect(command.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "",
       });
     });
@@ -92,9 +97,10 @@ Body content`;
     it("should create instance without validation when validate is false", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test description",
         },
         body: "Test body",
@@ -109,11 +115,11 @@ Body content`;
         () =>
           new CopilotCommand({
             baseDir: testDir,
-            relativeDirPath: ".github/commands",
-            relativeFilePath: "invalid-command.md",
+            relativeDirPath: join(".github", "prompts"),
+            relativeFilePath: "invalid-command.prompt.md",
             frontmatter: {
-              // Missing required description field
-            } as SimulatedCommandFrontmatter,
+              // Missing required mode and description field
+            } as CopilotCommandFrontmatter,
             body: "Body content",
             validate: true,
           }),
@@ -125,9 +131,10 @@ Body content`;
     it("should return the body content", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test description",
         },
         body: "This is the body content.\nWith multiple lines.",
@@ -139,12 +146,13 @@ Body content`;
   });
 
   describe("getFrontmatter", () => {
-    it("should return frontmatter with description", () => {
+    it("should return frontmatter with mode and description", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test copilot command",
         },
         body: "Test body",
@@ -153,27 +161,35 @@ Body content`;
 
       const frontmatter = command.getFrontmatter();
       expect(frontmatter).toEqual({
+        mode: "agent",
         description: "Test copilot command",
       });
     });
   });
 
   describe("toRulesyncCommand", () => {
-    it("should throw error as it is a simulated file", () => {
+    it("should convert CopilotCommand to RulesyncCommand", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test description",
         },
         body: "Test body",
         validate: true,
       });
 
-      expect(() => command.toRulesyncCommand()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      const rulesyncCommand = command.toRulesyncCommand();
+
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand.getBody()).toBe("Test body");
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Test description",
+      });
+      expect(rulesyncCommand.getRelativeFilePath()).toBe("test-command.prompt.md");
     });
   });
 
@@ -201,17 +217,18 @@ Body content`;
       expect(copilotCommand).toBeInstanceOf(CopilotCommand);
       expect(copilotCommand.getBody()).toBe("Test command content");
       expect(copilotCommand.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "Test description from rulesync",
       });
-      expect(copilotCommand.getRelativeFilePath()).toBe("test-command.md");
-      expect(copilotCommand.getRelativeDirPath()).toBe(".github/commands");
+      expect(copilotCommand.getRelativeFilePath()).toBe("test-command.prompt.md");
+      expect(copilotCommand.getRelativeDirPath()).toBe(join(".github", "prompts"));
     });
 
-    it("should handle RulesyncCommand with different file extensions", () => {
+    it("should convert .md extension to .prompt.md", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
-        relativeFilePath: "complex-command.txt",
+        relativeFilePath: "complex-command.md",
         frontmatter: {
           targets: ["copilot"],
           description: "Complex command",
@@ -227,7 +244,7 @@ Body content`;
         validate: true,
       });
 
-      expect(copilotCommand.getRelativeFilePath()).toBe("complex-command.txt");
+      expect(copilotCommand.getRelativeFilePath()).toBe("complex-command.prompt.md");
     });
 
     it("should handle empty description", () => {
@@ -251,6 +268,7 @@ Body content`;
       });
 
       expect(copilotCommand.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "",
       });
     });
@@ -258,14 +276,14 @@ Body content`;
 
   describe("fromFile", () => {
     it("should load CopilotCommand from file", async () => {
-      const commandsDir = join(testDir, ".github", "commands");
-      const filePath = join(commandsDir, "test-file-command.md");
+      const commandsDir = join(testDir, ".github", "prompts");
+      const filePath = join(commandsDir, "test-file-command.prompt.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await CopilotCommand.fromFile({
         baseDir: testDir,
-        relativeFilePath: "test-file-command.md",
+        relativeFilePath: "test-file-command.prompt.md",
         validate: true,
       });
 
@@ -274,61 +292,62 @@ Body content`;
         "This is the body of the copilot command.\nIt can be multiline.",
       );
       expect(command.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "Test copilot command description",
       });
-      expect(command.getRelativeFilePath()).toBe("test-file-command.md");
+      expect(command.getRelativeFilePath()).toBe("test-file-command.prompt.md");
     });
 
     it("should handle file path with subdirectories", async () => {
-      const commandsDir = join(testDir, ".github", "commands", "subdir");
-      const filePath = join(commandsDir, "nested-command.md");
+      const commandsDir = join(testDir, ".github", "prompts", "subdir");
+      const filePath = join(commandsDir, "nested-command.prompt.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await CopilotCommand.fromFile({
         baseDir: testDir,
-        relativeFilePath: "subdir/nested-command.md",
+        relativeFilePath: "subdir/nested-command.prompt.md",
         validate: true,
       });
 
-      expect(command.getRelativeFilePath()).toBe("nested-command.md");
+      expect(command.getRelativeFilePath()).toBe("nested-command.prompt.md");
     });
 
     it("should throw error when file does not exist", async () => {
       await expect(
         CopilotCommand.fromFile({
           baseDir: testDir,
-          relativeFilePath: "non-existent-command.md",
+          relativeFilePath: "non-existent-command.prompt.md",
           validate: true,
         }),
       ).rejects.toThrow();
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const commandsDir = join(testDir, ".github", "commands");
-      const filePath = join(commandsDir, "invalid-command.md");
+      const commandsDir = join(testDir, ".github", "prompts");
+      const filePath = join(commandsDir, "invalid-command.prompt.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
 
       await expect(
         CopilotCommand.fromFile({
           baseDir: testDir,
-          relativeFilePath: "invalid-command.md",
+          relativeFilePath: "invalid-command.prompt.md",
           validate: true,
         }),
       ).rejects.toThrow();
     });
 
     it("should handle file without frontmatter", async () => {
-      const commandsDir = join(testDir, ".github", "commands");
-      const filePath = join(commandsDir, "no-frontmatter.md");
+      const commandsDir = join(testDir, ".github", "prompts");
+      const filePath = join(commandsDir, "no-frontmatter.prompt.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
       await expect(
         CopilotCommand.fromFile({
           baseDir: testDir,
-          relativeFilePath: "no-frontmatter.md",
+          relativeFilePath: "no-frontmatter.prompt.md",
           validate: true,
         }),
       ).rejects.toThrow();
@@ -339,9 +358,10 @@ Body content`;
     it("should return success for valid frontmatter", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "valid-command.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "valid-command.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Valid description",
         },
         body: "Valid body",
@@ -356,9 +376,10 @@ Body content`;
     it("should handle frontmatter with additional properties", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "command-with-extras.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "command-with-extras.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Command with extra properties",
           // Additional properties should be allowed but not validated
           extra: "property",
@@ -373,28 +394,49 @@ Body content`;
     });
   });
 
-  describe("SimulatedCommandFrontmatterSchema", () => {
-    it("should validate valid frontmatter with description", () => {
+  describe("CopilotCommandFrontmatterSchema", () => {
+    it("should validate valid frontmatter with mode and description", () => {
       const validFrontmatter = {
+        mode: "agent" as const,
         description: "Test description",
       };
 
-      const result = SimulatedCommandFrontmatterSchema.parse(validFrontmatter);
+      const result = CopilotCommandFrontmatterSchema.parse(validFrontmatter);
       expect(result).toEqual(validFrontmatter);
     });
 
-    it("should throw error for frontmatter without description", () => {
-      const invalidFrontmatter = {};
+    it("should throw error for frontmatter without mode", () => {
+      const invalidFrontmatter = {
+        description: "Test",
+      };
 
-      expect(() => SimulatedCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+    });
+
+    it("should throw error for frontmatter without description", () => {
+      const invalidFrontmatter = {
+        mode: "agent",
+      };
+
+      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+    });
+
+    it("should throw error for frontmatter with invalid mode", () => {
+      const invalidFrontmatter = {
+        mode: "invalid", // Should be 'agent'
+        description: "Test",
+      };
+
+      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
 
     it("should throw error for frontmatter with invalid types", () => {
       const invalidFrontmatter = {
+        mode: "agent",
         description: 123, // Should be string
       };
 
-      expect(() => SimulatedCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
   });
 
@@ -402,9 +444,10 @@ Body content`;
     it("should handle empty body content", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "empty-body.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "empty-body.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Command with empty body",
         },
         body: "",
@@ -413,6 +456,7 @@ Body content`;
 
       expect(command.getBody()).toBe("");
       expect(command.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "Command with empty body",
       });
     });
@@ -423,9 +467,10 @@ Body content`;
 
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "special-char.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "special-char.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Special characters test",
         },
         body: specialContent,
@@ -443,9 +488,10 @@ Body content`;
 
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "long-content.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "long-content.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Long content test",
         },
         body: longContent,
@@ -459,9 +505,10 @@ Body content`;
     it("should handle multi-line description", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "multiline-desc.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "multiline-desc.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "This is a multi-line\ndescription with\nmultiple lines",
         },
         body: "Test body",
@@ -469,6 +516,7 @@ Body content`;
       });
 
       expect(command.getFrontmatter()).toEqual({
+        mode: "agent",
         description: "This is a multi-line\ndescription with\nmultiple lines",
       });
     });
@@ -478,9 +526,10 @@ Body content`;
 
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "windows-lines.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "windows-lines.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Windows line endings test",
         },
         body: windowsContent,
@@ -492,12 +541,13 @@ Body content`;
   });
 
   describe("integration with base classes", () => {
-    it("should properly inherit from SimulatedCommand", () => {
+    it("should properly inherit from ToolCommand", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test",
         },
         body: "Body",
@@ -506,17 +556,18 @@ Body content`;
 
       // Check that it's an instance of parent classes
       expect(command).toBeInstanceOf(CopilotCommand);
-      expect(command.getRelativeDirPath()).toBe(".github/commands");
-      expect(command.getRelativeFilePath()).toBe("test.md");
+      expect(command.getRelativeDirPath()).toBe(join(".github", "prompts"));
+      expect(command.getRelativeFilePath()).toBe("test.prompt.md");
     });
 
     it("should handle baseDir correctly", () => {
       const customBaseDir = "/custom/base/dir";
       const command = new CopilotCommand({
         baseDir: customBaseDir,
-        relativeDirPath: ".github/commands",
-        relativeFilePath: "test.md",
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test.prompt.md",
         frontmatter: {
+          mode: "agent",
           description: "Test",
         },
         body: "Body",

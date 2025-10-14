@@ -10,6 +10,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.amazonq/",
     "**/.github/copilot-instructions.md",
     "**/.github/instructions/",
+    "**/.github/prompts/",
     "**/.cursor/",
     "**/.cursorignore",
     "**/.clinerules/",

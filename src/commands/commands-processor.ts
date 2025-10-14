@@ -29,7 +29,7 @@ export const CommandsProcessorToolTargetSchema = z.enum(
   commandsProcessorToolTargets.concat("codexcli"),
 );
 
-const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["agentsmd", "copilot"];
+const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["agentsmd"];
 export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [
   "claudecode",
   "cursor",
@@ -218,7 +218,7 @@ export class CommandsProcessor extends FeatureProcessor {
   }: {
     toolTarget: "agentsmd" | "claudecode" | "geminicli" | "roo" | "copilot" | "cursor" | "codexcli";
     relativeDirPath: string;
-    extension: "md" | "toml";
+    extension: "md" | "toml" | "prompt.md";
   }): Promise<ToolCommand[]> {
     const commandFilePaths = await findFilesByGlobs(
       join(this.baseDir, relativeDirPath, `*.${extension}`),
@@ -293,13 +293,13 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Load Copilot command configurations from .github/commands/ directory
+   * Load Copilot command configurations from .github/prompts/ directory
    */
   private async loadCopilotCommands(): Promise<ToolCommand[]> {
     return await this.loadToolCommandDefault({
       toolTarget: "copilot",
       relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath,
-      extension: "md",
+      extension: "prompt.md",
     });
   }
 
