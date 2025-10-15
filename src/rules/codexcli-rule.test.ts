@@ -589,9 +589,9 @@ More detailed instructions here.`;
     });
   });
 
-  describe("getSettablePathsGlobal", () => {
+  describe("getSettablePaths with global flag", () => {
     it("should return global-specific paths", () => {
-      const paths = CodexcliRule.getSettablePathsGlobal();
+      const paths = CodexcliRule.getSettablePaths({ global: true });
 
       expect(paths).toHaveProperty("root");
       expect(paths.root).toEqual({
@@ -602,7 +602,7 @@ More detailed instructions here.`;
     });
 
     it("should have different paths than regular getSettablePaths", () => {
-      const globalPaths = CodexcliRule.getSettablePathsGlobal();
+      const globalPaths = CodexcliRule.getSettablePaths({ global: true });
       const regularPaths = CodexcliRule.getSettablePaths();
 
       expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
@@ -641,7 +641,7 @@ More detailed instructions here.`;
         global: true,
       });
 
-      const globalPaths = CodexcliRule.getSettablePathsGlobal();
+      const globalPaths = CodexcliRule.getSettablePaths({ global: true });
       expect(codexcliRule.getRelativeDirPath()).toBe(globalPaths.root.relativeDirPath);
       expect(codexcliRule.getRelativeFilePath()).toBe(globalPaths.root.relativeFilePath);
     });

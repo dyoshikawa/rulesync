@@ -34,11 +34,10 @@ export class CodexcliMcp extends ToolMcp {
     return this.toml;
   }
 
-  static getSettablePaths(): ToolMcpSettablePaths {
-    throw new Error("getSettablePaths is not supported for CodexcliMcp");
-  }
-
-  static getSettablePathsGlobal(): ToolMcpSettablePaths {
+  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
+    if (!global) {
+      throw new Error("CodexcliMcp only supports global mode. Please pass { global: true }.");
+    }
     return {
       relativeDirPath: ".codex",
       relativeFilePath: "config.toml",
@@ -50,7 +49,7 @@ export class CodexcliMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<CodexcliMcp> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const fileContent = await readFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
     );
@@ -70,7 +69,7 @@ export class CodexcliMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<CodexcliMcp> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     const configTomlFilePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     const configTomlFileContent = await readOrInitializeFileContent(

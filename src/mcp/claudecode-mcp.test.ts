@@ -24,11 +24,9 @@ describe("ClaudecodeMcp", () => {
       expect(paths.relativeDirPath).toBe(".");
       expect(paths.relativeFilePath).toBe(".mcp.json");
     });
-  });
 
-  describe("getSettablePathsGlobal", () => {
     it("should return correct paths for global mode", () => {
-      const paths = ClaudecodeMcp.getSettablePathsGlobal();
+      const paths = ClaudecodeMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(".claude");
       expect(paths.relativeFilePath).toBe(".claude.json");

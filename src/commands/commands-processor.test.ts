@@ -50,12 +50,9 @@ vi.mocked(RulesyncCommand).getSettablePaths = vi
 vi.mocked(ClaudecodeCommand).fromFile = vi.fn();
 vi.mocked(ClaudecodeCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(ClaudecodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
-vi.mocked(ClaudecodeCommand).getSettablePaths = vi
-  .fn()
-  .mockReturnValue({ relativeDirPath: ".claude/commands" });
-vi.mocked(ClaudecodeCommand).getSettablePathsGlobal = vi
-  .fn()
-  .mockReturnValue({ relativeDirPath: join(".claude", "commands") });
+vi.mocked(ClaudecodeCommand).getSettablePaths = vi.fn().mockImplementation((_options = {}) => ({
+  relativeDirPath: join(".claude", "commands"),
+}));
 
 // Set up static methods after mocking
 vi.mocked(GeminiCliCommand).fromFile = vi.fn();
@@ -77,12 +74,9 @@ vi.mocked(RooCommand).getSettablePaths = vi
 vi.mocked(CursorCommand).fromFile = vi.fn();
 vi.mocked(CursorCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(CursorCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
-vi.mocked(CursorCommand).getSettablePaths = vi
-  .fn()
-  .mockReturnValue({ relativeDirPath: join(".cursor", "commands") });
-vi.mocked(CursorCommand).getSettablePathsGlobal = vi
-  .fn()
-  .mockReturnValue({ relativeDirPath: join(".cursor", "commands") });
+vi.mocked(CursorCommand).getSettablePaths = vi.fn().mockImplementation((_options = {}) => ({
+  relativeDirPath: join(".cursor", "commands"),
+}));
 
 describe("CommandsProcessor", () => {
   let testDir: string;

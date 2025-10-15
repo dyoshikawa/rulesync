@@ -47,13 +47,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  static getSettablePaths(): ToolSubagentSettablePaths {
-    return {
-      relativeDirPath: ".claude/agents",
-    };
-  }
-
-  static getSettablePathsGlobal(): ToolSubagentSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
       relativeDirPath: join(".claude", "agents"),
     };
@@ -110,7 +104,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, claudecodeFrontmatter);
 
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     return new ClaudecodeSubagent({
       baseDir: baseDir,
@@ -155,7 +149,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<ClaudecodeSubagent> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);

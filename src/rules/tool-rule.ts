@@ -66,11 +66,9 @@ export abstract class ToolRule extends ToolFile {
     this.globs = globs;
   }
 
-  static getSettablePaths(): ToolRuleSettablePaths {
-    throw new Error("Please implement this method in the subclass.");
-  }
-
-  static getSettablePathsGlobal(): ToolRuleSettablePathsGlobal {
+  static getSettablePaths(
+    _options: { global?: boolean } = {},
+  ): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal {
     throw new Error("Please implement this method in the subclass.");
   }
 

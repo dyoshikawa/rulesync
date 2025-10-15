@@ -46,13 +46,7 @@ export class ClaudecodeCommand extends ToolCommand {
     this.body = body;
   }
 
-  static getSettablePaths(): ToolCommandSettablePaths {
-    return {
-      relativeDirPath: ".claude/commands",
-    };
-  }
-
-  static getSettablePathsGlobal(): ToolCommandSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
       relativeDirPath: join(".claude", "commands"),
     };
@@ -101,7 +95,7 @@ export class ClaudecodeCommand extends ToolCommand {
     // Generate proper file content with Claude Code specific frontmatter
     const body = rulesyncCommand.getBody();
 
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     return new ClaudecodeCommand({
       baseDir: baseDir,
@@ -145,7 +139,7 @@ export class ClaudecodeCommand extends ToolCommand {
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<ClaudecodeCommand> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);

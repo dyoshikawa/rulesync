@@ -260,9 +260,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load Claude Code subagent configurations from .claude/agents/ directory
    */
   private async loadClaudecodeSubagents(): Promise<ToolSubagent[]> {
-    const paths = this.global
-      ? ClaudecodeSubagent.getSettablePathsGlobal()
-      : ClaudecodeSubagent.getSettablePaths();
+    const paths = ClaudecodeSubagent.getSettablePaths({ global: this.global });
     return await this.loadToolSubagentsDefault({
       relativeDirPath: paths.relativeDirPath,
       fromFile: (relativeFilePath) =>
