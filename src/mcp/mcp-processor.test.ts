@@ -6,6 +6,7 @@ import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { GeminiCliMcp } from "./geminicli-mcp.js";
 import {
   McpProcessor,
   type McpProcessorToolTarget,
@@ -22,6 +23,7 @@ vi.mock("./cline-mcp.js");
 vi.mock("./codexcli-mcp.js");
 vi.mock("./copilot-mcp.js");
 vi.mock("./cursor-mcp.js");
+vi.mock("./geminicli-mcp.js");
 vi.mock("./roo-mcp.js");
 vi.mock("./rulesync-mcp.js");
 vi.mock("./tool-mcp.js");
@@ -57,6 +59,8 @@ describe("McpProcessor", () => {
     (CopilotMcp as any).fromRulesyncMcp = vi.fn();
     (CursorMcp as any).fromFile = vi.fn();
     (CursorMcp as any).fromRulesyncMcp = vi.fn();
+    (GeminiCliMcp as any).fromFile = vi.fn();
+    (GeminiCliMcp as any).fromRulesyncMcp = vi.fn();
     (RooMcp as any).fromFile = vi.fn();
     (RooMcp as any).fromRulesyncMcp = vi.fn();
     (RulesyncMcp as any).fromFile = vi.fn();
@@ -292,6 +296,61 @@ describe("McpProcessor", () => {
         expect(CursorMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+        });
+      });
+    });
+
+    describe("geminicli", () => {
+      it("should load GeminiCliMcp files", async () => {
+        const mockMcp = new GeminiCliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".gemini",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.mocked(GeminiCliMcp.fromFile).mockReturnValue(Promise.resolve(mockMcp));
+
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "geminicli",
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(GeminiCliMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: false,
+        });
+      });
+
+      it("should load GeminiCliMcp files in global mode", async () => {
+        const mockMcp = new GeminiCliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".gemini",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.mocked(GeminiCliMcp.fromFile).mockReturnValue(Promise.resolve(mockMcp));
+
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "geminicli",
+          global: true,
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(GeminiCliMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: true,
         });
       });
     });
@@ -592,6 +651,73 @@ describe("McpProcessor", () => {
       });
     });
 
+    it("should convert rulesync files to geminicli tool files", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = new GeminiCliMcp({
+        baseDir: testDir,
+        relativeDirPath: ".gemini",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(GeminiCliMcp.fromRulesyncMcp).mockReturnValue(Promise.resolve(mockToolMcp));
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "geminicli",
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(GeminiCliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+    });
+
+    it("should convert rulesync files to geminicli tool files in global mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = new GeminiCliMcp({
+        baseDir: testDir,
+        relativeDirPath: ".gemini",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(GeminiCliMcp.fromRulesyncMcp).mockReturnValue(Promise.resolve(mockToolMcp));
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "geminicli",
+        global: true,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(GeminiCliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+    });
+
     it("should convert rulesync files to codexcli tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
@@ -741,13 +867,14 @@ describe("McpProcessor", () => {
 
   describe("mcpProcessorToolTargets constant", () => {
     it("should contain all expected tool targets", () => {
-      expect(mcpProcessorToolTargets).toHaveLength(6);
+      expect(mcpProcessorToolTargets).toHaveLength(7);
       expect(mcpProcessorToolTargets).toEqual([
         "amazonqcli",
         "claudecode",
         "cline",
         "copilot",
         "cursor",
+        "geminicli",
         "roo",
       ]);
     });

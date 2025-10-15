@@ -10,6 +10,7 @@ import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
@@ -20,6 +21,7 @@ export const mcpProcessorToolTargets: ToolTarget[] = [
   "cline",
   "copilot",
   "cursor",
+  "geminicli",
   "roo",
 ];
 
@@ -29,7 +31,7 @@ export const McpProcessorToolTargetSchema = z.enum(
 );
 export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli"];
+export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli", "geminicli"];
 
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
@@ -133,6 +135,15 @@ export class McpProcessor extends FeatureProcessor {
               }),
             ];
           }
+          case "geminicli": {
+            return [
+              await GeminiCliMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+                global: this.global,
+              }),
+            ];
+          }
           case "roo": {
             return [
               await RooMcp.fromFile({
@@ -197,6 +208,12 @@ export class McpProcessor extends FeatureProcessor {
             });
           case "codexcli":
             return await CodexcliMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+              global: this.global,
+            });
+          case "geminicli":
+            return GeminiCliMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
               global: this.global,
