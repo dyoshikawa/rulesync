@@ -26,7 +26,19 @@ export type GeminiCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * Gemini CLI uses plain markdown files (GEMINI.md) without frontmatter
  */
 export class GeminiCliRule extends ToolRule {
-  static getSettablePaths(): GeminiCliRuleSettablePaths {
+  static getSettablePaths({
+    global,
+  }: {
+    global?: boolean;
+  } = {}): GeminiCliRuleSettablePaths | GeminiCliRuleSettablePathsGlobal {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: ".gemini",
+          relativeFilePath: "GEMINI.md",
+        },
+      };
+    }
     return {
       root: {
         relativeDirPath: ".",
@@ -38,22 +50,13 @@ export class GeminiCliRule extends ToolRule {
     };
   }
 
-  static getSettablePathsGlobal(): GeminiCliRuleSettablePathsGlobal {
-    return {
-      root: {
-        relativeDirPath: ".gemini",
-        relativeFilePath: "GEMINI.md",
-      },
-    };
-  }
-
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<GeminiCliRule> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
@@ -94,7 +97,7 @@ export class GeminiCliRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): GeminiCliRule {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new GeminiCliRule(
       this.buildToolRuleParamsDefault({
         baseDir,

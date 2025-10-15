@@ -22,17 +22,16 @@ export class ClaudecodeMcp extends ToolMcp {
     return this.json;
   }
 
-  static getSettablePaths(): ToolMcpSettablePaths {
+  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
+    if (global) {
+      return {
+        relativeDirPath: ".claude",
+        relativeFilePath: ".claude.json",
+      };
+    }
     return {
       relativeDirPath: ".",
       relativeFilePath: ".mcp.json",
-    };
-  }
-
-  static getSettablePathsGlobal(): ToolMcpSettablePaths {
-    return {
-      relativeDirPath: ".claude",
-      relativeFilePath: ".claude.json",
     };
   }
 
@@ -41,7 +40,7 @@ export class ClaudecodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<ClaudecodeMcp> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const fileContent = await readOrInitializeFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({ mcpServers: {} }, null, 2),
@@ -64,7 +63,7 @@ export class ClaudecodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<ClaudecodeMcp> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),

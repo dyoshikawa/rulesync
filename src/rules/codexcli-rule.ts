@@ -27,7 +27,19 @@ export type CodexcliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * hierarchical loading (global, project, directory-specific).
  */
 export class CodexcliRule extends ToolRule {
-  static getSettablePaths(): CodexcliRuleSettablePaths {
+  static getSettablePaths({
+    global,
+  }: {
+    global?: boolean;
+  } = {}): CodexcliRuleSettablePaths | CodexcliRuleSettablePathsGlobal {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: ".codex",
+          relativeFilePath: "AGENTS.md",
+        },
+      };
+    }
     return {
       root: {
         relativeDirPath: ".",
@@ -39,22 +51,13 @@ export class CodexcliRule extends ToolRule {
     };
   }
 
-  static getSettablePathsGlobal(): CodexcliRuleSettablePathsGlobal {
-    return {
-      root: {
-        relativeDirPath: ".codex",
-        relativeFilePath: "AGENTS.md",
-      },
-    };
-  }
-
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<CodexcliRule> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
@@ -95,7 +98,7 @@ export class CodexcliRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new CodexcliRule(
       this.buildToolRuleParamsAgentsmd({
         baseDir,

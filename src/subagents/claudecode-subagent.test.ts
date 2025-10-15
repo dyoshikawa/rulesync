@@ -365,9 +365,9 @@ describe("ClaudecodeSubagent", () => {
     });
   });
 
-  describe("getSettablePathsGlobal", () => {
+  describe("getSettablePaths with global flag", () => {
     it("should return global paths", () => {
-      const paths = ClaudecodeSubagent.getSettablePathsGlobal();
+      const paths = ClaudecodeSubagent.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".claude", "agents"));
     });
   });

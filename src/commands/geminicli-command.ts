@@ -38,13 +38,7 @@ export class GeminiCliCommand extends ToolCommand {
     this.body = parsed.prompt;
   }
 
-  static getSettablePaths(): ToolCommandSettablePaths {
-    return {
-      relativeDirPath: ".gemini/commands",
-    };
-  }
-
-  static getSettablePathsGlobal(): ToolCommandSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
       relativeDirPath: join(".gemini", "commands"),
     };
@@ -116,7 +110,7 @@ prompt = """
 ${geminiFrontmatter.prompt}
 """`;
 
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     return new GeminiCliCommand({
       baseDir: baseDir,
@@ -133,7 +127,7 @@ ${geminiFrontmatter.prompt}
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<GeminiCliCommand> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);

@@ -307,9 +307,7 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load Claude Code command configurations from .claude/commands/ directory
    */
   private async loadClaudecodeCommands(): Promise<ToolCommand[]> {
-    const paths = this.global
-      ? ClaudecodeCommand.getSettablePathsGlobal()
-      : ClaudecodeCommand.getSettablePaths();
+    const paths = ClaudecodeCommand.getSettablePaths({ global: this.global });
     return await this.loadToolCommandDefault({
       toolTarget: "claudecode",
       relativeDirPath: paths.relativeDirPath,
@@ -321,9 +319,7 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load Cursor command configurations from .cursor/commands/ directory
    */
   private async loadCursorCommands(): Promise<ToolCommand[]> {
-    const paths = this.global
-      ? CursorCommand.getSettablePathsGlobal()
-      : CursorCommand.getSettablePaths();
+    const paths = CursorCommand.getSettablePaths({ global: this.global });
     return await this.loadToolCommandDefault({
       toolTarget: "cursor",
       relativeDirPath: paths.relativeDirPath,
@@ -335,9 +331,7 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load Gemini CLI command configurations from .gemini/commands/ directory
    */
   private async loadGeminicliCommands(): Promise<ToolCommand[]> {
-    const paths = this.global
-      ? GeminiCliCommand.getSettablePathsGlobal()
-      : GeminiCliCommand.getSettablePaths();
+    const paths = GeminiCliCommand.getSettablePaths({ global: this.global });
     return await this.loadToolCommandDefault({
       toolTarget: "geminicli",
       relativeDirPath: paths.relativeDirPath,
@@ -349,9 +343,7 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load Codex CLI command configurations from .codex/prompts/ directory
    */
   private async loadCodexcliCommands(): Promise<ToolCommand[]> {
-    const paths = this.global
-      ? CodexcliCommand.getSettablePathsGlobal()
-      : CodexcliCommand.getSettablePaths();
+    const paths = CodexcliCommand.getSettablePaths({ global: this.global });
     return await this.loadToolCommandDefault({
       toolTarget: "codexcli",
       relativeDirPath: paths.relativeDirPath,

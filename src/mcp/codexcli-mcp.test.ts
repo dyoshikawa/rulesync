@@ -20,14 +20,12 @@ describe("CodexcliMcp", () => {
   describe("getSettablePaths", () => {
     it("should throw error for local mode", () => {
       expect(() => CodexcliMcp.getSettablePaths()).toThrow(
-        "getSettablePaths is not supported for CodexcliMcp",
+        "CodexcliMcp only supports global mode. Please pass { global: true }.",
       );
     });
-  });
 
-  describe("getSettablePathsGlobal", () => {
     it("should return correct paths for global mode", () => {
-      const paths = CodexcliMcp.getSettablePathsGlobal();
+      const paths = CodexcliMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(".codex");
       expect(paths.relativeFilePath).toBe("config.toml");
@@ -181,7 +179,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "${testDir}"]
           baseDir: testDir,
           global: false,
         }),
-      ).rejects.toThrow("getSettablePaths is not supported for CodexcliMcp");
+      ).rejects.toThrow("CodexcliMcp only supports global mode. Please pass { global: true }.");
     });
 
     it("should create instance from file in global mode", async () => {
@@ -284,7 +282,7 @@ args = ["server.js"]
           rulesyncMcp,
           global: false,
         }),
-      ).rejects.toThrow("getSettablePaths is not supported for CodexcliMcp");
+      ).rejects.toThrow("CodexcliMcp only supports global mode. Please pass { global: true }.");
     });
 
     it("should create instance from RulesyncMcp in global mode with new file", async () => {

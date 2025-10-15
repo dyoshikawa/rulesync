@@ -666,9 +666,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Claude Code rule configuration from CLAUDE.md file
    */
   private async loadClaudecodeRules(): Promise<ToolRule[]> {
-    const settablePaths = this.global
-      ? ClaudecodeRule.getSettablePathsGlobal()
-      : ClaudecodeRule.getSettablePaths();
+    const settablePaths = ClaudecodeRule.getSettablePaths({ global: this.global });
     return this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,
@@ -705,9 +703,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load OpenAI Codex CLI rule configuration from AGENTS.md and .codex/memories/*.md files
    */
   private async loadCodexcliRules(): Promise<ToolRule[]> {
-    const settablePaths = this.global
-      ? CodexcliRule.getSettablePathsGlobal()
-      : CodexcliRule.getSettablePaths();
+    const settablePaths = CodexcliRule.getSettablePaths({ global: this.global });
 
     return await this.loadToolRulesDefault({
       root: {
@@ -764,9 +760,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load Gemini CLI rule configuration from GEMINI.md file
    */
   private async loadGeminicliRules(): Promise<ToolRule[]> {
-    const settablePaths = this.global
-      ? GeminiCliRule.getSettablePathsGlobal()
-      : GeminiCliRule.getSettablePaths();
+    const settablePaths = GeminiCliRule.getSettablePaths({ global: this.global });
     return await this.loadToolRulesDefault({
       root: {
         relativeDirPath: settablePaths.root.relativeDirPath,

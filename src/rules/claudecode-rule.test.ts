@@ -541,9 +541,9 @@ describe("ClaudecodeRule", () => {
     });
   });
 
-  describe("getSettablePathsGlobal", () => {
+  describe("getSettablePaths with global flag", () => {
     it("should return global-specific paths", () => {
-      const paths = ClaudecodeRule.getSettablePathsGlobal();
+      const paths = ClaudecodeRule.getSettablePaths({ global: true });
 
       expect(paths).toHaveProperty("root");
       expect(paths.root).toEqual({
@@ -554,7 +554,7 @@ describe("ClaudecodeRule", () => {
     });
 
     it("should have different paths than regular getSettablePaths", () => {
-      const globalPaths = ClaudecodeRule.getSettablePathsGlobal();
+      const globalPaths = ClaudecodeRule.getSettablePaths({ global: true });
       const regularPaths = ClaudecodeRule.getSettablePaths();
 
       expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
@@ -594,7 +594,7 @@ describe("ClaudecodeRule", () => {
         global: true,
       });
 
-      const globalPaths = ClaudecodeRule.getSettablePathsGlobal();
+      const globalPaths = ClaudecodeRule.getSettablePaths({ global: true });
       expect(claudecodeRule.getRelativeDirPath()).toBe(globalPaths.root.relativeDirPath);
       expect(claudecodeRule.getRelativeFilePath()).toBe(globalPaths.root.relativeFilePath);
     });

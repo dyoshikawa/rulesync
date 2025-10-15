@@ -511,9 +511,9 @@ Command body`;
     });
   });
 
-  describe("getSettablePathsGlobal", () => {
+  describe("getSettablePaths with global flag", () => {
     it("should return global paths", () => {
-      const paths = ClaudecodeCommand.getSettablePathsGlobal();
+      const paths = ClaudecodeCommand.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".claude", "commands"));
     });
   });

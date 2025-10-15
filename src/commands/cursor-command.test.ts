@@ -39,11 +39,9 @@ It can be multiline.`;
         relativeDirPath: join(".cursor", "commands"),
       });
     });
-  });
 
-  describe("getSettablePathsGlobal", () => {
-    it("should return global paths", () => {
-      const paths = CursorCommand.getSettablePathsGlobal();
+    it("should return global paths when global is true", () => {
+      const paths = CursorCommand.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".cursor", "commands"));
     });
   });

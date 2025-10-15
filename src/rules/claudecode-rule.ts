@@ -29,7 +29,19 @@ export type ClaudecodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * Supports the Claude Code memory system with import references.
  */
 export class ClaudecodeRule extends ToolRule {
-  static getSettablePaths(): ClaudecodeRuleSettablePaths {
+  static getSettablePaths({
+    global,
+  }: {
+    global?: boolean;
+  } = {}): ClaudecodeRuleSettablePaths | ClaudecodeRuleSettablePathsGlobal {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: ".claude",
+          relativeFilePath: "CLAUDE.md",
+        },
+      };
+    }
     return {
       root: {
         relativeDirPath: ".",
@@ -41,22 +53,13 @@ export class ClaudecodeRule extends ToolRule {
     };
   }
 
-  static getSettablePathsGlobal(): ClaudecodeRuleSettablePathsGlobal {
-    return {
-      root: {
-        relativeDirPath: ".claude",
-        relativeFilePath: "CLAUDE.md",
-      },
-    };
-  }
-
   static async fromFile({
     baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<ClaudecodeRule> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
@@ -97,7 +100,7 @@ export class ClaudecodeRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new ClaudecodeRule(
       this.buildToolRuleParamsDefault({
         baseDir,

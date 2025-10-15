@@ -13,13 +13,7 @@ import {
 export type CursorCommandParams = AiFileParams;
 
 export class CursorCommand extends ToolCommand {
-  static getSettablePaths(): ToolCommandSettablePaths {
-    return {
-      relativeDirPath: join(".cursor", "commands"),
-    };
-  }
-
-  static getSettablePathsGlobal(): ToolCommandSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
       relativeDirPath: join(".cursor", "commands"),
     };
@@ -48,7 +42,7 @@ export class CursorCommand extends ToolCommand {
     validate = true,
     global = false,
   }: ToolCommandFromRulesyncCommandParams): CursorCommand {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     return new CursorCommand({
       baseDir: baseDir,
@@ -80,7 +74,7 @@ export class CursorCommand extends ToolCommand {
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<CursorCommand> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);

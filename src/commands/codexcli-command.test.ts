@@ -27,9 +27,9 @@ It can be multiline.`;
     vi.restoreAllMocks();
   });
 
-  describe("getSettablePathsGlobal", () => {
+  describe("getSettablePaths with global flag", () => {
     it("should return correct paths for codexcli commands in global mode", () => {
-      const paths = CodexcliCommand.getSettablePathsGlobal();
+      const paths = CodexcliCommand.getSettablePaths({ global: true });
       expect(paths).toEqual({
         relativeDirPath: ".codex/prompts",
       });

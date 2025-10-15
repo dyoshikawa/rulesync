@@ -13,11 +13,10 @@ import {
 export type CodexcliCommandParams = AiFileParams;
 
 export class CodexcliCommand extends ToolCommand {
-  static getSettablePaths(): ToolCommandSettablePaths {
-    throw new Error("getSettablePaths is not supported for CodexcliCommand");
-  }
-
-  static getSettablePathsGlobal(): ToolCommandSettablePaths {
+  static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
+    if (!global) {
+      throw new Error("CodexcliCommand only supports global mode. Please pass { global: true }.");
+    }
     return {
       relativeDirPath: join(".codex", "prompts"),
     };
@@ -46,7 +45,7 @@ export class CodexcliCommand extends ToolCommand {
     validate = true,
     global = false,
   }: ToolCommandFromRulesyncCommandParams): CodexcliCommand {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     return new CodexcliCommand({
       baseDir: baseDir,
@@ -78,7 +77,7 @@ export class CodexcliCommand extends ToolCommand {
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<CodexcliCommand> {
-    const paths = global ? this.getSettablePathsGlobal() : this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
