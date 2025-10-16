@@ -53,5 +53,5 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "mise trust && init.sh"
+  "postCreateCommand": "init.sh"
 }
