@@ -1,6 +1,6 @@
 {
 	"name": "rulesync",
-	"version": "3.5.1",
+	"version": "3.5.2",
 	"description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
 	"keywords": [
 		"ai",
@@ -74,7 +74,7 @@
 		"zod": "4.1.12"
 	},
 	"devDependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.1.14",
+		"@anthropic-ai/claude-agent-sdk": "0.1.15",
 		"@biomejs/biome": "2.2.6",
 		"@eslint/js": "9.37.0",
 		"@secretlint/secretlint-rule-preset-recommend": "11.2.5",
@@ -82,14 +82,14 @@
 		"@types/js-yaml": "4.0.9",
 		"@types/micromatch": "4.0.9",
 		"@types/node": "24.7.2",
-		"@typescript/native-preview": "7.0.0-dev.20251013.1",
+		"@typescript/native-preview": "7.0.0-dev.20251014.1",
 		"@vitest/coverage-v8": "3.2.4",
 		"cspell": "9.2.1",
 		"eslint": "9.37.0",
 		"eslint-plugin-import": "2.32.0",
 		"eslint-plugin-no-type-assertion": "1.3.0",
 		"eslint-plugin-oxlint": "1.23.0",
-		"eslint-plugin-strict-dependencies": "1.3.26",
+		"eslint-plugin-strict-dependencies": "1.3.27",
 		"eslint-plugin-zod-import": "0.3.0",
 		"knip": "5.65.0",
 		"lint-staged": "16.2.4",

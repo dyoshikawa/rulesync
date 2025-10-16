@@ -66,12 +66,16 @@ export class CopilotCommand extends ToolCommand {
       description: this.frontmatter.description,
     };
 
+    // Strip .prompt.md extension and normalize to .md
+    const originalFilePath = this.relativeFilePath;
+    const relativeFilePath = originalFilePath.replace(/\.prompt\.md$/, ".md");
+
     return new RulesyncCommand({
       baseDir: ".",
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
+      relativeFilePath,
       fileContent: this.getFileContent(),
       validate: true,
     });
