@@ -79,12 +79,16 @@ export class CopilotRule extends ToolRule {
       globs: this.isRoot() ? ["**/*"] : [],
     };
 
+    // Strip .instructions.md extension and normalize to .md
+    const originalFilePath = this.getRelativeFilePath();
+    const relativeFilePath = originalFilePath.replace(/\.instructions\.md$/, ".md");
+
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: ".rulesync/rules",
-      relativeFilePath: this.getRelativeFilePath(),
+      relativeFilePath,
       validate: true,
     });
   }
