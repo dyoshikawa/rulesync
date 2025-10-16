@@ -189,7 +189,25 @@ Body content`;
         targets: ["*"],
         description: "Test description",
       });
-      expect(rulesyncCommand.getRelativeFilePath()).toBe("test-command.prompt.md");
+      expect(rulesyncCommand.getRelativeFilePath()).toBe("test-command.md");
+    });
+
+    it("should strip .prompt.md extension when converting to RulesyncCommand", () => {
+      const command = new CopilotCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "example.prompt.md",
+        frontmatter: {
+          mode: "agent",
+          description: "Example description",
+        },
+        body: "Example body",
+        validate: true,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+
+      expect(rulesyncCommand.getRelativeFilePath()).toBe("example.md");
     });
   });
 

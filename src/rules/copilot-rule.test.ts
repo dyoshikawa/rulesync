@@ -160,6 +160,24 @@ describe("CopilotRule", () => {
         globs: [],
       });
       expect(rulesyncRule.getBody()).toBe("Test rule content");
+      expect(rulesyncRule.getRelativeFilePath()).toBe("test.md");
+    });
+
+    it("should strip .instructions.md extension when converting to RulesyncRule", () => {
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github/instructions",
+        relativeFilePath: "example.instructions.md",
+        frontmatter: {
+          description: "Example rule",
+          applyTo: "*.ts",
+        },
+        body: "Example rule content",
+      });
+
+      const rulesyncRule = copilotRule.toRulesyncRule();
+
+      expect(rulesyncRule.getRelativeFilePath()).toBe("example.md");
     });
 
     it("should convert root CopilotRule to RulesyncRule", () => {
