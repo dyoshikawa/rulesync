@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RulesyncCommand } from "../../commands/rulesync-command.js";
+import { RulesyncIgnore } from "../../ignore/rulesync-ignore.js";
+import { RulesyncMcp } from "../../mcp/rulesync-mcp.js";
+import { RulesyncRule } from "../../rules/rulesync-rule.js";
+import { RulesyncSubagent } from "../../subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { initCommand } from "./init.js";
@@ -9,6 +13,10 @@ import { initCommand } from "./init.js";
 vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js");
 vi.mock("../../commands/rulesync-command.js");
+vi.mock("../../ignore/rulesync-ignore.js");
+vi.mock("../../mcp/rulesync-mcp.js");
+vi.mock("../../rules/rulesync-rule.js");
+vi.mock("../../subagents/rulesync-subagent.js");
 
 describe("initCommand", () => {
   beforeEach(() => {
@@ -21,10 +29,24 @@ describe("initCommand", () => {
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
 
-    // Setup RulesyncCommand mock
+    // Setup class mocks
+    vi.mocked(RulesyncRule.getSettablePaths).mockReturnValue({
+      recommended: { relativeDirPath: ".rulesync/rules" },
+    } as any);
+    vi.mocked(RulesyncMcp.getSettablePaths).mockReturnValue({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+    } as any);
     vi.mocked(RulesyncCommand.getSettablePaths).mockReturnValue({
       relativeDirPath: ".rulesync/commands",
-    });
+    } as any);
+    vi.mocked(RulesyncSubagent.getSettablePaths).mockReturnValue({
+      relativeDirPath: ".rulesync/subagents",
+    } as any);
+    vi.mocked(RulesyncIgnore.getSettablePaths).mockReturnValue({
+      relativeDirPath: ".",
+      relativeFilePath: ".rulesyncignore",
+    } as any);
   });
 
   afterEach(() => {
@@ -38,7 +60,9 @@ describe("initCommand", () => {
       expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
-      expect(logger.info).toHaveBeenCalledWith(`1. Edit rule files in ${".rulesync/rules"}/`);
+      expect(logger.info).toHaveBeenCalledWith(
+        "1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore",
+      );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
       );
@@ -49,9 +73,11 @@ describe("initCommand", () => {
 
       expect(ensureDir).toHaveBeenCalledWith(".rulesync");
       expect(ensureDir).toHaveBeenCalledWith(".rulesync/rules");
+      expect(ensureDir).toHaveBeenCalledWith(".rulesync");
       expect(ensureDir).toHaveBeenCalledWith(".rulesync/commands");
       expect(ensureDir).toHaveBeenCalledWith(".rulesync/subagents");
-      expect(ensureDir).toHaveBeenCalledTimes(4);
+      expect(ensureDir).toHaveBeenCalledWith(".");
+      expect(ensureDir).toHaveBeenCalledTimes(6);
     });
 
     it("should call createSampleFiles", async () => {
@@ -181,7 +207,6 @@ describe("initCommand", () => {
       await expect(initCommand()).rejects.toThrow("Command configuration error");
 
       expect(ensureDir).toHaveBeenCalledWith(".rulesync");
-      expect(ensureDir).toHaveBeenCalledWith(".rulesync/rules");
     });
   });
 
@@ -221,8 +246,10 @@ describe("initCommand", () => {
       expect(ensureDirCalls).toEqual([
         ".rulesync",
         ".rulesync/rules",
+        ".rulesync",
         ".rulesync/commands",
         ".rulesync/subagents",
+        ".",
       ]);
     });
   });
@@ -245,7 +272,9 @@ describe("initCommand", () => {
       await initCommand();
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
-      expect(logger.info).toHaveBeenCalledWith(`1. Edit rule files in ${".rulesync/rules"}/`);
+      expect(logger.info).toHaveBeenCalledWith(
+        "1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore",
+      );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
       );
