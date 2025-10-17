@@ -25,6 +25,8 @@ yarn global add rulesync
 bun add -g rulesync
 # or
 brew install rulesync
+# or
+mise use rulesync@latest
 
 # And then
 rulesync --version
