@@ -247,6 +247,75 @@ Test content`;
       // is handled differently (cursor.description is for output, not input)
       expect(cursorRule.getFrontmatter().description).toBe("General description");
     });
+
+    it("should respect cursor.globs when explicitly set to empty array", () => {
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*"],
+          cursor: {
+            globs: [],
+          },
+        },
+        body: "Content",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // cursor.globs: [] should override parent globs
+      expect(cursorRule.getFrontmatter().globs).toBeUndefined();
+    });
+
+    it("should use parent globs when cursor.globs is not set", () => {
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["*.ts", "*.js"],
+        },
+        body: "Content",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // Should use parent globs when cursor.globs is not explicitly set
+      expect(cursorRule.getFrontmatter().globs).toBe("*.ts,*.js");
+    });
+
+    it("should use cursor.globs when explicitly set with values", () => {
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*"],
+          cursor: {
+            globs: ["*.ts", "*.tsx"],
+          },
+        },
+        body: "Content",
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // cursor.globs should override parent globs
+      expect(cursorRule.getFrontmatter().globs).toBe("*.ts,*.tsx");
+    });
   });
 
   describe("fromFile", () => {

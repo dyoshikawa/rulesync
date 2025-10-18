@@ -159,6 +159,20 @@ export class CursorRule extends ToolRule {
     });
   }
 
+  /**
+   * Resolve cursor globs with priority: cursor-specific > parent
+   * Returns comma-separated string for Cursor format, or undefined if no globs
+   * @param cursorSpecificGlobs - Cursor-specific globs (takes priority if defined)
+   * @param parentGlobs - Parent globs (used if cursorSpecificGlobs is undefined)
+   */
+  private static resolveCursorGlobs(
+    cursorSpecificGlobs: string[] | undefined,
+    parentGlobs: string[] | undefined,
+  ): string | undefined {
+    const targetGlobs = cursorSpecificGlobs !== undefined ? cursorSpecificGlobs : parentGlobs;
+    return targetGlobs && targetGlobs.length > 0 ? targetGlobs.join(",") : undefined;
+  }
+
   static fromRulesyncRule({
     baseDir = ".",
     rulesyncRule,
@@ -168,10 +182,7 @@ export class CursorRule extends ToolRule {
 
     const cursorFrontmatter: CursorRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
-      globs:
-        (rulesyncFrontmatter.globs?.length ?? 0 > 0)
-          ? rulesyncFrontmatter.globs?.join(",")
-          : undefined,
+      globs: this.resolveCursorGlobs(rulesyncFrontmatter.cursor?.globs, rulesyncFrontmatter.globs),
       alwaysApply: rulesyncFrontmatter.cursor?.alwaysApply ?? undefined,
     };
 
