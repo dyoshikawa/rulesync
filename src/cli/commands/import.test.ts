@@ -33,8 +33,10 @@ describe("importCommand", () => {
       getVerbose: vi.fn().mockReturnValue(false),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "subagents", "commands"]),
-      getExperimentalGlobal: vi.fn().mockReturnValue(false),
+      getGlobal: vi.fn().mockReturnValue(false),
       getBaseDirs: vi.fn().mockReturnValue(["."]),
+      // Deprecated getter for backward compatibility
+      getExperimentalGlobal: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
@@ -346,6 +348,7 @@ describe("importCommand", () => {
 
   describe("global mode", () => {
     beforeEach(() => {
+      mockConfig.getGlobal.mockReturnValue(true);
       mockConfig.getExperimentalGlobal.mockReturnValue(true);
     });
 

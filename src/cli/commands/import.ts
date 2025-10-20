@@ -50,7 +50,7 @@ async function importRules(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
-  const global = config.getExperimentalGlobal();
+  const global = config.getGlobal();
 
   const supportedTargets = global
     ? RulesProcessor.getToolTargetsGlobal()
@@ -86,7 +86,7 @@ async function importIgnore(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
+  if (config.getGlobal()) {
     logger.debug("Skipping ignore file import (not supported in global mode)");
     return 0;
   }
@@ -124,7 +124,7 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
     return 0;
   }
 
-  const global = config.getExperimentalGlobal();
+  const global = config.getGlobal();
 
   const supportedTargets = global
     ? McpProcessor.getToolTargetsGlobal()
@@ -160,7 +160,7 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
     return 0;
   }
 
-  const global = config.getExperimentalGlobal();
+  const global = config.getGlobal();
 
   const supportedTargets = global
     ? CommandsProcessor.getToolTargetsGlobal()
@@ -205,7 +205,7 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
   const subagentsProcessor = new SubagentsProcessor({
     baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
-    global: config.getExperimentalGlobal(),
+    global: config.getGlobal(),
   });
 
   const toolFiles = await subagentsProcessor.loadToolFiles();

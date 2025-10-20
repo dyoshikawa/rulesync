@@ -16,11 +16,11 @@ describe("config-resolver", () => {
     await cleanup();
   });
 
-  describe("experimentalGlobal configuration", () => {
-    it("should load experimentalGlobal: true from config file", async () => {
+  describe("global configuration", () => {
+    it("should load global: true from config file", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
-        experimentalGlobal: true,
+        global: true,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -28,13 +28,13 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getExperimentalGlobal()).toBe(true);
+      expect(config.getGlobal()).toBe(true);
     });
 
-    it("should load experimentalGlobal: false from config file", async () => {
+    it("should load global: false from config file", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
-        experimentalGlobal: false,
+        global: false,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -42,10 +42,10 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getExperimentalGlobal()).toBe(false);
+      expect(config.getGlobal()).toBe(false);
     });
 
-    it("should default experimentalGlobal to false when not specified", async () => {
+    it("should default global to false when not specified", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
       });
@@ -55,25 +55,27 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getExperimentalGlobal()).toBe(false);
+      expect(config.getGlobal()).toBe(false);
     });
 
     it("should allow CLI flag to override config file", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
-        experimentalGlobal: false,
+        global: false,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
       const config = await ConfigResolver.resolve({
         configPath: join(testDir, "rulesync.jsonc"),
-        experimentalGlobal: true,
+        global: true,
       });
 
-      expect(config.getExperimentalGlobal()).toBe(true);
+      expect(config.getGlobal()).toBe(true);
     });
+  });
 
-    it("should use getExperimentalGlobal() method", async () => {
+  describe("backward compatibility with experimental options", () => {
+    it("should support experimentalGlobal for backward compatibility", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
         experimentalGlobal: true,
@@ -84,7 +86,108 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
+      expect(config.getGlobal()).toBe(true);
       expect(config.getExperimentalGlobal()).toBe(true);
+    });
+
+    it("should prioritize global over experimentalGlobal in config file", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        global: true,
+        experimentalGlobal: false,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getGlobal()).toBe(true);
+    });
+
+    it("should prioritize global CLI flag over experimentalGlobal CLI flag", async () => {
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        global: false,
+        experimentalGlobal: true,
+      });
+
+      expect(config.getGlobal()).toBe(false);
+    });
+
+    it("should prioritize global CLI flag over experimentalGlobal in config", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        experimentalGlobal: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        global: false,
+      });
+
+      expect(config.getGlobal()).toBe(false);
+    });
+
+    it("should support experimentalSimulateCommands for backward compatibility", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        experimentalSimulateCommands: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSimulatedCommands()).toBe(true);
+      expect(config.getExperimentalSimulateCommands()).toBe(true);
+    });
+
+    it("should prioritize simulatedCommands over experimentalSimulateCommands", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        simulatedCommands: false,
+        experimentalSimulateCommands: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSimulatedCommands()).toBe(false);
+    });
+
+    it("should support experimentalSimulateSubagents for backward compatibility", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        experimentalSimulateSubagents: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSimulatedSubagents()).toBe(true);
+      expect(config.getExperimentalSimulateSubagents()).toBe(true);
+    });
+
+    it("should prioritize simulatedSubagents over experimentalSimulateSubagents", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        simulatedSubagents: false,
+        experimentalSimulateSubagents: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSimulatedSubagents()).toBe(false);
     });
   });
 

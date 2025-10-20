@@ -42,6 +42,10 @@ describe("generateCommand", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getDelete: vi.fn().mockReturnValue(false),
+      getGlobal: vi.fn().mockReturnValue(false),
+      getSimulatedCommands: vi.fn().mockReturnValue(false),
+      getSimulatedSubagents: vi.fn().mockReturnValue(false),
+      // Deprecated getters for backward compatibility
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
       getExperimentalSimulateCommands: vi.fn().mockReturnValue(false),
       getExperimentalSimulateSubagents: vi.fn().mockReturnValue(false),
@@ -168,6 +172,8 @@ describe("generateCommand", () => {
     });
 
     it("should pass simulation options to RulesProcessor", async () => {
+      mockConfig.getSimulatedCommands.mockReturnValue(true);
+      mockConfig.getSimulatedSubagents.mockReturnValue(true);
       mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
       const options: GenerateOptions = {};
@@ -316,6 +322,7 @@ describe("generateCommand", () => {
     });
 
     it("should pass includeSimulated flag to getToolTargets", async () => {
+      mockConfig.getSimulatedCommands.mockReturnValue(true);
       mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       const options: GenerateOptions = {};
 
@@ -416,6 +423,7 @@ describe("generateCommand", () => {
     });
 
     it("should pass includeSimulated flag to getToolTargets", async () => {
+      mockConfig.getSimulatedSubagents.mockReturnValue(true);
       mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
       const options: GenerateOptions = {};
 
@@ -428,6 +436,7 @@ describe("generateCommand", () => {
 
     describe("global mode", () => {
       beforeEach(() => {
+        mockConfig.getGlobal.mockReturnValue(true);
         mockConfig.getExperimentalGlobal.mockReturnValue(true);
       });
 
@@ -474,6 +483,7 @@ describe("generateCommand", () => {
       });
 
       it("should not process simulated targets in global mode even if simulateSubagents is true", async () => {
+        mockConfig.getSimulatedSubagents.mockReturnValue(true);
         mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
         mockConfig.getTargets.mockReturnValue(["claudecode", "copilot"]);
         vi.mocked(SubagentsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
@@ -591,6 +601,7 @@ describe("generateCommand", () => {
 
   describe("global mode", () => {
     beforeEach(() => {
+      mockConfig.getGlobal.mockReturnValue(true);
       mockConfig.getExperimentalGlobal.mockReturnValue(true);
       mockConfig.getFeatures.mockReturnValue(["rules", "mcp", "commands", "ignore", "subagents"]);
     });
@@ -609,6 +620,8 @@ describe("generateCommand", () => {
 
     it("should pass simulation options to RulesProcessor in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getSimulatedCommands.mockReturnValue(true);
+      mockConfig.getSimulatedSubagents.mockReturnValue(true);
       mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);

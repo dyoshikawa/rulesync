@@ -155,10 +155,15 @@ Example:
   // Verbose output
   "verbose": false,
 
-  // Experimental features
-  "experimentalGlobal": false,
-  "experimentalSimulateCommands": false,
-  "experimentalSimulateSubagents": false
+  // Advanced options
+  "global": false,  // Generate for global(user scope) configuration files
+  "simulatedCommands": false,  // Generate simulated commands
+  "simulatedSubagents": false  // Generate simulated subagents
+
+  // Deprecated experimental options (for backward compatibility)
+  // "experimentalGlobal": false,
+  // "experimentalSimulateCommands": false,
+  // "experimentalSimulateSubagents": false
 }
 ```
 
@@ -299,7 +304,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
     ```jsonc
     {
-      "experimentalGlobal": true
+      "global": true
     }
     ```
 4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.

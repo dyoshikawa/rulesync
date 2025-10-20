@@ -76,7 +76,7 @@ async function generateRules(config: Config): Promise<number> {
   let totalRulesOutputs = 0;
   logger.info("Generating rule files...");
 
-  const toolTargets = config.getExperimentalGlobal()
+  const toolTargets = config.getGlobal()
     ? intersection(config.getTargets(), RulesProcessor.getToolTargetsGlobal())
     : intersection(config.getTargets(), RulesProcessor.getToolTargets());
   for (const baseDir of config.getBaseDirs()) {
@@ -84,9 +84,9 @@ async function generateRules(config: Config): Promise<number> {
       const processor = new RulesProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
-        global: config.getExperimentalGlobal(),
-        simulateCommands: config.getExperimentalSimulateCommands(),
-        simulateSubagents: config.getExperimentalSimulateSubagents(),
+        global: config.getGlobal(),
+        simulateCommands: config.getSimulatedCommands(),
+        simulateSubagents: config.getSimulatedSubagents(),
       });
 
       if (config.getDelete()) {
@@ -114,7 +114,7 @@ async function generateIgnore(config: Config): Promise<number> {
     return 0;
   }
 
-  if (config.getExperimentalGlobal()) {
+  if (config.getGlobal()) {
     logger.debug("Skipping ignore file generation (not supported in global mode)");
     return 0;
   }
@@ -164,7 +164,7 @@ async function generateMcp(config: Config): Promise<number> {
   let totalMcpOutputs = 0;
   logger.info("Generating MCP files...");
 
-  const toolTargets = config.getExperimentalGlobal()
+  const toolTargets = config.getGlobal()
     ? intersection(config.getTargets(), McpProcessor.getToolTargetsGlobal())
     : intersection(config.getTargets(), McpProcessor.getToolTargets());
   for (const baseDir of config.getBaseDirs()) {
@@ -172,7 +172,7 @@ async function generateMcp(config: Config): Promise<number> {
       const processor = new McpProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
-        global: config.getExperimentalGlobal(),
+        global: config.getGlobal(),
       });
 
       if (config.getDelete()) {
@@ -200,12 +200,12 @@ async function generateCommands(config: Config): Promise<number> {
   let totalCommandOutputs = 0;
   logger.info("Generating command files...");
 
-  const toolTargets = config.getExperimentalGlobal()
+  const toolTargets = config.getGlobal()
     ? intersection(config.getTargets(), CommandsProcessor.getToolTargetsGlobal())
     : intersection(
         config.getTargets(),
         CommandsProcessor.getToolTargets({
-          includeSimulated: config.getExperimentalSimulateCommands(),
+          includeSimulated: config.getSimulatedCommands(),
         }),
       );
 
@@ -214,7 +214,7 @@ async function generateCommands(config: Config): Promise<number> {
       const processor = new CommandsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
-        global: config.getExperimentalGlobal(),
+        global: config.getGlobal(),
       });
 
       if (config.getDelete()) {
@@ -242,12 +242,12 @@ async function generateSubagents(config: Config): Promise<number> {
   let totalSubagentOutputs = 0;
   logger.info("Generating subagent files...");
 
-  const toolTargets = config.getExperimentalGlobal()
+  const toolTargets = config.getGlobal()
     ? intersection(config.getTargets(), SubagentsProcessor.getToolTargetsGlobal())
     : intersection(
         config.getTargets(),
         SubagentsProcessor.getToolTargets({
-          includeSimulated: config.getExperimentalSimulateSubagents(),
+          includeSimulated: config.getSimulatedSubagents(),
         }),
       );
 
@@ -256,7 +256,7 @@ async function generateSubagents(config: Config): Promise<number> {
       const processor = new SubagentsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
-        global: config.getExperimentalGlobal(),
+        global: config.getGlobal(),
       });
 
       if (config.getDelete()) {
