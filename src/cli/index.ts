@@ -55,7 +55,11 @@ const main = async () => {
       },
     )
     .option("-V, --verbose", "Verbose output")
-    .option("-g, --experimental-global", "Import for global(user scope) configuration files")
+    .option("-g, --global", "Import for global(user scope) configuration files")
+    .option(
+      "--experimental-global",
+      "Import for global(user scope) configuration files (deprecated: use --global instead)",
+    )
     .action(async (options) => {
       try {
         await importCommand({
@@ -63,6 +67,7 @@ const main = async () => {
           features: options.features,
           verbose: options.verbose,
           configPath: options.config,
+          global: options.global,
           experimentalGlobal: options.experimentalGlobal,
         });
       } catch (error) {
@@ -95,14 +100,26 @@ const main = async () => {
     )
     .option("-V, --verbose", "Verbose output")
     .option("-c, --config <path>", "Path to configuration file")
-    .option("-g, --experimental-global", "Generate for global(user scope) configuration files")
+    .option("-g, --global", "Generate for global(user scope) configuration files")
+    .option(
+      "--simulated-commands",
+      "Generate simulated commands. This feature is only available for copilot, cursor and codexcli.",
+    )
+    .option(
+      "--simulated-subagents",
+      "Generate simulated subagents. This feature is only available for copilot, cursor and codexcli.",
+    )
+    .option(
+      "--experimental-global",
+      "Generate for global(user scope) configuration files (deprecated: use --global instead)",
+    )
     .option(
       "--experimental-simulate-commands",
-      "Generate simulated commands (experimental feature). This feature is only available for copilot, cursor and codexcli.",
+      "Generate simulated commands (deprecated: use --simulated-commands instead)",
     )
     .option(
       "--experimental-simulate-subagents",
-      "Generate simulated subagents (experimental feature). This feature is only available for copilot, cursor and codexcli.",
+      "Generate simulated subagents (deprecated: use --simulated-subagents instead)",
     )
     .action(async (options) => {
       try {
@@ -113,6 +130,9 @@ const main = async () => {
           delete: options.delete,
           baseDirs: options.baseDirs,
           configPath: options.config,
+          global: options.global,
+          simulatedCommands: options.simulatedCommands,
+          simulatedSubagents: options.simulatedSubagents,
           experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,

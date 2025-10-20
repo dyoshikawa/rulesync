@@ -77,8 +77,8 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Warp               |  ✅   |        |      |         |          |
 
 * ✅: Supports project mode
-* 🌏: Supports global mode (Experimental)
-* 🎮: Supports simulated commands/subagents (Project mode only, experimental)
+* 🌏: Supports global mode
+* 🎮: Supports simulated commands/subagents (Project mode only)
 
 ## Why Rulesync?
 
@@ -98,10 +98,10 @@ Avoid lock-in completely. If you decide to stop using Rulesync, you can continue
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
 
 ### 🌏 **Global Mode**
-You can use global mode via Rulesync by enabling `--experimental-global` option.
+You can use global mode via Rulesync by enabling `--global` option.
 
 ### 🎮 **Simulated Commands and Subagents**
-Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
+Simulated commands and subagents allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
 
 ## Quick Commands
 
@@ -122,8 +122,8 @@ npx rulesync generate --targets claudecode --features rules,subagents
 # Generate only rules (no MCP, ignore files, commands, or subagents)
 npx rulesync generate --targets "*" --features rules
 
-# Generate simulated commands and subagents with experimental features
-npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --experimental-simulate-commands --experimental-simulate-subagents
+# Generate simulated commands and subagents
+npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulated-commands --simulated-subagents
 
 # Add generated files to .gitignore
 npx rulesync gitignore
@@ -155,10 +155,15 @@ Example:
   // Verbose output
   "verbose": false,
 
-  // Experimental features
-  "experimentalGlobal": false,
-  "experimentalSimulateCommands": false,
-  "experimentalSimulateSubagents": false
+  // Advanced options
+  "global": false,  // Generate for global(user scope) configuration files
+  "simulatedCommands": false,  // Generate simulated commands
+  "simulatedSubagents": false  // Generate simulated subagents
+
+  // Deprecated experimental options (for backward compatibility)
+  // "experimentalGlobal": false,
+  // "experimentalSimulateCommands": false,
+  // "experimentalSimulateSubagents": false
 }
 ```
 
@@ -281,9 +286,9 @@ tmp/
 credentials/
 ```
 
-## Global Mode(Experimental Feature)
+## Global Mode
 
-You can use global mode via Rulesync by enabling `--experimental-global` option. It can also be called as user scope mode.
+You can use global mode via Rulesync by enabling `--global` option. It can also be called as user scope mode.
 
 Currently, supports rules and commands generation for Claude Code. Import for global files is supported for rules and commands.
 
@@ -299,7 +304,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
     ```jsonc
     {
-      "experimentalGlobal": true
+      "global": true
     }
     ```
 4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.
@@ -322,9 +327,9 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 > * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 > * Only Claude Code is supported for global mode commands.
 
-## Simulate Commands and Subagents(Experimental Feature)
+## Simulate Commands and Subagents
 
-Simulated commands and subagents are experimental features that allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
+Simulated commands and subagents allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
 
 1. Prepare `.rulesync/commands/*.md` and `.rulesync/subagents/*.md` for your purposes.
 2. Generate simulated commands and subagents for specific tools that are included in copilot, cursor, codexcli and etc.
@@ -332,8 +337,8 @@ Simulated commands and subagents are experimental features that allow you to gen
     npx rulesync generate \
       --targets copilot,cursor,codexcli \
       --features commands,subagents \
-      --experimental-simulate-commands \
-      --experimental-simulate-subagents
+      --simulated-commands \
+      --simulated-subagents
     ```
 3. Use simulated commands and subagents in your prompts.
     - Prompt examples:

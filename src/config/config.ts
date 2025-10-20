@@ -7,9 +7,14 @@ export type ConfigParams = {
   features: RulesyncFeatures;
   verbose: boolean;
   delete: boolean;
-  experimentalGlobal: boolean;
-  experimentalSimulateCommands: boolean;
-  experimentalSimulateSubagents: boolean;
+  // New non-experimental options
+  global?: boolean;
+  simulatedCommands?: boolean;
+  simulatedSubagents?: boolean;
+  // Deprecated experimental options (for backward compatibility)
+  experimentalGlobal?: boolean;
+  experimentalSimulateCommands?: boolean;
+  experimentalSimulateSubagents?: boolean;
 };
 
 export class Config {
@@ -18,9 +23,9 @@ export class Config {
   private readonly features: RulesyncFeatures;
   private readonly verbose: boolean;
   private readonly delete: boolean;
-  private readonly experimentalGlobal: boolean;
-  private readonly experimentalSimulateCommands: boolean;
-  private readonly experimentalSimulateSubagents: boolean;
+  private readonly global: boolean;
+  private readonly simulatedCommands: boolean;
+  private readonly simulatedSubagents: boolean;
 
   constructor({
     baseDirs,
@@ -28,6 +33,9 @@ export class Config {
     features,
     verbose,
     delete: isDelete,
+    global,
+    simulatedCommands,
+    simulatedSubagents,
     experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
@@ -37,9 +45,11 @@ export class Config {
     this.features = features;
     this.verbose = verbose;
     this.delete = isDelete;
-    this.experimentalGlobal = experimentalGlobal;
-    this.experimentalSimulateCommands = experimentalSimulateCommands;
-    this.experimentalSimulateSubagents = experimentalSimulateSubagents;
+
+    // Migration logic: prefer new options over experimental ones
+    this.global = global ?? experimentalGlobal ?? false;
+    this.simulatedCommands = simulatedCommands ?? experimentalSimulateCommands ?? false;
+    this.simulatedSubagents = simulatedSubagents ?? experimentalSimulateSubagents ?? false;
   }
 
   public getBaseDirs(): string[] {
@@ -70,15 +80,31 @@ export class Config {
     return this.delete;
   }
 
+  public getGlobal(): boolean {
+    return this.global;
+  }
+
+  public getSimulatedCommands(): boolean {
+    return this.simulatedCommands;
+  }
+
+  public getSimulatedSubagents(): boolean {
+    return this.simulatedSubagents;
+  }
+
+  // Deprecated getters for backward compatibility
+  /** @deprecated Use getGlobal() instead */
   public getExperimentalGlobal(): boolean {
-    return this.experimentalGlobal;
+    return this.global;
   }
 
+  /** @deprecated Use getSimulatedCommands() instead */
   public getExperimentalSimulateCommands(): boolean {
-    return this.experimentalSimulateCommands;
+    return this.simulatedCommands;
   }
 
+  /** @deprecated Use getSimulatedSubagents() instead */
   public getExperimentalSimulateSubagents(): boolean {
-    return this.experimentalSimulateSubagents;
+    return this.simulatedSubagents;
   }
 }
