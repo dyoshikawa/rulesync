@@ -240,7 +240,7 @@ Based on the user's instruction, create a plan while analyzing the related files
 Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
 ```
 
-### `.rulesync/.mcp.json`
+### `.rulesync/mcp.json`
 
 Example:
 

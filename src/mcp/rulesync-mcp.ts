@@ -7,7 +7,8 @@ import {
   RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
-import { readFileContent } from "../utils/file.js";
+import { fileExists, readFileContent } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 const McpServerBaseSchema = z.object({
@@ -67,6 +68,13 @@ export class RulesyncMcp extends RulesyncFile {
   static getSettablePaths(): RulesyncMcpSettablePaths {
     return {
       relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+    };
+  }
+
+  static getLegacySettablePaths(): RulesyncMcpSettablePaths {
+    return {
+      relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
     };
   }
@@ -76,14 +84,44 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
-    const fileContent = await readFileContent(
-      join(this.getSettablePaths().relativeDirPath, this.getSettablePaths().relativeFilePath),
+    const newPath = join(
+      this.getSettablePaths().relativeDirPath,
+      this.getSettablePaths().relativeFilePath,
     );
+    const legacyPath = join(
+      this.getLegacySettablePaths().relativeDirPath,
+      this.getLegacySettablePaths().relativeFilePath,
+    );
+
+    // Check if new path exists
+    const newPathExists = await fileExists(newPath);
+    const legacyPathExists = await fileExists(legacyPath);
+
+    let fileContent: string;
+    let usedPath: RulesyncMcpSettablePaths;
+
+    if (newPathExists) {
+      // Prefer new path if it exists
+      fileContent = await readFileContent(newPath);
+      usedPath = this.getSettablePaths();
+    } else if (legacyPathExists) {
+      // Fall back to legacy path
+      logger.warn(
+        `Using deprecated path '${legacyPath}'. Please rename to '${newPath}'. ` +
+          `The '${legacyPath}' path will be removed in a future version.`,
+      );
+      fileContent = await readFileContent(legacyPath);
+      usedPath = this.getLegacySettablePaths();
+    } else {
+      // Neither path exists, try to read new path and let it fail with appropriate error
+      fileContent = await readFileContent(newPath);
+      usedPath = this.getSettablePaths();
+    }
 
     return new RulesyncMcp({
       baseDir: ".",
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: usedPath.relativeDirPath,
+      relativeFilePath: usedPath.relativeFilePath,
       fileContent,
       validate,
     });

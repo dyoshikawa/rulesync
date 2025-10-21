@@ -17,7 +17,7 @@ export async function initCommand(): Promise<void> {
 
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
-  logger.info(`1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore`);
+  logger.info(`1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore`);
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }
 

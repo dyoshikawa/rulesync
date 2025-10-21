@@ -188,6 +188,7 @@ pnpm-lock.yaml
 **/.codex/
 
 **/.mcp.json
+!.rulesync/mcp.json
 !.rulesync/.mcp.json
 **/.cursor/mcp.json
 **/.cline/mcp.json

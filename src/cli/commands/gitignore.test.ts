@@ -62,7 +62,8 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.aiignore");
-      expect(content).toContain("**/.mcp.json");
+      expect(content).toContain("**/.claude/mcp.json");
+      expect(content).toContain("**/.claude/.mcp.json");
       expect(content).toContain("**/.github/subagents/");
       expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
@@ -216,7 +217,8 @@ describe("gitignoreCommand", () => {
 **/.claude/commands/
 **/.claude/agents/
 **/.claude/settings.local.json
-**/.mcp.json
+**/.claude/mcp.json
+**/.claude/.mcp.json
 **/.clinerules/
 **/.clineignore
 **/.cline/mcp.json

@@ -61,7 +61,7 @@ describe("initCommand", () => {
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        "1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore",
+        "1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore",
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -273,7 +273,7 @@ describe("initCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        "1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore",
+        "1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore",
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
