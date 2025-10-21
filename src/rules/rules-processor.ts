@@ -360,14 +360,12 @@ export class RulesProcessor extends FeatureProcessor {
       case "copilot": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) +
-            this.generateAdditionalConventionsSection({
-              commands: { relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath },
-              subagents: {
-                relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
-              },
-            }) +
-            rootRule.getFileContent(),
+          this.generateAdditionalConventionsSection({
+            commands: { relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath },
+            subagents: {
+              relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
+            },
+          }) + rootRule.getFileContent(),
         );
         return toolRules;
       }
