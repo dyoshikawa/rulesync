@@ -11,6 +11,6 @@
   "delete": true,
   "verbose": true,
 
-  "experimentalSimulateCommands": true,
-  "experimentalSimulateSubagents": true
+  "simulateCommands": true,
+  "simulateSubagents": true
 }
