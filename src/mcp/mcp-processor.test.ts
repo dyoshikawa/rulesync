@@ -789,7 +789,7 @@ describe("McpProcessor", () => {
       });
 
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
-        "No .rulesync/.mcp.json found.",
+        "No .rulesync/mcp.json found.",
       );
     });
 
