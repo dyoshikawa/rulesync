@@ -174,7 +174,7 @@ export class McpProcessor extends FeatureProcessor {
     );
 
     if (!rulesyncMcp) {
-      throw new Error(`No .rulesync/.mcp.json found.`);
+      throw new Error(`No .rulesync/mcp.json found.`);
     }
 
     const toolMcps = await Promise.all(
