@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
@@ -8,7 +7,7 @@ import {
   RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
-import { readFileContent } from "../utils/file.js";
+import { fileExists, readFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
@@ -98,7 +97,7 @@ export class RulesyncMcp extends RulesyncFile {
     const legacyPath = join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
 
     // Check if recommended path exists
-    if (existsSync(recommendedPath)) {
+    if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncMcp({
         baseDir: ".",
@@ -110,7 +109,7 @@ export class RulesyncMcp extends RulesyncFile {
     }
 
     // Fall back to legacy path
-    if (existsSync(legacyPath)) {
+    if (await fileExists(legacyPath)) {
       logger.warn(
         `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
       );
