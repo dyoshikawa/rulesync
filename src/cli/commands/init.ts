@@ -17,7 +17,7 @@ export async function initCommand(): Promise<void> {
 
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
-  logger.info(`1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore`);
+  logger.info(`1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore`);
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }
 
@@ -88,7 +88,7 @@ globs: ["**/*"]
 
   // Create MCP sample file
   const sampleMcpFile = {
-    filename: ".mcp.json",
+    filename: "mcp.json",
     content: `{
   "mcpServers": {
     "serena": {
@@ -182,7 +182,7 @@ Attention, again, you are just the planner, so though you can read any files and
 
   // Ensure directories
   await ensureDir(rulePaths.recommended.relativeDirPath);
-  await ensureDir(mcpPaths.relativeDirPath);
+  await ensureDir(mcpPaths.recommended.relativeDirPath);
   await ensureDir(commandPaths.relativeDirPath);
   await ensureDir(subagentPaths.relativeDirPath);
   await ensureDir(ignorePaths.relativeDirPath);
@@ -197,7 +197,10 @@ Attention, again, you are just the planner, so though you can read any files and
   }
 
   // Create MCP sample file
-  const mcpFilepath = join(mcpPaths.relativeDirPath, mcpPaths.relativeFilePath);
+  const mcpFilepath = join(
+    mcpPaths.recommended.relativeDirPath,
+    mcpPaths.recommended.relativeFilePath,
+  );
   if (!(await fileExists(mcpFilepath))) {
     await writeFileContent(mcpFilepath, sampleMcpFile.content);
     logger.success(`Created ${mcpFilepath}`);

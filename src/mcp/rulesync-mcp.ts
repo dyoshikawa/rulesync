@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
@@ -8,6 +9,7 @@ import {
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 const McpServerBaseSchema = z.object({
@@ -44,8 +46,14 @@ export type RulesyncMcpParams = RulesyncFileParams;
 export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
 
 export type RulesyncMcpSettablePaths = {
-  relativeDirPath: string;
-  relativeFilePath: string;
+  recommended: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  legacy: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
 };
 
 export class RulesyncMcp extends RulesyncFile {
@@ -66,8 +74,14 @@ export class RulesyncMcp extends RulesyncFile {
 
   static getSettablePaths(): RulesyncMcpSettablePaths {
     return {
-      relativeDirPath: ".rulesync",
-      relativeFilePath: ".mcp.json",
+      recommended: {
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+      },
+      legacy: {
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+      },
     };
   }
 
@@ -76,14 +90,46 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
-    const fileContent = await readFileContent(
-      join(this.getSettablePaths().relativeDirPath, this.getSettablePaths().relativeFilePath),
+    const paths = this.getSettablePaths();
+    const recommendedPath = join(
+      paths.recommended.relativeDirPath,
+      paths.recommended.relativeFilePath,
     );
+    const legacyPath = join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
 
+    // Check if recommended path exists
+    if (existsSync(recommendedPath)) {
+      const fileContent = await readFileContent(recommendedPath);
+      return new RulesyncMcp({
+        baseDir: ".",
+        relativeDirPath: paths.recommended.relativeDirPath,
+        relativeFilePath: paths.recommended.relativeFilePath,
+        fileContent,
+        validate,
+      });
+    }
+
+    // Fall back to legacy path
+    if (existsSync(legacyPath)) {
+      logger.warn(
+        `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
+      );
+      const fileContent = await readFileContent(legacyPath);
+      return new RulesyncMcp({
+        baseDir: ".",
+        relativeDirPath: paths.legacy.relativeDirPath,
+        relativeFilePath: paths.legacy.relativeFilePath,
+        fileContent,
+        validate,
+      });
+    }
+
+    // If neither exists, try to read recommended path (will throw appropriate error)
+    const fileContent = await readFileContent(recommendedPath);
     return new RulesyncMcp({
       baseDir: ".",
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.recommended.relativeDirPath,
+      relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
       validate,
     });
