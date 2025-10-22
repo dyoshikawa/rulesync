@@ -34,8 +34,14 @@ describe("initCommand", () => {
       recommended: { relativeDirPath: ".rulesync/rules" },
     } as any);
     vi.mocked(RulesyncMcp.getSettablePaths).mockReturnValue({
-      relativeDirPath: ".rulesync",
-      relativeFilePath: ".mcp.json",
+      recommended: {
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+      },
+      legacy: {
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+      },
     } as any);
     vi.mocked(RulesyncCommand.getSettablePaths).mockReturnValue({
       relativeDirPath: ".rulesync/commands",
@@ -61,7 +67,7 @@ describe("initCommand", () => {
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        "1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore",
+        "1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore",
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -273,7 +279,7 @@ describe("initCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        "1. Edit .rulesync/**/*.md, .rulesync/.mcp.json and .rulesyncignore",
+        "1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore",
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
