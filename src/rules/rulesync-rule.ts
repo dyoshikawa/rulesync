@@ -9,6 +9,7 @@ import {
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+import { logger } from "../utils/logger.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.optional(z.boolean())),
@@ -109,16 +110,22 @@ export class RulesyncRule extends RulesyncFile {
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const filePath = join(this.getSettablePaths().legacy.relativeDirPath, relativeFilePath);
+    const legacyPath = join(this.getSettablePaths().legacy.relativeDirPath, relativeFilePath);
+    const recommendedPath = join(
+      this.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath,
+    );
+
+    logger.warn(`⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`);
 
     // Read file content
-    const fileContent = await readFileContent(filePath);
+    const fileContent = await readFileContent(legacyPath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using RuleFrontmatterSchema
     const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${legacyPath}: ${result.error.message}`);
     }
 
     const validatedFrontmatter: RulesyncRuleFrontmatter = {
@@ -130,7 +137,7 @@ export class RulesyncRule extends RulesyncFile {
       cursor: result.data.cursor,
     };
 
-    const filename = basename(filePath);
+    const filename = basename(legacyPath);
 
     return new RulesyncRule({
       baseDir: ".",
