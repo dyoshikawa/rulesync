@@ -116,9 +116,7 @@ export class RulesyncRule extends RulesyncFile {
       relativeFilePath,
     );
 
-    logger.warn(
-      `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
-    );
+    logger.warn(`⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`);
 
     // Read file content
     const fileContent = await readFileContent(legacyPath);
@@ -139,7 +137,7 @@ export class RulesyncRule extends RulesyncFile {
       cursor: result.data.cursor,
     };
 
-    const filename = basename(filePath);
+    const filename = basename(legacyPath);
 
     return new RulesyncRule({
       baseDir: ".",
