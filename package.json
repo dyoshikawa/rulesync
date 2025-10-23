@@ -74,7 +74,7 @@
 		"zod": "4.1.12"
 	},
 	"devDependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.1.23",
+		"@anthropic-ai/claude-agent-sdk": "0.1.25",
 		"@biomejs/biome": "2.2.6",
 		"@eslint/js": "9.38.0",
 		"@secretlint/secretlint-rule-preset-recommend": "11.2.5",
@@ -82,7 +82,7 @@
 		"@types/js-yaml": "4.0.9",
 		"@types/micromatch": "4.0.9",
 		"@types/node": "24.9.1",
-		"@typescript/native-preview": "7.0.0-dev.20251019.1",
+		"@typescript/native-preview": "7.0.0-dev.20251021.1",
 		"@vitest/coverage-v8": "3.2.4",
 		"cspell": "9.2.1",
 		"eslint": "9.38.0",
