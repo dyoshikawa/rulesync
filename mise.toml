@@ -1,5 +1,5 @@
 [tools]
 node = "24"
-pnpm = "latest"
+pnpm = "10.19.0"
 python = "3"
 uv = "latest"
