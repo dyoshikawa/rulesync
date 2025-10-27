@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "serena": {
+      "description": "Semantic coding tools for intelligent codebase exploration and manipulation",
       "type": "stdio",
       "command": "uvx",
       "args": [
@@ -18,6 +19,7 @@
       "env": {}
     },
     "context7": {
+      "description": "Up-to-date documentation and code examples for libraries",
       "type": "stdio",
       "command": "npx",
       "args": [
