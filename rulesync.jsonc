@@ -12,5 +12,7 @@
   "verbose": true,
 
   "simulateCommands": true,
-  "simulateSubagents": true
+  "simulateSubagents": true,
+
+  "modularMcp": true,
 }
