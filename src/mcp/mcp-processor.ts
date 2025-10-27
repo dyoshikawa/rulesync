@@ -34,6 +34,8 @@ export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema
 
 export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli", "geminicli"];
 
+export const mcpProcessorToolTargetsModular: ToolTarget[] = ["claudecode"];
+
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
@@ -241,8 +243,8 @@ export class McpProcessor extends FeatureProcessor {
 
     const toolFiles: ToolFile[] = toolMcps;
 
-    // Add modular-mcp.json if modularMcp is enabled and target is claudecode
-    if (this.modularMcp && this.toolTarget === "claudecode") {
+    // Add modular-mcp.json if modularMcp is enabled and target supports modular-mcp
+    if (this.modularMcp && mcpProcessorToolTargetsModular.includes(this.toolTarget)) {
       toolFiles.push(
         ModularMcp.fromRulesyncMcp({
           baseDir: this.baseDir,

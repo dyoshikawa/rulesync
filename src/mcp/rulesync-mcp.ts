@@ -12,6 +12,8 @@ import { fileExists, readFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
+
+// Base schema: type, command, args are required; no description field
 const McpServerBaseSchema = z.object({
   type: z.optional(z.enum(["stdio", "sse", "http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
@@ -30,12 +32,19 @@ const McpServerBaseSchema = z.object({
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
-
-  // for modular-mcp
-  description: z.optional(z.string()),
 });
 
+// Schema for modular-mcp: extends base schema with required description field
+const ModularMcpServerSchema = z.extend(McpServerBaseSchema, {
+  description: z.string(),
+});
+
+// Schema for modular-mcp servers validation (validates description exists)
+const ModularMcpServersSchema = z.record(z.string(), ModularMcpServerSchema);
+
+// Schema for rulesync MCP servers (extends base schema with optional targets)
 const RulesyncMcpServersSchema = z.extend(McpServerBaseSchema, {
+  description: z.optional(z.string()),
   targets: z.optional(RulesyncTargetsSchema),
 });
 
@@ -96,9 +105,13 @@ export class RulesyncMcp extends RulesyncFile {
 
   validate(): ValidationResult {
     if (this.modularMcp) {
-      // When modularMcp is enabled, description field must be present and non-empty
+      // First, validate that each server has a non-empty description field (provides specific error message)
       for (const [serverName, serverConfig] of Object.entries(this.json.mcpServers)) {
-        if (!serverConfig.description || serverConfig.description.trim().length === 0) {
+        if (
+          !serverConfig.description ||
+          typeof serverConfig.description !== "string" ||
+          serverConfig.description.trim().length === 0
+        ) {
           return {
             success: false,
             error: new Error(
@@ -106,6 +119,17 @@ export class RulesyncMcp extends RulesyncFile {
             ),
           };
         }
+      }
+
+      // Then validate with ModularMcpServersSchema for any other schema issues
+      const result = ModularMcpServersSchema.safeParse(this.json.mcpServers);
+      if (!result.success) {
+        return {
+          success: false,
+          error: new Error(
+            `Invalid MCP server configuration for modular-mcp: ${result.error.message}`,
+          ),
+        };
       }
     }
     return { success: true, error: null };

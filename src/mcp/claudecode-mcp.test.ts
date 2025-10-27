@@ -1001,5 +1001,4 @@ describe("ClaudecodeMcp", () => {
       ).rejects.toThrow();
     });
   });
-
 });
