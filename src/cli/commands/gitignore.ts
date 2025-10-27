@@ -23,7 +23,6 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.claude/agents/",
     "**/.claude/settings.local.json",
     "**/.mcp.json",
-    "**/modular-mcp.json",
     // Cline
     "**/.clinerules/",
     "**/.clineignore",
@@ -66,6 +65,8 @@ export const gitignoreCommand = async (): Promise<void> => {
     // Warp
     "**/.warp/",
     "**/WARP.md",
+    // Others
+    "**/modular-mcp.json",
   ];
 
   let gitignoreContent = "";
