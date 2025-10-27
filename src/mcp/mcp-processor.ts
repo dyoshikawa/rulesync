@@ -3,7 +3,6 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
-import { addTrailingNewline, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
@@ -12,6 +11,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
+import { ModularMcp } from "./modular-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
@@ -108,7 +108,6 @@ export class McpProcessor extends FeatureProcessor {
                 baseDir: this.baseDir,
                 validate: true,
                 global: this.global,
-                modularMcp: this.modularMcp,
               }),
             ];
           }
@@ -240,7 +239,19 @@ export class McpProcessor extends FeatureProcessor {
       }),
     );
 
-    return toolMcps;
+    const toolFiles: ToolFile[] = toolMcps;
+
+    // Add modular-mcp.json if modularMcp is enabled and target is claudecode
+    if (this.modularMcp && this.toolTarget === "claudecode") {
+      toolFiles.push(
+        ModularMcp.fromRulesyncMcp({
+          baseDir: this.baseDir,
+          rulesyncMcp,
+        }),
+      );
+    }
+
+    return toolFiles;
   }
 
   /**
@@ -267,30 +278,5 @@ export class McpProcessor extends FeatureProcessor {
 
   static getToolTargetsGlobal(): ToolTarget[] {
     return mcpProcessorToolTargetsGlobal;
-  }
-
-  /**
-   * Override writeAiFiles to handle modular-mcp file writing
-   */
-  async writeAiFiles(toolFiles: ToolFile[]): Promise<number> {
-    let writtenCount = 0;
-
-    for (const toolFile of toolFiles) {
-      const contentWithNewline = addTrailingNewline(toolFile.getFileContent());
-      await writeFileContent(toolFile.getFilePath(), contentWithNewline);
-      writtenCount++;
-
-      // If this is a ClaudecodeMcp with modular-mcp enabled, also write the modular-mcp.json file
-      if (toolFile instanceof ClaudecodeMcp && this.modularMcp) {
-        const modularMcpFile = toolFile.getModularMcpFile();
-        if (modularMcpFile) {
-          const modularMcpContentWithNewline = addTrailingNewline(modularMcpFile.getFileContent());
-          await writeFileContent(modularMcpFile.getFilePath(), modularMcpContentWithNewline);
-          writtenCount++;
-        }
-      }
-    }
-
-    return writtenCount;
   }
 }

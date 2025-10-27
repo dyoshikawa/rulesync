@@ -221,6 +221,27 @@ describe("ModularMcp", () => {
     });
   });
 
+  describe("getMcpServers", () => {
+    it("should return modular-mcp proxy server configuration", () => {
+      const mcpServers = ModularMcp.getMcpServers();
+
+      expect(mcpServers).toHaveProperty("modular-mcp");
+      expect(mcpServers["modular-mcp"]).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@kimuson/modular-mcp", "modular-mcp.json"],
+        env: {},
+      });
+    });
+
+    it("should return consistent server configuration", () => {
+      const servers1 = ModularMcp.getMcpServers();
+      const servers2 = ModularMcp.getMcpServers();
+
+      expect(servers1).toEqual(servers2);
+    });
+  });
+
   describe("getAbsolutePath", () => {
     it("should return correct absolute path with default baseDir", () => {
       const modularMcp = new ModularMcp({

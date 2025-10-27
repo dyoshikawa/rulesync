@@ -188,7 +188,6 @@ describe("McpProcessor", () => {
           baseDir: testDir,
           validate: true,
           global: false,
-          modularMcp: false,
         });
       });
 
@@ -216,7 +215,6 @@ describe("McpProcessor", () => {
           baseDir: testDir,
           validate: true,
           global: true,
-          modularMcp: false,
         });
       });
     });

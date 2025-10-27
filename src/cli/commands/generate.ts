@@ -165,9 +165,7 @@ async function generateMcp(config: Config): Promise<number> {
   logger.info("Generating MCP files...");
 
   if (config.getModularMcp()) {
-    logger.info(
-      "ℹ️  Modular MCP support is experimental and currently only available for Claude Code.",
-    );
+    logger.info("ℹ️  Modular MCP support is experimental.");
   }
 
   const toolTargets = config.getGlobal()
