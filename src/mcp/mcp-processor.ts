@@ -3,6 +3,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
+import { addTrailingNewline, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
@@ -102,14 +103,14 @@ export class McpProcessor extends FeatureProcessor {
             ];
           }
           case "claudecode": {
-            return await Promise.resolve([
+            return [
               await ClaudecodeMcp.fromFile({
                 baseDir: this.baseDir,
                 validate: true,
                 global: this.global,
                 modularMcp: this.modularMcp,
               }),
-            ]);
+            ];
           }
           case "cline": {
             return [
@@ -272,9 +273,6 @@ export class McpProcessor extends FeatureProcessor {
    * Override writeAiFiles to handle modular-mcp file writing
    */
   async writeAiFiles(toolFiles: ToolFile[]): Promise<number> {
-    const { addTrailingNewline } = await import("../utils/file.js");
-    const { writeFileContent } = await import("../utils/file.js");
-
     let writtenCount = 0;
 
     for (const toolFile of toolFiles) {
