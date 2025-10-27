@@ -27,6 +27,15 @@
         "@upstash/context7-mcp"
       ],
       "env": {}
+    },
+    "fetch": {
+      "description": "This server enables LLMs to retrieve and process content from web pages, converting HTML to markdown for easier consumption.",
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ],
+      "env": {}
     }
   }
 }
