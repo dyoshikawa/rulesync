@@ -257,3 +257,5 @@ repomix-output.xml
 **/.github/prompts/
 
 **/.geminiignore
+
+modular-mcp.json
