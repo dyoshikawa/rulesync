@@ -73,17 +73,10 @@ export class ClaudecodeMcp extends ToolMcp {
     );
     const json = JSON.parse(fileContent);
 
-    let mcpJson: Record<string, unknown>;
-
-    if (modularMcp) {
-      // Generate .mcp.json with modular-mcp proxy
-      mcpJson = {
-        ...json,
-        mcpServers: ModularMcp.getMcpServers(),
-      };
-    } else {
-      mcpJson = { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
-    }
+    // Generate .mcp.json with modular-mcp proxy or actual server configurations
+    const mcpJson = modularMcp
+      ? { ...json, mcpServers: ModularMcp.getMcpServers() }
+      : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
 
     return new ClaudecodeMcp({
       baseDir,
