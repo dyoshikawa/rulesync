@@ -122,10 +122,10 @@ export class ClaudecodeMcp extends ToolMcp {
 
       // Generate modular-mcp.json with actual server configurations
       modularMcpJson = {
-        mcpServers: rulesyncMcp.getJson().mcpServers,
+        mcpServers: rulesyncMcp.getJson({ modularMcp: true }).mcpServers,
       };
     } else {
-      mcpJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
+      mcpJson = { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
     }
 
     const claudecodeMcp = new ClaudecodeMcp({

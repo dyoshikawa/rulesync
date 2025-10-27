@@ -352,7 +352,8 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.getJson();
 
       expect(result).toEqual(jsonData);
-      expect(result).toBe(rulesyncMcp.getJson()); // Should return the same reference
+      // Note: With modularMcp=false (default), description fields are omitted, so reference may differ
+      expect(result).toEqual(rulesyncMcp.getJson());
     });
 
     it("should return empty object for empty JSON", () => {
@@ -431,6 +432,135 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.getJson();
 
       expect(result).toBeNull();
+    });
+
+    it("should omit description fields when modularMcp is false", () => {
+      const jsonData = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            description: "Test server description",
+          },
+          "another-server": {
+            command: "python",
+            args: ["server.py"],
+            description: "Another server description",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getJson({ modularMcp: false });
+
+      expect(result).toEqual({
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+          },
+          "another-server": {
+            command: "python",
+            args: ["server.py"],
+          },
+        },
+      });
+      expect(result.mcpServers["test-server"]).not.toHaveProperty("description");
+      expect(result.mcpServers["another-server"]).not.toHaveProperty("description");
+    });
+
+    it("should keep description fields when modularMcp is true", () => {
+      const jsonData = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            description: "Test server description",
+          },
+          "another-server": {
+            command: "python",
+            args: ["server.py"],
+            description: "Another server description",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getJson({ modularMcp: true });
+
+      expect(result).toEqual(jsonData);
+      expect(result.mcpServers["test-server"]).toHaveProperty(
+        "description",
+        "Test server description",
+      );
+      expect(result.mcpServers["another-server"]).toHaveProperty(
+        "description",
+        "Another server description",
+      );
+    });
+
+    it("should handle servers without description fields when modularMcp is false", () => {
+      const jsonData = {
+        mcpServers: {
+          "server-with-desc": {
+            command: "node",
+            description: "Has description",
+          },
+          "server-without-desc": {
+            command: "python",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getJson({ modularMcp: false });
+
+      expect(result).toEqual({
+        mcpServers: {
+          "server-with-desc": {
+            command: "node",
+          },
+          "server-without-desc": {
+            command: "python",
+          },
+        },
+      });
+    });
+
+    it("should use default modularMcp=false when no parameter is passed", () => {
+      const jsonData = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            description: "Test description",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getJson();
+
+      expect(result.mcpServers["test-server"]).not.toHaveProperty("description");
     });
   });
 
@@ -850,7 +980,8 @@ describe("RulesyncMcp", () => {
         fileContent: JSON.stringify(unicodeJsonData),
       });
 
-      expect(rulesyncMcp.getJson()).toEqual(unicodeJsonData);
+      // With modularMcp=true, description fields are preserved
+      expect(rulesyncMcp.getJson({ modularMcp: true })).toEqual(unicodeJsonData);
     });
 
     it("should preserve exact JSON structure through round-trip", () => {

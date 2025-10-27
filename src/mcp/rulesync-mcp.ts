@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
 import {
@@ -162,7 +163,32 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getJson(): RulesyncMcpConfig {
-    return this.json;
+  getJson({ modularMcp = false }: { modularMcp?: boolean } = {}): RulesyncMcpConfig {
+    if (modularMcp) {
+      return this.json;
+    }
+
+    // If json is not an object or null, return as is
+    if (!this.json || typeof this.json !== "object") {
+      return this.json;
+    }
+
+    // If mcpServers doesn't exist or is not an object, return as is
+    if (!this.json.mcpServers || typeof this.json.mcpServers !== "object") {
+      return this.json;
+    }
+
+    // When modularMcp is false, omit description fields from all servers
+    const mcpServersWithoutDescription = Object.fromEntries(
+      Object.entries(this.json.mcpServers).map(([serverName, serverConfig]) => [
+        serverName,
+        omit(serverConfig, ["description"]),
+      ]),
+    );
+
+    return {
+      ...this.json,
+      mcpServers: mcpServersWithoutDescription,
+    };
   }
 }
