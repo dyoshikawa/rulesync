@@ -36,12 +36,19 @@ export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codex
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
+  private readonly modularMcp: boolean;
 
   constructor({
     baseDir = ".",
     toolTarget,
     global = false,
-  }: { baseDir?: string; toolTarget: McpProcessorToolTarget; global?: boolean }) {
+    modularMcp = false,
+  }: {
+    baseDir?: string;
+    toolTarget: McpProcessorToolTarget;
+    global?: boolean;
+    modularMcp?: boolean;
+  }) {
     super({ baseDir });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
@@ -51,6 +58,7 @@ export class McpProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.modularMcp = modularMcp;
   }
 
   /**
@@ -59,7 +67,7 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncMcp.fromFile({})];
+      return [await RulesyncMcp.fromFile({ modularMcp: this.modularMcp })];
     } catch (error) {
       logger.debug(`No MCP files found for tool target: ${this.toolTarget}`, error);
       return [];
@@ -94,13 +102,14 @@ export class McpProcessor extends FeatureProcessor {
             ];
           }
           case "claudecode": {
-            return [
+            return await Promise.resolve([
               await ClaudecodeMcp.fromFile({
                 baseDir: this.baseDir,
                 validate: true,
                 global: this.global,
+                modularMcp: this.modularMcp,
               }),
-            ];
+            ]);
           }
           case "cline": {
             return [
@@ -186,10 +195,11 @@ export class McpProcessor extends FeatureProcessor {
               rulesyncMcp,
             });
           case "claudecode":
-            return ClaudecodeMcp.fromRulesyncMcp({
+            return await ClaudecodeMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
               global: this.global,
+              modularMcp: this.modularMcp,
             });
           case "cline":
             return ClineMcp.fromRulesyncMcp({
@@ -256,5 +266,33 @@ export class McpProcessor extends FeatureProcessor {
 
   static getToolTargetsGlobal(): ToolTarget[] {
     return mcpProcessorToolTargetsGlobal;
+  }
+
+  /**
+   * Override writeAiFiles to handle modular-mcp file writing
+   */
+  async writeAiFiles(toolFiles: ToolFile[]): Promise<number> {
+    const { addTrailingNewline } = await import("../utils/file.js");
+    const { writeFileContent } = await import("../utils/file.js");
+
+    let writtenCount = 0;
+
+    for (const toolFile of toolFiles) {
+      const contentWithNewline = addTrailingNewline(toolFile.getFileContent());
+      await writeFileContent(toolFile.getFilePath(), contentWithNewline);
+      writtenCount++;
+
+      // If this is a ClaudecodeMcp with modular-mcp enabled, also write the modular-mcp.json file
+      if (toolFile instanceof ClaudecodeMcp && this.modularMcp) {
+        const modularMcpFile = toolFile.getModularMcpFile();
+        if (modularMcpFile) {
+          const modularMcpContentWithNewline = addTrailingNewline(modularMcpFile.getFileContent());
+          await writeFileContent(modularMcpFile.getFilePath(), modularMcpContentWithNewline);
+          writtenCount++;
+        }
+      }
+    }
+
+    return writtenCount;
   }
 }

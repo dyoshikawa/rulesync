@@ -11,6 +11,7 @@ export type ConfigParams = {
   global?: boolean;
   simulatedCommands?: boolean;
   simulatedSubagents?: boolean;
+  modularMcp?: boolean;
   // Deprecated experimental options (for backward compatibility)
   experimentalGlobal?: boolean;
   experimentalSimulateCommands?: boolean;
@@ -26,6 +27,7 @@ export class Config {
   private readonly global: boolean;
   private readonly simulatedCommands: boolean;
   private readonly simulatedSubagents: boolean;
+  private readonly modularMcp: boolean;
 
   constructor({
     baseDirs,
@@ -36,6 +38,7 @@ export class Config {
     global,
     simulatedCommands,
     simulatedSubagents,
+    modularMcp,
     experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
@@ -50,6 +53,7 @@ export class Config {
     this.global = global ?? experimentalGlobal ?? false;
     this.simulatedCommands = simulatedCommands ?? experimentalSimulateCommands ?? false;
     this.simulatedSubagents = simulatedSubagents ?? experimentalSimulateSubagents ?? false;
+    this.modularMcp = modularMcp ?? false;
   }
 
   public getBaseDirs(): string[] {
@@ -90,6 +94,10 @@ export class Config {
 
   public getSimulatedSubagents(): boolean {
     return this.simulatedSubagents;
+  }
+
+  public getModularMcp(): boolean {
+    return this.modularMcp;
   }
 
   // Deprecated getters for backward compatibility

@@ -119,7 +119,7 @@ describe("McpProcessor", () => {
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBe(mockRulesyncMcp);
-      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({});
+      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({ modularMcp: false });
     });
 
     it("should return empty array when no MCP files found", async () => {
@@ -188,6 +188,7 @@ describe("McpProcessor", () => {
           baseDir: testDir,
           validate: true,
           global: false,
+          modularMcp: false,
         });
       });
 
@@ -215,6 +216,7 @@ describe("McpProcessor", () => {
           baseDir: testDir,
           validate: true,
           global: true,
+          modularMcp: false,
         });
       });
     });
@@ -518,6 +520,7 @@ describe("McpProcessor", () => {
         baseDir: testDir,
         rulesyncMcp,
         global: false,
+        modularMcp: false,
       });
     });
 
@@ -552,6 +555,7 @@ describe("McpProcessor", () => {
         baseDir: testDir,
         rulesyncMcp,
         global: true,
+        modularMcp: false,
       });
     });
 

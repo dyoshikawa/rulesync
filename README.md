@@ -148,7 +148,7 @@ Example:
   // Basically, you can specify a `["."]` only.
   // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple base directories.
   "baseDirs": ["."],
-  
+
   // Delete existing files before generating
   "delete": true,
 
@@ -158,7 +158,8 @@ Example:
   // Advanced options
   "global": false,  // Generate for global(user scope) configuration files
   "simulatedCommands": false,  // Generate simulated commands
-  "simulatedSubagents": false  // Generate simulated subagents
+  "simulatedSubagents": false,  // Generate simulated subagents
+  "modularMcp": false  // Enable modular-mcp for context compression (experimental, Claude Code only)
 
   // Deprecated experimental options (for backward compatibility)
   // "experimentalGlobal": false,
@@ -248,6 +249,7 @@ Example:
 {
   "mcpServers": {
     "serena": {
+      "description": "Code analysis and semantic search MCP server",
       "type": "stdio",
       "command": "uvx",
       "args": [
@@ -265,6 +267,7 @@ Example:
       "env": {}
     },
     "context7": {
+      "description": "Library documentation search server",
       "type": "stdio",
       "command": "npx",
       "args": [
@@ -276,6 +279,37 @@ Example:
   }
 }
 ```
+
+#### Modular MCP Support (Experimental)
+
+Rulesync supports [modular-mcp](https://github.com/d-kimuson/modular-mcp) for context compression. When enabled with `--modular-mcp`, it generates both `.mcp.json` and `modular-mcp.json` files for Claude Code.
+
+**Benefits:**
+- Reduces context usage by loading tool schemas on-demand
+- Better scalability when using many MCP servers
+- Improved performance with large tool collections
+
+**Requirements:**
+- Each MCP server must have a `description` field (required when `modularMcp` is enabled)
+- Currently only supported for Claude Code
+
+**Usage:**
+
+```bash
+# Enable modular-mcp via CLI
+npx rulesync generate --targets claudecode --features mcp --modular-mcp
+
+# Or via configuration file
+{
+  "modularMcp": true
+}
+```
+
+**Generated files:**
+- `.mcp.json` - Contains modular-mcp proxy configuration
+- `modular-mcp.json` - Contains actual MCP server configurations
+
+For more information, see the [modular-mcp documentation](https://github.com/d-kimuson/modular-mcp).
 
 ### `.rulesyncignore`
 

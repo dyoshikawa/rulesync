@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { readOrInitializeFileContent } from "../utils/file.js";
+import { ModularMcp } from "./modular-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -12,6 +13,7 @@ import {
 
 export class ClaudecodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
+  private modularMcpFile?: ModularMcp;
 
   constructor(params: ToolMcpParams) {
     super(params);
@@ -20,6 +22,14 @@ export class ClaudecodeMcp extends ToolMcp {
 
   getJson(): Record<string, unknown> {
     return this.json;
+  }
+
+  setModularMcpFile(file: ModularMcp): void {
+    this.modularMcpFile = file;
+  }
+
+  getModularMcpFile(): ModularMcp | undefined {
+    return this.modularMcpFile;
   }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
@@ -39,7 +49,8 @@ export class ClaudecodeMcp extends ToolMcp {
     baseDir = ".",
     validate = true,
     global = false,
-  }: ToolMcpFromFileParams): Promise<ClaudecodeMcp> {
+    modularMcp = false,
+  }: ToolMcpFromFileParams & { modularMcp?: boolean }): Promise<ClaudecodeMcp> {
     const paths = this.getSettablePaths({ global });
     const fileContent = await readOrInitializeFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
@@ -48,13 +59,33 @@ export class ClaudecodeMcp extends ToolMcp {
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
-    return new ClaudecodeMcp({
+    const claudecodeMcp = new ClaudecodeMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
+
+    if (modularMcp) {
+      const modularMcpPaths = ModularMcp.getSettablePaths();
+      const modularMcpFileContent = await readOrInitializeFileContent(
+        join(baseDir, modularMcpPaths.relativeDirPath, modularMcpPaths.relativeFilePath),
+        JSON.stringify({ mcpServers: {} }, null, 2),
+      );
+
+      const modularMcpFile = new ModularMcp({
+        baseDir,
+        relativeDirPath: modularMcpPaths.relativeDirPath,
+        relativeFilePath: modularMcpPaths.relativeFilePath,
+        fileContent: modularMcpFileContent,
+        validate,
+      });
+
+      claudecodeMcp.setModularMcpFile(modularMcpFile);
+    }
+
+    return claudecodeMcp;
   }
 
   static async fromRulesyncMcp({
@@ -62,7 +93,8 @@ export class ClaudecodeMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
-  }: ToolMcpFromRulesyncMcpParams): Promise<ClaudecodeMcp> {
+    modularMcp = false,
+  }: ToolMcpFromRulesyncMcpParams & { modularMcp?: boolean }): Promise<ClaudecodeMcp> {
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
@@ -70,15 +102,54 @@ export class ClaudecodeMcp extends ToolMcp {
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
-    const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
 
-    return new ClaudecodeMcp({
+    let mcpJson: Record<string, unknown>;
+    let modularMcpJson: Record<string, unknown> | undefined;
+
+    if (modularMcp) {
+      // Generate .mcp.json with modular-mcp proxy
+      mcpJson = {
+        ...json,
+        mcpServers: {
+          "modular-mcp": {
+            type: "stdio",
+            command: "npx",
+            args: ["-y", "@kimuson/modular-mcp", "modular-mcp.json"],
+            env: {},
+          },
+        },
+      };
+
+      // Generate modular-mcp.json with actual server configurations
+      modularMcpJson = {
+        mcpServers: rulesyncMcp.getJson().mcpServers,
+      };
+    } else {
+      mcpJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
+    }
+
+    const claudecodeMcp = new ClaudecodeMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      fileContent: JSON.stringify(mcpJson, null, 2),
       validate,
     });
+
+    if (modularMcp && modularMcpJson) {
+      const modularMcpPaths = ModularMcp.getSettablePaths();
+      const modularMcpFile = new ModularMcp({
+        baseDir,
+        relativeDirPath: modularMcpPaths.relativeDirPath,
+        relativeFilePath: modularMcpPaths.relativeFilePath,
+        fileContent: JSON.stringify(modularMcpJson, null, 2),
+        validate,
+      });
+
+      claudecodeMcp.setModularMcpFile(modularMcpFile);
+    }
+
+    return claudecodeMcp;
   }
 
   toRulesyncMcp(): RulesyncMcp {

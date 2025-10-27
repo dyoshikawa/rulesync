@@ -121,6 +121,10 @@ const main = async () => {
       "--experimental-simulate-subagents",
       "Generate simulated subagents (deprecated: use --simulated-subagents instead)",
     )
+    .option(
+      "--modular-mcp",
+      "Generate modular-mcp configuration for context compression (experimental)",
+    )
     .action(async (options) => {
       try {
         await generateCommand({
@@ -133,6 +137,7 @@ const main = async () => {
           global: options.global,
           simulatedCommands: options.simulatedCommands,
           simulatedSubagents: options.simulatedSubagents,
+          modularMcp: options.modularMcp,
           experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,

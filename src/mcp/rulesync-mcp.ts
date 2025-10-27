@@ -29,6 +29,9 @@ const McpServerBaseSchema = z.object({
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
+
+  // for modular-mcp
+  description: z.optional(z.string()),
 });
 
 const RulesyncMcpServersSchema = z.extend(McpServerBaseSchema, {
@@ -40,9 +43,13 @@ const RulesyncMcpConfigSchema = z.object({
 });
 type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
-export type RulesyncMcpParams = RulesyncFileParams;
+export type RulesyncMcpParams = RulesyncFileParams & {
+  modularMcp?: boolean;
+};
 
-export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
+export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate"> & {
+  modularMcp?: boolean;
+};
 
 export type RulesyncMcpSettablePaths = {
   recommended: {
@@ -57,11 +64,13 @@ export type RulesyncMcpSettablePaths = {
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: RulesyncMcpConfig;
+  private readonly modularMcp: boolean;
 
-  constructor({ ...rest }: RulesyncMcpParams) {
+  constructor({ modularMcp = false, ...rest }: RulesyncMcpParams) {
     super({ ...rest });
 
     this.json = JSON.parse(this.fileContent);
+    this.modularMcp = modularMcp;
 
     if (rest.validate) {
       const result = this.validate();
@@ -85,10 +94,26 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
+    if (this.modularMcp) {
+      // When modularMcp is enabled, description field must be present and non-empty
+      for (const [serverName, serverConfig] of Object.entries(this.json.mcpServers)) {
+        if (!serverConfig.description || serverConfig.description.trim().length === 0) {
+          return {
+            success: false,
+            error: new Error(
+              `MCP server "${serverName}" requires a non-empty description field when modularMcp is enabled`,
+            ),
+          };
+        }
+      }
+    }
     return { success: true, error: null };
   }
 
-  static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
+  static async fromFile({
+    validate = true,
+    modularMcp = false,
+  }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
     const paths = this.getSettablePaths();
     const recommendedPath = join(
       paths.recommended.relativeDirPath,
@@ -105,6 +130,7 @@ export class RulesyncMcp extends RulesyncFile {
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
         validate,
+        modularMcp,
       });
     }
 
@@ -120,6 +146,7 @@ export class RulesyncMcp extends RulesyncFile {
         relativeFilePath: paths.legacy.relativeFilePath,
         fileContent,
         validate,
+        modularMcp,
       });
     }
 
@@ -131,6 +158,7 @@ export class RulesyncMcp extends RulesyncFile {
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
       validate,
+      modularMcp,
     });
   }
 

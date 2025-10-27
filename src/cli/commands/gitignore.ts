@@ -23,6 +23,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.claude/agents/",
     "**/.claude/settings.local.json",
     "**/.mcp.json",
+    "**/modular-mcp.json",
     // Cline
     "**/.clinerules/",
     "**/.clineignore",

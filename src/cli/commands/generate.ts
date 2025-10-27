@@ -164,6 +164,12 @@ async function generateMcp(config: Config): Promise<number> {
   let totalMcpOutputs = 0;
   logger.info("Generating MCP files...");
 
+  if (config.getModularMcp()) {
+    logger.info(
+      "ℹ️  Modular MCP support is experimental and currently only available for Claude Code.",
+    );
+  }
+
   const toolTargets = config.getGlobal()
     ? intersection(config.getTargets(), McpProcessor.getToolTargetsGlobal())
     : intersection(config.getTargets(), McpProcessor.getToolTargets());
@@ -173,6 +179,7 @@ async function generateMcp(config: Config): Promise<number> {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
+        modularMcp: config.getModularMcp(),
       });
 
       if (config.getDelete()) {
