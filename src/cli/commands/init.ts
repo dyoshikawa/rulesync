@@ -39,6 +39,7 @@ async function createConfigFile(): Promise<void> {
         global: false,
         simulatedCommands: false,
         simulatedSubagents: false,
+        modularMcp: false,
       } satisfies ConfigParams,
       null,
       2,
