@@ -79,7 +79,7 @@ export class CodexcliMcp extends ToolMcp {
 
     const configToml = smolToml.parse(configTomlFileContent);
 
-    const mcpServers = rulesyncMcp.getJson().mcpServers;
+    const mcpServers = rulesyncMcp.getJson({ modularMcp: false }).mcpServers;
     const filteredMcpServers = this.removeEmptyEntries(mcpServers);
 
     // eslint-disable-next-line no-type-assertion/no-type-assertion

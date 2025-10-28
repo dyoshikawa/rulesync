@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "serena": {
+      "description": "Semantic coding tools for intelligent codebase exploration and manipulation",
       "type": "stdio",
       "command": "uvx",
       "args": [
@@ -18,11 +19,21 @@
       "env": {}
     },
     "context7": {
+      "description": "Up-to-date documentation and code examples for libraries",
       "type": "stdio",
       "command": "npx",
       "args": [
         "-y",
         "@upstash/context7-mcp"
+      ],
+      "env": {}
+    },
+    "fetch": {
+      "description": "This server enables LLMs to retrieve and process content from web pages, converting HTML to markdown for easier consumption.",
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
       ],
       "env": {}
     }

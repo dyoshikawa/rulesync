@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { readOrInitializeFileContent } from "../utils/file.js";
+import { ModularMcp } from "./modular-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -62,7 +63,8 @@ export class ClaudecodeMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
-  }: ToolMcpFromRulesyncMcpParams): Promise<ClaudecodeMcp> {
+    modularMcp = false,
+  }: ToolMcpFromRulesyncMcpParams & { modularMcp?: boolean }): Promise<ClaudecodeMcp> {
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
@@ -70,13 +72,17 @@ export class ClaudecodeMcp extends ToolMcp {
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
-    const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
+
+    // Generate .mcp.json with modular-mcp proxy or actual server configurations
+    const mcpJson = modularMcp
+      ? { ...json, mcpServers: ModularMcp.getMcpServers() }
+      : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
 
     return new ClaudecodeMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      fileContent: JSON.stringify(mcpJson, null, 2),
       validate,
     });
   }
