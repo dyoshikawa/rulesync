@@ -246,7 +246,10 @@ export class McpProcessor extends FeatureProcessor {
     // Add modular-mcp.json if modularMcp is enabled and target supports modular-mcp
     if (this.modularMcp && mcpProcessorToolTargetsModular.includes(this.toolTarget)) {
       // Map tool target to relative directory path
-      const relativeDirPath = this.toolTarget === "claudecode" ? ".claude" : undefined;
+      const relativeDirPath =
+        this.toolTarget === "claudecode"
+          ? ClaudecodeMcp.getSettablePaths({ global: this.global }).relativeDirPath
+          : undefined;
 
       toolFiles.push(
         ModularMcp.fromRulesyncMcp({
