@@ -78,7 +78,7 @@ export class ClaudecodeMcp extends ToolMcp {
       ? {
           ...json,
           mcpServers: global
-            ? ModularMcp.getMcpServers({ baseDir, global: true, relativeDirPath: ".claude" })
+            ? ModularMcp.getMcpServers({ baseDir, global: true, relativeDirPath: this.getSettablePaths({ global: true }).relativeDirPath })
             : ModularMcp.getMcpServers({ baseDir, global: false }),
         }
       : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
