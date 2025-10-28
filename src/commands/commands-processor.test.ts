@@ -20,22 +20,30 @@ vi.mock("../utils/logger.js", () => ({
 // Mock RulesyncCommand after importing it
 vi.mock("./rulesync-command.js");
 vi.mock("./claudecode-command.js", () => ({
-  ClaudecodeCommand: vi.fn().mockImplementation((config) => config),
+  ClaudecodeCommand: vi.fn().mockImplementation(function (config) {
+    return config;
+  }),
 }));
 vi.mock("./geminicli-command.js", () => ({
-  GeminiCliCommand: vi.fn().mockImplementation((config) => config),
+  GeminiCliCommand: vi.fn().mockImplementation(function (config) {
+    return config;
+  }),
 }));
 vi.mock("./roo-command.js", () => ({
-  RooCommand: vi.fn().mockImplementation((config) => config),
+  RooCommand: vi.fn().mockImplementation(function (config) {
+    return config;
+  }),
 }));
 vi.mock("./cursor-command.js", () => ({
-  CursorCommand: vi.fn().mockImplementation((config) => config),
+  CursorCommand: vi.fn().mockImplementation(function (config) {
+    return config;
+  }),
 }));
 
 const mockFindFilesByGlobs = findFilesByGlobs as MockedFunction<typeof findFilesByGlobs>;
 
 // Set up RulesyncCommand mock
-vi.mocked(RulesyncCommand).mockImplementation((config: any) => {
+vi.mocked(RulesyncCommand).mockImplementation(function (config: any) {
   const instance = Object.create(RulesyncCommand.prototype);
   return Object.assign(instance, config);
 });
