@@ -1,7 +1,5 @@
 import { join } from "node:path";
 import { AiFile, AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { ToolTarget } from "../types/tool-targets.js";
-import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 export type ModularMcpParams = AiFileParams;
@@ -10,9 +8,10 @@ export type ModularMcpFromRulesyncMcpParams = {
   baseDir?: string;
   rulesyncMcp: RulesyncMcp;
   validate?: boolean;
-  global?: boolean;
-  toolTarget?: ToolTarget;
-};
+} & (
+  | { global?: false | undefined; relativeDirPath?: undefined }
+  | { global: true; relativeDirPath: string }
+);
 
 export type ModularMcpSettablePaths = {
   relativeDirPath: string;
@@ -32,9 +31,11 @@ export class ModularMcp extends AiFile {
   }
 
   static getSettablePaths(
-    params: { global: false; toolTarget?: undefined } | { global: true; toolTarget: ToolTarget } = {
+    params:
+      | { global: false; relativeDirPath?: undefined }
+      | { global: true; relativeDirPath: string } = {
       global: false,
-      toolTarget: undefined,
+      relativeDirPath: undefined,
     },
   ): ModularMcpSettablePaths {
     const relativeFilePath = "modular-mcp.json";
@@ -45,35 +46,27 @@ export class ModularMcp extends AiFile {
       };
     }
 
-    // Global mode: return tool-specific paths
-    switch (params.toolTarget) {
-      case "claudecode":
-        return {
-          relativeDirPath: ClaudecodeMcp.getSettablePaths({ global: true }).relativeDirPath,
-          relativeFilePath,
-        };
-      default:
-        throw new Error(
-          `Global mode for tool target "${params.toolTarget}" is not yet supported for modular-mcp`,
-        );
-    }
+    return {
+      relativeDirPath: params.relativeDirPath,
+      relativeFilePath,
+    };
   }
 
   static getMcpServers(
     {
-      baseDir = ".",
+      baseDir,
       global,
-      toolTarget,
+      relativeDirPath,
     }:
-      | { baseDir: string; global: false; toolTarget?: undefined }
-      | { baseDir: string; global: true; toolTarget: ToolTarget } = {
+      | { baseDir: string; global: false; relativeDirPath?: undefined }
+      | { baseDir: string; global: true; relativeDirPath: string } = {
       baseDir: ".",
       global: false,
-      toolTarget: undefined,
+      relativeDirPath: undefined,
     },
   ): Record<string, unknown> {
     const paths = this.getSettablePaths(
-      global ? { global: true, toolTarget } : { global: false, toolTarget: undefined },
+      global ? { global: true, relativeDirPath } : { global: false, relativeDirPath: undefined },
     );
 
     if (!global) {
@@ -106,18 +99,13 @@ export class ModularMcp extends AiFile {
     rulesyncMcp,
     validate = true,
     global = false,
-    toolTarget,
+    relativeDirPath,
   }: ModularMcpFromRulesyncMcpParams): ModularMcp {
-    if (global && !toolTarget) {
-      throw new Error("toolTarget is required when global is true");
-    }
-
-    const paths = (() => {
-      if (global && toolTarget) {
-        return this.getSettablePaths({ global: true, toolTarget });
-      }
-      return this.getSettablePaths({ global: false, toolTarget: undefined });
-    })();
+    const paths = this.getSettablePaths(
+      global && relativeDirPath
+        ? { global: true, relativeDirPath }
+        : { global: false, relativeDirPath: undefined },
+    );
 
     // Generate modular-mcp.json with actual server configurations
     const modularMcpJson = {
