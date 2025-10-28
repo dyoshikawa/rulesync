@@ -249,6 +249,8 @@ export class McpProcessor extends FeatureProcessor {
         ModularMcp.fromRulesyncMcp({
           baseDir: this.baseDir,
           rulesyncMcp,
+          global: this.global,
+          toolTarget: this.toolTarget,
         }),
       );
     }
