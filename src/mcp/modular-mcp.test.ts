@@ -212,23 +212,17 @@ describe("ModularMcp", () => {
     });
 
     it("should return correct paths for global mode with claudecode", () => {
-      const paths = ModularMcp.getSettablePaths({ global: true, toolTarget: "claudecode" });
+      const paths = ModularMcp.getSettablePaths({ global: true, relativeDirPath: ".claude" });
 
       expect(paths.relativeDirPath).toBe(".claude");
       expect(paths.relativeFilePath).toBe("modular-mcp.json");
     });
 
     it("should return correct paths for global mode with codexcli", () => {
-      const paths = ModularMcp.getSettablePaths({ global: true, toolTarget: "codexcli" });
+      const paths = ModularMcp.getSettablePaths({ global: true, relativeDirPath: ".codex" });
 
       expect(paths.relativeDirPath).toBe(".codex");
       expect(paths.relativeFilePath).toBe("modular-mcp.json");
-    });
-
-    it("should throw error for unsupported global mode tool target", () => {
-      expect(() => {
-        ModularMcp.getSettablePaths({ global: true, toolTarget: "cursor" });
-      }).toThrow('Global mode for tool target "cursor" is not yet supported for modular-mcp');
     });
 
     it("should return consistent paths", () => {
@@ -253,25 +247,33 @@ describe("ModularMcp", () => {
     });
 
     it("should return modular-mcp proxy server configuration for global mode with claudecode", () => {
-      const mcpServers = ModularMcp.getMcpServers({ global: true, toolTarget: "claudecode" });
+      const mcpServers = ModularMcp.getMcpServers({
+        baseDir: "/home/user",
+        global: true,
+        relativeDirPath: ".claude",
+      });
 
       expect(mcpServers).toHaveProperty("modular-mcp");
       expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
-        args: ["-y", "@kimuson/modular-mcp", "{baseDir}/.claude/modular-mcp.json"],
+        args: ["-y", "@kimuson/modular-mcp", "/home/user/.claude/modular-mcp.json"],
         env: {},
       });
     });
 
     it("should return modular-mcp proxy server configuration for global mode with codexcli", () => {
-      const mcpServers = ModularMcp.getMcpServers({ global: true, toolTarget: "codexcli" });
+      const mcpServers = ModularMcp.getMcpServers({
+        baseDir: "/home/user",
+        global: true,
+        relativeDirPath: ".codex",
+      });
 
       expect(mcpServers).toHaveProperty("modular-mcp");
       expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
-        args: ["-y", "@kimuson/modular-mcp", "{baseDir}/.codex/modular-mcp.json"],
+        args: ["-y", "@kimuson/modular-mcp", "/home/user/.codex/modular-mcp.json"],
         env: {},
       });
     });
