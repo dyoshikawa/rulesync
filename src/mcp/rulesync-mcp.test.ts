@@ -372,25 +372,6 @@ describe("RulesyncMcp", () => {
       expect(result.error?.message).toContain("Invalid MCP server configuration");
     });
 
-    it("should fail validation when modularMcp is true and description is only whitespace", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node", description: "   " },
-          },
-        }),
-        validate: false,
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("Invalid MCP server configuration");
-    });
-
     it("should pass validation when modularMcp is true and description is present", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",

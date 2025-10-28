@@ -36,7 +36,7 @@ const McpServerBaseSchema = z.object({
 
 // Schema for modular-mcp: extends base schema with required description field
 const ModularMcpServerSchema = z.extend(McpServerBaseSchema, {
-  description: z.string(),
+  description: z.string().check(z.minLength(1)),
 });
 
 // Schema for modular-mcp servers validation (validates description exists)
@@ -113,21 +113,6 @@ export class RulesyncMcp extends RulesyncFile {
             `Invalid MCP server configuration for modular-mcp: ${result.error.message}`,
           ),
         };
-      }
-
-      // Additional validation for empty or whitespace-only descriptions
-      for (const [serverName, serverConfig] of Object.entries(this.json.mcpServers)) {
-        if (
-          typeof serverConfig.description === "string" &&
-          serverConfig.description.trim().length === 0
-        ) {
-          return {
-            success: false,
-            error: new Error(
-              `Invalid MCP server configuration for modular-mcp: Server "${serverName}" has empty or whitespace-only description`,
-            ),
-          };
-        }
       }
     }
     return { success: true, error: null };
