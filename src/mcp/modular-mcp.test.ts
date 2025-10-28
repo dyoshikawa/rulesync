@@ -204,10 +204,24 @@ describe("ModularMcp", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths", () => {
+    it("should return correct paths for non-global mode", () => {
       const paths = ModularMcp.getSettablePaths();
 
       expect(paths.relativeDirPath).toBe(".");
+      expect(paths.relativeFilePath).toBe("modular-mcp.json");
+    });
+
+    it("should return correct paths for global mode with claudecode", () => {
+      const paths = ModularMcp.getSettablePaths({ global: true, relativeDirPath: ".claude" });
+
+      expect(paths.relativeDirPath).toBe(".claude");
+      expect(paths.relativeFilePath).toBe("modular-mcp.json");
+    });
+
+    it("should return correct paths for global mode with codexcli", () => {
+      const paths = ModularMcp.getSettablePaths({ global: true, relativeDirPath: ".codex" });
+
+      expect(paths.relativeDirPath).toBe(".codex");
       expect(paths.relativeFilePath).toBe("modular-mcp.json");
     });
 
@@ -220,7 +234,7 @@ describe("ModularMcp", () => {
   });
 
   describe("getMcpServers", () => {
-    it("should return modular-mcp proxy server configuration", () => {
+    it("should return modular-mcp proxy server configuration for non-global mode", () => {
       const mcpServers = ModularMcp.getMcpServers();
 
       expect(mcpServers).toHaveProperty("modular-mcp");
@@ -228,6 +242,38 @@ describe("ModularMcp", () => {
         type: "stdio",
         command: "npx",
         args: ["-y", "@kimuson/modular-mcp", "modular-mcp.json"],
+        env: {},
+      });
+    });
+
+    it("should return modular-mcp proxy server configuration for global mode with claudecode", () => {
+      const mcpServers = ModularMcp.getMcpServers({
+        baseDir: "/home/user",
+        global: true,
+        relativeDirPath: ".claude",
+      });
+
+      expect(mcpServers).toHaveProperty("modular-mcp");
+      expect(mcpServers["modular-mcp"]).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@kimuson/modular-mcp", "/home/user/.claude/modular-mcp.json"],
+        env: {},
+      });
+    });
+
+    it("should return modular-mcp proxy server configuration for global mode with codexcli", () => {
+      const mcpServers = ModularMcp.getMcpServers({
+        baseDir: "/home/user",
+        global: true,
+        relativeDirPath: ".codex",
+      });
+
+      expect(mcpServers).toHaveProperty("modular-mcp");
+      expect(mcpServers["modular-mcp"]).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@kimuson/modular-mcp", "/home/user/.codex/modular-mcp.json"],
         env: {},
       });
     });

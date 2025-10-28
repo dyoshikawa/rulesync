@@ -75,7 +75,16 @@ export class ClaudecodeMcp extends ToolMcp {
 
     // Generate .mcp.json with modular-mcp proxy or actual server configurations
     const mcpJson = modularMcp
-      ? { ...json, mcpServers: ModularMcp.getMcpServers() }
+      ? {
+          ...json,
+          mcpServers: global
+            ? ModularMcp.getMcpServers({
+                baseDir,
+                global: true,
+                relativeDirPath: this.getSettablePaths({ global: true }).relativeDirPath,
+              })
+            : ModularMcp.getMcpServers({ baseDir, global: false }),
+        }
       : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
 
     return new ClaudecodeMcp({
