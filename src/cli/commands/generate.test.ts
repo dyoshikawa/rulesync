@@ -88,7 +88,7 @@ describe("generateCommand", () => {
     vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
 
     // Setup processor constructor mocks - create new instance each time to ensure isolation
-    vi.mocked(RulesProcessor).mockImplementation(function() {
+    vi.mocked(RulesProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -99,7 +99,7 @@ describe("generateCommand", () => {
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
     });
-    vi.mocked(IgnoreProcessor).mockImplementation(function() {
+    vi.mocked(IgnoreProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -110,7 +110,7 @@ describe("generateCommand", () => {
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
     });
-    vi.mocked(McpProcessor).mockImplementation(function() {
+    vi.mocked(McpProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -121,7 +121,7 @@ describe("generateCommand", () => {
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
     });
-    vi.mocked(SubagentsProcessor).mockImplementation(function() {
+    vi.mocked(SubagentsProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -132,7 +132,7 @@ describe("generateCommand", () => {
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
     });
-    vi.mocked(CommandsProcessor).mockImplementation(function() {
+    vi.mocked(CommandsProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -254,7 +254,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -277,16 +279,16 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
       expect(customMockInstance.loadRulesyncFilesLegacy).toHaveBeenCalled();
-      expect(customMockInstance.convertRulesyncFilesToToolFiles).toHaveBeenCalledWith(
-        legacyFiles,
-      );
+      expect(customMockInstance.convertRulesyncFilesToToolFiles).toHaveBeenCalledWith(legacyFiles);
     });
 
     it("should process multiple base directories", async () => {
@@ -368,7 +370,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(McpProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -467,7 +471,7 @@ describe("generateCommand", () => {
     });
 
     it("should handle errors in ignore processing", async () => {
-      vi.mocked(IgnoreProcessor).mockImplementation(function() {
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Test error");
       });
       const options: GenerateOptions = {};
@@ -606,7 +610,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(0),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -647,9 +653,15 @@ describe("generateCommand", () => {
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
 
-      vi.mocked(RulesProcessor).mockImplementation(function() { return rulesMock as any; });
-      vi.mocked(McpProcessor).mockImplementation(function() { return mcpMock as any; });
-      vi.mocked(CommandsProcessor).mockImplementation(function() { return commandsMock as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return rulesMock as any;
+      });
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return mcpMock as any;
+      });
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
+        return commandsMock as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -697,7 +709,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(3),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -724,7 +738,7 @@ describe("generateCommand", () => {
 
     it("should handle processor instantiation errors", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      vi.mocked(RulesProcessor).mockImplementation(function() {
+      vi.mocked(RulesProcessor).mockImplementation(function () {
         throw new Error("Processor error");
       });
       const options: GenerateOptions = {};
@@ -789,7 +803,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -814,7 +830,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -923,7 +941,9 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(5),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return customMockInstance as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
 
       const options: GenerateOptions = {};
 
@@ -943,10 +963,12 @@ describe("generateCommand", () => {
 
       // Set up intersection to return correct values
       const originalIntersection = vi.mocked(intersection);
-      originalIntersection.mockImplementation((a: any[], b: any[]) => a.filter(item => b.includes(item)));
+      originalIntersection.mockImplementation((a: readonly unknown[], b: readonly unknown[]) =>
+        (a as unknown[]).filter((item) => (b as unknown[]).includes(item)),
+      );
 
       // Create factory functions that return new mock instances each time
-      vi.mocked(RulesProcessor).mockImplementation(function() {
+      vi.mocked(RulesProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -957,7 +979,7 @@ describe("generateCommand", () => {
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
       });
-      vi.mocked(McpProcessor).mockImplementation(function() {
+      vi.mocked(McpProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -968,7 +990,7 @@ describe("generateCommand", () => {
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
       });
-      vi.mocked(CommandsProcessor).mockImplementation(function() {
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -979,7 +1001,7 @@ describe("generateCommand", () => {
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
       });
-      vi.mocked(SubagentsProcessor).mockImplementation(function() {
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
@@ -1019,10 +1041,12 @@ describe("generateCommand", () => {
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(2),
       };
-      vi.mocked(RulesProcessor).mockImplementation(function() { return mockRulesProcessor as any; });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockRulesProcessor as any;
+      });
 
       // Set up ignore processor to throw an error
-      vi.mocked(IgnoreProcessor).mockImplementation(function() {
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Ignore error");
       });
 
