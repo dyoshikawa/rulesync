@@ -1,15 +1,13 @@
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { ModularMcp, type ModularMcpParams } from "./modular-mcp.js";
 
 describe("ModularMcp", () => {
-  let testDir: string;
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    ({ cleanup } = await setupTestDirectory());
   });
 
   afterEach(async () => {
@@ -239,47 +237,6 @@ describe("ModularMcp", () => {
       const servers2 = ModularMcp.getMcpServers();
 
       expect(servers1).toEqual(servers2);
-    });
-  });
-
-  describe("getAbsolutePath", () => {
-    it("should return correct absolute path with default baseDir", () => {
-      const modularMcp = new ModularMcp({
-        relativeDirPath: ".",
-        relativeFilePath: "modular-mcp.json",
-        fileContent: JSON.stringify({}),
-      });
-
-      const absolutePath = modularMcp.getAbsolutePath();
-
-      expect(absolutePath).toBe(join(".", "modular-mcp.json"));
-    });
-
-    it("should return correct absolute path with custom baseDir", () => {
-      const modularMcp = new ModularMcp({
-        baseDir: "/custom/base",
-        relativeDirPath: ".",
-        relativeFilePath: "modular-mcp.json",
-        fileContent: JSON.stringify({}),
-      });
-
-      const absolutePath = modularMcp.getAbsolutePath();
-
-      expect(absolutePath).toBe(join("/custom/base", ".", "modular-mcp.json"));
-    });
-
-    it("should return path consistent with getFilePath", () => {
-      const modularMcp = new ModularMcp({
-        baseDir: testDir,
-        relativeDirPath: ".",
-        relativeFilePath: "modular-mcp.json",
-        fileContent: JSON.stringify({}),
-      });
-
-      const absolutePath = modularMcp.getAbsolutePath();
-      const filePath = modularMcp.getFilePath();
-
-      expect(absolutePath).toBe(filePath);
     });
   });
 

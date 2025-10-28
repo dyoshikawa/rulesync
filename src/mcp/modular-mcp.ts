@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import { AiFile, AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -64,11 +63,6 @@ export class ModularMcp extends AiFile {
       fileContent: JSON.stringify(modularMcpJson, null, 2),
       validate,
     });
-  }
-
-  getAbsolutePath(): string {
-    const paths = ModularMcp.getSettablePaths();
-    return join(this.baseDir, paths.relativeDirPath, paths.relativeFilePath);
   }
 
   validate(): ValidationResult {

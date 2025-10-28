@@ -105,23 +105,6 @@ export class RulesyncMcp extends RulesyncFile {
 
   validate(): ValidationResult {
     if (this.modularMcp) {
-      // First, validate that each server has a non-empty description field (provides specific error message)
-      for (const [serverName, serverConfig] of Object.entries(this.json.mcpServers)) {
-        if (
-          !serverConfig.description ||
-          typeof serverConfig.description !== "string" ||
-          serverConfig.description.trim().length === 0
-        ) {
-          return {
-            success: false,
-            error: new Error(
-              `MCP server "${serverName}" requires a non-empty description field when modularMcp is enabled`,
-            ),
-          };
-        }
-      }
-
-      // Then validate with ModularMcpServersSchema for any other schema issues
       const result = ModularMcpServersSchema.safeParse(this.json.mcpServers);
       if (!result.success) {
         return {
@@ -130,6 +113,21 @@ export class RulesyncMcp extends RulesyncFile {
             `Invalid MCP server configuration for modular-mcp: ${result.error.message}`,
           ),
         };
+      }
+
+      // Additional validation for empty or whitespace-only descriptions
+      for (const [serverName, serverConfig] of Object.entries(this.json.mcpServers)) {
+        if (
+          typeof serverConfig.description === "string" &&
+          serverConfig.description.trim().length === 0
+        ) {
+          return {
+            success: false,
+            error: new Error(
+              `Invalid MCP server configuration for modular-mcp: Server "${serverName}" has empty or whitespace-only description`,
+            ),
+          };
+        }
       }
     }
     return { success: true, error: null };

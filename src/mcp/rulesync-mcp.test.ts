@@ -349,9 +349,8 @@ describe("RulesyncMcp", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toContain(
-        'MCP server "test-server" requires a non-empty description field when modularMcp is enabled',
-      );
+      expect(result.error?.message).toContain("Invalid MCP server configuration");
+      expect(result.error?.message).toContain("test-server");
     });
 
     it("should fail validation when modularMcp is true and description is empty string", () => {
@@ -370,7 +369,7 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.validate();
 
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("requires a non-empty description");
+      expect(result.error?.message).toContain("Invalid MCP server configuration");
     });
 
     it("should fail validation when modularMcp is true and description is only whitespace", () => {
@@ -389,7 +388,7 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.validate();
 
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("requires a non-empty description");
+      expect(result.error?.message).toContain("Invalid MCP server configuration");
     });
 
     it("should pass validation when modularMcp is true and description is present", () => {
@@ -448,8 +447,8 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.validate();
 
       expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("Invalid MCP server configuration");
       expect(result.error?.message).toContain("another-server");
-      expect(result.error?.message).toContain("requires a non-empty description");
     });
 
     it("should pass validation when modularMcp is false and description is missing", () => {
