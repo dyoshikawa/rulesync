@@ -458,7 +458,7 @@ Once run `rulesync generate --targets claudecode --features mcp`, `/context` res
      ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝
 ```
 
-On the ohter hand, once run `rulesync generate --targets claudecode --features mcp --modular-mcp`, `/context` result on Claude Code is as follows:
+On the other hand, once run `rulesync generate --targets claudecode --features mcp --modular-mcp`, `/context` result on Claude Code is as follows:
 
 ``` 
       Context Usage
