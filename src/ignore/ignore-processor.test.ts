@@ -34,7 +34,7 @@ vi.mock("./rulesync-ignore.js", () => ({
 
 // Add a static fromFile method to the mock
 const RulesyncIgnoreMock = vi.mocked(RulesyncIgnore);
-RulesyncIgnoreMock.fromFile = vi.fn();
+(RulesyncIgnoreMock as any).fromFile = vi.fn();
 
 describe("IgnoreProcessor", () => {
   let testDir: string;
@@ -110,7 +110,7 @@ describe("IgnoreProcessor", () => {
         fileContent: "*.log\nnode_modules/",
       });
 
-      RulesyncIgnoreMock.fromFile.mockResolvedValue(mockRulesyncIgnore as any);
+      (RulesyncIgnoreMock as any).fromFile.mockResolvedValue(mockRulesyncIgnore as any);
 
       const processor = new IgnoreProcessor({
         baseDir: testDir,
@@ -123,7 +123,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should return empty array when no rulesync ignore file exists", async () => {
-      RulesyncIgnoreMock.fromFile.mockRejectedValue(new Error("File not found"));
+      (RulesyncIgnoreMock as any).fromFile.mockRejectedValue(new Error("File not found"));
 
       const processor = new IgnoreProcessor({
         baseDir: testDir,

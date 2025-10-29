@@ -24,9 +24,9 @@ describe("importCommand", () => {
 
   beforeEach(() => {
     // Mock process.exit
-    mockExit = vi.spyOn(process, "exit").mockImplementation((() => {
+    mockExit = vi.spyOn(process, "exit").mockImplementation(function () {
       throw new Error("Process exit");
-    }) as any);
+    } as any);
 
     // Setup default mock config
     mockConfig = {
@@ -54,18 +54,42 @@ describe("importCommand", () => {
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
     vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
 
-    // Mock processor instances
-    const mockProcessorMethods = {
-      loadToolFiles: vi.fn().mockResolvedValue([]),
-      convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-      writeAiFiles: vi.fn().mockResolvedValue(0),
-    };
-
-    vi.mocked(RulesProcessor).mockImplementation(() => mockProcessorMethods as any);
-    vi.mocked(IgnoreProcessor).mockImplementation(() => mockProcessorMethods as any);
-    vi.mocked(McpProcessor).mockImplementation(() => mockProcessorMethods as any);
-    vi.mocked(SubagentsProcessor).mockImplementation(() => mockProcessorMethods as any);
-    vi.mocked(CommandsProcessor).mockImplementation(() => mockProcessorMethods as any);
+    // Mock processor instances - create separate objects for each processor
+    vi.mocked(RulesProcessor).mockImplementation(function () {
+      return {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+      } as any;
+    });
+    vi.mocked(IgnoreProcessor).mockImplementation(function () {
+      return {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+      } as any;
+    });
+    vi.mocked(McpProcessor).mockImplementation(function () {
+      return {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+      } as any;
+    });
+    vi.mocked(SubagentsProcessor).mockImplementation(function () {
+      return {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+      } as any;
+    });
+    vi.mocked(CommandsProcessor).mockImplementation(function () {
+      return {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+      } as any;
+    });
   });
 
   afterEach(() => {
@@ -99,7 +123,9 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ rule: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(RulesProcessor).mockImplementation(() => mockRulesProcessor as any);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockRulesProcessor as any;
+      });
 
       const options: ImportOptions = {
         targets: ["claudecode"],
@@ -123,7 +149,9 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ ignore: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return mockIgnoreProcessor as any;
+      });
 
       const options: ImportOptions = {
         targets: ["claudecode"],
@@ -146,7 +174,9 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ mcp: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(McpProcessor).mockImplementation(() => mockMcpProcessor as any);
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return mockMcpProcessor as any;
+      });
 
       const options: ImportOptions = {
         targets: ["claudecode"],
@@ -170,7 +200,9 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(SubagentsProcessor).mockImplementation(() => mockSubagentsProcessor as any);
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return mockSubagentsProcessor as any;
+      });
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       const options: ImportOptions = {
@@ -197,7 +229,9 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
+        return mockCommandsProcessor as any;
+      });
       vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       const options: ImportOptions = {
@@ -268,35 +302,45 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ rule: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(2),
       };
-      vi.mocked(RulesProcessor).mockImplementation(() => mockRulesProcessor as any);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockRulesProcessor as any;
+      });
 
       const mockIgnoreProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "ignore1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ ignore: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(IgnoreProcessor).mockImplementation(() => mockIgnoreProcessor as any);
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return mockIgnoreProcessor as any;
+      });
 
       const mockMcpProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "mcp1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ mcp: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(3),
       };
-      vi.mocked(McpProcessor).mockImplementation(() => mockMcpProcessor as any);
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return mockMcpProcessor as any;
+      });
 
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(4),
       };
-      vi.mocked(SubagentsProcessor).mockImplementation(() => mockSubagentsProcessor as any);
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return mockSubagentsProcessor as any;
+      });
 
       const mockCommandsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "command1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(5),
       };
-      vi.mocked(CommandsProcessor).mockImplementation(() => mockCommandsProcessor as any);
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
+        return mockCommandsProcessor as any;
+      });
 
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -319,17 +363,41 @@ describe("importCommand", () => {
     });
 
     it("should not log success messages when no files are created", async () => {
-      const mockProcessor = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
-      };
-
-      vi.mocked(RulesProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(IgnoreProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(McpProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(SubagentsProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(CommandsProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
 
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -358,7 +426,9 @@ describe("importCommand", () => {
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
-      vi.mocked(SubagentsProcessor).mockImplementation(() => mockSubagentsProcessor as any);
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return mockSubagentsProcessor as any;
+      });
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       const options: ImportOptions = {
@@ -375,16 +445,41 @@ describe("importCommand", () => {
     });
 
     it("should pass global flag to other processors when importing in global mode", async () => {
-      const mockProcessor = {
-        loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
-      };
-
-      vi.mocked(RulesProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(McpProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(CommandsProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(SubagentsProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue(1),
+        } as any;
+      });
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue(1),
+        } as any;
+      });
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue(1),
+        } as any;
+      });
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue(1),
+        } as any;
+      });
 
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
@@ -422,16 +517,41 @@ describe("importCommand", () => {
     });
 
     it("should use getToolTargetsGlobal for supported processors in global mode", async () => {
-      const mockProcessor = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
-      };
-
-      vi.mocked(RulesProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(McpProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(CommandsProcessor).mockImplementation(() => mockProcessor as any);
-      vi.mocked(SubagentsProcessor).mockImplementation(() => mockProcessor as any);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(CommandsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue(0),
+        } as any;
+      });
 
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
