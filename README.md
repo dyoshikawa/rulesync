@@ -356,7 +356,7 @@ Simulated commands and subagents allow you to generate simulated commands and su
 
 #### Modular MCP (Experimental)
 
-Rulesync supports compressing tokens comsumed by MCP servers [d-kimuson/modular-mcp](https://github.com/d-kimuson/modular-mcp) for context saving. When enabled with `--modular-mcp`, it additionally generates `modular-mcp.json`.
+Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-mcp](https://github.com/d-kimuson/modular-mcp) for context saving. When enabled with `--modular-mcp`, it additionally generates `modular-mcp.json`.
 
 ```bash
 # Enable modular-mcp via CLI
