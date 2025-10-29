@@ -1,6 +1,6 @@
 {
 	"name": "rulesync",
-	"version": "3.11.4",
+	"version": "3.12.1",
 	"description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
 	"keywords": [
 		"ai",
@@ -61,6 +61,7 @@
 		"pre-commit": "pnpm exec lint-staged"
 	},
 	"dependencies": {
+		"@kimuson/modular-mcp": "0.0.3",
 		"c12": "3.3.1",
 		"chokidar": "4.0.3",
 		"commander": "14.0.2",
@@ -82,8 +83,8 @@
 		"@types/js-yaml": "4.0.9",
 		"@types/micromatch": "4.0.10",
 		"@types/node": "24.9.1",
-		"@typescript/native-preview": "7.0.0-dev.20251026.1",
-		"@vitest/coverage-v8": "4.0.3",
+		"@typescript/native-preview": "7.0.0-dev.20251025.1",
+		"@vitest/coverage-v8": "4.0.4",
 		"cspell": "9.2.2",
 		"eslint": "9.38.0",
 		"eslint-plugin-import": "2.32.0",
@@ -102,7 +103,7 @@
 		"tsx": "4.20.6",
 		"typescript": "5.9.3",
 		"typescript-eslint": "8.46.2",
-		"vitest": "4.0.3"
+		"vitest": "4.0.4"
 	},
 	"packageManager": "pnpm@10.19.0",
 	"engines": {

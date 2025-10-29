@@ -21,6 +21,7 @@ const defaults: Required<ConfigResolverResolveParams> = {
   global: false,
   simulatedCommands: false,
   simulatedSubagents: false,
+  modularMcp: false,
   experimentalGlobal: false,
   experimentalSimulateCommands: false,
   experimentalSimulateSubagents: false,
@@ -38,6 +39,7 @@ export class ConfigResolver {
     global,
     simulatedCommands,
     simulatedSubagents,
+    modularMcp,
     experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
@@ -73,6 +75,7 @@ export class ConfigResolver {
         global: resolvedGlobal,
         simulatedCommands: resolvedSimulatedCommands,
         simulatedSubagents: resolvedSimulatedSubagents,
+        modularMcp: modularMcp ?? defaults.modularMcp,
       });
     }
 
@@ -138,6 +141,7 @@ export class ConfigResolver {
       global: resolvedGlobal,
       simulatedCommands: resolvedSimulatedCommands,
       simulatedSubagents: resolvedSimulatedSubagents,
+      modularMcp: modularMcp ?? configByFile.modularMcp ?? defaults.modularMcp,
     };
     return new Config(configParams);
   }

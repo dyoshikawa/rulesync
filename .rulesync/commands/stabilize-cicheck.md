@@ -1,5 +1,5 @@
 ---
-description: 'Stabilize tests by running `pnpm cicheck` and updating tests in line with the changes.'
+description: 'Stabilize cicheck by running `pnpm cicheck` and updating code in line with the changes.'
 targets:
   - '*'
 ---

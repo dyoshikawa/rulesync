@@ -65,6 +65,8 @@ export const gitignoreCommand = async (): Promise<void> => {
     // Warp
     "**/.warp/",
     "**/WARP.md",
+    // Others
+    "**/modular-mcp.json",
   ];
 
   let gitignoreContent = "";

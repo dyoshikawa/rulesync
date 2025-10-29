@@ -11,6 +11,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
+import { ModularMcp } from "./modular-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
@@ -33,15 +34,24 @@ export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema
 
 export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli", "geminicli"];
 
+export const mcpProcessorToolTargetsModular: ToolTarget[] = ["claudecode"];
+
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
+  private readonly modularMcp: boolean;
 
   constructor({
     baseDir = ".",
     toolTarget,
     global = false,
-  }: { baseDir?: string; toolTarget: McpProcessorToolTarget; global?: boolean }) {
+    modularMcp = false,
+  }: {
+    baseDir?: string;
+    toolTarget: McpProcessorToolTarget;
+    global?: boolean;
+    modularMcp?: boolean;
+  }) {
     super({ baseDir });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
@@ -51,6 +61,7 @@ export class McpProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.modularMcp = modularMcp;
   }
 
   /**
@@ -59,9 +70,9 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncMcp.fromFile({})];
+      return [await RulesyncMcp.fromFile({ modularMcp: this.modularMcp })];
     } catch (error) {
-      logger.debug(`No MCP files found for tool target: ${this.toolTarget}`, error);
+      logger.debug(`Failed to load MCP files for tool target: ${this.toolTarget}`, error);
       return [];
     }
   }
@@ -159,7 +170,7 @@ export class McpProcessor extends FeatureProcessor {
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
       return toolMcps;
     } catch (error) {
-      logger.debug(`No MCP files found for tool target: ${this.toolTarget}`, error);
+      logger.debug(`Failed to load MCP files for tool target: ${this.toolTarget}`, error);
       return [];
     }
   }
@@ -186,10 +197,11 @@ export class McpProcessor extends FeatureProcessor {
               rulesyncMcp,
             });
           case "claudecode":
-            return ClaudecodeMcp.fromRulesyncMcp({
+            return await ClaudecodeMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
               global: this.global,
+              modularMcp: this.modularMcp,
             });
           case "cline":
             return ClineMcp.fromRulesyncMcp({
@@ -229,7 +241,28 @@ export class McpProcessor extends FeatureProcessor {
       }),
     );
 
-    return toolMcps;
+    const toolFiles: ToolFile[] = toolMcps;
+
+    // Add modular-mcp.json if modularMcp is enabled and target supports modular-mcp
+    if (this.modularMcp && mcpProcessorToolTargetsModular.includes(this.toolTarget)) {
+      // Map tool target to relative directory path
+      const relativeDirPath =
+        this.toolTarget === "claudecode"
+          ? ClaudecodeMcp.getSettablePaths({ global: this.global }).relativeDirPath
+          : undefined;
+
+      toolFiles.push(
+        ModularMcp.fromRulesyncMcp({
+          baseDir: this.baseDir,
+          rulesyncMcp,
+          ...(this.global && relativeDirPath
+            ? { global: true, relativeDirPath }
+            : { global: false }),
+        }),
+      );
+    }
+
+    return toolFiles;
   }
 
   /**

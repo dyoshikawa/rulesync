@@ -9,7 +9,7 @@ import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 
-const getVersion = () => "3.11.4";
+const getVersion = () => "3.12.1";
 
 const main = async () => {
   const program = new Command();
@@ -121,6 +121,10 @@ const main = async () => {
       "--experimental-simulate-subagents",
       "Generate simulated subagents (deprecated: use --simulated-subagents instead)",
     )
+    .option(
+      "--modular-mcp",
+      "Generate modular-mcp configuration for context compression (experimental)",
+    )
     .action(async (options) => {
       try {
         await generateCommand({
@@ -133,6 +137,7 @@ const main = async () => {
           global: options.global,
           simulatedCommands: options.simulatedCommands,
           simulatedSubagents: options.simulatedSubagents,
+          modularMcp: options.modularMcp,
           experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,
