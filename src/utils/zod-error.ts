@@ -10,7 +10,7 @@
  * }
  */
 export function formatZodError(error: {
-  issues: Array<{ path: (string | number)[]; message: string }>;
+  issues: Array<{ path: PropertyKey[]; message: string }>;
 }): string {
   return error.issues
     .map((issue) => {
