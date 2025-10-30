@@ -20,6 +20,7 @@ import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AmazonQCliRule } from "./amazonqcli-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
@@ -91,7 +92,7 @@ export class RulesProcessor extends FeatureProcessor {
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
-        `Invalid tool target for RulesProcessor: ${toolTarget}. ${result.error.message}`,
+        `Invalid tool target for RulesProcessor: ${toolTarget}. ${formatZodError(result.error)}`,
       );
     }
     this.toolTarget = result.data;
