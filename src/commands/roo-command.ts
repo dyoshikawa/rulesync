@@ -3,6 +3,7 @@ import { optional, z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -42,7 +43,7 @@ export class RooCommand extends ToolCommand {
       const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatZodError(result.error)}`,
         );
       }
     }
@@ -123,7 +124,7 @@ export class RooCommand extends ToolCommand {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${result.error.message}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatZodError(result.error)}`,
         ),
       };
     }
@@ -149,7 +150,7 @@ export class RooCommand extends ToolCommand {
     // Validate frontmatter using RooCommandFrontmatterSchema
     const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatZodError(result.error)}`);
     }
 
     return new RooCommand({
