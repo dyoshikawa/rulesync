@@ -90,7 +90,7 @@ describe("formatZodError", () => {
       expect(formatted).not.toMatch(/^\[/);
       expect(formatted).not.toMatch(/^\{/);
       // Should be semicolon-separated
-      expect(formatted).toMatch(/^[^;]+: [^;]+(; [^;]+: [^;]+)*$/);
+      expect(formatted).toMatch(/^[^:]+: [^;]+(; [^:]+: [^;]+)*$/);
     }
   });
 });
