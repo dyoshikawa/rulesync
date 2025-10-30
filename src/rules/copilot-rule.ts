@@ -3,6 +3,7 @@ import { z } from "zod/mini";
 import { ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -56,7 +57,7 @@ export class CopilotRule extends ToolRule {
       const result = CopilotRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatZodError(result.error)}`,
         );
       }
     }
@@ -176,7 +177,7 @@ export class CopilotRule extends ToolRule {
     const result = CopilotRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${result.error.message}`,
+        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${formatZodError(result.error)}`,
       );
     }
 
@@ -206,7 +207,7 @@ export class CopilotRule extends ToolRule {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${result.error.message}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatZodError(result.error)}`,
         ),
       };
     }

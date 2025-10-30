@@ -4,6 +4,7 @@ import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -49,7 +50,9 @@ export class GeminiCliCommand extends ToolCommand {
       const parsed = parseToml(content);
       const result = GeminiCliCommandFrontmatterSchema.safeParse(parsed);
       if (!result.success) {
-        throw new Error(`Invalid frontmatter in Gemini CLI command file: ${result.error.message}`);
+        throw new Error(
+          `Invalid frontmatter in Gemini CLI command file: ${formatZodError(result.error)}`,
+        );
       }
       return {
         description: result.data.description || "",

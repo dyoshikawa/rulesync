@@ -10,6 +10,7 @@ import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { logger } from "../utils/logger.js";
+import { formatZodError } from "../utils/zod-error.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.optional(z.boolean())),
@@ -57,7 +58,7 @@ export class RulesyncRule extends RulesyncFile {
       const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${result.error.message}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatZodError(result.error)}`,
         );
       }
     }
@@ -100,7 +101,7 @@ export class RulesyncRule extends RulesyncFile {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${result.error.message}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatZodError(result.error)}`,
         ),
       };
     }
@@ -125,7 +126,7 @@ export class RulesyncRule extends RulesyncFile {
     // Validate frontmatter using RuleFrontmatterSchema
     const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${legacyPath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${legacyPath}: ${formatZodError(result.error)}`);
     }
 
     const validatedFrontmatter: RulesyncRuleFrontmatter = {
@@ -162,7 +163,7 @@ export class RulesyncRule extends RulesyncFile {
     // Validate frontmatter using RuleFrontmatterSchema
     const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${result.error.message}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatZodError(result.error)}`);
     }
 
     const validatedFrontmatter: RulesyncRuleFrontmatter = {
