@@ -4,6 +4,7 @@ import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { logger } from "../utils/logger.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { AmazonqcliIgnore } from "./amazonqcli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -47,7 +48,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
-        `Invalid tool target for IgnoreProcessor: ${toolTarget}. ${result.error.message}`,
+        `Invalid tool target for IgnoreProcessor: ${toolTarget}. ${formatZodError(result.error)}`,
       );
     }
     this.toolTarget = result.data;
