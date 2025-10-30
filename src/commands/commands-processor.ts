@@ -6,6 +6,7 @@ import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { findFilesByGlobs } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
@@ -52,7 +53,7 @@ export class CommandsProcessor extends FeatureProcessor {
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
-        `Invalid tool target for CommandsProcessor: ${toolTarget}. ${result.error.message}`,
+        `Invalid tool target for CommandsProcessor: ${toolTarget}. ${formatZodError(result.error)}`,
       );
     }
     this.toolTarget = result.data;
