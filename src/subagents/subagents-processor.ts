@@ -6,6 +6,7 @@ import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { formatZodError } from "../utils/zod-error.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
@@ -53,7 +54,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
-        `Invalid tool target for SubagentsProcessor: ${toolTarget}. ${result.error.message}`,
+        `Invalid tool target for SubagentsProcessor: ${toolTarget}. ${formatZodError(result.error)}`,
       );
     }
     this.toolTarget = result.data;
