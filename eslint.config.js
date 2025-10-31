@@ -24,7 +24,7 @@ export default defineConfig([
   },
 
   {
-    files: ["**/*.{js,mjs,cjs,ts,mts}"],
+    files: ["src/**/*.ts", "scripts/**/*.ts"],
   },
 
   eslint.configs.recommended,
@@ -32,7 +32,7 @@ export default defineConfig([
   ...tseslint.configs.recommended,
 
   {
-    files: ["**/*.{js,mjs,cjs,ts,mts}"],
+    files: ["src/**/*.ts", "scripts/**/*.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -77,7 +77,7 @@ export default defineConfig([
   },
 
   {
-    files: ["**/*.test.ts"],
+    files: ["src/**/*.test.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {

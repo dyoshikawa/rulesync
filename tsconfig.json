@@ -10,7 +10,8 @@
     "exactOptionalPropertyTypes": true
   },
   "include": [
-    "**/*.ts"
+    "src/**/*.ts",
+    "scripts/**/*.ts"
   ],
   "exclude": [
     "node_modules",
