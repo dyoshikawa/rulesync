@@ -4,7 +4,7 @@ import { RulesyncFile } from "../types/rulesync-file.js";
 import { ToolFile } from "../types/tool-file.js";
 import { ToolTarget } from "../types/tool-targets.js";
 import { logger } from "../utils/logger.js";
-import { formatZodError } from "../utils/zod-error.js";
+import { formatError } from "../utils/error.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
@@ -57,7 +57,7 @@ export class McpProcessor extends FeatureProcessor {
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
-        `Invalid tool target for McpProcessor: ${toolTarget}. ${formatZodError(result.error)}`,
+        `Invalid tool target for McpProcessor: ${toolTarget}. ${formatError(result.error)}`,
       );
     }
     this.toolTarget = result.data;

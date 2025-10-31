@@ -4,7 +4,7 @@ import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RulesyncTargets } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
-import { formatZodError } from "../utils/zod-error.js";
+import { formatError } from "../utils/error.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -50,7 +50,7 @@ export class CursorRule extends ToolRule {
       const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatZodError(result.error)}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
     }
@@ -222,7 +222,7 @@ export class CursorRule extends ToolRule {
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${formatZodError(result.error)}`,
+        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${formatError(result.error)}`,
       );
     }
 
@@ -249,7 +249,7 @@ export class CursorRule extends ToolRule {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatZodError(result.error)}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
         ),
       };
     }

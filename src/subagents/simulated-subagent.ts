@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
-import { formatZodError } from "../utils/zod-error.js";
+import { formatError } from "../utils/error.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -32,7 +32,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
       const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatZodError(result.error)}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
     }
@@ -94,7 +94,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatZodError(result.error)}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
         ),
       };
     }
@@ -111,7 +111,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
 
     const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatZodError(result.error)}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     return {

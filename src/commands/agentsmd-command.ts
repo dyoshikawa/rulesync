@@ -1,7 +1,7 @@
 import { basename, join } from "node:path";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
-import { formatZodError } from "../utils/zod-error.js";
+import { formatError } from "../utils/error.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { SimulatedCommand, SimulatedCommandFrontmatterSchema } from "./simulated-command.js";
 import {
@@ -42,7 +42,7 @@ export class AgentsmdCommand extends SimulatedCommand {
 
     const result = SimulatedCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatZodError(result.error)}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     return new AgentsmdCommand({

@@ -9,7 +9,7 @@ import {
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
-import { formatZodError } from "../utils/zod-error.js";
+import { formatError } from "../utils/error.js";
 
 export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "inherit"]);
 
@@ -47,7 +47,7 @@ export class RulesyncSubagent extends RulesyncFile {
       const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatZodError(result.error)}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
     }
@@ -88,7 +88,7 @@ export class RulesyncSubagent extends RulesyncFile {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatZodError(result.error)}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
         ),
       };
     }
@@ -105,7 +105,7 @@ export class RulesyncSubagent extends RulesyncFile {
     const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid frontmatter in ${relativeFilePath}: ${formatZodError(result.error)}`,
+        `Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`,
       );
     }
 

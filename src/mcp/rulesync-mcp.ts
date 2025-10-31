@@ -10,7 +10,7 @@ import {
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
 import { fileExists, readFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { formatZodError } from "../utils/zod-error.js";
+import { formatError } from "../utils/error.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 
@@ -111,7 +111,7 @@ export class RulesyncMcp extends RulesyncFile {
         return {
           success: false,
           error: new Error(
-            `Invalid MCP server configuration for modular-mcp: ${formatZodError(result.error)}`,
+            `Invalid MCP server configuration for modular-mcp: ${formatError(result.error)}`,
           ),
         };
       }
