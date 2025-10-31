@@ -7,10 +7,10 @@ import {
   type RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
 import { logger } from "../utils/logger.js";
-import { formatError } from "../utils/error.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.optional(z.boolean())),

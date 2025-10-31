@@ -2,9 +2,9 @@ import { basename, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../types/ai-file.js";
+import { formatError } from "../utils/error.js";
 import { readFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
-import { formatError } from "../utils/error.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,

@@ -2,9 +2,9 @@ import { basename, join } from "node:path";
 import { z } from "zod/mini";
 import { AiFileParams, ValidationResult } from "../types/ai-file.js";
 import type { RulesyncTargets } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
-import { formatError } from "../utils/error.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,

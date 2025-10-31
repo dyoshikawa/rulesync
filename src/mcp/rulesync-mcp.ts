@@ -8,9 +8,9 @@ import {
   RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
 import { fileExists, readFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { formatError } from "../utils/error.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 

@@ -7,9 +7,9 @@ import {
   RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
-import { formatError } from "../utils/error.js";
 
 export const RulesyncCommandFrontmatterSchema = z.object({
   targets: RulesyncTargetsSchema,
@@ -96,9 +96,7 @@ export class RulesyncCommand extends RulesyncFile {
     // Validate frontmatter using CommandFrontmatterSchema
     const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(
-        `Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`,
-      );
+      throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`);
     }
 
     const filename = basename(relativeFilePath);

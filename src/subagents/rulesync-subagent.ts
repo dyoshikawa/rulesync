@@ -7,9 +7,9 @@ import {
   RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
 import { readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
-import { formatError } from "../utils/error.js";
 
 export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "inherit"]);
 
@@ -104,9 +104,7 @@ export class RulesyncSubagent extends RulesyncFile {
     // Validate frontmatter using SubagentFrontmatterSchema
     const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(
-        `Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`,
-      );
+      throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`);
     }
 
     const filename = basename(relativeFilePath);

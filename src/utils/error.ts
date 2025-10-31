@@ -21,15 +21,30 @@ import { ZodError } from "zod";
  *   console.error(formatError(error));
  * }
  */
+// Type guard for ZodError-like objects
+function isZodErrorLike(error: unknown): error is {
+  issues: Array<{ path: Array<string | number>; message: string }>;
+} {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "issues" in error &&
+    Array.isArray(error.issues) &&
+    error.issues.every(
+      (issue: unknown) =>
+        issue !== null &&
+        typeof issue === "object" &&
+        "path" in issue &&
+        Array.isArray(issue.path) &&
+        "message" in issue &&
+        typeof issue.message === "string",
+    )
+  );
+}
+
 export function formatError(error: unknown): string {
   // Check for ZodError by duck typing (handles both zod and zod/mini)
-  if (
-    error instanceof ZodError ||
-    (error &&
-      typeof error === "object" &&
-      "issues" in error &&
-      Array.isArray(error.issues))
-  ) {
+  if (error instanceof ZodError || isZodErrorLike(error)) {
     return error.issues
       .map((issue) => {
         const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
