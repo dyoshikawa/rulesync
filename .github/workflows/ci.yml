@@ -23,7 +23,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.19.0
+          version: 10.20.0
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts
