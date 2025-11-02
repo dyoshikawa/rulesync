@@ -20,6 +20,7 @@ import { WindsurfIgnore } from "./windsurf-ignore.js";
 vi.mock("../utils/logger.js", () => ({
   logger: {
     debug: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
@@ -132,7 +133,7 @@ describe("IgnoreProcessor", () => {
 
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
-      expect(logger.debug).toHaveBeenCalledWith("No rulesync files found", expect.any(Error));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("No rulesync files found"));
     });
   });
 
@@ -159,7 +160,7 @@ describe("IgnoreProcessor", () => {
 
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(0);
-      expect(logger.debug).toHaveBeenCalledWith("No tool files found", expect.any(Error));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("No tool files found"));
     });
   });
 

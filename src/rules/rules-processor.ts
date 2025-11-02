@@ -512,7 +512,7 @@ export class RulesProcessor extends FeatureProcessor {
           throw new Error(`Unsupported tool target: ${this.toolTarget}`);
       }
     } catch (error) {
-      logger.debug(`No tool files found`, error);
+      logger.error(`No tool files found: ${formatError(error)}`);
       return [];
     }
   }
