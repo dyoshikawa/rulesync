@@ -67,7 +67,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     try {
       return [await RulesyncIgnore.fromFile()];
     } catch (error) {
-      logger.debug(`No rulesync files found`, error);
+      logger.error(`No rulesync files found: ${formatError(error)}`);
       return [];
     }
   }
@@ -81,7 +81,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       const toolIgnores = await this.loadToolIgnores();
       return toolIgnores;
     } catch (error) {
-      logger.debug(`No tool files found`, error);
+      logger.error(`No tool files found: ${formatError(error)}`);
       return [];
     }
   }
