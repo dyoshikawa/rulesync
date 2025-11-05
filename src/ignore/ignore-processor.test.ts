@@ -133,7 +133,7 @@ describe("IgnoreProcessor", () => {
 
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("No rulesync files found"));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Failed to load rulesync files"));
     });
   });
 
@@ -160,7 +160,7 @@ describe("IgnoreProcessor", () => {
 
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(0);
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("No tool files found"));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Failed to load tool files"));
     });
   });
 
