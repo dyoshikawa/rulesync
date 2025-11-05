@@ -26,7 +26,7 @@ export class AugmentcodeRule extends ToolRule {
   static getSettablePaths(): AugmentcodeRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: ".augment/rules",
+        relativeDirPath: join(".augment", "rules"),
       },
     };
   }

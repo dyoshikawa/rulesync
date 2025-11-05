@@ -45,7 +45,7 @@ export class GeminiCliRule extends ToolRule {
         relativeFilePath: "GEMINI.md",
       },
       nonRoot: {
-        relativeDirPath: ".gemini/memories",
+        relativeDirPath: join(".gemini", "memories"),
       },
     };
   }

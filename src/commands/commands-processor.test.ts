@@ -52,7 +52,7 @@ vi.mocked(RulesyncCommand).mockImplementation(function (config: any) {
 vi.mocked(RulesyncCommand).fromFile = vi.fn();
 vi.mocked(RulesyncCommand).getSettablePaths = vi
   .fn()
-  .mockReturnValue({ relativeDirPath: ".rulesync/commands" });
+  .mockReturnValue({ relativeDirPath: join(".rulesync", "commands") });
 
 // Set up static methods after mocking
 vi.mocked(ClaudecodeCommand).fromFile = vi.fn();
@@ -68,7 +68,7 @@ vi.mocked(GeminiCliCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(GeminiCliCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
 vi.mocked(GeminiCliCommand).getSettablePaths = vi
   .fn()
-  .mockReturnValue({ relativeDirPath: ".gemini/commands" });
+  .mockReturnValue({ relativeDirPath: join(".gemini", "commands") });
 
 // Set up static methods after mocking
 vi.mocked(RooCommand).fromFile = vi.fn();
@@ -76,7 +76,7 @@ vi.mocked(RooCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(RooCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
 vi.mocked(RooCommand).getSettablePaths = vi
   .fn()
-  .mockReturnValue({ relativeDirPath: ".roo/commands" });
+  .mockReturnValue({ relativeDirPath: join(".roo", "commands") });
 
 // Set up static methods after mocking
 vi.mocked(CursorCommand).fromFile = vi.fn();
@@ -154,7 +154,7 @@ describe("CommandsProcessor", () => {
     it("should convert rulesync commands to claudecode commands", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -166,7 +166,7 @@ describe("CommandsProcessor", () => {
 
       const mockClaudecodeCommand = new ClaudecodeCommand({
         baseDir: testDir,
-        relativeDirPath: ".claude/commands",
+        relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
           description: "test description",
@@ -195,7 +195,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -234,7 +234,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -246,7 +246,7 @@ describe("CommandsProcessor", () => {
 
       const mockGeminiCliCommand = new GeminiCliCommand({
         baseDir: testDir,
-        relativeDirPath: ".gemini/commands",
+        relativeDirPath: join(".gemini", "commands"),
         relativeFilePath: "test.md",
         fileContent: `description = "test description"\nprompt = """\nconverted content\n"""`,
       });
@@ -271,7 +271,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -283,7 +283,7 @@ describe("CommandsProcessor", () => {
 
       const mockRooCommand = new RooCommand({
         baseDir: testDir,
-        relativeDirPath: ".roo/commands",
+        relativeDirPath: join(".roo", "commands"),
         relativeFilePath: "test.md",
         fileContent: "converted content",
         frontmatter: {
@@ -312,7 +312,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -343,7 +343,7 @@ describe("CommandsProcessor", () => {
     it("should filter out non-rulesync command files", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -355,7 +355,7 @@ describe("CommandsProcessor", () => {
 
       const mockClaudecodeCommand = new ClaudecodeCommand({
         baseDir: testDir,
-        relativeDirPath: ".claude/commands",
+        relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
           description: "test description",
@@ -387,7 +387,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -482,7 +482,7 @@ describe("CommandsProcessor", () => {
       const mockRulesyncCommands = [
         new RulesyncCommand({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/commands",
+          relativeDirPath: join(".rulesync", "commands"),
           relativeFilePath: "test1.md",
           fileContent: "content1",
           frontmatter: {
@@ -493,7 +493,7 @@ describe("CommandsProcessor", () => {
         }),
         new RulesyncCommand({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/commands",
+          relativeDirPath: join(".rulesync", "commands"),
           relativeFilePath: "test2.md",
           fileContent: "content2",
           frontmatter: {
@@ -523,7 +523,7 @@ describe("CommandsProcessor", () => {
       const mockPaths = ["test1.md", "test2.md"];
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: join(".rulesync", "commands"),
         relativeFilePath: "test1.md",
         fileContent: "content1",
         frontmatter: {
@@ -564,7 +564,7 @@ describe("CommandsProcessor", () => {
       const mockCommands = [
         new ClaudecodeCommand({
           baseDir: testDir,
-          relativeDirPath: ".claude/commands",
+          relativeDirPath: join(".claude", "commands"),
           relativeFilePath: "test.md",
           frontmatter: {
             description: "test description",
@@ -641,7 +641,7 @@ describe("CommandsProcessor", () => {
       const mockCommands = [
         new GeminiCliCommand({
           baseDir: testDir,
-          relativeDirPath: ".gemini/commands",
+          relativeDirPath: join(".gemini", "commands"),
           relativeFilePath: "test.md",
           fileContent: `description = "test description"\nprompt = """\ncontent\n"""`,
         }),
@@ -664,7 +664,7 @@ describe("CommandsProcessor", () => {
       const mockCommands = [
         new RooCommand({
           baseDir: testDir,
-          relativeDirPath: ".roo/commands",
+          relativeDirPath: join(".roo", "commands"),
           relativeFilePath: "test.md",
           frontmatter: {
             description: "test description",
@@ -709,7 +709,7 @@ describe("CommandsProcessor", () => {
       const mockPaths = [`${testDir}/.claude/commands/test.md`];
       const mockCommand = new ClaudecodeCommand({
         baseDir: testDir,
-        relativeDirPath: ".claude/commands",
+        relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
           description: "test description",
@@ -722,7 +722,7 @@ describe("CommandsProcessor", () => {
 
       const result = await (processor as any).loadToolCommandDefault({
         toolTarget: "claudecode",
-        relativeDirPath: ".claude/commands",
+        relativeDirPath: join(".claude", "commands"),
         extension: "md",
       });
 
@@ -742,7 +742,7 @@ describe("CommandsProcessor", () => {
       const mockPaths = [`${testDir}/.gemini/commands/test.md`];
       const mockCommand = new GeminiCliCommand({
         baseDir: testDir,
-        relativeDirPath: ".gemini/commands",
+        relativeDirPath: join(".gemini", "commands"),
         relativeFilePath: "test.md",
         fileContent: `description = "test description"\nprompt = """\ncontent\n"""`,
       });
@@ -752,7 +752,7 @@ describe("CommandsProcessor", () => {
 
       const result = await (processor as any).loadToolCommandDefault({
         toolTarget: "geminicli",
-        relativeDirPath: ".gemini/commands",
+        relativeDirPath: join(".gemini", "commands"),
         extension: "md",
       });
 
@@ -763,7 +763,7 @@ describe("CommandsProcessor", () => {
       const mockPaths = [`${testDir}/.roo/commands/test.md`];
       const mockCommand = new RooCommand({
         baseDir: testDir,
-        relativeDirPath: ".roo/commands",
+        relativeDirPath: join(".roo", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
           description: "test description",
@@ -777,7 +777,7 @@ describe("CommandsProcessor", () => {
 
       const result = await (processor as any).loadToolCommandDefault({
         toolTarget: "roo",
-        relativeDirPath: ".roo/commands",
+        relativeDirPath: join(".roo", "commands"),
         extension: "md",
       });
 
@@ -788,7 +788,7 @@ describe("CommandsProcessor", () => {
       const mockPaths = ["test1.md", "test2.md"];
       const mockCommand = new ClaudecodeCommand({
         baseDir: testDir,
-        relativeDirPath: ".claude/commands",
+        relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test1.md",
         frontmatter: {
           description: "test description",
@@ -803,7 +803,7 @@ describe("CommandsProcessor", () => {
 
       const result = await (processor as any).loadToolCommandDefault({
         toolTarget: "claudecode",
-        relativeDirPath: ".claude/commands",
+        relativeDirPath: join(".claude", "commands"),
         extension: "md",
       });
 
@@ -918,7 +918,7 @@ describe("CommandsProcessor", () => {
       const mockCommands = [
         new ClaudecodeCommand({
           baseDir: testDir,
-          relativeDirPath: ".claude/commands",
+          relativeDirPath: join(".claude", "commands"),
           relativeFilePath: "test.md",
           frontmatter: {
             description: "test description",

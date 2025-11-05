@@ -39,7 +39,7 @@ export class CursorRule extends ToolRule {
   static getSettablePaths(): CursorRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: ".cursor/rules",
+        relativeDirPath: join(".cursor", "rules"),
       },
     };
   }
@@ -154,7 +154,7 @@ export class CursorRule extends ToolRule {
     return new RulesyncRule({
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/rules",
+      relativeDirPath: join(".rulesync", "rules"),
       relativeFilePath: this.relativeFilePath.replace(/\.mdc$/, ".md"),
       validate: true,
     });

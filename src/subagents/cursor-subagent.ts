@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
@@ -10,7 +11,7 @@ import {
 export class CursorSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: ".cursor/subagents",
+      relativeDirPath: join(".cursor", "subagents"),
     };
   }
 

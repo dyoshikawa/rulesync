@@ -33,7 +33,7 @@ export class RooCommand extends ToolCommand {
 
   static getSettablePaths(): RooCommandSettablePaths {
     return {
-      relativeDirPath: ".roo/commands",
+      relativeDirPath: join(".roo", "commands"),
     };
   }
 

@@ -36,7 +36,7 @@ export class QwencodeRule extends ToolRule {
         relativeFilePath: "QWEN.md",
       },
       nonRoot: {
-        relativeDirPath: ".qwen/memories",
+        relativeDirPath: join(".qwen", "memories"),
       },
     };
   }
@@ -47,7 +47,7 @@ export class QwencodeRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
     const isRoot = relativeFilePath === "QWEN.md";
-    const relativePath = isRoot ? "QWEN.md" : join(".qwen/memories", relativeFilePath);
+    const relativePath = isRoot ? "QWEN.md" : join(".qwen", "memories", relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new QwencodeRule({

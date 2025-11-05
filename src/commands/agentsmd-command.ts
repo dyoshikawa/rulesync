@@ -13,7 +13,7 @@ import {
 export class AgentsmdCommand extends SimulatedCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
     return {
-      relativeDirPath: ".agents/commands",
+      relativeDirPath: join(".agents", "commands"),
     };
   }
 

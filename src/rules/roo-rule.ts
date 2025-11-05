@@ -29,7 +29,7 @@ export class RooRule extends ToolRule {
   static getSettablePaths(): RooRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: ".roo/rules",
+        relativeDirPath: join(".roo", "rules"),
       },
     };
   }

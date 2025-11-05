@@ -46,7 +46,7 @@ export class CodexcliRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: ".codex/memories",
+        relativeDirPath: join(".codex", "memories"),
       },
     };
   }
