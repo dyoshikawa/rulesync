@@ -46,7 +46,7 @@ export class CopilotRule extends ToolRule {
         relativeFilePath: "copilot-instructions.md",
       },
       nonRoot: {
-        relativeDirPath: ".github/instructions",
+        relativeDirPath: join(".github", "instructions"),
       },
     };
   }
@@ -88,7 +88,7 @@ export class CopilotRule extends ToolRule {
       baseDir: this.getBaseDir(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/rules",
+      relativeDirPath: join(".rulesync", "rules"),
       relativeFilePath,
       validate: true,
     });

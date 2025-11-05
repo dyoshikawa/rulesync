@@ -21,7 +21,7 @@ export class WindsurfRule extends ToolRule {
   static getSettablePaths(): WindsurfRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: ".windsurf/rules",
+        relativeDirPath: join(".windsurf", "rules"),
       },
     };
   }

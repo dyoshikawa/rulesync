@@ -62,7 +62,7 @@ export class RulesyncSubagent extends RulesyncFile {
 
   static getSettablePaths(): RulesyncSubagentSettablePaths {
     return {
-      relativeDirPath: ".rulesync/subagents",
+      relativeDirPath: join(".rulesync", "subagents"),
     };
   }
 
@@ -98,7 +98,7 @@ export class RulesyncSubagent extends RulesyncFile {
     relativeFilePath,
   }: RulesyncSubagentFromFileParams): Promise<RulesyncSubagent> {
     // Read file content
-    const fileContent = await readFileContent(join(".rulesync/subagents", relativeFilePath));
+    const fileContent = await readFileContent(join(".rulesync", "subagents", relativeFilePath));
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using SubagentFrontmatterSchema

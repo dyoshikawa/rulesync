@@ -39,7 +39,7 @@ export class WarpRule extends ToolRule {
         relativeFilePath: "WARP.md",
       },
       nonRoot: {
-        relativeDirPath: ".warp/memories",
+        relativeDirPath: join(".warp", "memories"),
       },
     };
   }

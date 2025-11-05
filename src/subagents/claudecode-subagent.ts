@@ -81,7 +81,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
       baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
-      relativeDirPath: ".rulesync/subagents",
+      relativeDirPath: join(".rulesync", "subagents"),
       relativeFilePath: this.getRelativeFilePath(),
       fileContent,
       validate: true,

@@ -52,7 +52,7 @@ export class RulesyncCommand extends RulesyncFile {
 
   static getSettablePaths(): RulesyncCommandSettablePaths {
     return {
-      relativeDirPath: ".rulesync/commands",
+      relativeDirPath: join(".rulesync", "commands"),
     };
   }
 

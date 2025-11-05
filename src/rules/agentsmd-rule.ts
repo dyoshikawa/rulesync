@@ -39,7 +39,7 @@ export class AgentsMdRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: ".agents/memories",
+        relativeDirPath: join(".agents", "memories"),
       },
     };
   }
@@ -51,7 +51,7 @@ export class AgentsMdRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<AgentsMdRule> {
     // Determine if it's a root file based on path
     const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot ? "AGENTS.md" : join(".agents/memories", relativeFilePath);
+    const relativePath = isRoot ? "AGENTS.md" : join(".agents", "memories", relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new AgentsMdRule({

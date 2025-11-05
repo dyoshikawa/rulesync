@@ -25,7 +25,7 @@ export class KiroRule extends ToolRule {
   static getSettablePaths(): KiroRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: ".kiro/steering",
+        relativeDirPath: join(".kiro", "steering"),
       },
     };
   }

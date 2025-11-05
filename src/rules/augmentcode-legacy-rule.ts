@@ -35,7 +35,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
       baseDir: ".", // RulesyncRule baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
-      relativeDirPath: ".rulesync/rules",
+      relativeDirPath: join(".rulesync", "rules"),
       relativeFilePath: this.getRelativeFilePath(),
       validate: true,
     });
@@ -48,7 +48,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
         relativeFilePath: ".augment-guidelines",
       },
       nonRoot: {
-        relativeDirPath: ".augment/rules",
+        relativeDirPath: join(".augment", "rules"),
       },
     };
   }

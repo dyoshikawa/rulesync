@@ -26,7 +26,7 @@ export class OpenCodeRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: ".opencode/memories",
+        relativeDirPath: join(".opencode", "memories"),
       },
     };
   }
@@ -36,7 +36,7 @@ export class OpenCodeRule extends ToolRule {
     validate = true,
   }: AiFileFromFileParams): Promise<OpenCodeRule> {
     const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot ? "AGENTS.md" : join(".opencode/memories", relativeFilePath);
+    const relativePath = isRoot ? "AGENTS.md" : join(".opencode", "memories", relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new OpenCodeRule({

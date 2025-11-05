@@ -18,7 +18,7 @@ export class AmazonQCliRule extends ToolRule {
   static getSettablePaths(): AmazonQCliRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: ".amazonq/rules",
+        relativeDirPath: join(".amazonq", "rules"),
       },
     };
   }

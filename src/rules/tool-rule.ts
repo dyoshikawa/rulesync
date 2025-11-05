@@ -124,7 +124,7 @@ export abstract class ToolRule extends ToolFile {
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
-    nonRootPath = { relativeDirPath: ".agents/memories" },
+    nonRootPath = { relativeDirPath: join(".agents", "memories") },
   }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const params = this.buildToolRuleParamsDefault({
       baseDir,
@@ -148,7 +148,7 @@ export abstract class ToolRule extends ToolFile {
   protected toRulesyncRuleDefault(): RulesyncRule {
     return new RulesyncRule({
       baseDir: ".", // RulesyncRule baseDir is always the project root directory
-      relativeDirPath: ".rulesync/rules",
+      relativeDirPath: join(".rulesync", "rules"),
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {
         root: this.isRoot(),

@@ -75,7 +75,7 @@ export class RulesyncRule extends RulesyncFile {
   static getSettablePaths(): RulesyncRuleSettablePaths {
     return {
       recommended: {
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: join(".rulesync", "rules"),
       },
       legacy: {
         relativeDirPath: ".rulesync",
