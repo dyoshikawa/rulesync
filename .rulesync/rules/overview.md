@@ -19,3 +19,11 @@ This is rulesync, a Node.js CLI tool that automatically generates configuration 
 - **Core Engine**: TypeScript-based processing engine for rule parsing and generation
 - **Multi-Tool Support**: Generates configurations for major AI coding tools
 - **Configuration Management**: Supports JSONC and TypeScript configuration files
+
+## Use appropriate MCP servers
+
+- When you search for codebase information, use serena MCP as possible as you can.
+- When you search for library documentation, use context7 MCP as possible as you can.
+- When you search for web content, use fetch MCP as possible as you can.
+
+Of course, you can also use your built-in tools if you need.

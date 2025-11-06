@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { logger } from "./logger.js";
-import { getVitestWorkerId, isEnvTest } from "./vitest.js";
+import { isEnvTest } from "./vitest.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
@@ -198,8 +198,7 @@ export async function removeFile(filepath: string): Promise<void> {
 
 export function getHomeDirectory(): string {
   if (isEnvTest) {
-    // Have to match the value in setupTestDirectory() in src/test-utils/test-directories.ts
-    return join("./tmp", "tests", "home", getVitestWorkerId());
+    throw new Error("getHomeDirectory() must be mocked in test environment");
   }
 
   return os.homedir();
