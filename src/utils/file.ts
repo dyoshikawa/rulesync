@@ -230,8 +230,8 @@ export function validateBaseDir(baseDir: string): void {
   }
 
   // Additional check: ensure normalized path doesn't escape current directory
-  const normalized = resolve(baseDir);
-  const rel = relative(process.cwd(), normalized);
+  const normalized = resolve(".", baseDir);
+  const rel = relative(".", normalized);
   if (rel.startsWith("..")) {
     throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
   }
