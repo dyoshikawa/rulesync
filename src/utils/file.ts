@@ -199,7 +199,7 @@ export async function removeFile(filepath: string): Promise<void> {
 export function getHomeDirectory(): string {
   if (isEnvTest) {
     // Have to match the value in setupTestDirectory() in src/test-utils/test-directories.ts
-    return join("./tmp", "tests", "home", getVitestWorkerId());
+    return join(process.cwd(), "tmp", "tests", "home", getVitestWorkerId());
   }
 
   return os.homedir();
