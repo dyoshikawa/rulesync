@@ -186,7 +186,7 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe(".tool/config/settings.txt");
+      expect(file.getRelativePathFromCwd()).toBe(".tool/config/settings.txt");
     });
 
     it("should allow nested directories within baseDir", () => {
@@ -199,7 +199,7 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe("deeply/nested/path/file.txt");
+      expect(file.getRelativePathFromCwd()).toBe("deeply/nested/path/file.txt");
     });
 
     it("should handle baseDir with subdirectory correctly", () => {

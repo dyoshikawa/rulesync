@@ -450,7 +450,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating ignore files...");
       expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
     });
@@ -463,7 +463,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
 
@@ -479,7 +479,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
+        `Failed to generate claudecode ignore files for ${process.cwd()}:`,
         "Test error",
       );
     });
@@ -717,7 +717,9 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 3 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith(
+        `Generated 3 claudecode rule(s) in ${process.cwd()}`,
+      );
     });
   });
 
@@ -1054,9 +1056,11 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 2 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith(
+        `Generated 2 claudecode rule(s) in ${process.cwd()}`,
+      );
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
+        `Failed to generate claudecode ignore files for ${process.cwd()}:`,
         "Ignore error",
       );
       expect(logger.success).toHaveBeenCalledWith(

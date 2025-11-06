@@ -418,7 +418,7 @@ describe("KiroRule", () => {
 
       const rulesyncRule = kiroRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/metadata-test.md");
+      expect(rulesyncRule.getRelativePathFromCwd()).toBe(".rulesync/rules/metadata-test.md");
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );

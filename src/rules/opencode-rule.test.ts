@@ -357,7 +357,7 @@ describe("OpenCodeRule", () => {
 
       const rulesyncRule = opencodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/AGENTS.md");
+      expect(rulesyncRule.getRelativePathFromCwd()).toBe(".rulesync/rules/AGENTS.md");
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );

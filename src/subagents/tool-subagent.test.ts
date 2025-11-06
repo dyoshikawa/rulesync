@@ -267,7 +267,7 @@ describe("ToolSubagent", () => {
       };
 
       expect(params.relativeFilePath).toBe("test.md");
-      expect(params.baseDir).toBe(".");
+      expect(params.baseDir).toBe(process.cwd());
       expect(params.validate).toBe(true);
     });
 
@@ -294,7 +294,7 @@ describe("ToolSubagent", () => {
       };
 
       expect(params.rulesyncSubagent).toBe(rulesyncSubagent);
-      expect(params.baseDir).toBe(".");
+      expect(params.baseDir).toBe(process.cwd());
       expect(params.validate).toBe(true);
     });
   });
