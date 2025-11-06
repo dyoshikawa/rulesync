@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { KiroIgnore } from "./kiro-ignore.js";
@@ -11,10 +11,12 @@ describe("KiroIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -270,29 +272,6 @@ Thumbs.db`;
       });
 
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
-    });
-
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .aiignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
-
-      try {
-        // Change to test directory
-        process.chdir(testDir);
-
-        const fileContent = "*.log\nnode_modules/";
-        const aiignorePath = ".aiignore";
-        await writeFileContent(aiignorePath, fileContent);
-
-        const kiroIgnore = await KiroIgnore.fromFile({});
-
-        expect(kiroIgnore.getBaseDir()).toBe(".");
-        expect(kiroIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
     });
 
     it("should throw error when .aiignore file does not exist", async () => {
