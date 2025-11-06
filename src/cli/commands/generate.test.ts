@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { intersection } from "es-toolkit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandsProcessor } from "../../commands/commands-processor.js";
@@ -6,6 +7,7 @@ import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import type { GenerateOptions } from "./generate.js";
@@ -25,11 +27,18 @@ vi.mock("es-toolkit", () => ({
 }));
 
 describe("generateCommand", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
   let mockExit: any;
   let mockConfig: any;
   let mockProcessorInstance: any;
+  let mockCwd: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Setup test directory
+    ({ testDir, cleanup } = await setupTestDirectory());
+    mockCwd = vi.spyOn(process, "cwd").mockReturnValue(testDir);
+
     // Mock process.exit
     mockExit = vi.spyOn(process, "exit").mockImplementation((() => {
       throw new Error("Process exit");
@@ -38,7 +47,7 @@ describe("generateCommand", () => {
     // Setup default mock config
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getBaseDirs: vi.fn().mockReturnValue([testDir]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getDelete: vi.fn().mockReturnValue(false),
@@ -145,7 +154,8 @@ describe("generateCommand", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await cleanup();
     vi.clearAllMocks();
   });
 
@@ -214,7 +224,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating rule files...");
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
@@ -232,7 +242,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         global: false,
         toolTarget: "claudecode",
         simulateCommands: true,
@@ -292,20 +302,22 @@ describe("generateCommand", () => {
     });
 
     it("should process multiple base directories", async () => {
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+      const dir1 = join(testDir, "dir1");
+      const dir2 = join(testDir, "dir2");
+      mockConfig.getBaseDirs.mockReturnValue([dir1, dir2]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir1",
+        baseDir: dir1,
         global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir2",
+        baseDir: dir2,
         global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
@@ -336,7 +348,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating MCP files...");
       expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
         modularMcp: false,
@@ -406,7 +418,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating command files...");
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
@@ -440,7 +452,7 @@ describe("generateCommand", () => {
   describe("ignore feature", () => {
     beforeEach(() => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
-      mockConfig.getBaseDirs.mockReturnValue(["."]);
+      mockConfig.getBaseDirs.mockReturnValue([testDir]);
     });
 
     it("should generate ignore files when ignore feature is enabled", async () => {
@@ -450,24 +462,23 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating ignore files...");
       expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: ".", // baseDir is normalized to "." when it equals process.cwd()
         toolTarget: "claudecode",
       });
     });
 
     it("should handle current working directory correctly", async () => {
-      const mockCwd = vi.spyOn(process, "cwd").mockReturnValue("/current/working/dir");
-      mockConfig.getBaseDirs.mockReturnValue(["/current/working/dir"]);
+      // When baseDir equals cwd, it should be normalized to "."
+      mockCwd.mockReturnValue(testDir);
+      mockConfig.getBaseDirs.mockReturnValue([testDir]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: ".", // baseDir is normalized to "." when it equals process.cwd()
         toolTarget: "claudecode",
       });
-
-      mockCwd.mockRestore();
     });
 
     it("should handle errors in ignore processing", async () => {
@@ -479,7 +490,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
+        `Failed to generate claudecode ignore files for ${testDir}:`,
         "Test error",
       );
     });
@@ -507,7 +518,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating subagent files...");
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
@@ -548,7 +559,7 @@ describe("generateCommand", () => {
         await generateCommand(options);
 
         expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
+          baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -567,7 +578,7 @@ describe("generateCommand", () => {
           ["claudecode"],
         );
         expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
+          baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -588,7 +599,7 @@ describe("generateCommand", () => {
         expect(SubagentsProcessor.getToolTargets).not.toHaveBeenCalled();
         expect(SubagentsProcessor).toHaveBeenCalledTimes(1);
         expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
+          baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -688,12 +699,14 @@ describe("generateCommand", () => {
     });
 
     it("should log base directories", async () => {
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+      const dir1 = join(testDir, "dir1");
+      const dir2 = join(testDir, "dir2");
+      mockConfig.getBaseDirs.mockReturnValue([dir1, dir2]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(logger.info).toHaveBeenCalledWith("Base directories: dir1, dir2");
+      expect(logger.info).toHaveBeenCalledWith(`Base directories: ${dir1}, ${dir2}`);
     });
 
     it("should log success for each processor type", async () => {
@@ -717,7 +730,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 3 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith(`Generated 3 claudecode rule(s) in ${testDir}`);
     });
   });
 
@@ -779,7 +792,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
         simulateCommands: true,
@@ -843,7 +856,10 @@ describe("generateCommand", () => {
 
     it("should use each baseDir in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2", "dir3"]);
+      const dir1 = join(testDir, "dir1");
+      const dir2 = join(testDir, "dir2");
+      const dir3 = join(testDir, "dir3");
+      mockConfig.getBaseDirs.mockReturnValue([dir1, dir2, dir3]);
       vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
@@ -851,21 +867,21 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir1",
+        baseDir: dir1,
         toolTarget: "claudecode",
         global: true,
         simulateCommands: false,
         simulateSubagents: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir2",
+        baseDir: dir2,
         toolTarget: "claudecode",
         global: true,
         simulateCommands: false,
         simulateSubagents: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir3",
+        baseDir: dir3,
         toolTarget: "claudecode",
         global: true,
         simulateCommands: false,
@@ -892,7 +908,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -920,7 +936,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -1054,9 +1070,9 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 2 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith(`Generated 2 claudecode rule(s) in ${testDir}`);
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
+        `Failed to generate claudecode ignore files for ${testDir}:`,
         "Ignore error",
       );
       expect(logger.success).toHaveBeenCalledWith(
@@ -1066,7 +1082,9 @@ describe("generateCommand", () => {
 
     it("should handle multiple targets and base directories", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+      const dir1 = join(testDir, "dir1");
+      const dir2 = join(testDir, "dir2");
+      mockConfig.getBaseDirs.mockReturnValue([dir1, dir2]);
       mockConfig.getTargets.mockReturnValue(["claudecode", "cursor"]);
       vi.mocked(intersection).mockReturnValue(["claudecode", "cursor"]);
 
@@ -1077,10 +1095,10 @@ describe("generateCommand", () => {
 
       // Should create processors for each combination of base dir and target
       expect(RulesProcessor).toHaveBeenCalledTimes(4); // 2 dirs × 2 targets
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 claudecode rule(s) in dir1");
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 cursor rule(s) in dir1");
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 claudecode rule(s) in dir2");
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 cursor rule(s) in dir2");
+      expect(logger.success).toHaveBeenCalledWith(`Generated 1 claudecode rule(s) in ${dir1}`);
+      expect(logger.success).toHaveBeenCalledWith(`Generated 1 cursor rule(s) in ${dir1}`);
+      expect(logger.success).toHaveBeenCalledWith(`Generated 1 claudecode rule(s) in ${dir2}`);
+      expect(logger.success).toHaveBeenCalledWith(`Generated 1 cursor rule(s) in ${dir2}`);
     });
   });
 });
