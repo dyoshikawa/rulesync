@@ -15,7 +15,7 @@ describe("RooCommand", () => {
       const body = "This is a test command body";
 
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
         frontmatter,
@@ -37,7 +37,7 @@ describe("RooCommand", () => {
       const body = "Command with argument hint";
 
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test-with-hint.md",
         frontmatter,
@@ -55,7 +55,7 @@ describe("RooCommand", () => {
 
       expect(() => {
         new RooCommand({
-          baseDir: ".",
+          baseDir: process.cwd(),
           relativeDirPath: ".roo/commands",
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter as any,
@@ -73,7 +73,7 @@ describe("RooCommand", () => {
 
       expect(() => {
         new RooCommand({
-          baseDir: ".",
+          baseDir: process.cwd(),
           relativeDirPath: ".roo/commands",
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter as any,
@@ -92,7 +92,7 @@ describe("RooCommand", () => {
       };
 
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
         frontmatter,
@@ -107,7 +107,7 @@ describe("RooCommand", () => {
 
     it("should return error for invalid frontmatter", () => {
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: 123 } as any,
@@ -124,7 +124,7 @@ describe("RooCommand", () => {
     it("should return success when frontmatter is undefined", () => {
       // Create a command with undefined frontmatter by manipulating the private field
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "test" },
@@ -168,7 +168,7 @@ describe("RooCommand", () => {
       });
       expect(rulesyncCommand.getRelativeDirPath()).toBe(".rulesync/commands");
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
-      expect(rulesyncCommand.getBaseDir()).toBe(".");
+      expect(rulesyncCommand.getBaseDir()).toBe(process.cwd());
     });
   });
 
@@ -219,7 +219,7 @@ describe("RooCommand", () => {
         rulesyncCommand,
       });
 
-      expect(rooCommand.getBaseDir()).toBe(".");
+      expect(rooCommand.getBaseDir()).toBe(process.cwd());
     });
 
     it("should handle validation parameter", () => {
@@ -298,7 +298,7 @@ describe("RooCommand", () => {
           relativeFilePath: "default-base.md",
         });
 
-        expect(command.getBaseDir()).toBe(".");
+        expect(command.getBaseDir()).toBe(process.cwd());
       } finally {
         await cleanup();
         // Clean up the file created in current working directory
@@ -465,7 +465,7 @@ This file has invalid frontmatter`;
     it("should return correct body", () => {
       const body = "Test command body content";
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "test" },
@@ -482,7 +482,7 @@ This file has invalid frontmatter`;
         "argument-hint": "Test hint",
       };
       const command = new RooCommand({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".roo/commands",
         relativeFilePath: "test.md",
         frontmatter,

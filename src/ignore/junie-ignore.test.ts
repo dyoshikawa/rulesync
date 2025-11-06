@@ -124,7 +124,7 @@ describe("JunieIgnore", () => {
       });
 
       expect(junieIgnore).toBeInstanceOf(JunieIgnore);
-      expect(junieIgnore.getBaseDir()).toBe(".");
+      expect(junieIgnore.getBaseDir()).toBe(process.cwd());
       expect(junieIgnore.getRelativeDirPath()).toBe(".");
       expect(junieIgnore.getRelativeFilePath()).toBe(".junieignore");
       expect(junieIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const junieIgnore = await JunieIgnore.fromFile({});
 
-        expect(junieIgnore.getBaseDir()).toBe(".");
+        expect(junieIgnore.getBaseDir()).toBe(process.cwd());
         expect(junieIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

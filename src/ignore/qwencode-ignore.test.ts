@@ -124,7 +124,7 @@ describe("QwencodeIgnore", () => {
       });
 
       expect(qwencodeIgnore).toBeInstanceOf(QwencodeIgnore);
-      expect(qwencodeIgnore.getBaseDir()).toBe(".");
+      expect(qwencodeIgnore.getBaseDir()).toBe(process.cwd());
       expect(qwencodeIgnore.getRelativeDirPath()).toBe(".");
       expect(qwencodeIgnore.getRelativeFilePath()).toBe(".geminiignore");
       expect(qwencodeIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const qwencodeIgnore = await QwencodeIgnore.fromFile({});
 
-        expect(qwencodeIgnore.getBaseDir()).toBe(".");
+        expect(qwencodeIgnore.getBaseDir()).toBe(process.cwd());
         expect(qwencodeIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

@@ -76,7 +76,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly global: boolean;
 
   constructor({
-    baseDir = ".",
+    baseDir = process.cwd(),
     toolTarget,
     simulateCommands = false,
     simulateSubagents = false,

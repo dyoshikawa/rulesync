@@ -209,7 +209,7 @@ describe("RooMcp", () => {
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe(".");
+      expect(rooMcp.getBaseDir()).toBe(process.cwd());
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);

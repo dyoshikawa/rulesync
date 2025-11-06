@@ -463,7 +463,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: "packages/my-app",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Test Rule",
@@ -492,7 +492,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Rule",
@@ -524,7 +524,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Root Rule",
@@ -556,7 +556,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Rule",
@@ -585,7 +585,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Rule",
@@ -690,7 +690,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Rule",
@@ -719,7 +719,7 @@ describe("ToolRule", () => {
       });
 
       expect(params).toEqual({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Root Rule",
@@ -904,7 +904,7 @@ describe("ToolRule", () => {
       const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getBaseDir()).toBe(process.cwd());
       expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
       expect(rulesyncRule.getRelativeFilePath()).toBe("non-root.md");
       expect(rulesyncRule.getBody()).toBe("# Non-Root Rule");
@@ -946,7 +946,7 @@ describe("ToolRule", () => {
       const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getBaseDir()).toBe(process.cwd());
       expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
       expect(rulesyncRule.getRelativeFilePath()).toBe("root.md");
       expect(rulesyncRule.getBody()).toBe("# Root Rule");

@@ -21,7 +21,7 @@ export class KiroIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): KiroIgnore {
     return new KiroIgnore({
@@ -33,7 +33,7 @@ export class KiroIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<KiroIgnore> {
     const fileContent = await readFileContent(

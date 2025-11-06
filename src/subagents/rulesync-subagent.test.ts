@@ -117,7 +117,7 @@ describe("RulesyncSubagent", () => {
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -141,7 +141,7 @@ describe("RulesyncSubagent", () => {
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "claude.md",
         fileContent: "claude content",
@@ -161,7 +161,7 @@ describe("RulesyncSubagent", () => {
 
       expect(() => {
         const _instance = new RulesyncSubagent({
-          baseDir: ".",
+          baseDir: process.cwd(),
           relativeDirPath: ".rulesync/subagents",
           relativeFilePath: "invalid.md",
           fileContent: "invalid content",
@@ -180,7 +180,7 @@ describe("RulesyncSubagent", () => {
 
       expect(() => {
         const _instance = new RulesyncSubagent({
-          baseDir: ".",
+          baseDir: process.cwd(),
           relativeDirPath: ".rulesync/subagents",
           relativeFilePath: "skip-validation.md",
           fileContent: "content",
@@ -226,7 +226,7 @@ describe("RulesyncSubagent", () => {
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "multi.md",
         fileContent: "multi content",
@@ -246,7 +246,7 @@ describe("RulesyncSubagent", () => {
       const body = "This is the subagent body content with instructions.";
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "body-test.md",
         fileContent: "full content",
@@ -263,7 +263,7 @@ describe("RulesyncSubagent", () => {
 
     it("should handle empty body", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "empty-body.md",
         fileContent: "only frontmatter",
@@ -282,7 +282,7 @@ describe("RulesyncSubagent", () => {
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "valid.md",
         fileContent: "valid content",
@@ -303,7 +303,7 @@ describe("RulesyncSubagent", () => {
     it("should return success when frontmatter is undefined", () => {
       // Create a subagent with invalid frontmatter but skip validation
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "undefined.md",
         fileContent: "content",
@@ -319,7 +319,7 @@ describe("RulesyncSubagent", () => {
 
     it("should return error for invalid frontmatter", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "invalid-validate.md",
         fileContent: "invalid content",
@@ -513,7 +513,7 @@ description: Testing whitespace handling
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "poly.md",
         fileContent: "poly content",
@@ -537,7 +537,7 @@ description: Testing whitespace handling
 
     it("should maintain type safety", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "typed.md",
         fileContent: "typed content",
@@ -607,7 +607,7 @@ description: File with empty body
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "complex.md",
         fileContent: "complex content",

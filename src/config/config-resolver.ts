@@ -16,7 +16,7 @@ const defaults: Required<ConfigResolverResolveParams> = {
   features: ["rules"],
   verbose: false,
   delete: false,
-  baseDirs: ["."],
+  baseDirs: [process.cwd()],
   configPath: "rulesync.jsonc",
   global: false,
   simulatedCommands: false,
@@ -180,7 +180,7 @@ function getBaseDirsInLightOfGlobal({
 }): string[] {
   if (isEnvTest) {
     // When in test environment, the base directory is always the relative directory from the project root
-    return baseDirs.map((baseDir) => join(".", baseDir));
+    return baseDirs.map((baseDir) => join(process.cwd(), baseDir));
   }
 
   if (global) {

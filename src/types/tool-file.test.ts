@@ -142,7 +142,7 @@ describe("ToolFile", () => {
   describe("path traversal security", () => {
     it("should prevent path traversal via relativeDirPath", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",
@@ -154,7 +154,7 @@ describe("ToolFile", () => {
 
     it("should prevent path traversal via relativeFilePath", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".tool",
         relativeFilePath: "../../etc/passwd",
         fileContent: "malicious content",
@@ -166,7 +166,7 @@ describe("ToolFile", () => {
 
     it("should prevent complex path traversal attacks", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: "foo/../../..",
         relativeFilePath: "etc/passwd",
         fileContent: "malicious content",
@@ -178,7 +178,7 @@ describe("ToolFile", () => {
 
     it("should allow safe relative paths within baseDir", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".tool/config",
         relativeFilePath: "settings.txt",
         fileContent: "safe content",
@@ -191,7 +191,7 @@ describe("ToolFile", () => {
 
     it("should allow nested directories within baseDir", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: "deeply/nested/path",
         relativeFilePath: "file.txt",
         fileContent: "safe content",

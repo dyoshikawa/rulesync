@@ -124,7 +124,7 @@ describe("GeminiCliIgnore", () => {
       });
 
       expect(geminiCliIgnore).toBeInstanceOf(GeminiCliIgnore);
-      expect(geminiCliIgnore.getBaseDir()).toBe(".");
+      expect(geminiCliIgnore.getBaseDir()).toBe(process.cwd());
       expect(geminiCliIgnore.getRelativeDirPath()).toBe(".");
       expect(geminiCliIgnore.getRelativeFilePath()).toBe(".geminiignore");
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const geminiCliIgnore = await GeminiCliIgnore.fromFile({});
 
-        expect(geminiCliIgnore.getBaseDir()).toBe(".");
+        expect(geminiCliIgnore.getBaseDir()).toBe(process.cwd());
         expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

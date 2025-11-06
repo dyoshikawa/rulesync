@@ -34,7 +34,7 @@ describe("importCommand", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "subagents", "commands"]),
       getGlobal: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getBaseDirs: vi.fn().mockReturnValue([process.cwd()]),
       // Deprecated getter for backward compatibility
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
     };
@@ -134,7 +134,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
       });
@@ -160,7 +160,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
       });
       expect(mockIgnoreProcessor.loadToolFiles).toHaveBeenCalled();
@@ -185,7 +185,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
       });
@@ -214,7 +214,7 @@ describe("importCommand", () => {
       // Verify that getToolTargets was called with includeSimulated: false
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
       });
@@ -243,7 +243,7 @@ describe("importCommand", () => {
       // Verify that getToolTargets was called with includeSimulated: false
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
       });
@@ -438,7 +438,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });
@@ -495,22 +495,22 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });
       expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });

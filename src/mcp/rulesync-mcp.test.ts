@@ -729,7 +729,7 @@ describe("RulesyncMcp", () => {
 
         expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
         expect(rulesyncMcp.getJson()).toEqual(jsonData);
-        expect(rulesyncMcp.getBaseDir()).toBe(".");
+        expect(rulesyncMcp.getBaseDir()).toBe(process.cwd());
         expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
         expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
       } finally {

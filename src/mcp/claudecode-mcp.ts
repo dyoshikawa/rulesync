@@ -37,7 +37,7 @@ export class ClaudecodeMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<ClaudecodeMcp> {
@@ -59,7 +59,7 @@ export class ClaudecodeMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,

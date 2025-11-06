@@ -58,7 +58,7 @@ export abstract class SimulatedCommand extends ToolCommand {
   }
 
   protected static fromRulesyncCommandDefault({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): ConstructorParameters<typeof SimulatedCommand>[0] {
@@ -99,7 +99,7 @@ export abstract class SimulatedCommand extends ToolCommand {
   }
 
   protected static async fromFileDefault({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<ConstructorParameters<typeof SimulatedCommand>[0]> {
