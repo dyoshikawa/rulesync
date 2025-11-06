@@ -173,7 +173,7 @@ export class RulesyncSkill extends RulesyncFile {
     skillName,
     global = false,
   }: RulesyncSkillFromFileParams): Promise<RulesyncSkill> {
-    const baseDir = global ? getHomeDirectory() : process.cwd();
+    const baseDir = global ? getHomeDirectory() : ".";
     const settablePaths = this.getSettablePaths(global);
     // For global mode, settablePaths already includes homeDir, so we don't need to join with baseDir
     const skillDir = global
