@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
@@ -11,10 +11,12 @@ describe("QwencodeIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -272,27 +274,18 @@ Thumbs.db`;
       expect(qwencodeIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .geminiignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
+    it("should use baseDir from parameter", async () => {
+      // Create .geminiignore in test directory
+      const fileContent = "*.log\nnode_modules/";
+      const geminiignorePath = join(testDir, ".geminiignore");
+      await writeFileContent(geminiignorePath, fileContent);
 
-      try {
-        // Change to test directory
-        process.chdir(testDir);
+      const qwencodeIgnore = await QwencodeIgnore.fromFile({
+        baseDir: testDir,
+      });
 
-        const fileContent = "*.log\nnode_modules/";
-        const geminiignorePath = ".geminiignore";
-        await writeFileContent(geminiignorePath, fileContent);
-
-        const qwencodeIgnore = await QwencodeIgnore.fromFile({});
-
-        expect(qwencodeIgnore.getBaseDir()).toBe(".");
-        expect(qwencodeIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
+      expect(qwencodeIgnore.getBaseDir()).toBe(testDir);
+      expect(qwencodeIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .geminiignore file does not exist", async () => {
