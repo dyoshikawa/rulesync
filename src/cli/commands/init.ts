@@ -33,7 +33,7 @@ async function createConfigFile(): Promise<void> {
       {
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
         features: ["rules", "ignore", "mcp", "commands", "subagents"],
-        baseDirs: [process.cwd()],
+        baseDirs: ["."],
         delete: true,
         verbose: false,
         global: false,
