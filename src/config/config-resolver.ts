@@ -16,7 +16,7 @@ const defaults: Required<ConfigResolverResolveParams> = {
   features: ["rules"],
   verbose: false,
   delete: false,
-  baseDirs: ["."],
+  baseDirs: [process.cwd()],
   configPath: "rulesync.jsonc",
   global: false,
   simulatedCommands: false,
