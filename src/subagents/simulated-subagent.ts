@@ -59,7 +59,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
   }
 
   protected static fromRulesyncSubagentDefault({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncSubagent,
     validate = true,
   }: ToolSubagentFromRulesyncSubagentParams): ConstructorParameters<typeof SimulatedSubagent>[0] {
@@ -101,7 +101,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
   }
 
   protected static async fromFileDefault({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolSubagentFromFileParams): Promise<ConstructorParameters<typeof SimulatedSubagent>[0]> {

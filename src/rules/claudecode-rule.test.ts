@@ -357,7 +357,7 @@ describe("ClaudecodeRule", () => {
 
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getRelativePathFromCwd()).toBe(".rulesync/rules/CLAUDE.md");
+      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/CLAUDE.md");
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );

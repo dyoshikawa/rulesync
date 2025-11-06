@@ -175,7 +175,7 @@ export class CursorRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): CursorRule {
@@ -206,7 +206,7 @@ export class CursorRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CursorRule> {

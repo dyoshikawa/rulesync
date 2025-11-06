@@ -36,7 +36,7 @@ export class GeminiCliMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<GeminiCliMcp> {
@@ -58,7 +58,7 @@ export class GeminiCliMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncMcp,
     validate = true,
     global = false,

@@ -46,7 +46,7 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    baseDir = ".",
     toolTarget,
     global = false,
   }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget; global?: boolean }) {

@@ -141,7 +141,7 @@ export class RulesyncRule extends RulesyncFile {
     const filename = basename(legacyPath);
 
     return new RulesyncRule({
-      baseDir: process.cwd(),
+      baseDir: ".",
       relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
@@ -178,7 +178,7 @@ export class RulesyncRule extends RulesyncFile {
     const filename = basename(filePath);
 
     return new RulesyncRule({
-      baseDir: process.cwd(),
+      baseDir: ".",
       relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
