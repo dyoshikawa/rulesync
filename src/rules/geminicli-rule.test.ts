@@ -72,7 +72,7 @@ describe("GeminiCliRule", () => {
       });
 
       expect(geminiCliRule.getFileContent()).toBe("# Root Rule");
-      expect(geminiCliRule.getRelativePathFromCwd()).toBe("GEMINI.md");
+      expect(geminiCliRule.getFilePath()).toBe("GEMINI.md");
     });
   });
 
@@ -295,7 +295,7 @@ describe("GeminiCliRule", () => {
 
       const rulesyncRule = geminiCliRule.toRulesyncRule();
 
-      expect(rulesyncRule.getRelativePathFromCwd()).toBe(".rulesync/rules/GEMINI.md");
+      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/GEMINI.md");
       expect(rulesyncRule.getFileContent()).toContain("# Root Gemini Rule\n\nRoot content.");
     });
   });

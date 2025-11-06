@@ -124,7 +124,7 @@ describe("KiroIgnore", () => {
       });
 
       expect(kiroIgnore).toBeInstanceOf(KiroIgnore);
-      expect(kiroIgnore.getBaseDir()).toBe(process.cwd());
+      expect(kiroIgnore.getBaseDir()).toBe(".");
       expect(kiroIgnore.getRelativeDirPath()).toBe(".");
       expect(kiroIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const kiroIgnore = await KiroIgnore.fromFile({});
 
-        expect(kiroIgnore.getBaseDir()).toBe(process.cwd());
+        expect(kiroIgnore.getBaseDir()).toBe(".");
         expect(kiroIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

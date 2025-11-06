@@ -31,7 +31,7 @@ export class CopilotMcp extends ToolMcp {
     };
   }
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<CopilotMcp> {
     const fileContent = await readFileContent(
@@ -52,7 +52,7 @@ export class CopilotMcp extends ToolMcp {
   }
 
   static fromRulesyncMcp({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): CopilotMcp {

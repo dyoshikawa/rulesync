@@ -26,7 +26,7 @@ export class CursorCommand extends ToolCommand {
     };
 
     return new RulesyncCommand({
-      baseDir: process.cwd(), // RulesyncCommand baseDir is always the project root directory
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -37,7 +37,7 @@ export class CursorCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncCommand,
     validate = true,
     global = false,
@@ -69,7 +69,7 @@ export class CursorCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,

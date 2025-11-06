@@ -32,7 +32,7 @@ export class CursorMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<CursorMcp> {
     const fileContent = await readFileContent(
@@ -53,7 +53,7 @@ export class CursorMcp extends ToolMcp {
   }
 
   static fromRulesyncMcp({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): CursorMcp {

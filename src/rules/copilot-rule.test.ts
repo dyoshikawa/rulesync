@@ -302,7 +302,7 @@ describe("CopilotRule", () => {
         rulesyncRule,
       });
 
-      expect(copilotRule.getBaseDir()).toBe(process.cwd());
+      expect(copilotRule.getBaseDir()).toBe(".");
     });
 
     it("should handle RulesyncRule without globs", () => {
@@ -401,7 +401,7 @@ Content with default baseDir.`;
         relativeFilePath: "default.instructions.md",
       });
 
-      expect(copilotRule.getBaseDir()).toBe(process.cwd());
+      expect(copilotRule.getBaseDir()).toBe(".");
     });
 
     it("should throw error for invalid frontmatter with validation", async () => {

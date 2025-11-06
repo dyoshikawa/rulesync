@@ -30,7 +30,7 @@ export class AmazonqcliMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     validate = true,
   }: ToolMcpFromFileParams): Promise<AmazonqcliMcp> {
     const fileContent = await readFileContent(
@@ -51,7 +51,7 @@ export class AmazonqcliMcp extends ToolMcp {
   }
 
   static fromRulesyncMcp({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): AmazonqcliMcp {

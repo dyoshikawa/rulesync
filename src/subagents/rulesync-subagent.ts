@@ -110,7 +110,7 @@ export class RulesyncSubagent extends RulesyncFile {
     const filename = basename(relativeFilePath);
 
     return new RulesyncSubagent({
-      baseDir: process.cwd(),
+      baseDir: ".",
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: filename,
       frontmatter: result.data,

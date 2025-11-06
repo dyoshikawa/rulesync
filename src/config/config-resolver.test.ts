@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { ConfigResolver } from "./config-resolver.js";
@@ -10,12 +10,10 @@ describe("config-resolver", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
-    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
-    vi.restoreAllMocks();
   });
 
   describe("global configuration", () => {
@@ -205,9 +203,9 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      // baseDirs are now absolute paths
-      expect(config.getBaseDirs()).toContain(join(testDir, "src"));
-      expect(config.getBaseDirs()).toContain(join(testDir, "packages"));
+      // baseDirs might be normalized (`./ ` prefix removed)
+      expect(config.getBaseDirs()).toContain("src");
+      expect(config.getBaseDirs()).toContain("packages");
     });
 
     it("should handle multiple baseDirs", async () => {
@@ -220,11 +218,11 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      // baseDirs are now absolute paths
+      // baseDirs might be normalized (`./ ` prefix removed)
       expect(config.getBaseDirs()).toHaveLength(3);
-      expect(config.getBaseDirs()).toContain(join(testDir, "app1"));
-      expect(config.getBaseDirs()).toContain(join(testDir, "app2"));
-      expect(config.getBaseDirs()).toContain(join(testDir, "app3"));
+      expect(config.getBaseDirs()).toContain("app1");
+      expect(config.getBaseDirs()).toContain("app2");
+      expect(config.getBaseDirs()).toContain("app3");
     });
   });
 });

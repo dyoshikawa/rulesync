@@ -142,7 +142,7 @@ describe("ToolFile", () => {
   describe("path traversal security", () => {
     it("should prevent path traversal via relativeDirPath", () => {
       const file = new TestToolFile({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",
@@ -154,7 +154,7 @@ describe("ToolFile", () => {
 
     it("should prevent path traversal via relativeFilePath", () => {
       const file = new TestToolFile({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".tool",
         relativeFilePath: "../../etc/passwd",
         fileContent: "malicious content",
@@ -166,7 +166,7 @@ describe("ToolFile", () => {
 
     it("should prevent complex path traversal attacks", () => {
       const file = new TestToolFile({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: "foo/../../..",
         relativeFilePath: "etc/passwd",
         fileContent: "malicious content",
@@ -178,7 +178,7 @@ describe("ToolFile", () => {
 
     it("should allow safe relative paths within baseDir", () => {
       const file = new TestToolFile({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".tool/config",
         relativeFilePath: "settings.txt",
         fileContent: "safe content",
@@ -186,12 +186,12 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getRelativePathFromCwd()).toBe(".tool/config/settings.txt");
+      expect(file.getFilePath()).toBe(".tool/config/settings.txt");
     });
 
     it("should allow nested directories within baseDir", () => {
       const file = new TestToolFile({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: "deeply/nested/path",
         relativeFilePath: "file.txt",
         fileContent: "safe content",
@@ -199,7 +199,7 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getRelativePathFromCwd()).toBe("deeply/nested/path/file.txt");
+      expect(file.getFilePath()).toBe("deeply/nested/path/file.txt");
     });
 
     it("should handle baseDir with subdirectory correctly", () => {

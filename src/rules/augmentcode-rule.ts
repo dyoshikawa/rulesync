@@ -32,7 +32,7 @@ export class AugmentcodeRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AugmentcodeRule {
@@ -47,7 +47,7 @@ export class AugmentcodeRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeRule> {

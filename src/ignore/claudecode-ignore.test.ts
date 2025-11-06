@@ -558,7 +558,7 @@ describe("ClaudecodeIgnore", () => {
 
         const claudecodeIgnore = await ClaudecodeIgnore.fromFile({});
 
-        expect(claudecodeIgnore.getBaseDir()).toBe(process.cwd());
+        expect(claudecodeIgnore.getBaseDir()).toBe(".");
         expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
       } finally {
         process.chdir(originalCwd);

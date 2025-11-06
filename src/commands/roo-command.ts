@@ -75,7 +75,7 @@ export class RooCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
-      baseDir: process.cwd(), // RulesyncCommand baseDir is always the project root directory
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -86,7 +86,7 @@ export class RooCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): RooCommand {
@@ -138,7 +138,7 @@ export class RooCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<RooCommand> {

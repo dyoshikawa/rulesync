@@ -729,7 +729,7 @@ describe("RulesyncMcp", () => {
 
         expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
         expect(rulesyncMcp.getJson()).toEqual(jsonData);
-        expect(rulesyncMcp.getBaseDir()).toBe(process.cwd());
+        expect(rulesyncMcp.getBaseDir()).toBe(".");
         expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
         expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
       } finally {
@@ -1164,7 +1164,7 @@ describe("RulesyncMcp", () => {
       });
 
       expect(rulesyncMcp.getRelativeFilePath()).toBe("custom-config.json");
-      expect(rulesyncMcp.getRelativePathFromCwd()).toBe(".rulesync/custom-config.json");
+      expect(rulesyncMcp.getFilePath()).toBe(".rulesync/custom-config.json");
     });
 
     it("should work correctly with different directory paths", () => {
@@ -1175,7 +1175,7 @@ describe("RulesyncMcp", () => {
       });
 
       expect(rulesyncMcp.getRelativeDirPath()).toBe("custom-dir");
-      expect(rulesyncMcp.getRelativePathFromCwd()).toBe("custom-dir/.mcp.json");
+      expect(rulesyncMcp.getFilePath()).toBe("custom-dir/.mcp.json");
     });
 
     it("should handle deeply nested JSON structures", () => {

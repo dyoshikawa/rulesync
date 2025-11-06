@@ -152,7 +152,7 @@ describe("AmazonqcliIgnore", () => {
       });
 
       expect(amazonqcliIgnore).toBeInstanceOf(AmazonqcliIgnore);
-      expect(amazonqcliIgnore.getBaseDir()).toBe(process.cwd());
+      expect(amazonqcliIgnore.getBaseDir()).toBe(".");
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe(".");
       expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
       expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
@@ -336,7 +336,7 @@ q-temp/`;
 
         const amazonqcliIgnore = await AmazonqcliIgnore.fromFile({});
 
-        expect(amazonqcliIgnore.getBaseDir()).toBe(process.cwd());
+        expect(amazonqcliIgnore.getBaseDir()).toBe(".");
         expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

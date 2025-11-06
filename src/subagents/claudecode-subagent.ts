@@ -78,7 +78,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncSubagent({
-      baseDir: process.cwd(), // RulesyncCommand baseDir is always the project root directory
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: join(".rulesync", "subagents"),
@@ -89,7 +89,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -145,7 +145,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,

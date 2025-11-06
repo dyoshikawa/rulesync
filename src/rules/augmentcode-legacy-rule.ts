@@ -32,7 +32,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     };
 
     return new RulesyncRule({
-      baseDir: process.cwd(), // RulesyncRule baseDir is always the project root directory
+      baseDir: ".", // RulesyncRule baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: join(".rulesync", "rules"),
@@ -54,7 +54,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
@@ -81,7 +81,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeLegacyRule> {

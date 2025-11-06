@@ -138,7 +138,7 @@ describe("AugmentcodeIgnore", () => {
       });
 
       expect(augmentcodeIgnore).toBeInstanceOf(AugmentcodeIgnore);
-      expect(augmentcodeIgnore.getBaseDir()).toBe(process.cwd());
+      expect(augmentcodeIgnore.getBaseDir()).toBe(".");
       expect(augmentcodeIgnore.getRelativeDirPath()).toBe(".");
       expect(augmentcodeIgnore.getRelativeFilePath()).toBe(".augmentignore");
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -329,7 +329,7 @@ desktop.ini
 
         const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({});
 
-        expect(augmentcodeIgnore.getBaseDir()).toBe(process.cwd());
+        expect(augmentcodeIgnore.getBaseDir()).toBe(".");
         expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

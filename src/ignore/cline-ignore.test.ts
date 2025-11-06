@@ -124,7 +124,7 @@ describe("ClineIgnore", () => {
       });
 
       expect(clineIgnore).toBeInstanceOf(ClineIgnore);
-      expect(clineIgnore.getBaseDir()).toBe(process.cwd());
+      expect(clineIgnore.getBaseDir()).toBe(".");
       expect(clineIgnore.getRelativeDirPath()).toBe(".");
       expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
       expect(clineIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const clineIgnore = await ClineIgnore.fromFile({});
 
-        expect(clineIgnore.getBaseDir()).toBe(process.cwd());
+        expect(clineIgnore.getBaseDir()).toBe(".");
         expect(clineIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

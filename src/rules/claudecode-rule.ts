@@ -54,7 +54,7 @@ export class ClaudecodeRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,
@@ -95,7 +95,7 @@ export class ClaudecodeRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
     global = false,

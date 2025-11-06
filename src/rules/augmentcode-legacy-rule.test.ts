@@ -109,7 +109,7 @@ describe("AugmentcodeLegacyRule", () => {
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(process.cwd());
+      expect(rulesyncRule.getBaseDir()).toBe(".");
       expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
       expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(rulesyncRule.getBody()).toBe("# Test Legacy Rule\n\nThis is a test legacy rule.");
@@ -133,7 +133,7 @@ describe("AugmentcodeLegacyRule", () => {
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(process.cwd());
+      expect(rulesyncRule.getBaseDir()).toBe(".");
       expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
       expect(rulesyncRule.getRelativeFilePath()).toBe(".augment-guidelines");
       expect(rulesyncRule.getBody()).toBe("# Root Guidelines\n\nThese are root guidelines.");
@@ -156,7 +156,7 @@ describe("AugmentcodeLegacyRule", () => {
 
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
-      expect(rulesyncRule.getBaseDir()).toBe(process.cwd());
+      expect(rulesyncRule.getBaseDir()).toBe(".");
       expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(
