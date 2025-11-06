@@ -354,7 +354,7 @@ Simulated commands and subagents allow you to generate simulated commands and su
       Call your-subagent to achieve something.
       ```
 
-#### Modular MCP (Experimental)
+## Modular MCP (Experimental)
 
 Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-mcp](https://github.com/d-kimuson/modular-mcp) for context saving. When enabled with `--modular-mcp`, it additionally generates `modular-mcp.json`.
 
@@ -481,7 +481,7 @@ Focus on the difference of MCP tools usage.
 |Disabled Modular MCP| 15.7k tokens (7.9%) |
 |Enabled Modular MCP| 1.3k tokens (0.6%) |
 
-So, in this case, approximately 92% reduction in token usage!
+So, in this case, approximately 92% reduction in MCP tools consumption!
 </details>
 
 ## Contributing
