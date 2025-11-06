@@ -81,7 +81,7 @@ export abstract class ToolRule extends ToolFile {
   }
 
   protected static buildToolRuleParamsDefault({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
@@ -120,7 +120,7 @@ export abstract class ToolRule extends ToolFile {
   }
 
   protected static buildToolRuleParamsAgentsmd({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
@@ -147,7 +147,7 @@ export abstract class ToolRule extends ToolFile {
 
   protected toRulesyncRuleDefault(): RulesyncRule {
     return new RulesyncRule({
-      baseDir: process.cwd(), // RulesyncRule baseDir is always the project root directory
+      baseDir: ".", // RulesyncRule baseDir is always the project root directory
       relativeDirPath: join(".rulesync", "rules"),
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {

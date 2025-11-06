@@ -36,7 +36,7 @@ describe("SubagentsProcessor", () => {
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
 
@@ -54,7 +54,7 @@ describe("SubagentsProcessor", () => {
     it("should validate tool target with schema", () => {
       expect(() => {
         const _processor = new SubagentsProcessor({
-          baseDir: process.cwd(),
+          baseDir: ".",
           toolTarget: "invalid" as SubagentsProcessorToolTarget,
         });
       }).toThrow();
@@ -64,7 +64,7 @@ describe("SubagentsProcessor", () => {
       for (const toolTarget of subagentsProcessorToolTargets) {
         expect(() => {
           const _processor = new SubagentsProcessor({
-            baseDir: process.cwd(),
+            baseDir: ".",
             toolTarget,
           });
         }).not.toThrow();
@@ -77,14 +77,14 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
     });
 
     it("should filter and convert RulesyncSubagent instances for claudecode", async () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -120,13 +120,13 @@ Test agent content`,
 
     it("should convert with global flag when processor is in global mode", async () => {
       const globalProcessor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
         global: true,
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "global-test-agent.md",
         fileContent: `---
@@ -175,7 +175,7 @@ Global test agent content`,
       processorWithMockTarget.toolTarget = "unsupported";
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
         fileContent: '---\nname: test\ndescription: test\ntargets: ["*"]\n---\ntest',
@@ -191,12 +191,12 @@ Global test agent content`,
 
     it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "copilot",
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -222,12 +222,12 @@ Test agent content`,
 
     it("should convert RulesyncSubagent to CursorSubagent for cursor target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "cursor",
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -253,12 +253,12 @@ Test agent content`,
 
     it("should convert RulesyncSubagent to CodexCliSubagent for codexcli target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "codexcli",
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -288,14 +288,14 @@ Test agent content`,
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
     });
 
     it("should filter and convert ToolSubagent instances", async () => {
       const claudecodeSubagent = new ClaudecodeSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".claude/agents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -343,7 +343,7 @@ Test agent content`,
 
     it("should skip simulated subagents when converting to rulesync", async () => {
       const claudecodeSubagent = new ClaudecodeSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".claude/agents",
         relativeFilePath: "claude-agent.md",
         fileContent: `---
@@ -360,7 +360,7 @@ Claude content`,
       });
 
       const copilotSubagent = new CopilotSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".github/subagents",
         relativeFilePath: "copilot-agent.md",
         frontmatter: {
@@ -372,7 +372,7 @@ Claude content`,
       });
 
       const cursorSubagent = new CursorSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".cursor/subagents",
         relativeFilePath: "cursor-agent.md",
         frontmatter: {
@@ -384,7 +384,7 @@ Claude content`,
       });
 
       const codexCliSubagent = new CodexCliSubagent({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: ".codex/subagents",
         relativeFilePath: "codex-agent.md",
         frontmatter: {
@@ -412,7 +412,7 @@ Claude content`,
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
     });
@@ -519,7 +519,7 @@ Invalid content`;
   describe("loadToolFiles", () => {
     it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -528,7 +528,7 @@ Invalid content`;
 
     it("should delegate to loadCopilotSubagents for copilot target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "copilot",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -537,7 +537,7 @@ Invalid content`;
 
     it("should delegate to loadCursorSubagents for cursor target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "cursor",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -546,7 +546,7 @@ Invalid content`;
 
     it("should delegate to loadCodexCliSubagents for codexcli target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "codexcli",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -570,7 +570,7 @@ Invalid content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "copilot",
       });
     });
@@ -604,7 +604,7 @@ Copilot agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "cursor",
       });
     });
@@ -638,7 +638,7 @@ Cursor agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "codexcli",
       });
     });
@@ -672,7 +672,7 @@ CodexCli agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
     });
@@ -940,7 +940,7 @@ Second global content`;
   describe("inheritance from FeatureProcessor", () => {
     it("should extend FeatureProcessor", () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
 
@@ -958,7 +958,7 @@ Second global content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
     });
@@ -1012,7 +1012,7 @@ Valid content`,
   describe("loadToolFilesToDelete", () => {
     it("should return the same files as loadToolFiles", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
 
@@ -1048,7 +1048,7 @@ Test agent content`;
 
       for (const target of targets) {
         const processor = new SubagentsProcessor({
-          baseDir: process.cwd(),
+          baseDir: ".",
           toolTarget: target,
         });
 
@@ -1061,7 +1061,7 @@ Test agent content`;
 
     it("should return empty array when no files exist", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
 
@@ -1071,7 +1071,7 @@ Test agent content`;
 
     it("should handle multiple files correctly", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: process.cwd(),
+        baseDir: ".",
         toolTarget: "claudecode",
       });
 

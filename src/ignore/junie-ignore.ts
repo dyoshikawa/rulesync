@@ -21,7 +21,7 @@ export class JunieIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): JunieIgnore {
     return new JunieIgnore({
@@ -33,7 +33,7 @@ export class JunieIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<JunieIgnore> {
     const fileContent = await readFileContent(

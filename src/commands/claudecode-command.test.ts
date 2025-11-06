@@ -294,7 +294,7 @@ describe("ClaudecodeCommand", () => {
         rulesyncCommand,
       });
 
-      expect(claudecodeCommand.getBaseDir()).toBe(process.cwd());
+      expect(claudecodeCommand.getBaseDir()).toBe(".");
     });
 
     it("should disable validation when specified", () => {
@@ -363,7 +363,7 @@ Command body`;
         relativeFilePath: "default-test.md",
       });
 
-      expect(command.getBaseDir()).toBe(process.cwd());
+      expect(command.getBaseDir()).toBe(".");
     });
 
     it("should throw error for invalid frontmatter", async () => {

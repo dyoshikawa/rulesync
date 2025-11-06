@@ -42,7 +42,7 @@ export class QwencodeRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
@@ -63,7 +63,7 @@ export class QwencodeRule extends ToolRule {
   }
 
   static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): QwencodeRule {
-    const { baseDir = process.cwd(), rulesyncRule, validate = true } = params;
+    const { baseDir = ".", rulesyncRule, validate = true } = params;
     return new QwencodeRule(
       this.buildToolRuleParamsDefault({
         baseDir,

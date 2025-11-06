@@ -95,7 +95,7 @@ export class CopilotRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): CopilotRule {
@@ -140,7 +140,7 @@ export class CopilotRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CopilotRule> {

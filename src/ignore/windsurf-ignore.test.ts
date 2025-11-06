@@ -189,7 +189,7 @@ desktop.ini`;
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getBaseDir()).toBe(process.cwd());
+      expect(windsurfIgnore.getBaseDir()).toBe(".");
     });
 
     it("should preserve complex content from RulesyncIgnore", () => {
@@ -285,7 +285,7 @@ Thumbs.db`;
 
         const windsurfIgnore = await WindsurfIgnore.fromFile({});
 
-        expect(windsurfIgnore.getBaseDir()).toBe(process.cwd());
+        expect(windsurfIgnore.getBaseDir()).toBe(".");
         expect(windsurfIgnore.getFileContent()).toBe(fileContent);
       } finally {
         process.chdir(originalCwd);

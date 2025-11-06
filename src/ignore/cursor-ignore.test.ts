@@ -124,7 +124,7 @@ describe("CursorIgnore", () => {
       });
 
       expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getBaseDir()).toBe(process.cwd());
+      expect(cursorIgnore.getBaseDir()).toBe(".");
       expect(cursorIgnore.getRelativeDirPath()).toBe(".");
       expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const cursorIgnore = await CursorIgnore.fromFile({});
 
-        expect(cursorIgnore.getBaseDir()).toBe(process.cwd());
+        expect(cursorIgnore.getBaseDir()).toBe(".");
         expect(cursorIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd

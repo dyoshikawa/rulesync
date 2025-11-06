@@ -49,7 +49,7 @@ export abstract class AiFile {
   protected readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeDirPath,
     relativeFilePath,
     fileContent,

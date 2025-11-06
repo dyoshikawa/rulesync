@@ -453,7 +453,7 @@ describe("CursorMcp", () => {
 
         expect(cursorMcp).toBeInstanceOf(CursorMcp);
         expect(cursorMcp.getJson()).toEqual(jsonData);
-        expect(cursorMcp.getBaseDir()).toBe(process.cwd());
+        expect(cursorMcp.getBaseDir()).toBe(".");
         expect(cursorMcp.getRelativeDirPath()).toBe(".cursor");
         expect(cursorMcp.getRelativeFilePath()).toBe("mcp.json");
       } finally {
@@ -664,7 +664,7 @@ describe("CursorMcp", () => {
       expect(cursorMcp.getJson()).toEqual({
         mcpServers: rulesyncMcpData.mcpServers,
       });
-      expect(cursorMcp.getBaseDir()).toBe(process.cwd());
+      expect(cursorMcp.getBaseDir()).toBe(".");
       expect(cursorMcp.getRelativeDirPath()).toBe(".cursor");
       expect(cursorMcp.getRelativeFilePath()).toBe("mcp.json");
     });
@@ -1049,7 +1049,6 @@ describe("CursorMcp", () => {
 
     it("should work correctly with different file extensions", () => {
       const cursorMcp = new CursorMcp({
-        baseDir: ".",
         relativeDirPath: ".cursor",
         relativeFilePath: "custom-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -1061,7 +1060,6 @@ describe("CursorMcp", () => {
 
     it("should work correctly with different directory paths", () => {
       const cursorMcp = new CursorMcp({
-        baseDir: ".",
         relativeDirPath: "custom-dir",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),

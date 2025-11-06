@@ -33,7 +33,7 @@ export class RooIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): RooIgnore {
     return new RooIgnore({
@@ -45,7 +45,7 @@ export class RooIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<RooIgnore> {
     const fileContent = await readFileContent(

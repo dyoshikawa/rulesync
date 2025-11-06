@@ -84,7 +84,7 @@ export class GeminiCliCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
-      baseDir: process.cwd(), // RulesyncCommand baseDir is always the project root directory
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -95,7 +95,7 @@ export class GeminiCliCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    baseDir = ".",
     rulesyncCommand,
     validate = true,
     global = false,
@@ -125,7 +125,7 @@ ${geminiFrontmatter.prompt}
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    baseDir = ".",
     relativeFilePath,
     validate = true,
     global = false,

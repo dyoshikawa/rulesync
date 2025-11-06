@@ -512,8 +512,7 @@ describe("file utilities", () => {
       const homeDir = getHomeDirectory();
 
       // Should match the format from setupTestDirectory in test-directories.ts
-      // Now returns absolute path: /workspace/tmp/tests/home/{WORKER_ID}
-      expect(homeDir).toMatch(/^.*tmp\/tests\/home\/\d+$/);
+      expect(homeDir).toMatch(/^(\.\/)?tmp\/tests\/home\/\d+$/);
     });
   });
 

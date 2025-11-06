@@ -360,7 +360,7 @@ describe("ClaudecodeSubagent", () => {
       const rulesyncSubagent = subagent.toRulesyncSubagent();
 
       // RulesyncSubagent baseDir is always the project root directory
-      expect(rulesyncSubagent.getBaseDir()).toBe(process.cwd());
+      expect(rulesyncSubagent.getBaseDir()).toBe(".");
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("custom/test-agent.md");
     });
   });
@@ -462,7 +462,7 @@ describe("ClaudecodeSubagent", () => {
         validate: true,
       });
 
-      expect(claudecodeSubagent.getBaseDir()).toBe(process.cwd());
+      expect(claudecodeSubagent.getBaseDir()).toBe(".");
     });
 
     it("should use global paths when global is true", () => {
@@ -650,7 +650,7 @@ describe("ClaudecodeSubagent", () => {
           validate: true,
         });
 
-        expect(subagent.getBaseDir()).toBe(process.cwd());
+        expect(subagent.getBaseDir()).toBe(".");
       } finally {
         // Clean up the file in current directory
         const fs = await import("node:fs/promises");

@@ -134,7 +134,7 @@ export class RulesyncMcp extends RulesyncFile {
     if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncMcp({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: paths.recommended.relativeDirPath,
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
@@ -150,7 +150,7 @@ export class RulesyncMcp extends RulesyncFile {
       );
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncMcp({
-        baseDir: process.cwd(),
+        baseDir: ".",
         relativeDirPath: paths.legacy.relativeDirPath,
         relativeFilePath: paths.legacy.relativeFilePath,
         fileContent,
@@ -162,7 +162,7 @@ export class RulesyncMcp extends RulesyncFile {
     // If neither exists, try to read recommended path (will throw appropriate error)
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncMcp({
-      baseDir: process.cwd(),
+      baseDir: ".",
       relativeDirPath: paths.recommended.relativeDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
