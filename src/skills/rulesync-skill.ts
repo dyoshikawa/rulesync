@@ -7,13 +7,7 @@ import {
   RulesyncFileParams,
 } from "../types/rulesync-file.js";
 import { formatError } from "../utils/error.js";
-import {
-  directoryExists,
-  fileExists,
-  getHomeDirectory,
-  listDirectoryFiles,
-  readFileContent,
-} from "../utils/file.js";
+import { directoryExists, fileExists, listDirectoryFiles, readFileContent } from "../utils/file.js";
 import { parseFrontmatter } from "../utils/frontmatter.js";
 import { logger } from "../utils/logger.js";
 
@@ -75,13 +69,7 @@ export class RulesyncSkill extends RulesyncFile {
     this.otherSkillFiles = otherSkillFiles;
   }
 
-  static getSettablePaths(global: boolean = false): RulesyncSkillSettablePaths {
-    if (global) {
-      const homeDir = getHomeDirectory();
-      return {
-        relativeDirPath: join(homeDir, ".rulesync", "skills"),
-      };
-    }
+  static getSettablePaths(): RulesyncSkillSettablePaths {
     return {
       relativeDirPath: join(".rulesync", "skills"),
     };
@@ -171,14 +159,9 @@ export class RulesyncSkill extends RulesyncFile {
   static async fromFile({
     relativeFilePath,
     skillName,
-    global = false,
   }: RulesyncSkillFromFileParams): Promise<RulesyncSkill> {
-    const baseDir = global ? getHomeDirectory() : ".";
-    const settablePaths = this.getSettablePaths(global);
-    // For global mode, settablePaths already includes homeDir, so we don't need to join with baseDir
-    const skillDir = global
-      ? join(settablePaths.relativeDirPath, skillName)
-      : join(baseDir, settablePaths.relativeDirPath, skillName);
+    const settablePaths = this.getSettablePaths();
+    const skillDir = join(settablePaths.relativeDirPath, skillName);
     const skillFilePath = join(skillDir, "SKILL.md");
 
     // Check if SKILL.md exists
@@ -202,14 +185,13 @@ export class RulesyncSkill extends RulesyncFile {
     const filename = basename(relativeFilePath);
 
     return new RulesyncSkill({
-      baseDir,
+      baseDir: ".",
       relativeDirPath: join(settablePaths.relativeDirPath, skillName),
       relativeFilePath: filename,
       frontmatter: result.data,
       body: content.trim(),
       fileContent,
       otherSkillFiles,
-      global,
     });
   }
 }
