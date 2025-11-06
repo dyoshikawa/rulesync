@@ -1,8 +1,33 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
+
+let testDirForMock: string = "";
+
+// Mock readFileContent to read from testDir
+const { readFileContentMock } = vi.hoisted(() => {
+  return {
+    readFileContentMock: vi.fn(async (filepath: string) => {
+      // Import is needed here to avoid circular dependency
+      const { join: joinPath } = await import("node:path");
+      const { readFile } = await import("node:fs/promises");
+      const fullPath = joinPath(testDirForMock, filepath);
+      return readFile(fullPath, "utf-8");
+    }),
+  };
+});
+
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  return {
+    ...actual,
+    readFileContent: readFileContentMock,
+  };
+});
+
+// Import after mocking
+const { RulesyncIgnore } = await import("./rulesync-ignore.js");
 
 describe("RulesyncIgnore", () => {
   let testDir: string;
@@ -10,10 +35,13 @@ describe("RulesyncIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    testDirForMock = testDir;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -154,37 +182,22 @@ Thumbs.db`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      // Change to test directory to simulate reading from current directory
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
-        expect(rulesyncIgnore.getBaseDir()).toBe(".");
-        expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-        expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
+      expect(rulesyncIgnore.getBaseDir()).toBe(".");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle empty .rulesyncignore file", async () => {
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, "");
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe("");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe("");
     });
 
     it("should handle .rulesyncignore file with complex patterns", async () => {
@@ -221,27 +234,13 @@ Thumbs.db`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .rulesyncignore file does not exist", async () => {
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
-
-        await expect(RulesyncIgnore.fromFile()).rejects.toThrow();
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(RulesyncIgnore.fromFile()).rejects.toThrow();
     });
 
     it("should handle file with Windows line endings", async () => {
@@ -249,16 +248,9 @@ Thumbs.db`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle file with mixed line endings", async () => {
@@ -266,16 +258,9 @@ Thumbs.db`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
   });
 
@@ -369,17 +354,9 @@ Thumbs.db`;
       // Write file using writeFileContent utility
       await writeFileContent(rulesyncIgnore.getFilePath(), rulesyncIgnore.getFileContent());
 
-      // Read file back from the testDir context
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const readRulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const readRulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(readRulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(readRulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should preserve exact file content", async () => {
@@ -400,16 +377,9 @@ dist/
 
       await writeFileContent(rulesyncIgnore.getFilePath(), rulesyncIgnore.getFileContent());
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const readRulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const readRulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(readRulesyncIgnore.getFileContent()).toBe(originalContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(readRulesyncIgnore.getFileContent()).toBe(originalContent);
     });
   });
 
@@ -517,19 +487,12 @@ build/`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        // fromFile always uses these fixed parameters
-        expect(rulesyncIgnore.getBaseDir()).toBe(".");
-        expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-        expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      // fromFile always uses these fixed parameters
+      expect(rulesyncIgnore.getBaseDir()).toBe(".");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
     });
 
     it("should create instance with validation enabled by default", async () => {
@@ -537,17 +500,10 @@ build/`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        // Should have been validated during construction
-        expect(rulesyncIgnore.validate().success).toBe(true);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      // Should have been validated during construction
+      expect(rulesyncIgnore.validate().success).toBe(true);
     });
   });
 });
