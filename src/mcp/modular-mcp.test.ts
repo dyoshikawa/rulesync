@@ -1,13 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { ModularMcp, type ModularMcpParams } from "./modular-mcp.js";
 
 describe("ModularMcp", () => {
+  let testDir: string;
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    ({ cleanup } = await setupTestDirectory());
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -42,14 +44,14 @@ describe("ModularMcp", () => {
       });
 
       const modularMcp = new ModularMcp({
-        baseDir: "/custom/path",
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "modular-mcp.json",
         fileContent: validJsonContent,
       });
 
-      expect(modularMcp.getFilePath()).toBe("/custom/path/modular-mcp.json");
-      expect(modularMcp.getBaseDir()).toBe("/custom/path");
+      expect(modularMcp.getFilePath()).toBe(`${testDir}/modular-mcp.json`);
+      expect(modularMcp.getBaseDir()).toBe(testDir);
     });
 
     it("should parse JSON content correctly", () => {
@@ -248,7 +250,7 @@ describe("ModularMcp", () => {
 
     it("should return modular-mcp proxy server configuration for global mode with claudecode", () => {
       const mcpServers = ModularMcp.getMcpServers({
-        baseDir: "/home/user",
+        baseDir: testDir,
         global: true,
         relativeDirPath: ".claude",
       });
@@ -257,14 +259,14 @@ describe("ModularMcp", () => {
       expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
-        args: ["-y", "@kimuson/modular-mcp", "/home/user/.claude/modular-mcp.json"],
+        args: ["-y", "@kimuson/modular-mcp", `${testDir}/.claude/modular-mcp.json`],
         env: {},
       });
     });
 
     it("should return modular-mcp proxy server configuration for global mode with codexcli", () => {
       const mcpServers = ModularMcp.getMcpServers({
-        baseDir: "/home/user",
+        baseDir: testDir,
         global: true,
         relativeDirPath: ".codex",
       });
@@ -273,7 +275,7 @@ describe("ModularMcp", () => {
       expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
-        args: ["-y", "@kimuson/modular-mcp", "/home/user/.codex/modular-mcp.json"],
+        args: ["-y", "@kimuson/modular-mcp", `${testDir}/.codex/modular-mcp.json`],
         env: {},
       });
     });
@@ -340,13 +342,13 @@ describe("ModularMcp", () => {
 
     it("should have correct type definitions for parameters", () => {
       const constructorParams: ModularMcpParams = {
-        baseDir: "/custom",
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "modular-mcp.json",
         fileContent: "{}",
       };
 
-      expect(constructorParams.baseDir).toBe("/custom");
+      expect(constructorParams.baseDir).toBe(testDir);
       expect(constructorParams.relativeDirPath).toBe(".");
       expect(constructorParams.relativeFilePath).toBe("modular-mcp.json");
       expect(constructorParams.fileContent).toBe("{}");
