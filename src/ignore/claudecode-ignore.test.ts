@@ -536,33 +536,27 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(secrets/**)"]);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      const originalCwd = process.cwd();
-
-      try {
-        process.chdir(testDir);
-
-        const jsonContent = JSON.stringify(
-          {
-            permissions: {
-              deny: ["Read(*.log)"],
-            },
+    it("should use baseDir when provided", async () => {
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
           },
-          null,
-          2,
-        );
+        },
+        null,
+        2,
+      );
 
-        const claudeDir = ".claude";
-        await ensureDir(claudeDir);
-        await writeFileContent(join(claudeDir, "settings.local.json"), jsonContent);
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(join(claudeDir, "settings.local.json"), jsonContent);
 
-        const claudecodeIgnore = await ClaudecodeIgnore.fromFile({});
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        baseDir: testDir,
+      });
 
-        expect(claudecodeIgnore.getBaseDir()).toBe(".");
-        expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
     it("should throw error when file does not exist", async () => {
