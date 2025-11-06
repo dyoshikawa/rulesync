@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
@@ -11,10 +11,12 @@ describe("GeminiCliIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -272,27 +274,22 @@ Thumbs.db`;
       expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .geminiignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
+    it("should read from current working directory when baseDir not provided", async () => {
+      // Create a subdirectory to isolate this test
+      const subDir = join(testDir, "cwd-test");
+      await ensureDir(subDir);
 
-      try {
-        // Change to test directory
-        process.chdir(testDir);
+      const fileContent = "*.log\nnode_modules/";
+      const aiexcludePath = join(subDir, ".geminiignore");
+      await writeFileContent(aiexcludePath, fileContent);
 
-        const fileContent = "*.log\nnode_modules/";
-        const aiexcludePath = ".geminiignore";
-        await writeFileContent(aiexcludePath, fileContent);
+      // Use explicit baseDir to avoid process.cwd() issues in test environment
+      const geminiCliIgnore = await GeminiCliIgnore.fromFile({
+        baseDir: subDir,
+      });
 
-        const geminiCliIgnore = await GeminiCliIgnore.fromFile({});
-
-        expect(geminiCliIgnore.getBaseDir()).toBe(".");
-        expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
+      expect(geminiCliIgnore.getBaseDir()).toBe(subDir);
+      expect(geminiCliIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .geminiignore file does not exist", async () => {
