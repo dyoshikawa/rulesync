@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { join } from "node:path";
 import { ensureDir, removeDirectory } from "../utils/file.js";
-import { getVitestWorkerId } from "../utils/vitest.js";
 
 /**
  * Helper for test setup and cleanup
@@ -11,9 +10,9 @@ export async function setupTestDirectory({ home }: { home: boolean } = { home: f
   testDir: string;
   cleanup: () => Promise<void>;
 }> {
-  const testsDir = join("./tmp", "tests");
+  const testsDir = join(".", "tmp", "tests");
   const testDir = home
-    ? join(testsDir, "home", getVitestWorkerId())
+    ? join(testsDir, "home", randomString(16))
     : join(testsDir, "projects", randomString(16));
   await ensureDir(testDir);
 
