@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -242,151 +242,122 @@ describe("RooCommand", () => {
   });
 
   describe("fromFile", () => {
-    it("should create RooCommand from file", async () => {
-      const testSetup = await setupTestDirectory();
-      const { testDir, cleanup } = testSetup;
+    let testDir: string;
+    let cleanup: () => Promise<void>;
 
-      try {
-        const frontmatter: RooCommandFrontmatter = {
-          description: "Command loaded from file",
-          "argument-hint": "Enter value",
-        };
-        const body = "This command was loaded from a file";
-        const fileContent = stringifyFrontmatter(body, frontmatter);
-
-        // Write the test file
-        const commandsDir = join(testDir, ".roo", "commands");
-        const filePath = join(commandsDir, "from-file.md");
-        await writeFileContent(filePath, fileContent);
-
-        const command = await RooCommand.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "from-file.md",
-          validate: true,
-        });
-
-        expect(command).toBeInstanceOf(RooCommand);
-        expect(command.getBody()).toBe(body);
-        expect(command.getFrontmatter()).toEqual(frontmatter);
-        expect(command.getRelativeDirPath()).toBe(".roo/commands");
-        expect(command.getRelativeFilePath()).toBe("from-file.md");
-        expect(command.getBaseDir()).toBe(testDir);
-      } finally {
-        await cleanup();
-      }
+    beforeEach(async () => {
+      const result = await setupTestDirectory();
+      testDir = result.testDir;
+      cleanup = result.cleanup;
     });
 
-    it("should use default baseDir when not provided", async () => {
-      const testSetup = await setupTestDirectory();
-      const { cleanup } = testSetup;
+    afterEach(async () => {
+      await cleanup();
+    });
 
-      // Declare filePath in outer scope so it's available in finally block
-      const commandsDir = join(".", ".roo", "commands");
-      const filePath = join(commandsDir, "default-base.md");
+    it("should create RooCommand from file", async () => {
+      const frontmatter: RooCommandFrontmatter = {
+        description: "Command loaded from file",
+        "argument-hint": "Enter value",
+      };
+      const body = "This command was loaded from a file";
+      const fileContent = stringifyFrontmatter(body, frontmatter);
 
-      try {
-        const frontmatter: RooCommandFrontmatter = {
-          description: "Command with default baseDir",
-        };
-        const body = "Test body";
-        const fileContent = stringifyFrontmatter(body, frontmatter);
+      // Write the test file
+      const commandsDir = join(testDir, ".roo", "commands");
+      const filePath = join(commandsDir, "from-file.md");
+      await writeFileContent(filePath, fileContent);
 
-        // Write the test file in current working directory structure (not testDir)
-        await writeFileContent(filePath, fileContent);
+      const command = await RooCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "from-file.md",
+        validate: true,
+      });
 
-        const command = await RooCommand.fromFile({
-          relativeFilePath: "default-base.md",
-        });
+      expect(command).toBeInstanceOf(RooCommand);
+      expect(command.getBody()).toBe(body);
+      expect(command.getFrontmatter()).toEqual(frontmatter);
+      expect(command.getRelativeDirPath()).toBe(".roo/commands");
+      expect(command.getRelativeFilePath()).toBe("from-file.md");
+      expect(command.getBaseDir()).toBe(testDir);
+    });
 
-        expect(command.getBaseDir()).toBe(".");
-      } finally {
-        await cleanup();
-        // Clean up the file created in current working directory
-        try {
-          await import("node:fs/promises").then((fs) => fs.unlink(filePath));
-        } catch {
-          // Ignore if file doesn't exist
-        }
-      }
+    it("should use testDir as baseDir when provided", async () => {
+      const frontmatter: RooCommandFrontmatter = {
+        description: "Command with explicit baseDir",
+      };
+      const body = "Test body";
+      const fileContent = stringifyFrontmatter(body, frontmatter);
+
+      // Write the test file in test directory
+      const commandsDir = join(testDir, ".roo", "commands");
+      const filePath = join(commandsDir, "basedir-test.md");
+      await writeFileContent(filePath, fileContent);
+
+      const command = await RooCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "basedir-test.md",
+      });
+
+      expect(command.getBaseDir()).toBe(testDir);
     });
 
     it("should handle validation parameter", async () => {
-      const testSetup = await setupTestDirectory();
-      const { testDir, cleanup } = testSetup;
+      const frontmatter: RooCommandFrontmatter = {
+        description: "Command with validation disabled",
+      };
+      const body = "Test body";
+      const fileContent = stringifyFrontmatter(body, frontmatter);
 
-      try {
-        const frontmatter: RooCommandFrontmatter = {
-          description: "Command with validation disabled",
-        };
-        const body = "Test body";
-        const fileContent = stringifyFrontmatter(body, frontmatter);
+      const commandsDir = join(testDir, ".roo", "commands");
+      const filePath = join(commandsDir, "no-validation.md");
+      await writeFileContent(filePath, fileContent);
 
-        const commandsDir = join(testDir, ".roo", "commands");
-        const filePath = join(commandsDir, "no-validation.md");
-        await writeFileContent(filePath, fileContent);
+      const command = await RooCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "no-validation.md",
+        validate: false,
+      });
 
-        const command = await RooCommand.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "no-validation.md",
-          validate: false,
-        });
-
-        expect(command).toBeInstanceOf(RooCommand);
-      } finally {
-        await cleanup();
-      }
+      expect(command).toBeInstanceOf(RooCommand);
     });
 
     it("should throw error for invalid frontmatter", async () => {
-      const testSetup = await setupTestDirectory();
-      const { testDir, cleanup } = testSetup;
-
-      try {
-        const invalidFileContent = `---
+      const invalidFileContent = `---
 description: 123
 ---
 This file has invalid frontmatter`;
 
-        const commandsDir = join(testDir, ".roo", "commands");
-        const filePath = join(commandsDir, "invalid.md");
-        await writeFileContent(filePath, invalidFileContent);
+      const commandsDir = join(testDir, ".roo", "commands");
+      const filePath = join(commandsDir, "invalid.md");
+      await writeFileContent(filePath, invalidFileContent);
 
-        await expect(
-          RooCommand.fromFile({
-            baseDir: testDir,
-            relativeFilePath: "invalid.md",
-          }),
-        ).rejects.toThrow("Invalid frontmatter");
-      } finally {
-        await cleanup();
-      }
+      await expect(
+        RooCommand.fromFile({
+          baseDir: testDir,
+          relativeFilePath: "invalid.md",
+        }),
+      ).rejects.toThrow("Invalid frontmatter");
     });
 
     it("should handle nested file paths", async () => {
-      const testSetup = await setupTestDirectory();
-      const { testDir, cleanup } = testSetup;
+      const frontmatter: RooCommandFrontmatter = {
+        description: "Nested command",
+      };
+      const body = "Command in subfolder";
+      const fileContent = stringifyFrontmatter(body, frontmatter);
 
-      try {
-        const frontmatter: RooCommandFrontmatter = {
-          description: "Nested command",
-        };
-        const body = "Command in subfolder";
-        const fileContent = stringifyFrontmatter(body, frontmatter);
+      const commandsDir = join(testDir, ".roo", "commands");
+      const filePath = join(commandsDir, "subfolder", "nested.md");
+      await writeFileContent(filePath, fileContent);
 
-        const commandsDir = join(testDir, ".roo", "commands");
-        const filePath = join(commandsDir, "subfolder", "nested.md");
-        await writeFileContent(filePath, fileContent);
+      const command = await RooCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "subfolder/nested.md",
+      });
 
-        const command = await RooCommand.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "subfolder/nested.md",
-        });
-
-        expect(command.getRelativeFilePath()).toBe("nested.md");
-        expect(command.getBody()).toBe(body);
-      } finally {
-        await cleanup();
-      }
+      expect(command.getRelativeFilePath()).toBe("nested.md");
+      expect(command.getBody()).toBe(body);
     });
   });
 
