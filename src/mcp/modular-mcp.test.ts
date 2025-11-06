@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
@@ -14,6 +15,7 @@ describe("ModularMcp", () => {
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -50,7 +52,7 @@ describe("ModularMcp", () => {
         fileContent: validJsonContent,
       });
 
-      expect(modularMcp.getFilePath()).toBe(`${testDir}/modular-mcp.json`);
+      expect(modularMcp.getFilePath()).toBe(join(testDir, "modular-mcp.json"));
       expect(modularMcp.getBaseDir()).toBe(testDir);
     });
 
@@ -259,7 +261,7 @@ describe("ModularMcp", () => {
       expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
-        args: ["-y", "@kimuson/modular-mcp", `${testDir}/.claude/modular-mcp.json`],
+        args: ["-y", "@kimuson/modular-mcp", join(testDir, ".claude", "modular-mcp.json")],
         env: {},
       });
     });
@@ -275,7 +277,7 @@ describe("ModularMcp", () => {
       expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
-        args: ["-y", "@kimuson/modular-mcp", `${testDir}/.codex/modular-mcp.json`],
+        args: ["-y", "@kimuson/modular-mcp", join(testDir, ".codex", "modular-mcp.json")],
         env: {},
       });
     });
