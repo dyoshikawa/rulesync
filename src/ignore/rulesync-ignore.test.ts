@@ -162,7 +162,7 @@ Thumbs.db`;
         const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
         expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
-        expect(rulesyncIgnore.getBaseDir()).toBe(".");
+        expect(rulesyncIgnore.getBaseDir()).toBe(process.cwd());
         expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
         expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
         expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
@@ -524,7 +524,7 @@ build/`;
         const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
         // fromFile always uses these fixed parameters
-        expect(rulesyncIgnore.getBaseDir()).toBe(".");
+        expect(rulesyncIgnore.getBaseDir()).toBe(process.cwd());
         expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
         expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
       } finally {

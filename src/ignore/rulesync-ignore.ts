@@ -23,7 +23,7 @@ export class RulesyncIgnore extends RulesyncFile {
     const fileContent = await readFileContent(this.getSettablePaths().relativeFilePath);
 
     return new RulesyncIgnore({
-      baseDir: ".",
+      baseDir: process.cwd(),
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,

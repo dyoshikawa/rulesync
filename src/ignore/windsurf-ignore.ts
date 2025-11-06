@@ -26,7 +26,7 @@ export class WindsurfIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): WindsurfIgnore {
     return new WindsurfIgnore({
@@ -38,7 +38,7 @@ export class WindsurfIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<WindsurfIgnore> {
     const fileContent = await readFileContent(

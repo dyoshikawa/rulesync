@@ -11,7 +11,7 @@ export async function setupTestDirectory({ home }: { home: boolean } = { home: f
   testDir: string;
   cleanup: () => Promise<void>;
 }> {
-  const testsDir = join("./tmp", "tests");
+  const testsDir = join(process.cwd(), "tmp", "tests");
   const testDir = home
     ? join(testsDir, "home", getVitestWorkerId())
     : join(testsDir, "projects", randomString(16));

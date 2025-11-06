@@ -299,7 +299,7 @@ describe("RooRule", () => {
 
       const rulesyncRule = rooRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/metadata-test.md");
+      expect(rulesyncRule.getRelativePathFromCwd()).toBe(".rulesync/rules/metadata-test.md");
       expect(rulesyncRule.getFileContent()).toContain("# Metadata Test");
     });
   });

@@ -199,7 +199,7 @@ export async function removeFile(filepath: string): Promise<void> {
 export function getHomeDirectory(): string {
   if (isEnvTest) {
     // Have to match the value in setupTestDirectory() in src/test-utils/test-directories.ts
-    return join("./tmp", "tests", "home", getVitestWorkerId());
+    return join(process.cwd(), "tmp", "tests", "home", getVitestWorkerId());
   }
 
   return os.homedir();
@@ -231,8 +231,8 @@ export function validateBaseDir(baseDir: string): void {
   }
 
   // Additional check: ensure normalized path doesn't escape current directory
-  const normalized = resolve(".", baseDir);
-  const rel = relative(".", normalized);
+  const normalized = resolve(baseDir);
+  const rel = relative(process.cwd(), normalized);
   if (rel.startsWith("..")) {
     throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
   }

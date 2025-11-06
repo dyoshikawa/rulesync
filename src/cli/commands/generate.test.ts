@@ -38,7 +38,7 @@ describe("generateCommand", () => {
     // Setup default mock config
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getBaseDirs: vi.fn().mockReturnValue([process.cwd()]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getDelete: vi.fn().mockReturnValue(false),
@@ -214,7 +214,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating rule files...");
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         global: false,
         toolTarget: "claudecode",
         simulateCommands: false,
@@ -232,7 +232,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         global: false,
         toolTarget: "claudecode",
         simulateCommands: true,
@@ -336,7 +336,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating MCP files...");
       expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
         modularMcp: false,
@@ -406,7 +406,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating command files...");
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
       });
@@ -440,7 +440,7 @@ describe("generateCommand", () => {
   describe("ignore feature", () => {
     beforeEach(() => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
-      mockConfig.getBaseDirs.mockReturnValue(["."]);
+      mockConfig.getBaseDirs.mockReturnValue([process.cwd()]);
     });
 
     it("should generate ignore files when ignore feature is enabled", async () => {
@@ -479,7 +479,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
+        `Failed to generate claudecode ignore files for ${process.cwd()}:`,
         "Test error",
       );
     });
@@ -507,7 +507,7 @@ describe("generateCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Generating subagent files...");
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: false,
       });
@@ -548,7 +548,7 @@ describe("generateCommand", () => {
         await generateCommand(options);
 
         expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
+          baseDir: process.cwd(),
           toolTarget: "claudecode",
           global: true,
         });
@@ -567,7 +567,7 @@ describe("generateCommand", () => {
           ["claudecode"],
         );
         expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
+          baseDir: process.cwd(),
           toolTarget: "claudecode",
           global: true,
         });
@@ -588,7 +588,7 @@ describe("generateCommand", () => {
         expect(SubagentsProcessor.getToolTargets).not.toHaveBeenCalled();
         expect(SubagentsProcessor).toHaveBeenCalledTimes(1);
         expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
+          baseDir: process.cwd(),
           toolTarget: "claudecode",
           global: true,
         });
@@ -717,7 +717,9 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 3 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith(
+        `Generated 3 claudecode rule(s) in ${process.cwd()}`,
+      );
     });
   });
 
@@ -779,7 +781,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
         simulateCommands: true,
@@ -892,7 +894,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });
@@ -920,7 +922,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: process.cwd(),
         toolTarget: "claudecode",
         global: true,
       });
@@ -1054,9 +1056,11 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 2 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith(
+        `Generated 2 claudecode rule(s) in ${process.cwd()}`,
+      );
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
+        `Failed to generate claudecode ignore files for ${process.cwd()}:`,
         "Ignore error",
       );
       expect(logger.success).toHaveBeenCalledWith(

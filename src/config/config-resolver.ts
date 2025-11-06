@@ -180,7 +180,7 @@ function getBaseDirsInLightOfGlobal({
 }): string[] {
   if (isEnvTest) {
     // When in test environment, the base directory is always the relative directory from the project root
-    return baseDirs.map((baseDir) => join(".", baseDir));
+    return baseDirs.map((baseDir) => join(process.cwd(), baseDir));
   }
 
   if (global) {

@@ -50,7 +50,7 @@ export class AugmentcodeIgnore extends ToolIgnore {
    * Supports conversion from unified rulesync format to AugmentCode specific format
    */
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): AugmentcodeIgnore {
     return new AugmentcodeIgnore({
@@ -66,7 +66,7 @@ export class AugmentcodeIgnore extends ToolIgnore {
    * Reads and parses .augmentignore file
    */
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<AugmentcodeIgnore> {
     const fileContent = await readFileContent(

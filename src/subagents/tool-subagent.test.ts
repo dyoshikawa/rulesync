@@ -85,7 +85,7 @@ describe("ToolSubagent", () => {
 
     it("should throw error when calling fromRulesyncSubagent on base class", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
         fileContent: "---\nname: test\ndescription: test desc\ntargets: [all]\n---\ntest body",
@@ -101,7 +101,7 @@ describe("ToolSubagent", () => {
       expect(() => {
         ToolSubagent.fromRulesyncSubagent({
           rulesyncSubagent,
-          baseDir: ".",
+          baseDir: process.cwd(),
           relativeDirPath: ".test",
         });
       }).toThrow("Please implement this method in the subclass.");
@@ -175,7 +175,7 @@ describe("ToolSubagent", () => {
 
     it("should work with fromRulesyncSubagent static method", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "source.md",
         fileContent:
@@ -262,18 +262,18 @@ describe("ToolSubagent", () => {
     it("should have correct ToolSubagentFromFileParams type", () => {
       const params: ToolSubagentFromFileParams = {
         relativeFilePath: "test.md",
-        baseDir: ".",
+        baseDir: process.cwd(),
         validate: true,
       };
 
       expect(params.relativeFilePath).toBe("test.md");
-      expect(params.baseDir).toBe(".");
+      expect(params.baseDir).toBe(process.cwd());
       expect(params.validate).toBe(true);
     });
 
     it("should have correct ToolSubagentFromRulesyncSubagentParams type", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
         fileContent: "---\nname: test\ndescription: test desc\ntargets: [all]\n---\ntest body",
@@ -288,13 +288,13 @@ describe("ToolSubagent", () => {
 
       const params: ToolSubagentFromRulesyncSubagentParams = {
         rulesyncSubagent,
-        baseDir: ".",
+        baseDir: process.cwd(),
         relativeDirPath: ".test",
         validate: true,
       };
 
       expect(params.rulesyncSubagent).toBe(rulesyncSubagent);
-      expect(params.baseDir).toBe(".");
+      expect(params.baseDir).toBe(process.cwd());
       expect(params.validate).toBe(true);
     });
   });

@@ -244,7 +244,7 @@ describe("WarpRule", () => {
         rulesyncRule,
       });
 
-      expect(warpRule.getBaseDir()).toBe(".");
+      expect(warpRule.getBaseDir()).toBe(process.cwd());
     });
 
     it("should handle validation parameter", () => {

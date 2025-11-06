@@ -124,7 +124,7 @@ describe("RooIgnore", () => {
       });
 
       expect(rooIgnore).toBeInstanceOf(RooIgnore);
-      expect(rooIgnore.getBaseDir()).toBe(".");
+      expect(rooIgnore.getBaseDir()).toBe(process.cwd());
       expect(rooIgnore.getRelativeDirPath()).toBe(".");
       expect(rooIgnore.getRelativeFilePath()).toBe(".rooignore");
       expect(rooIgnore.getFileContent()).toBe(fileContent);
@@ -287,7 +287,7 @@ Thumbs.db`;
 
         const rooIgnore = await RooIgnore.fromFile({});
 
-        expect(rooIgnore.getBaseDir()).toBe(".");
+        expect(rooIgnore.getBaseDir()).toBe(process.cwd());
         expect(rooIgnore.getFileContent()).toBe(fileContent);
       } finally {
         // Restore original cwd
