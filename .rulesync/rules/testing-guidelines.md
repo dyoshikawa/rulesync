@@ -72,5 +72,5 @@ globs: ["**/*.test.ts"]
 - In test, don't change dirs or files out of the project directory even though it's in global mode to make it easier to test some behavior and avoid polluting those.
 - When `NODE_ENV` is `test`:
   - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
-  - `getHomeDirectory()` in `src/utils/file.ts` returns `./tmp/tests/home/{VITEST_WORKER_ID}`.
+  - `getHomeDirectory()` in `src/utils/file.ts` throws an error to enforce explicit mocking.
   - `getBaseDirInLightOfGlobal()` in `src/utils/file.ts` always returns `./{baseDir}` even though it's in global mode.
