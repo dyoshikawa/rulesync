@@ -5,6 +5,7 @@ import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor } from "../../mcp/mcp-processor.js";
 import { RulesProcessor } from "../../rules/rules-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { logger } from "../../utils/logger.js";
 import type { ImportOptions } from "./import.js";
 import { importCommand } from "./import.js";
@@ -21,8 +22,14 @@ vi.mock("../../utils/logger.js");
 describe("importCommand", () => {
   let mockExit: any;
   let mockConfig: any;
+  let testDir: string;
+  let cleanup: () => Promise<void>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Setup test directory following guidelines
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+
     // Mock process.exit
     mockExit = vi.spyOn(process, "exit").mockImplementation(function () {
       throw new Error("Process exit");
@@ -34,7 +41,7 @@ describe("importCommand", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "subagents", "commands"]),
       getGlobal: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getBaseDirs: vi.fn().mockReturnValue([testDir]),
       // Deprecated getter for backward compatibility
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
     };
@@ -92,8 +99,9 @@ describe("importCommand", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
+    await cleanup();
   });
 
   describe("validation", () => {
@@ -134,7 +142,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
@@ -160,7 +168,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
       expect(mockIgnoreProcessor.loadToolFiles).toHaveBeenCalled();
@@ -185,7 +193,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
@@ -214,7 +222,7 @@ describe("importCommand", () => {
       // Verify that getToolTargets was called with includeSimulated: false
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
@@ -243,7 +251,7 @@ describe("importCommand", () => {
       // Verify that getToolTargets was called with includeSimulated: false
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
@@ -438,7 +446,7 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -495,22 +503,22 @@ describe("importCommand", () => {
       await importCommand(options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
       expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
       expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
       expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
