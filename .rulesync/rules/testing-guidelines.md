@@ -43,9 +43,13 @@ globs: ["**/*.test.ts"]
         getHomeDirectoryMock: vi.fn(),
       }
     })
-    vi.mock("src/utils/file.ts", () => ({
-      getHomeDirectory: getHomeDirectoryMock,
-    }));
+    vi.mock("../utils/file.js", async () => {
+      const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+      return {
+        ...actual,
+        getHomeDirectory: getHomeDirectoryMock,
+      };
+    });
 
     describe("Test Name", () => {
       let testDir: string;
