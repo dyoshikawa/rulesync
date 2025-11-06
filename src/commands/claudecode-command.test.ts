@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeCommand, ClaudecodeCommandFrontmatterSchema } from "./claudecode-command.js";
@@ -348,7 +348,8 @@ This is the command body from file`;
     });
 
     it("should use default baseDir when not provided", async () => {
-      const commandsDir = join(".", ".claude", "commands");
+      // Use testDir to ensure we don't create files outside ./tmp
+      const commandsDir = join(testDir, ".claude", "commands");
       await ensureDir(commandsDir);
 
       const fileContent = `---
@@ -359,11 +360,18 @@ Command body`;
       const filePath = join(commandsDir, "default-test.md");
       await writeFileContent(filePath, fileContent);
 
-      const command = await ClaudecodeCommand.fromFile({
-        relativeFilePath: "default-test.md",
-      });
+      // Mock process.cwd() to return testDir
+      const mockCwd = vi.spyOn(process, "cwd").mockReturnValue(testDir);
 
-      expect(command.getBaseDir()).toBe(".");
+      try {
+        const command = await ClaudecodeCommand.fromFile({
+          relativeFilePath: "default-test.md",
+        });
+
+        expect(command.getBaseDir()).toBe(".");
+      } finally {
+        mockCwd.mockRestore();
+      }
     });
 
     it("should throw error for invalid frontmatter", async () => {
