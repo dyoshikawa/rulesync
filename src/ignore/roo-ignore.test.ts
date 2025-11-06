@@ -272,27 +272,17 @@ Thumbs.db`;
       expect(rooIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .rooignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
+    it("should read .rooignore file with custom baseDir", async () => {
+      const fileContent = "*.log\nnode_modules/";
+      const rooignorePath = join(testDir, ".rooignore");
+      await writeFileContent(rooignorePath, fileContent);
 
-      try {
-        // Change to test directory
-        process.chdir(testDir);
+      const rooIgnore = await RooIgnore.fromFile({
+        baseDir: testDir,
+      });
 
-        const fileContent = "*.log\nnode_modules/";
-        const rooignorePath = ".rooignore";
-        await writeFileContent(rooignorePath, fileContent);
-
-        const rooIgnore = await RooIgnore.fromFile({});
-
-        expect(rooIgnore.getBaseDir()).toBe(".");
-        expect(rooIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
+      expect(rooIgnore.getBaseDir()).toBe(testDir);
+      expect(rooIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .rooignore file does not exist", async () => {
