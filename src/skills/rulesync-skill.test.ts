@@ -1,9 +1,22 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, getHomeDirectory, writeFileContent } from "../utils/file.js";
+import { ensureDir, writeFileContent } from "../utils/file.js";
 import type { RulesyncSkillFrontmatter } from "./rulesync-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterSchema } from "./rulesync-skill.js";
+
+const { getHomeDirectoryMock } = vi.hoisted(() => {
+  return {
+    getHomeDirectoryMock: vi.fn(),
+  };
+});
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  return {
+    ...actual,
+    getHomeDirectory: getHomeDirectoryMock,
+  };
+});
 
 describe("RulesyncSkillFrontmatterSchema", () => {
   it("should accept valid frontmatter with required fields", () => {
@@ -428,7 +441,6 @@ It can contain multiple lines and markdown.`;
       const helperFilePath = join(skillDir, "helper.py");
       const templateFilePath = join(skillDir, "templates", "template.txt");
 
-
       const skillContent = `---
 name: skill-with-files
 description: A skill with additional files
@@ -456,7 +468,6 @@ Use the helper script and template.`;
       const skillDir = join(testDir, ".rulesync", "skills", "exclude-skill-md");
       const skillFilePath = join(skillDir, "SKILL.md");
       const otherFilePath = join(skillDir, "other.md");
-
 
       await writeFileContent(
         skillFilePath,
@@ -509,8 +520,21 @@ Body`;
   });
 
   describe("fromFile - Global Skills", () => {
+    let homeTestDir: string;
+    let homeCleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir: homeTestDir, cleanup: homeCleanup } = await setupTestDirectory({ home: true }));
+      getHomeDirectoryMock.mockReturnValue(homeTestDir);
+    });
+
+    afterEach(async () => {
+      await homeCleanup();
+      getHomeDirectoryMock.mockClear();
+    });
+
     it("should create instance from valid Global Skill file", async () => {
-      const homeDir = getHomeDirectory();
+      const homeDir = homeTestDir;
       const skillDir = join(homeDir, ".rulesync", "skills", "global-test-skill");
       const skillFilePath = join(skillDir, "SKILL.md");
 
@@ -536,7 +560,7 @@ This is a global skill body.`;
     });
 
     it("should handle global skill with additional files", async () => {
-      const homeDir = getHomeDirectory();
+      const homeDir = homeTestDir;
       const skillDir = join(homeDir, ".rulesync", "skills", "global-skill-with-files");
       const skillFilePath = join(skillDir, "SKILL.md");
       const helperFilePath = join(skillDir, "global-helper.sh");
@@ -574,10 +598,17 @@ Use the helper script.`,
       expect(paths.relativeDirPath).toBe(".rulesync/skills");
     });
 
-    it("should return global paths when global=true", () => {
-      const paths = RulesyncSkill.getSettablePaths(true);
-      const homeDir = getHomeDirectory();
-      expect(paths.relativeDirPath).toBe(join(homeDir, ".rulesync", "skills"));
+    it("should return global paths when global=true", async () => {
+      const { testDir: mockHomeDir, cleanup } = await setupTestDirectory({ home: true });
+      getHomeDirectoryMock.mockReturnValue(mockHomeDir);
+
+      try {
+        const paths = RulesyncSkill.getSettablePaths(true);
+        expect(paths.relativeDirPath).toBe(join(mockHomeDir, ".rulesync", "skills"));
+      } finally {
+        await cleanup();
+        getHomeDirectoryMock.mockClear();
+      }
     });
   });
 
