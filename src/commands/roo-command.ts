@@ -86,7 +86,7 @@ export class RooCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): RooCommand {
@@ -138,7 +138,7 @@ export class RooCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<RooCommand> {
