@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { AmazonQCliRule } from "./amazonqcli-rule.js";
@@ -11,10 +11,12 @@ describe("AmazonQCliRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -95,27 +97,21 @@ describe("AmazonQCliRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const rulesDir = join(".", ".amazonq/rules");
+      // Setup test file in test directory (process.cwd() is mocked to return testDir)
+      const rulesDir = join(testDir, ".amazonq/rules");
       await ensureDir(rulesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      try {
-        const amazonQCliRule = await AmazonQCliRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
+      const amazonQCliRule = await AmazonQCliRule.fromFile({
+        relativeFilePath: "default-test.md",
+      });
 
-        expect(amazonQCliRule.getRelativeDirPath()).toBe(".amazonq/rules");
-        expect(amazonQCliRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(amazonQCliRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(rulesDir, { recursive: true, force: true }),
-        );
-      }
+      expect(amazonQCliRule.getRelativeDirPath()).toBe(".amazonq/rules");
+      expect(amazonQCliRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(amazonQCliRule.getFileContent()).toBe(testContent);
+      expect(amazonQCliRule.getFilePath()).toBe(join(testDir, ".amazonq/rules/default-test.md"));
     });
 
     it("should handle validation parameter", async () => {

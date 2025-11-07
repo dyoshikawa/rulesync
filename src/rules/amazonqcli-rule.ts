@@ -23,7 +23,7 @@ export class AmazonQCliRule extends ToolRule {
     };
   }
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AmazonQCliRule> {
@@ -42,7 +42,7 @@ export class AmazonQCliRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AmazonQCliRule {
