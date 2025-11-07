@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeCommand, ClaudecodeCommandFrontmatterSchema } from "./claudecode-command.js";
@@ -360,8 +360,9 @@ Command body`;
       const filePath = join(commandsDir, "default-test.md");
       await writeFileContent(filePath, fileContent);
 
-      // Mock process.cwd() to return testDir
-      const mockCwd = vi.spyOn(process, "cwd").mockReturnValue(testDir);
+      // Change to testDir so baseDir defaults to "." which resolves to testDir
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
       try {
         const command = await ClaudecodeCommand.fromFile({
@@ -370,7 +371,7 @@ Command body`;
 
         expect(command.getBaseDir()).toBe(".");
       } finally {
-        mockCwd.mockRestore();
+        process.chdir(originalCwd);
       }
     });
 
