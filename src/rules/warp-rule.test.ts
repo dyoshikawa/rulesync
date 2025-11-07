@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
@@ -11,6 +11,7 @@ describe("WarpRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -20,6 +21,7 @@ describe("WarpRule", () => {
   describe("constructor", () => {
     it("should create a WarpRule with basic parameters", () => {
       const params: WarpRuleParams = {
+        baseDir: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Warp Rule\n\nThis is a test warp rule.",
@@ -36,6 +38,7 @@ describe("WarpRule", () => {
 
     it("should create a WarpRule with root parameter set to true", () => {
       const params: WarpRuleParams = {
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
         fileContent: "# Root Warp Rule\n\nThis is a root warp rule.",
@@ -50,6 +53,7 @@ describe("WarpRule", () => {
 
     it("should create a WarpRule with root parameter set to false", () => {
       const params: WarpRuleParams = {
+        baseDir: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "memory.md",
         fileContent: "# Memory Rule\n\nThis is a memory rule.",
@@ -63,6 +67,7 @@ describe("WarpRule", () => {
 
     it("should default root to false when not provided", () => {
       const params: WarpRuleParams = {
+        baseDir: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "test.md",
         fileContent: "# Test\n\nContent",
@@ -185,6 +190,7 @@ describe("WarpRule", () => {
       };
 
       const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
         frontmatter,
@@ -209,6 +215,7 @@ describe("WarpRule", () => {
       };
 
       const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "memory.md",
         frontmatter,
@@ -234,6 +241,7 @@ describe("WarpRule", () => {
       };
 
       const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
         frontmatter,
@@ -241,10 +249,11 @@ describe("WarpRule", () => {
       });
 
       const warpRule = WarpRule.fromRulesyncRule({
+        baseDir: testDir,
         rulesyncRule,
       });
 
-      expect(warpRule.getBaseDir()).toBe(".");
+      expect(warpRule.getBaseDir()).toBe(testDir);
     });
 
     it("should handle validation parameter", () => {
@@ -254,6 +263,7 @@ describe("WarpRule", () => {
       };
 
       const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
         frontmatter,
@@ -261,6 +271,7 @@ describe("WarpRule", () => {
       });
 
       const warpRule = WarpRule.fromRulesyncRule({
+        baseDir: testDir,
         rulesyncRule,
         validate: false,
       });
@@ -272,6 +283,7 @@ describe("WarpRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert WarpRule to RulesyncRule", () => {
       const warpRule = new WarpRule({
+        baseDir: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "test.md",
         fileContent: "# Test Rule\n\nTest content",
@@ -287,6 +299,7 @@ describe("WarpRule", () => {
 
     it("should convert root WarpRule to RulesyncRule", () => {
       const warpRule = new WarpRule({
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
         fileContent: "# Root Rule\n\nRoot content",
@@ -305,6 +318,7 @@ describe("WarpRule", () => {
   describe("validate", () => {
     it("should always return success true", () => {
       const warpRule = new WarpRule({
+        baseDir: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "test.md",
         fileContent: "# Test",
@@ -318,6 +332,7 @@ describe("WarpRule", () => {
 
     it("should return success true even with empty content", () => {
       const warpRule = new WarpRule({
+        baseDir: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "empty.md",
         fileContent: "",
@@ -331,6 +346,7 @@ describe("WarpRule", () => {
 
     it("should return success true for root file", () => {
       const warpRule = new WarpRule({
+        baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
         fileContent: "# Root Content",
