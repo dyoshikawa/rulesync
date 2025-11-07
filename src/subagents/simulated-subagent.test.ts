@@ -53,6 +53,7 @@ Body content`;
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
