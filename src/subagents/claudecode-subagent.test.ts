@@ -638,28 +638,19 @@ describe("ClaudecodeSubagent", () => {
       const body = "Agent content";
       const fileContent = stringifyFrontmatter(body, frontmatter);
 
-      // Create the file in current directory
-      const agentsDir = join(".", ".claude", "agents");
+      // Create the file in test directory
+      const agentsDir = join(testDir, ".claude", "agents");
       const filePath = join(agentsDir, "default-base-agent.md");
 
       await writeFileContent(filePath, fileContent);
 
-      try {
-        const subagent = await ClaudecodeSubagent.fromFile({
-          relativeFilePath: "default-base-agent.md",
-          validate: true,
-        });
+      const subagent = await ClaudecodeSubagent.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "default-base-agent.md",
+        validate: true,
+      });
 
-        expect(subagent.getBaseDir()).toBe(".");
-      } finally {
-        // Clean up the file in current directory
-        const fs = await import("node:fs/promises");
-        try {
-          await fs.rm(agentsDir, { recursive: true, force: true });
-        } catch {
-          // Ignore errors during cleanup
-        }
-      }
+      expect(subagent.getBaseDir()).toBe(testDir);
     });
 
     it("should throw error for file with invalid frontmatter", async () => {
