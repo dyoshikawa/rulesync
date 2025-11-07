@@ -37,10 +37,7 @@
   "remoteUser": "node",
   "mounts": [
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
-    "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume",
-    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
-    "source=node-modules-${devcontainerId},target=/workspace/node_modules,type=volume",
-    "source=pnpm-store-${devcontainerId},target=/workspace/.pnpm-store,type=volume"
+    "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume"
   ],
   "remoteEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
@@ -54,6 +51,7 @@
     "OCO_API_URL": "${localEnv:DEVCONTAINER_OCO_API_URL}",
     "OCO_MODEL": "${localEnv:DEVCONTAINER_OCO_MODEL}"
   },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
   "postCreateCommand": "init.sh"
 }
