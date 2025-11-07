@@ -435,7 +435,7 @@ describe("RulesProcessor", () => {
   describe("loadToolFilesToDelete", () => {
     it("should return the same files as loadToolFiles", async () => {
       await writeFileContent(
-        join(testDir, ".claude", "README.md"),
+        join(testDir, "CLAUDE.md"),
         "# Root\n\n@.claude/memories/memory1.md\n@.claude/memories/memory2.md",
       );
       await ensureDir(join(testDir, ".claude", "memories"));
