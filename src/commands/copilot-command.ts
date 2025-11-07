@@ -72,7 +72,7 @@ export class CopilotCommand extends ToolCommand {
     const relativeFilePath = originalFilePath.replace(/\.prompt\.md$/, ".md");
 
     return new RulesyncCommand({
-      baseDir: process.cwd(),
+      baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
