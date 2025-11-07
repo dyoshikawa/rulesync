@@ -3,7 +3,6 @@ import { AiFile, AiFileParams } from "./ai-file.js";
 export type RulesyncFileParams = AiFileParams;
 
 export type RulesyncFileFromFileParams = {
-  baseDir?: string;
   relativeFilePath: string;
   validate?: boolean;
 };

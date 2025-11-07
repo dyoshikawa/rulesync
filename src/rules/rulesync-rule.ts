@@ -108,17 +108,11 @@ export class RulesyncRule extends RulesyncFile {
   }
 
   static async fromFileLegacy({
-    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const legacyPath = join(
-      baseDir,
-      this.getSettablePaths().legacy.relativeDirPath,
-      relativeFilePath,
-    );
+    const legacyPath = join(this.getSettablePaths().legacy.relativeDirPath, relativeFilePath);
     const recommendedPath = join(
-      baseDir,
       this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath,
     );
@@ -147,7 +141,7 @@ export class RulesyncRule extends RulesyncFile {
     const filename = basename(legacyPath);
 
     return new RulesyncRule({
-      baseDir,
+      baseDir: ".",
       relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,
@@ -157,15 +151,10 @@ export class RulesyncRule extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = ".",
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const filePath = join(
-      baseDir,
-      this.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath,
-    );
+    const filePath = join(this.getSettablePaths().recommended.relativeDirPath, relativeFilePath);
 
     // Read file content
     const fileContent = await readFileContent(filePath);
@@ -189,7 +178,7 @@ export class RulesyncRule extends RulesyncFile {
     const filename = basename(filePath);
 
     return new RulesyncRule({
-      baseDir,
+      baseDir: ".",
       relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: filename,
       frontmatter: validatedFrontmatter,

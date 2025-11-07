@@ -244,19 +244,26 @@ It can span multiple lines.`;
       const filePath = join(rulesDir, "test-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "test-rule.md",
-      });
+      // Change working directory to testDir temporarily
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getFrontmatter()).toEqual({
-        root: true,
-        targets: ["copilot", "cursor"],
-        description: "Test rule from file",
-        globs: ["*.ts", "*.tsx"],
-        cursor: undefined,
-      });
-      expect(rule.getBody()).toBe("This is the rule body content.\nIt can span multiple lines.");
+      try {
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "test-rule.md",
+        });
+
+        expect(rule.getFrontmatter()).toEqual({
+          root: true,
+          targets: ["copilot", "cursor"],
+          description: "Test rule from file",
+          globs: ["*.ts", "*.tsx"],
+          cursor: undefined,
+        });
+        expect(rule.getBody()).toBe("This is the rule body content.\nIt can span multiple lines.");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should apply default values for missing frontmatter fields", async () => {
@@ -272,19 +279,25 @@ Rule body`;
       const filePath = join(rulesDir, "minimal-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "minimal-rule.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getFrontmatter()).toEqual({
-        root: false,
-        targets: ["*"],
-        description: "Minimal rule",
-        globs: [],
-        cursor: undefined,
-      });
-      expect(rule.getBody()).toBe("Rule body");
+      try {
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "minimal-rule.md",
+        });
+
+        expect(rule.getFrontmatter()).toEqual({
+          root: false,
+          targets: ["*"],
+          description: "Minimal rule",
+          globs: [],
+          cursor: undefined,
+        });
+        expect(rule.getBody()).toBe("Rule body");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should throw error for invalid frontmatter", async () => {
@@ -301,12 +314,18 @@ Invalid rule`;
       const filePath = join(rulesDir, "invalid-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      await expect(
-        RulesyncRule.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "invalid-rule.md",
-        }),
-      ).rejects.toThrow("Invalid frontmatter");
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
+
+      try {
+        await expect(
+          RulesyncRule.fromFile({
+            relativeFilePath: "invalid-rule.md",
+          }),
+        ).rejects.toThrow("Invalid frontmatter");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should handle cursor configuration in frontmatter", async () => {
@@ -330,16 +349,22 @@ Cursor-specific rule body`;
       const filePath = join(rulesDir, "cursor-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "cursor-rule.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getFrontmatter().cursor).toEqual({
-        alwaysApply: true,
-        description: "Always apply cursor config",
-        globs: ["src/**/*.ts"],
-      });
+      try {
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "cursor-rule.md",
+        });
+
+        expect(rule.getFrontmatter().cursor).toEqual({
+          alwaysApply: true,
+          description: "Always apply cursor config",
+          globs: ["src/**/*.ts"],
+        });
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should handle agentsmd configuration in frontmatter", async () => {
@@ -361,22 +386,28 @@ Subproject-specific rule body`;
       const filePath = join(rulesDir, "agentsmd-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "agentsmd-rule.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getFrontmatter()).toEqual({
-        root: false,
-        targets: ["agentsmd", "codexcli"],
-        description: "Subproject rule",
-        globs: [],
-        cursor: undefined,
-        agentsmd: {
-          subprojectPath: "packages/my-app",
-        },
-      });
-      expect(rule.getBody()).toBe("Subproject-specific rule body");
+      try {
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "agentsmd-rule.md",
+        });
+
+        expect(rule.getFrontmatter()).toEqual({
+          root: false,
+          targets: ["agentsmd", "codexcli"],
+          description: "Subproject rule",
+          globs: [],
+          cursor: undefined,
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        });
+        expect(rule.getBody()).toBe("Subproject-specific rule body");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should trim whitespace from body content", async () => {
@@ -395,12 +426,18 @@ This has leading and trailing whitespace.
       const filePath = join(rulesDir, "whitespace-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "whitespace-rule.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getBody()).toBe("This has leading and trailing whitespace.");
+      try {
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "whitespace-rule.md",
+        });
+
+        expect(rule.getBody()).toBe("This has leading and trailing whitespace.");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
   });
 
@@ -421,19 +458,25 @@ Legacy rule body`;
       const filePath = join(legacyRulesDir, "legacy-rule.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFileLegacy({
-        baseDir: testDir,
-        relativeFilePath: "legacy-rule.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getFrontmatter()).toEqual({
-        root: true,
-        targets: ["copilot"],
-        description: "Legacy rule",
-        globs: [],
-        cursor: undefined,
-      });
-      expect(rule.getBody()).toBe("Legacy rule body");
+      try {
+        const rule = await RulesyncRule.fromFileLegacy({
+          relativeFilePath: "legacy-rule.md",
+        });
+
+        expect(rule.getFrontmatter()).toEqual({
+          root: true,
+          targets: ["copilot"],
+          description: "Legacy rule",
+          globs: [],
+          cursor: undefined,
+        });
+        expect(rule.getBody()).toBe("Legacy rule body");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should apply default values in legacy loader", async () => {
@@ -448,19 +491,25 @@ Empty frontmatter legacy rule`;
       const filePath = join(legacyRulesDir, "empty-legacy.md");
       await writeFileContent(filePath, ruleContent);
 
-      const rule = await RulesyncRule.fromFileLegacy({
-        baseDir: testDir,
-        relativeFilePath: "empty-legacy.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      expect(rule.getFrontmatter()).toEqual({
-        root: false,
-        targets: ["*"],
-        description: "",
-        globs: [],
-        cursor: undefined,
-      });
-      expect(rule.getBody()).toBe("Empty frontmatter legacy rule");
+      try {
+        const rule = await RulesyncRule.fromFileLegacy({
+          relativeFilePath: "empty-legacy.md",
+        });
+
+        expect(rule.getFrontmatter()).toEqual({
+          root: false,
+          targets: ["*"],
+          description: "",
+          globs: [],
+          cursor: undefined,
+        });
+        expect(rule.getBody()).toBe("Empty frontmatter legacy rule");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it("should throw error for invalid legacy frontmatter", async () => {
@@ -477,12 +526,18 @@ Invalid legacy rule`;
       const filePath = join(legacyRulesDir, "invalid-legacy.md");
       await writeFileContent(filePath, ruleContent);
 
-      await expect(
-        RulesyncRule.fromFileLegacy({
-          baseDir: testDir,
-          relativeFilePath: "invalid-legacy.md",
-        }),
-      ).rejects.toThrow("Invalid frontmatter");
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
+
+      try {
+        await expect(
+          RulesyncRule.fromFileLegacy({
+            relativeFilePath: "invalid-legacy.md",
+          }),
+        ).rejects.toThrow("Invalid frontmatter");
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
   });
 
@@ -678,45 +733,55 @@ export interface ExampleInterface {
       const filePath = join(rulesDir, "integration-test.md");
       await writeFileContent(filePath, ruleContent);
 
-      // Test loading from file
-      const rule = await RulesyncRule.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "integration-test.md",
-      });
+      const originalCwd = process.cwd();
+      process.chdir(testDir);
 
-      // Validate frontmatter
-      expect(rule.getFrontmatter().root).toBe(true);
-      expect(rule.getFrontmatter().targets).toEqual(["copilot", "cursor", "cline"]);
-      expect(rule.getFrontmatter().description).toBe("Comprehensive integration test rule");
-      expect(rule.getFrontmatter().globs).toEqual(["src/**/*.ts", "src/**/*.tsx", "!**/*.test.ts"]);
-      expect(rule.getFrontmatter().cursor).toEqual({
-        alwaysApply: true,
-        description: "Special cursor behavior",
-        globs: ["components/**/*.tsx"],
-      });
+      try {
+        // Test loading from file
+        const rule = await RulesyncRule.fromFile({
+          relativeFilePath: "integration-test.md",
+        });
 
-      // Validate body content
-      const body = rule.getBody();
-      expect(body).toContain("# Integration Test Rule");
-      expect(body).toContain("Follow TypeScript best practices");
-      expect(body).toContain("export interface ExampleInterface");
+        // Validate frontmatter
+        expect(rule.getFrontmatter().root).toBe(true);
+        expect(rule.getFrontmatter().targets).toEqual(["copilot", "cursor", "cline"]);
+        expect(rule.getFrontmatter().description).toBe("Comprehensive integration test rule");
+        expect(rule.getFrontmatter().globs).toEqual([
+          "src/**/*.ts",
+          "src/**/*.tsx",
+          "!**/*.test.ts",
+        ]);
+        expect(rule.getFrontmatter().cursor).toEqual({
+          alwaysApply: true,
+          description: "Special cursor behavior",
+          globs: ["components/**/*.tsx"],
+        });
 
-      // Test validation
-      const validationResult = rule.validate();
-      expect(validationResult.success).toBe(true);
-      expect(validationResult.error).toBeNull();
+        // Validate body content
+        const body = rule.getBody();
+        expect(body).toContain("# Integration Test Rule");
+        expect(body).toContain("Follow TypeScript best practices");
+        expect(body).toContain("export interface ExampleInterface");
 
-      // Test that the rule can be recreated with constructor
-      const recreatedRule = new RulesyncRule({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
-        relativeFilePath: "integration-test.md",
-        frontmatter: rule.getFrontmatter(),
-        body: rule.getBody(),
-      });
+        // Test validation
+        const validationResult = rule.validate();
+        expect(validationResult.success).toBe(true);
+        expect(validationResult.error).toBeNull();
 
-      expect(recreatedRule.getFrontmatter()).toEqual(rule.getFrontmatter());
-      expect(recreatedRule.getBody()).toBe(rule.getBody());
+        // Test that the rule can be recreated with constructor
+        const recreatedRule = new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: ".rulesync/rules",
+          relativeFilePath: "integration-test.md",
+          frontmatter: rule.getFrontmatter(),
+          body: rule.getBody(),
+        });
+
+        expect(recreatedRule.getFrontmatter()).toEqual(rule.getFrontmatter());
+        expect(recreatedRule.getBody()).toBe(rule.getBody());
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
   });
 });
