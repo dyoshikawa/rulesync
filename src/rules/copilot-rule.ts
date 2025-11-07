@@ -73,11 +73,20 @@ export class CopilotRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
+    // Convert applyTo field to globs array
+    let globs: string[] | undefined;
+    if (this.isRoot()) {
+      globs = ["**/*"];
+    } else if (this.frontmatter.applyTo) {
+      // Split comma-separated glob patterns
+      globs = this.frontmatter.applyTo.split(",").map((g) => g.trim());
+    }
+
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets: ["*"],
       root: this.isRoot(),
       description: this.frontmatter.description,
-      globs: this.isRoot() ? ["**/*"] : [],
+      globs,
     };
 
     // Strip .instructions.md extension and normalize to .md
