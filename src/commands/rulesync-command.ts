@@ -102,7 +102,7 @@ export class RulesyncCommand extends RulesyncFile {
     const filename = basename(relativeFilePath);
 
     return new RulesyncCommand({
-      baseDir: ".",
+      baseDir: process.cwd(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: filename,
       frontmatter: result.data,
