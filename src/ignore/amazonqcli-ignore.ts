@@ -62,7 +62,7 @@ export class AmazonqcliIgnore extends ToolIgnore {
    * Supports both proposed .q-ignore and .amazonqignore formats
    */
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<AmazonqcliIgnore> {
     const fileContent = await readFileContent(

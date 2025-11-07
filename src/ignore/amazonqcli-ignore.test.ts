@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { AmazonqcliIgnore } from "./amazonqcli-ignore.js";
@@ -11,10 +11,12 @@ describe("AmazonqcliIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -321,27 +323,16 @@ q-temp/`;
       expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .amazonqignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
+    it("should default baseDir to process.cwd() when not provided", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
+      const fileContent = "*.log\nnode_modules/";
+      const amazonqignorePath = join(testDir, ".amazonqignore");
+      await writeFileContent(amazonqignorePath, fileContent);
 
-      try {
-        // Change to test directory
-        process.chdir(testDir);
+      const amazonqcliIgnore = await AmazonqcliIgnore.fromFile({});
 
-        const fileContent = "*.log\nnode_modules/";
-        const amazonqignorePath = ".amazonqignore";
-        await writeFileContent(amazonqignorePath, fileContent);
-
-        const amazonqcliIgnore = await AmazonqcliIgnore.fromFile({});
-
-        expect(amazonqcliIgnore.getBaseDir()).toBe(".");
-        expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
+      expect(amazonqcliIgnore.getBaseDir()).toBe(testDir);
+      expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .amazonqignore file does not exist", async () => {
