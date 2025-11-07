@@ -132,22 +132,17 @@ describe("OpenCodeRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory - for root AGENTS.md, it should be at baseDir/AGENTS.md
+      // Setup test file in test directory - process.cwd() is mocked to return testDir
       const testContent = "# Default BaseDir Test";
-      await writeFileContent("AGENTS.md", testContent);
+      await writeFileContent(join(testDir, "AGENTS.md"), testContent);
 
-      try {
-        const opencodeRule = await OpenCodeRule.fromFile({
-          relativeFilePath: "AGENTS.md",
-        });
+      const opencodeRule = await OpenCodeRule.fromFile({
+        relativeFilePath: "AGENTS.md",
+      });
 
-        expect(opencodeRule.getRelativeDirPath()).toBe(".");
-        expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
-        expect(opencodeRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) => fs.rm("AGENTS.md", { force: true }));
-      }
+      expect(opencodeRule.getRelativeDirPath()).toBe(".");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(opencodeRule.getFileContent()).toBe(testContent);
     });
 
     it("should handle validation parameter", async () => {

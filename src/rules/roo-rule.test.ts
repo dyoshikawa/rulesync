@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { RooRule } from "./roo-rule.js";
@@ -95,12 +95,15 @@ describe("RooRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const rulesDir = join(".", ".roo/rules");
+      // Setup test file using testDir
+      const rulesDir = join(testDir, ".roo/rules");
       await ensureDir(rulesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
+
+      // Mock process.cwd() to return testDir
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
 
       try {
         const rooRule = await RooRule.fromFile({
@@ -110,11 +113,9 @@ describe("RooRule", () => {
         expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
         expect(rooRule.getRelativeFilePath()).toBe("default-test.md");
         expect(rooRule.getFileContent()).toBe(testContent);
+        expect(rooRule.getFilePath()).toBe(join(testDir, ".roo/rules/default-test.md"));
       } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(rulesDir, { recursive: true, force: true }),
-        );
+        cwdSpy.mockRestore();
       }
     });
 

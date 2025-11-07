@@ -35,7 +35,7 @@ export class RooRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<RooRule> {
@@ -54,7 +54,7 @@ export class RooRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): RooRule {
