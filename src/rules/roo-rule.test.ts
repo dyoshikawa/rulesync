@@ -11,10 +11,12 @@ describe("RooRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -102,21 +104,15 @@ describe("RooRule", () => {
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      // Mock process.cwd() to return testDir
-      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
+      // process.cwd() is already mocked in beforeEach
+      const rooRule = await RooRule.fromFile({
+        relativeFilePath: "default-test.md",
+      });
 
-      try {
-        const rooRule = await RooRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
-
-        expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
-        expect(rooRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(rooRule.getFileContent()).toBe(testContent);
-        expect(rooRule.getFilePath()).toBe(join(testDir, ".roo/rules/default-test.md"));
-      } finally {
-        cwdSpy.mockRestore();
-      }
+      expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
+      expect(rooRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(rooRule.getFileContent()).toBe(testContent);
+      expect(rooRule.getFilePath()).toBe(join(testDir, ".roo/rules/default-test.md"));
     });
 
     it("should handle validation parameter", async () => {
