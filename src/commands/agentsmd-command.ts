@@ -18,7 +18,7 @@ export class AgentsmdCommand extends SimulatedCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): AgentsmdCommand {
@@ -28,7 +28,7 @@ export class AgentsmdCommand extends SimulatedCommand {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<AgentsmdCommand> {
