@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
@@ -15,10 +15,12 @@ describe("RulesyncMcp", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -719,22 +721,13 @@ describe("RulesyncMcp", () => {
       // Create directory structure and file
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData, null, 2));
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true, baseDir: testDir });
 
-      // Change working directory to test directory temporarily
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
-
-        expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-        expect(rulesyncMcp.getJson()).toEqual(jsonData);
-        expect(rulesyncMcp.getBaseDir()).toBe(".");
-        expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
-        expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
+      expect(rulesyncMcp.getJson()).toEqual(jsonData);
+      expect(rulesyncMcp.getBaseDir()).toBe(testDir);
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should create RulesyncMcp from file with validation disabled", async () => {
@@ -750,18 +743,10 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData));
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: false, baseDir: testDir });
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        const rulesyncMcp = await RulesyncMcp.fromFile({ validate: false });
-
-        expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-        expect(rulesyncMcp.getJson()).toEqual(jsonData);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
+      expect(rulesyncMcp.getJson()).toEqual(jsonData);
     });
 
     it("should use validation by default", async () => {
@@ -772,18 +757,10 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData));
+      const rulesyncMcp = await RulesyncMcp.fromFile({ baseDir: testDir });
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        const rulesyncMcp = await RulesyncMcp.fromFile({});
-
-        expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-        expect(rulesyncMcp.getJson()).toEqual(jsonData);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
+      expect(rulesyncMcp.getJson()).toEqual(jsonData);
     });
 
     it("should handle complex MCP server configurations", async () => {
@@ -821,28 +798,13 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, JSON.stringify(complexMcpData, null, 2));
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true, baseDir: testDir });
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
-
-        expect(rulesyncMcp.getJson()).toEqual(complexMcpData);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncMcp.getJson()).toEqual(complexMcpData);
     });
 
     it("should throw error if file does not exist", async () => {
-      const originalCwd = process.cwd();
-      process.chdir(testDir); // Change to empty test directory
-
-      try {
-        await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow();
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(RulesyncMcp.fromFile({ validate: true, baseDir: testDir })).rejects.toThrow();
     });
 
     it("should throw error for invalid JSON in file", async () => {
@@ -851,15 +813,9 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, invalidJson);
-
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(RulesyncMcp.fromFile({ validate: true, baseDir: testDir })).rejects.toThrow(
+        SyntaxError,
+      );
     });
 
     it("should handle empty file", async () => {
@@ -867,15 +823,9 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, "");
-
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(RulesyncMcp.fromFile({ validate: true, baseDir: testDir })).rejects.toThrow(
+        SyntaxError,
+      );
     });
 
     it("should handle file with only whitespace", async () => {
@@ -883,15 +833,9 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(mcpJsonPath, "   \n\t  \n  ");
-
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(RulesyncMcp.fromFile({ validate: true, baseDir: testDir })).rejects.toThrow(
+        SyntaxError,
+      );
     });
 
     it("should prefer recommended path over legacy when both exist", async () => {
@@ -919,18 +863,10 @@ describe("RulesyncMcp", () => {
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(recommendedPath, JSON.stringify(recommendedData));
       await writeFileContent(legacyPath, JSON.stringify(legacyData));
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true, baseDir: testDir });
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
-
-        expect(rulesyncMcp.getJson()).toEqual(recommendedData);
-        expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncMcp.getJson()).toEqual(recommendedData);
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should use legacy path when recommended does not exist", async () => {
@@ -947,29 +883,14 @@ describe("RulesyncMcp", () => {
 
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(legacyPath, JSON.stringify(legacyData));
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true, baseDir: testDir });
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
-
-        expect(rulesyncMcp.getJson()).toEqual(legacyData);
-        expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncMcp.getJson()).toEqual(legacyData);
+      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
     });
 
     it("should use recommended path when neither exists (for error message)", async () => {
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow();
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(RulesyncMcp.fromFile({ validate: true, baseDir: testDir })).rejects.toThrow();
     });
   });
 

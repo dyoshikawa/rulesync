@@ -60,6 +60,7 @@ export type RulesyncMcpParams = RulesyncFileParams & {
 
 export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate"> & {
   modularMcp?: boolean;
+  baseDir?: string;
 };
 
 export type RulesyncMcpSettablePaths = {
@@ -122,19 +123,21 @@ export class RulesyncMcp extends RulesyncFile {
   static async fromFile({
     validate = true,
     modularMcp = false,
-  }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
+    baseDir = process.cwd(),
+  }: RulesyncMcpFromFileParams = {}): Promise<RulesyncMcp> {
     const paths = this.getSettablePaths();
     const recommendedPath = join(
+      baseDir,
       paths.recommended.relativeDirPath,
       paths.recommended.relativeFilePath,
     );
-    const legacyPath = join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
+    const legacyPath = join(baseDir, paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
 
     // Check if recommended path exists
     if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncMcp({
-        baseDir: process.cwd(),
+        baseDir,
         relativeDirPath: paths.recommended.relativeDirPath,
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
@@ -150,7 +153,7 @@ export class RulesyncMcp extends RulesyncFile {
       );
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncMcp({
-        baseDir: process.cwd(),
+        baseDir,
         relativeDirPath: paths.legacy.relativeDirPath,
         relativeFilePath: paths.legacy.relativeFilePath,
         fileContent,
@@ -162,7 +165,7 @@ export class RulesyncMcp extends RulesyncFile {
     // If neither exists, try to read recommended path (will throw appropriate error)
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncMcp({
-      baseDir: process.cwd(),
+      baseDir,
       relativeDirPath: paths.recommended.relativeDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
