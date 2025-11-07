@@ -1,8 +1,15 @@
 {
     "cache": {
-        "useCache": true
+        "useCache": true,
+        "cacheLocation": ".cspellcache"
     },
     "useGitignore": true,
+    "files": [
+        "**/*.{ts,tsx,js,jsx,mjs,cjs}",
+        "**/*.{json,yaml,yml}",
+        "**/*.md",
+        "*.{json,yaml,yml,md}"
+    ],
     "ignorePaths": [
         "coverage/**",
         "dist/**",
