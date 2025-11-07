@@ -60,7 +60,7 @@ export class ModularMcp extends AiFile {
     }:
       | { baseDir: string; global: false; relativeDirPath?: undefined }
       | { baseDir: string; global: true; relativeDirPath: string } = {
-      baseDir: ".",
+      baseDir: process.cwd(),
       global: false,
       relativeDirPath: undefined,
     },
@@ -95,7 +95,7 @@ export class ModularMcp extends AiFile {
   }
 
   static fromRulesyncMcp({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,
