@@ -13,13 +13,14 @@ import tseslint from "typescript-eslint";
 export default defineConfig([
   {
     ignores: [
-      "node_modules/",
-      "dist/",
-      "coverage/",
-      "*.config.js",
-      "*.config.mjs",
-      ".lintstagedrc.js",
-      "eslint-plugin-*.js",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/coverage/**",
+      "**/*.config.js",
+      "**/*.config.mjs",
+      "**/.lintstagedrc.js",
+      "**/eslint-plugin-*.js",
+      "**/tmp/**",
     ],
   },
 
