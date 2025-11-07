@@ -34,6 +34,7 @@ Body content`;
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -227,7 +228,6 @@ Body content`;
       });
 
       const copilotCommand = CopilotCommand.fromRulesyncCommand({
-        baseDir: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -257,7 +257,6 @@ Body content`;
       });
 
       const copilotCommand = CopilotCommand.fromRulesyncCommand({
-        baseDir: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -280,7 +279,6 @@ Body content`;
       });
 
       const copilotCommand = CopilotCommand.fromRulesyncCommand({
-        baseDir: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -300,7 +298,6 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await CopilotCommand.fromFile({
-        baseDir: testDir,
         relativeFilePath: "test-file-command.prompt.md",
         validate: true,
       });
@@ -323,7 +320,6 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await CopilotCommand.fromFile({
-        baseDir: testDir,
         relativeFilePath: "subdir/nested-command.prompt.md",
         validate: true,
       });
@@ -334,7 +330,6 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         CopilotCommand.fromFile({
-          baseDir: testDir,
           relativeFilePath: "non-existent-command.prompt.md",
           validate: true,
         }),
@@ -349,7 +344,6 @@ Body content`;
 
       await expect(
         CopilotCommand.fromFile({
-          baseDir: testDir,
           relativeFilePath: "invalid-command.prompt.md",
           validate: true,
         }),
@@ -364,7 +358,6 @@ Body content`;
 
       await expect(
         CopilotCommand.fromFile({
-          baseDir: testDir,
           relativeFilePath: "no-frontmatter.prompt.md",
           validate: true,
         }),

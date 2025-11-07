@@ -72,7 +72,7 @@ export class CopilotCommand extends ToolCommand {
     const relativeFilePath = originalFilePath.replace(/\.prompt\.md$/, ".md");
 
     return new RulesyncCommand({
-      baseDir: ".",
+      baseDir: process.cwd(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -101,7 +101,7 @@ export class CopilotCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): CopilotCommand {
@@ -130,7 +130,7 @@ export class CopilotCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<CopilotCommand> {
