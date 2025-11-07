@@ -1,7 +1,7 @@
 ---
 root: false
 targets: ['*']
-description: "coding guides for this project"
+description: "When you write any code, must follow these guidelines."
 globs: ["**/*.ts"]
 ---
 
