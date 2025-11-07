@@ -157,7 +157,7 @@ describe("CopilotRule", () => {
         targets: ["*"],
         root: false,
         description: "Test rule",
-        globs: [],
+        globs: ["*.js"],
       });
       expect(rulesyncRule.getBody()).toBe("Test rule content");
       expect(rulesyncRule.getRelativeFilePath()).toBe("test.md");
@@ -779,10 +779,8 @@ description: "Test trimming"
 
       // Verify the round-trip conversion
       expect(convertedCopilot.getFrontmatter().description).toBe("Integration test rule");
-      // Note: CopilotRule.toRulesyncRule() doesn't preserve the original applyTo field
-      // Instead, it creates a RulesyncRule with empty globs for non-root rules,
-      // which becomes undefined when the array is empty
-      expect(convertedCopilot.getFrontmatter().applyTo).toBeUndefined();
+      // applyTo should be preserved through round-trip conversion
+      expect(convertedCopilot.getFrontmatter().applyTo).toBe("*.ts,*.js");
       expect(convertedCopilot.getBody()).toBe("Integration test content");
     });
 
