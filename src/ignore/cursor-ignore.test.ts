@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { CursorIgnore } from "./cursor-ignore.js";
@@ -11,10 +11,12 @@ describe("CursorIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -124,7 +126,7 @@ describe("CursorIgnore", () => {
       });
 
       expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getBaseDir()).toBe(".");
+      expect(cursorIgnore.getBaseDir()).toBe(testDir);
       expect(cursorIgnore.getRelativeDirPath()).toBe(".");
       expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
@@ -272,27 +274,16 @@ Thumbs.db`;
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .cursorignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
+    it("should default baseDir to process.cwd() when not provided", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
+      const fileContent = "*.log\nnode_modules/";
+      const cursorignorePath = join(testDir, ".cursorignore");
+      await writeFileContent(cursorignorePath, fileContent);
 
-      try {
-        // Change to test directory
-        process.chdir(testDir);
+      const cursorIgnore = await CursorIgnore.fromFile({});
 
-        const fileContent = "*.log\nnode_modules/";
-        const cursorignorePath = ".cursorignore";
-        await writeFileContent(cursorignorePath, fileContent);
-
-        const cursorIgnore = await CursorIgnore.fromFile({});
-
-        expect(cursorIgnore.getBaseDir()).toBe(".");
-        expect(cursorIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
+      expect(cursorIgnore.getBaseDir()).toBe(testDir);
+      expect(cursorIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .cursorignore file does not exist", async () => {

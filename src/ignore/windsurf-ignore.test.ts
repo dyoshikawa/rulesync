@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -11,10 +11,12 @@ describe("WindsurfIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -189,7 +191,7 @@ desktop.ini`;
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getBaseDir()).toBe(".");
+      expect(windsurfIgnore.getBaseDir()).toBe(testDir);
     });
 
     it("should preserve complex content from RulesyncIgnore", () => {
@@ -274,22 +276,15 @@ Thumbs.db`;
     });
 
     it("should use default baseDir when not provided", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      // Change to test directory to simulate reading from current directory
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const windsurfIgnore = await WindsurfIgnore.fromFile({});
 
-        const windsurfIgnore = await WindsurfIgnore.fromFile({});
-
-        expect(windsurfIgnore.getBaseDir()).toBe(".");
-        expect(windsurfIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(windsurfIgnore.getBaseDir()).toBe(testDir);
+      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle empty .codeiumignore file", async () => {

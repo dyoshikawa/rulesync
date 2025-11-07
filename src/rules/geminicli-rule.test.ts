@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
@@ -11,10 +11,12 @@ describe("GeminiCliRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -72,7 +74,7 @@ describe("GeminiCliRule", () => {
       });
 
       expect(geminiCliRule.getFileContent()).toBe("# Root Rule");
-      expect(geminiCliRule.getFilePath()).toBe("GEMINI.md");
+      expect(geminiCliRule.getFilePath()).toBe(join(testDir, "GEMINI.md"));
     });
   });
 

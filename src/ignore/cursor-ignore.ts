@@ -26,7 +26,7 @@ export class CursorIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): CursorIgnore {
     const body = rulesyncIgnore.getFileContent();
@@ -40,7 +40,7 @@ export class CursorIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<CursorIgnore> {
     const fileContent = await readFileContent(

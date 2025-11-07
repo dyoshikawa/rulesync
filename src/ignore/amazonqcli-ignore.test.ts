@@ -154,7 +154,7 @@ describe("AmazonqcliIgnore", () => {
       });
 
       expect(amazonqcliIgnore).toBeInstanceOf(AmazonqcliIgnore);
-      expect(amazonqcliIgnore.getBaseDir()).toBe(".");
+      expect(amazonqcliIgnore.getBaseDir()).toBe(testDir);
       expect(amazonqcliIgnore.getRelativeDirPath()).toBe(".");
       expect(amazonqcliIgnore.getRelativeFilePath()).toBe(".amazonqignore");
       expect(amazonqcliIgnore.getFileContent()).toBe(fileContent);

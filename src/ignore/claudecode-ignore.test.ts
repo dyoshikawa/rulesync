@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -11,10 +11,12 @@ describe("ClaudecodeIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -536,33 +538,26 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(secrets/**)"]);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      const originalCwd = process.cwd();
-
-      try {
-        process.chdir(testDir);
-
-        const jsonContent = JSON.stringify(
-          {
-            permissions: {
-              deny: ["Read(*.log)"],
-            },
+    it("should default baseDir to process.cwd() when not provided", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
+      const jsonContent = JSON.stringify(
+        {
+          permissions: {
+            deny: ["Read(*.log)"],
           },
-          null,
-          2,
-        );
+        },
+        null,
+        2,
+      );
 
-        const claudeDir = ".claude";
-        await ensureDir(claudeDir);
-        await writeFileContent(join(claudeDir, "settings.local.json"), jsonContent);
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(join(claudeDir, "settings.local.json"), jsonContent);
 
-        const claudecodeIgnore = await ClaudecodeIgnore.fromFile({});
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({});
 
-        expect(claudecodeIgnore.getBaseDir()).toBe(".");
-        expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
     it("should throw error when file does not exist", async () => {

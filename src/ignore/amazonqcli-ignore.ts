@@ -44,7 +44,7 @@ export class AmazonqcliIgnore extends ToolIgnore {
    * Supports conversion from unified rulesync format to Amazon Q CLI specific format
    */
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): AmazonqcliIgnore {
     const body = rulesyncIgnore.getFileContent();
