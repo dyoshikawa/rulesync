@@ -1,7 +1,7 @@
 ---
 root: false
 targets: ["*"]
-description: "Testing directory unification rules"
+description: "When you write tests, must follow these guidelines."
 globs: ["**/*.test.ts"]
 ---
 
