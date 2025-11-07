@@ -1,7 +1,6 @@
 // oxlint-disable no-console
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import PQueue from "p-queue";
 // @ts-expect-error
 import { model, tasks } from "../tmp/tasks/tasks.ts";
 
@@ -21,18 +20,10 @@ const runClaudeCode = async (task: string) => {
   }
 };
 
-const concurrency = process.env.CONCURRENCY ? Number.parseInt(process.env.CONCURRENCY, 10) : 2;
-
-const queue = new PQueue({ concurrency });
-
-const promises = tasks.map((task) =>
-  queue.add(async () => {
-    try {
-      await runClaudeCode(task);
-    } catch (error) {
-      console.error(error);
-    }
-  }),
-);
-
-await Promise.all(promises);
+for (const task of tasks) {
+  try {
+    await runClaudeCode(task);
+  } catch (error) {
+    console.error(error);
+  }
+}
