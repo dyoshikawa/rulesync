@@ -43,7 +43,7 @@ export class McpProcessor extends FeatureProcessor {
   private readonly modularMcp: boolean;
 
   constructor({
-    baseDir = ".",
+    baseDir = process.cwd(),
     toolTarget,
     global = false,
     modularMcp = false,
