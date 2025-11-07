@@ -21,9 +21,7 @@ const runClaudeCode = async (task: string) => {
   }
 };
 
-const concurrency = process.env.CONCURRENCY
-  ? Number.parseInt(process.env.CONCURRENCY, 10)
-  : 4;
+const concurrency = process.env.CONCURRENCY ? Number.parseInt(process.env.CONCURRENCY, 10) : 2;
 
 const queue = new PQueue({ concurrency });
 
