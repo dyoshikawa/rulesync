@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -89,10 +89,12 @@ describe("ClaudecodeSubagent", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -462,7 +464,7 @@ describe("ClaudecodeSubagent", () => {
         validate: true,
       });
 
-      expect(claudecodeSubagent.getBaseDir()).toBe(".");
+      expect(claudecodeSubagent.getBaseDir()).toBe(testDir);
     });
 
     it("should use global paths when global is true", () => {
@@ -638,28 +640,18 @@ describe("ClaudecodeSubagent", () => {
       const body = "Agent content";
       const fileContent = stringifyFrontmatter(body, frontmatter);
 
-      // Create the file in current directory
-      const agentsDir = join(".", ".claude", "agents");
+      // Create the file in test directory (process.cwd() is mocked to return testDir)
+      const agentsDir = join(testDir, ".claude", "agents");
       const filePath = join(agentsDir, "default-base-agent.md");
 
       await writeFileContent(filePath, fileContent);
 
-      try {
-        const subagent = await ClaudecodeSubagent.fromFile({
-          relativeFilePath: "default-base-agent.md",
-          validate: true,
-        });
+      const subagent = await ClaudecodeSubagent.fromFile({
+        relativeFilePath: "default-base-agent.md",
+        validate: true,
+      });
 
-        expect(subagent.getBaseDir()).toBe(".");
-      } finally {
-        // Clean up the file in current directory
-        const fs = await import("node:fs/promises");
-        try {
-          await fs.rm(agentsDir, { recursive: true, force: true });
-        } catch {
-          // Ignore errors during cleanup
-        }
-      }
+      expect(subagent.getBaseDir()).toBe(testDir);
     });
 
     it("should throw error for file with invalid frontmatter", async () => {
