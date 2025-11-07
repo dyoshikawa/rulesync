@@ -226,27 +226,21 @@ describe("ToolRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const rulesDir = join(".", ".test/rules");
+      // Setup test file in test directory
+      const rulesDir = join(testDir, ".test/rules");
       await ensureDir(rulesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      try {
-        const toolRule = await TestToolRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
+      const toolRule = await TestToolRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "default-test.md",
+      });
 
-        expect(toolRule.getRelativeDirPath()).toBe(".test/rules");
-        expect(toolRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(toolRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(rulesDir, { recursive: true, force: true }),
-        );
-      }
+      expect(toolRule.getRelativeDirPath()).toBe(".test/rules");
+      expect(toolRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(toolRule.getFileContent()).toBe(testContent);
     });
 
     it("should handle validation parameter", async () => {
