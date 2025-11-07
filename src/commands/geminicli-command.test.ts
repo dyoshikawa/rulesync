@@ -33,6 +33,7 @@ prompt = "Unclosed string`;
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -514,6 +515,7 @@ ${longPrompt}
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
@@ -527,6 +529,7 @@ ${longPrompt}
 
     it("should return true for rulesync command with geminicli target", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["geminicli"], description: "Test" },
@@ -540,6 +543,7 @@ ${longPrompt}
 
     it("should return true for rulesync command with geminicli and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "geminicli", "cline"], description: "Test" },
@@ -553,6 +557,7 @@ ${longPrompt}
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
@@ -566,6 +571,7 @@ ${longPrompt}
 
     it("should return true for rulesync command with no targets specified", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
