@@ -1,6 +1,6 @@
 {
 	"name": "rulesync",
-	"version": "3.13.0",
+	"version": "3.14.0",
 	"description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
 	"keywords": [
 		"ai",
@@ -42,7 +42,9 @@
 		"build:bun:macos": "bun build --compile --external giget --target=bun-darwin-x64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-x64 && bun build --compile --external giget --target=bun-darwin-arm64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-arm64",
 		"build:bun:windows": "bun build --compile --external giget --target=bun-windows-x64 src/cli/index.ts --outfile dist-bun/rulesync-windows-x64.exe",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
-		"cicheck": "pnpm run check && pnpm run test && pnpm run cspell && pnpm run secretlint",
+		"cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
+		"cicheck:code": "pnpm run check && pnpm run test",
+		"cicheck:content": "pnpm run cspell && pnpm run secretlint",
 		"cspell": "cspell --no-progress --gitignore .",
 		"dev": "tsx src/cli/index.ts",
 		"eslint": "eslint . --max-warnings 0 --cache",
