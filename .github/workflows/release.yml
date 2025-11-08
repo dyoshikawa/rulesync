@@ -6,7 +6,7 @@ on:
 
 permissions:
   id-token: write # Required for OIDC
-  contents: write # Required for uploading release assets
+  contents: read # Required for checking out code
 
 jobs:
   publish:
