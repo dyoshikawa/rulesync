@@ -82,6 +82,10 @@ RUN claude update
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
 
+# Copy mise.toml and trust/install tools
+COPY mise.toml /workspace/mise.toml
+RUN /home/node/.local/bin/mise trust && /home/node/.local/bin/mise install
+
 # Aliases
 RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
 
