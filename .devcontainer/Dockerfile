@@ -28,8 +28,8 @@ RUN mkdir -p /usr/local/share/npm-global && \
 
 ARG USERNAME=node
 
-# Allow node user to run sudo without password
-RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node && \
+# Allow node user to run specific sudo commands without password
+RUN echo "node ALL=(ALL) NOPASSWD: /usr/bin/chown, /usr/bin/chmod" > /etc/sudoers.d/node && \
   chmod 0440 /etc/sudoers.d/node
 
 # Persist bash history.
