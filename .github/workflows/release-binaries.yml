@@ -1,0 +1,55 @@
+name: Release Binaries
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write # Required for uploading release assets
+
+jobs:
+  build-binaries:
+    name: Build and upload binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build binaries
+        run: |
+          # Linux
+          bun build --compile --minify --sourcemap --target=bun-linux-x64 src/cli/index.ts --outfile dist-bun/rulesync-linux-x64
+          bun build --compile --minify --sourcemap --target=bun-linux-arm64 src/cli/index.ts --outfile dist-bun/rulesync-linux-arm64
+          # macOS
+          bun build --compile --minify --sourcemap --target=bun-darwin-x64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-x64
+          bun build --compile --minify --sourcemap --target=bun-darwin-arm64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-arm64
+
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-bun/rulesync-linux-x64
+            dist-bun/rulesync-linux-arm64
+            dist-bun/rulesync-darwin-x64
+            dist-bun/rulesync-darwin-arm64
