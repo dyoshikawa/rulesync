@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
+import { formatError } from "../utils/error.js";
 import { fileExists, getHomeDirectory, readFileContent, validateBaseDir } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { isEnvTest } from "../utils/vitest.js";
@@ -88,23 +89,9 @@ export class ConfigResolver {
       // eslint-disable-next-line no-type-assertion/no-type-assertion
       configByFile = parsed ? (parsed as Partial<ConfigParams>) : {};
     } catch (error) {
-      // If file doesn't exist or can't be read, use default values
-      // Parse errors will still be thrown
-      const isFileNotFoundError =
-        error instanceof Error &&
-        "code" in error &&
-        (error.code === "ENOENT" || error.code === "ENOTDIR");
-
-      if (isFileNotFoundError) {
-        logger.warn(`Config file not found: ${configPath}, using default values`);
-        configByFile = {};
-      } else {
-        // For other errors (parse errors, permission errors, etc.), throw
-        if (error instanceof Error) {
-          logger.error(`Failed to load config file: ${error.message}`);
-        }
-        throw error;
-      }
+      // File existence is already checked above, so only parse errors, permission errors, etc. reach here
+      logger.error(`Failed to load config file: ${formatError(error)}`);
+      throw error;
     }
 
     // Warn about deprecated experimental options from both CLI and config file
