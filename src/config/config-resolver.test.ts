@@ -252,4 +252,51 @@ describe("config-resolver", () => {
       expect(config.getBaseDirs()).toContain(resolve("./app3"));
     });
   });
+
+  describe("configPath security", () => {
+    it("should accept configPath within current directory", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getBaseDirs()).toHaveLength(1);
+    });
+
+    it("should reject configPath with path traversal attempting to escape current directory", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "../../etc/passwd",
+        }),
+      ).rejects.toThrow("Path traversal detected");
+    });
+
+    it("should reject absolute paths outside current directory", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "/etc/passwd",
+        }),
+      ).rejects.toThrow("Path traversal detected");
+    });
+
+    it("should reject Windows-style absolute paths outside current directory", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "C:/Windows/System32/config/sam",
+        }),
+      ).rejects.toThrow(); // Can throw either "Path traversal detected" or baseDir validation error
+    });
+
+    it("should reject paths attempting to access parent directories", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "../../../sensitive-file.txt",
+        }),
+      ).rejects.toThrow("Path traversal detected");
+    });
+  });
 });

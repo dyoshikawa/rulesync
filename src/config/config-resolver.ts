@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { formatError } from "../utils/error.js";
-import { fileExists, getHomeDirectory, readFileContent, validateBaseDir } from "../utils/file.js";
+import { fileExists, getHomeDirectory, readFileContent, resolvePath, validateBaseDir } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import {
   Config,
@@ -50,10 +50,13 @@ export class ConfigResolver {
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
+    // Validate configPath to prevent path traversal attacks
+    const validatedConfigPath = resolvePath(configPath, process.cwd());
+
     let configByFile: PartialConfigParams = {};
-    if (await fileExists(configPath)) {
+    if (await fileExists(validatedConfigPath)) {
       try {
-        const fileContent = await readFileContent(configPath);
+        const fileContent = await readFileContent(validatedConfigPath);
         const jsonData = parseJsonc(fileContent);
         configByFile = PartialConfigParamsSchema.parse(jsonData);
       } catch (error) {
