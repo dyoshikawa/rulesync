@@ -1,10 +1,14 @@
-import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { formatError } from "../utils/error.js";
 import { fileExists, getHomeDirectory, readFileContent, validateBaseDir } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { isEnvTest } from "../utils/vitest.js";
-import { Config, ConfigParams } from "./config.js";
+import {
+  Config,
+  ConfigParams,
+  PartialConfigParams,
+  PartialConfigParamsSchema,
+  RequiredConfigParams,
+} from "./config.js";
 
 export type ConfigResolverResolveParams = Partial<
   ConfigParams & {
@@ -12,7 +16,7 @@ export type ConfigResolverResolveParams = Partial<
   }
 >;
 
-const defaults: Required<ConfigResolverResolveParams> = {
+const defaults: RequiredConfigParams & { configPath: string } = {
   targets: ["agentsmd"],
   features: ["rules"],
   verbose: false,
@@ -45,53 +49,16 @@ export class ConfigResolver {
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
-    if (!(await fileExists(configPath))) {
-      // Warn about deprecated experimental options
-      if (experimentalGlobal !== undefined) {
-        warnDeprecatedOptions({ experimentalGlobal });
+    let configByFile: PartialConfigParams = {};
+    if (await fileExists(configPath)) {
+      try {
+        const fileContent = await readFileContent(configPath);
+        const jsonData = parseJsonc(fileContent);
+        configByFile = PartialConfigParamsSchema.parse(jsonData);
+      } catch (error) {
+        logger.error(`Failed to load config file: ${formatError(error)}`);
+        throw error;
       }
-      if (experimentalSimulateCommands !== undefined) {
-        warnDeprecatedOptions({ experimentalSimulateCommands });
-      }
-      if (experimentalSimulateSubagents !== undefined) {
-        warnDeprecatedOptions({ experimentalSimulateSubagents });
-      }
-
-      // Resolve options with migration logic
-      const resolvedGlobal = global ?? experimentalGlobal ?? defaults.global;
-      const resolvedSimulatedCommands =
-        simulatedCommands ?? experimentalSimulateCommands ?? defaults.simulatedCommands;
-      const resolvedSimulatedSubagents =
-        simulatedSubagents ?? experimentalSimulateSubagents ?? defaults.simulatedSubagents;
-
-      return new Config({
-        targets: targets ?? defaults.targets,
-        features: features ?? defaults.features,
-        verbose: verbose ?? defaults.verbose,
-        delete: isDelete ?? defaults.delete,
-        baseDirs: getBaseDirsInLightOfGlobal({
-          baseDirs: baseDirs ?? defaults.baseDirs,
-          global: resolvedGlobal,
-        }),
-        global: resolvedGlobal,
-        simulatedCommands: resolvedSimulatedCommands,
-        simulatedSubagents: resolvedSimulatedSubagents,
-        modularMcp: modularMcp ?? defaults.modularMcp,
-      });
-    }
-
-    // Load and parse the config file
-    let configByFile: Partial<ConfigParams> = {};
-    try {
-      const fileContent = await readFileContent(configPath);
-      const parsed = parseJsonc(fileContent);
-      // oxlint-disable-next-line no-type-assertion
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      configByFile = parsed ? (parsed as Partial<ConfigParams>) : {};
-    } catch (error) {
-      // File existence is already checked above, so only parse errors, permission errors, etc. reach here
-      logger.error(`Failed to load config file: ${formatError(error)}`);
-      throw error;
     }
 
     // Warn about deprecated experimental options from both CLI and config file
@@ -180,11 +147,6 @@ function getBaseDirsInLightOfGlobal({
   baseDirs: string[];
   global: boolean;
 }): string[] {
-  if (isEnvTest) {
-    // When in test environment, the base directory is always the relative directory from the project root
-    return baseDirs.map((baseDir) => join(".", baseDir));
-  }
-
   if (global) {
     // When global is true, the base directory is always the home directory
     return [getHomeDirectory()];
