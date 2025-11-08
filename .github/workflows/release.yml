@@ -6,7 +6,7 @@ on:
 
 permissions:
   id-token: write # Required for OIDC
-  contents: read
+  contents: write # Required for uploading release assets
 
 jobs:
   publish:
@@ -43,3 +43,57 @@ jobs:
 
       - name: Publish to npm
         run: pnpm publish
+
+  build-binaries:
+    name: Build and upload binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            artifact: rulesync-linux-x64
+          - os: macos-13
+            target: darwin-x64
+            artifact: rulesync-darwin-x64
+          - os: macos-latest
+            target: darwin-arm64
+            artifact: rulesync-darwin-arm64
+          - os: windows-latest
+            target: windows-x64
+            artifact: rulesync-windows-x64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Bundle with tsup
+        run: pnpm run build:bun:bundle
+
+      - name: Build binary for ${{ matrix.target }}
+        run: bun build --compile --target=bun-${{ matrix.target }} dist-bun/index.js --outfile dist-bun/${{ matrix.artifact }}
+
+      - name: Upload binary to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-bun/${{ matrix.artifact }}
