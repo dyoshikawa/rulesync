@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
@@ -12,10 +12,12 @@ describe("CursorMcp", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("getSettablePaths", () => {
@@ -444,21 +446,13 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData, null, 2));
 
-      // Change working directory to test directory temporarily
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
+      const cursorMcp = await CursorMcp.fromFile({ validate: true });
 
-      try {
-        const cursorMcp = await CursorMcp.fromFile({ validate: true });
-
-        expect(cursorMcp).toBeInstanceOf(CursorMcp);
-        expect(cursorMcp.getJson()).toEqual(jsonData);
-        expect(cursorMcp.getBaseDir()).toBe(".");
-        expect(cursorMcp.getRelativeDirPath()).toBe(".cursor");
-        expect(cursorMcp.getRelativeFilePath()).toBe("mcp.json");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(cursorMcp).toBeInstanceOf(CursorMcp);
+      expect(cursorMcp.getJson()).toEqual(jsonData);
+      expect(cursorMcp.getBaseDir()).toBe(testDir);
+      expect(cursorMcp.getRelativeDirPath()).toBe(".cursor");
+      expect(cursorMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should create CursorMcp from file with validation disabled", async () => {
@@ -475,17 +469,10 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData));
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
+      const cursorMcp = await CursorMcp.fromFile({ validate: false });
 
-      try {
-        const cursorMcp = await CursorMcp.fromFile({ validate: false });
-
-        expect(cursorMcp).toBeInstanceOf(CursorMcp);
-        expect(cursorMcp.getJson()).toEqual(jsonData);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(cursorMcp).toBeInstanceOf(CursorMcp);
+      expect(cursorMcp.getJson()).toEqual(jsonData);
     });
 
     it("should use validation by default", async () => {
@@ -497,17 +484,10 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData));
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
+      const cursorMcp = await CursorMcp.fromFile({});
 
-      try {
-        const cursorMcp = await CursorMcp.fromFile({});
-
-        expect(cursorMcp).toBeInstanceOf(CursorMcp);
-        expect(cursorMcp.getJson()).toEqual(jsonData);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(cursorMcp).toBeInstanceOf(CursorMcp);
+      expect(cursorMcp.getJson()).toEqual(jsonData);
     });
 
     it("should handle complex Cursor MCP server configurations", async () => {
@@ -543,16 +523,9 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, JSON.stringify(complexMcpData, null, 2));
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
+      const cursorMcp = await CursorMcp.fromFile({ validate: true });
 
-      try {
-        const cursorMcp = await CursorMcp.fromFile({ validate: true });
-
-        expect(cursorMcp.getJson()).toEqual(complexMcpData);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(cursorMcp.getJson()).toEqual(complexMcpData);
     });
 
     it("should use custom baseDir when provided", async () => {
@@ -578,14 +551,7 @@ describe("CursorMcp", () => {
     });
 
     it("should throw error if file does not exist", async () => {
-      const originalCwd = process.cwd();
-      process.chdir(testDir); // Change to empty test directory
-
-      try {
-        await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow();
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow();
     });
 
     it("should throw error for invalid JSON in file", async () => {
@@ -595,14 +561,7 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, invalidJson);
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
     });
 
     it("should handle empty file", async () => {
@@ -611,14 +570,7 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, "");
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
     });
 
     it("should handle file with only whitespace", async () => {
@@ -627,14 +579,7 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, "   \n\t  \n  ");
 
-      const originalCwd = process.cwd();
-      process.chdir(testDir);
-
-      try {
-        await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
     });
   });
 
@@ -664,7 +609,7 @@ describe("CursorMcp", () => {
       expect(cursorMcp.getJson()).toEqual({
         mcpServers: rulesyncMcpData.mcpServers,
       });
-      expect(cursorMcp.getBaseDir()).toBe(".");
+      expect(cursorMcp.getBaseDir()).toBe(testDir);
       expect(cursorMcp.getRelativeDirPath()).toBe(".cursor");
       expect(cursorMcp.getRelativeFilePath()).toBe("mcp.json");
     });
@@ -1055,7 +1000,7 @@ describe("CursorMcp", () => {
       });
 
       expect(cursorMcp.getRelativeFilePath()).toBe("custom-config.json");
-      expect(cursorMcp.getFilePath()).toBe(".cursor/custom-config.json");
+      expect(cursorMcp.getFilePath()).toBe(join(testDir, ".cursor/custom-config.json"));
     });
 
     it("should work correctly with different directory paths", () => {
@@ -1066,7 +1011,7 @@ describe("CursorMcp", () => {
       });
 
       expect(cursorMcp.getRelativeDirPath()).toBe("custom-dir");
-      expect(cursorMcp.getFilePath()).toBe("custom-dir/mcp.json");
+      expect(cursorMcp.getFilePath()).toBe(join(testDir, "custom-dir/mcp.json"));
     });
 
     it("should handle deeply nested JSON structures", () => {

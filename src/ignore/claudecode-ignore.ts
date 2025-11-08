@@ -59,7 +59,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   static async fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ClaudecodeIgnore> {
     const fileContent = rulesyncIgnore.getFileContent();
@@ -96,7 +96,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
     const fileContent = await readFileContent(

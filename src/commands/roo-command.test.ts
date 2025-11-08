@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -206,20 +206,27 @@ describe("RooCommand", () => {
     });
 
     it("should use default baseDir when not provided", () => {
-      const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
-        relativeDirPath: ".rulesync/commands",
-        relativeFilePath: "test.md",
-        frontmatter: { targets: ["roo" as const], description: "test" },
-        body: "test body",
-        fileContent: "test content",
-      });
+      const mockCwd = "/mock/cwd";
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(mockCwd);
 
-      const rooCommand = RooCommand.fromRulesyncCommand({
-        rulesyncCommand,
-      });
+      try {
+        const rulesyncCommand = new RulesyncCommand({
+          baseDir: "/test/base",
+          relativeDirPath: ".rulesync/commands",
+          relativeFilePath: "test.md",
+          frontmatter: { targets: ["roo" as const], description: "test" },
+          body: "test body",
+          fileContent: "test content",
+        });
 
-      expect(rooCommand.getBaseDir()).toBe(".");
+        const rooCommand = RooCommand.fromRulesyncCommand({
+          rulesyncCommand,
+        });
+
+        expect(rooCommand.getBaseDir()).toBe(mockCwd);
+      } finally {
+        cwdSpy.mockRestore();
+      }
     });
 
     it("should handle validation parameter", () => {
@@ -278,11 +285,10 @@ describe("RooCommand", () => {
 
     it("should use default baseDir when not provided", async () => {
       const testSetup = await setupTestDirectory();
-      const { cleanup } = testSetup;
+      const { testDir, cleanup } = testSetup;
 
-      // Declare filePath in outer scope so it's available in finally block
-      const commandsDir = join(".", ".roo", "commands");
-      const filePath = join(commandsDir, "default-base.md");
+      // Mock process.cwd() to return testDir
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testDir);
 
       try {
         const frontmatter: RooCommandFrontmatter = {
@@ -291,22 +297,19 @@ describe("RooCommand", () => {
         const body = "Test body";
         const fileContent = stringifyFrontmatter(body, frontmatter);
 
-        // Write the test file in current working directory structure (not testDir)
+        // Write the test file in testDir
+        const commandsDir = join(testDir, ".roo", "commands");
+        const filePath = join(commandsDir, "default-base.md");
         await writeFileContent(filePath, fileContent);
 
         const command = await RooCommand.fromFile({
           relativeFilePath: "default-base.md",
         });
 
-        expect(command.getBaseDir()).toBe(".");
+        expect(command.getBaseDir()).toBe(testDir);
       } finally {
+        cwdSpy.mockRestore();
         await cleanup();
-        // Clean up the file created in current working directory
-        try {
-          await import("node:fs/promises").then((fs) => fs.unlink(filePath));
-        } catch {
-          // Ignore if file doesn't exist
-        }
       }
     });
 

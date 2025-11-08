@@ -21,7 +21,7 @@ export class QwencodeIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): QwencodeIgnore {
     return new QwencodeIgnore({
@@ -33,7 +33,7 @@ export class QwencodeIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<QwencodeIgnore> {
     const fileContent = await readFileContent(

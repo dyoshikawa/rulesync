@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { KiroRule } from "./kiro-rule.js";
@@ -11,10 +11,12 @@ describe("KiroRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -159,26 +161,21 @@ describe("KiroRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory's .kiro/steering
-      const steeringDir = ".kiro/steering";
+      // Setup test file in test directory's .kiro/steering
+      // Since process.cwd() is mocked to return testDir, the default baseDir will use testDir
+      const steeringDir = join(testDir, ".kiro/steering");
       await ensureDir(steeringDir);
       const testContent = "# Default BaseDir Test";
       await writeFileContent(join(steeringDir, "product.md"), testContent);
 
-      try {
-        const kiroRule = await KiroRule.fromFile({
-          relativeFilePath: "product.md",
-        });
+      const kiroRule = await KiroRule.fromFile({
+        relativeFilePath: "product.md",
+      });
 
-        expect(kiroRule.getRelativeDirPath()).toBe(".kiro/steering");
-        expect(kiroRule.getRelativeFilePath()).toBe("product.md");
-        expect(kiroRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(".kiro", { recursive: true, force: true }),
-        );
-      }
+      expect(kiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(kiroRule.getRelativeFilePath()).toBe("product.md");
+      expect(kiroRule.getFileContent()).toBe(testContent);
+      expect(kiroRule.getFilePath()).toBe(join(testDir, ".kiro/steering/product.md"));
     });
 
     it("should handle validation parameter", async () => {

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { JunieRule } from "./junie-rule.js";
@@ -11,6 +11,7 @@ describe("JunieRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -126,22 +127,17 @@ describe("JunieRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory - for root guidelines.md, it should be at baseDir/guidelines.md
+      // Setup test file in mocked current directory
       const testContent = "# Default BaseDir Test";
-      await writeFileContent("guidelines.md", testContent);
+      await writeFileContent(join(testDir, "guidelines.md"), testContent);
 
-      try {
-        const junieRule = await JunieRule.fromFile({
-          relativeFilePath: "guidelines.md",
-        });
+      const junieRule = await JunieRule.fromFile({
+        relativeFilePath: "guidelines.md",
+      });
 
-        expect(junieRule.getRelativeDirPath()).toBe(".junie");
-        expect(junieRule.getRelativeFilePath()).toBe("guidelines.md");
-        expect(junieRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) => fs.rm("guidelines.md", { force: true }));
-      }
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("guidelines.md");
+      expect(junieRule.getFileContent()).toBe(testContent);
     });
 
     it("should handle validation parameter", async () => {

@@ -1,7 +1,14 @@
 #!/bin/bash
 
+# Ensure node_modules and pnpm-store volumes have correct ownership for non-root user
+sudo chown -R node:node /workspace/node_modules 2>/dev/null || true
+sudo chown -R node:node /workspace/.pnpm-store 2>/dev/null || true
+
 mise trust
 mise install
-pnpm i
-npm i -g opencode-ai @byterover/cipher @openai/codex opencommit @google/gemini-cli
+
+# Not working, so temporarily commented out
+# pnpm i
+# npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
+
 gh auth setup-git

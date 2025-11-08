@@ -44,6 +44,7 @@ describe("McpProcessor", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
     vi.clearAllMocks();
 
     // Setup static method mocks

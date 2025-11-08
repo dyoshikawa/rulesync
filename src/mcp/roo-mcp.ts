@@ -30,7 +30,7 @@ export class RooMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolMcpFromFileParams): Promise<RooMcp> {
     const fileContent = await readFileContent(
@@ -50,7 +50,7 @@ export class RooMcp extends ToolMcp {
   }
 
   static fromRulesyncMcp({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): RooMcp {

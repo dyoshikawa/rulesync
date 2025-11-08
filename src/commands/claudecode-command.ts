@@ -82,7 +82,7 @@ export class ClaudecodeCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
     global = false,
@@ -135,7 +135,7 @@ export class ClaudecodeCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,

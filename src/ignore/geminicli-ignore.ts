@@ -21,7 +21,7 @@ export class GeminiCliIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): GeminiCliIgnore {
     return new GeminiCliIgnore({
@@ -33,7 +33,7 @@ export class GeminiCliIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<GeminiCliIgnore> {
     const fileContent = await readFileContent(

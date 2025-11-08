@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { CopilotRule, CopilotRuleFrontmatterSchema } from "./copilot-rule.js";
@@ -11,10 +11,12 @@ describe("CopilotRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -302,7 +304,7 @@ describe("CopilotRule", () => {
         rulesyncRule,
       });
 
-      expect(copilotRule.getBaseDir()).toBe(".");
+      expect(copilotRule.getBaseDir()).toBe(testDir);
     });
 
     it("should handle RulesyncRule without globs", () => {
@@ -385,7 +387,7 @@ This is test rule content from file.`;
     });
 
     it("should use default baseDir when not provided", async () => {
-      const instructionsDir = join(".", ".github", "instructions");
+      const instructionsDir = join(testDir, ".github", "instructions");
       await ensureDir(instructionsDir);
 
       const fileContent = `---
@@ -398,10 +400,11 @@ Content with default baseDir.`;
       await writeFileContent(filePath, fileContent);
 
       const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
         relativeFilePath: "default.instructions.md",
       });
 
-      expect(copilotRule.getBaseDir()).toBe(".");
+      expect(copilotRule.getBaseDir()).toBe(testDir);
     });
 
     it("should throw error for invalid frontmatter with validation", async () => {
