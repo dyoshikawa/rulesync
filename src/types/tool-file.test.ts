@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ValidationResult } from "./ai-file.js";
 import { ToolFile } from "./tool-file.js";
 
@@ -19,7 +20,7 @@ class TestToolFile extends ToolFile {
 
   static async fromFilePath(_params: any): Promise<TestToolFile> {
     return new TestToolFile({
-      baseDir: _params.baseDir || ".",
+      baseDir: _params.baseDir,
       relativeDirPath: _params.relativeDirPath,
       relativeFilePath: _params.relativeFilePath,
       fileContent: "test content from file path",
@@ -28,6 +29,18 @@ class TestToolFile extends ToolFile {
 }
 
 describe("ToolFile", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
   describe("inheritance from AiFile", () => {
     it("should inherit all AiFile functionality", () => {
       const file = new TestToolFile({
@@ -95,10 +108,10 @@ describe("ToolFile", () => {
   describe("concrete implementation functionality", () => {
     it("should work as concrete implementation", async () => {
       const file = await TestToolFile.fromFilePath({
-        baseDir: "/test",
+        baseDir: testDir,
         relativeDirPath: ".tool",
         relativeFilePath: "config.txt",
-        filePath: "/test/.tool/config.txt",
+        filePath: `${testDir}/.tool/config.txt`,
       });
 
       expect(file).toBeInstanceOf(TestToolFile);
@@ -142,7 +155,7 @@ describe("ToolFile", () => {
   describe("path traversal security", () => {
     it("should prevent path traversal via relativeDirPath", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",
@@ -154,7 +167,7 @@ describe("ToolFile", () => {
 
     it("should prevent path traversal via relativeFilePath", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".tool",
         relativeFilePath: "../../etc/passwd",
         fileContent: "malicious content",
@@ -166,7 +179,7 @@ describe("ToolFile", () => {
 
     it("should prevent complex path traversal attacks", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: "foo/../../..",
         relativeFilePath: "etc/passwd",
         fileContent: "malicious content",
@@ -178,7 +191,7 @@ describe("ToolFile", () => {
 
     it("should allow safe relative paths within baseDir", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".tool/config",
         relativeFilePath: "settings.txt",
         fileContent: "safe content",
@@ -186,12 +199,12 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe(".tool/config/settings.txt");
+      expect(file.getFilePath()).toBe(`${testDir}/.tool/config/settings.txt`);
     });
 
     it("should allow nested directories within baseDir", () => {
       const file = new TestToolFile({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: "deeply/nested/path",
         relativeFilePath: "file.txt",
         fileContent: "safe content",
@@ -199,12 +212,12 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe("deeply/nested/path/file.txt");
+      expect(file.getFilePath()).toBe(`${testDir}/deeply/nested/path/file.txt`);
     });
 
     it("should handle baseDir with subdirectory correctly", () => {
       const file = new TestToolFile({
-        baseDir: "./project",
+        baseDir: `${testDir}/project`,
         relativeDirPath: "src",
         relativeFilePath: "index.ts",
         fileContent: "safe content",
@@ -212,12 +225,12 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe("project/src/index.ts");
+      expect(file.getFilePath()).toBe(`${testDir}/project/src/index.ts`);
     });
 
     it("should prevent escaping from nested baseDir", () => {
       const file = new TestToolFile({
-        baseDir: "./project/src",
+        baseDir: `${testDir}/project/src`,
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",
