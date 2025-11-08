@@ -493,7 +493,7 @@ describe("file utilities", () => {
   });
 
   describe("validateBaseDir", () => {
-    describe("should allow safe relative paths", () => {
+    describe("should allow safe paths", () => {
       it("should allow current directory", () => {
         expect(() => validateBaseDir(".")).not.toThrow();
       });
@@ -512,18 +512,11 @@ describe("file utilities", () => {
         expect(() => validateBaseDir(".rulesync")).not.toThrow();
         expect(() => validateBaseDir("my.project")).not.toThrow();
       });
-    });
 
-    describe("should reject absolute paths", () => {
-      it("should reject Unix absolute paths", () => {
-        expect(() => validateBaseDir("/etc")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/home/user")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/var/log")).toThrow("must be a relative path");
-      });
-
-      it("should reject Windows absolute paths", () => {
-        expect(() => validateBaseDir("C:\\Windows")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("D:\\data")).toThrow("must be a relative path");
+      it("should allow absolute paths within current directory", () => {
+        // Absolute paths are now allowed as baseDirs are resolved to absolute paths
+        const safePath = resolve(testDir, "safe/path");
+        expect(() => validateBaseDir(safePath)).not.toThrow();
       });
     });
 
@@ -560,22 +553,6 @@ describe("file utilities", () => {
         expect(() => validateBaseDir("   ")).toThrow("cannot be an empty string");
         expect(() => validateBaseDir("\t")).toThrow("cannot be an empty string");
         expect(() => validateBaseDir("\n")).toThrow("cannot be an empty string");
-      });
-    });
-
-    describe("should reject dangerous system directories", () => {
-      it("should reject root directory", () => {
-        expect(() => validateBaseDir("/")).toThrow("must be a relative path");
-      });
-
-      it("should reject critical system directories", () => {
-        expect(() => validateBaseDir("/etc")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/usr")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/bin")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/lib")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/var")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/sys")).toThrow("must be a relative path");
-        expect(() => validateBaseDir("/proc")).toThrow("must be a relative path");
       });
     });
 
