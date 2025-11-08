@@ -122,6 +122,7 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+dist-bun
 
 # Gatsby files
 .cache/
@@ -259,3 +260,6 @@ repomix-output.xml
 **/.geminiignore
 
 modular-mcp.json
+
+# Bun compiled binaries
+/rulesync
