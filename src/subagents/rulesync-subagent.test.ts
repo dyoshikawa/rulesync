@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import type { RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
@@ -339,24 +339,24 @@ describe("RulesyncSubagent", () => {
   });
 
   describe("fromFile", () => {
-    let createdFiles: string[] = [];
+    let testDir: string;
+    let cleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      const setup = await setupTestDirectory();
+      testDir = setup.testDir;
+      cleanup = setup.cleanup;
+      vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    });
 
     afterEach(async () => {
-      // Clean up any created test files
-      for (const filePath of createdFiles) {
-        try {
-          await import("node:fs/promises").then((fs) => fs.unlink(filePath));
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-      createdFiles = [];
+      await cleanup();
+      vi.restoreAllMocks();
     });
 
     it("should create instance from valid file", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-valid.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["*"]
 name: file-subagent
@@ -387,9 +387,8 @@ It can contain multiple lines and markdown.`;
     });
 
     it("should handle file with minimal frontmatter", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-minimal.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["cursor"]
 name: minimal-subagent
@@ -409,9 +408,8 @@ Simple body content.`;
     });
 
     it("should use basename for relativeFilePath", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-nested.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["*"]
 name: nested-subagent
@@ -430,9 +428,8 @@ Nested content.`;
     });
 
     it("should throw error for invalid frontmatter in file", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-invalid.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["*"]
 name: invalid-subagent
@@ -458,9 +455,8 @@ Invalid content.`;
     });
 
     it("should handle files with different target configurations", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-multitarget.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["cursor", "copilot", "cline"]
 name: multi-target-subagent
@@ -481,9 +477,8 @@ Instructions for multiple AI tools.`;
     });
 
     it("should trim body content", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-whitespace.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["*"]
 name: whitespace-subagent
@@ -566,24 +561,24 @@ description: Testing whitespace handling
   });
 
   describe("edge cases", () => {
-    let createdFiles: string[] = [];
+    let testDir: string;
+    let cleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      const setup = await setupTestDirectory();
+      testDir = setup.testDir;
+      cleanup = setup.cleanup;
+      vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    });
 
     afterEach(async () => {
-      // Clean up any created test files
-      for (const filePath of createdFiles) {
-        try {
-          await import("node:fs/promises").then((fs) => fs.unlink(filePath));
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-      createdFiles = [];
+      await cleanup();
+      vi.restoreAllMocks();
     });
 
     it("should handle empty body from file", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-emptybody.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["*"]
 name: empty-body-file
@@ -622,9 +617,8 @@ description: File with empty body
     });
 
     it("should handle content with special characters", async () => {
-      const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       const filePath = join(subagentsDir, "test-fromfile-specialchars.md");
-      createdFiles.push(filePath);
       const fileContent = `---
 targets: ["*"]
 name: special-chars-subagent

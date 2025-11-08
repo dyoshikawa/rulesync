@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeCommand, ClaudecodeCommandFrontmatterSchema } from "./claudecode-command.js";
@@ -17,10 +17,12 @@ describe("ClaudecodeCommand", () => {
     const result = await setupTestDirectory();
     testDir = result.testDir;
     cleanup = result.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -294,7 +296,7 @@ describe("ClaudecodeCommand", () => {
         rulesyncCommand,
       });
 
-      expect(claudecodeCommand.getBaseDir()).toBe(".");
+      expect(claudecodeCommand.getBaseDir()).toBe(testDir);
     });
 
     it("should disable validation when specified", () => {
@@ -348,7 +350,7 @@ This is the command body from file`;
     });
 
     it("should use default baseDir when not provided", async () => {
-      const commandsDir = join(".", ".claude", "commands");
+      const commandsDir = join(testDir, ".claude", "commands");
       await ensureDir(commandsDir);
 
       const fileContent = `---
@@ -363,7 +365,7 @@ Command body`;
         relativeFilePath: "default-test.md",
       });
 
-      expect(command.getBaseDir()).toBe(".");
+      expect(command.getBaseDir()).toBe(testDir);
     });
 
     it("should throw error for invalid frontmatter", async () => {

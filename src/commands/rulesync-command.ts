@@ -36,7 +36,7 @@ export class RulesyncCommand extends RulesyncFile {
       const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in ${join(rest.baseDir ?? ".", rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${join(rest.baseDir ?? process.cwd(), rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
     }
@@ -102,7 +102,7 @@ export class RulesyncCommand extends RulesyncFile {
     const filename = basename(relativeFilePath);
 
     return new RulesyncCommand({
-      baseDir: ".",
+      baseDir: process.cwd(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: filename,
       frontmatter: result.data,

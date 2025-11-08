@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -11,10 +11,12 @@ describe("RooMcp", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -209,7 +211,7 @@ describe("RooMcp", () => {
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe(".");
+      expect(rooMcp.getBaseDir()).toBe(testDir);
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);

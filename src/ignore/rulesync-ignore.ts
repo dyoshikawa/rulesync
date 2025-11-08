@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { ValidationResult } from "../types/ai-file.js";
 import { RulesyncFile } from "../types/rulesync-file.js";
 import { readFileContent } from "../utils/file.js";
@@ -20,10 +21,12 @@ export class RulesyncIgnore extends RulesyncFile {
   }
 
   static async fromFile(): Promise<RulesyncIgnore> {
-    const fileContent = await readFileContent(this.getSettablePaths().relativeFilePath);
+    const baseDir = process.cwd();
+    const filePath = join(baseDir, this.getSettablePaths().relativeFilePath);
+    const fileContent = await readFileContent(filePath);
 
     return new RulesyncIgnore({
-      baseDir: ".",
+      baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,

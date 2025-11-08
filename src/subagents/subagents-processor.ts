@@ -46,7 +46,7 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly global: boolean;
 
   constructor({
-    baseDir = ".",
+    baseDir = process.cwd(),
     toolTarget,
     global = false,
   }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget; global?: boolean }) {
@@ -169,7 +169,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const subagentsDir = join(RulesyncSubagent.getSettablePaths().relativeDirPath);
+    const subagentsDir = join(this.baseDir, RulesyncSubagent.getSettablePaths().relativeDirPath);
 
     // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);

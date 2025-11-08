@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
@@ -11,10 +11,12 @@ describe("GeminiCliRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -72,7 +74,7 @@ describe("GeminiCliRule", () => {
       });
 
       expect(geminiCliRule.getFileContent()).toBe("# Root Rule");
-      expect(geminiCliRule.getFilePath()).toBe("GEMINI.md");
+      expect(geminiCliRule.getFilePath()).toBe(join(testDir, "GEMINI.md"));
     });
   });
 
@@ -112,27 +114,22 @@ describe("GeminiCliRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const memoriesDir = join(".", ".gemini/memories");
+      // Since process.cwd() is mocked to return testDir, default baseDir will use testDir
+      const memoriesDir = join(testDir, ".gemini/memories");
       await ensureDir(memoriesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(memoriesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      try {
-        const geminiCliRule = await GeminiCliRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
+      const geminiCliRule = await GeminiCliRule.fromFile({
+        relativeFilePath: "default-test.md",
+      });
 
-        expect(geminiCliRule.getRelativeDirPath()).toBe(".gemini/memories");
-        expect(geminiCliRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(geminiCliRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(memoriesDir, { recursive: true, force: true }),
-        );
-      }
+      expect(geminiCliRule.getRelativeDirPath()).toBe(".gemini/memories");
+      expect(geminiCliRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(geminiCliRule.getFileContent()).toBe(testContent);
+      // Verify that the file path uses testDir (which is what process.cwd() returns when mocked)
+      expect(geminiCliRule.getFilePath()).toBe(join(testDir, ".gemini/memories/default-test.md"));
     });
 
     it("should handle validation parameter", async () => {

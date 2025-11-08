@@ -1,7 +1,7 @@
 ---
 root: false
 targets: ['*']
-description: "coding guides for this project"
+description: "When you write any code, must follow these guidelines."
 globs: ["**/*.ts"]
 ---
 
@@ -16,3 +16,4 @@ globs: ["**/*.ts"]
 - TypeScript file names should be in kebab-case, even for class implementation files.
 - Don't create ballel files. Please always direct import the implementation file.
     - The maintainer thinks that ballel files are harmful to tree-shaking and import path transparency.
+- The default value of `baseDir` should be `process.cwd()` because it is easier to mock in tests compared to hardcoding `"."`. However, the default value of `relativeDirPath` should be `"."` because it should be relative path to concatenate with `baseDir`.

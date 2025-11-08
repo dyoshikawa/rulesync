@@ -52,7 +52,7 @@ export class CodexcliRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
@@ -93,7 +93,7 @@ export class CodexcliRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
     global = false,
