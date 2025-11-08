@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    name: Build binaries
+  quality:
+    name: Code Quality & Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -25,24 +25,26 @@ jobs:
         with:
           version: 10.20.0
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.2
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
 
-      - name: Build binaries
+      - name: Check no files generated after install
         run: |
-          mkdir -p dist-bun
-          # Linux
-          bun build --compile --target=bun-linux-x64 src/cli/index.ts --outfile dist-bun/rulesync-linux-x64
-          bun build --compile --target=bun-linux-arm64 src/cli/index.ts --outfile dist-bun/rulesync-linux-arm64
-          # macOS
-          bun build --compile --target=bun-darwin-x64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-x64
-          bun build --compile --target=bun-darwin-arm64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-arm64
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Error: Files were generated or modified after pnpm install"
+            git status --porcelain
+            exit 1
+          fi
 
-      - name: Cache binaries
-        uses: actions/cache/save@v4
-        with:
-          path: dist-bun
-          key: rulesync-binaries-${{ github.sha }}
-          enableCrossOsArchive: true
+      - name: Run cicheck
+        run: pnpm cicheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check build artifacts
+        run: |
+          test -f dist/index.js
+          test -f dist/index.cjs
+          test -f dist/index.d.ts
+          test -f dist/index.d.cts

@@ -5,15 +5,42 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
 
 jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.2
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist-bun
+          # Linux
+          bun build --compile --target=bun-linux-x64 src/cli/index.ts --outfile dist-bun/rulesync-linux-x64
+          bun build --compile --target=bun-linux-arm64 src/cli/index.ts --outfile dist-bun/rulesync-linux-arm64
+          # macOS
+          bun build --compile --target=bun-darwin-x64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-x64
+          bun build --compile --target=bun-darwin-arm64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-arm64
+
+      - name: Cache binaries
+        uses: actions/cache/save@v4
+        with:
+          path: dist-bun
+          key: rulesync-binaries-${{ github.sha }}
+          enableCrossOsArchive: true
+
   e2e:
     name: E2E Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: build
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
