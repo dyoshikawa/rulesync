@@ -1,22 +1,40 @@
-import { ALL_FEATURES, Features, RulesyncFeatures } from "../types/features.js";
-import { ALL_TOOL_TARGETS, RulesyncTargets, ToolTargets } from "../types/tool-targets.js";
+import { optional, z } from "zod/mini";
+import {
+  ALL_FEATURES,
+  Features,
+  RulesyncFeatures,
+  RulesyncFeaturesSchema,
+} from "../types/features.js";
+import {
+  ALL_TOOL_TARGETS,
+  RulesyncTargets,
+  RulesyncTargetsSchema,
+  ToolTargets,
+} from "../types/tool-targets.js";
 
-export type ConfigParams = {
-  baseDirs: string[];
-  targets: RulesyncTargets;
-  features: RulesyncFeatures;
-  verbose: boolean;
-  delete: boolean;
+export const ConfigParamsSchema = z.object({
+  baseDirs: z.array(z.string()),
+  targets: RulesyncTargetsSchema,
+  features: RulesyncFeaturesSchema,
+  verbose: z.boolean(),
+  delete: z.boolean(),
   // New non-experimental options
-  global?: boolean;
-  simulatedCommands?: boolean;
-  simulatedSubagents?: boolean;
-  modularMcp?: boolean;
+  global: optional(z.boolean()),
+  simulatedCommands: optional(z.boolean()),
+  simulatedSubagents: optional(z.boolean()),
+  modularMcp: optional(z.boolean()),
   // Deprecated experimental options (for backward compatibility)
-  experimentalGlobal?: boolean;
-  experimentalSimulateCommands?: boolean;
-  experimentalSimulateSubagents?: boolean;
-};
+  experimentalGlobal: optional(z.boolean()),
+  experimentalSimulateCommands: optional(z.boolean()),
+  experimentalSimulateSubagents: optional(z.boolean()),
+});
+export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
+
+export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
+export type PartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
+
+export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
+export type RequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
 
 export class Config {
   private readonly baseDirs: string[];
