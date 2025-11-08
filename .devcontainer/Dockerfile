@@ -91,7 +91,7 @@ RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node
 
 # Install init.sh
 ENV PATH=$PATH:/home/node/bin
-COPY init.sh /home/node/bin/init.sh
+COPY .devcontainer/init.sh /home/node/bin/init.sh
 USER root
 RUN chmod +x /home/node/bin/init.sh
 USER node
