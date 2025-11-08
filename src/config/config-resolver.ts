@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { formatError } from "../utils/error.js";
 import { fileExists, getHomeDirectory, readFileContent, validateBaseDir } from "../utils/file.js";
@@ -152,10 +153,12 @@ function getBaseDirsInLightOfGlobal({
     return [getHomeDirectory()];
   }
 
+  const resolvedBaseDirs = baseDirs.map((baseDir) => resolve(baseDir));
+
   // Validate each baseDir for security
-  baseDirs.forEach((baseDir) => {
+  resolvedBaseDirs.forEach((baseDir) => {
     validateBaseDir(baseDir);
   });
 
-  return baseDirs;
+  return resolvedBaseDirs;
 }
