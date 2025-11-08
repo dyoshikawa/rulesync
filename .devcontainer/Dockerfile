@@ -80,6 +80,9 @@ RUN claude update
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
 
+# Configure Bun with smol mode to reduce memory usage
+RUN echo 'smol = true' > /home/node/bunfig.toml
+
 # Aliases
 RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
 
