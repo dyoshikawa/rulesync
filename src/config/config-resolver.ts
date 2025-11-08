@@ -1,7 +1,13 @@
 import { resolve } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { formatError } from "../utils/error.js";
-import { fileExists, getHomeDirectory, readFileContent, resolvePath, validateBaseDir } from "../utils/file.js";
+import {
+  fileExists,
+  getHomeDirectory,
+  readFileContent,
+  resolvePath,
+  validateBaseDir,
+} from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import {
   Config,
