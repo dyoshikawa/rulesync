@@ -262,4 +262,5 @@ repomix-output.xml
 modular-mcp.json
 
 # Bun compiled binaries
-/rulesync
+dist-bun/
+*.bun-build
