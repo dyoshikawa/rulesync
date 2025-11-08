@@ -1,9 +1,21 @@
-import { join } from "node:path";
-import { loadConfig } from "c12";
-import { fileExists, getHomeDirectory, validateBaseDir } from "../utils/file.js";
+import { resolve } from "node:path";
+import { parse as parseJsonc } from "jsonc-parser";
+import { formatError } from "../utils/error.js";
+import {
+  fileExists,
+  getHomeDirectory,
+  readFileContent,
+  resolvePath,
+  validateBaseDir,
+} from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { isEnvTest } from "../utils/vitest.js";
-import { Config, ConfigParams } from "./config.js";
+import {
+  Config,
+  ConfigParams,
+  PartialConfigParams,
+  PartialConfigParamsSchema,
+  RequiredConfigParams,
+} from "./config.js";
 
 export type ConfigResolverResolveParams = Partial<
   ConfigParams & {
@@ -11,7 +23,7 @@ export type ConfigResolverResolveParams = Partial<
   }
 >;
 
-const defaults: Required<ConfigResolverResolveParams> = {
+const defaults: RequiredConfigParams & { configPath: string } = {
   targets: ["agentsmd"],
   features: ["rules"],
   verbose: false,
@@ -44,53 +56,20 @@ export class ConfigResolver {
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
-    if (!(await fileExists(configPath))) {
-      // Warn about deprecated experimental options
-      if (experimentalGlobal !== undefined) {
-        warnDeprecatedOptions({ experimentalGlobal });
-      }
-      if (experimentalSimulateCommands !== undefined) {
-        warnDeprecatedOptions({ experimentalSimulateCommands });
-      }
-      if (experimentalSimulateSubagents !== undefined) {
-        warnDeprecatedOptions({ experimentalSimulateSubagents });
-      }
+    // Validate configPath to prevent path traversal attacks
+    const validatedConfigPath = resolvePath(configPath, process.cwd());
 
-      // Resolve options with migration logic
-      const resolvedGlobal = global ?? experimentalGlobal ?? defaults.global;
-      const resolvedSimulatedCommands =
-        simulatedCommands ?? experimentalSimulateCommands ?? defaults.simulatedCommands;
-      const resolvedSimulatedSubagents =
-        simulatedSubagents ?? experimentalSimulateSubagents ?? defaults.simulatedSubagents;
-
-      return new Config({
-        targets: targets ?? defaults.targets,
-        features: features ?? defaults.features,
-        verbose: verbose ?? defaults.verbose,
-        delete: isDelete ?? defaults.delete,
-        baseDirs: getBaseDirsInLightOfGlobal({
-          baseDirs: baseDirs ?? defaults.baseDirs,
-          global: resolvedGlobal,
-        }),
-        global: resolvedGlobal,
-        simulatedCommands: resolvedSimulatedCommands,
-        simulatedSubagents: resolvedSimulatedSubagents,
-        modularMcp: modularMcp ?? defaults.modularMcp,
-      });
+    let configByFile: PartialConfigParams = {};
+    if (await fileExists(validatedConfigPath)) {
+      try {
+        const fileContent = await readFileContent(validatedConfigPath);
+        const jsonData = parseJsonc(fileContent);
+        configByFile = PartialConfigParamsSchema.parse(jsonData);
+      } catch (error) {
+        logger.error(`Failed to load config file: ${formatError(error)}`);
+        throw error;
+      }
     }
-
-    const loadOptions: Parameters<typeof loadConfig>[0] = {
-      name: "rulesync",
-      cwd: process.cwd(),
-      rcFile: false, // Disable rc file lookup
-      configFile: "rulesync", // Will look for rulesync.jsonc, rulesync.ts, etc.
-    };
-
-    if (configPath) {
-      loadOptions.configFile = configPath;
-    }
-
-    const { config: configByFile } = await loadConfig<Partial<ConfigParams>>(loadOptions);
 
     // Warn about deprecated experimental options from both CLI and config file
     const deprecatedGlobal = experimentalGlobal ?? configByFile.experimentalGlobal;
@@ -178,20 +157,17 @@ function getBaseDirsInLightOfGlobal({
   baseDirs: string[];
   global: boolean;
 }): string[] {
-  if (isEnvTest) {
-    // When in test environment, the base directory is always the relative directory from the project root
-    return baseDirs.map((baseDir) => join(".", baseDir));
-  }
-
   if (global) {
     // When global is true, the base directory is always the home directory
     return [getHomeDirectory()];
   }
 
+  const resolvedBaseDirs = baseDirs.map((baseDir) => resolve(baseDir));
+
   // Validate each baseDir for security
-  baseDirs.forEach((baseDir) => {
+  resolvedBaseDirs.forEach((baseDir) => {
     validateBaseDir(baseDir);
   });
 
-  return baseDirs;
+  return resolvedBaseDirs;
 }

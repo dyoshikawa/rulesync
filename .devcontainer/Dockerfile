@@ -91,8 +91,9 @@ RUN /home/node/.local/bin/mise trust /workspace && /home/node/.local/bin/mise in
 # Install global npm packages
 RUN npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
 
-# Configure Bun with smol mode to reduce memory usage
+# Install Bun with smol mode to reduce memory usage
 RUN echo 'smol = true' > /home/node/bunfig.toml
+RUN curl -fsSL https://bun.sh/install | bash
 
 # Aliases
 RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"

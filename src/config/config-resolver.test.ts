@@ -4,20 +4,38 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { ConfigResolver } from "./config-resolver.js";
 
+const { getHomeDirectoryMock } = vi.hoisted(() => {
+  return {
+    getHomeDirectoryMock: vi.fn(),
+  };
+});
+
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  return {
+    ...actual,
+    getHomeDirectory: getHomeDirectoryMock,
+  };
+});
+
 describe("config-resolver", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
+  let homeDir: string;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    ({ testDir, cleanup } = await setupTestDirectory({ home: true }));
+    homeDir = testDir;
     // Convert relative testDir to absolute path for mocking process.cwd()
     const absoluteTestDir = resolve(testDir);
     vi.spyOn(process, "cwd").mockReturnValue(absoluteTestDir);
+    getHomeDirectoryMock.mockReturnValue(homeDir);
   });
 
   afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+    getHomeDirectoryMock.mockClear();
   });
 
   describe("global configuration", () => {
@@ -110,6 +128,11 @@ describe("config-resolver", () => {
     });
 
     it("should prioritize global CLI flag over experimentalGlobal CLI flag", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
       const config = await ConfigResolver.resolve({
         configPath: join(testDir, "rulesync.jsonc"),
         global: false,
@@ -207,9 +230,9 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      // baseDirs might be normalized (`./ ` prefix removed)
-      expect(config.getBaseDirs()).toContain("src");
-      expect(config.getBaseDirs()).toContain("packages");
+      // baseDirs are now resolved to absolute paths
+      expect(config.getBaseDirs()).toContain(resolve("./src"));
+      expect(config.getBaseDirs()).toContain(resolve("./packages"));
     });
 
     it("should handle multiple baseDirs", async () => {
@@ -222,11 +245,58 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      // baseDirs might be normalized (`./ ` prefix removed)
+      // baseDirs are now resolved to absolute paths
       expect(config.getBaseDirs()).toHaveLength(3);
-      expect(config.getBaseDirs()).toContain("app1");
-      expect(config.getBaseDirs()).toContain("app2");
-      expect(config.getBaseDirs()).toContain("app3");
+      expect(config.getBaseDirs()).toContain(resolve("./app1"));
+      expect(config.getBaseDirs()).toContain(resolve("./app2"));
+      expect(config.getBaseDirs()).toContain(resolve("./app3"));
+    });
+  });
+
+  describe("configPath security", () => {
+    it("should accept configPath within current directory", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getBaseDirs()).toHaveLength(1);
+    });
+
+    it("should reject configPath with path traversal attempting to escape current directory", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "../../etc/passwd",
+        }),
+      ).rejects.toThrow("Path traversal detected");
+    });
+
+    it("should reject absolute paths outside current directory", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "/etc/passwd",
+        }),
+      ).rejects.toThrow("Path traversal detected");
+    });
+
+    it("should reject Windows-style absolute paths outside current directory", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "C:/Windows/System32/config/sam",
+        }),
+      ).rejects.toThrow(); // Can throw either "Path traversal detected" or baseDir validation error
+    });
+
+    it("should reject paths attempting to access parent directories", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "../../../sensitive-file.txt",
+        }),
+      ).rejects.toThrow("Path traversal detected");
     });
   });
 });

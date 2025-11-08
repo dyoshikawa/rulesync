@@ -9,21 +9,16 @@ cursor: # for cursor-specific rules
   globs: ["*"]
 ---
 
-# rulesync Project Overview
+# Rulesync Project Overview
 
-This is rulesync, a Node.js CLI tool that automatically generates configuration files for various AI coding tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
+This is Rulesync, a Node.js CLI tool that automatically generates configuration files for various AI coding tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
 
-## Project Architecture
-
-- **CLI Interface**: Built with Commander.js for command-line operations
-- **Core Engine**: TypeScript-based processing engine for rule parsing and generation
-- **Multi-Tool Support**: Generates configurations for major AI coding tools
-- **Configuration Management**: Supports JSONC and TypeScript configuration files
+Read @README.md if you want to know Rulesync specification.
 
 ## Use appropriate MCP servers
 
 - When you search for codebase information, use serena MCP as possible as you can.
 - When you search for library documentation, use context7 MCP as possible as you can.
-- When you search for web content, use fetch MCP as possible as you can.
+- When you fetch web content, use fetch MCP as possible as you can.
 
 Of course, you can also use your built-in tools if you need.
