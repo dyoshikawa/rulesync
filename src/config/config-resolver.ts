@@ -88,10 +88,23 @@ export class ConfigResolver {
       // eslint-disable-next-line no-type-assertion/no-type-assertion
       configByFile = parsed ? (parsed as Partial<ConfigParams>) : {};
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`Failed to load config file: ${error.message}`);
+      // If file doesn't exist or can't be read, use default values
+      // Parse errors will still be thrown
+      const isFileNotFoundError =
+        error instanceof Error &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR");
+
+      if (isFileNotFoundError) {
+        logger.warn(`Config file not found: ${configPath}, using default values`);
+        configByFile = {};
+      } else {
+        // For other errors (parse errors, permission errors, etc.), throw
+        if (error instanceof Error) {
+          logger.error(`Failed to load config file: ${error.message}`);
+        }
+        throw error;
       }
-      throw error;
     }
 
     // Warn about deprecated experimental options from both CLI and config file
