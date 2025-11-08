@@ -88,11 +88,6 @@ RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.
 COPY mise.toml /workspace/mise.toml
 RUN /home/node/.local/bin/mise trust /workspace && /home/node/.local/bin/mise install
 
-# Install project dependencies
-# NOTE: node_modules is volume-mounted at runtime, so these may be overridden
-COPY package.json pnpm-lock.yaml /workspace/
-RUN pnpm i
-
 # Install global npm packages
 RUN npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
 
