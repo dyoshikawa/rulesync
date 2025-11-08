@@ -31,7 +31,7 @@ export class OpenCodeRule extends ToolRule {
     };
   }
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: AiFileFromFileParams): Promise<OpenCodeRule> {
@@ -52,7 +52,7 @@ export class OpenCodeRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): OpenCodeRule {

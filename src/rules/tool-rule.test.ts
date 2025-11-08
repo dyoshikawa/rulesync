@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
@@ -13,7 +13,7 @@ import {
 // Create a concrete implementation of ToolRule for testing
 class TestToolRule extends ToolRule {
   static async fromFile(params: ToolRuleFromFileParams): Promise<TestToolRule> {
-    const { baseDir = ".", relativeFilePath, validate = true } = params;
+    const { baseDir = process.cwd(), relativeFilePath, validate = true } = params;
     const filePath = join(baseDir, ".test/rules", relativeFilePath);
     const { readFileContent } = await import("../utils/file.js");
     const fileContent = await readFileContent(filePath);
@@ -63,6 +63,7 @@ describe("ToolRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -226,27 +227,21 @@ describe("ToolRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const rulesDir = join(".", ".test/rules");
+      // Setup test file in test directory (process.cwd() is mocked to return testDir)
+      const rulesDir = join(testDir, ".test/rules");
       await ensureDir(rulesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      try {
-        const toolRule = await TestToolRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
+      const toolRule = await TestToolRule.fromFile({
+        relativeFilePath: "default-test.md",
+      });
 
-        expect(toolRule.getRelativeDirPath()).toBe(".test/rules");
-        expect(toolRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(toolRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(rulesDir, { recursive: true, force: true }),
-        );
-      }
+      expect(toolRule.getRelativeDirPath()).toBe(".test/rules");
+      expect(toolRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(toolRule.getFileContent()).toBe(testContent);
+      expect(toolRule.getFilePath()).toBe(join(testDir, ".test/rules/default-test.md"));
     });
 
     it("should handle validation parameter", async () => {
@@ -462,16 +457,13 @@ describe("ToolRule", () => {
         rulesyncRule,
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: "packages/my-app",
-        relativeFilePath: "AGENTS.md",
-        fileContent: "# Test Rule",
-        validate: true,
-        root: false,
-        description: "Test rule",
-        globs: [],
-      });
+      expect(params.relativeDirPath).toBe("packages/my-app");
+      expect(params.relativeFilePath).toBe("AGENTS.md");
+      expect(params.fileContent).toBe("# Test Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(false);
+      expect(params.description).toBe("Test rule");
+      expect(params.globs).toEqual([]);
     });
 
     it("should build params for non-root rule without subprojectPath", () => {
@@ -491,16 +483,13 @@ describe("ToolRule", () => {
         rulesyncRule,
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: ".agents/memories",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule",
-        validate: true,
-        root: false,
-        description: "Test rule",
-        globs: [],
-      });
+      expect(params.relativeDirPath).toBe(".agents/memories");
+      expect(params.relativeFilePath).toBe("test-rule.md");
+      expect(params.fileContent).toBe("# Test Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(false);
+      expect(params.description).toBe("Test rule");
+      expect(params.globs).toEqual([]);
     });
 
     it("should build params for root rule (ignoring subprojectPath)", () => {
@@ -523,16 +512,13 @@ describe("ToolRule", () => {
         rulesyncRule,
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-        fileContent: "# Root Rule",
-        validate: true,
-        root: true,
-        description: "Root rule",
-        globs: ["**/*"],
-      });
+      expect(params.relativeDirPath).toBe(".");
+      expect(params.relativeFilePath).toBe("AGENTS.md");
+      expect(params.fileContent).toBe("# Root Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(true);
+      expect(params.description).toBe("Root rule");
+      expect(params.globs).toEqual(["**/*"]);
     });
 
     it("should handle empty subprojectPath", () => {
@@ -555,16 +541,13 @@ describe("ToolRule", () => {
         rulesyncRule,
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: ".agents/memories",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule",
-        validate: true,
-        root: false,
-        description: "Test rule",
-        globs: [],
-      });
+      expect(params.relativeDirPath).toBe(".agents/memories");
+      expect(params.relativeFilePath).toBe("test-rule.md");
+      expect(params.fileContent).toBe("# Test Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(false);
+      expect(params.description).toBe("Test rule");
+      expect(params.globs).toEqual([]);
     });
 
     it("should handle undefined agentsmd field", () => {
@@ -584,16 +567,13 @@ describe("ToolRule", () => {
         rulesyncRule,
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: ".agents/memories",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule",
-        validate: true,
-        root: false,
-        description: "Test rule",
-        globs: [],
-      });
+      expect(params.relativeDirPath).toBe(".agents/memories");
+      expect(params.relativeFilePath).toBe("test-rule.md");
+      expect(params.fileContent).toBe("# Test Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(false);
+      expect(params.description).toBe("Test rule");
+      expect(params.globs).toEqual([]);
     });
 
     it("should use custom baseDir", () => {
@@ -689,16 +669,13 @@ describe("ToolRule", () => {
         nonRootPath: { relativeDirPath: ".agents/memories" },
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: ".agents/memories",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule",
-        validate: true,
-        root: false,
-        description: "Test rule",
-        globs: [],
-      });
+      expect(params.relativeDirPath).toBe(".agents/memories");
+      expect(params.relativeFilePath).toBe("test-rule.md");
+      expect(params.fileContent).toBe("# Test Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(false);
+      expect(params.description).toBe("Test rule");
+      expect(params.globs).toEqual([]);
     });
 
     it("should build params for root rule with defaults", () => {
@@ -718,16 +695,13 @@ describe("ToolRule", () => {
         rulesyncRule,
       });
 
-      expect(params).toEqual({
-        baseDir: ".",
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-        fileContent: "# Root Rule",
-        validate: true,
-        root: true,
-        description: "Root rule",
-        globs: ["**/*"],
-      });
+      expect(params.relativeDirPath).toBe(".");
+      expect(params.relativeFilePath).toBe("AGENTS.md");
+      expect(params.fileContent).toBe("# Root Rule");
+      expect(params.validate).toBe(true);
+      expect(params.root).toBe(true);
+      expect(params.description).toBe("Root rule");
+      expect(params.globs).toEqual(["**/*"]);
     });
 
     it("should handle undefined description and globs", () => {

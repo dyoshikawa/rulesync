@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -18,25 +18,23 @@ import {
 describe("SubagentsProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let originalCwd: string;
 
   beforeEach(async () => {
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
-    originalCwd = process.cwd();
-    process.chdir(testDir);
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
@@ -54,7 +52,7 @@ describe("SubagentsProcessor", () => {
     it("should validate tool target with schema", () => {
       expect(() => {
         const _processor = new SubagentsProcessor({
-          baseDir: ".",
+          baseDir: testDir,
           toolTarget: "invalid" as SubagentsProcessorToolTarget,
         });
       }).toThrow();
@@ -64,7 +62,7 @@ describe("SubagentsProcessor", () => {
       for (const toolTarget of subagentsProcessorToolTargets) {
         expect(() => {
           const _processor = new SubagentsProcessor({
-            baseDir: ".",
+            baseDir: testDir,
             toolTarget,
           });
         }).not.toThrow();
@@ -77,14 +75,14 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
     });
 
     it("should filter and convert RulesyncSubagent instances for claudecode", async () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -120,13 +118,13 @@ Test agent content`,
 
     it("should convert with global flag when processor is in global mode", async () => {
       const globalProcessor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "global-test-agent.md",
         fileContent: `---
@@ -175,7 +173,7 @@ Global test agent content`,
       processorWithMockTarget.toolTarget = "unsupported";
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
         fileContent: '---\nname: test\ndescription: test\ntargets: ["*"]\n---\ntest',
@@ -191,12 +189,12 @@ Global test agent content`,
 
     it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "copilot",
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -222,12 +220,12 @@ Test agent content`,
 
     it("should convert RulesyncSubagent to CursorSubagent for cursor target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "cursor",
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -253,12 +251,12 @@ Test agent content`,
 
     it("should convert RulesyncSubagent to CodexCliSubagent for codexcli target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "codexcli",
       });
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -288,14 +286,14 @@ Test agent content`,
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
     });
 
     it("should filter and convert ToolSubagent instances", async () => {
       const claudecodeSubagent = new ClaudecodeSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".claude/agents",
         relativeFilePath: "test-agent.md",
         fileContent: `---
@@ -343,7 +341,7 @@ Test agent content`,
 
     it("should skip simulated subagents when converting to rulesync", async () => {
       const claudecodeSubagent = new ClaudecodeSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".claude/agents",
         relativeFilePath: "claude-agent.md",
         fileContent: `---
@@ -360,7 +358,7 @@ Claude content`,
       });
 
       const copilotSubagent = new CopilotSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".github/subagents",
         relativeFilePath: "copilot-agent.md",
         frontmatter: {
@@ -372,7 +370,7 @@ Claude content`,
       });
 
       const cursorSubagent = new CursorSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".cursor/subagents",
         relativeFilePath: "cursor-agent.md",
         frontmatter: {
@@ -384,7 +382,7 @@ Claude content`,
       });
 
       const codexCliSubagent = new CodexCliSubagent({
-        baseDir: ".",
+        baseDir: testDir,
         relativeDirPath: ".codex/subagents",
         relativeFilePath: "codex-agent.md",
         frontmatter: {
@@ -412,7 +410,7 @@ Claude content`,
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
     });
@@ -423,7 +421,7 @@ Claude content`,
     });
 
     it("should return empty array when no markdown files exist", async () => {
-      const subagentsDir = join(".", ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       await ensureDir(subagentsDir);
 
       // Create non-markdown files
@@ -435,7 +433,7 @@ Claude content`,
     });
 
     it("should load valid markdown subagent files", async () => {
-      const subagentsDir = join(".", ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       await ensureDir(subagentsDir);
 
       const validSubagentContent = `---
@@ -458,7 +456,7 @@ This is a test agent content`;
     });
 
     it("should load multiple valid subagent files", async () => {
-      const subagentsDir = join(".", ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       await ensureDir(subagentsDir);
 
       const subagent1Content = `---
@@ -490,7 +488,7 @@ Second agent content`;
     });
 
     it("should skip invalid subagent files and continue loading valid ones", async () => {
-      const subagentsDir = join(".", ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       await ensureDir(subagentsDir);
 
       const validContent = `---
@@ -519,7 +517,7 @@ Invalid content`;
   describe("loadToolFiles", () => {
     it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -528,7 +526,7 @@ Invalid content`;
 
     it("should delegate to loadCopilotSubagents for copilot target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "copilot",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -537,7 +535,7 @@ Invalid content`;
 
     it("should delegate to loadCursorSubagents for cursor target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "cursor",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -546,7 +544,7 @@ Invalid content`;
 
     it("should delegate to loadCodexCliSubagents for codexcli target", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "codexcli",
       });
       const toolFiles = await processor.loadToolFiles();
@@ -570,7 +568,7 @@ Invalid content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "copilot",
       });
     });
@@ -581,7 +579,7 @@ Invalid content`;
     });
 
     it("should load copilot subagent files from .github/subagents", async () => {
-      const subagentsDir = join(".", ".github", "subagents");
+      const subagentsDir = join(testDir, ".github", "subagents");
       await ensureDir(subagentsDir);
 
       const subagentContent = `---
@@ -604,7 +602,7 @@ Copilot agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "cursor",
       });
     });
@@ -615,7 +613,7 @@ Copilot agent content`;
     });
 
     it("should load cursor subagent files from .cursor/subagents", async () => {
-      const subagentsDir = join(".", ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".cursor", "subagents");
       await ensureDir(subagentsDir);
 
       const subagentContent = `---
@@ -638,7 +636,7 @@ Cursor agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "codexcli",
       });
     });
@@ -649,7 +647,7 @@ Cursor agent content`;
     });
 
     it("should load codexcli subagent files from .codex/subagents", async () => {
-      const subagentsDir = join(".", ".codex", "subagents");
+      const subagentsDir = join(testDir, ".codex", "subagents");
       await ensureDir(subagentsDir);
 
       const subagentContent = `---
@@ -672,7 +670,7 @@ CodexCli agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
     });
@@ -683,7 +681,7 @@ CodexCli agent content`;
     });
 
     it("should load claudecode subagent files from .claude/agents", async () => {
-      const agentsDir = join(".", ".claude", "agents");
+      const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
       const subagentContent = `---
@@ -701,7 +699,7 @@ Claude agent content`;
     });
 
     it("should load multiple claudecode subagent files", async () => {
-      const agentsDir = join(".", ".claude", "agents");
+      const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
       const agent1Content = `---
@@ -726,7 +724,7 @@ Second content`;
     });
 
     it("should handle files that fail to load gracefully", async () => {
-      const agentsDir = join(".", ".claude", "agents");
+      const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
       // Create a file that will cause loading to fail
@@ -940,7 +938,7 @@ Second global content`;
   describe("inheritance from FeatureProcessor", () => {
     it("should extend FeatureProcessor", () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
@@ -958,14 +956,14 @@ Second global content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
     });
 
     it("should handle file system errors gracefully during rulesync file loading", async () => {
       // Create directory but make it inaccessible (this test might be platform-specific)
-      const subagentsDir = join(".", ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       await ensureDir(subagentsDir);
 
       // Write a file with invalid content that will cause parsing errors
@@ -980,7 +978,7 @@ Second global content`;
     });
 
     it("should handle mixed file types in directories", async () => {
-      const subagentsDir = join(".", ".rulesync", "subagents");
+      const subagentsDir = join(testDir, ".rulesync", "subagents");
       await ensureDir(subagentsDir);
 
       // Mix of valid, invalid, and non-markdown files
@@ -1012,11 +1010,11 @@ Valid content`,
   describe("loadToolFilesToDelete", () => {
     it("should return the same files as loadToolFiles", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      const agentsDir = join(".", ".claude", "agents");
+      const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
       const subagentContent = `---
@@ -1048,7 +1046,7 @@ Test agent content`;
 
       for (const target of targets) {
         const processor = new SubagentsProcessor({
-          baseDir: ".",
+          baseDir: testDir,
           toolTarget: target,
         });
 
@@ -1061,7 +1059,7 @@ Test agent content`;
 
     it("should return empty array when no files exist", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
@@ -1071,11 +1069,11 @@ Test agent content`;
 
     it("should handle multiple files correctly", async () => {
       const processor = new SubagentsProcessor({
-        baseDir: ".",
+        baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      const agentsDir = join(".", ".claude", "agents");
+      const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
       const agent1 = `---

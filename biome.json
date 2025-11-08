@@ -27,7 +27,13 @@
     "enabled": false
   },
   "files": {
-    "ignoreUnknown": false,
-    "includes": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts"]
+    "ignoreUnknown": true,
+    "includes": ["src/**/*.ts", "scripts/**/*.ts"]
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
   }
 }

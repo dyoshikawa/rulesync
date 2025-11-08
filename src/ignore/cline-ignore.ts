@@ -37,7 +37,7 @@ export class ClineIgnore extends ToolIgnore {
    * Create ClineIgnore from RulesyncIgnore
    */
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): ClineIgnore {
     const body = rulesyncIgnore.getFileContent();
@@ -54,7 +54,7 @@ export class ClineIgnore extends ToolIgnore {
    * Load ClineIgnore from .clineignore file
    */
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<ClineIgnore> {
     const fileContent = await readFileContent(

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { QwencodeRule } from "./qwencode-rule.js";
@@ -11,10 +11,12 @@ describe("QwencodeRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -128,49 +130,39 @@ describe("QwencodeRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const memoriesDir = join(".", ".qwen/memories");
+      // Setup test file in test directory (process.cwd() is mocked to return testDir)
+      const memoriesDir = join(testDir, ".qwen/memories");
       await ensureDir(memoriesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(memoriesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      try {
-        const qwencodeRule = await QwencodeRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
+      const qwencodeRule = await QwencodeRule.fromFile({
+        relativeFilePath: "default-test.md",
+      });
 
-        expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
-        expect(qwencodeRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(qwencodeRule.getFileContent()).toBe(testContent);
-        expect(qwencodeRule.isRoot()).toBe(false);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(memoriesDir, { recursive: true, force: true }),
-        );
-      }
+      expect(qwencodeRule.getRelativeDirPath()).toBe(".qwen/memories");
+      expect(qwencodeRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(qwencodeRule.getFileContent()).toBe(testContent);
+      expect(qwencodeRule.isRoot()).toBe(false);
+      expect(qwencodeRule.getFilePath()).toBe(join(testDir, ".qwen/memories/default-test.md"));
     });
 
     it("should handle root file detection with default baseDir", async () => {
-      // Setup root test file in current directory
+      // Setup root test file in test directory (process.cwd() is mocked to return testDir)
       const testContent = "# Root Default BaseDir Test";
-      const rootFilePath = join(".", "QWEN.md");
+      const rootFilePath = join(testDir, "QWEN.md");
       await writeFileContent(rootFilePath, testContent);
 
-      try {
-        const qwencodeRule = await QwencodeRule.fromFile({
-          relativeFilePath: "QWEN.md",
-        });
+      const qwencodeRule = await QwencodeRule.fromFile({
+        relativeFilePath: "QWEN.md",
+      });
 
-        expect(qwencodeRule.getRelativeDirPath()).toBe(".");
-        expect(qwencodeRule.getRelativeFilePath()).toBe("QWEN.md");
-        expect(qwencodeRule.getFileContent()).toBe(testContent);
-        expect(qwencodeRule.isRoot()).toBe(true);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) => fs.rm(rootFilePath, { force: true }));
-      }
+      expect(qwencodeRule.getRelativeDirPath()).toBe(".");
+      expect(qwencodeRule.getRelativeFilePath()).toBe("QWEN.md");
+      expect(qwencodeRule.getFileContent()).toBe(testContent);
+      expect(qwencodeRule.isRoot()).toBe(true);
+      expect(qwencodeRule.getFilePath()).toBe(join(testDir, "QWEN.md"));
     });
 
     it("should handle validation parameter", async () => {

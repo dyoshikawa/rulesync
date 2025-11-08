@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -16,7 +16,7 @@ class TestToolIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): TestToolIgnore {
     return new TestToolIgnore({
@@ -28,7 +28,7 @@ class TestToolIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<TestToolIgnore> {
     const fileContent = "*.test\n# comment\n  \n\nnode_modules/\n*.log";
@@ -49,10 +49,12 @@ describe("ToolIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -263,7 +265,7 @@ describe("ToolIgnore", () => {
         rulesyncIgnore,
       });
 
-      expect(toolIgnore.getFilePath()).toBe(".testignore");
+      expect(toolIgnore.getFilePath()).toBe(join(testDir, ".testignore"));
     });
   });
 
@@ -282,7 +284,7 @@ describe("ToolIgnore", () => {
       const toolIgnore = await TestToolIgnore.fromFile({});
 
       expect(toolIgnore).toBeInstanceOf(TestToolIgnore);
-      expect(toolIgnore.getFilePath()).toBe(".testignore");
+      expect(toolIgnore.getFilePath()).toBe(join(testDir, ".testignore"));
     });
   });
 

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -10,10 +10,12 @@ describe("RulesyncIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -150,44 +152,32 @@ Thumbs.db`;
 
   describe("fromFile", () => {
     it("should read .rulesyncignore file from current directory", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      // Change to test directory to simulate reading from current directory
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
-        expect(rulesyncIgnore.getBaseDir()).toBe(".");
-        expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-        expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
+      expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle empty .rulesyncignore file", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, "");
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe("");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe("");
     });
 
     it("should handle .rulesyncignore file with complex patterns", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = `# Build outputs
 build/
 dist/
@@ -221,61 +211,36 @@ Thumbs.db`;
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .rulesyncignore file does not exist", async () => {
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
-
-        await expect(RulesyncIgnore.fromFile()).rejects.toThrow();
-      } finally {
-        process.chdir(originalCwd);
-      }
+      // process.cwd() is already mocked to return testDir in beforeEach
+      await expect(RulesyncIgnore.fromFile()).rejects.toThrow();
     });
 
     it("should handle file with Windows line endings", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\r\nnode_modules/\r\n.env";
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle file with mixed line endings", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\r\nnode_modules/\n.env\r\nbuild/";
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
   });
 
@@ -358,6 +323,7 @@ Thumbs.db`;
 
   describe("file integration", () => {
     it("should write and read file correctly", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: testDir,
@@ -370,19 +336,13 @@ Thumbs.db`;
       await writeFileContent(rulesyncIgnore.getFilePath(), rulesyncIgnore.getFileContent());
 
       // Read file back from the testDir context
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const readRulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const readRulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(readRulesyncIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(readRulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should preserve exact file content", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const originalContent = `# RulesyncIgnore patterns
 *.log
 node_modules/
@@ -400,16 +360,9 @@ dist/
 
       await writeFileContent(rulesyncIgnore.getFilePath(), rulesyncIgnore.getFileContent());
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const readRulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const readRulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        expect(readRulesyncIgnore.getFileContent()).toBe(originalContent);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      expect(readRulesyncIgnore.getFileContent()).toBe(originalContent);
     });
   });
 
@@ -513,41 +466,29 @@ build/`;
 
   describe("static method behavior", () => {
     it("should use fixed parameters in fromFile method", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        // fromFile always uses these fixed parameters
-        expect(rulesyncIgnore.getBaseDir()).toBe(".");
-        expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-        expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
-      } finally {
-        process.chdir(originalCwd);
-      }
+      // fromFile always uses these fixed parameters
+      expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
     });
 
     it("should create instance with validation enabled by default", async () => {
+      // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
-      const originalCwd = process.cwd();
-      try {
-        process.chdir(testDir);
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-        const rulesyncIgnore = await RulesyncIgnore.fromFile();
-
-        // Should have been validated during construction
-        expect(rulesyncIgnore.validate().success).toBe(true);
-      } finally {
-        process.chdir(originalCwd);
-      }
+      // Should have been validated during construction
+      expect(rulesyncIgnore.validate().success).toBe(true);
     });
   });
 });

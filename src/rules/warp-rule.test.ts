@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
@@ -11,10 +11,12 @@ describe("WarpRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -141,12 +143,11 @@ describe("WarpRule", () => {
       expect(warpRule.getFilePath()).toBe(join(testDir, ".warp/test-memory.md"));
     });
 
-    it("should use default parameters when not provided", async () => {
+    it("should use default baseDir (process.cwd()) when not provided", async () => {
       const warpContent = "# Default Test";
       await writeFileContent(join(testDir, "WARP.md"), warpContent);
 
       const warpRule = await WarpRule.fromFile({
-        baseDir: testDir,
         relativeFilePath: "WARP.md",
       });
 
@@ -227,7 +228,7 @@ describe("WarpRule", () => {
       expect(warpRule.isRoot()).toBe(false);
     });
 
-    it("should use default parameters when not provided", () => {
+    it("should use default baseDir (process.cwd()) when not provided", () => {
       const frontmatter: RulesyncRuleFrontmatter = {
         description: "Default test",
         root: true,
@@ -244,7 +245,7 @@ describe("WarpRule", () => {
         rulesyncRule,
       });
 
-      expect(warpRule.getBaseDir()).toBe(".");
+      expect(warpRule.getBaseDir()).toBe(testDir);
     });
 
     it("should handle validation parameter", () => {

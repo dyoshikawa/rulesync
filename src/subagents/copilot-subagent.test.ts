@@ -34,6 +34,7 @@ Body content`;
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -296,6 +297,28 @@ Body content`;
         description: "Test copilot agent description",
       });
       expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
+    });
+
+    it("should use process.cwd() as default baseDir", async () => {
+      const subagentsDir = join(testDir, ".github", "subagents");
+      const filePath = join(subagentsDir, "default-basedir-agent.md");
+
+      await writeFileContent(filePath, validMarkdownContent);
+
+      // Not passing baseDir - should use mocked process.cwd()
+      const subagent = await CopilotSubagent.fromFile({
+        relativeFilePath: "default-basedir-agent.md",
+        validate: true,
+      });
+
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      expect(subagent.getBody()).toBe(
+        "This is the body of the copilot agent.\nIt can be multiline.",
+      );
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "Test Copilot Agent",
+        description: "Test copilot agent description",
+      });
     });
 
     it("should handle file path with subdirectories", async () => {

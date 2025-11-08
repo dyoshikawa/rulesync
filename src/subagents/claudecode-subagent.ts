@@ -89,7 +89,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = ".",
+    baseDir = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -145,7 +145,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = ".",
+    baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,

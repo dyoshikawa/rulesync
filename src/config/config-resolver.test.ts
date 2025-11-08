@@ -1,5 +1,5 @@
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { join, resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { ConfigResolver } from "./config-resolver.js";
@@ -10,10 +10,14 @@ describe("config-resolver", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    // Convert relative testDir to absolute path for mocking process.cwd()
+    const absoluteTestDir = resolve(testDir);
+    vi.spyOn(process, "cwd").mockReturnValue(absoluteTestDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("global configuration", () => {

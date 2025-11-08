@@ -25,6 +25,7 @@ It can be multiline.`;
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -497,6 +498,7 @@ It can be multiline.`;
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
@@ -510,6 +512,7 @@ It can be multiline.`;
 
     it("should return true for rulesync command with cursor target", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
@@ -523,6 +526,7 @@ It can be multiline.`;
 
     it("should return true for rulesync command with cursor and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode", "cursor", "cline"], description: "Test" },
@@ -536,6 +540,7 @@ It can be multiline.`;
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], description: "Test" },
@@ -549,6 +554,7 @@ It can be multiline.`;
 
     it("should return false for rulesync command with empty targets", () => {
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: [], description: "Test" },
@@ -563,6 +569,7 @@ It can be multiline.`;
     it("should return true for rulesync command with undefined targets (defaults to true)", () => {
       // Create a RulesyncCommand with undefined targets by bypassing validation
       const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined as any, description: "Test" },

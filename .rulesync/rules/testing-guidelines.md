@@ -1,7 +1,7 @@
 ---
 root: false
 targets: ["*"]
-description: "Testing directory unification rules"
+description: "When you write tests, must follow these guidelines."
 globs: ["**/*.test.ts"]
 ---
 
@@ -9,8 +9,8 @@ globs: ["**/*.test.ts"]
 
 - Test code files should be placed next to the implementation. This is called the co-location pattern.
     - For example, if the implementation file is `src/a.ts`, the test code file should be `src/a.test.ts`.
-- For all test code, where directories are specified for actual file generation, use the unified pattern of targeting `./tmp/tests/projects/{RANDOM_STRING}` as the project directory or `./tmp/tests/home/{RANDOM_STRING}` as the pseudo-home directory.
-    - To use the unified test directory, you should use the `setupTestDirectory` function from `src/test-utils/test-directories.ts` and mock `process.cwd()` to return the test directory. If you want to test some behavior in global mode, use the pseudo-home directory by `setupTestDirectory({ home: true })` and mock `getHomeDirectory()` to return the pseudo-home directory.
+- For all test code, to avoid polluting the git managed files, must use the unified pattern of targeting ./tmp/tests/projects/{RANDOM_STRING} as the project directory or ./tmp/tests/home/{RANDOM_STRING} as the pseudo-home directory.
+    - To use the unified test directory, you should use the `setupTestDirectory` function from `src/test-utils/test-directories.ts` and mock `process.cwd()` to return the test directory. You must not use `process.chdir()` instead of mocking `process.cwd()` because `process.chdir()` changes the current working directory globally and affects other tests. If you want to test some behavior in global mode, use the pseudo-home directory by `setupTestDirectory({ home: true })` and mock `getHomeDirectory()` to return the pseudo-home directory.
     ```typescript
     // Example with project directory
     describe("Test Name", () => {
@@ -76,5 +76,5 @@ globs: ["**/*.test.ts"]
 - In test, don't change dirs or files out of the project directory even though it's in global mode to make it easier to test some behavior and avoid polluting those.
 - When `NODE_ENV` is `test`:
   - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
+    - When you want to log in test, use `console.log` and run `npx vitest run --silent=false` to see the logs.
   - `getHomeDirectory()` in `src/utils/file.ts` throws an error to enforce explicit mocking.
-  - `getBaseDirInLightOfGlobal()` in `src/utils/file.ts` always returns `./{baseDir}` even though it's in global mode.

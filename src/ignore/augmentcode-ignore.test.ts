@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
@@ -11,6 +11,7 @@ describe("AugmentcodeIgnore", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -138,7 +139,7 @@ describe("AugmentcodeIgnore", () => {
       });
 
       expect(augmentcodeIgnore).toBeInstanceOf(AugmentcodeIgnore);
-      expect(augmentcodeIgnore.getBaseDir()).toBe(".");
+      expect(augmentcodeIgnore.getBaseDir()).toBe(testDir);
       expect(augmentcodeIgnore.getRelativeDirPath()).toBe(".");
       expect(augmentcodeIgnore.getRelativeFilePath()).toBe(".augmentignore");
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -314,27 +315,15 @@ desktop.ini
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to '.' when not provided", async () => {
-      // Create .augmentignore in current working directory for this test
-      const cwd = process.cwd();
-      const originalCwd = cwd;
+    it("should default baseDir to process.cwd() when not provided", async () => {
+      const fileContent = "*.log\nnode_modules/";
+      const augmentignorePath = join(testDir, ".augmentignore");
+      await writeFileContent(augmentignorePath, fileContent);
 
-      try {
-        // Change to test directory
-        process.chdir(testDir);
+      const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({});
 
-        const fileContent = "*.log\nnode_modules/";
-        const augmentignorePath = ".augmentignore";
-        await writeFileContent(augmentignorePath, fileContent);
-
-        const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({});
-
-        expect(augmentcodeIgnore.getBaseDir()).toBe(".");
-        expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
-      } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
-      }
+      expect(augmentcodeIgnore.getBaseDir()).toBe(testDir);
+      expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .augmentignore file does not exist", async () => {

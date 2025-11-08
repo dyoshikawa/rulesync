@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { RooRule } from "./roo-rule.js";
@@ -11,10 +11,12 @@ describe("RooRule", () => {
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
     await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -95,27 +97,22 @@ describe("RooRule", () => {
     });
 
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in current directory
-      const rulesDir = join(".", ".roo/rules");
+      // Setup test file using testDir
+      const rulesDir = join(testDir, ".roo/rules");
       await ensureDir(rulesDir);
       const testContent = "# Default BaseDir Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
-      try {
-        const rooRule = await RooRule.fromFile({
-          relativeFilePath: "default-test.md",
-        });
+      // process.cwd() is already mocked in beforeEach
+      const rooRule = await RooRule.fromFile({
+        relativeFilePath: "default-test.md",
+      });
 
-        expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
-        expect(rooRule.getRelativeFilePath()).toBe("default-test.md");
-        expect(rooRule.getFileContent()).toBe(testContent);
-      } finally {
-        // Cleanup
-        await import("node:fs/promises").then((fs) =>
-          fs.rm(rulesDir, { recursive: true, force: true }),
-        );
-      }
+      expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
+      expect(rooRule.getRelativeFilePath()).toBe("default-test.md");
+      expect(rooRule.getFileContent()).toBe(testContent);
+      expect(rooRule.getFilePath()).toBe(join(testDir, ".roo/rules/default-test.md"));
     });
 
     it("should handle validation parameter", async () => {

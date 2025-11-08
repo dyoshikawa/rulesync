@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { ensureDir, removeDirectory } from "../utils/file.js";
 
+// Store the original cwd at module load time, before any mocks are applied
+const originalCwd = process.cwd();
+
 /**
  * Helper for test setup and cleanup
  * Returns an object with testDir path and cleanup function
@@ -10,7 +13,7 @@ export async function setupTestDirectory({ home }: { home: boolean } = { home: f
   testDir: string;
   cleanup: () => Promise<void>;
 }> {
-  const testsDir = join(".", "tmp", "tests");
+  const testsDir = join(originalCwd, "tmp", "tests");
   const testDir = home
     ? join(testsDir, "home", randomString(16))
     : join(testsDir, "projects", randomString(16));
