@@ -46,22 +46,7 @@ jobs:
 
   build-binaries:
     name: Build and upload binaries
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: linux-x64
-            artifact: rulesync-linux-x64
-          - os: macos-13
-            target: darwin-x64
-            artifact: rulesync-darwin-x64
-          - os: macos-latest
-            target: darwin-arm64
-            artifact: rulesync-darwin-arm64
-          - os: windows-latest
-            target: windows-x64
-            artifact: rulesync-windows-x64.exe
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -87,8 +72,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build binary for ${{ matrix.target }}
-        run: bun build --compile --external giget --target=bun-${{ matrix.target }} src/cli/index.ts --outfile dist-bun/${{ matrix.artifact }}
+      - name: Build binaries
+        run: |
+          # Linux
+          bun build --compile --target=bun-linux-x64 src/cli/index.ts --outfile dist-bun/rulesync-linux-x64
+          bun build --compile --target=bun-linux-arm64 src/cli/index.ts --outfile dist-bun/rulesync-linux-arm64
+          # macOS
+          bun build --compile --target=bun-darwin-x64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-x64
+          bun build --compile --target=bun-darwin-arm64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-arm64
 
       - name: Upload binary to release
         uses: softprops/action-gh-release@v2

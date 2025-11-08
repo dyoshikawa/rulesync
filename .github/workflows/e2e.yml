@@ -1,0 +1,46 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+jobs:
+  e2e:
+    name: E2E Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Restore cached binaries
+        uses: actions/cache/restore@v4
+        with:
+          path: dist-bun
+          key: rulesync-binaries-${{ github.sha }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+
+      - name: Make binary executable
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            chmod +x dist-bun/rulesync-linux-x64
+            BINARY_PATH=dist-bun/rulesync-linux-x64
+          else
+            chmod +x dist-bun/rulesync-darwin-arm64
+            BINARY_PATH=dist-bun/rulesync-darwin-arm64
+          fi
+          echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
+
+      - name: Test binary version
+        run: |
+          ${{ env.BINARY_PATH }} --version
