@@ -4,11 +4,7 @@
 sudo chown -R node:node /workspace/node_modules 2>/dev/null || true
 sudo chown -R node:node /workspace/.pnpm-store 2>/dev/null || true
 
-mise trust
-mise install
-
-# Not working, so temporarily commented out
-# pnpm i
-# npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
+# Install project dependencies
+pnpm i
 
 gh auth setup-git
