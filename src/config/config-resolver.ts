@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { loadConfig } from "c12";
-import { fileExists, getHomeDirectory, validateBaseDir } from "../utils/file.js";
+import { parse as parseJsonc } from "jsonc-parser";
+import { fileExists, getHomeDirectory, readFileContent, validateBaseDir } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { isEnvTest } from "../utils/vitest.js";
 import { Config, ConfigParams } from "./config.js";
@@ -79,18 +79,20 @@ export class ConfigResolver {
       });
     }
 
-    const loadOptions: Parameters<typeof loadConfig>[0] = {
-      name: "rulesync",
-      cwd: process.cwd(),
-      rcFile: false, // Disable rc file lookup
-      configFile: "rulesync", // Will look for rulesync.jsonc, rulesync.ts, etc.
-    };
-
-    if (configPath) {
-      loadOptions.configFile = configPath;
+    // Load and parse the config file
+    let configByFile: Partial<ConfigParams> = {};
+    try {
+      const fileContent = await readFileContent(configPath);
+      const parsed = parseJsonc(fileContent);
+      // oxlint-disable-next-line no-type-assertion
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      configByFile = parsed ? (parsed as Partial<ConfigParams>) : {};
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error(`Failed to load config file: ${error.message}`);
+      }
+      throw error;
     }
-
-    const { config: configByFile } = await loadConfig<Partial<ConfigParams>>(loadOptions);
 
     // Warn about deprecated experimental options from both CLI and config file
     const deprecatedGlobal = experimentalGlobal ?? configByFile.experimentalGlobal;
