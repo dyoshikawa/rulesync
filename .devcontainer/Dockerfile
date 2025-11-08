@@ -82,6 +82,15 @@ RUN claude update
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
 
+# Copy mise.toml and run mise trust and install
+# NOTE: The tools installed in this image are based on the contents of mise.toml at build time.
+# If you change mise.toml, you must rebuild the container.
+COPY mise.toml /workspace/mise.toml
+RUN /home/node/.local/bin/mise trust /workspace && /home/node/.local/bin/mise install
+
+# Install global npm packages
+RUN npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
+
 # Configure Bun with smol mode to reduce memory usage
 RUN echo 'smol = true' > /home/node/bunfig.toml
 
@@ -90,7 +99,7 @@ RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node
 
 # Install init.sh
 ENV PATH=$PATH:/home/node/bin
-COPY init.sh /home/node/bin/init.sh
+COPY .devcontainer/init.sh /home/node/bin/init.sh
 USER root
 RUN chmod +x /home/node/bin/init.sh
 USER node

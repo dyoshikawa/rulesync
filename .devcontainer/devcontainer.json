@@ -2,6 +2,7 @@
   "name": "Claude Code Sandbox",
   "build": {
     "dockerfile": "Dockerfile",
+    "context": "..",
     "args": {
       "TZ": "${localEnv:TZ:America/Los_Angeles}"
     }
