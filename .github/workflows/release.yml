@@ -79,19 +79,16 @@ jobs:
         with:
           version: 10.20.0
 
-      - name: Install dependencies
-        run: pnpm install
-
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Bundle with tsup
-        run: pnpm run build:bun:bundle
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Build binary for ${{ matrix.target }}
-        run: bun build --compile --target=bun-${{ matrix.target }} dist-bun/index.js --outfile dist-bun/${{ matrix.artifact }}
+        run: bun build --compile --external giget --target=bun-${{ matrix.target }} src/cli/index.ts --outfile dist-bun/${{ matrix.artifact }}
 
       - name: Upload binary to release
         uses: softprops/action-gh-release@v2
