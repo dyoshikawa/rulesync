@@ -20,12 +20,6 @@ A Node.js CLI tool that automatically generates configuration files for various 
 ```bash
 npm install -g rulesync
 # or
-pnpm add -g rulesync
-# or
-yarn global add rulesync
-# or
-bun add -g rulesync
-# or
 brew install rulesync
 
 # And then
@@ -556,17 +550,19 @@ pnpm dev import -t claudecode -f "*"
 
 ## FAQ
 
-**Q. The generated .mcp.json doesn't work properly in Claude Code.**
+### Q. The generated `.mcp.json` doesn't work properly in Claude Code.
 
-A. Add the following to `.claude/settings.json` or `.claude/settings.local.json`:
+You can try adding the following to `.claude/settings.json` or `.claude/settings.local.json`:
 
-```json
+```diff
 {
-  "enableAllProjectMcpServers": true
++ "enableAllProjectMcpServers": true
 }
 ```
 
-Reference: https://code.claude.com/docs/en/settings
+According to [the documentation](https://code.claude.com/docs/en/settings), this means:
+
+> Automatically approve all MCP servers defined in project .mcp.json files
 
 ## License
 
