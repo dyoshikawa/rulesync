@@ -76,6 +76,10 @@ sudo mv rulesync /usr/local/bin/
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
+
+#### Windows support?
+
+Though Windows is not supported yet, we are positively considering it.
 </details>
 
 ## Getting Started
