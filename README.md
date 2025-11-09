@@ -45,6 +45,7 @@ Download pre-built binaries from the [latest release](https://github.com/dyoshik
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-x64 -o rulesync
 chmod +x rulesync
+# Place the binary wherever set PATH
 sudo mv rulesync /usr/local/bin/
 ```
 
@@ -53,6 +54,7 @@ sudo mv rulesync /usr/local/bin/
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-arm64 -o rulesync
 chmod +x rulesync
+# Place the binary wherever set PATH
 sudo mv rulesync /usr/local/bin/
 ```
 
@@ -61,6 +63,7 @@ sudo mv rulesync /usr/local/bin/
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-x64 -o rulesync
 chmod +x rulesync
+# Place the binary wherever set PATH
 sudo mv rulesync /usr/local/bin/
 ```
 
@@ -69,6 +72,7 @@ sudo mv rulesync /usr/local/bin/
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-arm64 -o rulesync
 chmod +x rulesync
+# Place the binary wherever set PATH
 sudo mv rulesync /usr/local/bin/
 ```
 
