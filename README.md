@@ -501,6 +501,20 @@ pnpm dev generate -t claudecode -f "*"
 pnpm dev import -t claudecode -f "*"
 ```
 
+## FAQ
+
+**Q. The generated .mcp.json doesn't work properly in Claude Code.**
+
+A. Add the following to `.claude/settings.json` or `.claude/settings.local.json`:
+
+```json
+{
+  "enableAllProjectMcpServers": true
+}
+```
+
+Reference: https://code.claude.com/docs/en/settings
+
 ## License
 
 MIT License
