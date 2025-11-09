@@ -18,15 +18,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Setup mise
+        uses: jdx/mise-action@v2
         with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.20.0
+          experimental: true
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts

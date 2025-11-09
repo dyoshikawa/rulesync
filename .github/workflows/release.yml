@@ -19,27 +19,17 @@ jobs:
         with:
           ref: main
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Setup mise
+        uses: jdx/mise-action@v2
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          experimental: true
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.20.0
-    
       # Required equal or greater than npm 11.5.1 for OIDC
       - name: Update npm
         run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install
-
-      - name: Run cicheck
-        run: |
-          pnpm cicheck
 
       - name: Publish to npm
         run: pnpm publish
