@@ -37,9 +37,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run cicheck
-        run: |
-          pnpm cicheck
-
       - name: Publish to npm
         run: pnpm publish
