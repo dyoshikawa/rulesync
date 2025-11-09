@@ -92,8 +92,8 @@ RUN /home/node/.local/bin/mise trust /workspace && /home/node/.local/bin/mise in
 RUN /home/node/.local/bin/mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
 
-# Install global npm packages
-RUN /home/node/.local/bin/mise exec -- npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
+# Install global packages
+RUN /home/node/.local/bin/mise exec -- pnpm add -g opencode-ai @openai/codex opencommit @google/gemini-cli
 
 # Enable smol mode in Bun to reduce memory usage
 RUN echo 'smol = true' > /home/node/bunfig.toml
