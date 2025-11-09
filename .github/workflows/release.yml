@@ -20,10 +20,9 @@ jobs:
           ref: main
 
       - name: Setup mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
         with:
           experimental: true
-
 
       # Required equal or greater than npm 11.5.1 for OIDC
       - name: Update npm
