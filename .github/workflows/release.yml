@@ -24,9 +24,6 @@ jobs:
         with:
           experimental: true
 
-      - name: Configure npm registry
-        run: npm config set registry https://registry.npmjs.org/
-
       # Required equal or greater than npm 11.5.1 for OIDC
       - name: Update npm
         run: npm install -g npm@latest
