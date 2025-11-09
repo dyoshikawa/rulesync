@@ -88,6 +88,10 @@ RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.
 COPY mise.toml /workspace/mise.toml
 RUN /home/node/.local/bin/mise trust /workspace && /home/node/.local/bin/mise install
 
+# Install pinact using Go installed by mise
+RUN /home/node/.local/bin/mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
+ENV PATH=$PATH:/home/node/go/bin
+
 # Install global npm packages
 RUN npm i -g opencode-ai @openai/codex opencommit @google/gemini-cli
 
