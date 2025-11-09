@@ -18,23 +18,13 @@ jobs:
         with:
           ref: main
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.20.0
-
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install --ignore-scripts
 
       - name: Build binaries
         run: |
