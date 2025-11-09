@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read # Required for checking out code
+
 jobs:
   quality:
     name: Code Quality & Tests
