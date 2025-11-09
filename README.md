@@ -15,6 +15,8 @@ A Node.js CLI tool that automatically generates configuration files for various 
 
 ## Installation
 
+### Package Managers
+
 ```bash
 npm install -g rulesync
 # or
@@ -29,6 +31,44 @@ brew install rulesync
 # And then
 rulesync --version
 rulesync --help
+```
+
+### Single Binary
+
+Download pre-built binaries from the [latest release](https://github.com/dyoshikawa/rulesync/releases/latest):
+
+**Linux (x64)**
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-x64 -o rulesync
+chmod +x rulesync
+sudo mv rulesync /usr/local/bin/
+```
+
+**Linux (ARM64)**
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-arm64 -o rulesync
+chmod +x rulesync
+sudo mv rulesync /usr/local/bin/
+```
+
+**macOS (Intel)**
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-x64 -o rulesync
+chmod +x rulesync
+sudo mv rulesync /usr/local/bin/
+```
+
+**macOS (Apple Silicon)**
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-arm64 -o rulesync
+chmod +x rulesync
+sudo mv rulesync /usr/local/bin/
+```
+
+**Verify checksums**
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS
+sha256sum -c SHA256SUMS
 ```
 
 ## Getting Started
