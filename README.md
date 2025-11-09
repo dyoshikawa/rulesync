@@ -33,43 +33,52 @@ rulesync --version
 rulesync --help
 ```
 
-### Single Binary
+### Single Binary (Experimental)
 
-Download pre-built binaries from the [latest release](https://github.com/dyoshikawa/rulesync/releases/latest):
+Download pre-built binaries from the [latest release](https://github.com/dyoshikawa/rulesync/releases/latest).
 
-**Linux (x64)**
+<details>
+<summary>Commands to install a binary for your platform</summary>
+
+#### Linux (x64)
+
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-x64 -o rulesync
 chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
-**Linux (ARM64)**
+#### Linux (ARM64)
+
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-arm64 -o rulesync
 chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
-**macOS (Intel)**
+#### macOS (Intel)
+
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-x64 -o rulesync
 chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
-**macOS (Apple Silicon)**
+#### macOS (Apple Silicon)
+
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-arm64 -o rulesync
 chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
-**Verify checksums**
+#### Verify checksums
+
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
+</details>
 
 ## Getting Started
 
@@ -141,7 +150,7 @@ Apply consistent rules across all AI tools, improving code quality and developme
 ### 🌏 **Global Mode**
 You can use global mode via Rulesync by enabling `--global` option.
 
-### 🎮 **Simulated Commands and Subagents**
+### 🎮 **Simulate Commands and Subagents**
 Simulated commands and subagents allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
 
 ## Quick Commands
