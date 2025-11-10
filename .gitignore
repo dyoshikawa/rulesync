@@ -261,3 +261,10 @@ modular-mcp.json
 # Bun compiled binaries
 dist-bun/
 *.bun-build
+
+# Deno compiled binaries
+dist-deno/
+deno.json
+deno.lock
+build-with-esbuild.ts
+rulesync-deno

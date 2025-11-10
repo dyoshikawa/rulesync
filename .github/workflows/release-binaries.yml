@@ -23,22 +23,49 @@ jobs:
         with:
           experimental: true
 
-      - name: Install dependencies
-        run: bun install --ignore-scripts
-
       - name: Build binaries
         run: |
-          mkdir -p dist-bun
-          # Linux
-          bun build --compile --minify --sourcemap --target=bun-linux-x64 src/cli/index.ts --outfile dist-bun/rulesync-linux-x64
-          bun build --compile --minify --sourcemap --target=bun-linux-arm64 src/cli/index.ts --outfile dist-bun/rulesync-linux-arm64
-          # macOS
-          bun build --compile --minify --sourcemap --target=bun-darwin-x64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-x64
-          bun build --compile --minify --sourcemap --target=bun-darwin-arm64 src/cli/index.ts --outfile dist-bun/rulesync-darwin-arm64
+          mkdir -p dist-deno
+          # Linux x64
+          deno compile \
+            --allow-read --allow-write --allow-env --allow-run \
+            --node-modules-dir=auto \
+            --sloppy-imports \
+            --no-check \
+            --target=x86_64-unknown-linux-gnu \
+            --output=dist-deno/rulesync-linux-x64 \
+            ./src/cli/index.ts
+          # Linux ARM64
+          deno compile \
+            --allow-read --allow-write --allow-env --allow-run \
+            --node-modules-dir=auto \
+            --sloppy-imports \
+            --no-check \
+            --target=aarch64-unknown-linux-gnu \
+            --output=dist-deno/rulesync-linux-arm64 \
+            ./src/cli/index.ts
+          # macOS x64
+          deno compile \
+            --allow-read --allow-write --allow-env --allow-run \
+            --node-modules-dir=auto \
+            --sloppy-imports \
+            --no-check \
+            --target=x86_64-apple-darwin \
+            --output=dist-deno/rulesync-darwin-x64 \
+            ./src/cli/index.ts
+          # macOS ARM64
+          deno compile \
+            --allow-read --allow-write --allow-env --allow-run \
+            --node-modules-dir=auto \
+            --sloppy-imports \
+            --no-check \
+            --target=aarch64-apple-darwin \
+            --output=dist-deno/rulesync-darwin-arm64 \
+            ./src/cli/index.ts
 
       - name: Generate checksums
         run: |
-          cd dist-bun
+          cd dist-deno
           sha256sum rulesync-* > SHA256SUMS
           cat SHA256SUMS
 
@@ -46,8 +73,8 @@ jobs:
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
         with:
           files: |
-            dist-bun/rulesync-linux-x64
-            dist-bun/rulesync-linux-arm64
-            dist-bun/rulesync-darwin-x64
-            dist-bun/rulesync-darwin-arm64
-            dist-bun/SHA256SUMS
+            dist-deno/rulesync-linux-x64
+            dist-deno/rulesync-linux-arm64
+            dist-deno/rulesync-darwin-x64
+            dist-deno/rulesync-darwin-arm64
+            dist-deno/SHA256SUMS
