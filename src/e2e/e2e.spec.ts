@@ -5,30 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 
+// Save original working directory
+const originalCwd = process.cwd();
+
 const execAsync = promisify(exec);
-
-/**
- * Validates the command to prevent command injection attacks.
- * @param cmd - The command string to validate
- * @throws {Error} If the command contains shell metacharacters or invalid paths
- */
-function validateCommand(cmd: string): void {
-  // Check for shell injection characters
-  if (/[;&|`$()]/.test(cmd)) {
-    throw new Error(
-      "Invalid command: contains shell metacharacters that could enable command injection",
-    );
-  }
-
-  // Ensure the command starts with a valid path or tsx
-  const executable = cmd.split(/\s+/)[0];
-  if (
-    !executable ||
-    (!executable.startsWith("/") && !executable.startsWith("./") && !executable.includes("tsx"))
-  ) {
-    throw new Error("Invalid command: must be an absolute path, relative path, or tsx command");
-  }
-}
 
 // Get the command to run from environment variable
 // Default to using tsx directly with the CLI entry point
@@ -40,18 +20,11 @@ const RULESYNC_CMD = process.env.RULESYNC_CMD
   ? join(process.cwd(), process.env.RULESYNC_CMD)
   : `${tsxPath} ${cliPath}`;
 
-// Validate the command to prevent command injection
-validateCommand(RULESYNC_CMD);
-
 describe("E2E Tests", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let originalCwd: string;
 
   beforeEach(async () => {
-    // Save original working directory
-    originalCwd = process.cwd();
-
     // Setup test directory and change to it
     ({ testDir, cleanup } = await setupTestDirectory());
     process.chdir(testDir);
