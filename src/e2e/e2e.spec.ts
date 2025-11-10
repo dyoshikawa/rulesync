@@ -22,14 +22,8 @@ function validateCommand(cmd: string): void {
 
   // Ensure the command starts with a valid path or tsx
   const executable = cmd.split(/\s+/)[0];
-  if (
-    !executable.startsWith("/") &&
-    !executable.startsWith("./") &&
-    !executable.includes("tsx")
-  ) {
-    throw new Error(
-      "Invalid command: must be an absolute path, relative path, or tsx command",
-    );
+  if (!executable.startsWith("/") && !executable.startsWith("./") && !executable.includes("tsx")) {
+    throw new Error("Invalid command: must be an absolute path, relative path, or tsx command");
   }
 }
 
@@ -73,7 +67,7 @@ describe("E2E Tests", () => {
     // Use regex to extract version number to handle potential debug output
     const versionMatch = stdout.trim().match(/(\d+\.\d+\.\d+)/);
     expect(versionMatch).toBeTruthy();
-    expect(versionMatch![1]).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(versionMatch?.[1]).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("should generate claudecode rules", async () => {
