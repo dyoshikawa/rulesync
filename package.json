@@ -1,6 +1,6 @@
 {
 	"name": "rulesync",
-	"version": "3.17.0",
+	"version": "3.17.1",
 	"description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
 	"keywords": [
 		"ai",
@@ -36,6 +36,7 @@
 		"bcheck": "biome check .",
 		"bcheck:fix": "biome check --write .",
 		"build": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
+		"bundle:deno": "tsup --config tsup.deno.config.ts",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
 		"cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
 		"cicheck:code": "pnpm run check && pnpm run test",

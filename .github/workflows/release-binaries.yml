@@ -23,6 +23,12 @@ jobs:
         with:
           experimental: true
 
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
+
+      - name: Bundle with tsup
+        run: pnpm run bundle:deno
+
       - name: Build binaries
         run: |
           mkdir -p dist-deno
