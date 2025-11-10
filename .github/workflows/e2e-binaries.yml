@@ -81,6 +81,15 @@ jobs:
           fi
           echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
 
-      - name: Test binary version
-        run: |
-          "${BINARY_PATH}" --version
+      - name: Setup mise
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: bun install --ignore-scripts
+
+      - name: Test binary
+        env:
+          RULESYNC_CMD: ${{ env.BINARY_PATH }}
+        run: bun run test:e2e
