@@ -49,7 +49,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-13]
+        os: [ubuntu-latest, macos-latest, macos-15-intel]
 
     steps:
       - name: Checkout code
@@ -70,8 +70,8 @@ jobs:
           if [ "$MATRIX_OS" = "ubuntu-latest" ]; then
             chmod +x dist-bun/rulesync-linux-x64
             BINARY_PATH=dist-bun/rulesync-linux-x64
-          elif [ "$MATRIX_OS" = "macos-13" ]; then
-            # macos-13 is Intel (x64)
+          elif [ "$MATRIX_OS" = "macos-15-intel" ]; then
+            # macos-15-intel is Intel (x64)
             chmod +x dist-bun/rulesync-darwin-x64
             BINARY_PATH=dist-bun/rulesync-darwin-x64
           else
