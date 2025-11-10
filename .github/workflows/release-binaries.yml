@@ -48,4 +48,5 @@ jobs:
             dist-deno/rulesync-linux-arm64
             dist-deno/rulesync-darwin-x64
             dist-deno/rulesync-darwin-arm64
+            dist-deno/rulesync-windows-x64.exe
             dist-deno/SHA256SUMS

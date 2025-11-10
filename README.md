@@ -70,16 +70,28 @@ chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
+#### Windows (x64)
+
+```powershell
+# PowerShell
+Invoke-WebRequest -Uri "https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe" -OutFile "rulesync.exe"
+# Add to PATH or place in a directory already in PATH
+Move-Item rulesync.exe C:\Windows\System32\
+```
+
+Or using curl (if available):
+
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe -o rulesync.exe
+# Place the binary wherever set PATH
+```
+
 #### Verify checksums
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
-
-#### Windows support?
-
-Though Windows is not supported yet, we are positively considering it.
 </details>
 
 ## Getting Started
