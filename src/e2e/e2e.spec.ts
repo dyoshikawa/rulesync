@@ -37,19 +37,18 @@ const rulesyncCmd = process.env.RULESYNC_CMD
 
 describe("E2E Tests", () => {
   let testDir: string;
-  // let cleanup: () => Promise<void>;
+  let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
     // Setup test directory and change to it
-    // ({ testDir, cleanup } = await setupTestDirectory());
-    testDir = (await setupTestDirectory()).testDir;
+    ({ testDir, cleanup } = await setupTestDirectory());
     process.chdir(testDir);
   });
 
   afterEach(async () => {
     // Restore original working directory before cleanup
     process.chdir(originalCwd);
-    // await cleanup();
+    await cleanup();
   });
 
   it("should display version with --version", async () => {
