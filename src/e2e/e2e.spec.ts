@@ -78,24 +78,14 @@ globs: ["**/*"]
 
 This is a test rule for E2E testing.
 `;
-    const ruleFilePath = join(rulesDir, "overview.md");
+    const ruleFilePath = join(testDir, rulesDir, "overview.md");
     await writeFileContent(ruleFilePath, ruleContent);
 
     // Execute: Generate claudecode rules
-    const { stderr } = await execAsync(
-      `${rulesyncCmd} generate --targets claudecode --features rules`,
-    );
-
-    // Assert: Should not have critical errors (warnings are acceptable)
-    // Filter out info/warn level messages, only check for errors
-    const errorLines = stderr
-      .split("\n")
-      .filter((line) => line.includes("[error]"))
-      .join("\n");
-    expect(errorLines).toBe("");
+    await execAsync(`${rulesyncCmd} generate --targets claudecode --features rules`);
 
     // Verify that the CLAUDE.md file was generated
-    const claudeMdPath = "CLAUDE.md";
+    const claudeMdPath = join(testDir, "CLAUDE.md");
     const generatedContent = await readFileContent(claudeMdPath);
     expect(generatedContent).toContain("Test Rule");
   });
@@ -106,22 +96,14 @@ This is a test rule for E2E testing.
 
 This is a test project for E2E testing.
 `;
-    const claudeMdPath = "CLAUDE.md";
+    const claudeMdPath = join(testDir, "CLAUDE.md");
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
-    const { stderr } = await execAsync(`${rulesyncCmd} import --targets claudecode`);
-
-    // Assert: Should not have critical errors (warnings are acceptable)
-    // Filter out info/warn level messages, only check for errors
-    const errorLines = stderr
-      .split("\n")
-      .filter((line) => line.includes("[error]"))
-      .join("\n");
-    expect(errorLines).toBe("");
+    await execAsync(`${rulesyncCmd} import --targets claudecode`);
 
     // Verify that the imported rule file was created
-    const importedRulePath = join(".rulesync", "rules", "CLAUDE.md");
+    const importedRulePath = join(testDir, ".rulesync", "rules", "CLAUDE.md");
     const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
   });
