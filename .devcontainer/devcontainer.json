@@ -37,10 +37,10 @@
   },
   "remoteUser": "node",
   "mounts": [
-    "source=${localWorkspaceFolderBasename}-claude-code-bashhistory,target=/commandhistory,type=volume",
-    "source=${localWorkspaceFolderBasename}-claude-code-config,target=/home/node/.claude,type=volume",
-    "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
-    "source=${localWorkspaceFolderBasename}-pnpm-store,target=${containerWorkspaceFolder}/.pnpm-store,type=volume"
+    "source=${localWorkspaceFolderBasename}-claude-code-bashhistory,target=/commandhistory,type=volume,consistency=delegated",
+    "source=${localWorkspaceFolderBasename}-claude-code-config,target=/home/node/.claude,type=volume,consistency=delegated",
+    "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume,consistency=delegated",
+    "source=${localWorkspaceFolderBasename}-pnpm-store,target=${containerWorkspaceFolder}/.pnpm-store,type=volume,consistency=delegated"
   ],
   "remoteEnv": {
     "NODE_OPTIONS": "--max-old-space-size=2048",

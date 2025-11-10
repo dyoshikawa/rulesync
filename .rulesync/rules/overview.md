@@ -13,7 +13,8 @@ cursor: # for cursor-specific rules
 
 This is Rulesync, a Node.js CLI tool that automatically generates configuration files for various AI coding tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
 
-Read @README.md if you want to know Rulesync specification.
+- Read @README.md if you want to know Rulesync specification.
+- Manage runtimes and package managers with @mise.toml . 
 
 ## Use appropriate MCP servers
 
