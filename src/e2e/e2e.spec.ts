@@ -21,11 +21,11 @@ if (process.env.RULESYNC_CMD) {
   const resolvedRulesyncCmd = resolve(process.env.RULESYNC_CMD);
   const splittedResolvedRulesyncCmd = resolvedRulesyncCmd.split(sep);
   const valid =
-    splittedResolvedRulesyncCmd.at(-2) === "dist-bun" &&
+    splittedResolvedRulesyncCmd.at(-2) === "dist-deno" &&
     splittedResolvedRulesyncCmd.at(-1)?.startsWith("rulesync-");
   if (!valid) {
     throw new Error(
-      `Invalid RULESYNC_CMD: must start with 'dist-bun' directory and end with 'rulesync-<platform>-<arch>': ${process.env.RULESYNC_CMD}`,
+      `Invalid RULESYNC_CMD: must start with 'dist-deno' directory and end with 'rulesync-<platform>-<arch>': ${process.env.RULESYNC_CMD}`,
     );
   }
 }

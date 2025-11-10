@@ -26,42 +26,7 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p dist-deno
-          # Linux x64
-          deno compile \
-            --allow-read --allow-write --allow-env --allow-run \
-            --node-modules-dir=auto \
-            --sloppy-imports \
-            --no-check \
-            --target=x86_64-unknown-linux-gnu \
-            --output=dist-deno/rulesync-linux-x64 \
-            ./src/cli/index.ts
-          # Linux ARM64
-          deno compile \
-            --allow-read --allow-write --allow-env --allow-run \
-            --node-modules-dir=auto \
-            --sloppy-imports \
-            --no-check \
-            --target=aarch64-unknown-linux-gnu \
-            --output=dist-deno/rulesync-linux-arm64 \
-            ./src/cli/index.ts
-          # macOS x64
-          deno compile \
-            --allow-read --allow-write --allow-env --allow-run \
-            --node-modules-dir=auto \
-            --sloppy-imports \
-            --no-check \
-            --target=x86_64-apple-darwin \
-            --output=dist-deno/rulesync-darwin-x64 \
-            ./src/cli/index.ts
-          # macOS ARM64
-          deno compile \
-            --allow-read --allow-write --allow-env --allow-run \
-            --node-modules-dir=auto \
-            --sloppy-imports \
-            --no-check \
-            --target=aarch64-apple-darwin \
-            --output=dist-deno/rulesync-darwin-arm64 \
-            ./src/cli/index.ts
+          deno task compile:all
 
       - name: Cache binaries
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0

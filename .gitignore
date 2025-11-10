@@ -264,7 +264,6 @@ dist-bun/
 
 # Deno compiled binaries
 dist-deno/
-deno.json
 deno.lock
 build-with-esbuild.ts
 rulesync-deno
