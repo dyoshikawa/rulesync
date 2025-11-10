@@ -88,6 +88,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts
+      
+      - name: pwd
+        run: pwd
 
       - name: Test binary
         env:

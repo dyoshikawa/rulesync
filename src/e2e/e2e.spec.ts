@@ -12,12 +12,11 @@ const execAsync = promisify(exec);
 
 // Get the command to run from environment variable
 // Default to using tsx directly with the CLI entry point
-const workspaceRoot = process.cwd();
-const tsxPath = join(workspaceRoot, "node_modules", ".bin", "tsx");
-const cliPath = join(workspaceRoot, "src", "cli", "index.ts");
+const tsxPath = join(originalCwd, "node_modules", ".bin", "tsx");
+const cliPath = join(originalCwd, "src", "cli", "index.ts");
 // Convert relative path to absolute path if RULESYNC_CMD is set
 const RULESYNC_CMD = process.env.RULESYNC_CMD
-  ? join(process.cwd(), process.env.RULESYNC_CMD)
+  ? join(originalCwd, process.env.RULESYNC_CMD)
   : `${tsxPath} ${cliPath}`;
 
 describe("E2E Tests", () => {
