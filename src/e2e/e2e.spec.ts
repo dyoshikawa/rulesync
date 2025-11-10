@@ -7,6 +7,32 @@ import { ensureDir, writeFileContent } from "../utils/file.js";
 
 const execAsync = promisify(exec);
 
+/**
+ * Validates the command to prevent command injection attacks.
+ * @param cmd - The command string to validate
+ * @throws {Error} If the command contains shell metacharacters or invalid paths
+ */
+function validateCommand(cmd: string): void {
+  // Check for shell injection characters
+  if (/[;&|`$()]/.test(cmd)) {
+    throw new Error(
+      "Invalid command: contains shell metacharacters that could enable command injection",
+    );
+  }
+
+  // Ensure the command starts with a valid path or tsx
+  const executable = cmd.split(/\s+/)[0];
+  if (
+    !executable.startsWith("/") &&
+    !executable.startsWith("./") &&
+    !executable.includes("tsx")
+  ) {
+    throw new Error(
+      "Invalid command: must be an absolute path, relative path, or tsx command",
+    );
+  }
+}
+
 // Get the command to run from environment variable
 // Default to using tsx directly with the CLI entry point
 const workspaceRoot = process.cwd();
@@ -16,6 +42,9 @@ const cliPath = join(workspaceRoot, "src", "cli", "index.ts");
 const RULESYNC_CMD = process.env.RULESYNC_CMD
   ? join(process.cwd(), process.env.RULESYNC_CMD)
   : `${tsxPath} ${cliPath}`;
+
+// Validate the command to prevent command injection
+validateCommand(RULESYNC_CMD);
 
 describe("E2E Tests", () => {
   let testDir: string;
@@ -41,10 +70,10 @@ describe("E2E Tests", () => {
     const { stdout } = await execAsync(`${RULESYNC_CMD} --version`);
 
     // Should output a version number (e.g., "3.16.0")
-    // Extract the last line which contains the actual version
-    const lines = stdout.trim().split("\n");
-    const version = lines[lines.length - 1];
-    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    // Use regex to extract version number to handle potential debug output
+    const versionMatch = stdout.trim().match(/(\d+\.\d+\.\d+)/);
+    expect(versionMatch).toBeTruthy();
+    expect(versionMatch![1]).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("should generate claudecode rules", async () => {
