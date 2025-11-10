@@ -22,7 +22,10 @@ function validateCommand(cmd: string): void {
 
   // Ensure the command starts with a valid path or tsx
   const executable = cmd.split(/\s+/)[0];
-  if (!executable.startsWith("/") && !executable.startsWith("./") && !executable.includes("tsx")) {
+  if (
+    !executable ||
+    (!executable.startsWith("/") && !executable.startsWith("./") && !executable.includes("tsx"))
+  ) {
     throw new Error("Invalid command: must be an absolute path, relative path, or tsx command");
   }
 }
