@@ -89,7 +89,7 @@ COPY mise.toml /workspace/mise.toml
 RUN mise trust /workspace && mise install
 
 # Install pinact using Go installed by mise
-RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@v3.4.2
+RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
 
 # Install global packages
