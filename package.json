@@ -56,6 +56,7 @@
 		"task": "tsx scripts/run-tasks.ts",
 		"test": "vitest run --silent=true",
 		"test:coverage": "vitest run --coverage --silent=true",
+		"test:e2e": "vitest run --config vitest.e2e.config.ts --silent=true",
 		"test:watch": "vitest --silent=true",
 		"typecheck": "tsgo --noEmit"
 	},
