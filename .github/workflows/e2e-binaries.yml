@@ -87,9 +87,9 @@ jobs:
           experimental: true
 
       - name: Install dependencies
-        run: bun install --ignore-scripts
+        run: pnpm install --ignore-scripts
 
       - name: Test binary
         env:
           RULESYNC_CMD: ${{ env.BINARY_PATH }}
-        run: bun run test:e2e
+        run: pnpm test:e2e

@@ -1,6 +1,5 @@
 import { exec } from "node:child_process";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -10,8 +9,7 @@ const execAsync = promisify(exec);
 
 // Get the command to run from environment variable
 // Default to using tsx directly with the CLI entry point
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const workspaceRoot = join(__dirname, "..", "..");
+const workspaceRoot = process.cwd();
 const tsxPath = join(workspaceRoot, "node_modules", ".bin", "tsx");
 const cliPath = join(workspaceRoot, "src", "cli", "index.ts");
 // Convert relative path to absolute path if RULESYNC_CMD is set
