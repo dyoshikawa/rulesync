@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -14,8 +14,23 @@ const execAsync = promisify(exec);
 // Default to using tsx directly with the CLI entry point
 const tsxPath = join(originalCwd, "node_modules", ".bin", "tsx");
 const cliPath = join(originalCwd, "src", "cli", "index.ts");
+
+// Validate process.env.RULESYNC_CMD
+if (process.env.RULESYNC_CMD) {
+  const resolvedRulesyncCmd = resolve(process.env.RULESYNC_CMD);
+  const splittedResolvedRulesyncCmd = resolvedRulesyncCmd.split(sep);
+  const valid =
+    splittedResolvedRulesyncCmd.at(-2) === "dist-bun" &&
+    splittedResolvedRulesyncCmd.at(-1)?.startsWith("rulesync-");
+  if (!valid) {
+    throw new Error(
+      `Invalid RULESYNC_CMD: must start with 'dist-bun' directory and end with 'rulesync-<platform>-<arch>': ${process.env.RULESYNC_CMD}`,
+    );
+  }
+}
+
 // Convert relative path to absolute path if RULESYNC_CMD is set
-const RULESYNC_CMD = process.env.RULESYNC_CMD
+const rulesyncCmd = process.env.RULESYNC_CMD
   ? join(originalCwd, process.env.RULESYNC_CMD)
   : `${tsxPath} ${cliPath}`;
 
@@ -36,7 +51,7 @@ describe("E2E Tests", () => {
   });
 
   it("should display version with --version", async () => {
-    const { stdout } = await execAsync(`${RULESYNC_CMD} --version`);
+    const { stdout } = await execAsync(`${rulesyncCmd} --version`);
 
     // Should output a version number (e.g., "3.16.0")
     // Use regex to extract version number to handle potential debug output
@@ -68,7 +83,7 @@ This is a test rule for E2E testing.
 
     // Execute: Generate claudecode rules
     const { stderr } = await execAsync(
-      `${RULESYNC_CMD} generate --targets claudecode --features rules`,
+      `${rulesyncCmd} generate --targets claudecode --features rules`,
     );
 
     // Assert: Should not have critical errors (warnings are acceptable)
@@ -95,7 +110,7 @@ This is a test project for E2E testing.
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
-    const { stderr } = await execAsync(`${RULESYNC_CMD} import --targets claudecode`);
+    const { stderr } = await execAsync(`${rulesyncCmd} import --targets claudecode`);
 
     // Assert: Should not have critical errors (warnings are acceptable)
     // Filter out info/warn level messages, only check for errors
