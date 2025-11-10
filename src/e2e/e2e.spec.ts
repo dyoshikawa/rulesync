@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
-import { join, dirname } from "node:path";
-import { promisify } from "node:util";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
@@ -69,7 +69,7 @@ This is a test rule for E2E testing.
 
     // Execute: Generate claudecode rules
     const { stderr } = await execAsync(
-      `${RULESYNC_CMD} generate --targets claudecode --features rules`
+      `${RULESYNC_CMD} generate --targets claudecode --features rules`,
     );
 
     // Assert: Should complete without errors
@@ -92,9 +92,7 @@ This is a test project for E2E testing.
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
-    const { stderr } = await execAsync(
-      `${RULESYNC_CMD} import --targets claudecode`
-    );
+    const { stderr } = await execAsync(`${RULESYNC_CMD} import --targets claudecode`);
 
     // Assert: Should complete without errors
     expect(stderr).toBe("");
