@@ -14,7 +14,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = join(__dirname, "..", "..");
 const tsxPath = join(workspaceRoot, "node_modules", ".bin", "tsx");
 const cliPath = join(workspaceRoot, "src", "cli", "index.ts");
-const RULESYNC_CMD = process.env.RULESYNC_CMD || `${tsxPath} ${cliPath}`;
+// Convert relative path to absolute path if RULESYNC_CMD is set
+const RULESYNC_CMD = process.env.RULESYNC_CMD
+  ? join(process.cwd(), process.env.RULESYNC_CMD)
+  : `${tsxPath} ${cliPath}`;
 
 describe("E2E Tests", () => {
   let testDir: string;
