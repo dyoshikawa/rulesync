@@ -1,6 +1,5 @@
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { join, resolve, sep } from "node:path";
-import { setTimeout } from "node:timers/promises";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -9,7 +8,7 @@ import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 // Save original working directory
 const originalCwd = process.cwd();
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Get the command to run from environment variable
 // Default to using tsx directly with the CLI entry point
@@ -31,9 +30,11 @@ if (process.env.RULESYNC_CMD) {
 }
 
 // Convert relative path to absolute path if RULESYNC_CMD is set
+// For execFile, we need to separate command and arguments
 const rulesyncCmd = process.env.RULESYNC_CMD
   ? join(originalCwd, process.env.RULESYNC_CMD)
-  : `${tsxPath} ${cliPath}`;
+  : tsxPath;
+const rulesyncArgs = process.env.RULESYNC_CMD ? [] : [cliPath];
 
 describe("E2E Tests", () => {
   let testDir: string;
@@ -52,7 +53,7 @@ describe("E2E Tests", () => {
   });
 
   it("should display version with --version", async () => {
-    const { stdout } = await execAsync(`${rulesyncCmd} --version`);
+    const { stdout } = await execFileAsync(rulesyncCmd, [...rulesyncArgs, "--version"]);
 
     // Should output a version number (e.g., "3.16.0")
     // Use regex to extract version number to handle potential debug output
@@ -83,12 +84,14 @@ This is a test rule for E2E testing.
     await writeFileContent(ruleFilePath, ruleContent);
 
     // Execute: Generate claudecode rules
-    await execAsync(`${rulesyncCmd} generate --targets claudecode --features rules`);
-
-    // Wait for file system operations to complete
-    await setTimeout(3000);
-
-    await execAsync(`ls -la ${testDir}`);
+    await execFileAsync(rulesyncCmd, [
+      ...rulesyncArgs,
+      "generate",
+      "--targets",
+      "claudecode",
+      "--features",
+      "rules",
+    ]);
 
     // Verify that the CLAUDE.md file was generated
     const claudeMdPath = join(testDir, "CLAUDE.md");
@@ -106,10 +109,7 @@ This is a test project for E2E testing.
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
-    await execAsync(`${rulesyncCmd} import --targets claudecode`);
-
-    // Wait for file system operations to complete
-    await setTimeout(3000);
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "import", "--targets", "claudecode"]);
 
     // Verify that the imported rule file was created
     const importedRulePath = join(testDir, ".rulesync", "rules", "CLAUDE.md");
