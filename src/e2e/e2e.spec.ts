@@ -37,18 +37,19 @@ const rulesyncCmd = process.env.RULESYNC_CMD
 
 describe("E2E Tests", () => {
   let testDir: string;
-  let cleanup: () => Promise<void>;
+  // let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
     // Setup test directory and change to it
-    ({ testDir, cleanup } = await setupTestDirectory());
+    // ({ testDir, cleanup } = await setupTestDirectory());
+    testDir = (await setupTestDirectory()).testDir;
     process.chdir(testDir);
   });
 
   afterEach(async () => {
     // Restore original working directory before cleanup
     process.chdir(originalCwd);
-    await cleanup();
+    // await cleanup();
   });
 
   it("should display version with --version", async () => {
@@ -87,6 +88,8 @@ This is a test rule for E2E testing.
 
     // Wait for file system operations to complete
     await setTimeout(3000);
+
+    await execAsync(`ls -la ${testDir}`);
 
     // Verify that the CLAUDE.md file was generated
     const claudeMdPath = join(testDir, "CLAUDE.md");
