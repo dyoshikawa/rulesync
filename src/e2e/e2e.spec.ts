@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 
 // Save original working directory
 const originalCwd = process.cwd();
@@ -81,9 +81,8 @@ This is a test rule for E2E testing.
     expect(errorLines).toBe("");
 
     // Verify that the CLAUDE.md file was generated
-    const { readFile } = await import("node:fs/promises");
     const claudeMdPath = "CLAUDE.md";
-    const generatedContent = await readFile(claudeMdPath, "utf-8");
+    const generatedContent = await readFileContent(claudeMdPath);
     expect(generatedContent).toContain("Test Rule");
   });
 
@@ -108,9 +107,8 @@ This is a test project for E2E testing.
     expect(errorLines).toBe("");
 
     // Verify that the imported rule file was created
-    const { readFile } = await import("node:fs/promises");
     const importedRulePath = join(".rulesync", "rules", "CLAUDE.md");
-    const importedContent = await readFile(importedRulePath, "utf-8");
+    const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
   });
 });
