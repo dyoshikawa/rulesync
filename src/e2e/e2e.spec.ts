@@ -10,6 +10,9 @@ const originalCwd = process.cwd();
 
 const execAsync = promisify(exec);
 
+// Helper function to wait for file system operations to complete
+const waitForFs = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Get the command to run from environment variable
 // Default to using tsx directly with the CLI entry point
 const tsxPath = join(originalCwd, "node_modules", ".bin", "tsx");
@@ -84,6 +87,9 @@ This is a test rule for E2E testing.
     // Execute: Generate claudecode rules
     await execAsync(`${rulesyncCmd} generate --targets claudecode --features rules`);
 
+    // Wait for file system operations to complete
+    await waitForFs();
+
     // Verify that the CLAUDE.md file was generated
     const claudeMdPath = join(testDir, "CLAUDE.md");
     const generatedContent = await readFileContent(claudeMdPath);
@@ -101,6 +107,9 @@ This is a test project for E2E testing.
 
     // Execute: Import claudecode rules
     await execAsync(`${rulesyncCmd} import --targets claudecode`);
+
+    // Wait for file system operations to complete
+    await waitForFs();
 
     // Verify that the imported rule file was created
     const importedRulePath = join(testDir, ".rulesync", "rules", "CLAUDE.md");
