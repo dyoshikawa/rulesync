@@ -184,7 +184,6 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
       title: "Get Rule",
       description:
         "Get detailed information about a specific rule. relativePathFromCwd parameter is required.",
-      // eslint-disable-next-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility
       inputSchema: {
         type: "object",
         properties: {
@@ -193,7 +192,7 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
             description: "Path to the rule file (e.g., '.rulesync/rules/overview.md')",
           },
         },
-      } as any,
+      } as /* oxlint-disable-next-line typescript-eslint/no-explicit-any */ /* eslint-disable-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility */ any,
     },
     async (args: unknown) => {
       // Type guard for args
@@ -221,7 +220,6 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
       title: "Put Rule",
       description:
         "Create or update a rule (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-      // eslint-disable-next-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility
       inputSchema: {
         type: "object",
         properties: {
@@ -238,7 +236,7 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
             description: "Body content of the rule",
           },
         },
-      } as any,
+      } as /* oxlint-disable-next-line typescript-eslint/no-explicit-any */ /* eslint-disable-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility */ any,
     },
     async (args: unknown) => {
       // Type guard for args
@@ -278,7 +276,6 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
     {
       title: "Delete Rule",
       description: "Delete a rule file. relativePathFromCwd parameter is required.",
-      // eslint-disable-next-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility
       inputSchema: {
         type: "object",
         properties: {
@@ -287,7 +284,7 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
             description: "Path to the rule file to delete (e.g., '.rulesync/rules/old-rule.md')",
           },
         },
-      } as any,
+      } as /* oxlint-disable-next-line typescript-eslint/no-explicit-any */ /* eslint-disable-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility */ any,
     },
     async (args: unknown) => {
       // Type guard for args
