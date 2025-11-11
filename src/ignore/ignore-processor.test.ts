@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -567,7 +568,6 @@ describe("IgnoreProcessor", () => {
       await processor.writeAiFiles([mockCursorIgnore]);
 
       // Read the generated file directly to check for trailing newline
-      const { readFile } = await import("node:fs/promises");
       const cursorIgnorePath = join(testDir, ".cursorignore");
       const content = await readFile(cursorIgnorePath, "utf-8");
 
@@ -596,7 +596,6 @@ describe("IgnoreProcessor", () => {
       // Write the file using writeAiFiles
       await processor.writeAiFiles([mockClineIgnore]);
 
-      const { readFile } = await import("node:fs/promises");
       const clineIgnorePath = join(testDir, ".clineignore");
       const content = await readFile(clineIgnorePath, "utf-8");
 
@@ -622,7 +621,6 @@ describe("IgnoreProcessor", () => {
       // Write the file using writeAiFiles
       await processor.writeAiFiles([mockWindsurfIgnore]);
 
-      const { readFile } = await import("node:fs/promises");
       const windsurfIgnorePath = join(testDir, ".windsurfignore");
       const content = await readFile(windsurfIgnorePath, "utf-8");
 
