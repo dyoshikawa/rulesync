@@ -21,7 +21,7 @@
     "context7": {
       "description": "Up-to-date documentation and code examples for libraries",
       "type": "stdio",
-      "command": "npx",
+      "command": "pnpx",
       "args": [
         "-y",
         "@upstash/context7-mcp"
@@ -34,6 +34,17 @@
       "command": "uvx",
       "args": [
         "mcp-server-fetch"
+      ],
+      "env": {}
+    },
+    "rulesync-mcp": {
+      "description": "Rulesync MCP server",
+      "type": "stdio",
+      "command": "pnpx",
+      "args": [
+      "-y",
+      "rulesync",
+      "mcp"
       ],
       "env": {}
     }
