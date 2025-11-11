@@ -4,6 +4,7 @@
     "compile:linux-arm64": "deno compile --allow-read --allow-write --allow-env --allow-run --node-modules-dir=auto --sloppy-imports --no-check --target=aarch64-unknown-linux-gnu --output=dist-deno/rulesync-linux-arm64 ./dist/index.cjs",
     "compile:darwin-x64": "deno compile --allow-read --allow-write --allow-env --allow-run --node-modules-dir=auto --sloppy-imports --no-check --target=x86_64-apple-darwin --output=dist-deno/rulesync-darwin-x64 ./dist/index.cjs",
     "compile:darwin-arm64": "deno compile --allow-read --allow-write --allow-env --allow-run --node-modules-dir=auto --sloppy-imports --no-check --target=aarch64-apple-darwin --output=dist-deno/rulesync-darwin-arm64 ./dist/index.cjs",
-    "compile:all": "deno task compile:linux-x64 && deno task compile:linux-arm64 && deno task compile:darwin-x64 && deno task compile:darwin-arm64"
+    "compile:windows-x64": "deno compile --allow-read --allow-write --allow-env --allow-run --node-modules-dir=auto --sloppy-imports --no-check --target=x86_64-pc-windows-msvc --output=dist-deno/rulesync-windows-x64.exe ./dist/index.cjs",
+    "compile:all": "deno task compile:linux-x64 && deno task compile:linux-arm64 && deno task compile:darwin-x64 && deno task compile:darwin-arm64 && deno task compile:windows-x64"
   }
 }

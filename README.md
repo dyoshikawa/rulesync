@@ -70,16 +70,38 @@ chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
+#### Windows (x64)
+
+```powershell
+# PowerShell
+Invoke-WebRequest -Uri "https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe" -OutFile "rulesync.exe"
+# Add to PATH or place in a directory already in PATH
+Move-Item rulesync.exe C:\Windows\System32\
+```
+
+Or using curl (if available):
+
+```bash
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe -o rulesync.exe
+# Place the binary wherever set PATH
+```
+
 #### Verify checksums
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS
+
+# Linux/macOS
 sha256sum -c SHA256SUMS
+
+# Windows (PowerShell)
+# Download SHA256SUMS file first, then verify:
+Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
+  $actual = $_.Hash.ToLower()
+  $expected = (Get-Content SHA256SUMS | Select-String "rulesync-windows-x64.exe").ToString().Split()[0]
+  if ($actual -eq $expected) { "✓ Checksum verified" } else { "✗ Checksum mismatch" }
+}
 ```
-
-#### Windows support?
-
-Though Windows is not supported yet, we are positively considering it.
 </details>
 
 ## Getting Started

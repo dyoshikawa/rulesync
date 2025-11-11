@@ -47,7 +47,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-15-intel]
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
 
     steps:
       - name: Checkout code
@@ -61,7 +61,8 @@ jobs:
           enableCrossOsArchive: true
           fail-on-cache-miss: true
 
-      - name: Make binary executable
+      - name: Make binary executable (Unix)
+        if: runner.os != 'Windows'
         env:
           MATRIX_OS: ${{ matrix.os }}
         run: |
@@ -78,6 +79,12 @@ jobs:
             BINARY_PATH=dist-deno/rulesync-darwin-arm64
           fi
           echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
+
+      - name: Set binary path (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "BINARY_PATH=dist-deno/rulesync-windows-x64.exe" >> $GITHUB_ENV
 
       - name: Setup mise
         uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
