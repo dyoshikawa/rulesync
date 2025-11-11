@@ -8,6 +8,7 @@ import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
+import { mcpCommand } from "./commands/mcp.js";
 
 const getVersion = () => "3.18.0";
 
@@ -70,6 +71,18 @@ const main = async () => {
           global: options.global,
           experimentalGlobal: options.experimentalGlobal,
         });
+      } catch (error) {
+        logger.error(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+
+  program
+    .command("mcp")
+    .description("Start MCP server for rulesync")
+    .action(async () => {
+      try {
+        await mcpCommand();
       } catch (error) {
         logger.error(error instanceof Error ? error.message : String(error));
         process.exit(1);
