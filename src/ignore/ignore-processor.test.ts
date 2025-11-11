@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -569,7 +568,7 @@ describe("IgnoreProcessor", () => {
 
       // Read the generated file directly to check for trailing newline
       const cursorIgnorePath = join(testDir, ".cursorignore");
-      const content = await readFile(cursorIgnorePath, "utf-8");
+      const content = await readFileContent(cursorIgnorePath);
 
       // Check that file ends with exactly one newline
       expect(content).toMatch(/[^\n]\n$/);
@@ -597,7 +596,7 @@ describe("IgnoreProcessor", () => {
       await processor.writeAiFiles([mockClineIgnore]);
 
       const clineIgnorePath = join(testDir, ".clineignore");
-      const content = await readFile(clineIgnorePath, "utf-8");
+      const content = await readFileContent(clineIgnorePath);
 
       // Should still have exactly one trailing newline
       expect(content).toBe("*.log\nnode_modules/\n");
@@ -622,7 +621,7 @@ describe("IgnoreProcessor", () => {
       await processor.writeAiFiles([mockWindsurfIgnore]);
 
       const windsurfIgnorePath = join(testDir, ".windsurfignore");
-      const content = await readFile(windsurfIgnorePath, "utf-8");
+      const content = await readFileContent(windsurfIgnorePath);
 
       // Should have exactly one trailing newline
       expect(content).toBe("*.log\n");
