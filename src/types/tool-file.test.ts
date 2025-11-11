@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ValidationResult } from "./ai-file.js";
@@ -111,7 +112,7 @@ describe("ToolFile", () => {
         baseDir: testDir,
         relativeDirPath: ".tool",
         relativeFilePath: "config.txt",
-        filePath: `${testDir}/.tool/config.txt`,
+        filePath: join(testDir, ".tool", "config.txt"),
       });
 
       expect(file).toBeInstanceOf(TestToolFile);
@@ -199,7 +200,7 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe(`${testDir}/.tool/config/settings.txt`);
+      expect(file.getFilePath()).toBe(join(testDir, ".tool", "config", "settings.txt"));
     });
 
     it("should allow nested directories within baseDir", () => {
@@ -212,12 +213,12 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe(`${testDir}/deeply/nested/path/file.txt`);
+      expect(file.getFilePath()).toBe(join(testDir, "deeply", "nested", "path", "file.txt"));
     });
 
     it("should handle baseDir with subdirectory correctly", () => {
       const file = new TestToolFile({
-        baseDir: `${testDir}/project`,
+        baseDir: join(testDir, "project"),
         relativeDirPath: "src",
         relativeFilePath: "index.ts",
         fileContent: "safe content",
@@ -225,12 +226,12 @@ describe("ToolFile", () => {
       });
 
       expect(() => file.getFilePath()).not.toThrow();
-      expect(file.getFilePath()).toBe(`${testDir}/project/src/index.ts`);
+      expect(file.getFilePath()).toBe(join(testDir, "project", "src", "index.ts"));
     });
 
     it("should prevent escaping from nested baseDir", () => {
       const file = new TestToolFile({
-        baseDir: `${testDir}/project/src`,
+        baseDir: join(testDir, "project", "src"),
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",

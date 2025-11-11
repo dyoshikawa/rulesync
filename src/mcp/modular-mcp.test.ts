@@ -344,7 +344,7 @@ describe("ModularMcp", () => {
     });
 
     it("should have correct type definitions for parameters", () => {
-      const customBaseDir = `${testDir}/custom`;
+      const customBaseDir = join(testDir, "custom");
       const constructorParams: ModularMcpParams = {
         baseDir: customBaseDir,
         relativeDirPath: ".",
