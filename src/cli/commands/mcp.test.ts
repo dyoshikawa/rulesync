@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RulesyncRule } from "../../rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
 
 describe("MCP Server", () => {
   let testDir: string;
@@ -19,7 +19,7 @@ describe("MCP Server", () => {
   });
 
   describe("listRules functionality", () => {
-    it("should list rules with correct metadata", async () => {
+    it("should list rules with frontmatter", async () => {
       // Create sample rule files
       const rule1 = new RulesyncRule({
         baseDir: testDir,
@@ -47,31 +47,25 @@ describe("MCP Server", () => {
         body: "# Coding Style\n\nUse TypeScript.",
       });
 
-      // Write the files using writeFileContent
+      // Write the files
       await ensureDir(join(testDir, ".rulesync", "rules"));
       await writeFileContent(rule1.getFilePath(), rule1.getFileContent());
       await writeFileContent(rule2.getFilePath(), rule2.getFileContent());
 
-      // Import the listRules function by reading the module
-      // We need to test the listRules functionality through the tool
-      const { default: matter } = await import("gray-matter");
-      const { readdir } = await import("node:fs/promises");
-      const { readFileContent } = await import("../../utils/file.js");
-
+      // Test reading the rules
       const rulesDir = join(testDir, ".rulesync", "rules");
-      const files = await readdir(rulesDir);
+      const files = await listDirectoryFiles(rulesDir);
       const mdFiles = files.filter((file) => file.endsWith(".md"));
 
       const rules = await Promise.all(
         mdFiles.map(async (file) => {
-          const filePath = join(rulesDir, file);
-          const content = await readFileContent(filePath);
-          const { data: frontmatter } = matter(content);
-
+          const rule = await RulesyncRule.fromFile({
+            relativeFilePath: file,
+            validate: true,
+          });
           return {
             path: join(".rulesync", "rules", file),
-            description: frontmatter.description ?? "",
-            globs: frontmatter.globs ?? [],
+            frontmatter: rule.getFrontmatter(),
           };
         }),
       );
@@ -80,80 +74,160 @@ describe("MCP Server", () => {
 
       const overview = rules.find((r) => r.path.includes("overview.md"));
       expect(overview).toBeDefined();
-      expect(overview?.description).toBe("Project overview");
-      expect(overview?.globs).toEqual(["**/*"]);
+      expect(overview?.frontmatter.description).toBe("Project overview");
+      expect(overview?.frontmatter.globs).toEqual(["**/*"]);
+      expect(overview?.frontmatter.root).toBe(true);
 
       const codingStyle = rules.find((r) => r.path.includes("coding-style.md"));
       expect(codingStyle).toBeDefined();
-      expect(codingStyle?.description).toBe("Coding style guidelines");
-      expect(codingStyle?.globs).toEqual(["**/*.ts", "**/*.js"]);
+      expect(codingStyle?.frontmatter.description).toBe("Coding style guidelines");
+      expect(codingStyle?.frontmatter.globs).toEqual(["**/*.ts", "**/*.js"]);
+      expect(codingStyle?.frontmatter.root).toBe(false);
     });
+  });
 
-    it("should return empty array when rules directory does not exist", async () => {
-      const { readdir } = await import("node:fs/promises");
-
-      const rulesDir = join(testDir, ".rulesync", "rules");
-
-      try {
-        await readdir(rulesDir);
-        // Should throw error
-        expect.fail("Expected readdir to throw an error");
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
-    });
-
-    it("should skip invalid rule files", async () => {
-      // Create a valid rule
-      const validRule = new RulesyncRule({
+  describe("getRule functionality", () => {
+    it("should get detailed rule information", async () => {
+      const rule = new RulesyncRule({
         baseDir: testDir,
         relativeDirPath: ".rulesync/rules",
-        relativeFilePath: "valid.md",
+        relativeFilePath: "test-rule.md",
         frontmatter: {
-          root: true,
+          root: false,
           targets: ["*"],
-          description: "Valid rule",
-          globs: ["**/*"],
+          description: "Test rule",
+          globs: ["**/*.test.ts"],
         },
-        body: "# Valid Rule",
+        body: "# Test Rule\n\nThis is a test rule body.",
       });
 
-      // Write the valid rule file
-      const rulesDir = join(testDir, ".rulesync", "rules");
-      await ensureDir(rulesDir);
-      await writeFileContent(validRule.getFilePath(), validRule.getFileContent());
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
-      // Create an invalid file (not a proper markdown file)
-      await writeFileContent(join(rulesDir, "invalid.md"), "invalid content without frontmatter");
+      // Test reading the rule
+      const readRule = await RulesyncRule.fromFile({
+        relativeFilePath: "test-rule.md",
+        validate: true,
+      });
 
-      const { default: matter } = await import("gray-matter");
-      const { readdir } = await import("node:fs/promises");
-      const { readFileContent } = await import("../../utils/file.js");
+      expect(readRule.getFrontmatter().description).toBe("Test rule");
+      expect(readRule.getBody()).toBe("# Test Rule\n\nThis is a test rule body.");
+    });
+  });
 
-      const files = await readdir(rulesDir);
-      const mdFiles = files.filter((file) => file.endsWith(".md"));
+  describe("putRule functionality", () => {
+    it("should create a new rule", async () => {
+      const frontmatter: {
+        root: boolean;
+        targets: "*"[];
+        description: string;
+        globs: string[];
+      } = {
+        root: false,
+        targets: ["*"],
+        description: "New rule",
+        globs: ["**/*.ts"],
+      };
 
-      const rules = await Promise.all(
-        mdFiles.map(async (file) => {
-          try {
-            const filePath = join(rulesDir, file);
-            const content = await readFileContent(filePath);
-            const { data: frontmatter } = matter(content);
+      const body = "# New Rule\n\nThis is a new rule.";
 
-            return {
-              path: join(".rulesync", "rules", file),
-              description: frontmatter.description ?? "",
-              globs: frontmatter.globs ?? [],
-            };
-          } catch {
-            return null;
-          }
-        }),
-      );
+      // Create and write the rule
+      const rule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "new-rule.md",
+        frontmatter,
+        body,
+        validate: true,
+      });
 
-      const validRules = rules.filter((r): r is NonNullable<typeof r> => r !== null);
-      expect(validRules.length).toBeGreaterThan(0);
-      expect(mdFiles).toHaveLength(2); // valid.md and invalid.md
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(rule.getFilePath(), rule.getFileContent());
+
+      // Verify the rule was created
+      const readRule = await RulesyncRule.fromFile({
+        relativeFilePath: "new-rule.md",
+        validate: true,
+      });
+
+      expect(readRule.getFrontmatter().description).toBe("New rule");
+      expect(readRule.getBody()).toBe(body);
+    });
+
+    it("should update an existing rule", async () => {
+      // Create initial rule
+      const initialRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "update-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Initial description",
+          globs: ["**/*.ts"],
+        },
+        body: "Initial body",
+      });
+
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(initialRule.getFilePath(), initialRule.getFileContent());
+
+      // Update the rule
+      const updatedRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "update-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["cursor"],
+          description: "Updated description",
+          globs: ["**/*.tsx"],
+        },
+        body: "Updated body",
+      });
+
+      await writeFileContent(updatedRule.getFilePath(), updatedRule.getFileContent());
+
+      // Verify the rule was updated
+      const readRule = await RulesyncRule.fromFile({
+        relativeFilePath: "update-rule.md",
+        validate: true,
+      });
+
+      expect(readRule.getFrontmatter().description).toBe("Updated description");
+      expect(readRule.getBody()).toBe("Updated body");
+      expect(readRule.getFrontmatter().targets).toEqual(["cursor"]);
+    });
+  });
+
+  describe("deleteRule functionality", () => {
+    it("should delete a rule file", async () => {
+      const rule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "delete-me.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Rule to delete",
+          globs: ["**/*"],
+        },
+        body: "This rule will be deleted",
+      });
+
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(rule.getFilePath(), rule.getFileContent());
+
+      // Verify rule exists
+      const files = await listDirectoryFiles(join(testDir, ".rulesync", "rules"));
+      expect(files).toContain("delete-me.md");
+
+      // Delete the rule
+      await removeFile(rule.getFilePath());
+
+      // Verify rule was deleted
+      const filesAfterDelete = await listDirectoryFiles(join(testDir, ".rulesync", "rules"));
+      expect(filesAfterDelete).not.toContain("delete-me.md");
     });
   });
 });

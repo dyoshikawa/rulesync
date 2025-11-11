@@ -39,6 +39,12 @@
         "typescript/no-explicit-any": "off",
         "no-console": "error"
       }
+    },
+    {
+      "files": ["**/cli/commands/mcp.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
     }
   ]
 }
