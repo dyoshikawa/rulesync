@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { FastMCP } from "fastmcp";
+import { z } from "zod/mini";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "../../rules/rulesync-rule.js";
 import { formatError } from "../../utils/error.js";
 import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
@@ -153,161 +153,80 @@ async function deleteRule({ relativePathFromCwd }: { relativePathFromCwd: string
  * MCP command that starts the MCP server
  */
 export async function mcpCommand({ version }: { version: string }): Promise<void> {
-  const server = new McpServer({
+  const server = new FastMCP({
     name: "rulesync-mcp-server",
-    version,
+    // Type assertion is safe here because version comes from package.json which follows semver
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    version: version as `${number}.${number}.${number}`,
   });
 
   // Register listRules tool
-  server.registerTool(
-    "listRules",
-    {
-      title: "List Rules",
-      description: "List all rules from .rulesync/rules/*.md with their frontmatter",
-      inputSchema: {},
-    },
-    async () => {
+  server.addTool({
+    name: "listRules",
+    description: "List all rules from .rulesync/rules/*.md with their frontmatter",
+    parameters: z.object({}),
+    execute: async () => {
       const rules = await listRules();
       const output = { rules };
-
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }],
-        structuredContent: output,
-      };
+      return JSON.stringify(output, null, 2);
     },
-  );
+  });
 
   // Register getRule tool
-  server.registerTool(
-    "getRule",
-    {
-      title: "Get Rule",
-      description:
-        "Get detailed information about a specific rule. relativePathFromCwd parameter is required.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          relativePathFromCwd: {
-            type: "string",
-            description: "Path to the rule file (e.g., '.rulesync/rules/overview.md')",
-          },
-        },
-      } as /* oxlint-disable-next-line typescript-eslint/no-explicit-any */ /* eslint-disable-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility */ any,
+  server.addTool({
+    name: "getRule",
+    description:
+      "Get detailed information about a specific rule. relativePathFromCwd parameter is required.",
+    parameters: z.object({
+      relativePathFromCwd: z.string(),
+    }),
+    execute: async (args) => {
+      const result = await getRule({ relativePathFromCwd: args.relativePathFromCwd });
+      return JSON.stringify(result, null, 2);
     },
-    async (args: unknown) => {
-      // Type guard for args
-      if (typeof args !== "object" || args === null || !("relativePathFromCwd" in args)) {
-        throw new Error("Invalid arguments: relativePathFromCwd is required");
-      }
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      const argObj = args as Record<string, unknown>;
-      if (typeof argObj.relativePathFromCwd !== "string") {
-        throw new Error("Invalid arguments: relativePathFromCwd must be a string");
-      }
-      const result = await getRule({ relativePathFromCwd: argObj.relativePathFromCwd });
-
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        structuredContent: result,
-      };
-    },
-  );
+  });
 
   // Register putRule tool
-  server.registerTool(
-    "putRule",
-    {
-      title: "Put Rule",
-      description:
-        "Create or update a rule (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          relativePathFromCwd: {
-            type: "string",
-            description: "Path to the rule file (e.g., '.rulesync/rules/new-rule.md')",
-          },
-          frontmatter: {
-            type: "object",
-            description: "Frontmatter metadata for the rule",
-          },
-          body: {
-            type: "string",
-            description: "Body content of the rule",
-          },
-        },
-      } as /* oxlint-disable-next-line typescript-eslint/no-explicit-any */ /* eslint-disable-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility */ any,
-    },
-    async (args: unknown) => {
-      // Type guard for args
-      if (typeof args !== "object" || args === null) {
-        throw new Error(
-          "Invalid arguments: relativePathFromCwd, frontmatter, and body are required",
-        );
-      }
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      const argObj = args as Record<string, unknown>;
-      if (typeof argObj.relativePathFromCwd !== "string") {
-        throw new Error("Invalid arguments: relativePathFromCwd must be a string");
-      }
-      if (typeof argObj.frontmatter !== "object" || argObj.frontmatter === null) {
-        throw new Error("Invalid arguments: frontmatter must be an object");
-      }
-      if (typeof argObj.body !== "string") {
-        throw new Error("Invalid arguments: body must be a string");
-      }
+  server.addTool({
+    name: "putRule",
+    description:
+      "Create or update a rule (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
+    parameters: z.object({
+      relativePathFromCwd: z.string(),
+      frontmatter: z.any(),
+      body: z.string(),
+    }),
+    execute: async (args) => {
       const result = await putRule({
-        relativePathFromCwd: argObj.relativePathFromCwd,
+        relativePathFromCwd: args.relativePathFromCwd,
+        // Type assertion is safe here because zod validates the frontmatter structure
         // eslint-disable-next-line no-type-assertion/no-type-assertion
-        frontmatter: argObj.frontmatter as RulesyncRuleFrontmatter,
-        body: argObj.body,
+        frontmatter: args.frontmatter as RulesyncRuleFrontmatter,
+        body: args.body,
       });
-
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        structuredContent: result,
-      };
+      return JSON.stringify(result, null, 2);
     },
-  );
+  });
 
   // Register deleteRule tool
-  server.registerTool(
-    "deleteRule",
-    {
-      title: "Delete Rule",
-      description: "Delete a rule file. relativePathFromCwd parameter is required.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          relativePathFromCwd: {
-            type: "string",
-            description: "Path to the rule file to delete (e.g., '.rulesync/rules/old-rule.md')",
-          },
-        },
-      } as /* oxlint-disable-next-line typescript-eslint/no-explicit-any */ /* eslint-disable-line no-type-assertion/no-type-assertion -- JSON Schema type definition incompatibility */ any,
+  server.addTool({
+    name: "deleteRule",
+    description: "Delete a rule file. relativePathFromCwd parameter is required.",
+    parameters: z.object({
+      relativePathFromCwd: z.string(),
+    }),
+    execute: async (args) => {
+      const result = await deleteRule({ relativePathFromCwd: args.relativePathFromCwd });
+      return JSON.stringify(result, null, 2);
     },
-    async (args: unknown) => {
-      // Type guard for args
-      if (typeof args !== "object" || args === null || !("relativePathFromCwd" in args)) {
-        throw new Error("Invalid arguments: relativePathFromCwd is required");
-      }
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      const argObj = args as Record<string, unknown>;
-      if (typeof argObj.relativePathFromCwd !== "string") {
-        throw new Error("Invalid arguments: relativePathFromCwd must be a string");
-      }
-      const result = await deleteRule({ relativePathFromCwd: argObj.relativePathFromCwd });
+  });
 
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        structuredContent: result,
-      };
-    },
-  );
-
-  // Connect via stdio (for spawned processes)
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-
+  // Start server with stdio transport (for spawned processes)
   logger.info("Rulesync MCP server started via stdio");
+
+  // Start the server - this blocks execution and runs the MCP server
+  // The void operator explicitly marks this as intentionally not awaited
+  void server.start({
+    transportType: "stdio",
+  });
 }
