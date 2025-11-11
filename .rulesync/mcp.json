@@ -38,13 +38,12 @@
       "env": {}
     },
     "rulesync-mcp": {
-      "description": "Rulesync MCP server",
+      "description": "This server handles rules, commands, MCP, ignore files, and subagents for any AI agents.",
       "type": "stdio",
-      "command": "pnpx",
+      "command": "pnpm",
       "args": [
-      "-y",
-      "rulesync",
-      "mcp"
+        "dev",
+        "mcp"
       ],
       "env": {}
     }
