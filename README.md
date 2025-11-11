@@ -90,7 +90,17 @@ curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS
+
+# Linux/macOS
 sha256sum -c SHA256SUMS
+
+# Windows (PowerShell)
+# Download SHA256SUMS file first, then verify:
+Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
+  $actual = $_.Hash.ToLower()
+  $expected = (Get-Content SHA256SUMS | Select-String "rulesync-windows-x64.exe").ToString().Split()[0]
+  if ($actual -eq $expected) { "✓ Checksum verified" } else { "✗ Checksum mismatch" }
+}
 ```
 </details>
 
