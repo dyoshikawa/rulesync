@@ -9,6 +9,7 @@ import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+import { ToolCommand } from "./tool-command.js";
 
 // Mock the dependencies
 vi.mock("../utils/file.js");
@@ -430,7 +431,6 @@ describe("CommandsProcessor", () => {
       };
 
       // Manually set the prototype to make instanceof ToolCommand return true
-      const { ToolCommand } = await import("./tool-command.js");
       Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
 
       const result = await processor.convertToolFilesToRulesyncFiles([mockToolCommand as any]);
@@ -454,7 +454,6 @@ describe("CommandsProcessor", () => {
       };
 
       // Set prototype to make instanceof ToolCommand return true
-      const { ToolCommand } = await import("./tool-command.js");
       Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
 
       const mockOtherFile = { type: "other" };

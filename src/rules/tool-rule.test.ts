@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -15,7 +15,6 @@ class TestToolRule extends ToolRule {
   static async fromFile(params: ToolRuleFromFileParams): Promise<TestToolRule> {
     const { baseDir = process.cwd(), relativeFilePath, validate = true } = params;
     const filePath = join(baseDir, ".test/rules", relativeFilePath);
-    const { readFileContent } = await import("../utils/file.js");
     const fileContent = await readFileContent(filePath);
 
     return new TestToolRule({
