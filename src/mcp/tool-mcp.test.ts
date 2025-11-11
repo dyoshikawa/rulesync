@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { type ValidationResult } from "../types/ai-file.js";
@@ -97,7 +98,7 @@ describe("ToolMcp", () => {
         mcpServers: {},
       });
 
-      const customPath = `${testDir}/custom/path`;
+      const customPath = join(testDir, "custom", "path");
       const toolMcp = new TestToolMcp({
         baseDir: customPath,
         relativeDirPath: "test",
@@ -105,7 +106,7 @@ describe("ToolMcp", () => {
         fileContent: validJsonContent,
       });
 
-      expect(toolMcp.getFilePath()).toBe(`${customPath}/test/test.json`);
+      expect(toolMcp.getFilePath()).toBe(join(customPath, "test", "test.json"));
     });
 
     it("should parse JSON content correctly", () => {
@@ -357,7 +358,7 @@ describe("ToolMcp", () => {
       const jsonData = {
         mcpServers: {},
       };
-      const customDir = `${testDir}/custom/base/dir`;
+      const customDir = join(testDir, "custom", "base", "dir");
       const toolMcp = new TestToolMcp({
         baseDir: customDir,
         relativeDirPath: "test",
@@ -368,7 +369,7 @@ describe("ToolMcp", () => {
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe(customDir);
-      expect(rulesyncMcp.getFilePath()).toBe(`${customDir}/.rulesync/.mcp.json`);
+      expect(rulesyncMcp.getFilePath()).toBe(join(customDir, ".rulesync", ".mcp.json"));
     });
 
     it("should preserve file content exactly", () => {
@@ -461,8 +462,8 @@ describe("ToolMcp", () => {
     });
 
     it("should throw error for fromRulesyncMcp with custom parameters", async () => {
-      const customDir = `${testDir}/custom`;
-      const targetDir = `${testDir}/target`;
+      const customDir = join(testDir, "custom");
+      const targetDir = join(testDir, "target");
       const rulesyncMcp = new RulesyncMcp({
         baseDir: customDir,
         relativeDirPath: ".rulesync",

@@ -706,7 +706,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load claudecode commands with correct parameters", async () => {
-      const mockPaths = [`${testDir}/.claude/commands/test.md`];
+      const mockPaths = [join(testDir, ".claude", "commands", "test.md")];
       const mockCommand = new ClaudecodeCommand({
         baseDir: testDir,
         relativeDirPath: join(".claude", "commands"),
@@ -739,7 +739,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load geminicli commands with correct parameters", async () => {
-      const mockPaths = [`${testDir}/.gemini/commands/test.md`];
+      const mockPaths = [join(testDir, ".gemini", "commands", "test.md")];
       const mockCommand = new GeminiCliCommand({
         baseDir: testDir,
         relativeDirPath: join(".gemini", "commands"),
@@ -760,7 +760,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load roo commands with correct parameters", async () => {
-      const mockPaths = [`${testDir}/.roo/commands/test.md`];
+      const mockPaths = [join(testDir, ".roo", "commands", "test.md")];
       const mockCommand = new RooCommand({
         baseDir: testDir,
         relativeDirPath: join(".roo", "commands"),
@@ -818,7 +818,7 @@ describe("CommandsProcessor", () => {
         global: true,
       });
 
-      const mockPaths = [`${testDir}/.claude/commands/test.md`];
+      const mockPaths = [join(testDir, ".claude", "commands", "test.md")];
       const mockCommand = new ClaudecodeCommand({
         baseDir: testDir,
         relativeDirPath: join(".claude", "commands"),
@@ -852,7 +852,7 @@ describe("CommandsProcessor", () => {
         global: true,
       });
 
-      const mockPaths = [`${testDir}/.cursor/commands/test.md`];
+      const mockPaths = [join(testDir, ".cursor", "commands", "test.md")];
       const mockCommand = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: join(".cursor", "commands"),
