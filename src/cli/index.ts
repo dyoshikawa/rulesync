@@ -9,7 +9,7 @@ import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 
-const getVersion = () => "3.17.1";
+const getVersion = () => "3.18.0";
 
 const main = async () => {
   const program = new Command();
