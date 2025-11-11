@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { RulesyncRule } from "../../rules/rulesync-rule.js";
+import { formatError } from "../../utils/error.js";
 import { listDirectoryFiles } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
@@ -38,9 +39,7 @@ async function listRules({ baseDir }: { baseDir: string }): Promise<
             globs: frontmatter.globs ?? [],
           };
         } catch (error) {
-          logger.error(
-            `Failed to read rule file ${file}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          logger.error(`Failed to read rule file ${file}: ${formatError(error)}`);
           return null;
         }
       }),
@@ -49,9 +48,7 @@ async function listRules({ baseDir }: { baseDir: string }): Promise<
     // Filter out null values (failed reads)
     return rules.filter((rule): rule is NonNullable<typeof rule> => rule !== null);
   } catch (error) {
-    logger.error(
-      `Failed to read rules directory: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    logger.error(`Failed to read rules directory: ${formatError(error)}`);
     return [];
   }
 }
@@ -59,12 +56,12 @@ async function listRules({ baseDir }: { baseDir: string }): Promise<
 /**
  * MCP command that starts the MCP server
  */
-export async function mcpCommand(): Promise<void> {
+export async function mcpCommand({ version }: { version: string }): Promise<void> {
   const baseDir = process.cwd();
 
   const server = new McpServer({
     name: "rulesync-mcp-server",
-    version: "1.0.0",
+    version,
   });
 
   // Register listRules tool

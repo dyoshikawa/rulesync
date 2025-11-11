@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
+import { formatError } from "../utils/error.js";
 import { logger } from "../utils/logger.js";
 import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
@@ -72,7 +73,7 @@ const main = async () => {
           experimentalGlobal: options.experimentalGlobal,
         });
       } catch (error) {
-        logger.error(error instanceof Error ? error.message : String(error));
+        logger.error(formatError(error));
         process.exit(1);
       }
     });
@@ -82,9 +83,9 @@ const main = async () => {
     .description("Start MCP server for rulesync")
     .action(async () => {
       try {
-        await mcpCommand();
+        await mcpCommand({ version });
       } catch (error) {
-        logger.error(error instanceof Error ? error.message : String(error));
+        logger.error(formatError(error));
         process.exit(1);
       }
     });
@@ -156,7 +157,7 @@ const main = async () => {
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,
         });
       } catch (error) {
-        logger.error(error instanceof Error ? error.message : String(error));
+        logger.error(formatError(error));
         process.exit(1);
       }
     });
@@ -165,6 +166,6 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  logger.error(error instanceof Error ? error.message : String(error));
+  logger.error(formatError(error));
   process.exit(1);
 });
