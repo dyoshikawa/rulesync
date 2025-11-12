@@ -1,5 +1,5 @@
-import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
-import { ToolFile } from "../types/tool-file.js";
+import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 export type ToolMcpParams = AiFileParams;

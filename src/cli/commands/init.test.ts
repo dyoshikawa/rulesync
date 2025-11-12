@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncIgnore } from "../../features/ignore/rulesync-ignore.js";
+import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
-import { RulesyncMcp } from "../../mcp/rulesync-mcp.js";
 import { RulesyncSubagent } from "../../subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -14,7 +14,7 @@ vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js");
 vi.mock("../../features/commands/rulesync-command.js");
 vi.mock("../../features/ignore/rulesync-ignore.js");
-vi.mock("../../mcp/rulesync-mcp.js");
+vi.mock("../../features/mcp/rulesync-mcp.js");
 vi.mock("../../features/rules/rulesync-rule.js");
 vi.mock("../../subagents/rulesync-subagent.js");
 

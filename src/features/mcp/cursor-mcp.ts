@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { ValidationResult } from "../../types/ai-file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -10,7 +10,9 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export class AmazonqcliMcp extends ToolMcp {
+export type CursorMcpParams = ToolMcpParams;
+
+export class CursorMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
@@ -24,7 +26,7 @@ export class AmazonqcliMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".amazonq",
+      relativeDirPath: ".cursor",
       relativeFilePath: "mcp.json",
     };
   }
@@ -32,7 +34,7 @@ export class AmazonqcliMcp extends ToolMcp {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolMcpFromFileParams): Promise<AmazonqcliMcp> {
+  }: ToolMcpFromFileParams): Promise<CursorMcp> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -41,7 +43,7 @@ export class AmazonqcliMcp extends ToolMcp {
       ),
     );
 
-    return new AmazonqcliMcp({
+    return new CursorMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -54,18 +56,33 @@ export class AmazonqcliMcp extends ToolMcp {
     baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): AmazonqcliMcp {
-    return new AmazonqcliMcp({
+  }: ToolMcpFromRulesyncMcpParams): CursorMcp {
+    const json = rulesyncMcp.getJson({ modularMcp: false });
+
+    // Convert Rulesync MCP format to Cursor MCP format
+    const cursorConfig = {
+      mcpServers: json.mcpServers || {},
+    };
+
+    const fileContent = JSON.stringify(cursorConfig, null, 2);
+
+    return new CursorMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncMcp.getFileContent(),
+      fileContent,
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    return new RulesyncMcp({
+      baseDir: this.baseDir,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: "rulesync.mcp.json",
+      fileContent: this.fileContent,
+      validate: true,
+    });
   }
 
   validate(): ValidationResult {

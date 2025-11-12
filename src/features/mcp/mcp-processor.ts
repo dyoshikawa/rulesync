@@ -1,10 +1,10 @@
 import { z } from "zod/mini";
-import { FeatureProcessor } from "../types/feature-processor.js";
-import { RulesyncFile } from "../types/rulesync-file.js";
-import { ToolFile } from "../types/tool-file.js";
-import { ToolTarget } from "../types/tool-targets.js";
-import { formatError } from "../utils/error.js";
-import { logger } from "../utils/logger.js";
+import { FeatureProcessor } from "../../types/feature-processor.js";
+import { RulesyncFile } from "../../types/rulesync-file.js";
+import { ToolFile } from "../../types/tool-file.js";
+import { ToolTarget } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
+import { logger } from "../../utils/logger.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";

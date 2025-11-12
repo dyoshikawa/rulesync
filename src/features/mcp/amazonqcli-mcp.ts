@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { ValidationResult } from "../../types/ai-file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -10,7 +10,7 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export class RooMcp extends ToolMcp {
+export class AmazonqcliMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
@@ -24,7 +24,7 @@ export class RooMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".roo",
+      relativeDirPath: ".amazonq",
       relativeFilePath: "mcp.json",
     };
   }
@@ -32,7 +32,7 @@ export class RooMcp extends ToolMcp {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolMcpFromFileParams): Promise<RooMcp> {
+  }: ToolMcpFromFileParams): Promise<AmazonqcliMcp> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -40,7 +40,8 @@ export class RooMcp extends ToolMcp {
         this.getSettablePaths().relativeFilePath,
       ),
     );
-    return new RooMcp({
+
+    return new AmazonqcliMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -53,14 +54,12 @@ export class RooMcp extends ToolMcp {
     baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): RooMcp {
-    const fileContent = rulesyncMcp.getFileContent();
-
-    return new RooMcp({
+  }: ToolMcpFromRulesyncMcpParams): AmazonqcliMcp {
+    return new AmazonqcliMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
+      fileContent: rulesyncMcp.getFileContent(),
       validate,
     });
   }

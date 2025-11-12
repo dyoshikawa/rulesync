@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { type ValidationResult } from "../types/ai-file.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { type ValidationResult } from "../../types/ai-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,

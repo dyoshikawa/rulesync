@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import * as smolToml from "smol-toml";
-import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent, readOrInitializeFileContent } from "../utils/file.js";
+import { ValidationResult } from "../../types/ai-file.js";
+import { readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,

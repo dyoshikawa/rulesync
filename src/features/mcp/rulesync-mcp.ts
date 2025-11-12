@@ -1,16 +1,16 @@
 import { join } from "node:path";
 import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
-import { ValidationResult } from "../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import {
   RulesyncFile,
   RulesyncFileFromFileParams,
   RulesyncFileParams,
-} from "../types/rulesync-file.js";
-import { RulesyncTargetsSchema } from "../types/tool-targets.js";
-import { formatError } from "../utils/error.js";
-import { fileExists, readFileContent } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+} from "../../types/rulesync-file.js";
+import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
+import { fileExists, readFileContent } from "../../utils/file.js";
+import { logger } from "../../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
 

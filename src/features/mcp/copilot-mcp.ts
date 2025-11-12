@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { ValidationResult } from "../../types/ai-file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,

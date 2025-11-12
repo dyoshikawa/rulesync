@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
+import { ValidationResult } from "../../types/ai-file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -10,9 +10,9 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export type CursorMcpParams = ToolMcpParams;
+export type ClineMcpParams = ToolMcpParams;
 
-export class CursorMcp extends ToolMcp {
+export class ClineMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
@@ -26,7 +26,7 @@ export class CursorMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".cursor",
+      relativeDirPath: ".cline",
       relativeFilePath: "mcp.json",
     };
   }
@@ -34,7 +34,7 @@ export class CursorMcp extends ToolMcp {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolMcpFromFileParams): Promise<CursorMcp> {
+  }: ToolMcpFromFileParams): Promise<ClineMcp> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -43,7 +43,7 @@ export class CursorMcp extends ToolMcp {
       ),
     );
 
-    return new CursorMcp({
+    return new ClineMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -56,33 +56,18 @@ export class CursorMcp extends ToolMcp {
     baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): CursorMcp {
-    const json = rulesyncMcp.getJson({ modularMcp: false });
-
-    // Convert Rulesync MCP format to Cursor MCP format
-    const cursorConfig = {
-      mcpServers: json.mcpServers || {},
-    };
-
-    const fileContent = JSON.stringify(cursorConfig, null, 2);
-
-    return new CursorMcp({
+  }: ToolMcpFromRulesyncMcpParams): ClineMcp {
+    return new ClineMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
+      fileContent: rulesyncMcp.getFileContent(),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return new RulesyncMcp({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: "rulesync.mcp.json",
-      fileContent: this.fileContent,
-      validate: true,
-    });
+    return this.toRulesyncMcpDefault();
   }
 
   validate(): ValidationResult {
