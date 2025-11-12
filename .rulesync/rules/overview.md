@@ -18,8 +18,9 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## Use appropriate MCP servers
 
-- When you search for codebase information, use serena MCP as possible as you can.
-- When you search for library documentation, use context7 MCP as possible as you can.
-- When you fetch web content, use fetch MCP as possible as you can.
+- When you search for codebase information, you should use serena MCP.
+- When you search for library documentation, you should use context7 MCP.
+- When you fetch web content, you should use fetch MCP.
+- When you need to handle rules, commands, MCP, ignore files, and subagents for any AI agents, you should use Rulesync MCP.
 
 Of course, you can also use your built-in tools if you need.

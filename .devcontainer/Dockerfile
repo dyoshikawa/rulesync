@@ -74,11 +74,12 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 ### Customize ###
 
 # Install Claude Code
-RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH=$PATH:/home/node/.local/bin
-RUN claude update
+# Claude Code native ver is very slow and heavy to my env, so temporarily disabled.
+# RUN curl -fsSL https://claude.ai/install.sh | bash
+# RUN claude update
 
 # Install mise
+ENV PATH=$PATH:/home/node/.local/bin
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
 
@@ -95,7 +96,14 @@ ENV PATH=$PATH:/home/node/go/bin
 # Install global packages
 ENV PNPM_HOME=/home/node/.pnpm
 ENV PATH=$PATH:$PNPM_HOME
-RUN mkdir -p "$PNPM_HOME" && mise exec -- pnpm setup && mise exec -- pnpm add -g opencode-ai @openai/codex opencommit @google/gemini-cli
+RUN mkdir -p "$PNPM_HOME" && \
+  mise exec -- pnpm setup && \
+  mise exec -- pnpm add -g \
+    @anthropic-ai/claude-code \
+    opencode-ai \
+    @openai/codex \
+    opencommit \
+    @google/gemini-cli
 # Enable smol mode in Bun to reduce memory usage
 RUN echo 'smol = true' > /home/node/bunfig.toml
 

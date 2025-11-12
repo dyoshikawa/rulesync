@@ -43,7 +43,7 @@
     "source=${localWorkspaceFolderBasename}-pnpm-store,target=${containerWorkspaceFolder}/.pnpm-store,type=volume,consistency=delegated"
   ],
   "remoteEnv": {
-    "NODE_OPTIONS": "--max-old-space-size=2048",
+    "NODE_OPTIONS": "--max-old-space-size=4096",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
     "GITHUB_TOKEN": "${localEnv:DEVCONTAINER_GITHUB_TOKEN}",

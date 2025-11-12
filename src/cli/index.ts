@@ -3,11 +3,13 @@
 import { Command } from "commander";
 import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
+import { formatError } from "../utils/error.js";
 import { logger } from "../utils/logger.js";
 import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
+import { mcpCommand } from "./commands/mcp.js";
 
 const getVersion = () => "3.18.0";
 
@@ -71,7 +73,19 @@ const main = async () => {
           experimentalGlobal: options.experimentalGlobal,
         });
       } catch (error) {
-        logger.error(error instanceof Error ? error.message : String(error));
+        logger.error(formatError(error));
+        process.exit(1);
+      }
+    });
+
+  program
+    .command("mcp")
+    .description("Start MCP server for rulesync")
+    .action(async () => {
+      try {
+        await mcpCommand({ version });
+      } catch (error) {
+        logger.error(formatError(error));
         process.exit(1);
       }
     });
@@ -143,7 +157,7 @@ const main = async () => {
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,
         });
       } catch (error) {
-        logger.error(error instanceof Error ? error.message : String(error));
+        logger.error(formatError(error));
         process.exit(1);
       }
     });
@@ -152,6 +166,6 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  logger.error(error instanceof Error ? error.message : String(error));
+  logger.error(formatError(error));
   process.exit(1);
 });
