@@ -1,11 +1,11 @@
 import { intersection } from "es-toolkit";
-import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { Config } from "../../config/config.js";
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
-import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
-import { McpProcessor } from "../../mcp/mcp-processor.js";
-import { RulesProcessor } from "../../rules/rules-processor.js";
-import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import { CommandsProcessor } from "../../features/commands/commands-processor.js";
+import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
+import { McpProcessor } from "../../features/mcp/mcp-processor.js";
+import { RulesProcessor } from "../../features/rules/rules-processor.js";
+import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 

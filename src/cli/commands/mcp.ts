@@ -5,7 +5,7 @@ import {
   RulesyncRule,
   type RulesyncRuleFrontmatter,
   RulesyncRuleFrontmatterSchema,
-} from "../../rules/rulesync-rule.js";
+} from "../../features/rules/rulesync-rule.js";
 import { formatError } from "../../utils/error.js";
 import {
   ensureDir,
