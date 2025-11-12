@@ -7,45 +7,16 @@ import {
 } from "../features/rules/rulesync-rule.js";
 import { formatError } from "../utils/error.js";
 import {
+  checkPathTraversal,
   ensureDir,
   listDirectoryFiles,
   removeFile,
-  resolvePath,
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 
 const maxRuleSizeBytes = 1024 * 1024; // 1MB
 const maxRulesCount = 1000;
-
-/**
- * Validates that a rule path is safe and follows the expected format
- * @throws {Error} if path validation fails
- */
-function validateRulePath(relativePathFromCwd: string): void {
-  // Normalize path separators for cross-platform compatibility
-  const normalizedPath = relativePathFromCwd.replace(/\\/g, "/");
-
-  // Ensure path is within .rulesync/rules/
-  if (!normalizedPath.startsWith(".rulesync/rules/")) {
-    throw new Error("Invalid rule path: must be within .rulesync/rules/ directory");
-  }
-
-  // Use resolvePath to check for path traversal
-  try {
-    resolvePath(normalizedPath, process.cwd());
-  } catch (error) {
-    throw new Error(`Path validation failed: ${formatError(error)}`, { cause: error });
-  }
-
-  // Validate filename
-  const filename = basename(normalizedPath);
-  if (!/^[a-zA-Z0-9_-]+\.md$/.test(filename)) {
-    throw new Error(
-      `Invalid filename: ${filename}. Must match pattern [a-zA-Z0-9_-]+.md (alphanumeric, hyphens, underscores only)`,
-    );
-  }
-}
 
 /**
  * Tool to list all rules from .rulesync/rules/*.md
@@ -100,8 +71,10 @@ async function getRule({ relativePathFromCwd }: { relativePathFromCwd: string })
   frontmatter: RulesyncRuleFrontmatter;
   body: string;
 }> {
-  // Validate path before processing
-  validateRulePath(relativePathFromCwd);
+  checkPathTraversal({
+    relativePath: relativePathFromCwd,
+    intendedRootDir: process.cwd(),
+  });
 
   const filename = basename(relativePathFromCwd);
 
@@ -139,8 +112,10 @@ async function putRule({
   frontmatter: RulesyncRuleFrontmatter;
   body: string;
 }> {
-  // Validate path before processing
-  validateRulePath(relativePathFromCwd);
+  checkPathTraversal({
+    relativePath: relativePathFromCwd,
+    intendedRootDir: process.cwd(),
+  });
 
   const filename = basename(relativePathFromCwd);
 
@@ -198,8 +173,10 @@ async function putRule({
 async function deleteRule({ relativePathFromCwd }: { relativePathFromCwd: string }): Promise<{
   relativePathFromCwd: string;
 }> {
-  // Validate path before processing
-  validateRulePath(relativePathFromCwd);
+  checkPathTraversal({
+    relativePath: relativePathFromCwd,
+    intendedRootDir: process.cwd(),
+  });
 
   const filename = basename(relativePathFromCwd);
   const fullPath = join(process.cwd(), ".rulesync", "rules", filename);
