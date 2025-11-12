@@ -26,6 +26,26 @@ export async function readOrInitializeFileContent(
   }
 }
 
+export function checkPathTraversal({
+  relativePath,
+  intendedRootDir,
+}: {
+  relativePath: string;
+  intendedRootDir: string;
+}): void {
+  // Check for .. segments in the path (even if they don't escape the directory)
+  const segments = relativePath.split(/[/\\]/);
+  if (segments.includes("..")) {
+    throw new Error(`Path traversal detected: ${relativePath}`);
+  }
+
+  const resolved = resolve(intendedRootDir, relativePath);
+  const rel = relative(intendedRootDir, resolved);
+  if (rel.startsWith("..") || resolve(resolved) !== resolved) {
+    throw new Error(`Path traversal detected: ${relativePath}`);
+  }
+}
+
 /**
  * Resolves a path relative to a base directory, handling both absolute and relative paths
  * Includes protection against path traversal attacks
@@ -33,15 +53,9 @@ export async function readOrInitializeFileContent(
 export function resolvePath(relativePath: string, baseDir?: string): string {
   if (!baseDir) return relativePath;
 
-  const resolved = resolve(baseDir, relativePath);
-  const rel = relative(baseDir, resolved);
+  checkPathTraversal({ relativePath, intendedRootDir: baseDir });
 
-  // Prevent path traversal attacks
-  if (rel.startsWith("..") || resolve(resolved) !== resolved) {
-    throw new Error(`Path traversal detected: ${relativePath}`);
-  }
-
-  return resolved;
+  return resolve(baseDir, relativePath);
 }
 
 /**
@@ -214,15 +228,5 @@ export function validateBaseDir(baseDir: string): void {
     throw new Error("baseDir cannot be an empty string");
   }
 
-  // Reject path traversal (..) - check before normalization
-  if (baseDir.includes("..")) {
-    throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
-  }
-
-  // Additional check: ensure normalized path doesn't escape current directory
-  const normalized = resolve(baseDir);
-  const rel = relative(process.cwd(), normalized);
-  if (rel.startsWith("..")) {
-    throw new Error(`baseDir cannot contain directory traversal (..): ${baseDir}`);
-  }
+  checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
 }

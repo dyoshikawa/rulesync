@@ -66,12 +66,12 @@
 	},
 	"dependencies": {
 		"@kimuson/modular-mcp": "0.0.5",
-		"fastmcp": "^3.22.0",
 		"chokidar": "4.0.3",
 		"commander": "14.0.2",
 		"consola": "3.4.2",
 		"es-toolkit": "1.41.0",
 		"fast-xml-parser": "5.3.1",
+		"fastmcp": "3.22.0",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.0",
 		"jsonc-parser": "3.3.1",

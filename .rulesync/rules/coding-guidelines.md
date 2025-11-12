@@ -18,3 +18,4 @@ globs: ["**/*.ts"]
     - The maintainer thinks that ballel files are harmful to tree-shaking and import path transparency.
 - The default value of `baseDir` should be `process.cwd()` because it is easier to mock in tests compared to hardcoding `"."`. However, the default value of `relativeDirPath` should be `"."` because it should be relative path to concatenate with `baseDir`.
 - When logging errors, you must use `formatError` function in `src/utils/error.ts` to format the error message.
+- When writing any path, you must always use `join` function in `node:path` to join the path because it must support both Windows and Unix-like paths.

@@ -522,25 +522,21 @@ describe("file utilities", () => {
 
     describe("should reject path traversal", () => {
       it("should reject parent directory reference", () => {
-        expect(() => validateBaseDir("..")).toThrow("cannot contain directory traversal");
+        expect(() => validateBaseDir("..")).toThrow("Path traversal detected");
       });
 
       it("should reject multiple parent directory references", () => {
-        expect(() => validateBaseDir("../..")).toThrow("cannot contain directory traversal");
-        expect(() => validateBaseDir("../../../../../../etc")).toThrow(
-          "cannot contain directory traversal",
-        );
+        expect(() => validateBaseDir("../..")).toThrow("Path traversal detected");
+        expect(() => validateBaseDir("../../../../../../etc")).toThrow("Path traversal detected");
       });
 
       it("should reject path traversal in middle of path", () => {
-        expect(() => validateBaseDir("foo/../bar")).toThrow("cannot contain directory traversal");
-        expect(() => validateBaseDir("path/../../sensitive")).toThrow(
-          "cannot contain directory traversal",
-        );
+        expect(() => validateBaseDir("foo/../bar")).toThrow("Path traversal detected");
+        expect(() => validateBaseDir("path/../../sensitive")).toThrow("Path traversal detected");
       });
 
       it("should reject path traversal at end", () => {
-        expect(() => validateBaseDir("foo/bar/..")).toThrow("cannot contain directory traversal");
+        expect(() => validateBaseDir("foo/bar/..")).toThrow("Path traversal detected");
       });
     });
 
@@ -559,9 +555,7 @@ describe("file utilities", () => {
     describe("edge cases", () => {
       it("should handle normalized paths correctly", () => {
         // After normalization, these should be caught
-        expect(() => validateBaseDir("./foo/../../../etc")).toThrow(
-          "cannot contain directory traversal",
-        );
+        expect(() => validateBaseDir("./foo/../../../etc")).toThrow("Path traversal detected");
       });
 
       it("should allow dot directories that are not parent references", () => {
