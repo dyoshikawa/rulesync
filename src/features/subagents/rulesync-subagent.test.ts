@@ -120,7 +120,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
-        fileContent: "test content",
         frontmatter,
         body: "Test body content",
       });
@@ -144,7 +143,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "claude.md",
-        fileContent: "claude content",
         frontmatter,
         body: "Claude specific instructions",
       });
@@ -164,7 +162,6 @@ describe("RulesyncSubagent", () => {
           baseDir: ".",
           relativeDirPath: ".rulesync/subagents",
           relativeFilePath: "invalid.md",
-          fileContent: "invalid content",
           frontmatter: invalidFrontmatter as any,
           body: "Test body",
         });
@@ -183,7 +180,6 @@ describe("RulesyncSubagent", () => {
           baseDir: ".",
           relativeDirPath: ".rulesync/subagents",
           relativeFilePath: "skip-validation.md",
-          fileContent: "content",
           frontmatter: invalidFrontmatter as any,
           body: "Test body",
           validate: false,
@@ -196,7 +192,6 @@ describe("RulesyncSubagent", () => {
         baseDir: "/test",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "inherit.md",
-        fileContent: "inherited content",
         frontmatter: {
           targets: ["*"],
           name: "inherit-subagent",
@@ -208,7 +203,11 @@ describe("RulesyncSubagent", () => {
       expect(subagent.getBaseDir()).toBe("/test");
       expect(subagent.getRelativeDirPath()).toBe(".rulesync/subagents");
       expect(subagent.getRelativeFilePath()).toBe("inherit.md");
-      expect(subagent.getFileContent()).toBe("inherited content");
+      // fileContent is now auto-generated from frontmatter and body
+      expect(subagent.getFileContent()).toContain("targets:");
+      expect(subagent.getFileContent()).toContain("name: inherit-subagent");
+      expect(subagent.getFileContent()).toContain("description: Testing inheritance");
+      expect(subagent.getFileContent()).toContain("Inherited body");
       expect(subagent.getFilePath()).toBe("/test/.rulesync/subagents/inherit.md");
       expect(subagent.getRelativePathFromCwd()).toBe(".rulesync/subagents/inherit.md");
     });
@@ -229,7 +228,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "multi.md",
-        fileContent: "multi content",
         frontmatter,
         body: "Multi tool body",
       });
@@ -249,7 +247,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "body-test.md",
-        fileContent: "full content",
         frontmatter: {
           targets: ["*"],
           name: "body-test",
@@ -266,7 +263,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "empty-body.md",
-        fileContent: "only frontmatter",
         frontmatter: {
           targets: ["*"],
           name: "empty-body",
@@ -285,7 +281,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "valid.md",
-        fileContent: "valid content",
         frontmatter: {
           targets: ["*"],
           name: "valid-subagent",
@@ -306,7 +301,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "undefined.md",
-        fileContent: "content",
         frontmatter: undefined as any,
         body: "body",
         validate: false,
@@ -322,7 +316,6 @@ describe("RulesyncSubagent", () => {
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "invalid-validate.md",
-        fileContent: "invalid content",
         frontmatter: {
           targets: ["*"],
           name: "invalid-subagent",
@@ -511,7 +504,6 @@ description: Testing whitespace handling
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "poly.md",
-        fileContent: "poly content",
         frontmatter,
         body: "Poly body",
       });
@@ -519,7 +511,11 @@ description: Testing whitespace handling
       // Should work as RulesyncFile
       expect(subagent.getRelativeDirPath()).toBe(".rulesync/subagents");
       expect(subagent.getRelativeFilePath()).toBe("poly.md");
-      expect(subagent.getFileContent()).toBe("poly content");
+      // fileContent is now auto-generated from frontmatter and body
+      expect(subagent.getFileContent()).toContain("targets:");
+      expect(subagent.getFileContent()).toContain("name: poly-subagent");
+      expect(subagent.getFileContent()).toContain("description: Polymorphic usage test");
+      expect(subagent.getFileContent()).toContain("Poly body");
 
       // Should work as RulesyncSubagent
       expect(subagent.getFrontmatter()).toEqual(frontmatter);
@@ -535,7 +531,6 @@ description: Testing whitespace handling
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "typed.md",
-        fileContent: "typed content",
         frontmatter: {
           targets: ["*"],
           name: "typed-subagent",
@@ -605,7 +600,6 @@ description: File with empty body
         baseDir: ".",
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "complex.md",
-        fileContent: "complex content",
         frontmatter,
         body: "Complex body",
         validate: false, // Skip validation to test complex arrays

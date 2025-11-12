@@ -389,7 +389,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
@@ -428,7 +427,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
@@ -455,7 +453,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
         body: "Test content",
-        fileContent: stringifyFrontmatter("Test content", rulesyncFrontmatter),
       });
 
       const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
@@ -481,7 +478,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "global-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
@@ -511,7 +507,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "local-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
@@ -535,7 +530,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], name: "Test", description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -548,7 +542,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], name: "Test", description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -565,7 +558,6 @@ describe("ClaudecodeSubagent", () => {
           description: "Test",
         },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -578,7 +570,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], name: "Test", description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -591,7 +582,6 @@ describe("ClaudecodeSubagent", () => {
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, name: "Test", description: "Test" } as any,
         body: "Body",
-        fileContent: "",
         validate: false,
       });
 

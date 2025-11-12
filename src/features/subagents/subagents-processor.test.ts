@@ -85,12 +85,6 @@ describe("SubagentsProcessor", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
-        fileContent: `---
-name: test-agent
-description: Test agent description
-targets: ["*"]
----
-Test agent content`,
         frontmatter: {
           name: "test-agent",
           description: "Test agent description",
@@ -127,12 +121,6 @@ Test agent content`,
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "global-test-agent.md",
-        fileContent: `---
-name: global-test-agent
-description: Global test agent description
-targets: ["*"]
----
-Global test agent content`,
         frontmatter: {
           name: "global-test-agent",
           description: "Global test agent description",
@@ -176,7 +164,6 @@ Global test agent content`,
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
-        fileContent: '---\nname: test\ndescription: test\ntargets: ["*"]\n---\ntest',
         frontmatter: { name: "test", description: "test", targets: ["*"] },
         body: "test",
         validate: false,
@@ -197,12 +184,6 @@ Global test agent content`,
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
-        fileContent: `---
-name: test-agent
-description: Test agent description
-targets: ["*"]
----
-Test agent content`,
         frontmatter: {
           name: "test-agent",
           description: "Test agent description",
@@ -228,12 +209,6 @@ Test agent content`,
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
-        fileContent: `---
-name: test-agent
-description: Test agent description
-targets: ["*"]
----
-Test agent content`,
         frontmatter: {
           name: "test-agent",
           description: "Test agent description",
@@ -259,12 +234,6 @@ Test agent content`,
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
-        fileContent: `---
-name: test-agent
-description: Test agent description
-targets: ["*"]
----
-Test agent content`,
         frontmatter: {
           name: "test-agent",
           description: "Test agent description",

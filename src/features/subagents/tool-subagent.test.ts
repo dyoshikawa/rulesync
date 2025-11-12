@@ -52,7 +52,6 @@ class TestToolSubagent extends ToolSubagent {
       baseDir: this.baseDir,
       relativeDirPath: ".rulesync/subagents",
       relativeFilePath: "converted.md",
-      fileContent: this.fileContent,
       frontmatter: {
         name: "test-subagent",
         description: "Test subagent description",
@@ -105,7 +104,6 @@ describe("ToolSubagent", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
-        fileContent: "---\nname: test\ndescription: test desc\ntargets: [all]\n---\ntest body",
         frontmatter: {
           name: "test",
           description: "test desc",
@@ -199,8 +197,6 @@ describe("ToolSubagent", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "source.md",
-        fileContent:
-          "---\nname: source-agent\ndescription: Source agent description\ntargets: [all]\n---\nsource content",
         frontmatter: {
           name: "source-agent",
           description: "Source agent description",
@@ -300,7 +296,6 @@ describe("ToolSubagent", () => {
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
-        fileContent: "---\nname: test\ndescription: test desc\ntargets: [all]\n---\ntest body",
         frontmatter: {
           name: "test",
           description: "test desc",

@@ -197,7 +197,6 @@ Body content`;
           description: "Test description from rulesync",
         },
         body: "Test agent content",
-        fileContent: "", // Will be generated
         validate: true,
       });
 
@@ -229,7 +228,6 @@ Body content`;
           description: "Complex agent",
         },
         body: "Complex content",
-        fileContent: "",
         validate: true,
       });
 
@@ -254,7 +252,6 @@ Body content`;
           description: "",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -561,7 +558,6 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -579,7 +575,6 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -597,7 +592,6 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        fileContent: "",
         validate: false, // Skip validation to allow empty targets array
       });
 
@@ -615,7 +609,6 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -633,7 +626,6 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
