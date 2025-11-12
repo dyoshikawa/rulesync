@@ -1,24 +1,24 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
-import { GeminiCliSubagent } from "./geminicli-subagent.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
+import { CopilotSubagent } from "./copilot-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SimulatedSubagentFrontmatter,
   SimulatedSubagentFrontmatterSchema,
 } from "./simulated-subagent.js";
 
-describe("GeminiCliSubagent", () => {
+describe("CopilotSubagent", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
   const validMarkdownContent = `---
-name: Test GeminiCli Agent
-description: Test geminicli agent description
+name: Test Copilot Agent
+description: Test copilot agent description
 ---
 
-This is the body of the geminicli agent.
+This is the body of the copilot agent.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
@@ -43,52 +43,52 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for geminicli subagents", () => {
-      const paths = GeminiCliSubagent.getSettablePaths();
+    it("should return correct paths for copilot subagents", () => {
+      const paths = CopilotSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
       });
     });
   });
 
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test GeminiCli Agent",
-          description: "Test geminicli agent description",
+          name: "Test Copilot Agent",
+          description: "Test copilot agent description",
         },
-        body: "This is the body of the geminicli agent.\nIt can be multiline.",
+        body: "This is the body of the copilot agent.\nIt can be multiline.",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
       expect(subagent.getBody()).toBe(
-        "This is the body of the geminicli agent.\nIt can be multiline.",
+        "This is the body of the copilot agent.\nIt can be multiline.",
       );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test GeminiCli Agent",
-        description: "Test geminicli agent description",
+        name: "Test Copilot Agent",
+        description: "Test copilot agent description",
       });
     });
 
     it("should create instance with empty name and description", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
           description: "",
         },
-        body: "This is a geminicli agent without name or description.",
+        body: "This is a copilot agent without name or description.",
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe("This is a geminicli agent without name or description.");
+      expect(subagent.getBody()).toBe("This is a copilot agent without name or description.");
       expect(subagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
@@ -96,9 +96,9 @@ Body content`;
     });
 
     it("should create instance without validation when validate is false", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -108,15 +108,15 @@ Body content`;
         validate: false,
       });
 
-      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
     });
 
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(
         () =>
-          new GeminiCliSubagent({
+          new CopilotSubagent({
             baseDir: testDir,
-            relativeDirPath: ".gemini/subagents",
+            relativeDirPath: ".github/subagents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
@@ -130,9 +130,9 @@ Body content`;
 
   describe("getBody", () => {
     it("should return the body content", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -148,13 +148,13 @@ Body content`;
 
   describe("getFrontmatter", () => {
     it("should return frontmatter with name and description", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test GeminiCli Agent",
-          description: "Test geminicli agent",
+          name: "Test Copilot Agent",
+          description: "Test copilot agent",
         },
         body: "Test body",
         validate: true,
@@ -162,17 +162,17 @@ Body content`;
 
       const frontmatter = subagent.getFrontmatter();
       expect(frontmatter).toEqual({
-        name: "Test GeminiCli Agent",
-        description: "Test geminicli agent",
+        name: "Test Copilot Agent",
+        description: "Test copilot agent",
       });
     });
   });
 
   describe("toRulesyncSubagent", () => {
     it("should throw error as it is a simulated file", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -189,13 +189,13 @@ Body content`;
   });
 
   describe("fromRulesyncSubagent", () => {
-    it("should create GeminiCliSubagent from RulesyncSubagent", () => {
+    it("should create CopilotSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["geminicli"],
+          targets: ["copilot"],
           name: "Test Agent",
           description: "Test description from rulesync",
         },
@@ -204,21 +204,21 @@ Body content`;
         validate: true,
       });
 
-      const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
+      const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as GeminiCliSubagent;
+      }) as CopilotSubagent;
 
-      expect(geminiCliSubagent).toBeInstanceOf(GeminiCliSubagent);
-      expect(geminiCliSubagent.getBody()).toBe("Test agent content");
-      expect(geminiCliSubagent.getFrontmatter()).toEqual({
+      expect(copilotSubagent).toBeInstanceOf(CopilotSubagent);
+      expect(copilotSubagent.getBody()).toBe("Test agent content");
+      expect(copilotSubagent.getFrontmatter()).toEqual({
         name: "Test Agent",
         description: "Test description from rulesync",
       });
-      expect(geminiCliSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(geminiCliSubagent.getRelativeDirPath()).toBe(".gemini/subagents");
+      expect(copilotSubagent.getRelativeFilePath()).toBe("test-agent.md");
+      expect(copilotSubagent.getRelativeDirPath()).toBe(".github/subagents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -227,7 +227,7 @@ Body content`;
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
-          targets: ["geminicli"],
+          targets: ["copilot"],
           name: "Complex Agent",
           description: "Complex agent",
         },
@@ -236,14 +236,14 @@ Body content`;
         validate: true,
       });
 
-      const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
+      const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as GeminiCliSubagent;
+      }) as CopilotSubagent;
 
-      expect(geminiCliSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
+      expect(copilotSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
     });
 
     it("should handle empty name and description", () => {
@@ -252,7 +252,7 @@ Body content`;
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["geminicli"],
+          targets: ["copilot"],
           name: "",
           description: "",
         },
@@ -261,14 +261,14 @@ Body content`;
         validate: true,
       });
 
-      const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
+      const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as GeminiCliSubagent;
+      }) as CopilotSubagent;
 
-      expect(geminiCliSubagent.getFrontmatter()).toEqual({
+      expect(copilotSubagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
       });
@@ -276,36 +276,58 @@ Body content`;
   });
 
   describe("fromFile", () => {
-    it("should load GeminiCliSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents");
+    it("should load CopilotSubagent from file", async () => {
+      const subagentsDir = join(testDir, ".github", "subagents");
       const filePath = join(subagentsDir, "test-file-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
-      const subagent = await GeminiCliSubagent.fromFile({
+      const subagent = await CopilotSubagent.fromFile({
         baseDir: testDir,
         relativeFilePath: "test-file-agent.md",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
       expect(subagent.getBody()).toBe(
-        "This is the body of the geminicli agent.\nIt can be multiline.",
+        "This is the body of the copilot agent.\nIt can be multiline.",
       );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test GeminiCli Agent",
-        description: "Test geminicli agent description",
+        name: "Test Copilot Agent",
+        description: "Test copilot agent description",
       });
       expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
     });
 
+    it("should use process.cwd() as default baseDir", async () => {
+      const subagentsDir = join(testDir, ".github", "subagents");
+      const filePath = join(subagentsDir, "default-basedir-agent.md");
+
+      await writeFileContent(filePath, validMarkdownContent);
+
+      // Not passing baseDir - should use mocked process.cwd()
+      const subagent = await CopilotSubagent.fromFile({
+        relativeFilePath: "default-basedir-agent.md",
+        validate: true,
+      });
+
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      expect(subagent.getBody()).toBe(
+        "This is the body of the copilot agent.\nIt can be multiline.",
+      );
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "Test Copilot Agent",
+        description: "Test copilot agent description",
+      });
+    });
+
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".github", "subagents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
-      const subagent = await GeminiCliSubagent.fromFile({
+      const subagent = await CopilotSubagent.fromFile({
         baseDir: testDir,
         relativeFilePath: "subdir/nested-agent.md",
         validate: true,
@@ -316,7 +338,7 @@ Body content`;
 
     it("should throw error when file does not exist", async () => {
       await expect(
-        GeminiCliSubagent.fromFile({
+        CopilotSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "non-existent-agent.md",
           validate: true,
@@ -325,13 +347,13 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents");
+      const subagentsDir = join(testDir, ".github", "subagents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
 
       await expect(
-        GeminiCliSubagent.fromFile({
+        CopilotSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
@@ -340,13 +362,13 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents");
+      const subagentsDir = join(testDir, ".github", "subagents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
       await expect(
-        GeminiCliSubagent.fromFile({
+        CopilotSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
@@ -357,9 +379,9 @@ Body content`;
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
@@ -375,9 +397,9 @@ Body content`;
     });
 
     it("should handle frontmatter with additional properties", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
@@ -434,9 +456,9 @@ Body content`;
 
   describe("edge cases", () => {
     it("should handle empty body content", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -457,9 +479,9 @@ Body content`;
       const specialContent =
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -478,9 +500,9 @@ Body content`;
     it("should handle very long content", () => {
       const longContent = "A".repeat(10000);
 
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -495,9 +517,9 @@ Body content`;
     });
 
     it("should handle multi-line name and description", () => {
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -516,13 +538,13 @@ Body content`;
     it("should handle Windows-style line endings", () => {
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
-      const subagent = new GeminiCliSubagent({
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
-          description: "Test with Windows line endings",
+          description: "Windows line endings test",
         },
         body: windowsContent,
         validate: true,
@@ -532,117 +554,113 @@ Body content`;
     });
   });
 
-  describe("inheritance", () => {
-    it("should inherit from SimulatedSubagent", () => {
-      const subagent = new GeminiCliSubagent({
+  describe("isTargetedByRulesyncSubagent", () => {
+    it("should return true for rulesync subagent with wildcard target", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test.md",
+        frontmatter: { targets: ["*"], name: "Test", description: "Test" },
+        body: "Body",
+        fileContent: "",
+      });
+
+      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      expect(result).toBe(true);
+    });
+
+    it("should return true for rulesync subagent with copilot target", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test.md",
+        frontmatter: { targets: ["copilot"], name: "Test", description: "Test" },
+        body: "Body",
+        fileContent: "",
+      });
+
+      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      expect(result).toBe(true);
+    });
+
+    it("should return true for rulesync subagent with copilot and other targets", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          targets: ["cursor", "copilot", "cline"],
+          name: "Test",
+          description: "Test",
+        },
+        body: "Body",
+        fileContent: "",
+      });
+
+      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      expect(result).toBe(true);
+    });
+
+    it("should return false for rulesync subagent with different target", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test.md",
+        frontmatter: { targets: ["cursor"], name: "Test", description: "Test" },
+        body: "Body",
+        fileContent: "",
+      });
+
+      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      expect(result).toBe(false);
+    });
+
+    it("should return true for rulesync subagent with no targets specified", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        relativeDirPath: ".rulesync/subagents",
+        relativeFilePath: "test.md",
+        frontmatter: { targets: undefined, name: "Test", description: "Test" } as any,
+        body: "Body",
+        fileContent: "",
+        validate: false,
+      });
+
+      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      expect(result).toBe(true);
+    });
+  });
+
+  describe("integration with base classes", () => {
+    it("should properly inherit from SimulatedSubagent", () => {
+      const subagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".github/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
           description: "Test",
         },
-        body: "Test",
+        body: "Body",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
-      // Test that it inherits methods from parent class
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      // Check that it's an instance of parent classes
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      expect(subagent.getRelativeDirPath()).toBe(".github/subagents");
+      expect(subagent.getRelativeFilePath()).toBe("test.md");
     });
-  });
 
-  describe("isTargetedByRulesyncSubagent", () => {
-    it("should return true when targets includes geminicli", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test-agent.md",
+    it("should handle baseDir correctly", () => {
+      const customBaseDir = "/custom/base/dir";
+      const subagent = new CopilotSubagent({
+        baseDir: customBaseDir,
+        relativeDirPath: ".github/subagents",
+        relativeFilePath: "test.md",
         frontmatter: {
-          targets: ["geminicli"],
-          name: "Test Agent",
-          description: "Test description",
+          name: "Test",
+          description: "Test",
         },
-        body: "Test content",
-        fileContent: "",
+        body: "Body",
         validate: true,
       });
 
-      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
-    });
-
-    it("should return true when targets includes asterisk", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["*"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        fileContent: "",
-        validate: true,
-      });
-
-      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
-    });
-
-    it("should return false when targets array is empty", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: [],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        fileContent: "",
-        validate: false, // Skip validation to allow empty targets array
-      });
-
-      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
-    });
-
-    it("should return false when targets does not include geminicli", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["copilot", "cline"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        fileContent: "",
-        validate: true,
-      });
-
-      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
-    });
-
-    it("should return true when targets includes geminicli among other targets", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["copilot", "geminicli", "cline"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        fileContent: "",
-        validate: true,
-      });
-
-      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
+      expect(subagent).toBeInstanceOf(CopilotSubagent);
     });
   });
 });

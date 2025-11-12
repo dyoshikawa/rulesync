@@ -4,7 +4,7 @@ import { CommandsProcessor } from "../../features/commands/commands-processor.js
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
-import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { logger } from "../../utils/logger.js";
 

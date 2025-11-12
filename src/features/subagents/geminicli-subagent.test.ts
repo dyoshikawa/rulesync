@@ -1,24 +1,24 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
-import { CursorSubagent } from "./cursor-subagent.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
+import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SimulatedSubagentFrontmatter,
   SimulatedSubagentFrontmatterSchema,
 } from "./simulated-subagent.js";
 
-describe("CursorSubagent", () => {
+describe("GeminiCliSubagent", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
   const validMarkdownContent = `---
-name: Test Cursor Agent
-description: Test cursor agent description
+name: Test GeminiCli Agent
+description: Test geminicli agent description
 ---
 
-This is the body of the cursor agent.
+This is the body of the geminicli agent.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
@@ -43,52 +43,52 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for cursor subagents", () => {
-      const paths = CursorSubagent.getSettablePaths();
+    it("should return correct paths for geminicli subagents", () => {
+      const paths = GeminiCliSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
       });
     });
   });
 
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test Cursor Agent",
-          description: "Test cursor agent description",
+          name: "Test GeminiCli Agent",
+          description: "Test geminicli agent description",
         },
-        body: "This is the body of the cursor agent.\nIt can be multiline.",
+        body: "This is the body of the geminicli agent.\nIt can be multiline.",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(CursorSubagent);
+      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
       expect(subagent.getBody()).toBe(
-        "This is the body of the cursor agent.\nIt can be multiline.",
+        "This is the body of the geminicli agent.\nIt can be multiline.",
       );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Cursor Agent",
-        description: "Test cursor agent description",
+        name: "Test GeminiCli Agent",
+        description: "Test geminicli agent description",
       });
     });
 
     it("should create instance with empty name and description", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
           description: "",
         },
-        body: "This is a cursor agent without name or description.",
+        body: "This is a geminicli agent without name or description.",
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe("This is a cursor agent without name or description.");
+      expect(subagent.getBody()).toBe("This is a geminicli agent without name or description.");
       expect(subagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
@@ -96,9 +96,9 @@ Body content`;
     });
 
     it("should create instance without validation when validate is false", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -108,15 +108,15 @@ Body content`;
         validate: false,
       });
 
-      expect(subagent).toBeInstanceOf(CursorSubagent);
+      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
     });
 
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(
         () =>
-          new CursorSubagent({
+          new GeminiCliSubagent({
             baseDir: testDir,
-            relativeDirPath: ".cursor/subagents",
+            relativeDirPath: ".gemini/subagents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
@@ -130,9 +130,9 @@ Body content`;
 
   describe("getBody", () => {
     it("should return the body content", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -148,13 +148,13 @@ Body content`;
 
   describe("getFrontmatter", () => {
     it("should return frontmatter with name and description", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test Cursor Agent",
-          description: "Test cursor agent",
+          name: "Test GeminiCli Agent",
+          description: "Test geminicli agent",
         },
         body: "Test body",
         validate: true,
@@ -162,17 +162,17 @@ Body content`;
 
       const frontmatter = subagent.getFrontmatter();
       expect(frontmatter).toEqual({
-        name: "Test Cursor Agent",
-        description: "Test cursor agent",
+        name: "Test GeminiCli Agent",
+        description: "Test geminicli agent",
       });
     });
   });
 
   describe("toRulesyncSubagent", () => {
     it("should throw error as it is a simulated file", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -189,13 +189,13 @@ Body content`;
   });
 
   describe("fromRulesyncSubagent", () => {
-    it("should create CursorSubagent from RulesyncSubagent", () => {
+    it("should create GeminiCliSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["cursor"],
+          targets: ["geminicli"],
           name: "Test Agent",
           description: "Test description from rulesync",
         },
@@ -204,21 +204,21 @@ Body content`;
         validate: true,
       });
 
-      const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
+      const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as CursorSubagent;
+      }) as GeminiCliSubagent;
 
-      expect(cursorSubagent).toBeInstanceOf(CursorSubagent);
-      expect(cursorSubagent.getBody()).toBe("Test agent content");
-      expect(cursorSubagent.getFrontmatter()).toEqual({
+      expect(geminiCliSubagent).toBeInstanceOf(GeminiCliSubagent);
+      expect(geminiCliSubagent.getBody()).toBe("Test agent content");
+      expect(geminiCliSubagent.getFrontmatter()).toEqual({
         name: "Test Agent",
         description: "Test description from rulesync",
       });
-      expect(cursorSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(cursorSubagent.getRelativeDirPath()).toBe(".cursor/subagents");
+      expect(geminiCliSubagent.getRelativeFilePath()).toBe("test-agent.md");
+      expect(geminiCliSubagent.getRelativeDirPath()).toBe(".gemini/subagents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -227,7 +227,7 @@ Body content`;
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
-          targets: ["cursor"],
+          targets: ["geminicli"],
           name: "Complex Agent",
           description: "Complex agent",
         },
@@ -236,14 +236,14 @@ Body content`;
         validate: true,
       });
 
-      const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
+      const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as CursorSubagent;
+      }) as GeminiCliSubagent;
 
-      expect(cursorSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
+      expect(geminiCliSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
     });
 
     it("should handle empty name and description", () => {
@@ -252,7 +252,7 @@ Body content`;
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["cursor"],
+          targets: ["geminicli"],
           name: "",
           description: "",
         },
@@ -261,14 +261,14 @@ Body content`;
         validate: true,
       });
 
-      const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
+      const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as CursorSubagent;
+      }) as GeminiCliSubagent;
 
-      expect(cursorSubagent.getFrontmatter()).toEqual({
+      expect(geminiCliSubagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
       });
@@ -276,36 +276,36 @@ Body content`;
   });
 
   describe("fromFile", () => {
-    it("should load CursorSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+    it("should load GeminiCliSubagent from file", async () => {
+      const subagentsDir = join(testDir, ".gemini", "subagents");
       const filePath = join(subagentsDir, "test-file-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
-      const subagent = await CursorSubagent.fromFile({
+      const subagent = await GeminiCliSubagent.fromFile({
         baseDir: testDir,
         relativeFilePath: "test-file-agent.md",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(CursorSubagent);
+      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
       expect(subagent.getBody()).toBe(
-        "This is the body of the cursor agent.\nIt can be multiline.",
+        "This is the body of the geminicli agent.\nIt can be multiline.",
       );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Cursor Agent",
-        description: "Test cursor agent description",
+        name: "Test GeminiCli Agent",
+        description: "Test geminicli agent description",
       });
       expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
     });
 
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".gemini", "subagents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
-      const subagent = await CursorSubagent.fromFile({
+      const subagent = await GeminiCliSubagent.fromFile({
         baseDir: testDir,
         relativeFilePath: "subdir/nested-agent.md",
         validate: true,
@@ -316,7 +316,7 @@ Body content`;
 
     it("should throw error when file does not exist", async () => {
       await expect(
-        CursorSubagent.fromFile({
+        GeminiCliSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "non-existent-agent.md",
           validate: true,
@@ -325,13 +325,13 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".gemini", "subagents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
 
       await expect(
-        CursorSubagent.fromFile({
+        GeminiCliSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
@@ -340,13 +340,13 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".gemini", "subagents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
       await expect(
-        CursorSubagent.fromFile({
+        GeminiCliSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
@@ -357,9 +357,9 @@ Body content`;
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
@@ -375,9 +375,9 @@ Body content`;
     });
 
     it("should handle frontmatter with additional properties", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
@@ -434,9 +434,9 @@ Body content`;
 
   describe("edge cases", () => {
     it("should handle empty body content", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -457,9 +457,9 @@ Body content`;
       const specialContent =
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -478,9 +478,9 @@ Body content`;
     it("should handle very long content", () => {
       const longContent = "A".repeat(10000);
 
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -495,9 +495,9 @@ Body content`;
     });
 
     it("should handle multi-line name and description", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -516,9 +516,9 @@ Body content`;
     it("should handle Windows-style line endings", () => {
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
@@ -534,9 +534,9 @@ Body content`;
 
   describe("inheritance", () => {
     it("should inherit from SimulatedSubagent", () => {
-      const subagent = new CursorSubagent({
+      const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".gemini/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
@@ -546,7 +546,7 @@ Body content`;
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(CursorSubagent);
+      expect(subagent).toBeInstanceOf(GeminiCliSubagent);
       // Test that it inherits methods from parent class
       expect(() => subagent.toRulesyncSubagent()).toThrow(
         "Not implemented because it is a SIMULATED file.",
@@ -555,13 +555,13 @@ Body content`;
   });
 
   describe("isTargetedByRulesyncSubagent", () => {
-    it("should return true when targets includes cursor", () => {
+    it("should return true when targets includes geminicli", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["cursor"],
+          targets: ["geminicli"],
           name: "Test Agent",
           description: "Test description",
         },
@@ -570,7 +570,7 @@ Body content`;
         validate: true,
       });
 
-      expect(CursorSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
+      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
     });
 
     it("should return true when targets includes asterisk", () => {
@@ -588,7 +588,7 @@ Body content`;
         validate: true,
       });
 
-      expect(CursorSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
+      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
     });
 
     it("should return false when targets array is empty", () => {
@@ -606,10 +606,10 @@ Body content`;
         validate: false, // Skip validation to allow empty targets array
       });
 
-      expect(CursorSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
+      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
     });
 
-    it("should return false when targets does not include cursor", () => {
+    it("should return false when targets does not include geminicli", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
@@ -624,16 +624,16 @@ Body content`;
         validate: true,
       });
 
-      expect(CursorSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
+      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
     });
 
-    it("should return true when targets includes cursor among other targets", () => {
+    it("should return true when targets includes geminicli among other targets", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["copilot", "cursor", "cline"],
+          targets: ["copilot", "geminicli", "cline"],
           name: "Test Agent",
           description: "Test description",
         },
@@ -642,7 +642,7 @@ Body content`;
         validate: true,
       });
 
-      expect(CursorSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
+      expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
     });
   });
 });

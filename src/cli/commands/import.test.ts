@@ -4,7 +4,7 @@ import { CommandsProcessor } from "../../features/commands/commands-processor.js
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
-import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
+import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { logger } from "../../utils/logger.js";
 import type { ImportOptions } from "./import.js";
 import { importCommand } from "./import.js";
@@ -14,7 +14,7 @@ vi.mock("../../config/config-resolver.js");
 vi.mock("../../features/rules/rules-processor.js");
 vi.mock("../../features/ignore/ignore-processor.js");
 vi.mock("../../features/mcp/mcp-processor.js");
-vi.mock("../../subagents/subagents-processor.js");
+vi.mock("../../features/subagents/subagents-processor.js");
 vi.mock("../../features/commands/commands-processor.js");
 vi.mock("../../utils/logger.js");
 

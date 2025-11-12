@@ -1,6 +1,6 @@
-import { AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
-import { ToolFile } from "../types/tool-file.js";
-import { ToolTarget } from "../types/tool-targets.js";
+import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
+import { ToolFile } from "../../types/tool-file.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
 export type ToolSubagentFromRulesyncSubagentParams = Omit<

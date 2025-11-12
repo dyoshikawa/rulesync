@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ValidationResult } from "../types/ai-file.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,

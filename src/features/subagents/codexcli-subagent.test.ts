@@ -1,24 +1,25 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
-import { CopilotSubagent } from "./copilot-subagent.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
+import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SimulatedSubagentFrontmatter,
   SimulatedSubagentFrontmatterSchema,
 } from "./simulated-subagent.js";
+import type { ToolSubagent } from "./tool-subagent.js";
 
-describe("CopilotSubagent", () => {
+describe("CodexCliSubagent", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
   const validMarkdownContent = `---
-name: Test Copilot Agent
-description: Test copilot agent description
+name: Test CodexCli Agent
+description: Test codexcli agent description
 ---
 
-This is the body of the copilot agent.
+This is the body of the codexcli agent.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
@@ -43,52 +44,52 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for copilot subagents", () => {
-      const paths = CopilotSubagent.getSettablePaths();
+    it("should return correct paths for codexcli subagents", () => {
+      const paths = CodexCliSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
       });
     });
   });
 
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test Copilot Agent",
-          description: "Test copilot agent description",
+          name: "Test CodexCli Agent",
+          description: "Test codexcli agent description",
         },
-        body: "This is the body of the copilot agent.\nIt can be multiline.",
+        body: "This is the body of the codexcli agent.\nIt can be multiline.",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      expect(subagent).toBeInstanceOf(CodexCliSubagent);
       expect(subagent.getBody()).toBe(
-        "This is the body of the copilot agent.\nIt can be multiline.",
+        "This is the body of the codexcli agent.\nIt can be multiline.",
       );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Copilot Agent",
-        description: "Test copilot agent description",
+        name: "Test CodexCli Agent",
+        description: "Test codexcli agent description",
       });
     });
 
     it("should create instance with empty name and description", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
           description: "",
         },
-        body: "This is a copilot agent without name or description.",
+        body: "This is a codexcli agent without name or description.",
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe("This is a copilot agent without name or description.");
+      expect(subagent.getBody()).toBe("This is a codexcli agent without name or description.");
       expect(subagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
@@ -96,9 +97,9 @@ Body content`;
     });
 
     it("should create instance without validation when validate is false", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -108,15 +109,15 @@ Body content`;
         validate: false,
       });
 
-      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      expect(subagent).toBeInstanceOf(CodexCliSubagent);
     });
 
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(
         () =>
-          new CopilotSubagent({
+          new CodexCliSubagent({
             baseDir: testDir,
-            relativeDirPath: ".github/subagents",
+            relativeDirPath: ".codex/subagents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
@@ -130,9 +131,9 @@ Body content`;
 
   describe("getBody", () => {
     it("should return the body content", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -148,13 +149,13 @@ Body content`;
 
   describe("getFrontmatter", () => {
     it("should return frontmatter with name and description", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          name: "Test Copilot Agent",
-          description: "Test copilot agent",
+          name: "Test CodexCli Agent",
+          description: "Test codexcli agent",
         },
         body: "Test body",
         validate: true,
@@ -162,17 +163,17 @@ Body content`;
 
       const frontmatter = subagent.getFrontmatter();
       expect(frontmatter).toEqual({
-        name: "Test Copilot Agent",
-        description: "Test copilot agent",
+        name: "Test CodexCli Agent",
+        description: "Test codexcli agent",
       });
     });
   });
 
   describe("toRulesyncSubagent", () => {
     it("should throw error as it is a simulated file", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -189,13 +190,13 @@ Body content`;
   });
 
   describe("fromRulesyncSubagent", () => {
-    it("should create CopilotSubagent from RulesyncSubagent", () => {
+    it("should create CodexCliSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["copilot"],
+          targets: ["codexcli"],
           name: "Test Agent",
           description: "Test description from rulesync",
         },
@@ -204,21 +205,21 @@ Body content`;
         validate: true,
       });
 
-      const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as CopilotSubagent;
+      }) as CodexCliSubagent;
 
-      expect(copilotSubagent).toBeInstanceOf(CopilotSubagent);
-      expect(copilotSubagent.getBody()).toBe("Test agent content");
-      expect(copilotSubagent.getFrontmatter()).toEqual({
+      expect(codexcliSubagent).toBeInstanceOf(CodexCliSubagent);
+      expect(codexcliSubagent.getBody()).toBe("Test agent content");
+      expect(codexcliSubagent.getFrontmatter()).toEqual({
         name: "Test Agent",
         description: "Test description from rulesync",
       });
-      expect(copilotSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(copilotSubagent.getRelativeDirPath()).toBe(".github/subagents");
+      expect(codexcliSubagent.getRelativeFilePath()).toBe("test-agent.md");
+      expect(codexcliSubagent.getRelativeDirPath()).toBe(".codex/subagents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -227,7 +228,7 @@ Body content`;
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
-          targets: ["copilot"],
+          targets: ["codexcli"],
           name: "Complex Agent",
           description: "Complex agent",
         },
@@ -236,14 +237,14 @@ Body content`;
         validate: true,
       });
 
-      const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as CopilotSubagent;
+      }) as CodexCliSubagent;
 
-      expect(copilotSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
+      expect(codexcliSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
     });
 
     it("should handle empty name and description", () => {
@@ -252,7 +253,7 @@ Body content`;
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
-          targets: ["copilot"],
+          targets: ["codexcli"],
           name: "",
           description: "",
         },
@@ -261,14 +262,14 @@ Body content`;
         validate: true,
       });
 
-      const copilotSubagent = CopilotSubagent.fromRulesyncSubagent({
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         rulesyncSubagent,
         validate: true,
-      }) as CopilotSubagent;
+      }) as CodexCliSubagent;
 
-      expect(copilotSubagent.getFrontmatter()).toEqual({
+      expect(codexcliSubagent.getFrontmatter()).toEqual({
         name: "",
         description: "",
       });
@@ -276,58 +277,36 @@ Body content`;
   });
 
   describe("fromFile", () => {
-    it("should load CopilotSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".github", "subagents");
+    it("should load CodexCliSubagent from file", async () => {
+      const subagentsDir = join(testDir, ".codex", "subagents");
       const filePath = join(subagentsDir, "test-file-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
-      const subagent = await CopilotSubagent.fromFile({
+      const subagent = await CodexCliSubagent.fromFile({
         baseDir: testDir,
         relativeFilePath: "test-file-agent.md",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      expect(subagent).toBeInstanceOf(CodexCliSubagent);
       expect(subagent.getBody()).toBe(
-        "This is the body of the copilot agent.\nIt can be multiline.",
+        "This is the body of the codexcli agent.\nIt can be multiline.",
       );
       expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Copilot Agent",
-        description: "Test copilot agent description",
+        name: "Test CodexCli Agent",
+        description: "Test codexcli agent description",
       });
       expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
     });
 
-    it("should use process.cwd() as default baseDir", async () => {
-      const subagentsDir = join(testDir, ".github", "subagents");
-      const filePath = join(subagentsDir, "default-basedir-agent.md");
-
-      await writeFileContent(filePath, validMarkdownContent);
-
-      // Not passing baseDir - should use mocked process.cwd()
-      const subagent = await CopilotSubagent.fromFile({
-        relativeFilePath: "default-basedir-agent.md",
-        validate: true,
-      });
-
-      expect(subagent).toBeInstanceOf(CopilotSubagent);
-      expect(subagent.getBody()).toBe(
-        "This is the body of the copilot agent.\nIt can be multiline.",
-      );
-      expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Copilot Agent",
-        description: "Test copilot agent description",
-      });
-    });
-
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".github", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".codex", "subagents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
 
-      const subagent = await CopilotSubagent.fromFile({
+      const subagent = await CodexCliSubagent.fromFile({
         baseDir: testDir,
         relativeFilePath: "subdir/nested-agent.md",
         validate: true,
@@ -338,7 +317,7 @@ Body content`;
 
     it("should throw error when file does not exist", async () => {
       await expect(
-        CopilotSubagent.fromFile({
+        CodexCliSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "non-existent-agent.md",
           validate: true,
@@ -347,13 +326,13 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".github", "subagents");
+      const subagentsDir = join(testDir, ".codex", "subagents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
 
       await expect(
-        CopilotSubagent.fromFile({
+        CodexCliSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
@@ -362,13 +341,13 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".github", "subagents");
+      const subagentsDir = join(testDir, ".codex", "subagents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
       await expect(
-        CopilotSubagent.fromFile({
+        CodexCliSubagent.fromFile({
           baseDir: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
@@ -379,9 +358,9 @@ Body content`;
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
@@ -397,9 +376,9 @@ Body content`;
     });
 
     it("should handle frontmatter with additional properties", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
@@ -456,9 +435,9 @@ Body content`;
 
   describe("edge cases", () => {
     it("should handle empty body content", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -479,9 +458,9 @@ Body content`;
       const specialContent =
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -500,9 +479,9 @@ Body content`;
     it("should handle very long content", () => {
       const longContent = "A".repeat(10000);
 
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -517,9 +496,9 @@ Body content`;
     });
 
     it("should handle multi-line name and description", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -538,9 +517,9 @@ Body content`;
     it("should handle Windows-style line endings", () => {
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
@@ -564,29 +543,29 @@ Body content`;
         fileContent: "",
       });
 
-      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
       expect(result).toBe(true);
     });
 
-    it("should return true for rulesync subagent with copilot target", () => {
+    it("should return true for rulesync subagent with codexcli target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
-        frontmatter: { targets: ["copilot"], name: "Test", description: "Test" },
+        frontmatter: { targets: ["codexcli"], name: "Test", description: "Test" },
         body: "Body",
         fileContent: "",
       });
 
-      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
       expect(result).toBe(true);
     });
 
-    it("should return true for rulesync subagent with copilot and other targets", () => {
+    it("should return true for rulesync subagent with codexcli and other targets", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
-          targets: ["cursor", "copilot", "cline"],
+          targets: ["cursor", "codexcli", "cline"],
           name: "Test",
           description: "Test",
         },
@@ -594,7 +573,7 @@ Body content`;
         fileContent: "",
       });
 
-      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
       expect(result).toBe(true);
     });
 
@@ -607,7 +586,7 @@ Body content`;
         fileContent: "",
       });
 
-      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
       expect(result).toBe(false);
     });
 
@@ -621,46 +600,47 @@ Body content`;
         validate: false,
       });
 
-      const result = CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
+      const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
       expect(result).toBe(true);
     });
   });
 
   describe("integration with base classes", () => {
     it("should properly inherit from SimulatedSubagent", () => {
-      const subagent = new CopilotSubagent({
+      const subagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
           description: "Test",
         },
-        body: "Body",
+        body: "Test",
         validate: true,
       });
 
-      // Check that it's an instance of parent classes
-      expect(subagent).toBeInstanceOf(CopilotSubagent);
-      expect(subagent.getRelativeDirPath()).toBe(".github/subagents");
-      expect(subagent.getRelativeFilePath()).toBe("test.md");
+      // Should inherit toRulesyncSubagent that throws error
+      expect(() => subagent.toRulesyncSubagent()).toThrow(
+        "Not implemented because it is a SIMULATED file.",
+      );
     });
 
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
-      const subagent = new CopilotSubagent({
-        baseDir: customBaseDir,
-        relativeDirPath: ".github/subagents",
+    it("should be assignable to ToolSubagent type", () => {
+      const subagent = new CodexCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".codex/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
           description: "Test",
         },
-        body: "Body",
-        validate: true,
+        body: "Test",
+        validate: false,
       });
 
-      expect(subagent).toBeInstanceOf(CopilotSubagent);
+      // Type check: should be assignable to ToolSubagent
+      const toolSubagent: ToolSubagent = subagent;
+      expect(toolSubagent).toBeDefined();
     });
   });
 });
