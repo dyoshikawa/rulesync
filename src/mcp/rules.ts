@@ -141,7 +141,7 @@ async function putRule({
     // Create a new RulesyncRule instance
     const rule = new RulesyncRule({
       baseDir: process.cwd(),
-      relativeDirPath: ".rulesync/rules",
+      relativeDirPath: join(".rulesync", "rules"),
       relativeFilePath: filename,
       frontmatter,
       body,
@@ -218,7 +218,7 @@ export const ruleToolSchemas = {
 export const ruleTools = {
   listRules: {
     name: "listRules",
-    description: "List all rules from .rulesync/rules/*.md with their frontmatter",
+    description: `List all rules from ${join(".rulesync", "rules", "*.md")} with their frontmatter.`,
     parameters: ruleToolSchemas.listRules,
     execute: async () => {
       const rules = await listRules();
