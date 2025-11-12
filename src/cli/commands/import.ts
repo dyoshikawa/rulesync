@@ -1,6 +1,6 @@
-import { CommandsProcessor } from "../../commands/commands-processor.js";
 import { Config } from "../../config/config.js";
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { CommandsProcessor } from "../../features/commands/commands-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor } from "../../mcp/mcp-processor.js";

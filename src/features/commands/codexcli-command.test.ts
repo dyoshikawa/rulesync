@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 

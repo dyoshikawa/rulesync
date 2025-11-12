@@ -1,7 +1,7 @@
 import { basename, join } from "node:path";
-import { AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { readFileContent } from "../utils/file.js";
-import { parseFrontmatter } from "../utils/frontmatter.js";
+import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -10,12 +10,15 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export type CursorCommandParams = AiFileParams;
+export type CodexcliCommandParams = AiFileParams;
 
-export class CursorCommand extends ToolCommand {
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
+export class CodexcliCommand extends ToolCommand {
+  static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
+    if (!global) {
+      throw new Error("CodexcliCommand only supports global mode. Please pass { global: true }.");
+    }
     return {
-      relativeDirPath: join(".cursor", "commands"),
+      relativeDirPath: join(".codex", "prompts"),
     };
   }
 
@@ -26,7 +29,7 @@ export class CursorCommand extends ToolCommand {
     };
 
     return new RulesyncCommand({
-      baseDir: process.cwd(), // RulesyncCommand baseDir is always the project root directory
+      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -41,10 +44,10 @@ export class CursorCommand extends ToolCommand {
     rulesyncCommand,
     validate = true,
     global = false,
-  }: ToolCommandFromRulesyncCommandParams): CursorCommand {
+  }: ToolCommandFromRulesyncCommandParams): CodexcliCommand {
     const paths = this.getSettablePaths({ global });
 
-    return new CursorCommand({
+    return new CodexcliCommand({
       baseDir: baseDir,
       fileContent: rulesyncCommand.getBody(),
       relativeDirPath: paths.relativeDirPath,
@@ -64,7 +67,7 @@ export class CursorCommand extends ToolCommand {
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
-      toolTarget: "cursor",
+      toolTarget: "codexcli",
     });
   }
 
@@ -73,14 +76,14 @@ export class CursorCommand extends ToolCommand {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolCommandFromFileParams): Promise<CursorCommand> {
+  }: ToolCommandFromFileParams): Promise<CodexcliCommand> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
     const { body: content } = parseFrontmatter(fileContent);
 
-    return new CursorCommand({
+    return new CodexcliCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: basename(relativeFilePath),

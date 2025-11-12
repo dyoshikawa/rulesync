@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { RulesyncCommand } from "../../commands/rulesync-command.js";
 import { ConfigParams } from "../../config/config.js";
+import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncIgnore } from "../../ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../mcp/rulesync-mcp.js";

@@ -1,5 +1,5 @@
-import { AiFile, AiFileFromFileParams, AiFileParams } from "../types/ai-file.js";
-import type { ToolTarget } from "../types/tool-targets.js";
+import { AiFile, AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
 export type ToolCommandFromRulesyncCommandParams = Omit<

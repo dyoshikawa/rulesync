@@ -1,15 +1,15 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
-import { ValidationResult } from "../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import {
   RulesyncFile,
   RulesyncFileFromFileParams,
   RulesyncFileParams,
-} from "../types/rulesync-file.js";
-import { RulesyncTargetsSchema } from "../types/tool-targets.js";
-import { formatError } from "../utils/error.js";
-import { readFileContent } from "../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+} from "../../types/rulesync-file.js";
+import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
+import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 
 export const RulesyncCommandFrontmatterSchema = z.object({
   targets: RulesyncTargetsSchema,

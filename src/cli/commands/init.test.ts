@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RulesyncCommand } from "../../commands/rulesync-command.js";
+import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncIgnore } from "../../ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../mcp/rulesync-mcp.js";
@@ -12,7 +12,7 @@ import { initCommand } from "./init.js";
 // Mock dependencies
 vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js");
-vi.mock("../../commands/rulesync-command.js");
+vi.mock("../../features/commands/rulesync-command.js");
 vi.mock("../../ignore/rulesync-ignore.js");
 vi.mock("../../mcp/rulesync-mcp.js");
 vi.mock("../../features/rules/rulesync-rule.js");

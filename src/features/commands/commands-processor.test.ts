@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { findFilesByGlobs } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { findFilesByGlobs } from "../../utils/file.js";
+import { logger } from "../../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
@@ -12,8 +12,8 @@ import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
 
 // Mock the dependencies
-vi.mock("../utils/file.js");
-vi.mock("../utils/logger.js", () => ({
+vi.mock("../../utils/file.js");
+vi.mock("../../utils/logger.js", () => ({
   logger: {
     info: vi.fn(),
   },

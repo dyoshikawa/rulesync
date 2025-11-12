@@ -1,36 +1,46 @@
 import { basename, join } from "node:path";
-import { z } from "zod/mini";
-import { AiFileParams, ValidationResult } from "../types/ai-file.js";
-import { formatError } from "../utils/error.js";
-import { readFileContent } from "../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../utils/frontmatter.js";
+import { optional, z } from "zod/mini";
+import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { formatError } from "../../utils/error.js";
+import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export const ClaudecodeCommandFrontmatterSchema = z.object({
+export const RooCommandFrontmatterSchema = z.object({
   description: z.string(),
+  "argument-hint": optional(z.string()),
 });
 
-export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFrontmatterSchema>;
+export type RooCommandFrontmatter = z.infer<typeof RooCommandFrontmatterSchema>;
 
-export type ClaudecodeCommandParams = {
-  frontmatter: ClaudecodeCommandFrontmatter;
+export type RooCommandParams = {
+  frontmatter: RooCommandFrontmatter;
   body: string;
-} & Omit<AiFileParams, "fileContent">;
+} & AiFileParams;
 
-export class ClaudecodeCommand extends ToolCommand {
-  private readonly frontmatter: ClaudecodeCommandFrontmatter;
+export type RooCommandSettablePaths = {
+  relativeDirPath: string;
+};
+
+export class RooCommand extends ToolCommand {
+  private readonly frontmatter: RooCommandFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: ClaudecodeCommandParams) {
+  static getSettablePaths(): RooCommandSettablePaths {
+    return {
+      relativeDirPath: join(".roo", "commands"),
+    };
+  }
+
+  constructor({ frontmatter, body, ...rest }: RooCommandParams) {
     // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate) {
-      const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
+      const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
           `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
@@ -47,12 +57,6 @@ export class ClaudecodeCommand extends ToolCommand {
     this.body = body;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
-    return {
-      relativeDirPath: join(".claude", "commands"),
-    };
-  }
-
   getBody(): string {
     return this.body;
   }
@@ -63,7 +67,7 @@ export class ClaudecodeCommand extends ToolCommand {
 
   toRulesyncCommand(): RulesyncCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["*"],
+      targets: ["roo"],
       description: this.frontmatter.description,
     };
 
@@ -85,25 +89,24 @@ export class ClaudecodeCommand extends ToolCommand {
     baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
+  }: ToolCommandFromRulesyncCommandParams): RooCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
-    const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
+    const rooFrontmatter: RooCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
     };
 
-    // Generate proper file content with Claude Code specific frontmatter
+    // Generate proper file content with Roo Code specific frontmatter
     const body = rulesyncCommand.getBody();
+    const fileContent = stringifyFrontmatter(body, rooFrontmatter);
 
-    const paths = this.getSettablePaths({ global });
-
-    return new ClaudecodeCommand({
+    return new RooCommand({
       baseDir: baseDir,
-      frontmatter: claudecodeFrontmatter,
+      frontmatter: rooFrontmatter,
       body,
-      relativeDirPath: paths.relativeDirPath,
+      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      fileContent: fileContent,
       validate,
     });
   }
@@ -114,7 +117,7 @@ export class ClaudecodeCommand extends ToolCommand {
       return { success: true, error: null };
     }
 
-    const result = ClaudecodeCommandFrontmatterSchema.safeParse(this.frontmatter);
+    const result = RooCommandFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
     } else {
@@ -130,7 +133,7 @@ export class ClaudecodeCommand extends ToolCommand {
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
-      toolTarget: "claudecode",
+      toolTarget: "roo",
     });
   }
 
@@ -138,26 +141,25 @@ export class ClaudecodeCommand extends ToolCommand {
     baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<ClaudecodeCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+  }: ToolCommandFromFileParams): Promise<RooCommand> {
+    const filePath = join(baseDir, RooCommand.getSettablePaths().relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
-    // Validate frontmatter using ClaudecodeCommandFrontmatterSchema
-    const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
+    // Validate frontmatter using RooCommandFrontmatterSchema
+    const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new ClaudecodeCommand({
+    return new RooCommand({
       baseDir: baseDir,
-      relativeDirPath: paths.relativeDirPath,
+      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
+      fileContent,
       validate,
     });
   }
