@@ -1,4 +1,5 @@
 import { FastMCP } from "fastmcp";
+import { mcpTools } from "../../mcp/mcp.js";
 import { ruleTools } from "../../mcp/rules.js";
 import { logger } from "../../utils/logger.js";
 
@@ -19,6 +20,11 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
   server.addTool(ruleTools.getRule);
   server.addTool(ruleTools.putRule);
   server.addTool(ruleTools.deleteRule);
+
+  // Register MCP tools
+  server.addTool(mcpTools.getMcpFile);
+  server.addTool(mcpTools.putMcpFile);
+  server.addTool(mcpTools.deleteMcpFile);
 
   // Start server with stdio transport (for spawned processes)
   logger.info("Rulesync MCP server started via stdio");
