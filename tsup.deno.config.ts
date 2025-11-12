@@ -7,12 +7,7 @@ export default defineConfig({
 	clean: true,
 	minify: true,
 	bundle: true,
-	// Bundle all dependencies except xsschema's optional peer dependencies
-	noExternal: [
-		/^(?!@valibot\/to-json-schema|effect|sury).*/,
-	],
 	external: [
-		// xsschema optional dependencies that are not needed at runtime
 		"@valibot/to-json-schema",
 		"effect",
 		"sury",
