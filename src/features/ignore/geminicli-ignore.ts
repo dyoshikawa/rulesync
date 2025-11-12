@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { readFileContent } from "../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
   ToolIgnoreFromFileParams,
@@ -8,16 +8,11 @@ import type {
 } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
-/**
- * Windsurf AI code editor ignore file implementation
- * Uses .codeiumignore file with gitignore-compatible syntax
- * Automatically respects .gitignore patterns and has built-in defaults for node_modules/ and hidden files
- */
-export class WindsurfIgnore extends ToolIgnore {
+export class GeminiCliIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".codeiumignore",
+      relativeFilePath: ".geminiignore",
     };
   }
 
@@ -28,8 +23,8 @@ export class WindsurfIgnore extends ToolIgnore {
   static fromRulesyncIgnore({
     baseDir = process.cwd(),
     rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): WindsurfIgnore {
-    return new WindsurfIgnore({
+  }: ToolIgnoreFromRulesyncIgnoreParams): GeminiCliIgnore {
+    return new GeminiCliIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -40,7 +35,7 @@ export class WindsurfIgnore extends ToolIgnore {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolIgnoreFromFileParams): Promise<WindsurfIgnore> {
+  }: ToolIgnoreFromFileParams): Promise<GeminiCliIgnore> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -49,7 +44,7 @@ export class WindsurfIgnore extends ToolIgnore {
       ),
     );
 
-    return new WindsurfIgnore({
+    return new GeminiCliIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,

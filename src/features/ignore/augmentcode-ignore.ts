@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { readFileContent } from "../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,

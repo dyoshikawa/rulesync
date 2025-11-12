@@ -1,18 +1,18 @@
 import { join } from "node:path";
-import { readFileContent } from "../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import type {
+import {
+  ToolIgnore,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
-import { ToolIgnore } from "./tool-ignore.js";
 
-export class QwencodeIgnore extends ToolIgnore {
+export class JunieIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".geminiignore",
+      relativeFilePath: ".junieignore",
     };
   }
 
@@ -23,8 +23,8 @@ export class QwencodeIgnore extends ToolIgnore {
   static fromRulesyncIgnore({
     baseDir = process.cwd(),
     rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): QwencodeIgnore {
-    return new QwencodeIgnore({
+  }: ToolIgnoreFromRulesyncIgnoreParams): JunieIgnore {
+    return new JunieIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -35,7 +35,7 @@ export class QwencodeIgnore extends ToolIgnore {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolIgnoreFromFileParams): Promise<QwencodeIgnore> {
+  }: ToolIgnoreFromFileParams): Promise<JunieIgnore> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -44,7 +44,7 @@ export class QwencodeIgnore extends ToolIgnore {
       ),
     );
 
-    return new QwencodeIgnore({
+    return new JunieIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,

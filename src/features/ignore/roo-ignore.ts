@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { readFileContent } from "../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
@@ -9,54 +9,45 @@ import {
 } from "./tool-ignore.js";
 
 /**
- * ClineIgnore represents ignore patterns for the Cline VSCode extension.
+ * RooIgnore represents ignore patterns for the Roo Code AI coding assistant.
  *
- * Based on the Cline specification:
- * - File location: Workspace root folder only (.clineignore)
- * - Syntax: Same as .gitignore
- * - Immediate reflection when saved
- * - Complete blocking of file access for ignored patterns
- * - Shows lock icon (🔒) for ignored files in listings
+ * Based on the Roo Code specification:
+ * - File location: Workspace root folder only (.rooignore)
+ * - Syntax: Same as .gitignore (fully compatible)
+ * - Immediate reflection when saved (no restart required)
+ * - Self-protection: .rooignore itself is always implicitly ignored
+ * - Strict blocking: Both read and write operations are prohibited
+ * - Visual indicators: Shows lock icon (🔒) when showRooIgnoredFiles=true
+ * - Bypass mechanism: Explicit @/path/to/file mentions bypass ignore rules
+ * - Support started: Official support in Roocode 3.8 (2025-03-13)
  */
-export class ClineIgnore extends ToolIgnore {
+export class RooIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".clineignore",
+      relativeFilePath: ".rooignore",
     };
   }
-
-  /**
-   * Convert ClineIgnore to RulesyncIgnore format
-   */
   toRulesyncIgnore(): RulesyncIgnore {
     return this.toRulesyncIgnoreDefault();
   }
 
-  /**
-   * Create ClineIgnore from RulesyncIgnore
-   */
   static fromRulesyncIgnore({
     baseDir = process.cwd(),
     rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): ClineIgnore {
-    const body = rulesyncIgnore.getFileContent();
-
-    return new ClineIgnore({
+  }: ToolIgnoreFromRulesyncIgnoreParams): RooIgnore {
+    return new RooIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: body,
+      fileContent: rulesyncIgnore.getFileContent(),
     });
   }
 
-  /**
-   * Load ClineIgnore from .clineignore file
-   */
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolIgnoreFromFileParams): Promise<ClineIgnore> {
+  }: ToolIgnoreFromFileParams): Promise<RooIgnore> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -65,7 +56,7 @@ export class ClineIgnore extends ToolIgnore {
       ),
     );
 
-    return new ClineIgnore({
+    return new RooIgnore({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,

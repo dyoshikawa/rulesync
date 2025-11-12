@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
-import { CursorIgnore } from "./cursor-ignore.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ClineIgnore } from "./cline-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
-describe("CursorIgnore", () => {
+describe("ClineIgnore", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -21,34 +21,34 @@ describe("CursorIgnore", () => {
 
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "*.log\nnode_modules/",
       });
 
-      expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getRelativeDirPath()).toBe(".");
-      expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
-      expect(cursorIgnore.getFileContent()).toBe("*.log\nnode_modules/");
+      expect(clineIgnore).toBeInstanceOf(ClineIgnore);
+      expect(clineIgnore.getRelativeDirPath()).toBe(".");
+      expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
+      expect(clineIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
     it("should create instance with custom baseDir", () => {
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: "/custom/path",
         relativeDirPath: "subdir",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "*.tmp",
       });
 
-      expect(cursorIgnore.getFilePath()).toBe("/custom/path/subdir/.cursorignore");
+      expect(clineIgnore.getFilePath()).toBe("/custom/path/subdir/.clineignore");
     });
 
     it("should validate content by default", () => {
       expect(() => {
-        const _instance = new CursorIgnore({
+        const _instance = new ClineIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".cursorignore",
+          relativeFilePath: ".clineignore",
           fileContent: "", // empty content should be valid
         });
       }).not.toThrow();
@@ -56,9 +56,9 @@ describe("CursorIgnore", () => {
 
     it("should skip validation when validate=false", () => {
       expect(() => {
-        const _instance = new CursorIgnore({
+        const _instance = new ClineIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".cursorignore",
+          relativeFilePath: ".clineignore",
           fileContent: "any content",
           validate: false,
         });
@@ -69,14 +69,14 @@ describe("CursorIgnore", () => {
   describe("toRulesyncIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
-      const rulesyncIgnore = cursorIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = clineIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
@@ -85,35 +85,35 @@ describe("CursorIgnore", () => {
     });
 
     it("should handle empty content", () => {
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "",
       });
 
-      const rulesyncIgnore = cursorIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = clineIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getFileContent()).toBe("");
     });
 
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
-      const rulesyncIgnore = cursorIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = clineIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create CursorIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create ClineIgnore from RulesyncIgnore with default baseDir", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -121,18 +121,18 @@ describe("CursorIgnore", () => {
         fileContent,
       });
 
-      const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const clineIgnore = ClineIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getBaseDir()).toBe(testDir);
-      expect(cursorIgnore.getRelativeDirPath()).toBe(".");
-      expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore).toBeInstanceOf(ClineIgnore);
+      expect(clineIgnore.getBaseDir()).toBe(testDir);
+      expect(clineIgnore.getRelativeDirPath()).toBe(".");
+      expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create CursorIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create ClineIgnore from RulesyncIgnore with custom baseDir", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -140,14 +140,14 @@ describe("CursorIgnore", () => {
         fileContent,
       });
 
-      const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const clineIgnore = ClineIgnore.fromRulesyncIgnore({
         baseDir: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(cursorIgnore.getBaseDir()).toBe("/custom/base");
-      expect(cursorIgnore.getFilePath()).toBe("/custom/base/.cursorignore");
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getBaseDir()).toBe("/custom/base");
+      expect(clineIgnore.getFilePath()).toBe("/custom/base/.clineignore");
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle empty content", () => {
@@ -157,11 +157,11 @@ describe("CursorIgnore", () => {
         fileContent: "",
       });
 
-      const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const clineIgnore = ClineIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe("");
+      expect(clineIgnore.getFileContent()).toBe("");
     });
 
     it("should preserve complex patterns", () => {
@@ -172,68 +172,68 @@ describe("CursorIgnore", () => {
         fileContent,
       });
 
-      const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const clineIgnore = ClineIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
   });
 
   describe("fromFile", () => {
-    it("should read .cursorignore file from baseDir with default baseDir", async () => {
+    it("should read .clineignore file from baseDir with default baseDir", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, fileContent);
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, fileContent);
 
-      const cursorIgnore = await CursorIgnore.fromFile({
+      const clineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
       });
 
-      expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getBaseDir()).toBe(testDir);
-      expect(cursorIgnore.getRelativeDirPath()).toBe(".");
-      expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore).toBeInstanceOf(ClineIgnore);
+      expect(clineIgnore.getBaseDir()).toBe(testDir);
+      expect(clineIgnore.getRelativeDirPath()).toBe(".");
+      expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should read .cursorignore file with validation enabled by default", async () => {
+    it("should read .clineignore file with validation enabled by default", async () => {
       const fileContent = "*.log\nnode_modules/";
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, fileContent);
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, fileContent);
 
-      const cursorIgnore = await CursorIgnore.fromFile({
+      const clineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should read .cursorignore file with validation disabled", async () => {
+    it("should read .clineignore file with validation disabled", async () => {
       const fileContent = "*.log\nnode_modules/";
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, fileContent);
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, fileContent);
 
-      const cursorIgnore = await CursorIgnore.fromFile({
+      const clineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
         validate: false,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should handle empty .cursorignore file", async () => {
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, "");
+    it("should handle empty .clineignore file", async () => {
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, "");
 
-      const cursorIgnore = await CursorIgnore.fromFile({
+      const clineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe("");
+      expect(clineIgnore.getFileContent()).toBe("");
     });
 
-    it("should handle .cursorignore file with complex patterns", async () => {
+    it("should handle .clineignore file with complex patterns", async () => {
       const fileContent = `# Build outputs
 build/
 dist/
@@ -264,31 +264,31 @@ logs/
 .DS_Store
 Thumbs.db`;
 
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, fileContent);
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, fileContent);
 
-      const cursorIgnore = await CursorIgnore.fromFile({
+      const clineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should default baseDir to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, fileContent);
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, fileContent);
 
-      const cursorIgnore = await CursorIgnore.fromFile({});
+      const clineIgnore = await ClineIgnore.fromFile({});
 
-      expect(cursorIgnore.getBaseDir()).toBe(testDir);
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getBaseDir()).toBe(testDir);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should throw error when .cursorignore file does not exist", async () => {
+    it("should throw error when .clineignore file does not exist", async () => {
       await expect(
-        CursorIgnore.fromFile({
+        ClineIgnore.fromFile({
           baseDir: testDir,
         }),
       ).rejects.toThrow();
@@ -296,64 +296,64 @@ Thumbs.db`;
 
     it("should handle file with Windows line endings", async () => {
       const fileContent = "*.log\r\nnode_modules/\r\n.env";
-      const cursorignorePath = join(testDir, ".cursorignore");
-      await writeFileContent(cursorignorePath, fileContent);
+      const clineignorePath = join(testDir, ".clineignore");
+      await writeFileContent(clineignorePath, fileContent);
 
-      const cursorIgnore = await CursorIgnore.fromFile({
+      const clineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
   });
 
   describe("inheritance from ToolIgnore", () => {
     it("should inherit getPatterns method", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
-      const patterns = cursorIgnore.getPatterns();
+      const patterns = clineIgnore.getPatterns();
 
       expect(Array.isArray(patterns)).toBe(true);
       expect(patterns).toEqual(["*.log", "node_modules/", ".env"]);
     });
 
     it("should inherit validation method", () => {
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "*.log\nnode_modules/",
       });
 
-      const result = cursorIgnore.validate();
+      const result = clineIgnore.validate();
 
       expect(result.success).toBe(true);
       expect(result.error).toBe(null);
     });
 
     it("should inherit file path methods from ToolFile", () => {
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: "/test/base",
         relativeDirPath: "subdir",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "*.log",
       });
 
-      expect(cursorIgnore.getBaseDir()).toBe("/test/base");
-      expect(cursorIgnore.getRelativeDirPath()).toBe("subdir");
-      expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
-      expect(cursorIgnore.getFilePath()).toBe("/test/base/subdir/.cursorignore");
-      expect(cursorIgnore.getFileContent()).toBe("*.log");
+      expect(clineIgnore.getBaseDir()).toBe("/test/base");
+      expect(clineIgnore.getRelativeDirPath()).toBe("subdir");
+      expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
+      expect(clineIgnore.getFilePath()).toBe("/test/base/subdir/.clineignore");
+      expect(clineIgnore.getFileContent()).toBe("*.log");
     });
   });
 
   describe("round-trip conversion", () => {
     it("should maintain content integrity in round-trip conversion", () => {
-      const originalContent = `# Cursor ignore patterns
+      const originalContent = `# Cline ignore patterns
 *.log
 node_modules/
 .env*
@@ -361,114 +361,114 @@ build/
 dist/
 *.tmp`;
 
-      // CursorIgnore -> RulesyncIgnore -> CursorIgnore
-      const originalCursorIgnore = new CursorIgnore({
+      // ClineIgnore -> RulesyncIgnore -> ClineIgnore
+      const originalClineIgnore = new ClineIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: originalContent,
       });
 
-      const rulesyncIgnore = originalCursorIgnore.toRulesyncIgnore();
-      const roundTripCursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const rulesyncIgnore = originalClineIgnore.toRulesyncIgnore();
+      const roundTripClineIgnore = ClineIgnore.fromRulesyncIgnore({
         baseDir: testDir,
         rulesyncIgnore,
       });
 
-      expect(roundTripCursorIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripCursorIgnore.getBaseDir()).toBe(testDir);
-      expect(roundTripCursorIgnore.getRelativeDirPath()).toBe(".");
-      expect(roundTripCursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
+      expect(roundTripClineIgnore.getFileContent()).toBe(originalContent);
+      expect(roundTripClineIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripClineIgnore.getRelativeDirPath()).toBe(".");
+      expect(roundTripClineIgnore.getRelativeFilePath()).toBe(".clineignore");
     });
 
     it("should maintain patterns in round-trip conversion", () => {
       const patterns = ["*.log", "node_modules/", ".env", "build/", "*.tmp"];
       const originalContent = patterns.join("\n");
 
-      const originalCursorIgnore = new CursorIgnore({
+      const originalClineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: originalContent,
       });
 
-      const rulesyncIgnore = originalCursorIgnore.toRulesyncIgnore();
-      const roundTripCursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const rulesyncIgnore = originalClineIgnore.toRulesyncIgnore();
+      const roundTripClineIgnore = ClineIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(roundTripCursorIgnore.getPatterns()).toEqual(patterns);
+      expect(roundTripClineIgnore.getPatterns()).toEqual(patterns);
     });
   });
 
   describe("edge cases", () => {
     it("should handle file content with only whitespace", () => {
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "   \n\t\n   ",
       });
 
-      expect(cursorIgnore.getFileContent()).toBe("   \n\t\n   ");
+      expect(clineIgnore.getFileContent()).toBe("   \n\t\n   ");
       // Patterns are trimmed and empty lines are filtered out
-      expect(cursorIgnore.getPatterns()).toEqual([]);
+      expect(clineIgnore.getPatterns()).toEqual([]);
     });
 
     it("should handle file content with mixed line endings", () => {
       const fileContent = "*.log\r\nnode_modules/\n.env\r\nbuild/";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle very long patterns", () => {
       const longPattern = "a".repeat(1000);
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: longPattern,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(longPattern);
-      expect(cursorIgnore.getPatterns()).toEqual([longPattern]);
+      expect(clineIgnore.getFileContent()).toBe(longPattern);
+      expect(clineIgnore.getPatterns()).toEqual([longPattern]);
     });
 
     it("should handle unicode characters in patterns", () => {
       const unicodeContent = "*.log\n節点模块/\n環境.env\n🏗️build/";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: unicodeContent,
       });
 
-      expect(cursorIgnore.getFileContent()).toBe(unicodeContent);
-      expect(cursorIgnore.getPatterns()).toEqual(["*.log", "節点模块/", "環境.env", "🏗️build/"]);
+      expect(clineIgnore.getFileContent()).toBe(unicodeContent);
+      expect(clineIgnore.getPatterns()).toEqual(["*.log", "節点模块/", "環境.env", "🏗️build/"]);
     });
   });
 
   describe("file integration", () => {
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
       // Write file using writeFileContent utility
-      await writeFileContent(cursorIgnore.getFilePath(), cursorIgnore.getFileContent());
+      await writeFileContent(clineIgnore.getFilePath(), clineIgnore.getFileContent());
 
       // Read file back
-      const readCursorIgnore = await CursorIgnore.fromFile({
+      const readClineIgnore = await ClineIgnore.fromFile({
         baseDir: testDir,
       });
 
-      expect(readCursorIgnore.getFileContent()).toBe(fileContent);
-      expect(readCursorIgnore.getPatterns()).toEqual(["*.log", "node_modules/", ".env"]);
+      expect(readClineIgnore.getFileContent()).toBe(fileContent);
+      expect(readClineIgnore.getPatterns()).toEqual(["*.log", "node_modules/", ".env"]);
     });
 
     it("should handle subdirectory placement", async () => {
@@ -476,33 +476,33 @@ dist/
       await ensureDir(subDir);
 
       const fileContent = "*.log\nbuild/";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         baseDir: testDir,
         relativeDirPath: "project/config",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
       // Write file using writeFileContent utility
-      await writeFileContent(cursorIgnore.getFilePath(), cursorIgnore.getFileContent());
+      await writeFileContent(clineIgnore.getFilePath(), clineIgnore.getFileContent());
 
-      const readCursorIgnore = await CursorIgnore.fromFile({
+      const readClineIgnore = await ClineIgnore.fromFile({
         baseDir: join(testDir, "project/config"),
       });
 
-      expect(readCursorIgnore.getFileContent()).toBe(fileContent);
+      expect(readClineIgnore.getFileContent()).toBe(fileContent);
     });
   });
 
-  describe("Cursor-specific behavior", () => {
-    it("should use .cursorignore as the filename", () => {
-      const cursorIgnore = new CursorIgnore({
+  describe("Cline-specific behavior", () => {
+    it("should use .clineignore as the filename", () => {
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent: "*.log",
       });
 
-      expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
+      expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
     });
 
     it("should work with gitignore syntax patterns", () => {
@@ -517,13 +517,13 @@ node_modules/
 temp*/
 .DS_Store`;
 
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
-      const patterns = cursorIgnore.getPatterns();
+      const patterns = clineIgnore.getPatterns();
       // Comments are filtered out, only actual patterns remain
       const expectedPatterns = [
         "*.log",
@@ -542,18 +542,18 @@ temp*/
 
     it("should handle immediate reflection semantics (file content preservation)", () => {
       const fileContent = "# This should reflect immediately\n*.log\ntemp/";
-      const cursorIgnore = new CursorIgnore({
+      const clineIgnore = new ClineIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".cursorignore",
+        relativeFilePath: ".clineignore",
         fileContent,
       });
 
       // Content should be preserved exactly as provided for immediate reflection
-      expect(cursorIgnore.getFileContent()).toBe(fileContent);
+      expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should work in workspace root context", () => {
-      const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
+      const clineIgnore = ClineIgnore.fromRulesyncIgnore({
         baseDir: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: ".rulesync",
@@ -562,10 +562,10 @@ temp*/
         }),
       });
 
-      // Should always place .cursorignore in root (relativeDirPath: ".")
-      expect(cursorIgnore.getRelativeDirPath()).toBe(".");
-      expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
-      expect(cursorIgnore.getFilePath()).toBe("/workspace/root/.cursorignore");
+      // Should always place .clineignore in root (relativeDirPath: ".")
+      expect(clineIgnore.getRelativeDirPath()).toBe(".");
+      expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
+      expect(clineIgnore.getFilePath()).toBe("/workspace/root/.clineignore");
     });
   });
 });

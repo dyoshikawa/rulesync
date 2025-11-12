@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";
+import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
-import { IgnoreProcessor } from "../../ignore/ignore-processor.js";
 import { McpProcessor } from "../../mcp/mcp-processor.js";
 import { SubagentsProcessor } from "../../subagents/subagents-processor.js";
 import { logger } from "../../utils/logger.js";
@@ -12,7 +12,7 @@ import { importCommand } from "./import.js";
 // Mock all dependencies
 vi.mock("../../config/config-resolver.js");
 vi.mock("../../features/rules/rules-processor.js");
-vi.mock("../../ignore/ignore-processor.js");
+vi.mock("../../features/ignore/ignore-processor.js");
 vi.mock("../../mcp/mcp-processor.js");
 vi.mock("../../subagents/subagents-processor.js");
 vi.mock("../../features/commands/commands-processor.js");
