@@ -15,6 +15,12 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 - Read @README.md if you want to know Rulesync specification.
 - Manage runtimes and package managers with @mise.toml . 
+- When you want to check entire codebase:
+  - You can use:
+    - `pnpm cicheck:code` to check code style, type safety, and tests.
+    - `pnpm cicheck:content` to check content style, spelling, and secrets.
+    - `pnpm cicheck` to check both code and content.
+  - Basically, I recommend you to run `pnpm cicheck:code` only to daily checks. Because it is fast, `pnpm cicheck:content` and `pnpm cicheck` are slower.
 
 ## Use appropriate MCP servers
 
