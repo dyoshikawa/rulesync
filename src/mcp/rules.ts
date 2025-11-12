@@ -15,10 +15,8 @@ import {
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 
-// Resource constraints
-const MAX_RULE_SIZE_BYTES = 1024 * 1024; // 1MB
-const MAX_RULES_COUNT = 1000;
-const RULES_DIR_PREFIX = ".rulesync/rules";
+const maxRuleSizeBytes = 1024 * 1024; // 1MB
+const maxRulesCount = 1000;
 
 /**
  * Validates that a rule path is safe and follows the expected format
@@ -29,8 +27,8 @@ function validateRulePath(relativePathFromCwd: string): void {
   const normalizedPath = relativePathFromCwd.replace(/\\/g, "/");
 
   // Ensure path is within .rulesync/rules/
-  if (!normalizedPath.startsWith(`${RULES_DIR_PREFIX}/`)) {
-    throw new Error(`Invalid rule path: must be within ${RULES_DIR_PREFIX}/ directory`);
+  if (!normalizedPath.startsWith(".rulesync/rules/")) {
+    throw new Error("Invalid rule path: must be within .rulesync/rules/ directory");
   }
 
   // Use resolvePath to check for path traversal
@@ -148,9 +146,9 @@ async function putRule({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > MAX_RULE_SIZE_BYTES) {
+  if (estimatedSize > maxRuleSizeBytes) {
     throw new Error(
-      `Rule size ${estimatedSize} bytes exceeds maximum ${MAX_RULE_SIZE_BYTES} bytes (1MB)`,
+      `Rule size ${estimatedSize} bytes exceeds maximum ${maxRuleSizeBytes} bytes (1MB)`,
     );
   }
 
@@ -161,8 +159,8 @@ async function putRule({
       (rule) => rule.relativePathFromCwd === join(".rulesync", "rules", filename),
     );
 
-    if (!isUpdate && existingRules.length >= MAX_RULES_COUNT) {
-      throw new Error(`Maximum number of rules (${MAX_RULES_COUNT}) reached`);
+    if (!isUpdate && existingRules.length >= maxRulesCount) {
+      throw new Error(`Maximum number of rules (${maxRulesCount}) reached`);
     }
 
     // Create a new RulesyncRule instance
