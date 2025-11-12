@@ -4,10 +4,6 @@ import { RulesyncRule } from "../../rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
 
-// Import the actual functions from the mcp module
-// We need to expose these functions for testing
-// For now, we'll test the underlying logic through RulesyncRule
-
 describe("MCP Server", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
