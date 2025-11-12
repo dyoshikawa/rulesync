@@ -1,10 +1,54 @@
 import { basename, join } from "node:path";
 import { FastMCP } from "fastmcp";
 import { z } from "zod/mini";
-import { RulesyncRule, type RulesyncRuleFrontmatter } from "../../rules/rulesync-rule.js";
+import {
+  RulesyncRule,
+  type RulesyncRuleFrontmatter,
+  RulesyncRuleFrontmatterSchema,
+} from "../../rules/rulesync-rule.js";
 import { formatError } from "../../utils/error.js";
-import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
+import {
+  ensureDir,
+  listDirectoryFiles,
+  removeFile,
+  resolvePath,
+  writeFileContent,
+} from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
+
+// Resource constraints
+const MAX_RULE_SIZE_BYTES = 1024 * 1024; // 1MB
+const MAX_RULES_COUNT = 1000;
+const RULES_DIR_PREFIX = ".rulesync/rules";
+
+/**
+ * Validates that a rule path is safe and follows the expected format
+ * @throws {Error} if path validation fails
+ */
+function validateRulePath(relativePathFromCwd: string): void {
+  // Normalize path separators for cross-platform compatibility
+  const normalizedPath = relativePathFromCwd.replace(/\\/g, "/");
+
+  // Ensure path is within .rulesync/rules/
+  if (!normalizedPath.startsWith(`${RULES_DIR_PREFIX}/`)) {
+    throw new Error(`Invalid rule path: must be within ${RULES_DIR_PREFIX}/ directory`);
+  }
+
+  // Use resolvePath to check for path traversal
+  try {
+    resolvePath(normalizedPath, process.cwd());
+  } catch (error) {
+    throw new Error(`Path validation failed: ${formatError(error)}`, { cause: error });
+  }
+
+  // Validate filename
+  const filename = basename(normalizedPath);
+  if (!/^[a-zA-Z0-9_-]+\.md$/.test(filename)) {
+    throw new Error(
+      `Invalid filename: ${filename}. Must match pattern [a-zA-Z0-9_-]+.md (alphanumeric, hyphens, underscores only)`,
+    );
+  }
+}
 
 /**
  * Tool to list all rules from .rulesync/rules/*.md
@@ -59,6 +103,9 @@ async function getRule({ relativePathFromCwd }: { relativePathFromCwd: string })
   frontmatter: RulesyncRuleFrontmatter;
   body: string;
 }> {
+  // Validate path before processing
+  validateRulePath(relativePathFromCwd);
+
   const filename = basename(relativePathFromCwd);
 
   try {
@@ -95,9 +142,30 @@ async function putRule({
   frontmatter: RulesyncRuleFrontmatter;
   body: string;
 }> {
+  // Validate path before processing
+  validateRulePath(relativePathFromCwd);
+
   const filename = basename(relativePathFromCwd);
 
+  // Check file size constraint
+  const estimatedSize = JSON.stringify(frontmatter).length + body.length;
+  if (estimatedSize > MAX_RULE_SIZE_BYTES) {
+    throw new Error(
+      `Rule size ${estimatedSize} bytes exceeds maximum ${MAX_RULE_SIZE_BYTES} bytes (1MB)`,
+    );
+  }
+
   try {
+    // Check rule count constraint
+    const existingRules = await listRules();
+    const isUpdate = existingRules.some(
+      (rule) => rule.relativePathFromCwd === join(".rulesync", "rules", filename),
+    );
+
+    if (!isUpdate && existingRules.length >= MAX_RULES_COUNT) {
+      throw new Error(`Maximum number of rules (${MAX_RULES_COUNT}) reached`);
+    }
+
     // Create a new RulesyncRule instance
     const rule = new RulesyncRule({
       baseDir: process.cwd(),
@@ -133,6 +201,9 @@ async function putRule({
 async function deleteRule({ relativePathFromCwd }: { relativePathFromCwd: string }): Promise<{
   relativePathFromCwd: string;
 }> {
+  // Validate path before processing
+  validateRulePath(relativePathFromCwd);
+
   const filename = basename(relativePathFromCwd);
   const fullPath = join(process.cwd(), ".rulesync", "rules", filename);
 
@@ -193,15 +264,13 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
       "Create or update a rule (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
     parameters: z.object({
       relativePathFromCwd: z.string(),
-      frontmatter: z.any(),
+      frontmatter: RulesyncRuleFrontmatterSchema,
       body: z.string(),
     }),
     execute: async (args) => {
       const result = await putRule({
         relativePathFromCwd: args.relativePathFromCwd,
-        // Type assertion is safe here because zod validates the frontmatter structure
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        frontmatter: args.frontmatter as RulesyncRuleFrontmatter,
+        frontmatter: args.frontmatter,
         body: args.body,
       });
       return JSON.stringify(result, null, 2);
