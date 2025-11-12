@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "serena": {
-      "description": "Semantic coding tools for intelligent codebase exploration and manipulation",
+      "description": "Semantic coding tools for intelligent codebase exploration and manipulation. You should usually use this MCP server when you search for codebase information.",
       "type": "stdio",
       "command": "uvx",
       "args": [
@@ -19,7 +19,7 @@
       "env": {}
     },
     "context7": {
-      "description": "Up-to-date documentation and code examples for libraries",
+      "description": "Up-to-date documentation and code examples for libraries. You should usually use this MCP server when you search for library documentation.",
       "type": "stdio",
       "command": "pnpx",
       "args": [
@@ -29,7 +29,7 @@
       "env": {}
     },
     "fetch": {
-      "description": "This server enables LLMs to retrieve and process content from web pages, converting HTML to markdown for easier consumption.",
+      "description": "This server enables LLMs to retrieve and process content from web pages, converting HTML to markdown for easier consumption. You should usually use this MCP server when you fetch web content.",
       "type": "stdio",
       "command": "uvx",
       "args": [
@@ -38,7 +38,7 @@
       "env": {}
     },
     "rulesync-mcp": {
-      "description": "This server handles rules, commands, MCP, ignore files, and subagents for any AI agents.",
+      "description": "This server handles rules, commands, MCP, ignore files, and subagents for any AI agents. You should usually use this MCP server when you need to handle rules, commands, MCP, ignore files, and subagents for any AI agents.",
       "type": "stdio",
       "command": "pnpm",
       "args": [
