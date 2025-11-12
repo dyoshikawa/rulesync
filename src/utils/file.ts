@@ -33,6 +33,12 @@ export function checkPathTraversal({
   relativePath: string;
   intendedRootDir: string;
 }): void {
+  // Check for .. segments in the path (even if they don't escape the directory)
+  const segments = relativePath.split(/[/\\]/);
+  if (segments.includes("..")) {
+    throw new Error(`Path traversal detected: ${relativePath}`);
+  }
+
   const resolved = resolve(intendedRootDir, relativePath);
   const rel = relative(intendedRootDir, resolved);
   if (rel.startsWith("..") || resolve(resolved) !== resolved) {
