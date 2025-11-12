@@ -103,7 +103,8 @@ RUN mkdir -p "$PNPM_HOME" && \
     opencode-ai \
     @openai/codex \
     opencommit \
-    @google/gemini-cli
+    @google/gemini-cli \
+    difit
 # Enable smol mode in Bun to reduce memory usage
 RUN echo 'smol = true' > /home/node/bunfig.toml
 
