@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import { RulesyncCommand } from "../../commands/rulesync-command.js";
 import { ConfigParams } from "../../config/config.js";
+import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncIgnore } from "../../ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../mcp/rulesync-mcp.js";
-import { RulesyncRule } from "../../rules/rulesync-rule.js";
 import { RulesyncSubagent } from "../../subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";

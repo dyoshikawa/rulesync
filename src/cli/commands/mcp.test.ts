@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RulesyncRule } from "../../rules/rulesync-rule.js";
+import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
 
