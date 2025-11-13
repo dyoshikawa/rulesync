@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -108,8 +112,8 @@ describe("IgnoreProcessor", () => {
     it("should load rulesync ignore file when it exists", async () => {
       const mockRulesyncIgnore = new MockRulesyncIgnore({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesyncignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
@@ -309,8 +313,8 @@ describe("IgnoreProcessor", () => {
       const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
       Object.assign(mockRulesyncIgnore, {
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesyncignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
         getFileContent: () => "*.log\nnode_modules/",
       });
@@ -355,8 +359,8 @@ describe("IgnoreProcessor", () => {
       const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
       Object.assign(mockRulesyncIgnore, {
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesyncignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
         getFileContent: () => "*.log\nnode_modules/",
       });
@@ -418,8 +422,8 @@ describe("IgnoreProcessor", () => {
       const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
       Object.assign(mockRulesyncIgnore, {
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesyncignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
         getFileContent: () => "*.log\nnode_modules/",
       });
