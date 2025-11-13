@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -317,7 +318,7 @@ describe("JunieRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("guidelines.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
 
@@ -351,7 +352,9 @@ describe("JunieRule", () => {
 
       const rulesyncRule = junieRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/metadata-test.md");
+      expect(rulesyncRule.getFilePath()).toBe(
+        `${testDir}/${RULESYNC_RULES_RELATIVE_DIR_PATH}/${RULESYNC_OVERVIEW_FILE_NAME}`,
+      );
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );
@@ -428,7 +431,7 @@ describe("JunieRule", () => {
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("guidelines.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle complete workflow from memory file to rulesync rule", async () => {
@@ -481,7 +484,7 @@ describe("JunieRule", () => {
 
       // Verify content preservation
       expect(finalRulesync.getFileContent()).toContain(originalBody);
-      expect(finalRulesync.getRelativeFilePath()).toBe("guidelines.md"); // Should be guidelines.md for root
+      expect(finalRulesync.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME); // Should be overview.md for root
     });
 
     it("should handle roundtrip conversion rulesync -> junie -> rulesync for detail rule", () => {

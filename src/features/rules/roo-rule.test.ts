@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RooRule } from "./roo-rule.js";
@@ -297,7 +301,9 @@ describe("RooRule", () => {
 
       const rulesyncRule = rooRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/metadata-test.md");
+      expect(rulesyncRule.getFilePath()).toBe(
+        `${testDir}/${RULESYNC_RULES_RELATIVE_DIR_PATH}/${RULESYNC_OVERVIEW_FILE_NAME}`,
+      );
       expect(rulesyncRule.getFileContent()).toContain("# Metadata Test");
     });
   });

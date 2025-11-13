@@ -306,7 +306,7 @@ describe("AugmentcodeRule", () => {
 
       const rulesyncRule = augmentcodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getBaseDir()).toBe("/custom/path");
+      expect(rulesyncRule.getBaseDir()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(

@@ -255,7 +255,7 @@ describe("AmazonQCliRule", () => {
       const rulesyncRule = amazonQCliRule.toRulesyncRule();
 
       expect(rulesyncRule.getFilePath()).toBe(
-        `${RULESYNC_RULES_RELATIVE_DIR_PATH}/${RULESYNC_OVERVIEW_FILE_NAME}`,
+        `${testDir}/${RULESYNC_RULES_RELATIVE_DIR_PATH}/${RULESYNC_OVERVIEW_FILE_NAME}`,
       );
       expect(rulesyncRule.getFileContent()).toContain("# Metadata Test");
     });
