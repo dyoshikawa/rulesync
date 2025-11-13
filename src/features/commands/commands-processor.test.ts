@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vitest";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -53,7 +54,7 @@ vi.mocked(RulesyncCommand).mockImplementation(function (config: any) {
 vi.mocked(RulesyncCommand).fromFile = vi.fn();
 vi.mocked(RulesyncCommand).getSettablePaths = vi
   .fn()
-  .mockReturnValue({ relativeDirPath: join(".rulesync", "commands") });
+  .mockReturnValue({ relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH });
 
 // Set up static methods after mocking
 vi.mocked(ClaudecodeCommand).fromFile = vi.fn();
@@ -156,7 +157,7 @@ describe("CommandsProcessor", () => {
     it("should convert rulesync commands to claudecode commands", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -197,7 +198,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -236,7 +237,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -273,7 +274,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -314,7 +315,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -345,7 +346,7 @@ describe("CommandsProcessor", () => {
     it("should filter out non-rulesync command files", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -389,7 +390,7 @@ describe("CommandsProcessor", () => {
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
         frontmatter: {
@@ -482,7 +483,7 @@ describe("CommandsProcessor", () => {
       const mockRulesyncCommands = [
         new RulesyncCommand({
           baseDir: testDir,
-          relativeDirPath: join(".rulesync", "commands"),
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test1.md",
           fileContent: "content1",
           frontmatter: {
@@ -493,7 +494,7 @@ describe("CommandsProcessor", () => {
         }),
         new RulesyncCommand({
           baseDir: testDir,
-          relativeDirPath: join(".rulesync", "commands"),
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test2.md",
           fileContent: "content2",
           frontmatter: {
@@ -511,7 +512,9 @@ describe("CommandsProcessor", () => {
 
       const result = await processor.loadRulesyncFiles();
 
-      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(".rulesync/commands/*.md");
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/*.md`,
+      );
       expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "test1.md" });
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "test2.md" });
@@ -523,7 +526,7 @@ describe("CommandsProcessor", () => {
       const mockPaths = ["test1.md", "test2.md"];
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: join(".rulesync", "commands"),
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test1.md",
         fileContent: "content1",
         frontmatter: {
