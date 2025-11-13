@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
@@ -80,7 +84,7 @@ describe("AugmentcodeIgnore", () => {
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
     });
 
     it("should handle empty content", () => {
@@ -129,7 +133,7 @@ describe("AugmentcodeIgnore", () => {
     it("should create AugmentcodeIgnore from RulesyncIgnore with default baseDir", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".rulesignore",
         fileContent,
       });
@@ -148,7 +152,7 @@ describe("AugmentcodeIgnore", () => {
     it("should create AugmentcodeIgnore from RulesyncIgnore with custom baseDir", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".rulesignore",
         fileContent,
       });
@@ -165,7 +169,7 @@ describe("AugmentcodeIgnore", () => {
 
     it("should handle empty content", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".rulesignore",
         fileContent: "",
       });
@@ -181,7 +185,7 @@ describe("AugmentcodeIgnore", () => {
       const fileContent =
         "# Comments\n*.log\n**/*.tmp\n!important.tmp\nnode_modules/\n.env*\n!.env.example";
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".rulesignore",
         fileContent,
       });
@@ -195,7 +199,7 @@ describe("AugmentcodeIgnore", () => {
 
     it("should always create with repository root placement", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".rulesignore",
         fileContent: "*.log",
       });
@@ -617,7 +621,7 @@ build/
       const augmentcodeIgnore = AugmentcodeIgnore.fromRulesyncIgnore({
         baseDir: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",
           fileContent: "*.log\nnode_modules/",
         }),
