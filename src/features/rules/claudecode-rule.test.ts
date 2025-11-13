@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -207,7 +211,7 @@ describe("ClaudecodeRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create instance from RulesyncRule for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -233,7 +237,7 @@ describe("ClaudecodeRule", () => {
 
     it("should create instance from RulesyncRule for non-root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-rule.md",
         frontmatter: {
           root: false,
@@ -259,7 +263,7 @@ describe("ClaudecodeRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
         frontmatter: {
           root: false,
@@ -280,7 +284,7 @@ describe("ClaudecodeRule", () => {
 
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
         frontmatter: {
           root: false,
@@ -319,7 +323,7 @@ describe("ClaudecodeRule", () => {
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("CLAUDE.md");
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
@@ -336,7 +340,7 @@ describe("ClaudecodeRule", () => {
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("memory-convert.md");
       expect(rulesyncRule.getFileContent()).toContain(
         "# Memory Convert Test\n\nThis memory will be converted.",
@@ -354,7 +358,7 @@ describe("ClaudecodeRule", () => {
 
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/CLAUDE.md");
+      expect(rulesyncRule.getFilePath()).toBe(`${RULESYNC_RULES_RELATIVE_DIR_PATH}/CLAUDE.md`);
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );
@@ -430,7 +434,7 @@ describe("ClaudecodeRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("CLAUDE.md");
     });
 
@@ -452,7 +456,7 @@ describe("ClaudecodeRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("memory-integration.md");
     });
 
@@ -462,7 +466,7 @@ describe("ClaudecodeRule", () => {
       // Start with rulesync rule (root)
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
           root: true,
@@ -493,7 +497,7 @@ describe("ClaudecodeRule", () => {
       // Start with rulesync rule (non-root)
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-roundtrip.md",
         frontmatter: {
           root: false,
@@ -614,7 +618,7 @@ describe("ClaudecodeRule", () => {
   describe("fromRulesyncRule with global flag", () => {
     it("should use global paths when global=true for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -637,7 +641,7 @@ describe("ClaudecodeRule", () => {
 
     it("should use regular paths when global=false for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -660,7 +664,7 @@ describe("ClaudecodeRule", () => {
 
     it("should default to regular paths when global is not specified", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -684,7 +688,7 @@ describe("ClaudecodeRule", () => {
     it("should return true for rules targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["claudecode"],
@@ -698,7 +702,7 @@ describe("ClaudecodeRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -712,7 +716,7 @@ describe("ClaudecodeRule", () => {
     it("should return false for rules not targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -726,7 +730,7 @@ describe("ClaudecodeRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -740,7 +744,7 @@ describe("ClaudecodeRule", () => {
     it("should handle mixed targets including claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "claudecode", "copilot"],
@@ -754,7 +758,7 @@ describe("ClaudecodeRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",
