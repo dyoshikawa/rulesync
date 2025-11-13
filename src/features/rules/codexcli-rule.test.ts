@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CodexcliRule } from "./codexcli-rule.js";
@@ -254,7 +255,7 @@ More detailed instructions here.`;
     it("should handle subprojectPath from agentsmd field", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           root: false,
@@ -281,7 +282,7 @@ More detailed instructions here.`;
     it("should ignore subprojectPath for root rules", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           root: true,
@@ -306,7 +307,7 @@ More detailed instructions here.`;
     it("should handle empty subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           root: false,
@@ -331,7 +332,7 @@ More detailed instructions here.`;
     it("should handle complex nested subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "nested.md",
         frontmatter: {
           root: false,
@@ -358,7 +359,7 @@ More detailed instructions here.`;
     it("should handle undefined agentsmd field", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           root: false,
@@ -666,7 +667,7 @@ More detailed instructions here.`;
   describe("fromRulesyncRule with global flag", () => {
     it("should use global paths when global=true for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: `${RULESYNC_RELATIVE_DIR_PATH}/rules`,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -688,7 +689,7 @@ More detailed instructions here.`;
 
     it("should use regular paths when global=false for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: `${RULESYNC_RELATIVE_DIR_PATH}/rules`,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -710,7 +711,7 @@ More detailed instructions here.`;
 
     it("should default to regular paths when global is not specified", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: `${RULESYNC_RELATIVE_DIR_PATH}/rules`,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
