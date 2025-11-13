@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { formatError } from "../utils/error.js";
 import { ensureDir, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 
@@ -12,13 +13,13 @@ async function getIgnoreFile(): Promise<{
   relativePathFromCwd: string;
   content: string;
 }> {
-  const ignoreFilePath = join(process.cwd(), ".rulesyncignore");
+  const ignoreFilePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
 
   try {
     const content = await readFileContent(ignoreFilePath);
 
     return {
-      relativePathFromCwd: ".rulesyncignore",
+      relativePathFromCwd: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
       content,
     };
   } catch (error) {
@@ -35,7 +36,7 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
   relativePathFromCwd: string;
   content: string;
 }> {
-  const ignoreFilePath = join(process.cwd(), ".rulesyncignore");
+  const ignoreFilePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
 
   // Check file size constraint
   const contentSizeBytes = Buffer.byteLength(content, "utf8");
@@ -53,7 +54,7 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
     await writeFileContent(ignoreFilePath, content);
 
     return {
-      relativePathFromCwd: ".rulesyncignore",
+      relativePathFromCwd: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
       content,
     };
   } catch (error) {
@@ -69,13 +70,13 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
 async function deleteIgnoreFile(): Promise<{
   relativePathFromCwd: string;
 }> {
-  const ignoreFilePath = join(process.cwd(), ".rulesyncignore");
+  const ignoreFilePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
 
   try {
     await removeFile(ignoreFilePath);
 
     return {
-      relativePathFromCwd: ".rulesyncignore",
+      relativePathFromCwd: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
     };
   } catch (error) {
     throw new Error(`Failed to delete .rulesyncignore file: ${formatError(error)}`, {
