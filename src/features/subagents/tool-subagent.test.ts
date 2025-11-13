@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -50,7 +51,7 @@ class TestToolSubagent extends ToolSubagent {
   toRulesyncSubagent(): RulesyncSubagent {
     return new RulesyncSubagent({
       baseDir: this.baseDir,
-      relativeDirPath: ".rulesync/subagents",
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "converted.md",
       frontmatter: {
         name: "test-subagent",
@@ -102,7 +103,7 @@ describe("ToolSubagent", () => {
     it("should throw error when calling fromRulesyncSubagent on base class", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           name: "test",
@@ -195,7 +196,7 @@ describe("ToolSubagent", () => {
     it("should work with fromRulesyncSubagent static method", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "source.md",
         frontmatter: {
           name: "source-agent",
@@ -294,7 +295,7 @@ describe("ToolSubagent", () => {
     it("should have correct ToolSubagentFromRulesyncSubagentParams type", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           name: "test",
