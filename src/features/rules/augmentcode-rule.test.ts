@@ -289,7 +289,7 @@ describe("AugmentcodeRule", () => {
       const rulesyncRule = augmentcodeRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getBaseDir()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(rulesyncRule.getBody()).toBe("# Test Rule\n\nThis is a test rule.");
@@ -306,7 +306,7 @@ describe("AugmentcodeRule", () => {
 
       const rulesyncRule = augmentcodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getBaseDir()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(

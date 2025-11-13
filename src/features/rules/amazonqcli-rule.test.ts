@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -254,7 +255,7 @@ describe("AmazonQCliRule", () => {
       const rulesyncRule = amazonQCliRule.toRulesyncRule();
 
       expect(rulesyncRule.getFilePath()).toBe(
-        `${RULESYNC_RULES_RELATIVE_DIR_PATH}/metadata-test.md`,
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
       );
       expect(rulesyncRule.getFileContent()).toContain("# Metadata Test");
     });

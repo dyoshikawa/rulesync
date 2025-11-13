@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -324,7 +325,7 @@ describe("OpenCodeRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
 
@@ -358,7 +359,9 @@ describe("OpenCodeRule", () => {
 
       const rulesyncRule = opencodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(`${RULESYNC_RULES_RELATIVE_DIR_PATH}/AGENTS.md`);
+      expect(rulesyncRule.getFilePath()).toBe(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      );
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );
@@ -435,7 +438,7 @@ describe("OpenCodeRule", () => {
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle complete workflow from memory file to rulesync rule", async () => {
@@ -488,7 +491,7 @@ describe("OpenCodeRule", () => {
 
       // Verify content preservation
       expect(finalRulesync.getFileContent()).toContain(originalBody);
-      expect(finalRulesync.getRelativeFilePath()).toBe("AGENTS.md"); // Should be AGENTS.md for root
+      expect(finalRulesync.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME); // Should be overview.md for root
     });
 
     it("should handle roundtrip conversion rulesync -> opencode -> rulesync for detail rule", () => {

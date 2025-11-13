@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -324,7 +325,7 @@ describe("ClaudecodeRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
 
@@ -358,7 +359,9 @@ describe("ClaudecodeRule", () => {
 
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(`${RULESYNC_RULES_RELATIVE_DIR_PATH}/CLAUDE.md`);
+      expect(rulesyncRule.getFilePath()).toBe(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      );
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );
@@ -435,7 +438,7 @@ describe("ClaudecodeRule", () => {
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle complete workflow from memory file to rulesync rule", async () => {
@@ -488,7 +491,7 @@ describe("ClaudecodeRule", () => {
 
       // Verify content preservation
       expect(finalRulesync.getFileContent()).toContain(originalBody);
-      expect(finalRulesync.getRelativeFilePath()).toBe("CLAUDE.md"); // Should be CLAUDE.md for root
+      expect(finalRulesync.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME); // Should be overview.md for root
     });
 
     it("should handle roundtrip conversion rulesync -> claudecode -> rulesync for detail rule", () => {
