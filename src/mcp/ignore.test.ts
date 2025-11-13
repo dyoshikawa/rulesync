@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import { ignoreTools } from "./ignore.js";
@@ -20,7 +21,7 @@ describe("MCP Ignore Tools", () => {
 
   describe("getIgnoreFile", () => {
     it("should get the content of .rulesyncignore file", async () => {
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       const content = `# Ignore patterns
 node_modules/
 *.log
@@ -32,7 +33,7 @@ node_modules/
       const result = await ignoreTools.getIgnoreFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesyncignore");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       expect(parsed.content).toBe(content);
     });
 
@@ -41,18 +42,18 @@ node_modules/
     });
 
     it("should handle empty .rulesyncignore file", async () => {
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(ignoreFilePath, "");
 
       const result = await ignoreTools.getIgnoreFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesyncignore");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       expect(parsed.content).toBe("");
     });
 
     it("should handle .rulesyncignore with various patterns", async () => {
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       const content = `# Comments are supported
 *.md
 !README.md
@@ -83,17 +84,17 @@ dist/
       const result = await ignoreTools.putIgnoreFile.execute({ content });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesyncignore");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       expect(parsed.content).toBe(content);
 
       // Verify file was created
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       const savedContent = await readFileContent(ignoreFilePath);
       expect(savedContent).toBe(content);
     });
 
     it("should update an existing .rulesyncignore file", async () => {
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       const originalContent = `# Original
 node_modules/
 `;
@@ -119,7 +120,7 @@ dist/
       const result = await ignoreTools.putIgnoreFile.execute({ content: "" });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesyncignore");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       expect(parsed.content).toBe("");
     });
 
@@ -193,7 +194,7 @@ npm-debug.log*
       expect(parsed.content).toBe(complexContent);
 
       // Verify file was created with correct content
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       const savedContent = await readFileContent(ignoreFilePath);
       expect(savedContent).toBe(complexContent);
     });
@@ -201,7 +202,7 @@ npm-debug.log*
 
   describe("deleteIgnoreFile", () => {
     it("should delete an existing .rulesyncignore file", async () => {
-      const ignoreFilePath = join(testDir, ".rulesyncignore");
+      const ignoreFilePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(ignoreFilePath, "node_modules/\n");
 
       // Verify it exists
@@ -211,7 +212,7 @@ npm-debug.log*
       const result = await ignoreTools.deleteIgnoreFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesyncignore");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
 
       // Verify it's deleted
       await expect(ignoreTools.getIgnoreFile.execute()).rejects.toThrow();
@@ -222,7 +223,7 @@ npm-debug.log*
       const result = await ignoreTools.deleteIgnoreFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesyncignore");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
     });
   });
 
