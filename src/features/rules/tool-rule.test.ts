@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -881,7 +882,7 @@ describe("ToolRule", () => {
       const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getBaseDir()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("non-root.md");
       expect(rulesyncRule.getBody()).toBe("# Non-Root Rule");
@@ -923,9 +924,9 @@ describe("ToolRule", () => {
       const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getBaseDir()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("root.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getBody()).toBe("# Root Rule");
 
       const frontmatter = rulesyncRule.getFrontmatter();
