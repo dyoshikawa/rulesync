@@ -1,6 +1,7 @@
 import { intersection } from "es-toolkit";
 import { Config } from "../../config/config.js";
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
@@ -20,7 +21,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   logger.info("Generating files...");
 
   // Check if .rulesync directory exists
-  if (!(await fileExists(".rulesync"))) {
+  if (!(await fileExists(RULESYNC_RELATIVE_DIR_PATH))) {
     logger.error("❌ .rulesync directory not found. Run 'rulesync init' first.");
     process.exit(1);
   }
