@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import {
   RulesyncCommand,
@@ -25,7 +26,7 @@ describe("RulesyncCommand", () => {
 
     validParams = {
       baseDir: testDir,
-      relativeDirPath: ".rulesync/commands",
+      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
       relativeFilePath: "test-command.md",
       frontmatter: validFrontmatter,
       body: "This is the command body content",
@@ -45,7 +46,7 @@ describe("RulesyncCommand", () => {
       expect(command).toBeInstanceOf(RulesyncCommand);
       expect(command.getFrontmatter()).toEqual(validFrontmatter);
       expect(command.getBody()).toBe("This is the command body content");
-      expect(command.getRelativeDirPath()).toBe(".rulesync/commands");
+      expect(command.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(command.getRelativeFilePath()).toBe("test-command.md");
     });
 
@@ -259,7 +260,7 @@ describe("RulesyncCommand", () => {
       const command = new RulesyncCommand(validParams);
 
       // Should have all RulesyncFile methods
-      expect(command.getRelativeDirPath()).toBe(".rulesync/commands");
+      expect(command.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(command.getRelativeFilePath()).toBe("test-command.md");
       expect(command.getBaseDir()).toBe(testDir);
       expect(typeof command.getFilePath).toBe("function");
