@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
@@ -167,7 +171,7 @@ describe("GeminiCliRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create instance from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -192,7 +196,7 @@ describe("GeminiCliRule", () => {
 
     it("should create root rule from root RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root.md",
         frontmatter: {
           root: true,
@@ -217,7 +221,7 @@ describe("GeminiCliRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
         frontmatter: {
           root: false,
@@ -238,7 +242,7 @@ describe("GeminiCliRule", () => {
 
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
         frontmatter: {
           root: false,
@@ -276,7 +280,7 @@ describe("GeminiCliRule", () => {
       const rulesyncRule = geminiCliRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("convert-test.md");
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
@@ -292,7 +296,7 @@ describe("GeminiCliRule", () => {
 
       const rulesyncRule = geminiCliRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/GEMINI.md");
+      expect(rulesyncRule.getFilePath()).toBe(`${RULESYNC_RULES_RELATIVE_DIR_PATH}/GEMINI.md`);
       expect(rulesyncRule.getFileContent()).toContain("# Root Gemini Rule\n\nRoot content.");
     });
   });
@@ -490,7 +494,7 @@ describe("GeminiCliRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("integration.md");
     });
 
@@ -515,7 +519,7 @@ describe("GeminiCliRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(rootContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("GEMINI.md");
     });
 
@@ -525,7 +529,7 @@ describe("GeminiCliRule", () => {
       // Start with rulesync rule
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
           root: false,
@@ -556,7 +560,7 @@ describe("GeminiCliRule", () => {
       // Start with root rulesync rule
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-roundtrip.md",
         frontmatter: {
           root: true,

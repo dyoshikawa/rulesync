@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -274,7 +275,7 @@ args = ["server.js"]
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -297,7 +298,7 @@ args = ["server.js"]
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -335,7 +336,7 @@ fontSize = 14
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -366,7 +367,7 @@ fontSize = 14
       };
       const rulesyncMcp = new RulesyncMcp({
         baseDir: "/custom/base",
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -391,7 +392,7 @@ fontSize = 14
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -411,7 +412,7 @@ fontSize = 14
         mcpServers: {},
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -431,7 +432,7 @@ fontSize = 14
         mcpServers: {},
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -460,7 +461,7 @@ fontSize = 14
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -490,7 +491,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
       const rulesyncMcp = codexcliMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
 
       const json = JSON.parse(rulesyncMcp.getFileContent());

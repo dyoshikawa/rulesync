@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
@@ -72,7 +73,7 @@ describe("AugmentcodeRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create AugmentcodeRule from RulesyncRule with default parameters", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -96,7 +97,7 @@ describe("AugmentcodeRule", () => {
     it("should create AugmentcodeRule from RulesyncRule with custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: "/source/path",
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -117,7 +118,7 @@ describe("AugmentcodeRule", () => {
 
     it("should create AugmentcodeRule from RulesyncRule with validation enabled", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -139,7 +140,7 @@ describe("AugmentcodeRule", () => {
 
     it("should create AugmentcodeRule from RulesyncRule with validation disabled", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -289,7 +290,7 @@ describe("AugmentcodeRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(rulesyncRule.getBody()).toBe("# Test Rule\n\nThis is a test rule.");
     });
@@ -306,7 +307,7 @@ describe("AugmentcodeRule", () => {
       const rulesyncRule = augmentcodeRule.toRulesyncRule();
 
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(
         "# Complex Rule\n\nThis is a more complex rule with content.",

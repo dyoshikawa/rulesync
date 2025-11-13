@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
@@ -23,7 +24,7 @@ describe("MCP Server", () => {
       // Create sample rule files
       const rule1 = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "overview.md",
         frontmatter: {
           root: true,
@@ -36,7 +37,7 @@ describe("MCP Server", () => {
 
       const rule2 = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "coding-style.md",
         frontmatter: {
           root: false,
@@ -48,12 +49,12 @@ describe("MCP Server", () => {
       });
 
       // Write the files
-      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(rule1.getFilePath(), rule1.getFileContent());
       await writeFileContent(rule2.getFilePath(), rule2.getFileContent());
 
       // Test reading the rules
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       const files = await listDirectoryFiles(rulesDir);
       const mdFiles = files.filter((file) => file.endsWith(".md"));
 
@@ -64,7 +65,7 @@ describe("MCP Server", () => {
             validate: true,
           });
           return {
-            path: join(".rulesync", "rules", file),
+            path: join(RULESYNC_RULES_RELATIVE_DIR_PATH, file),
             frontmatter: rule.getFrontmatter(),
           };
         }),
@@ -87,7 +88,7 @@ describe("MCP Server", () => {
 
     it("should return empty array when rules directory doesn't exist", async () => {
       // Don't create .rulesync/rules directory
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       const files = await listDirectoryFiles(rulesDir);
       expect(files).toEqual([]);
     });
@@ -97,7 +98,7 @@ describe("MCP Server", () => {
     it("should get detailed rule information", async () => {
       const rule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -108,7 +109,7 @@ describe("MCP Server", () => {
         body: "# Test Rule\n\nThis is a test rule body.",
       });
 
-      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
       // Test reading the rule
@@ -141,14 +142,14 @@ describe("MCP Server", () => {
       // Create and write the rule
       const rule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "new-rule.md",
         frontmatter,
         body,
         validate: true,
       });
 
-      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
       // Verify the rule was created
@@ -165,7 +166,7 @@ describe("MCP Server", () => {
       // Create initial rule
       const initialRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "update-rule.md",
         frontmatter: {
           root: false,
@@ -176,13 +177,13 @@ describe("MCP Server", () => {
         body: "Initial body",
       });
 
-      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(initialRule.getFilePath(), initialRule.getFileContent());
 
       // Update the rule
       const updatedRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "update-rule.md",
         frontmatter: {
           root: false,
@@ -211,7 +212,7 @@ describe("MCP Server", () => {
     it("should delete a rule file", async () => {
       const rule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "delete-me.md",
         frontmatter: {
           root: false,
@@ -222,18 +223,20 @@ describe("MCP Server", () => {
         body: "This rule will be deleted",
       });
 
-      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
       // Verify rule exists
-      const files = await listDirectoryFiles(join(testDir, ".rulesync", "rules"));
+      const files = await listDirectoryFiles(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       expect(files).toContain("delete-me.md");
 
       // Delete the rule
       await removeFile(rule.getFilePath());
 
       // Verify rule was deleted
-      const filesAfterDelete = await listDirectoryFiles(join(testDir, ".rulesync", "rules"));
+      const filesAfterDelete = await listDirectoryFiles(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH),
+      );
       expect(filesAfterDelete).not.toContain("delete-me.md");
     });
   });

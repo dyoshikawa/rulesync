@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
@@ -595,7 +596,7 @@ describe("CursorMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(rulesyncMcpData),
       });
@@ -616,7 +617,7 @@ describe("CursorMcp", () => {
 
     it("should handle empty RulesyncMcp", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({}),
       });
@@ -659,7 +660,7 @@ describe("CursorMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(rulesyncMcpData),
       });
@@ -685,7 +686,7 @@ describe("CursorMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(rulesyncMcpData),
       });
@@ -702,7 +703,7 @@ describe("CursorMcp", () => {
 
     it("should skip validation when validate is false", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
@@ -717,7 +718,7 @@ describe("CursorMcp", () => {
 
     it("should handle RulesyncMcp with null mcpServers", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: null }),
       });
@@ -734,7 +735,7 @@ describe("CursorMcp", () => {
 
     it("should handle RulesyncMcp with undefined mcpServers", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ otherProperty: "value" }),
       });
@@ -1061,7 +1062,7 @@ describe("CursorMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(originalData),
       });

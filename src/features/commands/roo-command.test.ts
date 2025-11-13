@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -166,7 +167,7 @@ describe("RooCommand", () => {
         targets: ["roo"],
         description: frontmatter.description,
       });
-      expect(rulesyncCommand.getRelativeDirPath()).toBe(".rulesync/commands");
+      expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
       expect(rulesyncCommand.getBaseDir()).toBe(".");
     });
@@ -182,7 +183,7 @@ describe("RooCommand", () => {
 
       const rulesyncCommand = new RulesyncCommand({
         baseDir: "/test/base",
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "from-rulesync.md",
         frontmatter: rulesyncFrontmatter,
         body,
@@ -212,7 +213,7 @@ describe("RooCommand", () => {
       try {
         const rulesyncCommand = new RulesyncCommand({
           baseDir: "/test/base",
-          relativeDirPath: ".rulesync/commands",
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test.md",
           frontmatter: { targets: ["roo" as const], description: "test" },
           body: "test body",
@@ -232,7 +233,7 @@ describe("RooCommand", () => {
     it("should handle validation parameter", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: "/test/base",
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["roo" as const], description: "test" },
         body: "test body",
@@ -524,7 +525,7 @@ This file has invalid frontmatter`;
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
@@ -537,7 +538,7 @@ This file has invalid frontmatter`;
 
     it("should return true for rulesync command with roo target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["roo"], description: "Test" },
         body: "Body",
@@ -550,7 +551,7 @@ This file has invalid frontmatter`;
 
     it("should return true for rulesync command with roo and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "roo", "cline"], description: "Test" },
         body: "Body",
@@ -563,7 +564,7 @@ This file has invalid frontmatter`;
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
@@ -576,7 +577,7 @@ This file has invalid frontmatter`;
 
     it("should return true for rulesync command with no targets specified", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",

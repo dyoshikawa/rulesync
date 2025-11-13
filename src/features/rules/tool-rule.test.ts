@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
@@ -278,7 +282,7 @@ describe("ToolRule", () => {
   describe("static fromRulesyncRule method", () => {
     it("should throw error when not implemented in base class", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -296,7 +300,7 @@ describe("ToolRule", () => {
 
     it("should create instance from RulesyncRule with non-root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -322,7 +326,7 @@ describe("ToolRule", () => {
 
     it("should create instance from RulesyncRule with root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-rule.md",
         frontmatter: {
           root: true,
@@ -348,7 +352,7 @@ describe("ToolRule", () => {
 
     it("should handle undefined description and globs in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "minimal-rule.md",
         frontmatter: {
           root: false,
@@ -367,7 +371,7 @@ describe("ToolRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
         frontmatter: {
           root: false,
@@ -389,7 +393,7 @@ describe("ToolRule", () => {
 
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
         frontmatter: {
           root: false,
@@ -416,7 +420,7 @@ describe("ToolRule", () => {
 
     it("should handle undefined root frontmatter as false", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "no-root-frontmatter.md",
         frontmatter: {
           targets: ["*"],
@@ -438,7 +442,7 @@ describe("ToolRule", () => {
   describe("buildToolRuleParamsAgentsmd", () => {
     it("should build params for non-root rule with subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -467,7 +471,7 @@ describe("ToolRule", () => {
 
     it("should build params for non-root rule without subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -493,7 +497,7 @@ describe("ToolRule", () => {
 
     it("should build params for root rule (ignoring subprojectPath)", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-rule.md",
         frontmatter: {
           root: true,
@@ -522,7 +526,7 @@ describe("ToolRule", () => {
 
     it("should handle empty subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -551,7 +555,7 @@ describe("ToolRule", () => {
 
     it("should handle undefined agentsmd field", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -577,7 +581,7 @@ describe("ToolRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom.md",
         frontmatter: {
           root: false,
@@ -602,7 +606,7 @@ describe("ToolRule", () => {
 
     it("should use custom validation setting", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "no-validate.md",
         frontmatter: {
           root: false,
@@ -626,7 +630,7 @@ describe("ToolRule", () => {
 
     it("should handle complex nested subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "nested.md",
         frontmatter: {
           root: false,
@@ -652,7 +656,7 @@ describe("ToolRule", () => {
   describe("buildToolRuleParamsDefault", () => {
     it("should build params for non-root rule with defaults", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: false,
@@ -679,7 +683,7 @@ describe("ToolRule", () => {
 
     it("should build params for root rule with defaults", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-rule.md",
         frontmatter: {
           root: true,
@@ -705,7 +709,7 @@ describe("ToolRule", () => {
 
     it("should handle undefined description and globs", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "minimal.md",
         frontmatter: {
           root: false,
@@ -725,7 +729,7 @@ describe("ToolRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom.md",
         frontmatter: {
           root: false,
@@ -747,7 +751,7 @@ describe("ToolRule", () => {
 
     it("should use custom validation setting", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "no-validate.md",
         frontmatter: {
           root: false,
@@ -769,7 +773,7 @@ describe("ToolRule", () => {
 
     it("should use custom rootPath configuration", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-root.md",
         frontmatter: {
           root: true,
@@ -791,7 +795,7 @@ describe("ToolRule", () => {
 
     it("should use custom nonRootPath configuration", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-non-root.md",
         frontmatter: {
           root: false,
@@ -858,7 +862,7 @@ describe("ToolRule", () => {
       const rulesyncRule = toolRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("convert-test.md");
       expect(rulesyncRule.getBody()).toBe("# Convert Test\n\nThis will be converted.");
     });
@@ -878,7 +882,7 @@ describe("ToolRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("non-root.md");
       expect(rulesyncRule.getBody()).toBe("# Non-Root Rule");
 
@@ -920,7 +924,7 @@ describe("ToolRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("root.md");
       expect(rulesyncRule.getBody()).toBe("# Root Rule");
 
@@ -951,7 +955,7 @@ describe("ToolRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getBody()).toBe(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("integration.md");
     });
 
@@ -961,7 +965,7 @@ describe("ToolRule", () => {
       // Start with rulesync rule
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
           root: false,
@@ -992,7 +996,7 @@ describe("ToolRule", () => {
       // Start with root rulesync rule
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-roundtrip.md",
         frontmatter: {
           root: true,
@@ -1024,7 +1028,7 @@ describe("ToolRule", () => {
     it("should return true for rules targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["claudecode"],
@@ -1038,7 +1042,7 @@ describe("ToolRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -1052,7 +1056,7 @@ describe("ToolRule", () => {
     it("should return false for rules not targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -1066,7 +1070,7 @@ describe("ToolRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -1080,7 +1084,7 @@ describe("ToolRule", () => {
     it("should handle mixed targets including claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "claudecode", "copilot"],
@@ -1094,7 +1098,7 @@ describe("ToolRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",

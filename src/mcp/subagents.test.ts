@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { subagentTools } from "./subagents.js";
@@ -20,7 +21,7 @@ describe("MCP Subagents Tools", () => {
 
   describe("listSubagents", () => {
     it("should return an empty array when .rulesync/subagents directory is empty", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const result = await subagentTools.listSubagents.execute();
@@ -30,7 +31,7 @@ describe("MCP Subagents Tools", () => {
     });
 
     it("should list all subagents with their frontmatter", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create test subagent files
@@ -72,7 +73,7 @@ claudecode:
     });
 
     it("should skip non-markdown files", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       await writeFileContent(
@@ -95,7 +96,7 @@ description: "Test"
     });
 
     it("should handle invalid subagent files gracefully", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create a valid subagent
@@ -129,7 +130,7 @@ this is not valid yaml: [[[
 
   describe("getSubagent", () => {
     it("should get a subagent with frontmatter and body", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       await writeFileContent(
@@ -160,7 +161,7 @@ This is the body of the test subagent.`,
     });
 
     it("should throw error for non-existent subagent", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       await expect(
@@ -171,7 +172,7 @@ This is the body of the test subagent.`,
     });
 
     it("should reject path traversal attempts", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       await expect(
@@ -182,7 +183,7 @@ This is the body of the test subagent.`,
     });
 
     it("should handle subagent with specific model configuration", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       await writeFileContent(
@@ -210,7 +211,7 @@ claudecode:
 
   describe("putSubagent", () => {
     it("should create a new subagent", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const result = await subagentTools.putSubagent.execute({
@@ -237,7 +238,7 @@ claudecode:
     });
 
     it("should update an existing subagent", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create initial subagent
@@ -283,7 +284,7 @@ description: "Original"
     });
 
     it("should reject oversized subagents", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const largeBody = "a".repeat(1024 * 1024 + 1); // > 1MB
@@ -302,7 +303,7 @@ description: "Original"
     });
 
     it("should allow updating existing subagents even when at max count", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create an existing subagent
@@ -351,7 +352,7 @@ description: "Original"
     });
 
     it("should handle complex frontmatter with claudecode configuration", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const result = await subagentTools.putSubagent.execute({
@@ -376,7 +377,7 @@ description: "Original"
 
   describe("deleteSubagent", () => {
     it("should delete an existing subagent", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create a subagent
@@ -414,7 +415,7 @@ description: "To be deleted"
     });
 
     it("should succeed when deleting non-existent subagent (idempotent)", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Deleting a non-existent file should succeed (idempotent operation)
@@ -435,7 +436,7 @@ description: "To be deleted"
     });
 
     it("should delete only the specified subagent and not affect others", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create multiple subagents
@@ -486,7 +487,7 @@ description: "Keep 2"
 
   describe("integration scenarios", () => {
     it("should handle full CRUD lifecycle", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create
@@ -538,7 +539,7 @@ description: "Keep 2"
     });
 
     it("should handle multiple subagents with different configurations", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create multiple subagents with different configs

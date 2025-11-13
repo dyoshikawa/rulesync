@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -151,7 +155,7 @@ describe("ClaudecodeIgnore", () => {
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe("*.log\nnode_modules/**\n.env");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
     });
 
     it("should handle patterns without Read() wrapper", () => {
@@ -228,8 +232,8 @@ describe("ClaudecodeIgnore", () => {
     it("should create ClaudecodeIgnore from RulesyncIgnore patterns", async () => {
       const fileContent = "*.log\nnode_modules/**\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -267,8 +271,8 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.local.json"), existingJsonContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/**",
       });
 
@@ -289,8 +293,8 @@ describe("ClaudecodeIgnore", () => {
     it("should handle patterns with comments and empty lines", async () => {
       const fileContent = "# Comment\n*.log\n\nnode_modules/**\n# Another comment\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -326,8 +330,8 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.local.json"), existingJsonContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
@@ -359,8 +363,8 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.local.json"), existingJsonContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nb.txt\na.txt",
       });
 
@@ -381,8 +385,8 @@ describe("ClaudecodeIgnore", () => {
     it("should handle Windows line endings", async () => {
       const fileContent = "*.log\r\nnode_modules/**\r\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -401,8 +405,8 @@ describe("ClaudecodeIgnore", () => {
 
     it("should create new JSON file when none exists", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/**",
       });
 
@@ -421,8 +425,8 @@ describe("ClaudecodeIgnore", () => {
 
     it("should use default baseDir when not provided", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.tmp",
       });
 
@@ -575,8 +579,8 @@ describe("ClaudecodeIgnore", () => {
       const originalContent = originalPatterns.join("\n");
 
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: originalContent,
       });
 
@@ -606,8 +610,8 @@ describe("ClaudecodeIgnore", () => {
       const originalContent = patterns.join("\n");
 
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: originalContent,
       });
 
@@ -917,8 +921,8 @@ describe("ClaudecodeIgnore", () => {
 
     it("should format JSON output with 2-space indentation", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: ".rulesignore",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -20,7 +21,7 @@ export class CursorIgnore extends ToolIgnore {
     return new RulesyncIgnore({
       baseDir: ".",
       relativeDirPath: ".",
-      relativeFilePath: ".rulesyncignore",
+      relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
       fileContent: this.fileContent,
     });
   }

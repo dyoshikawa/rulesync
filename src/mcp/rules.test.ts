@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ruleTools } from "./rules.js";
@@ -20,7 +21,7 @@ describe("MCP Rules Tools", () => {
 
   describe("listRules", () => {
     it("should return an empty array when .rulesync/rules directory is empty", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const result = await ruleTools.listRules.execute();
@@ -30,7 +31,7 @@ describe("MCP Rules Tools", () => {
     });
 
     it("should list all rules with their frontmatter", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create test rule files
@@ -59,15 +60,19 @@ description: "Second rule"
       const parsed = JSON.parse(result);
 
       expect(parsed.rules).toHaveLength(2);
-      expect(parsed.rules[0].relativePathFromCwd).toBe(".rulesync/rules/rule1.md");
+      expect(parsed.rules[0].relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "rule1.md"),
+      );
       expect(parsed.rules[0].frontmatter.root).toBe(true);
       expect(parsed.rules[0].frontmatter.description).toBe("First rule");
-      expect(parsed.rules[1].relativePathFromCwd).toBe(".rulesync/rules/rule2.md");
+      expect(parsed.rules[1].relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "rule2.md"),
+      );
       expect(parsed.rules[1].frontmatter.root).toBe(false);
     });
 
     it("should handle rules without frontmatter", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       await writeFileContent(join(rulesDir, "simple.md"), "# Simple rule without frontmatter");
@@ -86,7 +91,7 @@ description: "Second rule"
     });
 
     it("should skip non-markdown files", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       await writeFileContent(join(rulesDir, "rule.md"), "---\nroot: true\n---\n# Test");
@@ -97,11 +102,13 @@ description: "Second rule"
       const parsed = JSON.parse(result);
 
       expect(parsed.rules).toHaveLength(1);
-      expect(parsed.rules[0].relativePathFromCwd).toBe(".rulesync/rules/rule.md");
+      expect(parsed.rules[0].relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "rule.md"),
+      );
     });
 
     it("should handle invalid rule files gracefully", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create a valid rule
@@ -127,13 +134,15 @@ this is not valid yaml: [[[
 
       // Should only include the valid rule
       expect(parsed.rules).toHaveLength(1);
-      expect(parsed.rules[0].relativePathFromCwd).toBe(".rulesync/rules/valid.md");
+      expect(parsed.rules[0].relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "valid.md"),
+      );
     });
   });
 
   describe("getRule", () => {
     it("should get a rule with frontmatter and body", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       await writeFileContent(
@@ -150,11 +159,11 @@ This is the body of the test rule.`,
       );
 
       const result = await ruleTools.getRule.execute({
-        relativePathFromCwd: ".rulesync/rules/test.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "test.md"),
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/rules/test.md");
+      expect(parsed.relativePathFromCwd).toBe(join(RULESYNC_RULES_RELATIVE_DIR_PATH, "test.md"));
       expect(parsed.frontmatter.root).toBe(true);
       expect(parsed.frontmatter.targets).toEqual(["*"]);
       expect(parsed.frontmatter.description).toBe("Test rule");
@@ -163,18 +172,18 @@ This is the body of the test rule.`,
     });
 
     it("should throw error for non-existent rule", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       await expect(
         ruleTools.getRule.execute({
-          relativePathFromCwd: ".rulesync/rules/nonexistent.md",
+          relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "nonexistent.md"),
         }),
       ).rejects.toThrow();
     });
 
     it("should reject path traversal attempts", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       await expect(
@@ -185,7 +194,7 @@ This is the body of the test rule.`,
     });
 
     it("should handle rule with cursor-specific configuration", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       await writeFileContent(
@@ -202,7 +211,7 @@ cursor:
       );
 
       const result = await ruleTools.getRule.execute({
-        relativePathFromCwd: ".rulesync/rules/cursor-rule.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "cursor-rule.md"),
       });
       const parsed = JSON.parse(result);
 
@@ -216,11 +225,11 @@ cursor:
 
   describe("putRule", () => {
     it("should create a new rule", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const result = await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/new-rule.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "new-rule.md"),
         frontmatter: {
           root: true,
           targets: ["*"],
@@ -230,20 +239,22 @@ cursor:
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/rules/new-rule.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "new-rule.md"),
+      );
       expect(parsed.frontmatter.root).toBe(true);
       expect(parsed.body).toBe("# New Rule Body");
 
       // Verify file was created
       const getResult = await ruleTools.getRule.execute({
-        relativePathFromCwd: ".rulesync/rules/new-rule.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "new-rule.md"),
       });
       const getParsed = JSON.parse(getResult);
       expect(getParsed.body).toBe("# New Rule Body");
     });
 
     it("should update an existing rule", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create initial rule
@@ -258,7 +269,7 @@ description: "Original"
 
       // Update the rule
       const result = await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/existing.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "existing.md"),
         frontmatter: {
           root: false,
           description: "Updated",
@@ -283,14 +294,14 @@ description: "Original"
     });
 
     it("should reject oversized rules", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const largeBody = "a".repeat(1024 * 1024 + 1); // > 1MB
 
       await expect(
         ruleTools.putRule.execute({
-          relativePathFromCwd: ".rulesync/rules/large.md",
+          relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "large.md"),
           frontmatter: { root: true },
           body: largeBody,
         }),
@@ -298,7 +309,7 @@ description: "Original"
     });
 
     it("should allow updating existing rules even when at max count", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create an existing rule
@@ -312,7 +323,7 @@ root: true
 
       // Update should work regardless of count (since it's not creating new)
       const result = await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/existing.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "existing.md"),
         frontmatter: { root: false, description: "Updated" },
         body: "# Updated rule",
       });
@@ -326,7 +337,7 @@ root: true
       // Don't create the directory beforehand
 
       const result = await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/auto-created.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "auto-created.md"),
         frontmatter: {
           root: true,
         },
@@ -334,16 +345,18 @@ root: true
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/rules/auto-created.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "auto-created.md"),
+      );
       expect(parsed.body).toBe("# Auto-created");
     });
 
     it("should handle complex frontmatter with tool-specific configurations", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const result = await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/complex.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "complex.md"),
         frontmatter: {
           root: false,
           targets: ["cursor", "claudecode"],
@@ -375,7 +388,7 @@ root: true
 
   describe("deleteRule", () => {
     it("should delete an existing rule", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create a rule
@@ -390,37 +403,41 @@ root: true
       // Verify it exists
       await expect(
         ruleTools.getRule.execute({
-          relativePathFromCwd: ".rulesync/rules/to-delete.md",
+          relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "to-delete.md"),
         }),
       ).resolves.toBeDefined();
 
       // Delete it
       const result = await ruleTools.deleteRule.execute({
-        relativePathFromCwd: ".rulesync/rules/to-delete.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "to-delete.md"),
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/rules/to-delete.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "to-delete.md"),
+      );
 
       // Verify it's deleted
       await expect(
         ruleTools.getRule.execute({
-          relativePathFromCwd: ".rulesync/rules/to-delete.md",
+          relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "to-delete.md"),
         }),
       ).rejects.toThrow();
     });
 
     it("should succeed when deleting non-existent rule (idempotent)", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Deleting a non-existent file should succeed (idempotent operation)
       const result = await ruleTools.deleteRule.execute({
-        relativePathFromCwd: ".rulesync/rules/nonexistent.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "nonexistent.md"),
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/rules/nonexistent.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "nonexistent.md"),
+      );
     });
 
     it("should reject path traversal attempts", async () => {
@@ -432,7 +449,7 @@ root: true
     });
 
     it("should delete only the specified rule and not affect others", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create multiple rules
@@ -442,7 +459,7 @@ root: true
 
       // Delete one
       await ruleTools.deleteRule.execute({
-        relativePathFromCwd: ".rulesync/rules/delete.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "delete.md"),
       });
 
       // Verify others still exist
@@ -451,20 +468,20 @@ root: true
 
       expect(parsed.rules).toHaveLength(2);
       expect(parsed.rules.map((r: any) => r.relativePathFromCwd)).toEqual([
-        ".rulesync/rules/keep1.md",
-        ".rulesync/rules/keep2.md",
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "keep1.md"),
+        join(RULESYNC_RULES_RELATIVE_DIR_PATH, "keep2.md"),
       ]);
     });
   });
 
   describe("integration scenarios", () => {
     it("should handle full CRUD lifecycle", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create
       await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/lifecycle.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "lifecycle.md"),
         frontmatter: {
           root: true,
           description: "Lifecycle test",
@@ -474,14 +491,14 @@ root: true
 
       // Read
       let result = await ruleTools.getRule.execute({
-        relativePathFromCwd: ".rulesync/rules/lifecycle.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "lifecycle.md"),
       });
       let parsed = JSON.parse(result);
       expect(parsed.body).toBe("# Initial body");
 
       // Update
       await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/lifecycle.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "lifecycle.md"),
         frontmatter: {
           root: false,
           description: "Updated lifecycle test",
@@ -490,7 +507,7 @@ root: true
       });
 
       result = await ruleTools.getRule.execute({
-        relativePathFromCwd: ".rulesync/rules/lifecycle.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "lifecycle.md"),
       });
       parsed = JSON.parse(result);
       expect(parsed.body).toBe("# Updated body");
@@ -498,23 +515,23 @@ root: true
 
       // Delete
       await ruleTools.deleteRule.execute({
-        relativePathFromCwd: ".rulesync/rules/lifecycle.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "lifecycle.md"),
       });
 
       await expect(
         ruleTools.getRule.execute({
-          relativePathFromCwd: ".rulesync/rules/lifecycle.md",
+          relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "lifecycle.md"),
         }),
       ).rejects.toThrow();
     });
 
     it("should handle multiple rules with different configurations", async () => {
-      const rulesDir = join(testDir, ".rulesync", "rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create multiple rules with different configs
       await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/overview.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
         frontmatter: {
           root: true,
           targets: ["*"],
@@ -524,7 +541,7 @@ root: true
       });
 
       await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/coding-guidelines.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
         frontmatter: {
           root: false,
           targets: ["cursor", "claudecode"],
@@ -535,7 +552,7 @@ root: true
       });
 
       await ruleTools.putRule.execute({
-        relativePathFromCwd: ".rulesync/rules/testing.md",
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "testing.md"),
         frontmatter: {
           root: false,
           targets: ["*"],

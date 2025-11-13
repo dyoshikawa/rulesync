@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { mcpTools } from "./mcp.js";
@@ -20,7 +24,7 @@ describe("MCP Tools", () => {
 
   describe("getMcpFile", () => {
     it("should get the MCP configuration file", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const mcpConfig = {
@@ -39,21 +43,21 @@ describe("MCP Tools", () => {
       const result = await mcpTools.getMcpFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
       expect(parsed.content).toContain("serena");
       const contentParsed = JSON.parse(parsed.content);
       expect(contentParsed.mcpServers.serena).toBeDefined();
     });
 
     it("should throw error for non-existent MCP file", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
     });
 
     it("should support legacy .mcp.json file", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const mcpConfig = {
@@ -77,7 +81,7 @@ describe("MCP Tools", () => {
     });
 
     it("should handle MCP file with multiple servers", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const mcpConfig = {
@@ -119,7 +123,7 @@ describe("MCP Tools", () => {
     });
 
     it("should handle MCP file with environment variables", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const mcpConfig = {
@@ -149,7 +153,7 @@ describe("MCP Tools", () => {
 
   describe("putMcpFile", () => {
     it("should create a new MCP file", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const mcpConfig = {
@@ -168,7 +172,7 @@ describe("MCP Tools", () => {
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
       expect(parsed.content).toContain("serena");
 
       // Verify file was created
@@ -179,7 +183,7 @@ describe("MCP Tools", () => {
     });
 
     it("should update an existing MCP file", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       // Create initial file
@@ -219,7 +223,7 @@ describe("MCP Tools", () => {
     });
 
     it("should reject invalid JSON content", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       await expect(
@@ -230,7 +234,7 @@ describe("MCP Tools", () => {
     });
 
     it("should reject oversized MCP files", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const largeContent = JSON.stringify({
@@ -270,12 +274,12 @@ describe("MCP Tools", () => {
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
       expect(parsed.content).toContain("serena");
     });
 
     it("should handle MCP file with complex server configurations", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const complexConfig = {
@@ -313,7 +317,7 @@ describe("MCP Tools", () => {
     });
 
     it("should handle MCP file with targets field", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const configWithTargets = {
@@ -338,7 +342,7 @@ describe("MCP Tools", () => {
     });
 
     it("should handle empty mcpServers object", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       const emptyConfig = {
@@ -357,7 +361,7 @@ describe("MCP Tools", () => {
 
   describe("deleteMcpFile", () => {
     it("should delete an existing MCP file", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       // Create a file
@@ -381,25 +385,25 @@ describe("MCP Tools", () => {
       const result = await mcpTools.deleteMcpFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
 
       // Verify it's deleted
       await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
     });
 
     it("should succeed when deleting non-existent MCP file (idempotent)", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       // Deleting a non-existent file should succeed (idempotent operation)
       const result = await mcpTools.deleteMcpFile.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
     });
 
     it("should delete both recommended and legacy MCP files", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       // Create both recommended and legacy files
@@ -427,7 +431,7 @@ describe("MCP Tools", () => {
 
   describe("integration scenarios", () => {
     it("should handle full CRUD lifecycle", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       // Create
@@ -481,7 +485,7 @@ describe("MCP Tools", () => {
     });
 
     it("should handle multiple servers and complex configurations", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
       // Create a complex configuration

@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
@@ -226,7 +230,7 @@ describe("RulesyncRule", () => {
 
   describe("fromFile", () => {
     it("should load rule from file with valid frontmatter", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const ruleContent = `---
@@ -261,7 +265,7 @@ It can span multiple lines.`;
     });
 
     it("should apply default values for missing frontmatter fields", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const ruleContent = `---
@@ -288,7 +292,7 @@ Rule body`;
     });
 
     it("should throw error for invalid frontmatter", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const ruleContent = `---
@@ -309,7 +313,7 @@ Invalid rule`;
     });
 
     it("should handle cursor configuration in frontmatter", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const ruleContent = `---
@@ -341,7 +345,7 @@ Cursor-specific rule body`;
     });
 
     it("should handle agentsmd configuration in frontmatter", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const ruleContent = `---
@@ -377,7 +381,7 @@ Subproject-specific rule body`;
     });
 
     it("should trim whitespace from body content", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       const ruleContent = `---
@@ -402,7 +406,7 @@ This has leading and trailing whitespace.
 
   describe("fromFileLegacy", () => {
     it("should load rule from legacy path", async () => {
-      const legacyRulesDir = join(testDir, ".rulesync");
+      const legacyRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(legacyRulesDir);
 
       const ruleContent = `---
@@ -432,7 +436,7 @@ Legacy rule body`;
     });
 
     it("should apply default values in legacy loader", async () => {
-      const legacyRulesDir = join(testDir, ".rulesync");
+      const legacyRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(legacyRulesDir);
 
       const ruleContent = `---
@@ -458,7 +462,7 @@ Empty frontmatter legacy rule`;
     });
 
     it("should throw error for invalid legacy frontmatter", async () => {
-      const legacyRulesDir = join(testDir, ".rulesync");
+      const legacyRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(legacyRulesDir);
 
       const ruleContent = `---
@@ -619,7 +623,7 @@ Invalid legacy rule`;
 
   describe("integration", () => {
     it("should create and validate a complete rule workflow", async () => {
-      const rulesDir = join(testDir, ".rulesync/rules");
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
       // Create a comprehensive rule file
@@ -701,7 +705,7 @@ export interface ExampleInterface {
       // Test that the rule can be recreated with constructor
       const recreatedRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "integration-test.md",
         frontmatter: rule.getFrontmatter(),
         body: rule.getBody(),

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import {
   RulesyncFile,
@@ -94,11 +95,11 @@ export class RulesyncMcp extends RulesyncFile {
   static getSettablePaths(): RulesyncMcpSettablePaths {
     return {
       recommended: {
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
       },
       legacy: {
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
       },
     };

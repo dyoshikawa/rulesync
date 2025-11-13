@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncRule,
   type RulesyncRuleFrontmatter,
@@ -27,7 +28,7 @@ async function listRules(): Promise<
     frontmatter: RulesyncRuleFrontmatter;
   }>
 > {
-  const rulesDir = join(process.cwd(), ".rulesync", "rules");
+  const rulesDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
 
   try {
     const files = await listDirectoryFiles(rulesDir);
@@ -45,7 +46,7 @@ async function listRules(): Promise<
           const frontmatter = rule.getFrontmatter();
 
           return {
-            relativePathFromCwd: join(".rulesync", "rules", file),
+            relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, file),
             frontmatter,
           };
         } catch (error) {
@@ -85,7 +86,7 @@ async function getRule({ relativePathFromCwd }: { relativePathFromCwd: string })
     });
 
     return {
-      relativePathFromCwd: join(".rulesync", "rules", filename),
+      relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
       frontmatter: rule.getFrontmatter(),
       body: rule.getBody(),
     };
@@ -131,7 +132,7 @@ async function putRule({
     // Check rule count constraint
     const existingRules = await listRules();
     const isUpdate = existingRules.some(
-      (rule) => rule.relativePathFromCwd === join(".rulesync", "rules", filename),
+      (rule) => rule.relativePathFromCwd === join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
     );
 
     if (!isUpdate && existingRules.length >= maxRulesCount) {
@@ -141,7 +142,7 @@ async function putRule({
     // Create a new RulesyncRule instance
     const rule = new RulesyncRule({
       baseDir: process.cwd(),
-      relativeDirPath: join(".rulesync", "rules"),
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,
       body,
@@ -149,14 +150,14 @@ async function putRule({
     });
 
     // Ensure directory exists
-    const rulesDir = join(process.cwd(), ".rulesync", "rules");
+    const rulesDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
     await ensureDir(rulesDir);
 
     // Write the file
     await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
     return {
-      relativePathFromCwd: join(".rulesync", "rules", filename),
+      relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
       frontmatter: rule.getFrontmatter(),
       body: rule.getBody(),
     };
@@ -179,13 +180,13 @@ async function deleteRule({ relativePathFromCwd }: { relativePathFromCwd: string
   });
 
   const filename = basename(relativePathFromCwd);
-  const fullPath = join(process.cwd(), ".rulesync", "rules", filename);
+  const fullPath = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH, filename);
 
   try {
     await removeFile(fullPath);
 
     return {
-      relativePathFromCwd: join(".rulesync", "rules", filename),
+      relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
     };
   } catch (error) {
     throw new Error(`Failed to delete rule file ${relativePathFromCwd}: ${formatError(error)}`, {
@@ -218,7 +219,7 @@ export const ruleToolSchemas = {
 export const ruleTools = {
   listRules: {
     name: "listRules",
-    description: `List all rules from ${join(".rulesync", "rules", "*.md")} with their frontmatter.`,
+    description: `List all rules from ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
     parameters: ruleToolSchemas.listRules,
     execute: async () => {
       const rules = await listRules();

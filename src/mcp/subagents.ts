@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncSubagent,
   type RulesyncSubagentFrontmatter,
@@ -27,7 +28,7 @@ async function listSubagents(): Promise<
     frontmatter: RulesyncSubagentFrontmatter;
   }>
 > {
-  const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+  const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
 
   try {
     const files = await listDirectoryFiles(subagentsDir);
@@ -45,7 +46,7 @@ async function listSubagents(): Promise<
           const frontmatter = subagent.getFrontmatter();
 
           return {
-            relativePathFromCwd: join(".rulesync", "subagents", file),
+            relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, file),
             frontmatter,
           };
         } catch (error) {
@@ -87,7 +88,7 @@ async function getSubagent({ relativePathFromCwd }: { relativePathFromCwd: strin
     });
 
     return {
-      relativePathFromCwd: join(".rulesync", "subagents", filename),
+      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
       frontmatter: subagent.getFrontmatter(),
       body: subagent.getBody(),
     };
@@ -133,7 +134,8 @@ async function putSubagent({
     // Check subagent count constraint
     const existingSubagents = await listSubagents();
     const isUpdate = existingSubagents.some(
-      (subagent) => subagent.relativePathFromCwd === join(".rulesync", "subagents", filename),
+      (subagent) =>
+        subagent.relativePathFromCwd === join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
     );
 
     if (!isUpdate && existingSubagents.length >= maxSubagentsCount) {
@@ -143,7 +145,7 @@ async function putSubagent({
     // Create a new RulesyncSubagent instance
     const subagent = new RulesyncSubagent({
       baseDir: process.cwd(),
-      relativeDirPath: join(".rulesync", "subagents"),
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,
       body,
@@ -151,14 +153,14 @@ async function putSubagent({
     });
 
     // Ensure directory exists
-    const subagentsDir = join(process.cwd(), ".rulesync", "subagents");
+    const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
     await ensureDir(subagentsDir);
 
     // Write the file
     await writeFileContent(subagent.getFilePath(), subagent.getFileContent());
 
     return {
-      relativePathFromCwd: join(".rulesync", "subagents", filename),
+      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
       frontmatter: subagent.getFrontmatter(),
       body: subagent.getBody(),
     };
@@ -181,13 +183,13 @@ async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: st
   });
 
   const filename = basename(relativePathFromCwd);
-  const fullPath = join(process.cwd(), ".rulesync", "subagents", filename);
+  const fullPath = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename);
 
   try {
     await removeFile(fullPath);
 
     return {
-      relativePathFromCwd: join(".rulesync", "subagents", filename),
+      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
     };
   } catch (error) {
     throw new Error(
@@ -223,7 +225,7 @@ export const subagentToolSchemas = {
 export const subagentTools = {
   listSubagents: {
     name: "listSubagents",
-    description: `List all subagents from ${join(".rulesync", "subagents", "*.md")} with their frontmatter.`,
+    description: `List all subagents from ${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
     parameters: subagentToolSchemas.listSubagents,
     execute: async () => {
       const subagents = await listSubagents();

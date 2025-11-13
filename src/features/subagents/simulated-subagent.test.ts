@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -210,7 +211,7 @@ Body content`;
     it("should create instance from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["claudecode"],

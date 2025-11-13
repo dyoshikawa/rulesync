@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { formatError } from "../utils/error.js";
 import { ensureDir, removeFile, writeFileContent } from "../utils/file.js";
@@ -152,7 +153,7 @@ export const mcpToolSchemas = {
 export const mcpTools = {
   getMcpFile: {
     name: "getMcpFile",
-    description: `Get the MCP configuration file (${join(".rulesync", "mcp.json")}).`,
+    description: `Get the MCP configuration file (${RULESYNC_MCP_RELATIVE_FILE_PATH}).`,
     parameters: mcpToolSchemas.getMcpFile,
     execute: async () => {
       const result = await getMcpFile();

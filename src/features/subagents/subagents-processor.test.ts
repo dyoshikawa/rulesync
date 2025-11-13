@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -83,7 +84,7 @@ describe("SubagentsProcessor", () => {
     it("should filter and convert RulesyncSubagent instances for claudecode", async () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "test-agent",
@@ -119,7 +120,7 @@ describe("SubagentsProcessor", () => {
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "global-test-agent.md",
         frontmatter: {
           name: "global-test-agent",
@@ -162,7 +163,7 @@ describe("SubagentsProcessor", () => {
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { name: "test", description: "test", targets: ["*"] },
         body: "test",
@@ -182,7 +183,7 @@ describe("SubagentsProcessor", () => {
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "test-agent",
@@ -207,7 +208,7 @@ describe("SubagentsProcessor", () => {
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "test-agent",
@@ -232,7 +233,7 @@ describe("SubagentsProcessor", () => {
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "test-agent",
@@ -390,7 +391,7 @@ Claude content`,
     });
 
     it("should return empty array when no markdown files exist", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Create non-markdown files
@@ -402,7 +403,7 @@ Claude content`,
     });
 
     it("should load valid markdown subagent files", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const validSubagentContent = `---
@@ -425,7 +426,7 @@ This is a test agent content`;
     });
 
     it("should load multiple valid subagent files", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const subagent1Content = `---
@@ -457,7 +458,7 @@ Second agent content`;
     });
 
     it("should skip invalid subagent files and continue loading valid ones", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       const validContent = `---
@@ -932,7 +933,7 @@ Second global content`;
 
     it("should handle file system errors gracefully during rulesync file loading", async () => {
       // Create directory but make it inaccessible (this test might be platform-specific)
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Write a file with invalid content that will cause parsing errors
@@ -947,7 +948,7 @@ Second global content`;
     });
 
     it("should handle mixed file types in directories", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);
 
       // Mix of valid, invalid, and non-markdown files

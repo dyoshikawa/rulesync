@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiroRule } from "./kiro-rule.js";
@@ -230,7 +234,7 @@ describe("KiroRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create instance from RulesyncRule for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -254,7 +258,7 @@ describe("KiroRule", () => {
 
     it("should create instance from RulesyncRule for non-root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-rule.md",
         frontmatter: {
           root: false,
@@ -280,7 +284,7 @@ describe("KiroRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
         frontmatter: {
           root: false,
@@ -301,7 +305,7 @@ describe("KiroRule", () => {
 
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
         frontmatter: {
           root: false,
@@ -328,7 +332,7 @@ describe("KiroRule", () => {
 
     it("should handle kiro target specification", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "target-test.md",
         frontmatter: {
           root: false,
@@ -348,7 +352,7 @@ describe("KiroRule", () => {
 
     it("should handle wildcard target specification", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "target-test.md",
         frontmatter: {
           root: false,
@@ -380,7 +384,7 @@ describe("KiroRule", () => {
       const rulesyncRule = kiroRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("product.md");
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
@@ -397,7 +401,7 @@ describe("KiroRule", () => {
       const rulesyncRule = kiroRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("structure-convert.md");
       expect(rulesyncRule.getFileContent()).toContain(
         "# Structure Convert Test\n\nThis structure will be converted.",
@@ -415,7 +419,9 @@ describe("KiroRule", () => {
 
       const rulesyncRule = kiroRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(".rulesync/rules/metadata-test.md");
+      expect(rulesyncRule.getFilePath()).toBe(
+        `${RULESYNC_RULES_RELATIVE_DIR_PATH}/metadata-test.md`,
+      );
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",
       );
@@ -516,7 +522,7 @@ describe("KiroRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("product.md");
     });
 
@@ -538,7 +544,7 @@ describe("KiroRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("structure.md");
     });
 
@@ -548,7 +554,7 @@ describe("KiroRule", () => {
       // Start with rulesync rule (root)
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
           root: true,
@@ -579,7 +585,7 @@ describe("KiroRule", () => {
       // Start with rulesync rule (non-root)
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-roundtrip.md",
         frontmatter: {
           root: false,
@@ -652,7 +658,7 @@ describe("KiroRule", () => {
     it("should return true for rules targeting kiro", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["kiro"],
@@ -666,7 +672,7 @@ describe("KiroRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -680,7 +686,7 @@ describe("KiroRule", () => {
     it("should return false for rules not targeting kiro", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -694,7 +700,7 @@ describe("KiroRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -708,7 +714,7 @@ describe("KiroRule", () => {
     it("should handle mixed targets including kiro", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "kiro", "copilot"],
@@ -722,7 +728,7 @@ describe("KiroRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",

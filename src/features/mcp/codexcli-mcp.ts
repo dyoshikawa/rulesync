@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import * as smolToml from "smol-toml";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -97,7 +98,7 @@ export class CodexcliMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     return new RulesyncMcp({
       baseDir: this.baseDir,
-      relativeDirPath: ".rulesync",
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: ".mcp.json",
       fileContent: JSON.stringify({ mcpServers: this.toml.mcp_servers ?? {} }, null, 2),
     });

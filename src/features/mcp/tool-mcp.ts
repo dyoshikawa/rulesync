@@ -1,3 +1,4 @@
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -51,7 +52,7 @@ export abstract class ToolMcp extends ToolFile {
   } = {}): RulesyncMcp {
     return new RulesyncMcp({
       baseDir: this.baseDir,
-      relativeDirPath: ".rulesync",
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: ".mcp.json",
       fileContent: fileContent ?? this.fileContent,
     });

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { commandTools } from "./commands.js";
@@ -20,7 +21,7 @@ describe("MCP Commands Tools", () => {
 
   describe("listCommands", () => {
     it("should return an empty array when .rulesync/commands directory is empty", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       const result = await commandTools.listCommands.execute();
@@ -30,7 +31,7 @@ describe("MCP Commands Tools", () => {
     });
 
     it("should list all commands with their frontmatter", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create test command files
@@ -59,14 +60,18 @@ description: "Review code command"
       const parsed = JSON.parse(result);
 
       expect(parsed.commands).toHaveLength(2);
-      expect(parsed.commands[0].relativePathFromCwd).toBe(".rulesync/commands/review.md");
+      expect(parsed.commands[0].relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/review.md`,
+      );
       expect(parsed.commands[0].frontmatter.description).toBe("Review code command");
-      expect(parsed.commands[1].relativePathFromCwd).toBe(".rulesync/commands/test-command.md");
+      expect(parsed.commands[1].relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/test-command.md`,
+      );
       expect(parsed.commands[1].frontmatter.description).toBe("First test command");
     });
 
     it("should skip non-markdown files", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       await writeFileContent(
@@ -80,11 +85,13 @@ description: "Review code command"
       const parsed = JSON.parse(result);
 
       expect(parsed.commands).toHaveLength(1);
-      expect(parsed.commands[0].relativePathFromCwd).toBe(".rulesync/commands/command.md");
+      expect(parsed.commands[0].relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/command.md`,
+      );
     });
 
     it("should handle invalid command files gracefully", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create a valid command
@@ -112,11 +119,13 @@ this is not valid yaml: [[[
 
       // Should only include the valid command
       expect(parsed.commands).toHaveLength(1);
-      expect(parsed.commands[0].relativePathFromCwd).toBe(".rulesync/commands/valid.md");
+      expect(parsed.commands[0].relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/valid.md`,
+      );
     });
 
     it("should handle commands with minimal frontmatter", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       await writeFileContent(
@@ -140,7 +149,7 @@ description: ""
 
   describe("getCommand", () => {
     it("should get a command with frontmatter and body", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       await writeFileContent(
@@ -156,29 +165,29 @@ This is the body of the test command.`,
       );
 
       const result = await commandTools.getCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/test.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/test.md`,
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/commands/test.md");
+      expect(parsed.relativePathFromCwd).toBe(`${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/test.md`);
       expect(parsed.frontmatter.targets).toEqual(["*"]);
       expect(parsed.frontmatter.description).toBe("Test command");
       expect(parsed.body).toContain("This is the body of the test command.");
     });
 
     it("should throw error for non-existent command", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       await expect(
         commandTools.getCommand.execute({
-          relativePathFromCwd: ".rulesync/commands/nonexistent.md",
+          relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/nonexistent.md`,
         }),
       ).rejects.toThrow();
     });
 
     it("should reject path traversal attempts", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       await expect(
@@ -189,7 +198,7 @@ This is the body of the test command.`,
     });
 
     it("should handle command with cursor-specific targets", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       await writeFileContent(
@@ -203,7 +212,7 @@ description: "Cursor specific command"
       );
 
       const result = await commandTools.getCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/cursor-command.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/cursor-command.md`,
       });
       const parsed = JSON.parse(result);
 
@@ -214,11 +223,11 @@ description: "Cursor specific command"
 
   describe("putCommand", () => {
     it("should create a new command", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       const result = await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/new-command.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/new-command.md`,
         frontmatter: {
           targets: ["*"],
           description: "New command",
@@ -227,21 +236,23 @@ description: "Cursor specific command"
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/commands/new-command.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/new-command.md`,
+      );
       expect(parsed.frontmatter.targets).toEqual(["*"]);
       expect(parsed.frontmatter.description).toBe("New command");
       expect(parsed.body).toBe("# New Command Body");
 
       // Verify file was created
       const getResult = await commandTools.getCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/new-command.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/new-command.md`,
       });
       const getParsed = JSON.parse(getResult);
       expect(getParsed.body).toBe("# New Command Body");
     });
 
     it("should update an existing command", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create initial command
@@ -257,7 +268,7 @@ description: "Original"
 
       // Update the command
       const result = await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/existing.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/existing.md`,
         frontmatter: {
           targets: ["cursor"],
           description: "Updated",
@@ -282,14 +293,14 @@ description: "Original"
     });
 
     it("should reject oversized commands", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       const largeBody = "a".repeat(1024 * 1024 + 1); // > 1MB
 
       await expect(
         commandTools.putCommand.execute({
-          relativePathFromCwd: ".rulesync/commands/large.md",
+          relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/large.md`,
           frontmatter: { targets: ["*"], description: "Large command" },
           body: largeBody,
         }),
@@ -297,7 +308,7 @@ description: "Original"
     });
 
     it("should allow updating existing commands even when at max count", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create an existing command
@@ -313,7 +324,7 @@ description: "Existing"
 
       // Update should work regardless of count (since it's not creating new)
       const result = await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/existing.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/existing.md`,
         frontmatter: { targets: ["cursor"], description: "Updated" },
         body: "# Updated command",
       });
@@ -327,7 +338,7 @@ description: "Existing"
       // Don't create the directory beforehand
 
       const result = await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/auto-created.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/auto-created.md`,
         frontmatter: {
           targets: ["*"],
           description: "Auto-created",
@@ -336,16 +347,18 @@ description: "Existing"
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/commands/auto-created.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/auto-created.md`,
+      );
       expect(parsed.body).toBe("# Auto-created");
     });
 
     it("should handle multiple target specifications", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       const result = await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/multi-target.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/multi-target.md`,
         frontmatter: {
           targets: ["cursor", "claudecode", "copilot"],
           description: "Multi-target command",
@@ -361,7 +374,7 @@ description: "Existing"
 
   describe("deleteCommand", () => {
     it("should delete an existing command", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create a command
@@ -378,37 +391,41 @@ description: "To delete"
       // Verify it exists
       await expect(
         commandTools.getCommand.execute({
-          relativePathFromCwd: ".rulesync/commands/to-delete.md",
+          relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/to-delete.md`,
         }),
       ).resolves.toBeDefined();
 
       // Delete it
       const result = await commandTools.deleteCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/to-delete.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/to-delete.md`,
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/commands/to-delete.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/to-delete.md`,
+      );
 
       // Verify it's deleted
       await expect(
         commandTools.getCommand.execute({
-          relativePathFromCwd: ".rulesync/commands/to-delete.md",
+          relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/to-delete.md`,
         }),
       ).rejects.toThrow();
     });
 
     it("should succeed when deleting non-existent command (idempotent)", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Deleting a non-existent file should succeed (idempotent operation)
       const result = await commandTools.deleteCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/nonexistent.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/nonexistent.md`,
       });
       const parsed = JSON.parse(result);
 
-      expect(parsed.relativePathFromCwd).toBe(".rulesync/commands/nonexistent.md");
+      expect(parsed.relativePathFromCwd).toBe(
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/nonexistent.md`,
+      );
     });
 
     it("should reject path traversal attempts", async () => {
@@ -420,7 +437,7 @@ description: "To delete"
     });
 
     it("should delete only the specified command and not affect others", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create multiple commands
@@ -439,7 +456,7 @@ description: "To delete"
 
       // Delete one
       await commandTools.deleteCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/delete.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/delete.md`,
       });
 
       // Verify others still exist
@@ -448,20 +465,20 @@ description: "To delete"
 
       expect(parsed.commands).toHaveLength(2);
       expect(parsed.commands.map((c: any) => c.relativePathFromCwd)).toEqual([
-        ".rulesync/commands/keep1.md",
-        ".rulesync/commands/keep2.md",
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/keep1.md`,
+        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/keep2.md`,
       ]);
     });
   });
 
   describe("integration scenarios", () => {
     it("should handle full CRUD lifecycle", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create
       await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/lifecycle.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/lifecycle.md`,
         frontmatter: {
           targets: ["*"],
           description: "Lifecycle test",
@@ -471,14 +488,14 @@ description: "To delete"
 
       // Read
       let result = await commandTools.getCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/lifecycle.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/lifecycle.md`,
       });
       let parsed = JSON.parse(result);
       expect(parsed.body).toBe("# Initial body");
 
       // Update
       await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/lifecycle.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/lifecycle.md`,
         frontmatter: {
           targets: ["cursor"],
           description: "Updated lifecycle test",
@@ -487,7 +504,7 @@ description: "To delete"
       });
 
       result = await commandTools.getCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/lifecycle.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/lifecycle.md`,
       });
       parsed = JSON.parse(result);
       expect(parsed.body).toBe("# Updated body");
@@ -495,23 +512,23 @@ description: "To delete"
 
       // Delete
       await commandTools.deleteCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/lifecycle.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/lifecycle.md`,
       });
 
       await expect(
         commandTools.getCommand.execute({
-          relativePathFromCwd: ".rulesync/commands/lifecycle.md",
+          relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/lifecycle.md`,
         }),
       ).rejects.toThrow();
     });
 
     it("should handle multiple commands with different configurations", async () => {
-      const commandsDir = join(testDir, ".rulesync", "commands");
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       await ensureDir(commandsDir);
 
       // Create multiple commands with different configs
       await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/review.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/review.md`,
         frontmatter: {
           targets: ["*"],
           description: "Review code",
@@ -520,7 +537,7 @@ description: "To delete"
       });
 
       await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/test.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/test.md`,
         frontmatter: {
           targets: ["cursor", "claudecode"],
           description: "Run tests",
@@ -529,7 +546,7 @@ description: "To delete"
       });
 
       await commandTools.putCommand.execute({
-        relativePathFromCwd: ".rulesync/commands/deploy.md",
+        relativePathFromCwd: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/deploy.md`,
         frontmatter: {
           targets: ["*"],
           description: "Deploy application",

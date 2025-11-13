@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
@@ -192,7 +193,7 @@ Body content`;
     it("should create GeminiCliSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["geminicli"],
@@ -223,7 +224,7 @@ Body content`;
     it("should handle RulesyncSubagent with different file extensions", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
           targets: ["geminicli"],
@@ -247,7 +248,7 @@ Body content`;
     it("should handle empty name and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["geminicli"],
@@ -555,7 +556,7 @@ Body content`;
     it("should return true when targets includes geminicli", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["geminicli"],
@@ -572,7 +573,7 @@ Body content`;
     it("should return true when targets includes asterisk", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["*"],
@@ -589,7 +590,7 @@ Body content`;
     it("should return false when targets array is empty", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: [],
@@ -606,7 +607,7 @@ Body content`;
     it("should return false when targets does not include geminicli", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["copilot", "cline"],
@@ -623,7 +624,7 @@ Body content`;
     it("should return true when targets includes geminicli among other targets", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
           targets: ["copilot", "geminicli", "cline"],
