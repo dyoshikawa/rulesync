@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -201,7 +202,7 @@ describe("RooMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(mcpContent),
       });
@@ -228,7 +229,7 @@ describe("RooMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(mcpContent),
       });
@@ -256,7 +257,7 @@ describe("RooMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(mcpContent),
       });
@@ -281,7 +282,7 @@ describe("RooMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(mcpContent),
         validate: false,
@@ -302,7 +303,7 @@ describe("RooMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(mcpContent),
       });
@@ -338,7 +339,7 @@ describe("RooMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(mcpContent);
     });
