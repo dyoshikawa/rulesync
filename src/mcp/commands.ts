@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncCommand,
   type RulesyncCommandFrontmatter,
@@ -28,7 +29,7 @@ async function listCommands(): Promise<
     frontmatter: RulesyncCommandFrontmatter;
   }>
 > {
-  const commandsDir = join(process.cwd(), ".rulesync", "commands");
+  const commandsDir = join(process.cwd(), RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
 
   try {
     const files = await listDirectoryFiles(commandsDir);
@@ -45,7 +46,7 @@ async function listCommands(): Promise<
           const frontmatter = command.getFrontmatter();
 
           return {
-            relativePathFromCwd: join(".rulesync", "commands", file),
+            relativePathFromCwd: join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, file),
             frontmatter,
           };
         } catch (error) {
@@ -84,7 +85,7 @@ async function getCommand({ relativePathFromCwd }: { relativePathFromCwd: string
     });
 
     return {
-      relativePathFromCwd: join(".rulesync", "commands", filename),
+      relativePathFromCwd: join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename),
       frontmatter: command.getFrontmatter(),
       body: command.getBody(),
     };
@@ -130,7 +131,8 @@ async function putCommand({
     // Check command count constraint
     const existingCommands = await listCommands();
     const isUpdate = existingCommands.some(
-      (command) => command.relativePathFromCwd === join(".rulesync", "commands", filename),
+      (command) =>
+        command.relativePathFromCwd === join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename),
     );
 
     if (!isUpdate && existingCommands.length >= maxCommandsCount) {
@@ -141,7 +143,7 @@ async function putCommand({
     const fileContent = stringifyFrontmatter(body, frontmatter);
     const command = new RulesyncCommand({
       baseDir: process.cwd(),
-      relativeDirPath: join(".rulesync", "commands"),
+      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,
       body,
@@ -150,14 +152,14 @@ async function putCommand({
     });
 
     // Ensure directory exists
-    const commandsDir = join(process.cwd(), ".rulesync", "commands");
+    const commandsDir = join(process.cwd(), RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
     await ensureDir(commandsDir);
 
     // Write the file
     await writeFileContent(command.getFilePath(), command.getFileContent());
 
     return {
-      relativePathFromCwd: join(".rulesync", "commands", filename),
+      relativePathFromCwd: join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename),
       frontmatter: command.getFrontmatter(),
       body: command.getBody(),
     };
@@ -180,13 +182,13 @@ async function deleteCommand({ relativePathFromCwd }: { relativePathFromCwd: str
   });
 
   const filename = basename(relativePathFromCwd);
-  const fullPath = join(process.cwd(), ".rulesync", "commands", filename);
+  const fullPath = join(process.cwd(), RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename);
 
   try {
     await removeFile(fullPath);
 
     return {
-      relativePathFromCwd: join(".rulesync", "commands", filename),
+      relativePathFromCwd: join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename),
     };
   } catch (error) {
     throw new Error(`Failed to delete command file ${relativePathFromCwd}: ${formatError(error)}`, {
@@ -219,7 +221,7 @@ export const commandToolSchemas = {
 export const commandTools = {
   listCommands: {
     name: "listCommands",
-    description: `List all commands from ${join(".rulesync", "commands", "*.md")} with their frontmatter.`,
+    description: `List all commands from ${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
     parameters: commandToolSchemas.listCommands,
     execute: async () => {
       const commands = await listCommands();
