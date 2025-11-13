@@ -1,4 +1,5 @@
 import { z } from "zod/mini";
+import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -132,7 +133,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     );
 
     if (!rulesyncIgnore) {
-      throw new Error(`No .rulesyncignore found.`);
+      throw new Error(`No ${RULESYNC_IGNORE_RELATIVE_FILE_PATH} found.`);
     }
 
     const toolIgnores = await Promise.all(
