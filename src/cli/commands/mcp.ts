@@ -1,6 +1,9 @@
 import { FastMCP } from "fastmcp";
+import { commandTools } from "../../mcp/commands.js";
+import { ignoreTools } from "../../mcp/ignore.js";
 import { mcpTools } from "../../mcp/mcp.js";
 import { ruleTools } from "../../mcp/rules.js";
+import { subagentTools } from "../../mcp/subagents.js";
 import { logger } from "../../utils/logger.js";
 
 /**
@@ -20,6 +23,23 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
   server.addTool(ruleTools.getRule);
   server.addTool(ruleTools.putRule);
   server.addTool(ruleTools.deleteRule);
+
+  // Register command tools
+  server.addTool(commandTools.listCommands);
+  server.addTool(commandTools.getCommand);
+  server.addTool(commandTools.putCommand);
+  server.addTool(commandTools.deleteCommand);
+
+  // Register subagent tools
+  server.addTool(subagentTools.listSubagents);
+  server.addTool(subagentTools.getSubagent);
+  server.addTool(subagentTools.putSubagent);
+  server.addTool(subagentTools.deleteSubagent);
+
+  // Register ignore tools
+  server.addTool(ignoreTools.getIgnoreFile);
+  server.addTool(ignoreTools.putIgnoreFile);
+  server.addTool(ignoreTools.deleteIgnoreFile);
 
   // Register MCP tools
   server.addTool(mcpTools.getMcpFile);
