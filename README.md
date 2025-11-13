@@ -640,21 +640,6 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 }
 ```
 
-For development, you can use:
-
-```json
-{
-  "mcpServers": {
-    "rulesync-mcp": {
-      "type": "stdio",
-      "command": "pnpm",
-      "args": ["dev", "mcp"],
-      "env": {}
-    }
-  }
-}
-```
-
 ## Contributing
 
 Issues and Pull Requests are welcome!
