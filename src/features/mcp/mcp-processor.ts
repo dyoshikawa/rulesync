@@ -1,4 +1,5 @@
 import { z } from "zod/mini";
+import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -190,7 +191,7 @@ export class McpProcessor extends FeatureProcessor {
     );
 
     if (!rulesyncMcp) {
-      throw new Error(`No .rulesync/mcp.json found.`);
+      throw new Error(`No ${RULESYNC_MCP_RELATIVE_FILE_PATH} found.`);
     }
 
     const toolMcps = await Promise.all(
