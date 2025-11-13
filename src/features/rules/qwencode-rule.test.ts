@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -367,7 +368,7 @@ describe("QwencodeRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("QWEN.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getBody()).toBe("# Root Convert Test\n\nThis root will be converted.");
 
       const frontmatter = rulesyncRule.getFrontmatter();
@@ -609,7 +610,7 @@ describe("QwencodeRule", () => {
       // Verify conversion
       expect(rulesyncRule.getBody()).toBe(originalContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("QWEN.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getFrontmatter().root).toBe(true);
     });
 

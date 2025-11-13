@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -296,7 +297,9 @@ describe("GeminiCliRule", () => {
 
       const rulesyncRule = geminiCliRule.toRulesyncRule();
 
-      expect(rulesyncRule.getFilePath()).toBe(`${RULESYNC_RULES_RELATIVE_DIR_PATH}/GEMINI.md`);
+      expect(rulesyncRule.getFilePath()).toBe(
+        `${RULESYNC_RULES_RELATIVE_DIR_PATH}/${RULESYNC_OVERVIEW_FILE_NAME}`,
+      );
       expect(rulesyncRule.getFileContent()).toContain("# Root Gemini Rule\n\nRoot content.");
     });
   });
@@ -520,7 +523,7 @@ describe("GeminiCliRule", () => {
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(rootContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("GEMINI.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle roundtrip conversion rulesync -> geminicli -> rulesync", () => {
@@ -586,7 +589,7 @@ describe("GeminiCliRule", () => {
 
       // Verify content preservation
       expect(finalRulesync.getFileContent()).toContain(originalBody);
-      expect(finalRulesync.getRelativeFilePath()).toBe("GEMINI.md");
+      expect(finalRulesync.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle mixed file types in directory", async () => {
