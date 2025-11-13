@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { readFileContent } from "../../utils/file.js";
@@ -16,7 +17,7 @@ export class RulesyncIgnore extends RulesyncFile {
   static getSettablePaths(): RulesyncIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".rulesyncignore",
+      relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
     };
   }
 
