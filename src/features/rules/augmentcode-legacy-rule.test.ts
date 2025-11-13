@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
@@ -112,7 +113,7 @@ describe("AugmentcodeLegacyRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(rulesyncRule.getBody()).toBe("# Test Legacy Rule\n\nThis is a test legacy rule.");
 
@@ -136,7 +137,7 @@ describe("AugmentcodeLegacyRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe(".augment-guidelines");
       expect(rulesyncRule.getBody()).toBe("# Root Guidelines\n\nThese are root guidelines.");
 
@@ -159,7 +160,7 @@ describe("AugmentcodeLegacyRule", () => {
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
       expect(rulesyncRule.getBaseDir()).toBe(".");
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(
         "# Complex Legacy Rule\n\nThis is a more complex legacy rule with content.",
@@ -170,7 +171,7 @@ describe("AugmentcodeLegacyRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create AugmentcodeLegacyRule from RulesyncRule with default parameters", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -196,7 +197,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should create AugmentcodeLegacyRule from RulesyncRule with custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: "/source/path",
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -219,7 +220,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should create root AugmentcodeLegacyRule from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: ".augment-guidelines",
         frontmatter: {
           root: true,
@@ -242,7 +243,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should create AugmentcodeLegacyRule from RulesyncRule with validation enabled", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -264,7 +265,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should create AugmentcodeLegacyRule from RulesyncRule with validation disabled", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
           root: false,
@@ -530,7 +531,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should return true for rules targeting augmentcode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["augmentcode-legacy"],
@@ -544,7 +545,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -558,7 +559,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should return false for rules not targeting augmentcode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -572,7 +573,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -586,7 +587,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should handle mixed targets including augmentcode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "augmentcode-legacy", "copilot"],
@@ -600,7 +601,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",
