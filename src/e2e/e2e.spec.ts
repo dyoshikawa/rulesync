@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { join, resolve, sep } from "node:path";
+import { setTimeout } from "node:timers/promises";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RULESYNC_OVERVIEW_FILE_NAME } from "../constants/rulesync-paths.js";
@@ -139,7 +140,7 @@ This is a test project for E2E testing.
     });
 
     // Wait for 3 seconds to let the server run
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await setTimeout(3000);
 
     // Kill the process
     mcpProcess.kill("SIGTERM");
