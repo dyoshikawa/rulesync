@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -22,13 +23,13 @@ describe("RulesyncIgnore", () => {
     it("should create instance with default parameters", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       expect(rulesyncIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
@@ -36,18 +37,20 @@ describe("RulesyncIgnore", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: "/custom/path",
         relativeDirPath: "subdir",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.tmp",
       });
 
-      expect(rulesyncIgnore.getFilePath()).toBe("/custom/path/subdir/.rulesyncignore");
+      expect(rulesyncIgnore.getFilePath()).toBe(
+        `/custom/path/subdir/${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+      );
     });
 
     it("should validate content by default", () => {
       expect(() => {
         const _instance = new RulesyncIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".rulesyncignore",
+          relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
           fileContent: "", // empty content should be valid
         });
       }).not.toThrow();
@@ -57,7 +60,7 @@ describe("RulesyncIgnore", () => {
       expect(() => {
         const _instance = new RulesyncIgnore({
           relativeDirPath: ".",
-          relativeFilePath: ".rulesyncignore",
+          relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
           fileContent: "any content",
           validate: false,
         });
@@ -69,7 +72,7 @@ describe("RulesyncIgnore", () => {
     it("should always return success=true", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
@@ -82,7 +85,7 @@ describe("RulesyncIgnore", () => {
     it("should validate empty content", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "",
       });
 
@@ -125,7 +128,7 @@ Thumbs.db`;
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: complexContent,
       });
 
@@ -139,7 +142,7 @@ Thumbs.db`;
       const specialContent = "*.log\n節点模块/\n環境.env\n🏗️build/\n**/*.cache";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: specialContent,
       });
 
@@ -154,7 +157,7 @@ Thumbs.db`;
     it("should read .rulesyncignore file from current directory", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/\n.env";
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
@@ -162,13 +165,13 @@ Thumbs.db`;
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle empty .rulesyncignore file", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, "");
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
@@ -208,7 +211,7 @@ logs/
 .DS_Store
 Thumbs.db`;
 
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
@@ -224,7 +227,7 @@ Thumbs.db`;
     it("should handle file with Windows line endings", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\r\nnode_modules/\r\n.env";
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
@@ -235,7 +238,7 @@ Thumbs.db`;
     it("should handle file with mixed line endings", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\r\nnode_modules/\n.env\r\nbuild/";
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
@@ -249,22 +252,26 @@ Thumbs.db`;
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: "/test/base",
         relativeDirPath: "subdir",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
       expect(rulesyncIgnore.getBaseDir()).toBe("/test/base");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe("subdir");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
-      expect(rulesyncIgnore.getFilePath()).toBe("/test/base/subdir/.rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(rulesyncIgnore.getFilePath()).toBe(
+        `/test/base/subdir/${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+      );
       expect(rulesyncIgnore.getFileContent()).toBe("*.log");
-      expect(rulesyncIgnore.getRelativePathFromCwd()).toBe("subdir/.rulesyncignore");
+      expect(rulesyncIgnore.getRelativePathFromCwd()).toBe(
+        `subdir/${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+      );
     });
 
     it("should support setFileContent method", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
@@ -279,7 +286,7 @@ Thumbs.db`;
     it("should handle file content with only whitespace", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "   \n\t\n   ",
       });
 
@@ -290,7 +297,7 @@ Thumbs.db`;
       const longPattern = "a".repeat(1000);
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: longPattern,
       });
 
@@ -301,7 +308,7 @@ Thumbs.db`;
       const unicodeContent = "*.log\n節点模块/\n環境.env\n🏗️build/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: unicodeContent,
       });
 
@@ -312,7 +319,7 @@ Thumbs.db`;
       const contentWithNull = "*.log\0node_modules/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: contentWithNull,
         validate: false, // Skip validation for edge case content
       });
@@ -328,7 +335,7 @@ Thumbs.db`;
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -354,7 +361,7 @@ dist/
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: originalContent,
       });
 
@@ -370,11 +377,11 @@ dist/
     it("should use .rulesyncignore as the filename", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
     });
 
     it("should work as a central ignore file", () => {
@@ -419,7 +426,7 @@ desktop.ini`;
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -431,14 +438,16 @@ desktop.ini`;
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: "/project/root",
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
       // RulesyncIgnore typically lives in project root
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
-      expect(rulesyncIgnore.getFilePath()).toBe("/project/root/.rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(rulesyncIgnore.getFilePath()).toBe(
+        `/project/root/${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+      );
     });
 
     it("should maintain content integrity for distribution to other tools", () => {
@@ -455,7 +464,7 @@ build/`;
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
         fileContent: sourceContent,
       });
 
@@ -468,7 +477,7 @@ build/`;
     it("should use fixed parameters in fromFile method", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
@@ -476,13 +485,13 @@ build/`;
       // fromFile always uses these fixed parameters
       expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
     });
 
     it("should create instance with validation enabled by default", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
-      const rulesyncIgnorePath = join(testDir, ".rulesyncignore");
+      const rulesyncIgnorePath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
