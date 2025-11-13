@@ -113,7 +113,7 @@ This is a test project for E2E testing.
     await execFileAsync(rulesyncCmd, [...rulesyncArgs, "import", "--targets", "claudecode"]);
 
     // Verify that the imported rule file was created
-    const importedRulePath = join(testDir, ".rulesync", "rules", "CLAUDE.md");
+    const importedRulePath = join(testDir, ".rulesync", "rules", RULESYNC_OVERVIEW_FILE_NAME);
     const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
   });
