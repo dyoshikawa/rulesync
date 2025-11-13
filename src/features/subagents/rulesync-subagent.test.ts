@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import type { RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
@@ -118,7 +119,7 @@ describe("RulesyncSubagent", () => {
 
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter,
         body: "Test body content",
@@ -141,7 +142,7 @@ describe("RulesyncSubagent", () => {
 
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "claude.md",
         frontmatter,
         body: "Claude specific instructions",
@@ -160,7 +161,7 @@ describe("RulesyncSubagent", () => {
       expect(() => {
         const _instance = new RulesyncSubagent({
           baseDir: ".",
-          relativeDirPath: ".rulesync/subagents",
+          relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
           relativeFilePath: "invalid.md",
           frontmatter: invalidFrontmatter as any,
           body: "Test body",
@@ -178,7 +179,7 @@ describe("RulesyncSubagent", () => {
       expect(() => {
         const _instance = new RulesyncSubagent({
           baseDir: ".",
-          relativeDirPath: ".rulesync/subagents",
+          relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
           relativeFilePath: "skip-validation.md",
           frontmatter: invalidFrontmatter as any,
           body: "Test body",
@@ -190,7 +191,7 @@ describe("RulesyncSubagent", () => {
     it("should inherit all AiFile functionality", () => {
       const subagent = new RulesyncSubagent({
         baseDir: "/test",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "inherit.md",
         frontmatter: {
           targets: ["*"],
@@ -201,15 +202,19 @@ describe("RulesyncSubagent", () => {
       });
 
       expect(subagent.getBaseDir()).toBe("/test");
-      expect(subagent.getRelativeDirPath()).toBe(".rulesync/subagents");
+      expect(subagent.getRelativeDirPath()).toBe(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(subagent.getRelativeFilePath()).toBe("inherit.md");
       // fileContent is now auto-generated from frontmatter and body
       expect(subagent.getFileContent()).toContain("targets:");
       expect(subagent.getFileContent()).toContain("name: inherit-subagent");
       expect(subagent.getFileContent()).toContain("description: Testing inheritance");
       expect(subagent.getFileContent()).toContain("Inherited body");
-      expect(subagent.getFilePath()).toBe("/test/.rulesync/subagents/inherit.md");
-      expect(subagent.getRelativePathFromCwd()).toBe(".rulesync/subagents/inherit.md");
+      expect(subagent.getFilePath()).toBe(
+        `/test/${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/inherit.md`,
+      );
+      expect(subagent.getRelativePathFromCwd()).toBe(
+        `${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/inherit.md`,
+      );
     });
   });
 
@@ -226,7 +231,7 @@ describe("RulesyncSubagent", () => {
 
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "multi.md",
         frontmatter,
         body: "Multi tool body",
@@ -245,7 +250,7 @@ describe("RulesyncSubagent", () => {
 
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "body-test.md",
         frontmatter: {
           targets: ["*"],
@@ -261,7 +266,7 @@ describe("RulesyncSubagent", () => {
     it("should handle empty body", () => {
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "empty-body.md",
         frontmatter: {
           targets: ["*"],
@@ -279,7 +284,7 @@ describe("RulesyncSubagent", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "valid.md",
         frontmatter: {
           targets: ["*"],
@@ -299,7 +304,7 @@ describe("RulesyncSubagent", () => {
       // Create a subagent with invalid frontmatter but skip validation
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "undefined.md",
         frontmatter: undefined as any,
         body: "body",
@@ -314,7 +319,7 @@ describe("RulesyncSubagent", () => {
     it("should return error for invalid frontmatter", () => {
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "invalid-validate.md",
         frontmatter: {
           targets: ["*"],
@@ -348,7 +353,7 @@ describe("RulesyncSubagent", () => {
     });
 
     it("should create instance from valid file", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-valid.md");
       const fileContent = `---
 targets: ["*"]
@@ -376,11 +381,11 @@ It can contain multiple lines and markdown.`;
         "This is the body content from the file.\n\nIt can contain multiple lines and markdown.",
       );
       expect(subagent.getRelativeFilePath()).toBe("test-fromfile-valid.md");
-      expect(subagent.getRelativeDirPath()).toBe(".rulesync/subagents");
+      expect(subagent.getRelativeDirPath()).toBe(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
     });
 
     it("should handle file with minimal frontmatter", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-minimal.md");
       const fileContent = `---
 targets: ["cursor"]
@@ -401,7 +406,7 @@ Simple body content.`;
     });
 
     it("should use basename for relativeFilePath", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-nested.md");
       const fileContent = `---
 targets: ["*"]
@@ -421,7 +426,7 @@ Nested content.`;
     });
 
     it("should throw error for invalid frontmatter in file", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-invalid.md");
       const fileContent = `---
 targets: ["*"]
@@ -448,7 +453,7 @@ Invalid content.`;
     });
 
     it("should handle files with different target configurations", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-multitarget.md");
       const fileContent = `---
 targets: ["cursor", "copilot", "cline"]
@@ -470,7 +475,7 @@ Instructions for multiple AI tools.`;
     });
 
     it("should trim body content", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-whitespace.md");
       const fileContent = `---
 targets: ["*"]
@@ -502,14 +507,14 @@ description: Testing whitespace handling
 
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "poly.md",
         frontmatter,
         body: "Poly body",
       });
 
       // Should work as RulesyncFile
-      expect(subagent.getRelativeDirPath()).toBe(".rulesync/subagents");
+      expect(subagent.getRelativeDirPath()).toBe(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(subagent.getRelativeFilePath()).toBe("poly.md");
       // fileContent is now auto-generated from frontmatter and body
       expect(subagent.getFileContent()).toContain("targets:");
@@ -529,7 +534,7 @@ description: Testing whitespace handling
     it("should maintain type safety", () => {
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "typed.md",
         frontmatter: {
           targets: ["*"],
@@ -572,7 +577,7 @@ description: Testing whitespace handling
     });
 
     it("should handle empty body from file", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-emptybody.md");
       const fileContent = `---
 targets: ["*"]
@@ -598,7 +603,7 @@ description: File with empty body
 
       const subagent = new RulesyncSubagent({
         baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex.md",
         frontmatter,
         body: "Complex body",
@@ -611,7 +616,7 @@ description: File with empty body
     });
 
     it("should handle content with special characters", async () => {
-      const subagentsDir = join(testDir, ".rulesync", "subagents");
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       const filePath = join(subagentsDir, "test-fromfile-specialchars.md");
       const fileContent = `---
 targets: ["*"]
