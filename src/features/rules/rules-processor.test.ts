@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
@@ -33,7 +34,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "copilot-rule.md",
           frontmatter: {
             targets: ["copilot"],
@@ -42,7 +43,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "cursor-rule.md",
           frontmatter: {
             targets: ["cursor"],
@@ -51,7 +52,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "all-tools-rule.md",
           frontmatter: {
             targets: ["*"],
@@ -76,7 +77,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "copilot-rule.md",
           frontmatter: {
             targets: ["copilot"],
@@ -85,7 +86,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "cursor-rule.md",
           frontmatter: {
             targets: ["cursor"],
@@ -107,7 +108,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "mixed-rule.md",
           frontmatter: {
             targets: ["cursor", "claudecode", "copilot"],
@@ -116,7 +117,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "other-rule.md",
           frontmatter: {
             targets: ["warp", "augmentcode"],
@@ -139,7 +140,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "no-targets.md",
           frontmatter: {},
           body: "Rule without targets",
@@ -161,7 +162,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "empty-targets.md",
           frontmatter: {
             targets: [],
@@ -201,7 +202,7 @@ describe("RulesProcessor", () => {
         const rulesyncRules = [
           new RulesyncRule({
             baseDir: testDir,
-            relativeDirPath: ".rulesync/rules",
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "targeted-rule.md",
             frontmatter: {
               targets: [toolTarget],
@@ -210,7 +211,7 @@ describe("RulesProcessor", () => {
           }),
           new RulesyncRule({
             baseDir: testDir,
-            relativeDirPath: ".rulesync/rules",
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "non-targeted-rule.md",
             frontmatter: {
               targets: ["windsurf"],
@@ -236,7 +237,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root-rule.md",
           frontmatter: {
             root: true,
@@ -248,7 +249,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "feature-rule.md",
           frontmatter: {
             root: false,
@@ -260,7 +261,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "minimal-rule.md",
           frontmatter: {
             root: false,
@@ -296,7 +297,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
             root: true,
@@ -306,7 +307,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "no-metadata.md",
           frontmatter: {
             root: false,
@@ -333,7 +334,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
             root: true,
@@ -343,7 +344,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "quoted.md",
           frontmatter: {
             root: false,
@@ -372,7 +373,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
             root: true,
@@ -400,7 +401,7 @@ describe("RulesProcessor", () => {
       const rulesyncRules = [
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
             root: true,
@@ -410,7 +411,7 @@ describe("RulesProcessor", () => {
         }),
         new RulesyncRule({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/rules",
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "multi-glob.md",
           frontmatter: {
             root: false,
@@ -582,7 +583,7 @@ describe("RulesProcessor", () => {
         const rulesyncRules = [
           new RulesyncRule({
             baseDir: testDir,
-            relativeDirPath: ".rulesync/rules",
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "root.md",
             frontmatter: {
               root: true,
@@ -610,7 +611,7 @@ describe("RulesProcessor", () => {
         const rulesyncRules = [
           new RulesyncRule({
             baseDir: testDir,
-            relativeDirPath: ".rulesync/rules",
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "root.md",
             frontmatter: {
               root: true,
@@ -638,7 +639,7 @@ describe("RulesProcessor", () => {
         const rulesyncRules = [
           new RulesyncRule({
             baseDir: testDir,
-            relativeDirPath: ".rulesync/rules",
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "root.md",
             frontmatter: {
               root: true,
