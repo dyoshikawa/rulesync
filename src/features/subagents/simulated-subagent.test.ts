@@ -218,14 +218,6 @@ Body content`;
           description: "Test agent description",
         },
         body: "Test body content",
-        fileContent: `---
-targets:
-  - claudecode
-name: Test Agent
-description: Test agent description
----
-
-Test body content`,
         validate: true,
       });
 

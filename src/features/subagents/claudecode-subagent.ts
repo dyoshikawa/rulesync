@@ -74,16 +74,12 @@ export class ClaudecodeSubagent extends ToolSubagent {
       }),
     };
 
-    // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncSubagent({
       baseDir: ".", // RulesyncCommand baseDir is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: join(".rulesync", "subagents"),
       relativeFilePath: this.getRelativeFilePath(),
-      fileContent,
       validate: true,
     });
   }

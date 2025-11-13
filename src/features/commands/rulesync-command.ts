@@ -88,9 +88,12 @@ export class RulesyncCommand extends RulesyncFile {
     relativeFilePath,
   }: RulesyncFileFromFileParams): Promise<RulesyncCommand> {
     // Read file content
-    const fileContent = await readFileContent(
-      join(RulesyncCommand.getSettablePaths().relativeDirPath, relativeFilePath),
+    const filePath = join(
+      process.cwd(),
+      RulesyncCommand.getSettablePaths().relativeDirPath,
+      relativeFilePath,
     );
+    const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CommandFrontmatterSchema

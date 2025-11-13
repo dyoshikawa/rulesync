@@ -561,6 +561,58 @@ So, in this case, approximately 92% reduction in MCP tools consumption!
 
 Rulesync provides an MCP (Model Context Protocol) server that enables AI agents to manage your Rulesync files. This allows AI agents to discover, read, create, update, and delete files dynamically.
 
+### Available Tools
+
+The Rulesync MCP server provides the following tools:
+
+<details>
+<summary>Rules Management</summary>
+
+- `listRules` - List all rule files
+- `getRule` - Get a specific rule file
+- `putRule` - Create or update a rule file
+- `deleteRule` - Delete a rule file
+
+</details>
+
+<details>
+<summary>Commands Management</summary>
+
+- `listCommands` - List all command files
+- `getCommand` - Get a specific command file
+- `putCommand` - Create or update a command file
+- `deleteCommand` - Delete a command file
+
+</details>
+
+<details>
+<summary>Subagents Management</summary>
+
+- `listSubagents` - List all subagent files
+- `getSubagent` - Get a specific subagent file
+- `putSubagent` - Create or update a subagent file
+- `deleteSubagent` - Delete a subagent file
+
+</details>
+
+<details>
+<summary>Ignore Files Management</summary>
+
+- `getIgnoreFile` - Get the ignore file
+- `putIgnoreFile` - Create or update the ignore file
+- `deleteIgnoreFile` - Delete the ignore file
+
+</details>
+
+<details>
+<summary>MCP Configuration Management</summary>
+
+- `getMcpFile` - Get the MCP configuration file
+- `putMcpFile` - Create or update the MCP configuration file
+- `deleteMcpFile` - Delete the MCP configuration file
+
+</details>
+
 ### Usage
 
 #### Starting the MCP Server

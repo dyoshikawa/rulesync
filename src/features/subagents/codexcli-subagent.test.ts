@@ -201,7 +201,6 @@ Body content`;
           description: "Test description from rulesync",
         },
         body: "Test agent content",
-        fileContent: "", // Will be generated
         validate: true,
       });
 
@@ -233,7 +232,6 @@ Body content`;
           description: "Complex agent",
         },
         body: "Complex content",
-        fileContent: "",
         validate: true,
       });
 
@@ -258,7 +256,6 @@ Body content`;
           description: "",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -540,7 +537,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], name: "Test", description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -553,7 +549,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["codexcli"], name: "Test", description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -570,7 +565,6 @@ Body content`;
           description: "Test",
         },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -583,7 +577,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], name: "Test", description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent);
@@ -596,7 +589,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, name: "Test", description: "Test" } as any,
         body: "Body",
-        fileContent: "",
         validate: false,
       });
 

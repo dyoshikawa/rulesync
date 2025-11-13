@@ -9,7 +9,7 @@ import {
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 
 export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "inherit"]);
 
@@ -26,10 +26,10 @@ export const RulesyncSubagentFrontmatterSchema = z.object({
 
 export type RulesyncSubagentFrontmatter = z.infer<typeof RulesyncSubagentFrontmatterSchema>;
 
-export type RulesyncSubagentParams = {
+export type RulesyncSubagentParams = Omit<RulesyncFileParams, "fileContent"> & {
   frontmatter: RulesyncSubagentFrontmatter;
   body: string;
-} & RulesyncFileParams;
+};
 
 export type RulesyncSubagentSettablePaths = {
   relativeDirPath: string;
@@ -54,6 +54,7 @@ export class RulesyncSubagent extends RulesyncFile {
 
     super({
       ...rest,
+      fileContent: stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -117,7 +118,6 @@ export class RulesyncSubagent extends RulesyncFile {
       relativeFilePath: filename,
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
     });
   }
 }
