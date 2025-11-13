@@ -4,6 +4,7 @@ import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
@@ -60,7 +61,7 @@ async function createConfigFile(): Promise<void> {
 async function createSampleFiles(): Promise<void> {
   // Create rule sample file
   const sampleRuleFile = {
-    filename: "overview.md",
+    filename: RULESYNC_OVERVIEW_FILE_NAME,
     content: `---
 root: true
 targets: ["*"]

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -97,7 +98,7 @@ describe("initCommand", () => {
       await initCommand();
 
       // Verify that sample file creation was called
-      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md");
+      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
       expect(fileExists).toHaveBeenCalledWith(expectedFilePath);
       expect(writeFileContent).toHaveBeenCalledWith(expectedFilePath, expect.any(String));
     });
@@ -109,7 +110,7 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md");
+      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
       expect(fileExists).toHaveBeenCalledWith(expectedFilePath);
       expect(writeFileContent).toHaveBeenCalledWith(
         expectedFilePath,
@@ -119,7 +120,7 @@ describe("initCommand", () => {
     });
 
     it("should skip creating overview.md when it already exists", async () => {
-      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md");
+      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
       vi.mocked(fileExists).mockResolvedValue(true);
 
       await initCommand();
@@ -298,7 +299,7 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md");
+      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
       expect(logger.success).toHaveBeenCalledWith(`Created ${expectedFilePath}`);
     });
 
@@ -307,7 +308,7 @@ describe("initCommand", () => {
 
       await initCommand();
 
-      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md");
+      const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
       expect(logger.info).toHaveBeenCalledWith(`Skipped ${expectedFilePath} (already exists)`);
     });
   });
