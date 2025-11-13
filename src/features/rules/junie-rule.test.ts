@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { JunieRule } from "./junie-rule.js";
@@ -202,7 +206,7 @@ describe("JunieRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create instance from RulesyncRule for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
           root: true,
@@ -226,7 +230,7 @@ describe("JunieRule", () => {
 
     it("should create instance from RulesyncRule for non-root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-rule.md",
         frontmatter: {
           root: false,
@@ -252,7 +256,7 @@ describe("JunieRule", () => {
 
     it("should use custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
         frontmatter: {
           root: false,
@@ -273,7 +277,7 @@ describe("JunieRule", () => {
 
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
         frontmatter: {
           root: false,
@@ -312,7 +316,7 @@ describe("JunieRule", () => {
       const rulesyncRule = junieRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("guidelines.md");
       expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
     });
@@ -329,7 +333,7 @@ describe("JunieRule", () => {
       const rulesyncRule = junieRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("memory-convert.md");
       expect(rulesyncRule.getFileContent()).toContain(
         "# Memory Convert Test\n\nThis memory will be converted.",
@@ -423,7 +427,7 @@ describe("JunieRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("guidelines.md");
     });
 
@@ -445,7 +449,7 @@ describe("JunieRule", () => {
 
       // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
-      expect(rulesyncRule.getRelativeDirPath()).toBe(".rulesync/rules");
+      expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("memory-integration.md");
     });
 
@@ -455,7 +459,7 @@ describe("JunieRule", () => {
       // Start with rulesync rule (root)
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
           root: true,
@@ -486,7 +490,7 @@ describe("JunieRule", () => {
       // Start with rulesync rule (non-root)
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-roundtrip.md",
         frontmatter: {
           root: false,
@@ -535,7 +539,7 @@ describe("JunieRule", () => {
     it("should return true for rules targeting junie", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["junie"],
@@ -549,7 +553,7 @@ describe("JunieRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -563,7 +567,7 @@ describe("JunieRule", () => {
     it("should return false for rules not targeting junie", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -577,7 +581,7 @@ describe("JunieRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -591,7 +595,7 @@ describe("JunieRule", () => {
     it("should handle mixed targets including junie", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "junie", "copilot"],
@@ -605,7 +609,7 @@ describe("JunieRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/rules",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",
