@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -314,7 +315,7 @@ describe("ClaudecodeSubagent", () => {
       expect(rulesyncFrontmatter.claudecode).toBeUndefined();
 
       expect(rulesyncSubagent.getBody()).toBe(body);
-      expect(rulesyncSubagent.getRelativeDirPath()).toBe(".rulesync/subagents");
+      expect(rulesyncSubagent.getRelativeDirPath()).toBe(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("test-agent.md");
     });
 
@@ -385,7 +386,7 @@ describe("ClaudecodeSubagent", () => {
       const body = "Agent body content";
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
@@ -423,7 +424,7 @@ describe("ClaudecodeSubagent", () => {
       const body = "Agent body content";
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
@@ -449,7 +450,7 @@ describe("ClaudecodeSubagent", () => {
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
         body: "Test content",
@@ -474,7 +475,7 @@ describe("ClaudecodeSubagent", () => {
       const body = "Global agent content";
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "global-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
@@ -503,7 +504,7 @@ describe("ClaudecodeSubagent", () => {
       const body = "Local agent content";
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "local-agent.md",
         frontmatter: rulesyncFrontmatter,
         body,
@@ -526,7 +527,7 @@ describe("ClaudecodeSubagent", () => {
   describe("isTargetedByRulesyncSubagent", () => {
     it("should return true for rulesync subagent with wildcard target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], name: "Test", description: "Test" },
         body: "Body",
@@ -538,7 +539,7 @@ describe("ClaudecodeSubagent", () => {
 
     it("should return true for rulesync subagent with claudecode target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], name: "Test", description: "Test" },
         body: "Body",
@@ -550,7 +551,7 @@ describe("ClaudecodeSubagent", () => {
 
     it("should return true for rulesync subagent with claudecode and other targets", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "claudecode", "cline"],
@@ -566,7 +567,7 @@ describe("ClaudecodeSubagent", () => {
 
     it("should return false for rulesync subagent with different target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], name: "Test", description: "Test" },
         body: "Body",
@@ -578,7 +579,7 @@ describe("ClaudecodeSubagent", () => {
 
     it("should return true for rulesync subagent with no targets specified", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        relativeDirPath: ".rulesync/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, name: "Test", description: "Test" } as any,
         body: "Body",
