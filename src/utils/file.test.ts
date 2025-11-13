@@ -1,5 +1,9 @@
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   addTrailingNewline,
@@ -392,8 +396,8 @@ describe("file utilities", () => {
 
   describe("findRuleFiles", () => {
     it("should prioritize new location over legacy location", async () => {
-      const aiRulesDir = join(testDir, ".rulesync");
-      const rulesDir = join(aiRulesDir, "rules");
+      const aiRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
 
       // Create files in both locations with same name
       await writeFileContent(join(aiRulesDir, "common.md"), "legacy content");
@@ -423,8 +427,8 @@ describe("file utilities", () => {
     });
 
     it("should return only new location files when legacy is empty", async () => {
-      const aiRulesDir = join(testDir, ".rulesync");
-      const rulesDir = join(aiRulesDir, "rules");
+      const aiRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
 
       await writeFileContent(join(rulesDir, "rule1.md"), "content1");
       await writeFileContent(join(rulesDir, "rule2.md"), "content2");
@@ -509,7 +513,7 @@ describe("file utilities", () => {
       });
 
       it("should allow paths with dots in names", () => {
-        expect(() => validateBaseDir(".rulesync")).not.toThrow();
+        expect(() => validateBaseDir(RULESYNC_RELATIVE_DIR_PATH)).not.toThrow();
         expect(() => validateBaseDir("my.project")).not.toThrow();
       });
 
