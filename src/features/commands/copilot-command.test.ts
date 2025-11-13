@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import {
@@ -216,7 +217,7 @@ Body content`;
     it("should create CopilotCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
           targets: ["copilot"],
@@ -245,7 +246,7 @@ Body content`;
     it("should convert .md extension to .prompt.md", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.md",
         frontmatter: {
           targets: ["copilot"],
@@ -267,7 +268,7 @@ Body content`;
     it("should handle empty description", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
           targets: ["copilot"],
@@ -592,7 +593,7 @@ Body content`;
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
@@ -605,7 +606,7 @@ Body content`;
 
     it("should return true for rulesync command with copilot target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["copilot"], description: "Test" },
         body: "Body",
@@ -618,7 +619,7 @@ Body content`;
 
     it("should return true for rulesync command with copilot and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "copilot", "cline"], description: "Test" },
         body: "Body",
@@ -631,7 +632,7 @@ Body content`;
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
@@ -644,7 +645,7 @@ Body content`;
 
     it("should return true for rulesync command with no targets specified", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
