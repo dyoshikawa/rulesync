@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
@@ -104,7 +108,7 @@ describe("McpProcessor", () => {
     it("should load rulesync MCP files successfully", async () => {
       const mockRulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -460,7 +464,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to amazonqcli tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -492,7 +496,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to claudecode tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -526,7 +530,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to claudecode tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
@@ -561,7 +565,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to cline tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -593,7 +597,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to copilot tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -625,7 +629,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to cursor tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -657,7 +661,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to geminicli tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
@@ -690,7 +694,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to geminicli tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
@@ -724,7 +728,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to codexcli tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
@@ -756,7 +760,7 @@ describe("McpProcessor", () => {
     it("should convert rulesync files to roo tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
@@ -792,14 +796,14 @@ describe("McpProcessor", () => {
       });
 
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
-        "No .rulesync/mcp.json found.",
+        `No ${RULESYNC_MCP_RELATIVE_FILE_PATH} found.`,
       );
     });
 
     it("should throw error for unsupported tool target", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
