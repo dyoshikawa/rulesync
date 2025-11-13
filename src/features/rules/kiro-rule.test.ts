@@ -421,7 +421,7 @@ describe("KiroRule", () => {
       const rulesyncRule = kiroRule.toRulesyncRule();
 
       expect(rulesyncRule.getFilePath()).toBe(
-        `${testDir}/${RULESYNC_RULES_RELATIVE_DIR_PATH}/${RULESYNC_OVERVIEW_FILE_NAME}`,
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
       );
       expect(rulesyncRule.getFileContent()).toContain(
         "# Metadata Test\n\nWith metadata preserved.",

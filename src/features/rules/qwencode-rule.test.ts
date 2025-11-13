@@ -389,7 +389,7 @@ describe("QwencodeRule", () => {
       const rulesyncRule = qwencodeRule.toRulesyncRule();
 
       expect(rulesyncRule.getFilePath()).toBe(
-        `${testDir}/${RULESYNC_RULES_RELATIVE_DIR_PATH}/metadata-test.md`,
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "metadata-test.md"),
       );
       expect(rulesyncRule.getBody()).toBe("# Metadata Test\n\nContent with metadata.");
     });
