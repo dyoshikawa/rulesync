@@ -1,5 +1,9 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
@@ -35,13 +39,13 @@ describe("RulesyncMcp", () => {
       });
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: validJsonContent,
       });
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
       expect(rulesyncMcp.getFileContent()).toBe(validJsonContent);
     });
@@ -53,12 +57,14 @@ describe("RulesyncMcp", () => {
 
       const rulesyncMcp = new RulesyncMcp({
         baseDir: "/custom/path",
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: validJsonContent,
       });
 
-      expect(rulesyncMcp.getFilePath()).toBe("/custom/path/.rulesync/.mcp.json");
+      expect(rulesyncMcp.getFilePath()).toBe(
+        `/custom/path/${RULESYNC_RELATIVE_DIR_PATH}/.mcp.json`,
+      );
       expect(rulesyncMcp.getBaseDir()).toBe("/custom/path");
     });
 
@@ -81,7 +87,7 @@ describe("RulesyncMcp", () => {
       const validJsonContent = JSON.stringify(jsonData);
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: validJsonContent,
       });
@@ -93,7 +99,7 @@ describe("RulesyncMcp", () => {
       const emptyJsonContent = JSON.stringify({});
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: emptyJsonContent,
       });
@@ -133,7 +139,7 @@ describe("RulesyncMcp", () => {
       const jsonContent = JSON.stringify(complexJsonData);
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: jsonContent,
       });
@@ -148,7 +154,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: validJsonContent,
         });
@@ -162,7 +168,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: validJsonContent,
           validate: false,
@@ -175,7 +181,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: invalidJsonContent,
         });
@@ -187,7 +193,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: malformedJsonContent,
         });
@@ -199,7 +205,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: stringJsonContent,
         });
@@ -211,7 +217,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: arrayJsonContent,
         });
@@ -223,7 +229,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: nullJsonContent,
         });
@@ -235,7 +241,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: numericJsonContent,
         });
@@ -247,7 +253,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new RulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: booleanJsonContent,
         });
@@ -271,7 +277,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new TestRulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: validJsonContent,
           validate: true,
@@ -296,7 +302,7 @@ describe("RulesyncMcp", () => {
 
       expect(() => {
         const _instance = new TestRulesyncMcp({
-          relativeDirPath: ".rulesync",
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".mcp.json",
           fileContent: validJsonContent,
           validate: false,
@@ -308,7 +314,7 @@ describe("RulesyncMcp", () => {
   describe("validate", () => {
     it("should return successful validation result", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
         validate: false, // Skip validation in constructor to test method directly
@@ -322,7 +328,7 @@ describe("RulesyncMcp", () => {
 
     it("should always return success for current implementation", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ invalid: "data" }),
         validate: false,
@@ -336,8 +342,8 @@ describe("RulesyncMcp", () => {
 
     it("should fail validation when modularMcp is true and description is missing", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node" },
@@ -357,8 +363,8 @@ describe("RulesyncMcp", () => {
 
     it("should fail validation when modularMcp is true and description is empty string", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node", description: "" },
@@ -376,8 +382,8 @@ describe("RulesyncMcp", () => {
 
     it("should pass validation when modularMcp is true and description is present", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node", description: "Test server" },
@@ -395,8 +401,8 @@ describe("RulesyncMcp", () => {
 
     it("should pass validation when modularMcp is true and all servers have descriptions", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node", description: "Test server" },
@@ -415,8 +421,8 @@ describe("RulesyncMcp", () => {
 
     it("should fail validation when modularMcp is true and one server lacks description", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node", description: "Test server" },
@@ -436,8 +442,8 @@ describe("RulesyncMcp", () => {
 
     it("should pass validation when modularMcp is false and description is missing", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node" },
@@ -455,8 +461,8 @@ describe("RulesyncMcp", () => {
 
     it("should pass validation when modularMcp is false (default) and description is missing", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           mcpServers: {
             "test-server": { command: "node" },
@@ -483,7 +489,7 @@ describe("RulesyncMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -497,7 +503,7 @@ describe("RulesyncMcp", () => {
 
     it("should return empty object for empty JSON", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({}),
       });
@@ -525,7 +531,7 @@ describe("RulesyncMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(complexData),
       });
@@ -538,7 +544,7 @@ describe("RulesyncMcp", () => {
     it("should handle primitive JSON values", () => {
       const primitiveValue = "simple string";
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(primitiveValue),
       });
@@ -551,7 +557,7 @@ describe("RulesyncMcp", () => {
     it("should handle array JSON values", () => {
       const arrayValue = [1, 2, { key: "value" }, "string"];
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(arrayValue),
       });
@@ -563,7 +569,7 @@ describe("RulesyncMcp", () => {
 
     it("should handle null JSON values", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(null),
       });
@@ -590,7 +596,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -630,7 +636,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -662,7 +668,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -692,7 +698,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -705,7 +711,11 @@ describe("RulesyncMcp", () => {
 
   describe("fromFile", () => {
     it("should create RulesyncMcp from existing file", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", "mcp.json");
+      const mcpJsonPath = join(
+        testDir,
+        RULESYNC_RELATIVE_DIR_PATH,
+        basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+      );
       const jsonData = {
         mcpServers: {
           "file-server": {
@@ -719,7 +729,7 @@ describe("RulesyncMcp", () => {
       };
 
       // Create directory structure and file
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData, null, 2));
 
       const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
@@ -727,12 +737,16 @@ describe("RulesyncMcp", () => {
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getJson()).toEqual(jsonData);
       expect(rulesyncMcp.getBaseDir()).toBe(testDir);
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncMcp.getRelativeFilePath()).toBe(basename(RULESYNC_MCP_RELATIVE_FILE_PATH));
     });
 
     it("should create RulesyncMcp from file with validation disabled", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", "mcp.json");
+      const mcpJsonPath = join(
+        testDir,
+        RULESYNC_RELATIVE_DIR_PATH,
+        basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+      );
       const jsonData = {
         mcpServers: {
           "no-validation-server": {
@@ -742,7 +756,7 @@ describe("RulesyncMcp", () => {
         },
       };
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData));
 
       const rulesyncMcp = await RulesyncMcp.fromFile({ validate: false });
@@ -752,12 +766,16 @@ describe("RulesyncMcp", () => {
     });
 
     it("should use validation by default", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", "mcp.json");
+      const mcpJsonPath = join(
+        testDir,
+        RULESYNC_RELATIVE_DIR_PATH,
+        basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+      );
       const jsonData = {
         mcpServers: {},
       };
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, JSON.stringify(jsonData));
 
       const rulesyncMcp = await RulesyncMcp.fromFile({});
@@ -767,7 +785,11 @@ describe("RulesyncMcp", () => {
     });
 
     it("should handle complex MCP server configurations", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", "mcp.json");
+      const mcpJsonPath = join(
+        testDir,
+        RULESYNC_RELATIVE_DIR_PATH,
+        basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+      );
       const complexMcpData = {
         mcpServers: {
           "claude-server": {
@@ -799,7 +821,7 @@ describe("RulesyncMcp", () => {
         },
       };
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, JSON.stringify(complexMcpData, null, 2));
 
       const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
@@ -812,36 +834,40 @@ describe("RulesyncMcp", () => {
     });
 
     it("should throw error for invalid JSON in file", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", ".mcp.json");
+      const mcpJsonPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json");
       const invalidJson = "{ invalid json content }";
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, invalidJson);
 
       await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
     });
 
     it("should handle empty file", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", ".mcp.json");
+      const mcpJsonPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json");
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, "");
 
       await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
     });
 
     it("should handle file with only whitespace", async () => {
-      const mcpJsonPath = join(testDir, ".rulesync", ".mcp.json");
+      const mcpJsonPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json");
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, "   \n\t  \n  ");
 
       await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
     });
 
     it("should prefer recommended path over legacy when both exist", async () => {
-      const recommendedPath = join(testDir, ".rulesync", "mcp.json");
-      const legacyPath = join(testDir, ".rulesync", ".mcp.json");
+      const recommendedPath = join(
+        testDir,
+        RULESYNC_RELATIVE_DIR_PATH,
+        basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+      );
+      const legacyPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json");
 
       const recommendedData = {
         mcpServers: {
@@ -861,18 +887,18 @@ describe("RulesyncMcp", () => {
         },
       };
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(recommendedPath, JSON.stringify(recommendedData));
       await writeFileContent(legacyPath, JSON.stringify(legacyData));
 
       const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
 
       expect(rulesyncMcp.getJson()).toEqual(recommendedData);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe(basename(RULESYNC_MCP_RELATIVE_FILE_PATH));
     });
 
     it("should use legacy path when recommended does not exist", async () => {
-      const legacyPath = join(testDir, ".rulesync", ".mcp.json");
+      const legacyPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json");
 
       const legacyData = {
         mcpServers: {
@@ -883,7 +909,7 @@ describe("RulesyncMcp", () => {
         },
       };
 
-      await ensureDir(join(testDir, ".rulesync"));
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(legacyPath, JSON.stringify(legacyData));
 
       const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
@@ -900,7 +926,7 @@ describe("RulesyncMcp", () => {
   describe("type exports and schema", () => {
     it("should export RulesyncMcpParams type", () => {
       const params: RulesyncMcpParams = {
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({}),
       };
@@ -919,7 +945,7 @@ describe("RulesyncMcp", () => {
     it("should have correct type definitions for parameters", () => {
       const constructorParams: RulesyncMcpParams = {
         baseDir: "/custom",
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: "{}",
         validate: false,
@@ -937,7 +963,7 @@ describe("RulesyncMcp", () => {
   describe("inheritance and method coverage", () => {
     it("should be instance of RulesyncFile", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({}),
       });
@@ -948,7 +974,7 @@ describe("RulesyncMcp", () => {
     it("should have correct property types inherited from base classes", () => {
       const jsonData = { mcpServers: {} };
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
@@ -966,13 +992,13 @@ describe("RulesyncMcp", () => {
       const jsonData = { mcpServers: { test: { command: "node" } } };
       const rulesyncMcp = new RulesyncMcp({
         baseDir: "/test/base",
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/base");
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".rulesync");
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
     });
@@ -1010,7 +1036,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(largeJsonData),
       });
@@ -1036,7 +1062,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(unicodeJsonData),
       });
@@ -1064,14 +1090,14 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp1 = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(originalJsonData),
       });
 
       // Create second instance from first instance's content
       const rulesyncMcp2 = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(rulesyncMcp1.getJson()),
       });
@@ -1082,13 +1108,15 @@ describe("RulesyncMcp", () => {
 
     it("should work correctly with different file extensions", () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       expect(rulesyncMcp.getRelativeFilePath()).toBe("custom-config.json");
-      expect(rulesyncMcp.getFilePath()).toBe(join(testDir, ".rulesync/custom-config.json"));
+      expect(rulesyncMcp.getFilePath()).toBe(
+        join(testDir, `${RULESYNC_RELATIVE_DIR_PATH}/custom-config.json`),
+      );
     });
 
     it("should work correctly with different directory paths", () => {
@@ -1127,7 +1155,7 @@ describe("RulesyncMcp", () => {
       };
 
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(deeplyNestedData),
       });
