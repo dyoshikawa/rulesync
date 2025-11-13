@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -154,7 +155,7 @@ describe("WindsurfRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create instance from RulesyncRule with default parameters", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: { description: "Test Rule" },
         body: "# Test Rule Content",
@@ -173,7 +174,7 @@ describe("WindsurfRule", () => {
     it("should create instance from RulesyncRule with custom baseDir", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: "/existing/path",
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-rule.md",
         frontmatter: { description: "Custom Rule" },
         body: "# Custom Content",
@@ -190,7 +191,7 @@ describe("WindsurfRule", () => {
 
     it("should create instance from RulesyncRule with validate false", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: { description: "Test Rule" },
         body: "# Content",
@@ -207,7 +208,7 @@ describe("WindsurfRule", () => {
 
     it("should handle RulesyncRule with complex frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-rule.md",
         frontmatter: {
           description: "A complex rule with metadata",
@@ -227,7 +228,7 @@ describe("WindsurfRule", () => {
 
     it("should handle RulesyncRule with empty content after frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "empty-content.md",
         frontmatter: { description: "Empty Content" },
         body: "",
@@ -414,7 +415,7 @@ describe("WindsurfRule", () => {
     it("should return true for rules targeting windsurf", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["windsurf"],
@@ -428,7 +429,7 @@ describe("WindsurfRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -442,7 +443,7 @@ describe("WindsurfRule", () => {
     it("should return false for rules not targeting windsurf", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -456,7 +457,7 @@ describe("WindsurfRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -470,7 +471,7 @@ describe("WindsurfRule", () => {
     it("should handle mixed targets including windsurf", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "windsurf", "copilot"],
@@ -484,7 +485,7 @@ describe("WindsurfRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
-        relativeDirPath: ".rulesync",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",
