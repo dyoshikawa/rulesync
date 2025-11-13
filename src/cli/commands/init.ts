@@ -1,5 +1,11 @@
 import { join } from "node:path";
 import { ConfigParams } from "../../config/config.js";
+import {
+  RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncIgnore } from "../../features/ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
@@ -11,24 +17,26 @@ import { logger } from "../../utils/logger.js";
 export async function initCommand(): Promise<void> {
   logger.info("Initializing rulesync...");
 
-  await ensureDir(".rulesync");
+  await ensureDir(RULESYNC_RELATIVE_DIR_PATH);
   await createSampleFiles();
   await createConfigFile();
 
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
-  logger.info(`1. Edit .rulesync/**/*.md, .rulesync/mcp.json and .rulesyncignore`);
+  logger.info(
+    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_MCP_RELATIVE_FILE_PATH} and ${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+  );
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }
 
 async function createConfigFile(): Promise<void> {
-  if (await fileExists("rulesync.jsonc")) {
-    logger.info("Skipped rulesync.jsonc (already exists)");
+  if (await fileExists(RULESYNC_CONFIG_RELATIVE_FILE_PATH)) {
+    logger.info(`Skipped ${RULESYNC_CONFIG_RELATIVE_FILE_PATH} (already exists)`);
     return;
   }
 
   await writeFileContent(
-    "rulesync.jsonc",
+    RULESYNC_CONFIG_RELATIVE_FILE_PATH,
     JSON.stringify(
       {
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
@@ -46,7 +54,7 @@ async function createConfigFile(): Promise<void> {
     ),
   );
 
-  logger.success("Created rulesync.jsonc");
+  logger.success(`Created ${RULESYNC_CONFIG_RELATIVE_FILE_PATH}`);
 }
 
 async function createSampleFiles(): Promise<void> {
