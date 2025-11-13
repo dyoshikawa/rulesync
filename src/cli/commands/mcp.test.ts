@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
@@ -25,7 +28,7 @@ describe("MCP Server", () => {
       const rule1 = new RulesyncRule({
         baseDir: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-        relativeFilePath: "overview.md",
+        relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
         frontmatter: {
           root: true,
           targets: ["*"],
@@ -73,7 +76,7 @@ describe("MCP Server", () => {
 
       expect(rules).toHaveLength(2);
 
-      const overview = rules.find((r) => r.path.includes("overview.md"));
+      const overview = rules.find((r) => r.path.includes(RULESYNC_OVERVIEW_FILE_NAME));
       expect(overview).toBeDefined();
       expect(overview?.frontmatter.description).toBe("Project overview");
       expect(overview?.frontmatter.globs).toEqual(["**/*"]);

@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { ruleTools } from "./rules.js";
@@ -531,7 +534,7 @@ root: true
 
       // Create multiple rules with different configs
       await ruleTools.putRule.execute({
-        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
+        relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
         frontmatter: {
           root: true,
           targets: ["*"],
