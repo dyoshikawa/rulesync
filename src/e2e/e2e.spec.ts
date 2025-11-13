@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -116,5 +116,40 @@ This is a test project for E2E testing.
     const importedRulePath = join(testDir, ".rulesync", "rules", RULESYNC_OVERVIEW_FILE_NAME);
     const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
+  });
+
+  it("should run mcp command as daemon without errors", async () => {
+    // Spawn the MCP server process in the background
+    const mcpProcess = spawn(rulesyncCmd, [...rulesyncArgs, "mcp"], {
+      cwd: testDir,
+      stdio: "pipe",
+    });
+
+    let stderrOutput = "";
+    let hasError = false;
+
+    // Collect stderr output and check for actual errors
+    mcpProcess.stderr?.on("data", (data) => {
+      const output = data.toString();
+      stderrOutput += output;
+      // Check if the output contains actual error messages (not just warnings)
+      if (output.toLowerCase().includes("error") && !output.includes("warning")) {
+        hasError = true;
+      }
+    });
+
+    // Wait for 3 seconds to let the server run
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Kill the process
+    mcpProcess.kill("SIGTERM");
+
+    // Wait for the process to exit
+    await new Promise((resolve) => {
+      mcpProcess.on("exit", resolve);
+    });
+
+    // Verify that there were no actual errors (warnings are acceptable)
+    expect(hasError).toBe(false);
   });
 });
