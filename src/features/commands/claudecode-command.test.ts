@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeCommand, ClaudecodeCommandFrontmatterSchema } from "./claudecode-command.js";
@@ -180,7 +181,7 @@ describe("ClaudecodeCommand", () => {
         targets: ["*"],
         description: "Test command",
       });
-      expect(rulesyncCommand.getRelativeDirPath()).toBe(".rulesync/commands");
+      expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(rulesyncCommand.getRelativeFilePath()).toBe("test.md");
     });
 
@@ -207,7 +208,7 @@ describe("ClaudecodeCommand", () => {
     it("should create ClaudecodeCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "sync-test.md",
         frontmatter: {
           targets: ["*"],
@@ -235,7 +236,7 @@ describe("ClaudecodeCommand", () => {
     it("should use global paths when global is true", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "global-test.md",
         frontmatter: {
           targets: ["*"],
@@ -259,7 +260,7 @@ describe("ClaudecodeCommand", () => {
     it("should use local paths when global is false", () => {
       const rulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "local-test.md",
         frontmatter: {
           targets: ["*"],
@@ -282,7 +283,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should use default baseDir when not provided", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -301,7 +302,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should disable validation when specified", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -667,7 +668,7 @@ Body`;
 
     it("should work with ToolCommandFromRulesyncCommandParams", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "type-test.md",
         frontmatter: { targets: ["*"], description: "Type test" },
         body: "Body",
@@ -687,7 +688,7 @@ Body`;
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
@@ -700,7 +701,7 @@ Body`;
 
     it("should return true for rulesync command with claudecode target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], description: "Test" },
         body: "Body",
@@ -713,7 +714,7 @@ Body`;
 
     it("should return true for rulesync command with claudecode and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "claudecode", "cline"], description: "Test" },
         body: "Body",
@@ -726,7 +727,7 @@ Body`;
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
@@ -739,7 +740,7 @@ Body`;
 
     it("should return true for rulesync command with no targets specified", () => {
       const rulesyncCommand = new RulesyncCommand({
-        relativeDirPath: ".rulesync/commands",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
