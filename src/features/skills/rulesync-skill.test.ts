@@ -5,8 +5,9 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import {
   RulesyncSkill,
-  RulesyncSkillFrontmatterSchema,
   type RulesyncSkillFrontmatter,
+  RulesyncSkillFrontmatterSchema,
+  type SkillFile,
 } from "./rulesync-skill.js";
 
 describe("RulesyncSkill", () => {
@@ -74,7 +75,7 @@ Body content`;
         description: "Test description",
       };
       const body = "Test body";
-      const otherSkillFiles = [];
+      const otherSkillFiles: SkillFile[] = [];
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
@@ -105,7 +106,7 @@ Test body`,
         },
       };
       const body = "Test body";
-      const otherSkillFiles = [];
+      const otherSkillFiles: SkillFile[] = [];
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
@@ -387,8 +388,8 @@ Test body`,
 
       const otherFiles = skill.getOtherSkillFiles();
       expect(otherFiles.length).toBe(1);
-      expect(otherFiles[0].relativeFilePath).toBe("helper.ts");
-      expect(otherFiles[0].fileContent).toContain("export const helper");
+      expect(otherFiles[0]?.relativeFilePath).toBe("helper.ts");
+      expect(otherFiles[0]?.fileContent).toContain("export const helper");
     });
 
     it("should collect files from subdirectories", async () => {
@@ -409,8 +410,8 @@ Test body`,
 
       const otherFiles = skill.getOtherSkillFiles();
       expect(otherFiles.length).toBe(1);
-      expect(otherFiles[0].relativeFilePath).toBe("subfile.ts");
-      expect(otherFiles[0].relativeDirPath).toBe("subdir");
+      expect(otherFiles[0]?.relativeFilePath).toBe("subfile.ts");
+      expect(otherFiles[0]?.relativeDirPath).toBe("subdir");
     });
 
     it("should exclude SKILL.md from other skill files", async () => {
