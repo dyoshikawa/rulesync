@@ -12,9 +12,8 @@ import {
 } from "../../types/rulesync-file.js";
 import { formatError } from "../../utils/error.js";
 import {
-  directoryExists,
   fileExists,
-  listDirectoryFiles,
+  findFilesByGlobs,
   readFileContent,
 } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -119,50 +118,42 @@ export class RulesyncSkill extends RulesyncFile {
   /**
    * Recursively collects all skill files from a directory, excluding SKILL.md
    */
-  private static async collectSkillFiles(
-    skillDir: string,
-    basePath: string = "",
-  ): Promise<SkillFile[]> {
-    const files: SkillFile[] = [];
-
+  private static async collectSkillFiles(skillDir: string): Promise<SkillFile[]> {
     try {
-      const entries = await listDirectoryFiles(skillDir);
+      // Find all files in the skill directory (recursively) except SKILL.md
+      const glob = join(skillDir, "**", "*");
+      const allPaths = await findFilesByGlobs(glob);
 
-      for (const entry of entries) {
-        const fullPath = join(skillDir, entry);
-        const relativePath = basePath ? join(basePath, entry) : entry;
+      // Filter to only regular files and exclude SKILL.md
+      const skillFiles = allPaths.filter((path) => {
+        const fileName = basename(path);
+        return fileName !== RULESYNC_SKILL_FILE_NAME;
+      });
 
-        // Skip SKILL.md
-        if (entry === RULESYNC_SKILL_FILE_NAME) {
-          continue;
-        }
+      // Convert paths to SkillFile objects
+      const files: SkillFile[] = [];
+      for (const filePath of skillFiles) {
+        const fileContent = await readFileContent(filePath);
+        // Calculate relative directory path from skill directory
+        const relativePath = filePath.slice(skillDir.length + 1);
+        const relativeDir = relativePath.includes("/")
+          ? relativePath.slice(0, relativePath.lastIndexOf("/"))
+          : ".";
 
-        const isDir = await directoryExists(fullPath);
-
-        if (isDir) {
-          // Recursively collect files from subdirectories
-          const subFiles = await this.collectSkillFiles(fullPath, relativePath);
-          files.push(...subFiles);
-        } else {
-          // For files, read content and store relative path info
-          const fileContent = await readFileContent(fullPath);
-          const dirPath = basePath || process.cwd();
-
-          files.push({
-            relativeDirPath: dirPath,
-            relativeFilePath: entry,
-            fileContent,
-            children: [],
-          });
-        }
+        files.push({
+          relativeDirPath: relativeDir,
+          relativeFilePath: basename(filePath),
+          fileContent,
+          children: [],
+        });
       }
+
+      return files;
     } catch (error) {
       // If directory doesn't exist or can't be read, log the error and return empty array
       logger.error(`Failed to collect skill files from ${skillDir}: ${formatError(error)}`);
       return [];
     }
-
-    return files;
   }
 
   static async fromFile({
