@@ -11,11 +11,7 @@ import {
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
 import { formatError } from "../../utils/error.js";
-import {
-  fileExists,
-  findFilesByGlobs,
-  readFileContent,
-} from "../../utils/file.js";
+import { fileExists, findFilesByGlobs, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 
