@@ -49,7 +49,7 @@
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
-    "excludedCommands": ["docker"],
+    "excludedCommands": ["docker", "git"],
     "network": {
       "allowUnixSockets": [
         "/var/run/docker.sock"
