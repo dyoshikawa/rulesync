@@ -31,7 +31,7 @@ RUN mkdir -p /usr/local/share/npm-global && \
 ARG USERNAME=node
 
 # Allow node user to run specific sudo commands without password
-RUN echo "node ALL=(ALL) NOPASSWD: /usr/bin/chown, /usr/bin/chmod" > /etc/sudoers.d/node && \
+RUN echo "node ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/node && \
   chmod 0440 /etc/sudoers.d/node
 
 # Persist bash history.
@@ -114,7 +114,7 @@ RUN echo 'smol = true' > /home/node/bunfig.toml
 
 # Claude Code Router config
 COPY ccr.config.json /home/node/.claude-code-router/config.json
-RUN sudo chown node:node /home/node/.claude-code-router
+RUN sudo chown -R node:node /home/node/.claude-code-router
 
 # Aliases
 RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
