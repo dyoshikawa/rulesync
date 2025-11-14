@@ -23,6 +23,9 @@ importers:
       es-toolkit:
         specifier: 1.41.0
         version: 1.41.0
+      fast-glob:
+        specifier: 3.3.3
+        version: 3.3.3
       fast-xml-parser:
         specifier: 5.3.1
         version: 5.3.1
@@ -5713,7 +5716,7 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.16.0
       uri-templates: 0.2.0
-      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@3.25.76))(zod@3.25.76)
+      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@4.1.12))(zod@3.25.76)
       yargs: 18.0.0
       zod: 3.25.76
       zod-to-json-schema: 3.24.6(zod@3.25.76)
@@ -7392,7 +7395,7 @@ snapshots:
 
   xdg-basedir@5.1.0: {}
 
-  xsschema@0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@3.25.76))(zod@3.25.76):
+  xsschema@0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@4.1.12))(zod@3.25.76):
     optionalDependencies:
       zod: 3.25.76
       zod-to-json-schema: 3.24.6(zod@3.25.76)

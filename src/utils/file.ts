@@ -1,7 +1,7 @@
-import { globSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import fg from "fast-glob";
 import { logger } from "./logger.js";
 import { isEnvTest } from "./vitest.js";
 
@@ -156,7 +156,7 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
 }
 
 export async function findFilesByGlobs(globs: string | string[]): Promise<string[]> {
-  return globSync(globs);
+  return await fg(globs);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
+import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import {
   RulesyncFile,
@@ -76,7 +77,7 @@ export class RulesyncSkill extends RulesyncFile {
 
   static getSettablePaths(): RulesyncSkillSettablePaths {
     return {
-      relativeDirPath: join(".rulesync", "skills"),
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
     };
   }
 
@@ -142,7 +143,7 @@ export class RulesyncSkill extends RulesyncFile {
         } else {
           // For files, read content and store relative path info
           const fileContent = await readFileContent(fullPath);
-          const dirPath = basePath || ".";
+          const dirPath = basePath || process.cwd();
 
           files.push({
             relativeDirPath: dirPath,
@@ -190,7 +191,7 @@ export class RulesyncSkill extends RulesyncFile {
     const filename = basename(relativeFilePath);
 
     return new RulesyncSkill({
-      baseDir: ".",
+      baseDir: process.cwd(),
       relativeDirPath: join(settablePaths.relativeDirPath, skillName),
       relativeFilePath: filename,
       frontmatter: result.data,
