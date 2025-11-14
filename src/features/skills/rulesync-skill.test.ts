@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_SKILL_FILE_NAME,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import {
@@ -64,7 +67,7 @@ Body content`;
 
     it("should use the constant from rulesync-paths", () => {
       const paths = RulesyncSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(".rulesync/skills");
+      expect(paths.relativeDirPath).toBe(RULESYNC_SKILLS_RELATIVE_DIR_PATH);
     });
   });
 
@@ -79,8 +82,8 @@ Body content`;
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter,
         body,
         otherSkillFiles,
@@ -110,8 +113,8 @@ Test body`,
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter,
         body,
         otherSkillFiles,
@@ -139,8 +142,8 @@ Test body`,
       expect(() => {
         new RulesyncSkill({
           baseDir: testDir,
-          relativeDirPath: ".rulesync/skills",
-          relativeFilePath: "SKILL.md",
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_SKILL_FILE_NAME,
           frontmatter: invalidFrontmatter,
           body: "Test body",
           otherSkillFiles: [],
@@ -157,8 +160,8 @@ Test body`,
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter: invalidFrontmatter,
         body: "Test body",
         otherSkillFiles: [],
@@ -185,8 +188,8 @@ Test body`,
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter,
         body: "Test body",
         otherSkillFiles,
@@ -206,8 +209,8 @@ Test body`,
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter,
         body: "Test body",
         otherSkillFiles: [],
@@ -228,8 +231,8 @@ Test body`,
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter,
         body,
         otherSkillFiles: [],
@@ -259,8 +262,8 @@ Test body`,
 
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter: {
           name: "Test",
           description: "Test",
@@ -278,8 +281,8 @@ Test body`,
     it("should return success for valid frontmatter", () => {
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter: {
           name: "Test Skill",
           description: "Test description",
@@ -297,8 +300,8 @@ Test body`,
     it("should return error for invalid frontmatter", () => {
       const skill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter: {
           name: "Test",
           description: "Test",
@@ -318,8 +321,8 @@ Test body`,
     it("should include file path in error message for invalid frontmatter", () => {
       const invalidSkill = new RulesyncSkill({
         baseDir: testDir,
-        relativeDirPath: ".rulesync/skills/test-skill",
-        relativeFilePath: "SKILL.md",
+        relativeDirPath: join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill"),
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         frontmatter: {
           name: "Test",
           description: "Test",
@@ -338,13 +341,13 @@ Test body`,
     it("should create RulesyncSkill from a valid SKILL.md file", async () => {
       const skillName = "test-skill";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
 
       await writeFileContent(skillFilePath, validMarkdownContent);
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
@@ -356,13 +359,13 @@ Test body`,
     it("should create RulesyncSkill with minimal frontmatter", async () => {
       const skillName = "test-skill-minimal";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
 
       await writeFileContent(skillFilePath, validMarkdownContentMinimal);
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
@@ -374,7 +377,7 @@ Test body`,
     it("should collect other skill files in the skill directory", async () => {
       const skillName = "test-skill-with-files";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
       const helperFilePath = join(skillDirPath, "helper.ts");
 
       await writeFileContent(skillFilePath, validMarkdownContent);
@@ -382,7 +385,7 @@ Test body`,
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
@@ -395,7 +398,7 @@ Test body`,
     it("should collect files from subdirectories", async () => {
       const skillName = "test-skill-with-subdirs";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
       const subDirPath = join(skillDirPath, "subdir");
       const subFilePath = join(subDirPath, "subfile.ts");
 
@@ -404,7 +407,7 @@ Test body`,
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
@@ -417,7 +420,7 @@ Test body`,
     it("should exclude SKILL.md from other skill files", async () => {
       const skillName = "test-skill-exclude-main";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
       const helperFilePath = join(skillDirPath, "helper.ts");
 
       await writeFileContent(skillFilePath, validMarkdownContent);
@@ -425,12 +428,14 @@ Test body`,
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
       const otherFiles = skill.getOtherSkillFiles();
-      const skillMdFiles = otherFiles.filter((f) => f.relativeFilePath === "SKILL.md");
+      const skillMdFiles = otherFiles.filter(
+        (f) => f.relativeFilePath === RULESYNC_SKILL_FILE_NAME,
+      );
       expect(skillMdFiles.length).toBe(0);
     });
 
@@ -440,7 +445,7 @@ Test body`,
       await expect(
         RulesyncSkill.fromFile({
           baseDir: testDir,
-          relativeFilePath: "SKILL.md",
+          relativeFilePath: RULESYNC_SKILL_FILE_NAME,
           skillName,
         }),
       ).rejects.toThrow("SKILL.md not found");
@@ -449,14 +454,14 @@ Test body`,
     it("should throw error when frontmatter is invalid", async () => {
       const skillName = "test-skill-invalid";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
 
       await writeFileContent(skillFilePath, invalidMarkdownContent);
 
       await expect(
         RulesyncSkill.fromFile({
           baseDir: testDir,
-          relativeFilePath: "SKILL.md",
+          relativeFilePath: RULESYNC_SKILL_FILE_NAME,
           skillName,
         }),
       ).rejects.toThrow("Invalid frontmatter");
@@ -465,14 +470,14 @@ Test body`,
     it("should throw error when frontmatter is missing", async () => {
       const skillName = "test-skill-no-frontmatter";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
 
       await writeFileContent(skillFilePath, markdownWithoutFrontmatter);
 
       await expect(
         RulesyncSkill.fromFile({
           baseDir: testDir,
-          relativeFilePath: "SKILL.md",
+          relativeFilePath: RULESYNC_SKILL_FILE_NAME,
           skillName,
         }),
       ).rejects.toThrow("Invalid frontmatter");
@@ -481,7 +486,7 @@ Test body`,
     it("should trim body content", async () => {
       const skillName = "test-skill-trim";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
       const contentWithWhitespace = `---
 name: Test Skill
 description: Test description
@@ -497,7 +502,7 @@ description: Test description
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
@@ -509,13 +514,13 @@ description: Test description
     it("should handle claudecode config in frontmatter", async () => {
       const skillName = "test-skill-claudecode";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
-      const skillFilePath = join(skillDirPath, "SKILL.md");
+      const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
 
       await writeFileContent(skillFilePath, validMarkdownContent);
 
       const skill = await RulesyncSkill.fromFile({
         baseDir: testDir,
-        relativeFilePath: "SKILL.md",
+        relativeFilePath: RULESYNC_SKILL_FILE_NAME,
         skillName,
       });
 
