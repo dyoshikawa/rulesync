@@ -1,0 +1,24 @@
+{
+  "OPENROUTER_API_KEY": "$OPENROUTER_API_KEY",
+  "Providers": [
+    {
+      "name": "openrouter",
+      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
+      "api_key": "$OPENROUTER_API_KEY",
+      "models": [
+        "x-ai/grok-code-fast-1",
+        "x-ai/grok-4-fast",
+        "openrouter/polaris-alpha",
+        "minimax/minimax-m2"
+      ],
+      "transformer": {
+        "use": ["openrouter"]
+      }
+    }
+  ],
+  "Router": {
+    "default": "openrouter,x-ai/grok-code-fast-1"
+  },
+  "LOG": true,
+  "HOST": "127.0.0.1"
+}

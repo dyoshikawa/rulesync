@@ -20,7 +20,9 @@ RUN apt update && apt install -y less \
   dnsutils \
   aggregate \
   jq \
-  vim
+  vim \
+  bubblewrap \
+  socat
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
@@ -104,9 +106,15 @@ RUN mkdir -p "$PNPM_HOME" && \
     @openai/codex \
     opencommit \
     @google/gemini-cli \
-    difit
+    difit \
+    @musistudio/claude-code-router
+
 # Enable smol mode in Bun to reduce memory usage
 RUN echo 'smol = true' > /home/node/bunfig.toml
+
+# Claude Code Router config
+COPY ccr.config.json /home/node/.claude-code-router/config.json
+RUN sudo chown node:node /home/node/.claude-code-router
 
 # Aliases
 RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
