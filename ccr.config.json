@@ -17,7 +17,7 @@
     }
   ],
   "Router": {
-    "default": "openrouter,x-ai/grok-code-fast-1"
+    "default": "openrouter,minimax/minimax-m2"
   },
   "LOG": true,
   "HOST": "127.0.0.1"
