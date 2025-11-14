@@ -1,11 +1,8 @@
-import { AiFile, AiFileParams } from "./ai-file.js";
+import { AiFile, AiFileFromFileParams, AiFileParams } from "./ai-file.js";
 
 export type RulesyncFileParams = AiFileParams;
 
-export type RulesyncFileFromFileParams = {
-  relativeFilePath: string;
-  validate?: boolean;
-};
+export type RulesyncFileFromFileParams = AiFileFromFileParams;
 
 export abstract class RulesyncFile extends AiFile {
   static async fromFile(_params: RulesyncFileFromFileParams): Promise<RulesyncFile> {
