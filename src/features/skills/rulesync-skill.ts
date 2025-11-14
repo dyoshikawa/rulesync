@@ -163,11 +163,12 @@ export class RulesyncSkill extends RulesyncFile {
   }
 
   static async fromFile({
+    baseDir,
     relativeFilePath,
     skillName,
-  }: RulesyncSkillFromFileParams): Promise<RulesyncSkill> {
+  }: RulesyncSkillFromFileParams & { skillName: string }): Promise<RulesyncSkill> {
     const settablePaths = this.getSettablePaths();
-    const skillDir = join(settablePaths.relativeDirPath, skillName);
+    const skillDir = join(baseDir || process.cwd(), settablePaths.relativeDirPath, skillName);
     const skillFilePath = join(skillDir, "SKILL.md");
 
     // Check if SKILL.md exists
@@ -191,7 +192,7 @@ export class RulesyncSkill extends RulesyncFile {
     const filename = basename(relativeFilePath);
 
     return new RulesyncSkill({
-      baseDir: process.cwd(),
+      baseDir: baseDir || process.cwd(),
       relativeDirPath: join(settablePaths.relativeDirPath, skillName),
       relativeFilePath: filename,
       frontmatter: result.data,
