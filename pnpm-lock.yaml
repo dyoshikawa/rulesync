@@ -11,6 +11,9 @@ importers:
       '@kimuson/modular-mcp':
         specifier: 0.0.5
         version: 0.0.5(@types/node@24.10.1)
+      '@modelcontextprotocol/sdk':
+        specifier: 1.21.2
+        version: 1.21.2
       chokidar:
         specifier: 4.0.3
         version: 4.0.3
@@ -1067,12 +1070,8 @@ packages:
     engines: {node: '>=22.0.0'}
     hasBin: true
 
-  '@modelcontextprotocol/sdk@1.13.2':
-    resolution: {integrity: sha512-Vx7qOcmoKkR3qhaQ9qf3GxiVKCEu+zfJddHv6x3dY/9P6+uIwJnmuAur5aB+4FDXf41rRrDnOEGkviX5oYZ67w==}
-    engines: {node: '>=18'}
-
-  '@modelcontextprotocol/sdk@1.22.0':
-    resolution: {integrity: sha512-VUpl106XVTCpDmTBil2ehgJZjhyLY2QZikzF8NvTXtLRF1CvO5iEE2UNZdVIUer35vFOwMKYeUGbjJtvPWan3g==}
+  '@modelcontextprotocol/sdk@1.21.2':
+    resolution: {integrity: sha512-HXR5NeVbaL45KuPRqfBQL/hcdc8Y197ALj5G75M5qUMcOk2at0bj2Nns4ZnjU2mTw52360TK63oDqvRjc1iPRQ==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -4579,7 +4578,7 @@ snapshots:
     dependencies:
       '@hono/node-server': 1.19.6(hono@4.10.5)
       '@hono/zod-validator': 0.7.4(hono@4.10.5)(zod@4.1.12)
-      '@modelcontextprotocol/sdk': 1.22.0
+      '@modelcontextprotocol/sdk': 1.21.2
       commander: 14.0.2
       get-port: 7.1.0
       hono: 4.10.5
@@ -4592,23 +4591,7 @@ snapshots:
       - '@types/node'
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.13.2':
-    dependencies:
-      ajv: 6.12.6
-      content-type: 1.0.5
-      cors: 2.8.5
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      express: 5.1.0
-      express-rate-limit: 7.5.1(express@5.1.0)
-      pkce-challenge: 5.0.0
-      raw-body: 3.0.0
-      zod: 3.25.67
-      zod-to-json-schema: 3.24.6(zod@3.25.67)
-    transitivePeerDependencies:
-      - supports-color
-
-  '@modelcontextprotocol/sdk@1.22.0':
+  '@modelcontextprotocol/sdk@1.21.2':
     dependencies:
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)
@@ -4621,8 +4604,8 @@ snapshots:
       express-rate-limit: 7.5.1(express@5.1.0)
       pkce-challenge: 5.0.0
       raw-body: 3.0.0
-      zod: 3.25.67
-      zod-to-json-schema: 3.24.6(zod@3.25.67)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.6(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
 
@@ -5895,7 +5878,7 @@ snapshots:
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.2.2
-      debug: 4.4.1
+      debug: 4.4.3
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
@@ -5947,7 +5930,7 @@ snapshots:
 
   fastmcp@3.23.0:
     dependencies:
-      '@modelcontextprotocol/sdk': 1.22.0
+      '@modelcontextprotocol/sdk': 1.21.2
       '@standard-schema/spec': 1.0.0
       execa: 9.6.0
       file-type: 21.1.0
@@ -5956,7 +5939,7 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.16.0
       uri-templates: 0.2.0
-      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@4.1.12))(zod@3.25.76)
+      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@3.25.76))(zod@3.25.76)
       yargs: 18.0.0
       zod: 3.25.76
       zod-to-json-schema: 3.24.6(zod@3.25.76)
@@ -6616,10 +6599,11 @@ snapshots:
 
   o3-search-mcp@0.0.9(ws@8.18.3):
     dependencies:
-      '@modelcontextprotocol/sdk': 1.13.2
+      '@modelcontextprotocol/sdk': 1.21.2
       openai: 5.8.2(ws@8.18.3)(zod@3.25.67)
       zod: 3.25.67
     transitivePeerDependencies:
+      - '@cfworker/json-schema'
       - supports-color
       - ws
 
@@ -7615,7 +7599,7 @@ snapshots:
 
   xdg-basedir@5.1.0: {}
 
-  xsschema@0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@4.1.12))(zod@3.25.76):
+  xsschema@0.4.0-beta.5(zod-to-json-schema@3.24.6(zod@3.25.76))(zod@3.25.76):
     optionalDependencies:
       zod: 3.25.76
       zod-to-json-schema: 3.24.6(zod@3.25.76)
@@ -7640,10 +7624,6 @@ snapshots:
   yoctocolors-cjs@2.1.3: {}
 
   yoctocolors@2.1.2: {}
-
-  zod-to-json-schema@3.24.6(zod@3.25.67):
-    dependencies:
-      zod: 3.25.67
 
   zod-to-json-schema@3.24.6(zod@3.25.76):
     dependencies:
