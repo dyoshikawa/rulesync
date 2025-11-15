@@ -132,9 +132,7 @@ export class RulesyncSkill extends RulesyncFile {
         const fileContent = await readFileContent(filePath);
         // Calculate relative directory path from skill directory (Windows-compatible)
         const relativePath = relative(skillDir, filePath);
-        const relativeDir = relativePath.includes(sep)
-          ? dirname(relativePath)
-          : ".";
+        const relativeDir = relativePath.includes(sep) ? dirname(relativePath) : ".";
 
         files.push({
           relativeDirPath: relativeDir,
