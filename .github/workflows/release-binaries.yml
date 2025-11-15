@@ -60,10 +60,35 @@ jobs:
           mkdir -p dist-deno
           deno task compile:windows-x64
 
+      - name: Upload binaries to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.os }}
+          path: dist-deno/rulesync-*
+          if-no-files-found: warn
+
+  upload-release:
+    name: Upload binaries to release
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    if: success()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-deno
+
+      - name: Organize binaries
+        run: |
+          mkdir -p binaries
+          # Move all binaries from artifact subdirectories to binaries directory
+          find dist-deno -type f -name "rulesync-*" -exec mv {} binaries/ \;
+          ls -la binaries/
+
       - name: Generate checksums
         run: |
-          mkdir -p dist-deno
-          cd dist-deno
+          cd binaries
           sha256sum rulesync-* > SHA256SUMS
           cat SHA256SUMS
 
@@ -71,9 +96,9 @@ jobs:
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
         with:
           files: |
-            dist-deno/rulesync-linux-x64
-            dist-deno/rulesync-linux-arm64
-            dist-deno/rulesync-darwin-x64
-            dist-deno/rulesync-darwin-arm64
-            dist-deno/rulesync-windows-x64.exe
-            dist-deno/SHA256SUMS
+            binaries/rulesync-linux-x64
+            binaries/rulesync-linux-arm64
+            binaries/rulesync-darwin-x64
+            binaries/rulesync-darwin-arm64
+            binaries/rulesync-windows-x64.exe
+            binaries/SHA256SUMS
