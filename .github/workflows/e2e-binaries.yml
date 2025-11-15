@@ -10,9 +10,12 @@ permissions:
   contents: read # Required for checking out code
 
 jobs:
-  build:
-    name: Build binaries
-    runs-on: ubuntu-latest
+  e2e:
+    name: Build and E2E Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
 
     steps:
       - name: Checkout code
@@ -29,70 +32,37 @@ jobs:
       - name: Bundle with tsup
         run: pnpm run bundle:deno
 
-      - name: Build binaries
+      - name: Build binary (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir -p dist-deno
-          deno task compile:all
+          deno task compile:linux-x64
+          chmod +x dist-deno/rulesync-linux-x64
+          echo "BINARY_PATH=dist-deno/rulesync-linux-x64" >> $GITHUB_ENV
 
-      - name: Cache binaries
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: dist-deno
-          key: rulesync-binaries-${{ github.sha }}
-          enableCrossOsArchive: true
-
-  e2e:
-    name: E2E Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: build
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Restore cached binaries
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: dist-deno
-          key: rulesync-binaries-${{ github.sha }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
-
-      - name: Make binary executable (Unix)
-        if: runner.os != 'Windows'
-        env:
-          MATRIX_OS: ${{ matrix.os }}
+      - name: Build binary (macOS Intel)
+        if: matrix.os == 'macos-15-intel'
         run: |
-          if [ "$MATRIX_OS" = "ubuntu-latest" ]; then
-            chmod +x dist-deno/rulesync-linux-x64
-            BINARY_PATH=dist-deno/rulesync-linux-x64
-          elif [ "$MATRIX_OS" = "macos-15-intel" ]; then
-            # macos-15-intel is Intel (x64)
-            chmod +x dist-deno/rulesync-darwin-x64
-            BINARY_PATH=dist-deno/rulesync-darwin-x64
-          else
-            # macos-latest is Apple Silicon (arm64)
-            chmod +x dist-deno/rulesync-darwin-arm64
-            BINARY_PATH=dist-deno/rulesync-darwin-arm64
-          fi
-          echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
+          mkdir -p dist-deno
+          deno task compile:darwin-x64
+          chmod +x dist-deno/rulesync-darwin-x64
+          echo "BINARY_PATH=dist-deno/rulesync-darwin-x64" >> $GITHUB_ENV
 
-      - name: Set binary path (Windows)
+      - name: Build binary (macOS Apple Silicon)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p dist-deno
+          deno task compile:darwin-arm64
+          chmod +x dist-deno/rulesync-darwin-arm64
+          echo "BINARY_PATH=dist-deno/rulesync-darwin-arm64" >> $GITHUB_ENV
+
+      - name: Build binary (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          mkdir -p dist-deno
+          deno task compile:windows-x64
           echo "BINARY_PATH=dist-deno/rulesync-windows-x64.exe" >> $GITHUB_ENV
-
-      - name: Setup mise
-        uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v2
-        with:
-          experimental: true
-
-      - name: Install dependencies
-        run: pnpm install --ignore-scripts
 
       - name: Test binary
         env:
