@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import { z } from "zod/mini";
 import {
   RULESYNC_SKILL_FILE_NAME,
@@ -130,10 +130,10 @@ export class RulesyncSkill extends RulesyncFile {
       const files: SkillFile[] = [];
       for (const filePath of skillFiles) {
         const fileContent = await readFileContent(filePath);
-        // Calculate relative directory path from skill directory
-        const relativePath = filePath.slice(skillDir.length + 1);
-        const relativeDir = relativePath.includes("/")
-          ? relativePath.slice(0, relativePath.lastIndexOf("/"))
+        // Calculate relative directory path from skill directory (Windows-compatible)
+        const relativePath = relative(skillDir, filePath);
+        const relativeDir = relativePath.includes(sep)
+          ? dirname(relativePath)
           : ".";
 
         files.push({
