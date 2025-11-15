@@ -30,3 +30,6 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 - When you need to handle rules, commands, MCP, ignore files, and subagents for any AI agents, you should use Rulesync MCP.
 
 Of course, you can also use your built-in tools if you need.
+
+In this project, all MCP servers are provided via Modular MCP server. When you want to check usable tools and call those, you must always call Modular MCP server firstly. If you feel any need to use the MCP servers above at all, you should list tools with Modular MCP. 
+
