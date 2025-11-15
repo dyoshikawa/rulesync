@@ -31,5 +31,4 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 Of course, you can also use your built-in tools if you need.
 
-In this project, all MCP servers are provided via Modular MCP server. When you want to check usable tools and call those, you must always call Modular MCP server firstly. If you feel any need to use the MCP servers above at all, you should list tools with Modular MCP. 
-
+In this project, all MCP servers are provided via the Modular MCP server. When you want to check available tools and call them, you must always call the Modular MCP server first. If you feel any need whatsoever to use any of the MCP servers mentioned above, you should list the tools with Modular MCP.
