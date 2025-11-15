@@ -9,8 +9,11 @@ permissions:
 
 jobs:
   build-binaries:
-    name: Build and upload binaries
-    runs-on: ubuntu-latest
+    name: Build binaries (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15-intel, macos-latest, windows-latest]
 
     steps:
       - name: Checkout code
@@ -29,13 +32,37 @@ jobs:
       - name: Bundle with tsup
         run: pnpm run bundle:deno
 
-      - name: Build binaries
+      - name: Build binary (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir -p dist-deno
-          deno task compile:all
+          deno task compile:linux-x64
+
+      - name: Build binary (Linux ARM64)
+        if: matrix.os == 'ubuntu-latest'
+        run: deno task compile:linux-arm64
+
+      - name: Build binary (macOS Intel)
+        if: matrix.os == 'macos-15-intel'
+        run: |
+          mkdir -p dist-deno
+          deno task compile:darwin-x64
+
+      - name: Build binary (macOS Apple Silicon)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p dist-deno
+          deno task compile:darwin-arm64
+
+      - name: Build binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p dist-deno
+          deno task compile:windows-x64
 
       - name: Generate checksums
         run: |
+          mkdir -p dist-deno
           cd dist-deno
           sha256sum rulesync-* > SHA256SUMS
           cat SHA256SUMS
