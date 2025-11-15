@@ -14,5 +14,5 @@
   "simulateCommands": true,
   "simulateSubagents": true,
 
-  "modularMcp": false,
+  "modularMcp": true,
 }
