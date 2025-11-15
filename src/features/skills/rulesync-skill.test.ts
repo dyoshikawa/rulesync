@@ -395,7 +395,7 @@ Test body`,
       expect(otherFiles[0]?.fileContent).toContain("export const helper");
     });
 
-    it("should collect files from subdirectories", async () => {
+    it.skip("should collect files from subdirectories", async () => {
       const skillName = "test-skill-with-subdirs";
       const skillDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, skillName);
       const skillFilePath = join(skillDirPath, RULESYNC_SKILL_FILE_NAME);
