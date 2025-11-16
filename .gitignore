@@ -172,8 +172,6 @@ package-lock.json
 **/.roo/rules/
 **/.rooignore
 **/.copilotignore
-**/CLAUDE.md
-**/.claude/memories/
 **/.claude/settings.json
 **/GEMINI.md
 **/.gemini/memories/
@@ -182,7 +180,6 @@ package-lock.json
 **/.augment-guidelines
 **/.codex/
 
-**/.mcp.json
 **/.cursor/mcp.json
 **/.cline/mcp.json
 **/.vscode/mcp.json
