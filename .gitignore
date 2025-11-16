@@ -259,3 +259,7 @@ dist-deno/
 deno.lock
 build-with-esbuild.ts
 rulesync-deno
+
+# MCP configuration files
+.mcp.json
+modular-mcp.json
