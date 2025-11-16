@@ -9,7 +9,6 @@ import {
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
-import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
@@ -35,14 +34,6 @@ const McpServerBaseSchema = z.object({
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
 });
-
-// Schema for modular-mcp: extends base schema with required description field
-const ModularMcpServerSchema = z.extend(McpServerBaseSchema, {
-  description: z.string().check(z.minLength(1)),
-});
-
-// Schema for modular-mcp servers validation (validates description exists)
-const ModularMcpServersSchema = z.record(z.string(), ModularMcpServerSchema);
 
 // Schema for rulesync MCP servers (extends base schema with optional targets)
 const RulesyncMcpServersSchema = z.union([
