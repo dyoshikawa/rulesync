@@ -668,10 +668,11 @@ describe("ClaudecodeMcp", () => {
       });
 
       const json = claudecodeMcp.getJson();
+      const mcpServers = json.mcpServers as Record<string, unknown>;
 
       // Should have modular-mcp proxy
-      expect(json.mcpServers).toHaveProperty("modular-mcp");
-      expect(json.mcpServers["modular-mcp"]).toEqual({
+      expect(mcpServers).toHaveProperty("modular-mcp");
+      expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
         args: ["-y", "@kimuson/modular-mcp", "modular-mcp.json"],
@@ -679,15 +680,15 @@ describe("ClaudecodeMcp", () => {
       });
 
       // Should have exposed server (without description and exposed fields)
-      expect(json.mcpServers).toHaveProperty("exposed-server");
-      expect(json.mcpServers["exposed-server"]).toEqual({
+      expect(mcpServers).toHaveProperty("exposed-server");
+      expect(mcpServers["exposed-server"]).toEqual({
         command: "node",
         args: ["exposed.js"],
       });
 
       // Should not have hidden or default servers
-      expect(json.mcpServers).not.toHaveProperty("hidden-server");
-      expect(json.mcpServers).not.toHaveProperty("default-server");
+      expect(mcpServers).not.toHaveProperty("hidden-server");
+      expect(mcpServers).not.toHaveProperty("default-server");
     });
 
     it("should not include exposed servers when modularMcp is false", async () => {
@@ -719,21 +720,22 @@ describe("ClaudecodeMcp", () => {
       });
 
       const json = claudecodeMcp.getJson();
+      const mcpServers = json.mcpServers as Record<string, unknown>;
 
       // Should have all servers (without description and exposed fields)
-      expect(json.mcpServers).toHaveProperty("exposed-server");
-      expect(json.mcpServers["exposed-server"]).toEqual({
+      expect(mcpServers).toHaveProperty("exposed-server");
+      expect(mcpServers["exposed-server"]).toEqual({
         command: "node",
         args: ["exposed.js"],
       });
-      expect(json.mcpServers).toHaveProperty("normal-server");
-      expect(json.mcpServers["normal-server"]).toEqual({
+      expect(mcpServers).toHaveProperty("normal-server");
+      expect(mcpServers["normal-server"]).toEqual({
         command: "python",
         args: ["normal.py"],
       });
 
       // Should not have modular-mcp proxy
-      expect(json.mcpServers).not.toHaveProperty("modular-mcp");
+      expect(mcpServers).not.toHaveProperty("modular-mcp");
     });
 
     it("should handle multiple exposed servers with modular-mcp", async () => {
@@ -772,19 +774,20 @@ describe("ClaudecodeMcp", () => {
       });
 
       const json = claudecodeMcp.getJson();
+      const mcpServers = json.mcpServers as Record<string, unknown>;
 
       // Should have modular-mcp proxy and both exposed servers
-      expect(Object.keys(json.mcpServers)).toHaveLength(3);
-      expect(json.mcpServers).toHaveProperty("modular-mcp");
-      expect(json.mcpServers).toHaveProperty("exposed-1");
-      expect(json.mcpServers).toHaveProperty("exposed-2");
-      expect(json.mcpServers).not.toHaveProperty("hidden-1");
+      expect(Object.keys(mcpServers)).toHaveLength(3);
+      expect(mcpServers).toHaveProperty("modular-mcp");
+      expect(mcpServers).toHaveProperty("exposed-1");
+      expect(mcpServers).toHaveProperty("exposed-2");
+      expect(mcpServers).not.toHaveProperty("hidden-1");
 
       // Exposed servers should not have description or exposed fields
-      expect(json.mcpServers["exposed-1"]).not.toHaveProperty("description");
-      expect(json.mcpServers["exposed-1"]).not.toHaveProperty("exposed");
-      expect(json.mcpServers["exposed-2"]).not.toHaveProperty("description");
-      expect(json.mcpServers["exposed-2"]).not.toHaveProperty("exposed");
+      expect(mcpServers["exposed-1"]).not.toHaveProperty("description");
+      expect(mcpServers["exposed-1"]).not.toHaveProperty("exposed");
+      expect(mcpServers["exposed-2"]).not.toHaveProperty("description");
+      expect(mcpServers["exposed-2"]).not.toHaveProperty("exposed");
     });
 
     it("should work in global mode with modularMcp and exposed servers", async () => {
@@ -818,10 +821,11 @@ describe("ClaudecodeMcp", () => {
       });
 
       const json = claudecodeMcp.getJson();
+      const mcpServers = json.mcpServers as Record<string, unknown>;
 
       // Should have modular-mcp proxy for global mode
-      expect(json.mcpServers).toHaveProperty("modular-mcp");
-      expect(json.mcpServers["modular-mcp"]).toEqual({
+      expect(mcpServers).toHaveProperty("modular-mcp");
+      expect(mcpServers["modular-mcp"]).toEqual({
         type: "stdio",
         command: "npx",
         args: ["-y", "@kimuson/modular-mcp", join(testDir, ".claude", "modular-mcp.json")],
@@ -829,14 +833,14 @@ describe("ClaudecodeMcp", () => {
       });
 
       // Should have exposed server
-      expect(json.mcpServers).toHaveProperty("exposed-server");
-      expect(json.mcpServers["exposed-server"]).toEqual({
+      expect(mcpServers).toHaveProperty("exposed-server");
+      expect(mcpServers["exposed-server"]).toEqual({
         command: "node",
         args: ["exposed.js"],
       });
 
       // Should not have hidden server
-      expect(json.mcpServers).not.toHaveProperty("hidden-server");
+      expect(mcpServers).not.toHaveProperty("hidden-server");
     });
   });
 
