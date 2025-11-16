@@ -114,17 +114,6 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
-    if (this.modularMcp) {
-      const result = ModularMcpServersSchema.safeParse(this.json.mcpServers);
-      if (!result.success) {
-        return {
-          success: false,
-          error: new Error(
-            `Invalid MCP server configuration for modular-mcp: ${formatError(result.error)}`,
-          ),
-        };
-      }
-    }
     return { success: true, error: null };
   }
 
