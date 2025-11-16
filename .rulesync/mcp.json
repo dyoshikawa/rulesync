@@ -2,7 +2,6 @@
   "mcpServers": {
     "serena": {
       "exposed": true,
-      "description": "Semantic coding tools for intelligent codebase exploration and manipulation. Serena provides essential semantic code retrieval and editing tools that are akin to an IDE's capabilities, extracting code entities at the symbol level and exploiting relational structure. When combined with an existing coding agent, these tools greatly enhance (token) efficiency. You can think of Serena as providing IDE-like tools to your LLM/coding agent. With it, the agent no longer needs to read entire files, perform grep-like searches or basic string replacements to find the right parts of the code and to edit code. Instead, it can use code-centric tools like `find_symbol`, `find_referencing_symbols` and `insert_after_symbol`. You should usually use this MCP server when you search for codebase information.",
       "type": "stdio",
       "command": "uvx",
       "args": [
