@@ -1,4 +1,3 @@
-import { stat } from "node:fs/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { z } from "zod/mini";
 import {
@@ -12,7 +11,7 @@ import {
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, findFilesByGlobs, readFileContent } from "../../utils/file.js";
+import { fileExists, findFilesByGlobs, isFile, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 
@@ -130,14 +129,8 @@ export class RulesyncSkill extends RulesyncFile {
         }
 
         // Check if path is a file (not a directory)
-        try {
-          const stats = await stat(path);
-          if (stats.isFile()) {
-            skillFiles.push(path);
-          }
-        } catch {
-          // Skip paths that can't be stat'd
-          continue;
+        if (await isFile(path)) {
+          skillFiles.push(path);
         }
       }
 

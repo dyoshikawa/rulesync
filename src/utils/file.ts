@@ -138,6 +138,15 @@ export async function fileExists(filepath: string): Promise<boolean> {
   }
 }
 
+export async function isFile(filepath: string): Promise<boolean> {
+  try {
+    const stats = await stat(filepath);
+    return stats.isFile();
+  } catch {
+    return false;
+  }
+}
+
 export async function listDirectoryFiles(dir: string): Promise<string[]> {
   try {
     return await readdir(dir);

@@ -14,6 +14,7 @@ import {
   findFiles,
   findRuleFiles,
   getHomeDirectory,
+  isFile,
   listDirectoryFiles,
   readFileContent,
   readJsonFile,
@@ -338,6 +339,23 @@ describe("file utilities", () => {
 
       it("should return true for directory", async () => {
         expect(await fileExists(testDir)).toBe(true);
+      });
+    });
+
+    describe("isFile", () => {
+      it("should return true for existing file", async () => {
+        const filePath = join(testDir, "file.txt");
+        await writeFileContent(filePath, "content");
+
+        expect(await isFile(filePath)).toBe(true);
+      });
+
+      it("should return false for directory", async () => {
+        expect(await isFile(testDir)).toBe(false);
+      });
+
+      it("should return false for non-existent file", async () => {
+        expect(await isFile(join(testDir, "nonexistent.txt"))).toBe(false);
       });
     });
   });
