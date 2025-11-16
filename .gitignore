@@ -250,8 +250,6 @@ repomix-output.xml
 
 **/.geminiignore
 
-modular-mcp.json
-
 # Bun compiled binaries
 dist-bun/
 *.bun-build
