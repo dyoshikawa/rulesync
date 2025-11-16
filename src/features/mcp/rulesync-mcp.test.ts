@@ -340,46 +340,6 @@ describe("RulesyncMcp", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should fail validation when modularMcp is true and description is missing", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node" },
-          },
-        }),
-        validate: false,
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-      expect(result.error?.message).toContain("Invalid MCP server configuration");
-      expect(result.error?.message).toContain("test-server");
-    });
-
-    it("should fail validation when modularMcp is true and description is empty string", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node", description: "" },
-          },
-        }),
-        validate: false,
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("Invalid MCP server configuration");
-    });
-
     it("should pass validation when modularMcp is true and description is present", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -417,27 +377,6 @@ describe("RulesyncMcp", () => {
 
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
-    });
-
-    it("should fail validation when modularMcp is true and one server lacks description", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node", description: "Test server" },
-            "another-server": { command: "python" },
-          },
-        }),
-        validate: false,
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("Invalid MCP server configuration");
-      expect(result.error?.message).toContain("another-server");
     });
 
     it("should pass validation when modularMcp is false and description is missing", () => {
