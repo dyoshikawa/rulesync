@@ -39,6 +39,7 @@ const McpServerBaseSchema = z.object({
 // Schema for modular-mcp: extends base schema with required description field
 const ModularMcpServerSchema = z.extend(McpServerBaseSchema, {
   description: z.string().check(z.minLength(1)),
+  exposed: z.optional(z.boolean()),
 });
 
 // Schema for modular-mcp servers validation (validates description exists)
@@ -47,6 +48,7 @@ const ModularMcpServersSchema = z.record(z.string(), ModularMcpServerSchema);
 // Schema for rulesync MCP servers (extends base schema with optional targets)
 const RulesyncMcpServersSchema = z.extend(McpServerBaseSchema, {
   description: z.optional(z.string()),
+  exposed: z.optional(z.boolean()),
   targets: z.optional(RulesyncTargetsSchema),
 });
 
@@ -174,11 +176,29 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getJson({ modularMcp = false }: { modularMcp?: boolean } = {}): RulesyncMcpConfig {
-    if (modularMcp) {
-      return this.json;
+  getExposedServers(): Record<string, unknown> {
+    // If json is not an object or null, return empty object
+    if (!this.json || typeof this.json !== "object") {
+      return {};
     }
 
+    // If mcpServers doesn't exist or is not an object, return empty object
+    if (!this.json.mcpServers || typeof this.json.mcpServers !== "object") {
+      return {};
+    }
+
+    // Return only servers with exposed: true, omitting description and exposed fields
+    return Object.fromEntries(
+      Object.entries(this.json.mcpServers)
+        .filter(([, serverConfig]) => serverConfig.exposed === true)
+        .map(([serverName, serverConfig]) => [
+          serverName,
+          omit(serverConfig, ["description", "exposed"]),
+        ]),
+    );
+  }
+
+  getJson({ modularMcp = false }: { modularMcp?: boolean } = {}): RulesyncMcpConfig {
     // If json is not an object or null, return as is
     if (!this.json || typeof this.json !== "object") {
       return this.json;
@@ -189,11 +209,25 @@ export class RulesyncMcp extends RulesyncFile {
       return this.json;
     }
 
-    // When modularMcp is false, omit description fields from all servers
+    if (modularMcp) {
+      // When modularMcp is true, filter out exposed servers and omit exposed field
+      const mcpServersForModularMcp = Object.fromEntries(
+        Object.entries(this.json.mcpServers)
+          .filter(([, serverConfig]) => !serverConfig.exposed)
+          .map(([serverName, serverConfig]) => [serverName, omit(serverConfig, ["exposed"])]),
+      );
+
+      return {
+        ...this.json,
+        mcpServers: mcpServersForModularMcp,
+      };
+    }
+
+    // When modularMcp is false, omit description and exposed fields from all servers
     const mcpServersWithoutDescription = Object.fromEntries(
       Object.entries(this.json.mcpServers).map(([serverName, serverConfig]) => [
         serverName,
-        omit(serverConfig, ["description"]),
+        omit(serverConfig, ["description", "exposed"]),
       ]),
     );
 

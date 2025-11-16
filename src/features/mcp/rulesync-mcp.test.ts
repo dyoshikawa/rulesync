@@ -707,6 +707,191 @@ describe("RulesyncMcp", () => {
 
       expect(result.mcpServers["test-server"]).not.toHaveProperty("description");
     });
+
+    it("should filter out exposed servers when modularMcp is true", () => {
+      const jsonData = {
+        mcpServers: {
+          "exposed-server": {
+            command: "node",
+            args: ["server.js"],
+            description: "Exposed server",
+            exposed: true,
+          },
+          "hidden-server": {
+            command: "python",
+            args: ["server.py"],
+            description: "Hidden server",
+            exposed: false,
+          },
+          "default-server": {
+            command: "go",
+            args: ["server"],
+            description: "Default server",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getJson({ modularMcp: true });
+
+      // Exposed server should be filtered out
+      expect(result.mcpServers).not.toHaveProperty("exposed-server");
+      // Non-exposed servers should remain
+      expect(result.mcpServers).toHaveProperty("hidden-server");
+      expect(result.mcpServers).toHaveProperty("default-server");
+      // Exposed field should be omitted from remaining servers
+      expect(result.mcpServers["hidden-server"]).not.toHaveProperty("exposed");
+      expect(result.mcpServers["default-server"]).not.toHaveProperty("exposed");
+    });
+
+    it("should omit exposed field when modularMcp is false", () => {
+      const jsonData = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            description: "Test server",
+            exposed: true,
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getJson({ modularMcp: false });
+
+      // Server should be present
+      expect(result.mcpServers).toHaveProperty("test-server");
+      // Both description and exposed should be omitted
+      expect(result.mcpServers["test-server"]).not.toHaveProperty("description");
+      expect(result.mcpServers["test-server"]).not.toHaveProperty("exposed");
+    });
+  });
+
+  describe("getExposedServers", () => {
+    it("should return only servers with exposed: true", () => {
+      const jsonData = {
+        mcpServers: {
+          "exposed-server-1": {
+            command: "node",
+            args: ["server1.js"],
+            description: "Exposed server 1",
+            exposed: true,
+          },
+          "exposed-server-2": {
+            command: "python",
+            args: ["server2.py"],
+            description: "Exposed server 2",
+            exposed: true,
+          },
+          "hidden-server": {
+            command: "go",
+            args: ["server"],
+            description: "Hidden server",
+            exposed: false,
+          },
+          "default-server": {
+            command: "rust",
+            args: ["server"],
+            description: "Default server",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getExposedServers();
+
+      // Only exposed servers should be returned
+      expect(Object.keys(result)).toHaveLength(2);
+      expect(result).toHaveProperty("exposed-server-1");
+      expect(result).toHaveProperty("exposed-server-2");
+      expect(result).not.toHaveProperty("hidden-server");
+      expect(result).not.toHaveProperty("default-server");
+
+      // Description and exposed fields should be omitted
+      expect(result["exposed-server-1"]).not.toHaveProperty("description");
+      expect(result["exposed-server-1"]).not.toHaveProperty("exposed");
+      expect(result["exposed-server-2"]).not.toHaveProperty("description");
+      expect(result["exposed-server-2"]).not.toHaveProperty("exposed");
+
+      // Other fields should remain
+      expect(result["exposed-server-1"]).toEqual({
+        command: "node",
+        args: ["server1.js"],
+      });
+      expect(result["exposed-server-2"]).toEqual({
+        command: "python",
+        args: ["server2.py"],
+      });
+    });
+
+    it("should return empty object when no servers are exposed", () => {
+      const jsonData = {
+        mcpServers: {
+          "server-1": {
+            command: "node",
+            args: ["server.js"],
+            description: "Server 1",
+            exposed: false,
+          },
+          "server-2": {
+            command: "python",
+            args: ["server.py"],
+            description: "Server 2",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getExposedServers();
+
+      expect(result).toEqual({});
+    });
+
+    it("should return empty object when mcpServers is not an object", () => {
+      const jsonData = { mcpServers: null };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const result = rulesyncMcp.getExposedServers();
+
+      expect(result).toEqual({});
+    });
+
+    it("should return empty object when json is null", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(null),
+      });
+
+      const result = rulesyncMcp.getExposedServers();
+
+      expect(result).toEqual({});
+    });
   });
 
   describe("fromFile", () => {

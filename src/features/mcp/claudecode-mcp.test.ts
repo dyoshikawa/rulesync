@@ -631,6 +631,213 @@ describe("ClaudecodeMcp", () => {
       });
       expect((json as any).customProperty).toBe("value");
     });
+
+    it("should merge exposed servers with modular-mcp proxy when modularMcp is true", async () => {
+      const jsonData = {
+        mcpServers: {
+          "exposed-server": {
+            command: "node",
+            args: ["exposed.js"],
+            description: "Exposed server",
+            exposed: true,
+          },
+          "hidden-server": {
+            command: "python",
+            args: ["hidden.py"],
+            description: "Hidden server",
+            exposed: false,
+          },
+          "default-server": {
+            command: "go",
+            args: ["default"],
+            description: "Default server",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+        modularMcp: true,
+      });
+
+      const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        modularMcp: true,
+      });
+
+      const json = claudecodeMcp.getJson();
+
+      // Should have modular-mcp proxy
+      expect(json.mcpServers).toHaveProperty("modular-mcp");
+      expect(json.mcpServers["modular-mcp"]).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@kimuson/modular-mcp", "modular-mcp.json"],
+        env: {},
+      });
+
+      // Should have exposed server (without description and exposed fields)
+      expect(json.mcpServers).toHaveProperty("exposed-server");
+      expect(json.mcpServers["exposed-server"]).toEqual({
+        command: "node",
+        args: ["exposed.js"],
+      });
+
+      // Should not have hidden or default servers
+      expect(json.mcpServers).not.toHaveProperty("hidden-server");
+      expect(json.mcpServers).not.toHaveProperty("default-server");
+    });
+
+    it("should not include exposed servers when modularMcp is false", async () => {
+      const jsonData = {
+        mcpServers: {
+          "exposed-server": {
+            command: "node",
+            args: ["exposed.js"],
+            description: "Exposed server",
+            exposed: true,
+          },
+          "normal-server": {
+            command: "python",
+            args: ["normal.py"],
+            description: "Normal server",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        modularMcp: false,
+      });
+
+      const json = claudecodeMcp.getJson();
+
+      // Should have all servers (without description and exposed fields)
+      expect(json.mcpServers).toHaveProperty("exposed-server");
+      expect(json.mcpServers["exposed-server"]).toEqual({
+        command: "node",
+        args: ["exposed.js"],
+      });
+      expect(json.mcpServers).toHaveProperty("normal-server");
+      expect(json.mcpServers["normal-server"]).toEqual({
+        command: "python",
+        args: ["normal.py"],
+      });
+
+      // Should not have modular-mcp proxy
+      expect(json.mcpServers).not.toHaveProperty("modular-mcp");
+    });
+
+    it("should handle multiple exposed servers with modular-mcp", async () => {
+      const jsonData = {
+        mcpServers: {
+          "exposed-1": {
+            command: "node",
+            args: ["server1.js"],
+            description: "Exposed server 1",
+            exposed: true,
+          },
+          "exposed-2": {
+            command: "python",
+            args: ["server2.py"],
+            description: "Exposed server 2",
+            exposed: true,
+          },
+          "hidden-1": {
+            command: "go",
+            args: ["server3"],
+            description: "Hidden server 1",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+        modularMcp: true,
+      });
+
+      const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        modularMcp: true,
+      });
+
+      const json = claudecodeMcp.getJson();
+
+      // Should have modular-mcp proxy and both exposed servers
+      expect(Object.keys(json.mcpServers)).toHaveLength(3);
+      expect(json.mcpServers).toHaveProperty("modular-mcp");
+      expect(json.mcpServers).toHaveProperty("exposed-1");
+      expect(json.mcpServers).toHaveProperty("exposed-2");
+      expect(json.mcpServers).not.toHaveProperty("hidden-1");
+
+      // Exposed servers should not have description or exposed fields
+      expect(json.mcpServers["exposed-1"]).not.toHaveProperty("description");
+      expect(json.mcpServers["exposed-1"]).not.toHaveProperty("exposed");
+      expect(json.mcpServers["exposed-2"]).not.toHaveProperty("description");
+      expect(json.mcpServers["exposed-2"]).not.toHaveProperty("exposed");
+    });
+
+    it("should work in global mode with modularMcp and exposed servers", async () => {
+      const jsonData = {
+        mcpServers: {
+          "exposed-server": {
+            command: "node",
+            args: ["exposed.js"],
+            description: "Exposed server",
+            exposed: true,
+          },
+          "hidden-server": {
+            command: "python",
+            args: ["hidden.py"],
+            description: "Hidden server",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+        modularMcp: true,
+      });
+
+      const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+        modularMcp: true,
+      });
+
+      const json = claudecodeMcp.getJson();
+
+      // Should have modular-mcp proxy for global mode
+      expect(json.mcpServers).toHaveProperty("modular-mcp");
+      expect(json.mcpServers["modular-mcp"]).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@kimuson/modular-mcp", join(testDir, ".claude", "modular-mcp.json")],
+        env: {},
+      });
+
+      // Should have exposed server
+      expect(json.mcpServers).toHaveProperty("exposed-server");
+      expect(json.mcpServers["exposed-server"]).toEqual({
+        command: "node",
+        args: ["exposed.js"],
+      });
+
+      // Should not have hidden server
+      expect(json.mcpServers).not.toHaveProperty("hidden-server");
+    });
   });
 
   describe("toRulesyncMcp", () => {
