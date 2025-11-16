@@ -45,12 +45,7 @@ function isZodErrorLike(error: unknown): error is {
 export function formatError(error: unknown): string {
   // Check for ZodError by duck typing (handles both zod and zod/mini)
   if (error instanceof ZodError || isZodErrorLike(error)) {
-    return error.issues
-      .map((issue) => {
-        const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
-        return `${path}${issue.message}`;
-      })
-      .join("; ");
+    return `Zod raw error: ${JSON.stringify(error.issues)}`;
   }
 
   if (error instanceof Error) {

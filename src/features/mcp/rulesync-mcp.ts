@@ -39,18 +39,24 @@ const McpServerBaseSchema = z.object({
 // Schema for modular-mcp: extends base schema with required description field
 const ModularMcpServerSchema = z.extend(McpServerBaseSchema, {
   description: z.string().check(z.minLength(1)),
-  exposed: z.optional(z.boolean()),
 });
 
 // Schema for modular-mcp servers validation (validates description exists)
 const ModularMcpServersSchema = z.record(z.string(), ModularMcpServerSchema);
 
 // Schema for rulesync MCP servers (extends base schema with optional targets)
-const RulesyncMcpServersSchema = z.extend(McpServerBaseSchema, {
-  description: z.optional(z.string()),
-  exposed: z.optional(z.boolean()),
-  targets: z.optional(RulesyncTargetsSchema),
-});
+const RulesyncMcpServersSchema = z.union([
+  z.extend(McpServerBaseSchema, {
+    targets: z.optional(RulesyncTargetsSchema),
+    description: z.optional(z.string()),
+    exposed: z.optional(z.literal(false)),
+  }),
+  z.extend(McpServerBaseSchema, {
+    targets: z.optional(RulesyncTargetsSchema),
+    description: z.undefined(),
+    exposed: z.literal(true),
+  }),
+]);
 
 const RulesyncMcpConfigSchema = z.object({
   mcpServers: z.record(z.string(), RulesyncMcpServersSchema),
