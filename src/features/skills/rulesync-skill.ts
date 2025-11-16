@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { z } from "zod/mini";
 import {
@@ -121,10 +122,24 @@ export class RulesyncSkill extends RulesyncFile {
       const allPaths = await findFilesByGlobs(glob);
 
       // Filter to only regular files and exclude SKILL.md
-      const skillFiles = allPaths.filter((path) => {
+      const skillFiles: string[] = [];
+      for (const path of allPaths) {
         const fileName = basename(path);
-        return fileName !== RULESYNC_SKILL_FILE_NAME;
-      });
+        if (fileName === RULESYNC_SKILL_FILE_NAME) {
+          continue;
+        }
+
+        // Check if path is a file (not a directory)
+        try {
+          const stats = await stat(path);
+          if (stats.isFile()) {
+            skillFiles.push(path);
+          }
+        } catch {
+          // Skip paths that can't be stat'd
+          continue;
+        }
+      }
 
       // Convert paths to SkillFile objects
       const files: SkillFile[] = [];
