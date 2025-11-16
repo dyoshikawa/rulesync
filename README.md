@@ -460,6 +460,25 @@ When enabling modular-mcp, each MCP server must have a `description` field. Exam
 }
 ```
 
+You can also configure `exposed` to exclude specific MCP servers from modular-mcp. It is optional and default to `false`. If you specify `exposed: true`, the MCP server is always loaded in the initial context.
+
+```diff
+// .rulesync/mcp.json
+{
+  "mcpServers": {
+    "context7": {
++     "exposed": true,
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {}
+    }
+}
+```
+
 To demonstrate the effect of modular-mcp, please see the following example:
 
 <details>
