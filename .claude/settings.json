@@ -8,37 +8,12 @@
       "Bash(npm publish:*)",
       "Bash(pnpm publish:*)"
     ],
-    "allow": [
-      "Bash(git:*)",
-      "Bash(gh:*)",
-      "Bash(touch:*)",
-      "Bash(mkdir:*)",
-      "Bash(rg:*)",
-      "Bash(grep:*)",
-      "Bash(cp:*)",
-      "Bash(mv:*)",
-      "Bash(rm:*)",
-      "Read(**)",
-      "Edit(**)",
-      "MultiEdit(**)",
-      "WebFetch(domain:*)",
-      "Write(**)",
-      "Bash(node:*)",
-      "Bash(pnpm:*)",
-      "Bash(find:*)",
-      "WebFetch(domain:code.visualstudio.com)",
-      "WebFetch(domain:docs.cursor.com)",
-      "WebFetch(domain:docs.cline.bot)",
-      "WebFetch(domain:docs.roo.com)",
-      "WebFetch(domain:docs.claude.com)",
-      "WebFetch(domain:github.com)",
-      "Bash(gh release create:*)"
-    ],
+    "allow": [],
     "defaultMode": "acceptEdits"
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccusage statusline --no-offline",
+    "command": "pnpx ccusage statusline --no-offline",
     "padding": 0
   },
   "env": {

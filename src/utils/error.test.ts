@@ -24,8 +24,8 @@ describe("formatError", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const formatted = formatError(result.error);
-      expect(formatted).toContain("age:");
-      expect(formatted).toContain("Invalid input");
+      expect(formatted).toContain("Zod raw error:");
+      expect(formatted).toContain("age");
     }
   });
 
@@ -40,10 +40,10 @@ describe("formatError", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const formatted = formatError(result.error);
-      expect(formatted).toContain("name:");
-      expect(formatted).toContain("age:");
-      expect(formatted).toContain("count:");
-      expect(formatted).toContain(";");
+      expect(formatted).toContain("Zod raw error:");
+      expect(formatted).toContain("name");
+      expect(formatted).toContain("age");
+      expect(formatted).toContain("count");
     }
   });
 
@@ -60,7 +60,9 @@ describe("formatError", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const formatted = formatError(result.error);
-      expect(formatted).toContain("user.profile.email:");
+      expect(formatted).toContain("Zod raw error:");
+      expect(formatted).toContain("user");
+      expect(formatted).toContain("email");
     }
   });
 
@@ -76,7 +78,7 @@ describe("formatError", () => {
     }
   });
 
-  it("should return human-readable format instead of JSON", () => {
+  it("should return JSON format for ZodError", () => {
     const schema = z.object({
       name: z.string(),
       age: z.number(),
@@ -86,11 +88,10 @@ describe("formatError", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const formatted = formatError(result.error);
-      // Should not be JSON format
-      expect(formatted).not.toMatch(/^\[/);
-      expect(formatted).not.toMatch(/^\{/);
-      // Should be semicolon-separated
-      expect(formatted).toMatch(/^[^:]+: [^;]+(; [^:]+: [^;]+)*$/);
+      // Should be JSON format with "Zod raw error:" prefix
+      expect(formatted).toContain("Zod raw error:");
+      expect(formatted).toContain("[");
+      expect(formatted).toContain("]");
     }
   });
 

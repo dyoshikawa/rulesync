@@ -77,13 +77,17 @@ export class ClaudecodeMcp extends ToolMcp {
     const mcpJson = modularMcp
       ? {
           ...json,
-          mcpServers: global
-            ? ModularMcp.getMcpServers({
-                baseDir,
-                global: true,
-                relativeDirPath: this.getSettablePaths({ global: true }).relativeDirPath,
-              })
-            : ModularMcp.getMcpServers({ baseDir, global: false }),
+          mcpServers: {
+            ...(global
+              ? ModularMcp.getMcpServers({
+                  baseDir,
+                  global: true,
+                  relativeDirPath: this.getSettablePaths({ global: true }).relativeDirPath,
+                })
+              : ModularMcp.getMcpServers({ baseDir, global: false })),
+            // Merge exposed servers
+            ...rulesyncMcp.getExposedServers(),
+          },
         }
       : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
 
