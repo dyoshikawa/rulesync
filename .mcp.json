@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "modular-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@kimuson/modular-mcp",
+        "modular-mcp.json"
+      ],
+      "env": {}
+    }
+  }
+}
