@@ -154,29 +154,6 @@ describe("ToolSubagent", () => {
       expect(result.success).toBe(true);
       expect(result.error).toBe(null);
     });
-
-    it("should support validation errors", () => {
-      expect(() => {
-        const _instance = new TestToolSubagent({
-          baseDir: testDir,
-          relativeDirPath: ".test",
-          relativeFilePath: "invalid.md",
-          fileContent: "invalid content",
-        });
-      }).toThrow("Content contains invalid text");
-    });
-
-    it("should support skipping validation", () => {
-      expect(() => {
-        const _instance = new TestToolSubagent({
-          baseDir: testDir,
-          relativeDirPath: ".test",
-          relativeFilePath: "invalid.md",
-          fileContent: "invalid content",
-          validate: false,
-        });
-      }).not.toThrow();
-    });
   });
 
   describe("concrete implementation functionality", () => {

@@ -89,7 +89,7 @@ export class ClaudecodeMcp extends ToolMcp {
             ...rulesyncMcp.getExposedServers(),
           },
         }
-      : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
+      : { ...json, mcpServers: rulesyncMcp.getExposedServers() };
 
     return new ClaudecodeMcp({
       baseDir,

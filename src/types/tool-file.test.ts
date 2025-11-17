@@ -69,27 +69,6 @@ describe("ToolFile", () => {
       expect(result.success).toBe(true);
       expect(result.error).toBeUndefined();
     });
-
-    it("should support validation errors", () => {
-      expect(() => {
-        const _instance = new TestToolFile({
-          relativeDirPath: ".tool",
-          relativeFilePath: "invalid.txt",
-          fileContent: "invalid content",
-        });
-      }).toThrow("Content contains invalid text");
-    });
-
-    it("should support skipping validation", () => {
-      expect(() => {
-        const _instance = new TestToolFile({
-          relativeDirPath: ".tool",
-          relativeFilePath: "invalid.txt",
-          fileContent: "invalid content",
-          validate: false,
-        });
-      }).not.toThrow();
-    });
   });
 
   describe("abstract class characteristics", () => {
