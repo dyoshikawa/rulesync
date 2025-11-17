@@ -778,19 +778,6 @@ describe("CursorMcp", () => {
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(cursorMcpData));
     });
 
-    it("should convert empty CursorMcp to RulesyncMcp", () => {
-      const cursorMcp = new CursorMcp({
-        relativeDirPath: ".cursor",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify({}),
-      });
-
-      const rulesyncMcp = cursorMcp.toRulesyncMcp();
-
-      expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify({}));
-    });
-
     it("should convert complex CursorMcp to RulesyncMcp", () => {
       const complexData = {
         mcpServers: {

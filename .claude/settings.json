@@ -6,14 +6,15 @@
       "Bash(git remote add:*)",
       "Bash(git remote set-url:*)",
       "Bash(npm publish:*)",
-      "Bash(pnpm publish:*)"
+      "Bash(pnpm publish:*)",
+      "Bash(git commit --no-verify:*)"
     ],
     "allow": [],
     "defaultMode": "acceptEdits"
   },
   "statusLine": {
     "type": "command",
-    "command": "pnpx ccusage statusline --no-offline",
+    "command": "npx -y ccusage statusline --no-offline",
     "padding": 0
   },
   "env": {

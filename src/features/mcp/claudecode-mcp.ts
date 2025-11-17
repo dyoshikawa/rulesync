@@ -86,10 +86,10 @@ export class ClaudecodeMcp extends ToolMcp {
                 })
               : ModularMcp.getMcpServers({ baseDir, global: false })),
             // Merge exposed servers
-            ...rulesyncMcp.getExposedServers(),
+            ...rulesyncMcp.getExposedMcpServers(),
           },
         }
-      : { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
+      : { ...json, mcpServers: rulesyncMcp.getExposedMcpServers() };
 
     return new ClaudecodeMcp({
       baseDir,

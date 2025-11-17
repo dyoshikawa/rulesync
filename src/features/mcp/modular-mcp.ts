@@ -1,6 +1,17 @@
 import { join } from "node:path";
+import { z } from "zod/mini";
 import { AiFile, AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { McpServerSchema } from "../../types/mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+
+// Schema for modular-mcp.json server configuration - based on McpServerSchema with required description
+const ModularMcpServerSchema = z.extend(McpServerSchema, {
+  description: z.string(), // Required for modular-mcp
+});
+
+const ModularMcpConfigSchema = z.object({
+  mcpServers: z.record(z.string(), ModularMcpServerSchema),
+});
 
 export type ModularMcpParams = AiFileParams;
 
@@ -107,9 +118,8 @@ export class ModularMcp extends AiFile {
         : { global: false, relativeDirPath: undefined },
     );
 
-    // Generate modular-mcp.json with actual server configurations
     const modularMcpJson = {
-      mcpServers: rulesyncMcp.getJson({ modularMcp: true }).mcpServers,
+      mcpServers: rulesyncMcp.getModularizedMcpServers(),
     };
 
     return new ModularMcp({
@@ -122,6 +132,10 @@ export class ModularMcp extends AiFile {
   }
 
   validate(): ValidationResult {
+    const result = ModularMcpConfigSchema.safeParse(this.json);
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
     return { success: true, error: null };
   }
 }

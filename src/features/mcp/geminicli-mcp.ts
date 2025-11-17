@@ -70,7 +70,7 @@ export class GeminiCliMcp extends ToolMcp {
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
-    const newJson = { ...json, mcpServers: rulesyncMcp.getJson({ modularMcp: false }).mcpServers };
+    const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
 
     return new GeminiCliMcp({
       baseDir,

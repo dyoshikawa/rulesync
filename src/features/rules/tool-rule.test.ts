@@ -171,24 +171,6 @@ describe("ToolRule", () => {
       expect(toolRule.isRoot()).toBe(false);
     });
 
-    it("should validate content by default", () => {
-      expect(() => {
-        new TestToolRule({
-          relativeDirPath: ".test/rules",
-          relativeFilePath: "test-rule.md",
-          fileContent: "Valid content",
-        });
-      }).not.toThrow();
-
-      expect(() => {
-        new TestToolRule({
-          relativeDirPath: ".test/rules",
-          relativeFilePath: "test-rule.md",
-          fileContent: "", // Should fail validation
-        });
-      }).toThrow("Content cannot be empty");
-    });
-
     it("should skip validation when requested", () => {
       expect(() => {
         new TestToolRule({

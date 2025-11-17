@@ -53,7 +53,6 @@ export abstract class AiFile {
     relativeDirPath,
     relativeFilePath,
     fileContent,
-    validate = true,
     global = false,
   }: AiFileParams) {
     this.baseDir = baseDir;
@@ -61,13 +60,6 @@ export abstract class AiFile {
     this.relativeFilePath = relativeFilePath;
     this.fileContent = fileContent;
     this.global = global;
-
-    if (validate) {
-      const result = this.validate();
-      if (!result.success) {
-        throw result.error;
-      }
-    }
   }
 
   static async fromFile(_params: AiFileFromFileParams): Promise<AiFile> {

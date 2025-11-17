@@ -57,7 +57,7 @@ export class CursorMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): CursorMcp {
-    const json = rulesyncMcp.getJson({ modularMcp: false });
+    const json = rulesyncMcp.getJson();
 
     // Convert Rulesync MCP format to Cursor MCP format
     const cursorConfig = {
