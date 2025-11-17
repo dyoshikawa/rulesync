@@ -144,7 +144,7 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getExposedServers(): McpServers {
+  getExposedMcpServers(): McpServers {
     // Return only servers with exposed: true, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
@@ -156,14 +156,15 @@ export class RulesyncMcp extends RulesyncFile {
     );
   }
 
-  getModularizedServers(): McpServers {
+  getModularizedMcpServers(): McpServers {
     // Return only servers with exposed: false, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
         .filter(([, serverConfig]) => this.modularMcp && !serverConfig.exposed)
         .map(([serverName, serverConfig]) => [
           serverName,
-          omit(serverConfig, ["targets", "description", "exposed"]),
+          // description is required for modular-mcp servers
+          omit(serverConfig, ["targets", "exposed"]),
         ]),
     );
   }

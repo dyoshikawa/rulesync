@@ -716,7 +716,7 @@ describe("RulesyncMcp", () => {
     });
   });
 
-  describe("getExposedServers", () => {
+  describe("getExposedMcpServers", () => {
     it("should return only servers with exposed: true", () => {
       const jsonData = {
         mcpServers: {
@@ -752,7 +752,7 @@ describe("RulesyncMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const result = rulesyncMcp.getExposedServers();
+      const result = rulesyncMcp.getExposedMcpServers();
 
       // Only exposed servers should be returned
       expect(Object.keys(result)).toHaveLength(2);
@@ -801,7 +801,7 @@ describe("RulesyncMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const result = rulesyncMcp.getExposedServers();
+      const result = rulesyncMcp.getExposedMcpServers();
 
       expect(result).toEqual({});
     });
@@ -815,7 +815,7 @@ describe("RulesyncMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const result = rulesyncMcp.getExposedServers();
+      const result = rulesyncMcp.getExposedMcpServers();
 
       expect(result).toEqual({});
     });
@@ -827,7 +827,7 @@ describe("RulesyncMcp", () => {
         fileContent: JSON.stringify(null),
       });
 
-      const result = rulesyncMcp.getExposedServers();
+      const result = rulesyncMcp.getExposedMcpServers();
 
       expect(result).toEqual({});
     });

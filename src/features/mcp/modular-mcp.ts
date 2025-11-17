@@ -119,7 +119,7 @@ export class ModularMcp extends AiFile {
     );
 
     const modularMcpJson = {
-      mcpServers: rulesyncMcp.getModularizedServers(),
+      mcpServers: rulesyncMcp.getModularizedMcpServers(),
     };
 
     return new ModularMcp({
