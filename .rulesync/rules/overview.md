@@ -21,6 +21,6 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
     - `pnpm cicheck:content` to check content style, spelling, and secrets.
     - `pnpm cicheck` to check both code and content.
   - Basically, I recommend you to run `pnpm cicheck:code` only to daily checks. Because it is fast, `pnpm cicheck:content` and `pnpm cicheck` are slower.
-- When doing `git commmit`:
+- When doing `git commit`:
   - You must not use here documents because it causes a sandbox error.
   - You must not use `--no-verify` option because it skips pre-commit checks and causes serious security issues.
