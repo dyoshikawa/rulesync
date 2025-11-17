@@ -13,9 +13,7 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
-
-// Base schema: type, command, args are required; no description field
-const McpServerBaseSchema = z.object({
+const McpServerSchema = z.object({
   type: z.optional(z.enum(["stdio", "sse", "http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),
@@ -34,15 +32,17 @@ const McpServerBaseSchema = z.object({
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
 });
+const McpServersSchema = z.record(z.string(), McpServerSchema);
+type McpServers = z.infer<typeof McpServersSchema>;
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
 const RulesyncMcpServerSchema = z.union([
-  z.extend(McpServerBaseSchema, {
+  z.extend(McpServerSchema, {
     targets: z.optional(RulesyncTargetsSchema),
     description: z.optional(z.string()),
     exposed: z.optional(z.literal(false)),
   }),
-  z.extend(McpServerBaseSchema, {
+  z.extend(McpServerSchema, {
     targets: z.optional(RulesyncTargetsSchema),
     description: z.undefined(),
     exposed: z.literal(true),
@@ -166,26 +166,26 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getExposedServers(): Record<string, unknown> {
+  getExposedServers(): McpServers {
     // Return only servers with exposed: true, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
         .filter(([, serverConfig]) => !this.modularMcp || serverConfig.exposed)
         .map(([serverName, serverConfig]) => [
           serverName,
-          omit(serverConfig, ["description", "exposed"]),
+          omit(serverConfig, ["targets", "description", "exposed"]),
         ]),
     );
   }
 
-  getModularizedServers(): Record<string, unknown> {
+  getModularizedServers(): McpServers {
     // Return only servers with exposed: false, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
         .filter(([, serverConfig]) => this.modularMcp && !serverConfig.exposed)
         .map(([serverName, serverConfig]) => [
           serverName,
-          omit(serverConfig, ["description", "exposed"]),
+          omit(serverConfig, ["targets", "description", "exposed"]),
         ]),
     );
   }
