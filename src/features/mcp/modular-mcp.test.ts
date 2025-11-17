@@ -296,7 +296,14 @@ describe("ModularMcp", () => {
       const modularMcp = new ModularMcp({
         relativeDirPath: ".",
         relativeFilePath: "modular-mcp.json",
-        fileContent: JSON.stringify({ groups: {} }),
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "test-server": {
+              command: "node",
+              description: "Test server",
+            },
+          },
+        }),
       });
 
       const result = modularMcp.validate();
@@ -305,7 +312,7 @@ describe("ModularMcp", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should always return success for current implementation", () => {
+    it("should return validation error for invalid data", () => {
       const modularMcp = new ModularMcp({
         relativeDirPath: ".",
         relativeFilePath: "modular-mcp.json",
@@ -314,8 +321,8 @@ describe("ModularMcp", () => {
 
       const result = modularMcp.validate();
 
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
     });
 
     it("should return success for empty content", () => {
