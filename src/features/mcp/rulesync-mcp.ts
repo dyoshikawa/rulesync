@@ -170,7 +170,7 @@ export class RulesyncMcp extends RulesyncFile {
     // Return only servers with exposed: true, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
-        .filter(([, serverConfig]) => serverConfig.exposed)
+        .filter(([, serverConfig]) => !this.modularMcp || serverConfig.exposed)
         .map(([serverName, serverConfig]) => [
           serverName,
           omit(serverConfig, ["description", "exposed"]),
@@ -182,7 +182,7 @@ export class RulesyncMcp extends RulesyncFile {
     // Return only servers with exposed: false, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
-        .filter(([, serverConfig]) => !serverConfig.exposed)
+        .filter(([, serverConfig]) => this.modularMcp && !serverConfig.exposed)
         .map(([serverName, serverConfig]) => [
           serverName,
           omit(serverConfig, ["description", "exposed"]),
