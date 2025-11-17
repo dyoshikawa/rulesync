@@ -65,7 +65,6 @@
 		"pre-commit": "pnpm exec lint-staged"
 	},
 	"dependencies": {
-		"@kimuson/modular-mcp": "0.0.5",
 		"@modelcontextprotocol/sdk": "1.21.2",
 		"chokidar": "4.0.3",
 		"commander": "14.0.2",
