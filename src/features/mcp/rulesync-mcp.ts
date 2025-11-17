@@ -50,10 +50,10 @@ const RulesyncMcpServerSchema = z.union([
 ]);
 
 // Schema for rulesync MCP servers configuration
-const RulesyncMcpServersSchema = z.object({
+const RulesyncMcpConfigSchema = z.object({
   mcpServers: z.record(z.string(), RulesyncMcpServerSchema),
 });
-type RulesyncMcpConfig = z.infer<typeof RulesyncMcpServersSchema>;
+type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
 export type RulesyncMcpParams = RulesyncFileParams & {
   modularMcp?: boolean;
@@ -106,44 +106,11 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
-    try {
-      // Only validate structure if json is an object with mcpServers property
-      if (typeof this.json === "object" && this.json !== null && "mcpServers" in this.json) {
-        // Validate the JSON structure
-        RulesyncMcpServersSchema.parse(this.json);
-
-        // If modularMcp is enabled, all servers must have descriptions
-        if (this.modularMcp) {
-          if (!this.json.mcpServers || typeof this.json.mcpServers !== "object") {
-            return { success: true, error: null };
-          }
-
-          for (const [serverName, serverConfig] of Object.entries(this.json.mcpServers)) {
-            if (
-              typeof serverConfig === "object" &&
-              serverConfig !== null &&
-              "description" in serverConfig
-            ) {
-              if (!serverConfig.description) {
-                return {
-                  success: false,
-                  error: new Error(
-                    `Server "${serverName}" is missing required "description" field when modularMcp is enabled`,
-                  ),
-                };
-              }
-            }
-          }
-        }
-      }
-
-      return { success: true, error: null };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+    const result = RulesyncMcpConfigSchema.safeParse(this.json);
+    if (!result.success) {
+      return { success: false, error: result.error };
     }
+    return { success: true, error: null };
   }
 
   static async fromFile({
@@ -201,16 +168,6 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   getExposedServers(): Record<string, unknown> {
-    // If json is not an object or null, return empty object
-    if (!this.json || typeof this.json !== "object") {
-      return {};
-    }
-
-    // If mcpServers doesn't exist or is not an object, return empty object
-    if (!this.json.mcpServers || typeof this.json.mcpServers !== "object") {
-      return {};
-    }
-
     // Return only servers with exposed: true, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
@@ -223,16 +180,6 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   getJson({ modularMcp = false }: { modularMcp?: boolean } = {}): RulesyncMcpConfig {
-    // If json is not an object or null, return as is
-    if (!this.json || typeof this.json !== "object") {
-      return this.json;
-    }
-
-    // If mcpServers doesn't exist or is not an object, return as is
-    if (!this.json.mcpServers || typeof this.json.mcpServers !== "object") {
-      return this.json;
-    }
-
     if (modularMcp) {
       // When modularMcp is true, filter out exposed servers and omit exposed field
       const mcpServersForModularMcp = Object.fromEntries(
