@@ -49,7 +49,6 @@ const RulesyncMcpServerSchema = z.union([
   }),
 ]);
 
-// Schema for rulesync MCP servers configuration
 const RulesyncMcpConfigSchema = z.object({
   mcpServers: z.record(z.string(), RulesyncMcpServerSchema),
 });
@@ -171,7 +170,7 @@ export class RulesyncMcp extends RulesyncFile {
     // Return only servers with exposed: true, omitting description and exposed fields
     return Object.fromEntries(
       Object.entries(this.json.mcpServers)
-        .filter(([, serverConfig]) => serverConfig.exposed === true)
+        .filter(([, serverConfig]) => serverConfig.exposed)
         .map(([serverName, serverConfig]) => [
           serverName,
           omit(serverConfig, ["description", "exposed"]),
@@ -179,32 +178,19 @@ export class RulesyncMcp extends RulesyncFile {
     );
   }
 
-  getJson({ modularMcp = false }: { modularMcp?: boolean } = {}): RulesyncMcpConfig {
-    if (modularMcp) {
-      // When modularMcp is true, filter out exposed servers and omit exposed field
-      const mcpServersForModularMcp = Object.fromEntries(
-        Object.entries(this.json.mcpServers)
-          .filter(([, serverConfig]) => !serverConfig.exposed)
-          .map(([serverName, serverConfig]) => [serverName, omit(serverConfig, ["exposed"])]),
-      );
-
-      return {
-        ...this.json,
-        mcpServers: mcpServersForModularMcp,
-      };
-    }
-
-    // When modularMcp is false, omit description and exposed fields from all servers
-    const mcpServersWithoutDescription = Object.fromEntries(
-      Object.entries(this.json.mcpServers).map(([serverName, serverConfig]) => [
-        serverName,
-        omit(serverConfig, ["description", "exposed"]),
-      ]),
+  getModularizedServers(): Record<string, unknown> {
+    // Return only servers with exposed: false, omitting description and exposed fields
+    return Object.fromEntries(
+      Object.entries(this.json.mcpServers)
+        .filter(([, serverConfig]) => !serverConfig.exposed)
+        .map(([serverName, serverConfig]) => [
+          serverName,
+          omit(serverConfig, ["description", "exposed"]),
+        ]),
     );
+  }
 
-    return {
-      ...this.json,
-      mcpServers: mcpServersWithoutDescription,
-    };
+  getJson(): RulesyncMcpConfig {
+    return this.json;
   }
 }
