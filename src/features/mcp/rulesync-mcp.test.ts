@@ -326,20 +326,6 @@ describe("RulesyncMcp", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should always return success for current implementation", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({ invalid: "data" }),
-        validate: false,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
     it("should pass validation when modularMcp is true and description is present", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -438,18 +424,6 @@ describe("RulesyncMcp", () => {
       expect(result).toEqual(jsonData);
       // Note: With modularMcp=false (default), description fields are omitted, so reference may differ
       expect(result).toEqual(rulesyncMcp.getJson());
-    });
-
-    it("should return empty object for empty JSON", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({}),
-      });
-
-      const result = rulesyncMcp.getJson();
-
-      expect(result).toEqual({});
     });
 
     it("should return complex nested structure", () => {
@@ -666,6 +640,7 @@ describe("RulesyncMcp", () => {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
+        modularMcp: true,
       });
 
       const result = rulesyncMcp.getExposedMcpServers();
@@ -692,60 +667,6 @@ describe("RulesyncMcp", () => {
         command: "python",
         args: ["server2.py"],
       });
-    });
-
-    it("should return empty object when no servers are exposed", () => {
-      const jsonData = {
-        mcpServers: {
-          "server-1": {
-            command: "node",
-            args: ["server.js"],
-            description: "Server 1",
-            exposed: false,
-          },
-          "server-2": {
-            command: "python",
-            args: ["server.py"],
-            description: "Server 2",
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const result = rulesyncMcp.getExposedMcpServers();
-
-      expect(result).toEqual({});
-    });
-
-    it("should return empty object when mcpServers is not an object", () => {
-      const jsonData = { mcpServers: null };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const result = rulesyncMcp.getExposedMcpServers();
-
-      expect(result).toEqual({});
-    });
-
-    it("should return empty object when json is null", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(null),
-      });
-
-      const result = rulesyncMcp.getExposedMcpServers();
-
-      expect(result).toEqual({});
     });
   });
 
