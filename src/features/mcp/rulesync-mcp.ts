@@ -13,7 +13,7 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
-const McpServerSchema = z.object({
+export const McpServerSchema = z.object({
   type: z.optional(z.enum(["stdio", "sse", "http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),

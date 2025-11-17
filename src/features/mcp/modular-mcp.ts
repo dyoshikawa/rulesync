@@ -1,27 +1,10 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { AiFile, AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { RulesyncMcp } from "./rulesync-mcp.js";
+import { McpServerSchema, RulesyncMcp } from "./rulesync-mcp.js";
 
-// Schema for modular-mcp.json server configuration
-const ModularMcpServerSchema = z.object({
-  type: z.optional(z.enum(["stdio", "sse", "http"])),
-  command: z.optional(z.union([z.string(), z.array(z.string())])),
-  args: z.optional(z.array(z.string())),
-  url: z.optional(z.string()),
-  httpUrl: z.optional(z.string()),
-  env: z.optional(z.record(z.string(), z.string())),
-  disabled: z.optional(z.boolean()),
-  networkTimeout: z.optional(z.number()),
-  timeout: z.optional(z.number()),
-  trust: z.optional(z.boolean()),
-  cwd: z.optional(z.string()),
-  transport: z.optional(z.enum(["stdio", "sse", "http"])),
-  alwaysAllow: z.optional(z.array(z.string())),
-  tools: z.optional(z.array(z.string())),
-  kiroAutoApprove: z.optional(z.array(z.string())),
-  kiroAutoBlock: z.optional(z.array(z.string())),
-  headers: z.optional(z.record(z.string(), z.string())),
+// Schema for modular-mcp.json server configuration - based on McpServerSchema with required description
+const ModularMcpServerSchema = z.extend(McpServerSchema, {
   description: z.string(), // Required for modular-mcp
 });
 
@@ -134,9 +117,8 @@ export class ModularMcp extends AiFile {
         : { global: false, relativeDirPath: undefined },
     );
 
-    // Generate modular-mcp.json with actual server configurations
     const modularMcpJson = {
-      mcpServers: rulesyncMcp.getJson({ modularMcp: true }).mcpServers,
+      mcpServers: rulesyncMcp.getModularizedServers(),
     };
 
     return new ModularMcp({
@@ -149,18 +131,10 @@ export class ModularMcp extends AiFile {
   }
 
   validate(): ValidationResult {
-    try {
-      // Only validate structure if json is an object with mcpServers property
-      if (typeof this.json === "object" && this.json !== null && "mcpServers" in this.json) {
-        // Validate the JSON structure
-        ModularMcpConfigSchema.parse(this.json);
-      }
-      return { success: true, error: null };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+    const result = ModularMcpConfigSchema.safeParse(this.json);
+    if (!result.success) {
+      return { success: false, error: result.error };
     }
+    return { success: true, error: null };
   }
 }
