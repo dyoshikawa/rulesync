@@ -31,7 +31,8 @@
         "/var/run/docker.sock"
       ],
       "allowLocalBinding": true
-    }
+    },
+    "allowUnsandboxedCommands": false
   },
   "hooks": {
     "SessionStart": [
