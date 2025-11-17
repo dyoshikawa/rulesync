@@ -3,6 +3,7 @@ import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { McpServerSchema, McpServers } from "../../types/mcp.js";
 import {
   RulesyncFile,
   RulesyncFileFromFileParams,
@@ -11,29 +12,6 @@ import {
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
-
-const McpTransportTypeSchema = z.enum(["stdio", "sse", "http"]);
-export const McpServerSchema = z.object({
-  type: z.optional(z.enum(["stdio", "sse", "http"])),
-  command: z.optional(z.union([z.string(), z.array(z.string())])),
-  args: z.optional(z.array(z.string())),
-  url: z.optional(z.string()),
-  httpUrl: z.optional(z.string()),
-  env: z.optional(z.record(z.string(), z.string())),
-  disabled: z.optional(z.boolean()),
-  networkTimeout: z.optional(z.number()),
-  timeout: z.optional(z.number()),
-  trust: z.optional(z.boolean()),
-  cwd: z.optional(z.string()),
-  transport: z.optional(McpTransportTypeSchema),
-  alwaysAllow: z.optional(z.array(z.string())),
-  tools: z.optional(z.array(z.string())),
-  kiroAutoApprove: z.optional(z.array(z.string())),
-  kiroAutoBlock: z.optional(z.array(z.string())),
-  headers: z.optional(z.record(z.string(), z.string())),
-});
-const McpServersSchema = z.record(z.string(), McpServerSchema);
-type McpServers = z.infer<typeof McpServersSchema>;
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
 const RulesyncMcpServerSchema = z.union([

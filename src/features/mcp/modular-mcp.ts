@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
 import { AiFile, AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { McpServerSchema, RulesyncMcp } from "./rulesync-mcp.js";
+import { McpServerSchema } from "../../types/mcp.js";
+import { RulesyncMcp } from "./rulesync-mcp.js";
 
 // Schema for modular-mcp.json server configuration - based on McpServerSchema with required description
 const ModularMcpServerSchema = z.extend(McpServerSchema, {
