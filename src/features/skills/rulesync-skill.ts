@@ -51,7 +51,13 @@ export class RulesyncSkill extends RulesyncFile {
   private readonly body: string;
   private readonly otherSkillFiles: SkillFile[];
 
-  constructor({ frontmatter, body, otherSkillFiles, ...rest }: RulesyncSkillParams) {
+  constructor({
+    frontmatter,
+    body,
+    otherSkillFiles,
+    validate = true,
+    ...rest
+  }: RulesyncSkillParams) {
     super({
       ...rest,
     });
@@ -60,7 +66,7 @@ export class RulesyncSkill extends RulesyncFile {
     this.body = body;
     this.otherSkillFiles = otherSkillFiles;
 
-    if (rest.validate) {
+    if (validate) {
       const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
