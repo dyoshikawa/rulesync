@@ -9,7 +9,7 @@ import {
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, findFilesByGlobs, readFileContent } from "../../utils/file.js";
+import { fileExists, findFilesByGlobs, readFileBuffer, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 
@@ -28,7 +28,7 @@ export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSc
 export type SkillFile = {
   relativeDirPath: string;
   relativeFilePath: string;
-  fileContent: string;
+  fileBuffer: Buffer;
   children: SkillFile[];
 };
 
@@ -111,7 +111,7 @@ export class RulesyncSkill extends RulesyncFile {
   /**
    * Recursively collects all skill files from a directory, excluding SKILL.md
    */
-  private static async collectSkillFiles(skillDir: string): Promise<SkillFile[]> {
+  private static async collectOtherSkillFiles(skillDir: string): Promise<SkillFile[]> {
     try {
       // Find all files in the skill directory (recursively) except SKILL.md
       const glob = join(skillDir, "**", "*");
@@ -126,7 +126,7 @@ export class RulesyncSkill extends RulesyncFile {
       // Convert paths to SkillFile objects
       const files: SkillFile[] = [];
       for (const filePath of skillFiles) {
-        const fileContent = await readFileContent(filePath);
+        const fileBuffer = await readFileBuffer(filePath);
         // Calculate relative directory path from skill directory (Windows-compatible)
         const relativePath = relative(skillDir, filePath);
         const relativeDir = relativePath.includes(sep) ? dirname(relativePath) : ".";
@@ -134,7 +134,7 @@ export class RulesyncSkill extends RulesyncFile {
         files.push({
           relativeDirPath: relativeDir,
           relativeFilePath: basename(filePath),
-          fileContent,
+          fileBuffer,
           children: [],
         });
       }
@@ -172,7 +172,7 @@ export class RulesyncSkill extends RulesyncFile {
     }
 
     // Collect all skill files except SKILL.md
-    const otherSkillFiles = await this.collectSkillFiles(skillDir);
+    const otherSkillFiles = await this.collectOtherSkillFiles(skillDir);
 
     const filename = basename(relativeFilePath);
 

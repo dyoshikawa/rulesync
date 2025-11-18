@@ -179,7 +179,7 @@ Test body`,
         {
           relativeDirPath: ".",
           relativeFilePath: "helper.ts",
-          fileContent: "export const helper = () => {};",
+          fileBuffer: Buffer.from("export const helper = () => {};"),
           children: [],
         },
       ];
@@ -247,13 +247,13 @@ Test body`,
         {
           relativeDirPath: ".",
           relativeFilePath: "file1.ts",
-          fileContent: "content1",
+          fileBuffer: Buffer.from("content1"),
           children: [],
         },
         {
           relativeDirPath: "subdir",
           relativeFilePath: "file2.ts",
-          fileContent: "content2",
+          fileBuffer: Buffer.from("content2"),
           children: [],
         },
       ];
@@ -390,7 +390,7 @@ Test body`,
       const otherFiles = skill.getOtherSkillFiles();
       expect(otherFiles.length).toBe(1);
       expect(otherFiles[0]?.relativeFilePath).toBe("helper.ts");
-      expect(otherFiles[0]?.fileContent).toContain("export const helper");
+      expect(otherFiles[0]?.fileBuffer.toString("utf-8")).toContain("export const helper");
     });
 
     it.skip("should collect files from subdirectories", async () => {
