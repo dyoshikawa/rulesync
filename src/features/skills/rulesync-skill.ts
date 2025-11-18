@@ -121,17 +121,16 @@ export class RulesyncSkill extends RulesyncFile {
     try {
       // Find all files in the skill directory (recursively) except SKILL.md
       const glob = join(skillDir, "**", "*");
-      const allPaths = await findFilesByGlobs(glob);
+      const filePaths = await findFilesByGlobs(glob, { fileOnly: true });
 
-      // Filter to only regular files and exclude SKILL.md
-      const skillFiles = allPaths.filter((path) => {
-        const fileName = basename(path);
-        return fileName !== SKILL_FILE_NAME;
-      });
-
-      // Convert paths to SkillFile objects
+      // Filter to exclude SKILL.md and convert to SkillFile objects
       const files: SkillFile[] = [];
-      for (const filePath of skillFiles) {
+      for (const filePath of filePaths) {
+        const fileName = basename(filePath);
+        if (fileName === SKILL_FILE_NAME) {
+          continue;
+        }
+
         const fileBuffer = await readFileBuffer(filePath);
         // Calculate relative directory path from skill directory (Windows-compatible)
         const relativePath = relative(skillDir, filePath);
@@ -139,7 +138,7 @@ export class RulesyncSkill extends RulesyncFile {
 
         files.push({
           relativeDirPath: relativeDir,
-          relativeFilePath: basename(filePath),
+          relativeFilePath: fileName,
           fileBuffer,
           children: [],
         });
