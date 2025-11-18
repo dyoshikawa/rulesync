@@ -146,6 +146,7 @@ Test body`,
           body: "Test body",
           otherSkillFiles: [],
           fileContent: "content",
+          validate: true,
         });
       }).toThrow();
     });
