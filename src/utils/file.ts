@@ -155,8 +155,16 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
   }
 }
 
-export async function findFilesByGlobs(globs: string | string[]): Promise<string[]> {
-  return globSync(globs);
+export async function findFilesByGlobs(
+  globs: string | string[],
+  options: { fileOnly?: boolean } = {},
+): Promise<string[]> {
+  const items = globSync(globs, { withFileTypes: true });
+  if (!options.fileOnly) {
+    return items.map((item) => join(item.parentPath, item.name));
+  }
+
+  return items.filter((item) => item.isFile()).map((item) => join(item.parentPath, item.name));
 }
 
 /**

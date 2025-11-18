@@ -52,16 +52,6 @@ export class RulesyncSkill extends RulesyncFile {
   private readonly otherSkillFiles: SkillFile[];
 
   constructor({ frontmatter, body, otherSkillFiles, ...rest }: RulesyncSkillParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate !== false) {
-      const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
     super({
       ...rest,
     });
@@ -69,6 +59,15 @@ export class RulesyncSkill extends RulesyncFile {
     this.frontmatter = frontmatter;
     this.body = body;
     this.otherSkillFiles = otherSkillFiles;
+
+    if (rest.validate) {
+      const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
+      if (!result.success) {
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+        );
+      }
+    }
   }
 
   static getSettablePaths(): RulesyncSkillSettablePaths {
