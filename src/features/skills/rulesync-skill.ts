@@ -1,9 +1,7 @@
 import { basename, dirname, join, relative, sep } from "node:path";
 import { z } from "zod/mini";
-import {
-  RULESYNC_SKILL_FILE_NAME,
-  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
+import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import {
   RulesyncFile,
@@ -123,7 +121,7 @@ export class RulesyncSkill extends RulesyncFile {
       // Filter to only regular files and exclude SKILL.md
       const skillFiles = allPaths.filter((path) => {
         const fileName = basename(path);
-        return fileName !== RULESYNC_SKILL_FILE_NAME;
+        return fileName !== SKILL_FILE_NAME;
       });
 
       // Convert paths to SkillFile objects
@@ -157,11 +155,11 @@ export class RulesyncSkill extends RulesyncFile {
   }: RulesyncSkillFromFileParams & { skillName: string }): Promise<RulesyncSkill> {
     const settablePaths = this.getSettablePaths();
     const skillDir = join(baseDir || process.cwd(), settablePaths.relativeDirPath, skillName);
-    const skillFilePath = join(skillDir, RULESYNC_SKILL_FILE_NAME);
+    const skillFilePath = join(skillDir, SKILL_FILE_NAME);
 
     // Check if SKILL.md exists
     if (!(await fileExists(skillFilePath))) {
-      throw new Error(`${RULESYNC_SKILL_FILE_NAME} not found in ${skillDir}`);
+      throw new Error(`${SKILL_FILE_NAME} not found in ${skillDir}`);
     }
 
     // Read and parse SKILL.md
