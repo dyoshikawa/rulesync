@@ -93,22 +93,17 @@ export class RulesyncSkill {
   }
 
   validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
     const result = RulesyncSkillFrontmatterSchema.safeParse(this.frontmatter);
-
-    if (result.success) {
-      return { success: true, error: null };
-    } else {
+    if (!result.success) {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(RulesyncSkill.getSettablePaths().relativeDirPath, this.skillDirName)}: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${join(process.cwd(), RulesyncSkill.getSettablePaths().relativeDirPath, this.skillDirName)}: ${formatError(result.error)}`,
         ),
       };
     }
+
+    return { success: true, error: null };
   }
 
   /**
