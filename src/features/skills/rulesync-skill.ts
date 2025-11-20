@@ -2,7 +2,7 @@ import { basename, join, relative } from "node:path";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiDir, DirFile, ValidationResult } from "../../types/ai-dir.js";
+import { AiDir, AiDirFile, ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, findFilesByGlobs, readFileBuffer, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -20,9 +20,9 @@ export const RulesyncSkillFrontmatterSchema = z.object({
 export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSchema>;
 
 /**
- * Type alias for DirFile, specific to skill files
+ * Type alias for AiDirFile, specific to skill files
  */
-export type SkillFile = DirFile;
+export type SkillFile = AiDirFile;
 
 export type RulesyncSkillParams = {
   baseDir?: string;
@@ -30,7 +30,7 @@ export type RulesyncSkillParams = {
   dirName: string;
   frontmatter: RulesyncSkillFrontmatter;
   body: string;
-  otherFiles?: DirFile[];
+  otherFiles?: AiDirFile[];
   validate?: boolean;
   global?: boolean;
 };
@@ -123,14 +123,14 @@ export class RulesyncSkill extends AiDir {
     baseDir: string,
     relativeDirPath: string,
     dirName: string,
-  ): Promise<DirFile[]> {
+  ): Promise<AiDirFile[]> {
     const skillDirPath = join(baseDir, relativeDirPath, dirName);
     const glob = join(skillDirPath, "**", "*");
     const filePaths = await findFilesByGlobs(glob, { fileOnly: true });
     const filePathsWithoutSkillMd = filePaths.filter(
       (filePath) => basename(filePath) !== SKILL_FILE_NAME,
     );
-    const files: DirFile[] = await Promise.all(
+    const files: AiDirFile[] = await Promise.all(
       filePathsWithoutSkillMd.map(async (filePath) => {
         const fileBuffer = await readFileBuffer(filePath);
         return {

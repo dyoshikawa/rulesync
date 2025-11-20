@@ -10,7 +10,7 @@ export type ValidationResult =
       error: Error;
     };
 
-export type DirFile = {
+export type AiDirFile = {
   relativeFilePathToDirPath: string;
   fileBuffer: Buffer;
 };
@@ -24,7 +24,7 @@ export type AiDirParams = {
     body: string;
     frontmatter?: Record<string, unknown>;
   };
-  otherFiles?: DirFile[];
+  otherFiles?: AiDirFile[];
   global?: boolean;
 };
 
@@ -61,7 +61,7 @@ export abstract class AiDir {
   /**
    * Additional files in the directory
    */
-  protected otherFiles: DirFile[];
+  protected otherFiles: AiDirFile[];
 
   /**
    * @example false
@@ -136,7 +136,7 @@ export abstract class AiDir {
     return this.mainFile;
   }
 
-  getOtherFiles(): DirFile[] {
+  getOtherFiles(): AiDirFile[] {
     return this.otherFiles;
   }
 
