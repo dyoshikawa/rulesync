@@ -144,6 +144,10 @@ export abstract class AiDir {
     return path.join(this.relativeDirPath, this.dirName);
   }
 
+  getGlobal(): boolean {
+    return this.global;
+  }
+
   setMainFile(name: string, body: string, frontmatter?: Record<string, unknown>): void {
     this.mainFile = { name, body, frontmatter };
   }
