@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent, writeFileBuffer } from "../../utils/file.js";
+import { ensureDir, writeFileBuffer, writeFileContent } from "../../utils/file.js";
 import {
   ClaudecodeSkill,
   type ClaudecodeSkillFrontmatter,
@@ -497,7 +497,10 @@ Main skill content.`;
 
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
 
-      await writeFileBuffer(join(skillDir, "helper.ts"), Buffer.from("export function helper() {}"));
+      await writeFileBuffer(
+        join(skillDir, "helper.ts"),
+        Buffer.from("export function helper() {}"),
+      );
 
       const skill = await ClaudecodeSkill.fromDir({
         baseDir: testDir,
