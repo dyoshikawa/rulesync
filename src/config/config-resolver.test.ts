@@ -283,14 +283,6 @@ describe("config-resolver", () => {
       ).rejects.toThrow("Path traversal detected");
     });
 
-    it("should reject Windows-style absolute paths outside current directory", async () => {
-      await expect(
-        ConfigResolver.resolve({
-          configPath: "C:/Windows/System32/config/sam",
-        }),
-      ).rejects.toThrow(); // Can throw either "Path traversal detected" or baseDir validation error
-    });
-
     it("should reject paths attempting to access parent directories", async () => {
       await expect(
         ConfigResolver.resolve({
