@@ -23,7 +23,7 @@ export type ConfigResolverResolveParams = Partial<
   }
 >;
 
-const defaults: RequiredConfigParams & { configPath: string } = {
+const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   targets: ["agentsmd"],
   features: ["rules"],
   verbose: false,
@@ -37,7 +37,7 @@ const defaults: RequiredConfigParams & { configPath: string } = {
   experimentalGlobal: false,
   experimentalSimulateCommands: false,
   experimentalSimulateSubagents: false,
-};
+});
 
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
@@ -47,7 +47,7 @@ export class ConfigResolver {
     verbose,
     delete: isDelete,
     baseDirs,
-    configPath = defaults.configPath,
+    configPath = getDefaults().configPath,
     global,
     simulatedCommands,
     simulatedSubagents,
@@ -94,33 +94,33 @@ export class ConfigResolver {
       configByFile.global ??
       experimentalGlobal ??
       configByFile.experimentalGlobal ??
-      defaults.global;
+      getDefaults().global;
     const resolvedSimulatedCommands =
       simulatedCommands ??
       configByFile.simulatedCommands ??
       experimentalSimulateCommands ??
       configByFile.experimentalSimulateCommands ??
-      defaults.simulatedCommands;
+      getDefaults().simulatedCommands;
     const resolvedSimulatedSubagents =
       simulatedSubagents ??
       configByFile.simulatedSubagents ??
       experimentalSimulateSubagents ??
       configByFile.experimentalSimulateSubagents ??
-      defaults.simulatedSubagents;
+      getDefaults().simulatedSubagents;
 
     const configParams = {
-      targets: targets ?? configByFile.targets ?? defaults.targets,
-      features: features ?? configByFile.features ?? defaults.features,
-      verbose: verbose ?? configByFile.verbose ?? defaults.verbose,
-      delete: isDelete ?? configByFile.delete ?? defaults.delete,
+      targets: targets ?? configByFile.targets ?? getDefaults().targets,
+      features: features ?? configByFile.features ?? getDefaults().features,
+      verbose: verbose ?? configByFile.verbose ?? getDefaults().verbose,
+      delete: isDelete ?? configByFile.delete ?? getDefaults().delete,
       baseDirs: getBaseDirsInLightOfGlobal({
-        baseDirs: baseDirs ?? configByFile.baseDirs ?? defaults.baseDirs,
+        baseDirs: baseDirs ?? configByFile.baseDirs ?? getDefaults().baseDirs,
         global: resolvedGlobal,
       }),
       global: resolvedGlobal,
       simulatedCommands: resolvedSimulatedCommands,
       simulatedSubagents: resolvedSimulatedSubagents,
-      modularMcp: modularMcp ?? configByFile.modularMcp ?? defaults.modularMcp,
+      modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
     };
     return new Config(configParams);
   }
