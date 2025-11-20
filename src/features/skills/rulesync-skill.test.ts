@@ -33,15 +33,15 @@ describe("RulesyncSkill", () => {
       };
 
       const skill = new RulesyncSkill({
-        skillDirName: "test-skill",
+        dirName: "test-skill",
         frontmatter,
         body: "This is a test skill body",
-        otherSkillFiles: [],
+        otherFiles: [],
       });
 
       expect(skill.getFrontmatter()).toEqual(frontmatter);
       expect(skill.getBody()).toBe("This is a test skill body");
-      expect(skill.getOtherSkillFiles()).toEqual([]);
+      expect(skill.getOtherFiles()).toEqual([]);
     });
 
     it("should validate frontmatter by default", () => {
@@ -52,10 +52,10 @@ describe("RulesyncSkill", () => {
 
       expect(() => {
         const skill = new RulesyncSkill({
-          skillDirName: "invalid-skill",
+          dirName: "invalid-skill",
           frontmatter: invalidFrontmatter,
           body: "Test body",
-          otherSkillFiles: [],
+          otherFiles: [],
         });
         return skill;
       }).toThrow();
@@ -69,10 +69,10 @@ describe("RulesyncSkill", () => {
 
       expect(() => {
         const skill = new RulesyncSkill({
-          skillDirName: "invalid-skill",
+          dirName: "invalid-skill",
           frontmatter: invalidFrontmatter,
           body: "Test body",
-          otherSkillFiles: [],
+          otherFiles: [],
           validate: false,
         });
         return skill;
@@ -89,10 +89,10 @@ describe("RulesyncSkill", () => {
       };
 
       const skill = new RulesyncSkill({
-        skillDirName: "claudecode-skill",
+        dirName: "claudecode-skill",
         frontmatter,
         body: "Claude Code skill body",
-        otherSkillFiles: [],
+        otherFiles: [],
       });
 
       expect(skill.getFrontmatter().claudecode).toEqual({
@@ -106,29 +106,27 @@ describe("RulesyncSkill", () => {
         description: "Skill with additional files",
       };
 
-      const otherSkillFiles: SkillFile[] = [
+      const otherFiles: SkillFile[] = [
         {
-          relativeFilePathToSkillDirPath: "scripts/search.ts",
+          relativeFilePathToDirPath: "scripts/search.ts",
           fileBuffer: Buffer.from("console.log('search');"),
         },
         {
-          relativeFilePathToSkillDirPath: "utils/helper.ts",
+          relativeFilePathToDirPath: "utils/helper.ts",
           fileBuffer: Buffer.from("export const helper = () => {};"),
         },
       ];
 
       const skill = new RulesyncSkill({
-        skillDirName: "complex-skill",
+        dirName: "complex-skill",
         frontmatter,
         body: "Complex skill body",
-        otherSkillFiles,
+        otherFiles,
       });
 
-      expect(skill.getOtherSkillFiles()).toHaveLength(2);
-      expect(skill.getOtherSkillFiles()[0]?.relativeFilePathToSkillDirPath).toBe(
-        "scripts/search.ts",
-      );
-      expect(skill.getOtherSkillFiles()[1]?.relativeFilePathToSkillDirPath).toBe("utils/helper.ts");
+      expect(skill.getOtherFiles()).toHaveLength(2);
+      expect(skill.getOtherFiles()[0]?.relativeFilePathToDirPath).toBe("scripts/search.ts");
+      expect(skill.getOtherFiles()[1]?.relativeFilePathToDirPath).toBe("utils/helper.ts");
     });
   });
 
@@ -140,10 +138,10 @@ describe("RulesyncSkill", () => {
       };
 
       const skill = new RulesyncSkill({
-        skillDirName: "test-skill",
+        dirName: "test-skill",
         frontmatter,
         body: "Test body",
-        otherSkillFiles: [],
+        otherFiles: [],
       });
 
       expect(skill.getFrontmatter()).toEqual(frontmatter);
@@ -155,57 +153,57 @@ describe("RulesyncSkill", () => {
       const body = "This is the skill content\nwith multiple lines";
 
       const skill = new RulesyncSkill({
-        skillDirName: "test-skill",
+        dirName: "test-skill",
         frontmatter: {
           name: "test-skill",
           description: "Test",
         },
         body,
-        otherSkillFiles: [],
+        otherFiles: [],
       });
 
       expect(skill.getBody()).toBe(body);
     });
   });
 
-  describe("getOtherSkillFiles", () => {
+  describe("getOtherFiles", () => {
     it("should return empty array when no other files", () => {
       const skill = new RulesyncSkill({
-        skillDirName: "simple-skill",
+        dirName: "simple-skill",
         frontmatter: {
           name: "simple-skill",
           description: "Simple skill",
         },
         body: "Simple body",
-        otherSkillFiles: [],
+        otherFiles: [],
       });
 
-      expect(skill.getOtherSkillFiles()).toEqual([]);
+      expect(skill.getOtherFiles()).toEqual([]);
     });
 
     it("should return other skill files", () => {
-      const otherSkillFiles: SkillFile[] = [
+      const otherFiles: SkillFile[] = [
         {
-          relativeFilePathToSkillDirPath: "file1.ts",
+          relativeFilePathToDirPath: "file1.ts",
           fileBuffer: Buffer.from("content1"),
         },
         {
-          relativeFilePathToSkillDirPath: "file2.ts",
+          relativeFilePathToDirPath: "file2.ts",
           fileBuffer: Buffer.from("content2"),
         },
       ];
 
       const skill = new RulesyncSkill({
-        skillDirName: "multi-file-skill",
+        dirName: "multi-file-skill",
         frontmatter: {
           name: "multi-file-skill",
           description: "Skill with multiple files",
         },
         body: "Body",
-        otherSkillFiles,
+        otherFiles,
       });
 
-      expect(skill.getOtherSkillFiles()).toEqual(otherSkillFiles);
+      expect(skill.getOtherFiles()).toEqual(otherFiles);
     });
   });
 
@@ -217,10 +215,10 @@ describe("RulesyncSkill", () => {
       };
 
       const skill = new RulesyncSkill({
-        skillDirName: "valid-skill",
+        dirName: "valid-skill",
         frontmatter,
         body: "Test body",
-        otherSkillFiles: [],
+        otherFiles: [],
         validate: false,
       });
 
@@ -236,10 +234,10 @@ describe("RulesyncSkill", () => {
       } as any;
 
       const skill = new RulesyncSkill({
-        skillDirName: "invalid-skill",
+        dirName: "invalid-skill",
         frontmatter: invalidFrontmatter,
         body: "Test body",
-        otherSkillFiles: [],
+        otherFiles: [],
         validate: false,
       });
 
@@ -275,7 +273,7 @@ It can span multiple lines.`;
       await writeFileContent(skillFilePath, skillContent);
 
       const skill = await RulesyncSkill.fromDir({
-        skillDirName: "test-skill",
+        dirName: "test-skill",
       });
 
       expect(skill.getFrontmatter()).toEqual({
@@ -284,7 +282,7 @@ It can span multiple lines.`;
         claudecode: undefined,
       });
       expect(skill.getBody()).toBe("This is the skill body content.\nIt can span multiple lines.");
-      expect(skill.getOtherSkillFiles()).toEqual([]);
+      expect(skill.getOtherFiles()).toEqual([]);
     });
 
     it("should load skill with claudecode configuration", async () => {
@@ -308,7 +306,7 @@ Claude Code skill body`;
       await writeFileContent(skillFilePath, skillContent);
 
       const skill = await RulesyncSkill.fromDir({
-        skillDirName: "claudecode-skill",
+        dirName: "claudecode-skill",
       });
 
       expect(skill.getFrontmatter().claudecode).toEqual({
@@ -342,13 +340,13 @@ Main skill body`;
       await writeFileContent(join(utilsDir, "helper.ts"), "export const helper = () => {};");
 
       const skill = await RulesyncSkill.fromDir({
-        skillDirName: "multi-file-skill",
+        dirName: "multi-file-skill",
       });
 
-      const otherFiles = skill.getOtherSkillFiles();
+      const otherFiles = skill.getOtherFiles();
       expect(otherFiles).toHaveLength(3);
 
-      const filePaths = otherFiles.map((f) => f.relativeFilePathToSkillDirPath).toSorted();
+      const filePaths = otherFiles.map((f) => f.relativeFilePathToDirPath).toSorted();
       expect(filePaths).toEqual([
         join("scripts", "index.ts"),
         join("scripts", "search.ts"),
@@ -356,7 +354,7 @@ Main skill body`;
       ]);
 
       const searchFile = otherFiles.find(
-        (f) => f.relativeFilePathToSkillDirPath === join("scripts", "search.ts"),
+        (f) => f.relativeFilePathToDirPath === join("scripts", "search.ts"),
       );
       expect(searchFile?.fileBuffer.toString()).toBe("console.log('search');");
     });
@@ -379,16 +377,14 @@ Skill body`;
       await writeFileContent(join(skillDir, "other.ts"), "content");
 
       const skill = await RulesyncSkill.fromDir({
-        skillDirName: "exclude-test",
+        dirName: "exclude-test",
       });
 
-      const otherFiles = skill.getOtherSkillFiles();
+      const otherFiles = skill.getOtherFiles();
       expect(otherFiles).toHaveLength(1);
-      expect(otherFiles[0]?.relativeFilePathToSkillDirPath).toBe("other.ts");
+      expect(otherFiles[0]?.relativeFilePathToDirPath).toBe("other.ts");
 
-      const hasSKILLmd = otherFiles.some(
-        (f) => f.relativeFilePathToSkillDirPath === SKILL_FILE_NAME,
-      );
+      const hasSKILLmd = otherFiles.some((f) => f.relativeFilePathToDirPath === SKILL_FILE_NAME);
       expect(hasSKILLmd).toBe(false);
     });
 
@@ -399,7 +395,7 @@ Skill body`;
 
       await expect(
         RulesyncSkill.fromDir({
-          skillDirName: "missing-skill",
+          dirName: "missing-skill",
         }),
       ).rejects.toThrow(`${SKILL_FILE_NAME} not found`);
     });
@@ -421,7 +417,7 @@ Invalid skill`;
 
       await expect(
         RulesyncSkill.fromDir({
-          skillDirName: "invalid-skill",
+          dirName: "invalid-skill",
         }),
       ).rejects.toThrow("Invalid frontmatter");
     });
@@ -445,7 +441,7 @@ This has leading and trailing whitespace.
       await writeFileContent(skillFilePath, skillContent);
 
       const skill = await RulesyncSkill.fromDir({
-        skillDirName: "whitespace-skill",
+        dirName: "whitespace-skill",
       });
 
       expect(skill.getBody()).toBe("This has leading and trailing whitespace.");
@@ -599,7 +595,7 @@ helper();
       await writeFileContent(join(utilsDir, "helper.ts"), "export const helper = () => {};");
 
       const skill = await RulesyncSkill.fromDir({
-        skillDirName: "integration-skill",
+        dirName: "integration-skill",
       });
 
       // Validate frontmatter
@@ -615,10 +611,10 @@ helper();
       expect(body).toContain("Example usage");
 
       // Validate other files
-      const otherFiles = skill.getOtherSkillFiles();
+      const otherFiles = skill.getOtherFiles();
       expect(otherFiles).toHaveLength(2);
 
-      const filePaths = otherFiles.map((f) => f.relativeFilePathToSkillDirPath).toSorted();
+      const filePaths = otherFiles.map((f) => f.relativeFilePathToDirPath).toSorted();
       expect(filePaths).toEqual([join("scripts", "main.ts"), join("utils", "helper.ts")]);
 
       // Test validation
@@ -628,15 +624,15 @@ helper();
 
       // Test that the skill can be recreated with constructor
       const recreatedSkill = new RulesyncSkill({
-        skillDirName: "integration-skill",
+        dirName: "integration-skill",
         frontmatter: skill.getFrontmatter(),
         body: skill.getBody(),
-        otherSkillFiles: skill.getOtherSkillFiles(),
+        otherFiles: skill.getOtherFiles(),
       });
 
       expect(recreatedSkill.getFrontmatter()).toEqual(skill.getFrontmatter());
       expect(recreatedSkill.getBody()).toBe(skill.getBody());
-      expect(recreatedSkill.getOtherSkillFiles()).toEqual(skill.getOtherSkillFiles());
+      expect(recreatedSkill.getOtherFiles()).toEqual(skill.getOtherFiles());
     });
   });
 });

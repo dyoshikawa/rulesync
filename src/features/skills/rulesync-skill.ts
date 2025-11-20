@@ -2,7 +2,7 @@ import { basename, join, relative } from "node:path";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
+import { AiDir, DirFile, ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, findFilesByGlobs, readFileBuffer, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -19,52 +19,60 @@ export const RulesyncSkillFrontmatterSchema = z.object({
 
 export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSchema>;
 
-export type SkillFile = {
-  /**
-   * Relative to .rulesync/skills/{skillDirName}
-   *
-   * @example "scripts/search.ts"
-   */
-  relativeFilePathToSkillDirPath: string;
-  fileBuffer: Buffer;
-};
+/**
+ * Type alias for DirFile, specific to skill files
+ */
+export type SkillFile = DirFile;
 
 export type RulesyncSkillParams = {
-  skillDirName: string;
+  baseDir?: string;
+  relativeDirPath?: string;
+  dirName: string;
   frontmatter: RulesyncSkillFrontmatter;
   body: string;
-  otherSkillFiles: SkillFile[];
+  otherFiles?: DirFile[];
   validate?: boolean;
+  global?: boolean;
 };
 
 export type RulesyncSkillSettablePaths = {
   relativeDirPath: string;
 };
 
-export type RulesyncSkillFromFileParams = {
-  skillDirName: string;
+export type RulesyncSkillFromDirParams = {
+  baseDir?: string;
+  relativeDirPath?: string;
+  dirName: string;
+  global?: boolean;
 };
 
 /**
- * This is a dir, not a file, so not extending RulesyncFile.
+ * Represents a Rulesync skill directory with SKILL.md and optional additional files.
+ * Extends AiDir to inherit directory management and security features.
  */
-export class RulesyncSkill {
-  private readonly skillDirName: string;
-  private readonly frontmatter: RulesyncSkillFrontmatter;
-  private readonly body: string;
-  private readonly otherSkillFiles: SkillFile[];
-
+export class RulesyncSkill extends AiDir {
   constructor({
-    skillDirName,
+    baseDir = process.cwd(),
+    relativeDirPath = RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+    dirName,
     frontmatter,
     body,
-    otherSkillFiles,
+    otherFiles = [],
     validate = true,
+    global = false,
   }: RulesyncSkillParams) {
-    this.frontmatter = frontmatter;
-    this.body = body;
-    this.otherSkillFiles = otherSkillFiles;
-    this.skillDirName = skillDirName;
+    super({
+      baseDir,
+      relativeDirPath,
+      dirName,
+      mainFile: {
+        name: SKILL_FILE_NAME,
+        body,
+        frontmatter: { ...frontmatter },
+      },
+      otherFiles,
+      global,
+    });
 
     if (validate) {
       const result = this.validate();
@@ -74,35 +82,33 @@ export class RulesyncSkill {
     }
   }
 
-  static getSettablePaths(): RulesyncSkillSettablePaths {
+  static getSettablePaths(_options?: { global?: boolean }): RulesyncSkillSettablePaths {
+    // Skills currently don't support global mode with different paths
+    // but we accept the parameter for API consistency
     return {
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
     };
   }
 
   getFrontmatter(): RulesyncSkillFrontmatter {
-    return this.frontmatter;
+    if (!this.mainFile?.frontmatter) {
+      throw new Error("Frontmatter is not defined");
+    }
+    const result = RulesyncSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    return result;
   }
 
   getBody(): string {
-    return this.body;
-  }
-
-  getOtherSkillFiles(): SkillFile[] {
-    return this.otherSkillFiles;
-  }
-
-  getSkillDirName(): string {
-    return this.skillDirName;
+    return this.mainFile?.body ?? "";
   }
 
   validate(): ValidationResult {
-    const result = RulesyncSkillFrontmatterSchema.safeParse(this.frontmatter);
+    const result = RulesyncSkillFrontmatterSchema.safeParse(this.mainFile?.frontmatter);
     if (!result.success) {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(process.cwd(), RulesyncSkill.getSettablePaths().relativeDirPath, this.skillDirName)}: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
         ),
       };
     }
@@ -113,22 +119,22 @@ export class RulesyncSkill {
   /**
    * Recursively collects all skill files from a directory, excluding SKILL.md
    */
-  private static async collectOtherSkillFiles(skillDirName: string): Promise<SkillFile[]> {
-    const skillDirPath = join(
-      process.cwd(),
-      RulesyncSkill.getSettablePaths().relativeDirPath,
-      skillDirName,
-    );
+  private static async collectOtherSkillFiles(
+    baseDir: string,
+    relativeDirPath: string,
+    dirName: string,
+  ): Promise<DirFile[]> {
+    const skillDirPath = join(baseDir, relativeDirPath, dirName);
     const glob = join(skillDirPath, "**", "*");
     const filePaths = await findFilesByGlobs(glob, { fileOnly: true });
     const filePathsWithoutSkillMd = filePaths.filter(
       (filePath) => basename(filePath) !== SKILL_FILE_NAME,
     );
-    const files: SkillFile[] = await Promise.all(
+    const files: DirFile[] = await Promise.all(
       filePathsWithoutSkillMd.map(async (filePath) => {
         const fileBuffer = await readFileBuffer(filePath);
         return {
-          relativeFilePathToSkillDirPath: relative(skillDirPath, filePath),
+          relativeFilePathToDirPath: relative(skillDirPath, filePath),
           fileBuffer,
         };
       }),
@@ -136,9 +142,13 @@ export class RulesyncSkill {
     return files;
   }
 
-  static async fromDir({ skillDirName }: RulesyncSkillFromFileParams): Promise<RulesyncSkill> {
-    const settablePaths = this.getSettablePaths();
-    const skillDirPath = join(process.cwd(), settablePaths.relativeDirPath, skillDirName);
+  static async fromDir({
+    baseDir = process.cwd(),
+    relativeDirPath = RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+    dirName,
+    global = false,
+  }: RulesyncSkillFromDirParams): Promise<RulesyncSkill> {
+    const skillDirPath = join(baseDir, relativeDirPath, dirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
 
     if (!(await fileExists(skillFilePath))) {
@@ -152,14 +162,17 @@ export class RulesyncSkill {
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
-    const otherSkillFiles = await this.collectOtherSkillFiles(skillDirName);
+    const otherFiles = await this.collectOtherSkillFiles(baseDir, relativeDirPath, dirName);
 
     return new RulesyncSkill({
-      skillDirName: skillDirName,
+      baseDir,
+      relativeDirPath,
+      dirName,
       frontmatter: result.data,
       body: content.trim(),
-      otherSkillFiles,
+      otherFiles,
       validate: true,
+      global,
     });
   }
 }

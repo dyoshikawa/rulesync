@@ -11,7 +11,7 @@ export type ToolSkillSettablePaths = {
 };
 
 export type ToolSkillFromDirParams = {
-  skillDirName: string;
+  dirName: string;
 };
 
 /**
