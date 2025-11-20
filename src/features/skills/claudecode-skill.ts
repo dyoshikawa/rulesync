@@ -128,6 +128,7 @@ export class ClaudecodeSkill extends ToolSkill {
   static fromRulesyncSkill({
     rulesyncSkill,
     validate = true,
+    global = false,
   }: ToolSkillFromRulesyncSkillParams): ClaudecodeSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
@@ -137,7 +138,7 @@ export class ClaudecodeSkill extends ToolSkill {
       "allowed-tools": rulesyncFrontmatter.claudecode?.["allowed-tools"],
     };
 
-    const settablePaths = ClaudecodeSkill.getSettablePaths();
+    const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
 
     return new ClaudecodeSkill({
       baseDir: rulesyncSkill.getBaseDir(),
@@ -147,7 +148,7 @@ export class ClaudecodeSkill extends ToolSkill {
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
-      global: false,
+      global,
     });
   }
 
@@ -189,7 +190,7 @@ export class ClaudecodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
-    const settablePaths = this.getSettablePaths();
+    const settablePaths = this.getSettablePaths({ global });
     const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
     const skillDirPath = join(baseDir, actualRelativeDirPath, dirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);

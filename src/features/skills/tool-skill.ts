@@ -4,6 +4,7 @@ import { RulesyncSkill } from "./rulesync-skill.js";
 export type ToolSkillFromRulesyncSkillParams = {
   rulesyncSkill: RulesyncSkill;
   validate?: boolean;
+  global?: boolean;
 };
 
 export type ToolSkillSettablePaths = {
