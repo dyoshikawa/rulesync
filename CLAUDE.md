@@ -1,7 +1,7 @@
 Please also reference the following documents as needed:
 
 @.claude/memories/coding-guidelines.md description: "When you write any code, must follow these guidelines." globs: "**/*.ts"
-@.claude/memories/my-language.md description: "You must always answer in Japanese. On the other hand, reasoning(thinking) should be in English to improve token efficiency." globs: "**/*"
+@.claude/memories/my-language.md description: "It's a rule about language. If the rule file exists, you must always follow this." globs: "**/*"
 @.claude/memories/testing-guidelines.md description: "When you write tests, must follow these guidelines." globs: "**/*.test.ts"
 # Rulesync Project Overview
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
+import { ConfigResolver } from "../config/config-resolver.js";
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { formatError } from "../utils/error.js";
@@ -14,10 +15,12 @@ async function getMcpFile(): Promise<{
   relativePathFromCwd: string;
   content: string;
 }> {
+  const config = await ConfigResolver.resolve({});
+
   try {
     const rulesyncMcp = await RulesyncMcp.fromFile({
       validate: true,
-      modularMcp: false,
+      modularMcp: config.getModularMcp(),
     });
 
     const relativePathFromCwd = join(
@@ -59,6 +62,8 @@ async function putMcpFile({ content }: { content: string }): Promise<{
     });
   }
 
+  const config = await ConfigResolver.resolve({});
+
   try {
     const baseDir = process.cwd();
     const paths = RulesyncMcp.getSettablePaths();
@@ -75,7 +80,7 @@ async function putMcpFile({ content }: { content: string }): Promise<{
       relativeFilePath,
       fileContent: content,
       validate: true,
-      modularMcp: false,
+      modularMcp: config.getModularMcp(),
     });
 
     // Ensure directory exists
