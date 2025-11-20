@@ -263,3 +263,7 @@ rulesync-deno
 # MCP configuration files
 .mcp.json
 modular-mcp.json
+
+# User-specific rule files
+.rulesync/rules/my-language.md
+.claude/memories/my-language.md
