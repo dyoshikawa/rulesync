@@ -92,6 +92,10 @@ export class RulesyncSkill {
     return this.otherSkillFiles;
   }
 
+  getSkillDirName(): string {
+    return this.skillDirName;
+  }
+
   validate(): ValidationResult {
     const result = RulesyncSkillFrontmatterSchema.safeParse(this.frontmatter);
     if (!result.success) {
@@ -132,9 +136,7 @@ export class RulesyncSkill {
     return files;
   }
 
-  static async fromDir({
-    skillDirName,
-  }: RulesyncSkillFromFileParams & { skillName: string }): Promise<RulesyncSkill> {
+  static async fromDir({ skillDirName }: RulesyncSkillFromFileParams): Promise<RulesyncSkill> {
     const settablePaths = this.getSettablePaths();
     const skillDirPath = join(process.cwd(), settablePaths.relativeDirPath, skillDirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);

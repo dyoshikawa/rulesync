@@ -125,8 +125,10 @@ describe("RulesyncSkill", () => {
       });
 
       expect(skill.getOtherSkillFiles()).toHaveLength(2);
-      expect(skill.getOtherSkillFiles()[0].relativeFilePathToSkillDirPath).toBe("scripts/search.ts");
-      expect(skill.getOtherSkillFiles()[1].relativeFilePathToSkillDirPath).toBe("utils/helper.ts");
+      expect(skill.getOtherSkillFiles()[0]?.relativeFilePathToSkillDirPath).toBe(
+        "scripts/search.ts",
+      );
+      expect(skill.getOtherSkillFiles()[1]?.relativeFilePathToSkillDirPath).toBe("utils/helper.ts");
     });
   });
 
@@ -346,9 +348,7 @@ Main skill body`;
       const otherFiles = skill.getOtherSkillFiles();
       expect(otherFiles).toHaveLength(3);
 
-      const filePaths = otherFiles
-        .map((f) => f.relativeFilePathToSkillDirPath)
-        .sort();
+      const filePaths = otherFiles.map((f) => f.relativeFilePathToSkillDirPath).toSorted();
       expect(filePaths).toEqual([
         join("scripts", "index.ts"),
         join("scripts", "search.ts"),
@@ -384,9 +384,11 @@ Skill body`;
 
       const otherFiles = skill.getOtherSkillFiles();
       expect(otherFiles).toHaveLength(1);
-      expect(otherFiles[0].relativeFilePathToSkillDirPath).toBe("other.ts");
+      expect(otherFiles[0]?.relativeFilePathToSkillDirPath).toBe("other.ts");
 
-      const hasSKILLmd = otherFiles.some((f) => f.relativeFilePathToSkillDirPath === SKILL_FILE_NAME);
+      const hasSKILLmd = otherFiles.some(
+        (f) => f.relativeFilePathToSkillDirPath === SKILL_FILE_NAME,
+      );
       expect(hasSKILLmd).toBe(false);
     });
 
@@ -616,7 +618,7 @@ helper();
       const otherFiles = skill.getOtherSkillFiles();
       expect(otherFiles).toHaveLength(2);
 
-      const filePaths = otherFiles.map((f) => f.relativeFilePathToSkillDirPath).sort();
+      const filePaths = otherFiles.map((f) => f.relativeFilePathToSkillDirPath).toSorted();
       expect(filePaths).toEqual([join("scripts", "main.ts"), join("utils", "helper.ts")]);
 
       // Test validation
