@@ -88,7 +88,13 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    const result = ClaudecodeSkillFrontmatterSchema.safeParse(this.mainFile?.frontmatter);
+    if (this.mainFile === undefined) {
+      return {
+        success: false,
+        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
+      };
+    }
+    const result = ClaudecodeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
