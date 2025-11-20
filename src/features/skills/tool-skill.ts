@@ -1,4 +1,4 @@
-import { ValidationResult } from "../../types/ai-file.js";
+import { AiDir, DirFile } from "../../types/ai-dir.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
@@ -11,13 +11,17 @@ export type ToolSkillSettablePaths = {
 };
 
 export type ToolSkillFromDirParams = {
+  baseDir?: string;
+  relativeDirPath?: string;
   dirName: string;
+  global?: boolean;
 };
 
 /**
  * Abstract base class for AI development tool-specific skill formats.
  *
- * ToolSkill serves as an intermediary between RulesyncSkill (internal format)
+ * ToolSkill extends AiDir to inherit directory management and security features.
+ * It serves as an intermediary between RulesyncSkill (internal format)
  * and specific tool skill formats (e.g., Claude Code).
  *
  * Unlike ToolCommand and ToolSubagent which are file-based, ToolSkill represents
@@ -33,7 +37,7 @@ export type ToolSkillFromDirParams = {
  * - Tool-specific directory naming conventions
  * - Tool-specific skill file formats
  */
-export abstract class ToolSkill {
+export abstract class ToolSkill extends AiDir {
   /**
    * Get the settable paths for this tool's skill directories.
    *
@@ -104,16 +108,19 @@ export abstract class ToolSkill {
   }
 
   /**
-   * Validate the skill data.
+   * Collect other files in the skill directory.
+   * This method should be implemented by subclasses to handle tool-specific file collection.
    *
-   * @returns Validation result with success status and optional error
+   * @param baseDir - Base directory
+   * @param relativeDirPath - Relative directory path
+   * @param dirName - Directory name
+   * @returns Promise resolving to array of DirFile objects
    */
-  abstract validate(): ValidationResult;
-
-  /**
-   * Write the skill to the file system.
-   *
-   * @param baseDir - Base directory to write the skill to
-   */
-  abstract write(baseDir?: string): Promise<void>;
+  protected static async collectOtherFiles(
+    _baseDir: string,
+    _relativeDirPath: string,
+    _dirName: string,
+  ): Promise<DirFile[]> {
+    throw new Error("Please implement this method in the subclass.");
+  }
 }

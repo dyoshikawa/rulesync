@@ -1,17 +1,10 @@
 import { basename, join, relative } from "node:path";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import {
-  fileExists,
-  findFilesByGlobs,
-  readFileBuffer,
-  readFileContent,
-  writeFileBuffer,
-  writeFileContent,
-} from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { fileExists, findFilesByGlobs, readFileBuffer, readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatter, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -29,29 +22,44 @@ export const ClaudecodeSkillFrontmatterSchema = z.object({
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
 
 export type ClaudecodeSkillParams = {
+  baseDir?: string;
+  relativeDirPath?: string;
   dirName: string;
   frontmatter: ClaudecodeSkillFrontmatter;
   body: string;
-  otherFiles: SkillFile[];
+  otherFiles?: SkillFile[];
   validate?: boolean;
+  global?: boolean;
 };
 
 /**
  * Represents a Claude Code skill directory.
  * Unlike subagents and commands, skills are directories containing SKILL.md and other files.
+ * Extends ToolSkill to inherit directory management and security features from AiDir.
  */
 export class ClaudecodeSkill extends ToolSkill {
-  private readonly dirName: string;
-  private readonly frontmatter: ClaudecodeSkillFrontmatter;
-  private readonly body: string;
-  private readonly otherFiles: SkillFile[];
-
-  constructor({ dirName, frontmatter, body, otherFiles, validate = true }: ClaudecodeSkillParams) {
-    super();
-    this.dirName = dirName;
-    this.frontmatter = frontmatter;
-    this.body = body;
-    this.otherFiles = otherFiles;
+  constructor({
+    baseDir = process.cwd(),
+    relativeDirPath = join(".claude", "skills"),
+    dirName,
+    frontmatter,
+    body,
+    otherFiles = [],
+    validate = true,
+    global = false,
+  }: ClaudecodeSkillParams) {
+    super({
+      baseDir,
+      relativeDirPath,
+      dirName,
+      mainFile: {
+        name: SKILL_FILE_NAME,
+        body,
+        frontmatter: { ...frontmatter },
+      },
+      otherFiles,
+      global,
+    });
 
     if (validate) {
       const result = this.validate();
@@ -68,28 +76,24 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   getFrontmatter(): ClaudecodeSkillFrontmatter {
-    return this.frontmatter;
+    if (!this.mainFile?.frontmatter) {
+      throw new Error("Frontmatter is not defined");
+    }
+    const result = ClaudecodeSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    return result;
   }
 
   getBody(): string {
-    return this.body;
-  }
-
-  getOtherFiles(): SkillFile[] {
-    return this.otherFiles;
-  }
-
-  getDirName(): string {
-    return this.dirName;
+    return this.mainFile?.body ?? "";
   }
 
   validate(): ValidationResult {
-    const result = ClaudecodeSkillFrontmatterSchema.safeParse(this.frontmatter);
+    const result = ClaudecodeSkillFrontmatterSchema.safeParse(this.mainFile?.frontmatter);
     if (!result.success) {
       return {
         success: false,
         error: new Error(
-          `Invalid frontmatter in ${join(ClaudecodeSkill.getSettablePaths().relativeDirPath, this.dirName)}: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
         ),
       };
     }
@@ -98,22 +102,26 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   toRulesyncSkill(): RulesyncSkill {
+    const frontmatter = this.getFrontmatter();
     const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
-      name: this.frontmatter.name,
-      description: this.frontmatter.description,
-      ...(this.frontmatter["allowed-tools"] && {
+      name: frontmatter.name,
+      description: frontmatter.description,
+      ...(frontmatter["allowed-tools"] && {
         claudecode: {
-          "allowed-tools": this.frontmatter["allowed-tools"],
+          "allowed-tools": frontmatter["allowed-tools"],
         },
       }),
     };
 
     return new RulesyncSkill({
-      dirName: this.dirName,
+      baseDir: this.baseDir,
+      relativeDirPath: this.relativeDirPath,
+      dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      otherFiles: this.otherFiles,
+      body: this.getBody(),
+      otherFiles: this.getOtherFiles(),
       validate: true,
+      global: this.global,
     });
   }
 
@@ -129,12 +137,17 @@ export class ClaudecodeSkill extends ToolSkill {
       "allowed-tools": rulesyncFrontmatter.claudecode?.["allowed-tools"],
     };
 
+    const settablePaths = ClaudecodeSkill.getSettablePaths();
+
     return new ClaudecodeSkill({
+      baseDir: rulesyncSkill.getBaseDir(),
+      relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: claudecodeFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
+      global: false,
     });
   }
 
@@ -147,12 +160,12 @@ export class ClaudecodeSkill extends ToolSkill {
   /**
    * Recursively collects all skill files from a directory, excluding SKILL.md
    */
-  private static async collectOtherSkillFiles(dirName: string): Promise<SkillFile[]> {
-    const skillDirPath = join(
-      process.cwd(),
-      ClaudecodeSkill.getSettablePaths().relativeDirPath,
-      dirName,
-    );
+  protected static async collectOtherFiles(
+    baseDir: string,
+    relativeDirPath: string,
+    dirName: string,
+  ): Promise<SkillFile[]> {
+    const skillDirPath = join(baseDir, relativeDirPath, dirName);
     const glob = join(skillDirPath, "**", "*");
     const filePaths = await findFilesByGlobs(glob, { fileOnly: true });
     const filePathsWithoutSkillMd = filePaths.filter(
@@ -170,9 +183,15 @@ export class ClaudecodeSkill extends ToolSkill {
     return files;
   }
 
-  static async fromDir({ dirName }: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
+  static async fromDir({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    dirName,
+    global = false,
+  }: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
     const settablePaths = this.getSettablePaths();
-    const skillDirPath = join(process.cwd(), settablePaths.relativeDirPath, dirName);
+    const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
+    const skillDirPath = join(baseDir, actualRelativeDirPath, dirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
 
     if (!(await fileExists(skillFilePath))) {
@@ -187,33 +206,17 @@ export class ClaudecodeSkill extends ToolSkill {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
 
-    const otherFiles = await this.collectOtherSkillFiles(dirName);
+    const otherFiles = await this.collectOtherFiles(baseDir, actualRelativeDirPath, dirName);
 
     return new ClaudecodeSkill({
-      dirName: dirName,
+      baseDir,
+      relativeDirPath: actualRelativeDirPath,
+      dirName,
       frontmatter: result.data,
       body: content.trim(),
       otherFiles,
       validate: true,
+      global,
     });
-  }
-
-  /**
-   * Write the skill to the file system
-   */
-  async write(baseDir: string = process.cwd()): Promise<void> {
-    const settablePaths = ClaudecodeSkill.getSettablePaths();
-    const skillDirPath = join(baseDir, settablePaths.relativeDirPath, this.dirName);
-    const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
-
-    // Write SKILL.md
-    const fileContent = stringifyFrontmatter(this.body, this.frontmatter);
-    await writeFileContent(skillFilePath, fileContent);
-
-    // Write other skill files
-    for (const skillFile of this.otherFiles) {
-      const filePath = join(skillDirPath, skillFile.relativeFilePathToDirPath);
-      await writeFileBuffer(filePath, skillFile.fileBuffer);
-    }
   }
 }
