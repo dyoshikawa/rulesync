@@ -17,7 +17,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccusage statusline --no-offline",
+    "command": "npx -y ccusage@latest statusline",
     "padding": 0
   },
   "env": {
