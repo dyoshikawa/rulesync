@@ -66,7 +66,6 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "1.21.2",
-		"chokidar": "4.0.3",
 		"commander": "14.0.2",
 		"consola": "3.4.2",
 		"es-toolkit": "1.41.0",
@@ -75,7 +74,6 @@
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.1",
 		"jsonc-parser": "3.3.1",
-		"micromatch": "4.0.8",
 		"smol-toml": "1.5.2",
 		"zod": "4.1.12"
 	},
@@ -86,7 +84,6 @@
 		"@secretlint/secretlint-rule-preset-recommend": "11.2.5",
 		"@tsconfig/node24": "24.0.2",
 		"@types/js-yaml": "4.0.9",
-		"@types/micromatch": "4.0.10",
 		"@types/node": "24.10.1",
 		"@typescript/native-preview": "7.0.0-dev.20251114.1",
 		"@vitest/coverage-v8": "4.0.9",
@@ -99,9 +96,7 @@
 		"eslint-plugin-zod-import": "0.3.0",
 		"knip": "5.69.1",
 		"lint-staged": "16.2.6",
-		"o3-search-mcp": "0.0.9",
 		"oxlint": "1.28.0",
-		"p-queue": "9.0.0",
 		"secretlint": "11.2.5",
 		"simple-git-hooks": "2.13.1",
 		"sort-package-json": "3.4.0",
