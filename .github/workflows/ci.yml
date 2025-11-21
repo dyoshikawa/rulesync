@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --ignore-scripts
 
-      - name: Check no files generated after install
+      - name: Check no files generated
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "Error: Files were generated or modified after pnpm install"
@@ -39,6 +39,15 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Check no uncommitted changes after build
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Error: Uncommitted changes detected after build"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
 
       - name: Check build artifacts
         run: |

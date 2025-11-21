@@ -24,12 +24,8 @@ jobs:
         with:
           experimental: true
 
-      # Required equal or greater than npm 11.5.1 for OIDC
-      - name: Update npm
-        run: npm install -g npm@latest
-
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Publish to npm
         run: pnpm publish
