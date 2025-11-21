@@ -1,10 +1,10 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { getDirectoryNames } from "../../utils/file.js";
+import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -78,7 +78,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
   async loadRulesyncDirs(): Promise<AiDir[]> {
     const paths = RulesyncSkill.getSettablePaths();
     const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirNames = await getDirectoryNames(rulesyncSkillsDirPath);
+    const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
+    const dirNames = dirPaths.map((path) => basename(path));
 
     const rulesyncSkills = (
       await Promise.allSettled(
@@ -117,7 +118,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
   private async loadClaudecodeSkills(): Promise<ToolSkill[]> {
     const paths = ClaudecodeSkill.getSettablePaths({ global: this.global });
     const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirNames = await getDirectoryNames(skillsDirPath);
+    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+    const dirNames = dirPaths.map((path) => basename(path));
 
     const toolSkills = (
       await Promise.allSettled(

@@ -171,7 +171,7 @@ export abstract class AiDir {
   ): Promise<AiDirFile[]> {
     const dirPath = join(baseDir, relativeDirPath, dirName);
     const glob = join(dirPath, "**", "*");
-    const filePaths = await findFilesByGlobs(glob, { fileOnly: true });
+    const filePaths = await findFilesByGlobs(glob, { type: "file" });
     const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);
 
     const files: AiDirFile[] = await Promise.all(
