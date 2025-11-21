@@ -184,7 +184,7 @@ Simulated commands and subagents allow you to generate simulated commands and su
 npx rulesync init
 
 # Import existing configurations (to .rulesync/rules/ by default)
-npx rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents
+npx rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
 
 # Generate all features for all tools (new preferred syntax)
 npx rulesync generate --targets "*" --features "*"
