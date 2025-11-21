@@ -7,7 +7,7 @@
 [![Mentioned in Awesome Claude Code](https://awesome.re/mentioned-badge.svg)](https://github.com/hesreallyhim/awesome-claude-code)
 [![Mentioned in Awesome Gemini CLI](https://awesome.re/mentioned-badge.svg)](https://github.com/Piebald-AI/awesome-gemini-cli)
 
-A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, and subagents. Uses the recommended `.rulesync/rules/*.md` structure, with full backward compatibility for legacy `.rulesync/*.md` layouts.
+A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, subagents and skills.
 
 > [!NOTE]
 > If you are interested in Rulesync latest news, please follow the maintainer's X(Twitter) account:
@@ -254,13 +254,13 @@ root: true # true that is less than or equal to one file for overview such as `A
 targets: ["*"] # * = all, or specific tools
 description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
-agentsmd: # agentsmd and codexcli specific rules
+agentsmd: # agentsmd and codexcli specific parameters
   # Support for using nested AGENTS.md files for subprojects in a large monorepo.
   # This option is available only if root is false.
   # If subprojectPath is provided, the file is located in `${subprojectPath}/AGENTS.md`.
   # If subprojectPath is not provided and root is false, the file is located in `.agents/memories/*.md`.
   subprojectPath: "path/to/subproject"
-cursor: # cursor specific rules
+cursor: # cursor specific parameters
   alwaysApply: true
   description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
   globs: ["*"]
@@ -304,7 +304,7 @@ description: >- # subagent description
   This is the general-purpose planner. The user asks the agent to plan to
   suggest a specification, implement a new feature, refactor the codebase, or
   fix a bug. This agent can be called by the user explicitly only.
-claudecode: # for claudecode-specific rules
+claudecode: # for claudecode-specific parameters
   model: inherit # opus, sonnet, haiku or inherit
 ---
 
@@ -313,6 +313,36 @@ You are the planner for any tasks.
 Based on the user's instruction, create a plan while analyzing the related files. Then, report the plan in detail. You can output files to @tmp/ if needed.
 
 Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
+```
+
+### `.rulesync/skills/*/SKILL.md`
+
+Example:
+
+```md
+---
+name: example-skill # skill name
+description: >- # skill description
+  A sample skill that demonstrates the skill format
+claudecode: # for claudecode-specific parameters
+  allowed-tools:
+    - "Bash"
+    - "Read"
+    - "Write"
+    - "Grep"
+---
+
+This is the skill body content.
+
+You can provide instructions, context, or any information that helps the AI agent understand and execute this skill effectively.
+
+The skill can include:
+- Step-by-step instructions
+- Code examples
+- Best practices
+- Any relevant context
+
+Skills are directory-based and can include additional files alongside SKILL.md.
 ```
 
 ### `.rulesync/mcp.json`
