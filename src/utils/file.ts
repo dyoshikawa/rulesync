@@ -110,6 +110,11 @@ export async function readFileContent(filepath: string): Promise<string> {
   return readFile(filepath, "utf-8");
 }
 
+export async function readFileBuffer(filepath: string): Promise<Buffer> {
+  logger.debug(`Reading file buffer: ${filepath}`);
+  return readFile(filepath);
+}
+
 /**
  * Adds exactly one trailing newline to content.
  * Removes any existing trailing whitespace and appends a single newline.
@@ -127,6 +132,13 @@ export async function writeFileContent(filepath: string, content: string): Promi
 
   await ensureDir(dirname(filepath));
   await writeFile(filepath, content, "utf-8");
+}
+
+export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise<void> {
+  logger.debug(`Writing file buffer: ${filepath}`);
+
+  await ensureDir(dirname(filepath));
+  await writeFile(filepath, buffer);
 }
 
 export async function fileExists(filepath: string): Promise<boolean> {
@@ -155,8 +167,16 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
   }
 }
 
-export async function findFilesByGlobs(globs: string | string[]): Promise<string[]> {
-  return globSync(globs);
+export async function findFilesByGlobs(
+  globs: string | string[],
+  options: { fileOnly?: boolean } = {},
+): Promise<string[]> {
+  const items = globSync(globs, { withFileTypes: true });
+  if (!options.fileOnly) {
+    return items.map((item) => join(item.parentPath, item.name));
+  }
+
+  return items.filter((item) => item.isFile()).map((item) => join(item.parentPath, item.name));
 }
 
 /**
