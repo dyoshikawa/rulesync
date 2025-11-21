@@ -130,24 +130,24 @@ npx rulesync generate --targets "*" --features "*"
 
 Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
-| Tool                  | rules | ignore | mcp   | commands | subagents |
-|------------------------|:-----:|:------:|:-----:|:--------:|:---------:|
-| AGENTS.md            |  ✅   |      |       |     🎮     |      🎮     |
-| Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |
-| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |
-| Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |
-| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |
-| Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |
-| OpenCode               |  ✅   |       |       |         |          |
-| Cline                  |  ✅    |   ✅    |  ✅    |          |          |
-| Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |
-| Qwen Code              |  ✅   |   ✅   |       |         |          |
-| Kiro IDE               |  ✅   |   ✅   |      |         |          |
-| Amazon Q Developer CLI |  ✅   |       |  ✅   |         |          |
-| JetBrains Junie        |  ✅   |   ✅   |      |         |          |
-| AugmentCode            |  ✅   |   ✅   |       |         |          |
-| Windsurf               |  ✅   |   ✅    |      |         |          |
-| Warp               |  ✅   |        |      |         |          |
+| Tool                  | rules | ignore | mcp   | commands | subagents | skills |
+|------------------------|:-----:|:------:|:-----:|:--------:|:---------:|:------:|
+| AGENTS.md            |  ✅   |      |       |     🎮     |      🎮     |        |
+| Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
+| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |        |
+| Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |        |
+| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |        |
+| Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |        |
+| OpenCode               |  ✅   |       |       |         |          |        |
+| Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
+| Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |        |
+| Qwen Code              |  ✅   |   ✅   |       |         |          |        |
+| Kiro IDE               |  ✅   |   ✅   |      |         |          |        |
+| Amazon Q Developer CLI |  ✅   |       |  ✅   |         |          |        |
+| JetBrains Junie        |  ✅   |   ✅   |      |         |          |        |
+| AugmentCode            |  ✅   |   ✅   |       |         |          |        |
+| Windsurf               |  ✅   |   ✅    |      |         |          |        |
+| Warp               |  ✅   |        |      |         |          |        |
 
 * ✅: Supports project mode
 * 🌏: Supports global mode
