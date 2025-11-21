@@ -82,7 +82,12 @@ export class IgnoreProcessor extends FeatureProcessor {
       const toolIgnores = await this.loadToolIgnores();
       return toolIgnores;
     } catch (error) {
-      logger.error(`Failed to load tool files: ${formatError(error)}`);
+      const errorMessage = `Failed to load tool files: ${formatError(error)}`;
+      if (error instanceof Error && error.message.includes("no such file or directory")) {
+        logger.debug(errorMessage);
+      } else {
+        logger.error(errorMessage);
+      }
       return [];
     }
   }

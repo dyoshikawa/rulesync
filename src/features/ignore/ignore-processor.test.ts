@@ -168,7 +168,7 @@ describe("IgnoreProcessor", () => {
 
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(0);
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Failed to load tool files"),
       );
     });
