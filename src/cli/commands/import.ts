@@ -4,6 +4,7 @@ import { CommandsProcessor } from "../../features/commands/commands-processor.js
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
+import { SkillsProcessor } from "../../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { logger } from "../../utils/logger.js";
@@ -43,6 +44,9 @@ export async function importCommand(options: ImportOptions): Promise<void> {
 
   // Create subagent files if subagents feature is enabled
   await importSubagents(config, tool);
+
+  // Create skill files if skills feature is enabled
+  await importSkills(config, tool);
 }
 
 async function importRules(config: Config, tool: ToolTarget): Promise<number> {
@@ -218,6 +222,40 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} subagent files`);
+  }
+
+  return writtenCount;
+}
+
+async function importSkills(config: Config, tool: ToolTarget): Promise<number> {
+  if (!config.getFeatures().includes("skills")) {
+    return 0;
+  }
+
+  const global = config.getGlobal();
+
+  const supportedTargets = SkillsProcessor.getToolTargets();
+
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const skillsProcessor = new SkillsProcessor({
+    baseDir: config.getBaseDirs()[0] ?? ".",
+    toolTarget: tool,
+    global,
+  });
+
+  const toolDirs = await skillsProcessor.loadToolDirs();
+  if (toolDirs.length === 0) {
+    return 0;
+  }
+
+  const rulesyncDirs = await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs);
+  const writtenCount = await skillsProcessor.writeAiDirs(rulesyncDirs);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} skill directories`);
   }
 
   return writtenCount;
