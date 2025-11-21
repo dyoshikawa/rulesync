@@ -40,6 +40,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Check no uncommitted changes after build
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Error: Uncommitted changes detected after build"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+
       - name: Check build artifacts
         run: |
           test -f dist/index.js
