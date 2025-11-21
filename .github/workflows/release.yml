@@ -24,12 +24,16 @@ jobs:
         with:
           experimental: true
 
-      # Required equal or greater than npm 11.5.1 for OIDC
-      - name: Update npm
-        run: npm install -g npm@latest
-
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
+
+      - name: Check no files generated after install
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Error: Files were generated or modified after pnpm install"
+            git status --porcelain
+            exit 1
+          fi
 
       - name: Publish to npm
         run: pnpm publish
