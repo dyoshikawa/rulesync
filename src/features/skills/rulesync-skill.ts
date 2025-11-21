@@ -1,10 +1,10 @@
-import { basename, join, relative } from "node:path";
+import { join } from "node:path";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiDir, AiDirFile, ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, findFilesByGlobs, readFileBuffer, readFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 
 export const RulesyncSkillFrontmatterSchema = z.object({
@@ -118,32 +118,6 @@ export class RulesyncSkill extends AiDir {
     return { success: true, error: null };
   }
 
-  /**
-   * Recursively collects all skill files from a directory, excluding SKILL.md
-   */
-  private static async collectOtherSkillFiles(
-    baseDir: string,
-    relativeDirPath: string,
-    dirName: string,
-  ): Promise<AiDirFile[]> {
-    const skillDirPath = join(baseDir, relativeDirPath, dirName);
-    const glob = join(skillDirPath, "**", "*");
-    const filePaths = await findFilesByGlobs(glob, { fileOnly: true });
-    const filePathsWithoutSkillMd = filePaths.filter(
-      (filePath) => basename(filePath) !== SKILL_FILE_NAME,
-    );
-    const files: AiDirFile[] = await Promise.all(
-      filePathsWithoutSkillMd.map(async (filePath) => {
-        const fileBuffer = await readFileBuffer(filePath);
-        return {
-          relativeFilePathToDirPath: relative(skillDirPath, filePath),
-          fileBuffer,
-        };
-      }),
-    );
-    return files;
-  }
-
   static async fromDir({
     baseDir = process.cwd(),
     relativeDirPath = RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -164,7 +138,12 @@ export class RulesyncSkill extends AiDir {
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
-    const otherFiles = await this.collectOtherSkillFiles(baseDir, relativeDirPath, dirName);
+    const otherFiles = await this.collectOtherFiles(
+      baseDir,
+      relativeDirPath,
+      dirName,
+      SKILL_FILE_NAME,
+    );
 
     return new RulesyncSkill({
       baseDir,
