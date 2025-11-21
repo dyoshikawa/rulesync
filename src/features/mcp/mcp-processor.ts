@@ -74,9 +74,7 @@ export class McpProcessor extends FeatureProcessor {
     try {
       return [await RulesyncMcp.fromFile({ modularMcp: this.modularMcp })];
     } catch (error) {
-      logger.error(
-        `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`,
-      );
+      logger.error(`Failed to load a Rulesync MCP file: ${formatError(error)}`);
       return [];
     }
   }
@@ -174,9 +172,12 @@ export class McpProcessor extends FeatureProcessor {
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
       return toolMcps;
     } catch (error) {
-      logger.error(
-        `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`,
-      );
+      const errorMessage = `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`;
+      if (error instanceof Error && error.message.includes("no such file or directory")) {
+        logger.debug(errorMessage);
+      } else {
+        logger.error(errorMessage);
+      }
       return [];
     }
   }
