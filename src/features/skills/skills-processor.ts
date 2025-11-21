@@ -11,6 +11,7 @@ import { RulesyncSkill } from "./rulesync-skill.js";
 import { ToolSkill } from "./tool-skill.js";
 
 const skillsProcessorToolTargets: ToolTarget[] = ["claudecode"];
+export const skillsProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
 export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargets);
 
 export type SkillsProcessorToolTarget = z.infer<typeof SkillsProcessorToolTargetSchema>;
@@ -142,5 +143,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
    */
   static getToolTargets(_params: { includeSimulated?: boolean } = {}): ToolTarget[] {
     return skillsProcessorToolTargets;
+  }
+
+  /**
+   * Return the tool targets that this processor supports in global mode
+   */
+  static getToolTargetsGlobal(): ToolTarget[] {
+    return skillsProcessorToolTargetsGlobal;
   }
 }

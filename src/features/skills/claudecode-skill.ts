@@ -69,7 +69,15 @@ export class ClaudecodeSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
+  static getSettablePaths({
+    global: _global = false,
+  }: {
+    global?: boolean;
+  } = {}): ToolSkillSettablePaths {
+    // Claude Code skills use the same relative path for both project and global modes
+    // The actual location differs based on baseDir:
+    // - Project mode: {process.cwd()}/.claude/skills/
+    // - Global mode: {getHomeDirectory()}/.claude/skills/
     return {
       relativeDirPath: join(".claude", "skills"),
     };

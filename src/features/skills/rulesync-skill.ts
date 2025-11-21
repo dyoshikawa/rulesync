@@ -82,9 +82,11 @@ export class RulesyncSkill extends AiDir {
     }
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): RulesyncSkillSettablePaths {
-    // Skills currently don't support global mode with different paths
-    // but we accept the parameter for API consistency
+  static getSettablePaths(): RulesyncSkillSettablePaths {
+    // Rulesync skills use the same relative path for both project and global modes
+    // The actual location differs based on baseDir:
+    // - Project mode: {process.cwd()}/.rulesync/skills/
+    // - Global mode: {getHomeDirectory()}/.rulesync/skills/
     return {
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
     };

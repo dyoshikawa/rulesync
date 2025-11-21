@@ -296,7 +296,9 @@ async function generateSkills(config: Config): Promise<number> {
   let totalSkillOutputs = 0;
   logger.info("Generating skill files...");
 
-  const toolTargets = intersection(config.getTargets(), SkillsProcessor.getToolTargets());
+  const toolTargets = config.getGlobal()
+    ? intersection(config.getTargets(), SkillsProcessor.getToolTargetsGlobal())
+    : intersection(config.getTargets(), SkillsProcessor.getToolTargets());
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
