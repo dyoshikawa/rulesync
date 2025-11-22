@@ -169,14 +169,22 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
 
 export async function findFilesByGlobs(
   globs: string | string[],
-  options: { fileOnly?: boolean } = {},
+  options: { type?: "file" | "dir" | "all" } = {},
 ): Promise<string[]> {
+  const { type = "all" } = options;
   const items = globSync(globs, { withFileTypes: true });
-  if (!options.fileOnly) {
-    return items.map((item) => join(item.parentPath, item.name));
+  switch (type) {
+    case "file":
+      return items.filter((item) => item.isFile()).map((item) => join(item.parentPath, item.name));
+    case "dir":
+      return items
+        .filter((item) => item.isDirectory())
+        .map((item) => join(item.parentPath, item.name));
+    case "all":
+      return items.map((item) => join(item.parentPath, item.name));
+    default:
+      throw new Error(`Invalid type: ${type}`);
   }
-
-  return items.filter((item) => item.isFile()).map((item) => join(item.parentPath, item.name));
 }
 
 /**

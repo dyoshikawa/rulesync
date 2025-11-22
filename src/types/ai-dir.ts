@@ -1,4 +1,5 @@
-import path, { relative, resolve } from "node:path";
+import path, { basename, join, relative, resolve } from "node:path";
+import { findFilesByGlobs, readFileBuffer } from "../utils/file.js";
 
 export type ValidationResult =
   | {
@@ -150,6 +151,40 @@ export abstract class AiDir {
 
   setMainFile(name: string, body: string, frontmatter?: Record<string, unknown>): void {
     this.mainFile = { name, body, frontmatter };
+  }
+
+  /**
+   * Recursively collects all files from a directory, excluding the specified main file.
+   * This is a common utility for loading additional files alongside the main file.
+   *
+   * @param baseDir - The base directory path
+   * @param relativeDirPath - The relative path to the directory containing the skill
+   * @param dirName - The name of the directory
+   * @param excludeFileName - The name of the file to exclude (typically the main file)
+   * @returns Array of files with their relative paths and buffers
+   */
+  protected static async collectOtherFiles(
+    baseDir: string,
+    relativeDirPath: string,
+    dirName: string,
+    excludeFileName: string,
+  ): Promise<AiDirFile[]> {
+    const dirPath = join(baseDir, relativeDirPath, dirName);
+    const glob = join(dirPath, "**", "*");
+    const filePaths = await findFilesByGlobs(glob, { type: "file" });
+    const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);
+
+    const files: AiDirFile[] = await Promise.all(
+      filteredPaths.map(async (filePath) => {
+        const fileBuffer = await readFileBuffer(filePath);
+        return {
+          relativeFilePathToDirPath: relative(dirPath, filePath),
+          fileBuffer,
+        };
+      }),
+    );
+
+    return files;
   }
 
   abstract validate(): ValidationResult;

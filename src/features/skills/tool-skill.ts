@@ -1,4 +1,4 @@
-import { AiDir, AiDirFile } from "../../types/ai-dir.js";
+import { AiDir } from "../../types/ai-dir.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
@@ -105,23 +105,6 @@ export abstract class ToolSkill extends AiDir {
    * @returns True if this tool should use the skill
    */
   static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
-    throw new Error("Please implement this method in the subclass.");
-  }
-
-  /**
-   * Collect other files in the skill directory.
-   * This method should be implemented by subclasses to handle tool-specific file collection.
-   *
-   * @param baseDir - Base directory
-   * @param relativeDirPath - Relative directory path
-   * @param dirName - Directory name
-   * @returns Promise resolving to array of AiDirFile objects
-   */
-  protected static async collectOtherFiles(
-    _baseDir: string,
-    _relativeDirPath: string,
-    _dirName: string,
-  ): Promise<AiDirFile[]> {
     throw new Error("Please implement this method in the subclass.");
   }
 }

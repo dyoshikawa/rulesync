@@ -6,6 +6,7 @@ import { CommandsProcessor } from "../../features/commands/commands-processor.js
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
+import { SkillsProcessor } from "../../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -42,13 +43,17 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   // Generate subagent files (subagents feature)
   const totalSubagentOutputs = await generateSubagents(config);
 
+  // Generate skill files (skills feature)
+  const totalSkillOutputs = await generateSkills(config);
+
   // Check if any features generated content
   const totalGenerated =
     totalRulesOutputs +
     totalMcpOutputs +
     totalCommandOutputs +
     totalIgnoreOutputs +
-    totalSubagentOutputs;
+    totalSubagentOutputs +
+    totalSkillOutputs;
   if (totalGenerated === 0) {
     const enabledFeatures = config.getFeatures().join(", ");
     logger.warn(`⚠️  No files generated for enabled features: ${enabledFeatures}`);
@@ -63,6 +68,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP files`);
     if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
     if (totalSubagentOutputs > 0) parts.push(`${totalSubagentOutputs} subagents`);
+    if (totalSkillOutputs > 0) parts.push(`${totalSkillOutputs} skills`);
 
     logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   }
@@ -279,4 +285,41 @@ async function generateSubagents(config: Config): Promise<number> {
   }
 
   return totalSubagentOutputs;
+}
+
+async function generateSkills(config: Config): Promise<number> {
+  if (!config.getFeatures().includes("skills")) {
+    logger.debug("Skipping skill generation (not in --features)");
+    return 0;
+  }
+
+  let totalSkillOutputs = 0;
+  logger.info("Generating skill files...");
+
+  const toolTargets = config.getGlobal()
+    ? intersection(config.getTargets(), SkillsProcessor.getToolTargetsGlobal())
+    : intersection(config.getTargets(), SkillsProcessor.getToolTargets());
+
+  for (const baseDir of config.getBaseDirs()) {
+    for (const toolTarget of toolTargets) {
+      const processor = new SkillsProcessor({
+        baseDir: baseDir,
+        toolTarget: toolTarget,
+        global: config.getGlobal(),
+      });
+
+      if (config.getDelete()) {
+        const oldToolDirs = await processor.loadToolDirsToDelete();
+        await processor.removeAiDirs(oldToolDirs);
+      }
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+      const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
+      const writtenCount = await processor.writeAiDirs(toolDirs);
+      totalSkillOutputs += writtenCount;
+      logger.success(`Generated ${writtenCount} ${toolTarget} skill(s) in ${baseDir}`);
+    }
+  }
+
+  return totalSkillOutputs;
 }
