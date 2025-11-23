@@ -81,11 +81,18 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
-    const rulesyncSkills = await Promise.all(
+    const results = await Promise.allSettled(
       dirNames.map((dirName) =>
         RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
       ),
     );
+
+    const rulesyncSkills: RulesyncSkill[] = [];
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        rulesyncSkills.push(result.value);
+      }
+    }
 
     logger.info(`Successfully loaded ${rulesyncSkills.length} rulesync skills`);
     return rulesyncSkills;
