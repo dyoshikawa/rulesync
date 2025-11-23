@@ -268,3 +268,7 @@ modular-mcp.json
 # User-specific rule files
 .rulesync/rules/my-language.md
 .claude/memories/my-language.md
+
+# Project-level rules files
+CLAUDE.md
+.claude/memories/
