@@ -212,6 +212,7 @@ package-lock.json
 **/.noai
 
 **/.claude/commands/
+**/.claude/skills/
 **/.claude/agents/
 **/AGENTS.md
 **/.codexignore
