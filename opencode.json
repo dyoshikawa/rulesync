@@ -18,7 +18,7 @@
   "agent": {
     "build": {
       "mode": "primary",
-      "model": "openrouter/x-ai/grok-code-fast-1",
+      "model": "openrouter/x-ai/grok-4.1-fast",
       "tools": {
         "write": true,
         "edit": true,
@@ -31,7 +31,7 @@
       "tools": {
         "write": false,
         "edit": false,
-        "bash": false
+        "bash": true
       }
     }
   },
