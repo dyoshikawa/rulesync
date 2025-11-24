@@ -215,6 +215,7 @@ describe("gitignoreCommand", () => {
 **/.claude/memories/
 **/.claude/commands/
 **/.claude/agents/
+**/.claude/skills/
 **/.claude/settings.local.json
 **/.mcp.json
 **/modular-mcp.json

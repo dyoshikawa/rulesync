@@ -2,7 +2,7 @@
   // List of tools to generate configurations for
   "targets": ["agentsmd", "cursor", "claudecode", "geminicli", "codexcli", "copilot"],
 
-  "features": ["rules", "ignore", "mcp", "commands", "subagents"],
+  "features": ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
   
   // Base directory or directories for generation.
   "baseDirs": ["."],
