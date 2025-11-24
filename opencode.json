@@ -15,6 +15,26 @@
       },
     },
   },
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "x-ai/grok-code-fast-1",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "openai/gpt-5.1-codex",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    }
+  },
   "mcp": {
     "serena": {
       "type": "local",
