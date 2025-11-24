@@ -18,7 +18,7 @@
   "agent": {
     "build": {
       "mode": "primary",
-      "model": "openrouter/x-ai/grok-4.1-fast",
+      "model": "openrouter/minimax/minimax-m2",
       "tools": {
         "write": true,
         "edit": true,
