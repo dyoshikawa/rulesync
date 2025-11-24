@@ -17,7 +17,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccusage@latest statusline",
+    "command": "npx -y ccstatusline@latest",
     "padding": 0
   },
   "env": {
