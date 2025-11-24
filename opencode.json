@@ -13,7 +13,7 @@
         "anthropic/claude-haiku-4.5": {},
         "x-ai/grok-code-fast-1": {}
       },
-    },
+    }
   },
   "agent": {
     "build": {

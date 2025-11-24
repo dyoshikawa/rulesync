@@ -3,10 +3,10 @@
   "targets": ["cursor", "claudecode", "geminicli", "codexcli", "copilot", "opencode"],
 
   "features": ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
-  
+
   // Base directory or directories for generation.
   "baseDirs": ["."],
-  
+
   // Delete existing files before generating
   "delete": true,
   "verbose": true,
@@ -14,5 +14,5 @@
   "simulateCommands": true,
   "simulateSubagents": true,
 
-  "modularMcp": true,
+  "modularMcp": true
 }
