@@ -5,7 +5,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
-import { RulesyncSkill, RulesyncSkillFrontmatter, SkillFile } from "./rulesync-skill.js";
+import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
   ToolSkillFromDirParams,
@@ -117,9 +117,10 @@ export class ClaudecodeSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
+      targets: ["*"],
       ...(frontmatter["allowed-tools"] && {
         claudecode: {
           "allowed-tools": frontmatter["allowed-tools"],

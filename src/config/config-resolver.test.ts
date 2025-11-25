@@ -168,14 +168,14 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getSimulatedCommands()).toBe(true);
+      expect(config.getSimulateCommands()).toBe(true);
       expect(config.getExperimentalSimulateCommands()).toBe(true);
     });
 
-    it("should prioritize simulatedCommands over experimentalSimulateCommands", async () => {
+    it("should prioritize simulateCommands over experimentalSimulateCommands", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
-        simulatedCommands: false,
+        simulateCommands: false,
         experimentalSimulateCommands: true,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -184,7 +184,7 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getSimulatedCommands()).toBe(false);
+      expect(config.getSimulateCommands()).toBe(false);
     });
 
     it("should support experimentalSimulateSubagents for backward compatibility", async () => {
@@ -198,14 +198,14 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getSimulatedSubagents()).toBe(true);
+      expect(config.getSimulateSubagents()).toBe(true);
       expect(config.getExperimentalSimulateSubagents()).toBe(true);
     });
 
-    it("should prioritize simulatedSubagents over experimentalSimulateSubagents", async () => {
+    it("should prioritize simulateSubagents over experimentalSimulateSubagents", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],
-        simulatedSubagents: false,
+        simulateSubagents: false,
         experimentalSimulateSubagents: true,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -214,7 +214,7 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getSimulatedSubagents()).toBe(false);
+      expect(config.getSimulateSubagents()).toBe(false);
     });
   });
 

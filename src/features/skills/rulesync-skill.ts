@@ -3,13 +3,15 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiDir, AiDirFile, ValidationResult } from "../../types/ai-dir.js";
+import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 
-export const RulesyncSkillFrontmatterSchema = z.object({
+const RulesyncSkillFrontmatterSchemaInternal = z.object({
   name: z.string(),
   description: z.string(),
+  targets: z._default(RulesyncTargetsSchema, ["*"]),
   claudecode: z.optional(
     z.object({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -17,7 +19,21 @@ export const RulesyncSkillFrontmatterSchema = z.object({
   ),
 });
 
-export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSchema>;
+// Export schema with targets optional for input but guaranteed in output
+export const RulesyncSkillFrontmatterSchema = RulesyncSkillFrontmatterSchemaInternal;
+
+// Type for input (targets is optional)
+export type RulesyncSkillFrontmatterInput = {
+  name: string;
+  description: string;
+  targets?: ("*" | string)[];
+  claudecode?: {
+    "allowed-tools"?: string[];
+  };
+};
+
+// Type for output/validated data (targets is always present after validation)
+export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSchemaInternal>;
 
 /**
  * Type alias for AiDirFile, specific to skill files
@@ -28,7 +44,7 @@ export type RulesyncSkillParams = {
   baseDir?: string;
   relativeDirPath?: string;
   dirName: string;
-  frontmatter: RulesyncSkillFrontmatter;
+  frontmatter: RulesyncSkillFrontmatterInput;
   body: string;
   otherFiles?: AiDirFile[];
   validate?: boolean;

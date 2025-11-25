@@ -116,12 +116,16 @@ const main = async () => {
     .option("-c, --config <path>", "Path to configuration file")
     .option("-g, --global", "Generate for global(user scope) configuration files")
     .option(
-      "--simulated-commands",
+      "--simulate-commands",
       "Generate simulated commands. This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
-      "--simulated-subagents",
+      "--simulate-subagents",
       "Generate simulated subagents. This feature is only available for copilot, cursor and codexcli.",
+    )
+    .option(
+      "--simulate-skills",
+      "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
       "--experimental-global",
@@ -129,11 +133,11 @@ const main = async () => {
     )
     .option(
       "--experimental-simulate-commands",
-      "Generate simulated commands (deprecated: use --simulated-commands instead)",
+      "Generate simulated commands (deprecated: use --simulate-commands instead)",
     )
     .option(
       "--experimental-simulate-subagents",
-      "Generate simulated subagents (deprecated: use --simulated-subagents instead)",
+      "Generate simulated subagents (deprecated: use --simulate-subagents instead)",
     )
     .option(
       "--modular-mcp",
@@ -149,8 +153,9 @@ const main = async () => {
           baseDirs: options.baseDirs,
           configPath: options.config,
           global: options.global,
-          simulatedCommands: options.simulatedCommands,
-          simulatedSubagents: options.simulatedSubagents,
+          simulateCommands: options.simulateCommands,
+          simulateSubagents: options.simulateSubagents,
+          simulateSkills: options.simulateSkills,
           modularMcp: options.modularMcp,
           experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
