@@ -6,16 +6,31 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
+import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
+import { GeminiCliSkill } from "./geminicli-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import { ToolSkill } from "./tool-skill.js";
 
-const skillsProcessorToolTargets: ToolTarget[] = ["claudecode", "copilot", "cursor", "codexcli"];
-export const skillsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot", "cursor", "codexcli"];
+const skillsProcessorToolTargets: ToolTarget[] = [
+  "claudecode",
+  "copilot",
+  "cursor",
+  "codexcli",
+  "geminicli",
+  "agentsmd",
+];
+export const skillsProcessorToolTargetsSimulated: ToolTarget[] = [
+  "copilot",
+  "cursor",
+  "codexcli",
+  "geminicli",
+  "agentsmd",
+];
 export const skillsProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
 export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargets);
 
@@ -90,6 +105,26 @@ export class SkillsProcessor extends DirFeatureProcessor {
             }),
           );
           break;
+        case "geminicli":
+          if (!GeminiCliSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            continue;
+          }
+          toolSkills.push(
+            GeminiCliSkill.fromRulesyncSkill({
+              rulesyncSkill: rulesyncSkill,
+            }),
+          );
+          break;
+        case "agentsmd":
+          if (!AgentsmdSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            continue;
+          }
+          toolSkills.push(
+            AgentsmdSkill.fromRulesyncSkill({
+              rulesyncSkill: rulesyncSkill,
+            }),
+          );
+          break;
         default:
           throw new Error(`Unsupported tool target: ${this.toolTarget}`);
       }
@@ -155,6 +190,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
         return await this.loadSimulatedSkills(CursorSkill);
       case "codexcli":
         return await this.loadSimulatedSkills(CodexCliSkill);
+      case "geminicli":
+        return await this.loadSimulatedSkills(GeminiCliSkill);
+      case "agentsmd":
+        return await this.loadSimulatedSkills(AgentsmdSkill);
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -195,7 +234,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * Load simulated skill configurations from tool-specific directories
    */
   private async loadSimulatedSkills(
-    SkillClass: typeof CopilotSkill | typeof CursorSkill | typeof CodexCliSkill,
+    SkillClass:
+      | typeof CopilotSkill
+      | typeof CursorSkill
+      | typeof CodexCliSkill
+      | typeof GeminiCliSkill
+      | typeof AgentsmdSkill,
   ): Promise<ToolSkill[]> {
     const paths = SkillClass.getSettablePaths();
     const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
