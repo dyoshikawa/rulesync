@@ -368,24 +368,24 @@ export class CommandsProcessor extends FeatureProcessor {
    * Return the tool targets that this processor supports
    */
   static getToolTargets({
+    global = false,
     includeSimulated = false,
   }: {
+    global?: boolean;
     includeSimulated?: boolean;
   } = {}): ToolTarget[] {
+    if (global) {
+      return commandsProcessorToolTargetsGlobal;
+    }
     if (!includeSimulated) {
       return commandsProcessorToolTargets.filter(
         (target) => !commandsProcessorToolTargetsSimulated.includes(target),
       );
     }
-
     return commandsProcessorToolTargets;
   }
 
   static getToolTargetsSimulated(): ToolTarget[] {
     return commandsProcessorToolTargetsSimulated;
-  }
-
-  static getToolTargetsGlobal(): ToolTarget[] {
-    return commandsProcessorToolTargetsGlobal;
   }
 }

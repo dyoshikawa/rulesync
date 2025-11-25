@@ -290,11 +290,10 @@ export class McpProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    if (global) {
+      return mcpProcessorToolTargetsGlobal;
+    }
     return mcpProcessorToolTargets;
-  }
-
-  static getToolTargetsGlobal(): ToolTarget[] {
-    return mcpProcessorToolTargetsGlobal;
   }
 }

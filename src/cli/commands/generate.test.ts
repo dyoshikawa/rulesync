@@ -78,14 +78,10 @@ describe("generateCommand", () => {
 
     // Setup processor static method mocks
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(SubagentsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
 
     // Setup processor constructor mocks - create new instance each time to ensure isolation
     vi.mocked(RulesProcessor).mockImplementation(function () {
@@ -420,6 +416,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
+        global: false,
         includeSimulated: true,
       });
     });
@@ -521,6 +518,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({
+        global: false,
         includeSimulated: true,
       });
     });
@@ -531,18 +529,19 @@ describe("generateCommand", () => {
         mockConfig.getExperimentalGlobal.mockReturnValue(true);
       });
 
-      it("should use getToolTargetsGlobal in global mode", async () => {
-        vi.mocked(SubagentsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      it("should use getToolTargets with global: true in global mode", async () => {
+        vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
         await generateCommand(options);
 
-        expect(SubagentsProcessor.getToolTargetsGlobal).toHaveBeenCalled();
-        expect(SubagentsProcessor.getToolTargets).not.toHaveBeenCalled();
+        expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith(
+          expect.objectContaining({ global: true }),
+        );
       });
 
       it("should pass global flag to SubagentsProcessor constructor", async () => {
-        vi.mocked(SubagentsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+        vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
         await generateCommand(options);
@@ -556,7 +555,7 @@ describe("generateCommand", () => {
 
       it("should only process claudecode target in global mode", async () => {
         mockConfig.getTargets.mockReturnValue(["claudecode", "copilot", "cursor"]);
-        vi.mocked(SubagentsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+        vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         vi.mocked(intersection).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
@@ -577,15 +576,16 @@ describe("generateCommand", () => {
         mockConfig.getSimulatedSubagents.mockReturnValue(true);
         mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
         mockConfig.getTargets.mockReturnValue(["claudecode", "copilot"]);
-        vi.mocked(SubagentsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+        vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         vi.mocked(intersection).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
         await generateCommand(options);
 
-        // Should use getToolTargetsGlobal instead of getToolTargets with includeSimulated
-        expect(SubagentsProcessor.getToolTargetsGlobal).toHaveBeenCalled();
-        expect(SubagentsProcessor.getToolTargets).not.toHaveBeenCalled();
+        // Should use getToolTargets with global: true instead of includeSimulated
+        expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith(
+          expect.objectContaining({ global: true }),
+        );
         expect(SubagentsProcessor).toHaveBeenCalledTimes(1);
         expect(SubagentsProcessor).toHaveBeenCalledWith({
           baseDir: ".",
@@ -754,16 +754,15 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue(["rules", "mcp", "commands", "ignore", "subagents"]);
     });
 
-    it("should use getToolTargetsGlobal when experimentalGlobal is enabled", async () => {
+    it("should use getToolTargets with global: true when experimentalGlobal is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(RulesProcessor.getToolTargetsGlobal).toHaveBeenCalled();
-      expect(RulesProcessor.getToolTargets).not.toHaveBeenCalled();
+      expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
     });
 
     it("should pass simulation options to RulesProcessor in global mode", async () => {
@@ -772,7 +771,7 @@ describe("generateCommand", () => {
       mockConfig.getSimulatedSubagents.mockReturnValue(true);
       mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -790,7 +789,7 @@ describe("generateCommand", () => {
     it("should process delete option in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getDelete.mockReturnValue(true);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
 
       // Create a custom mock instance to track calls
@@ -817,7 +816,7 @@ describe("generateCommand", () => {
 
     it("should call loadRulesyncFilesLegacy in global mode when loadRulesyncFiles returns empty", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
 
       // Create a custom mock instance that returns empty rulesync files
@@ -844,7 +843,7 @@ describe("generateCommand", () => {
     it("should use each baseDir in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2", "dir3"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
@@ -876,7 +875,7 @@ describe("generateCommand", () => {
 
     it("should skip MCP generation in global mode when no targets match", async () => {
       // When targets is ["claudecode"] and global targets is ["codexcli"], intersection is empty
-      vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["codexcli"]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["codexcli"]);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
@@ -896,7 +895,9 @@ describe("generateCommand", () => {
         toolTarget: "claudecode",
         global: true,
       });
-      expect(CommandsProcessor.getToolTargetsGlobal).toHaveBeenCalled();
+      expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith(
+        expect.objectContaining({ global: true }),
+      );
     });
 
     it("should skip ignore generation in global mode with log message", async () => {
@@ -928,7 +929,7 @@ describe("generateCommand", () => {
 
     it("should show success message with only rules count in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
 
       // Create a custom mock instance that returns 5
@@ -956,9 +957,9 @@ describe("generateCommand", () => {
 
     it("should only process rules, commands, mcp, and subagents when global mode is enabled with multiple features", async () => {
       mockConfig.getTargets.mockReturnValue(["claudecode", "codexcli"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
-      vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
-      vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["codexcli"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
+      vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["codexcli"]);
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       // Set up intersection to return correct values
