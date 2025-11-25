@@ -24,7 +24,7 @@ export class JunieMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".junie/mcp",
+      relativeDirPath: join(".junie", "mcp"),
       relativeFilePath: "mcp.json",
     };
   }
