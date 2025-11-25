@@ -222,7 +222,11 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Implementation of abstract method from Processor
    * Load tool-specific subagent configurations and parse them into ToolSubagent instances
    */
-  async loadToolFiles(): Promise<ToolFile[]> {
+  async loadToolFiles({
+    forDeletion: _forDeletion = false,
+  }: {
+    forDeletion?: boolean;
+  } = {}): Promise<ToolFile[]> {
     switch (this.toolTarget) {
       case "agentsmd":
         return await this.loadAgentsmdSubagents();
@@ -241,10 +245,6 @@ export class SubagentsProcessor extends FeatureProcessor {
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
-  }
-
-  async loadToolFilesToDelete(): Promise<ToolFile[]> {
-    return this.loadToolFiles();
   }
 
   /**

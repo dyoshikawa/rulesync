@@ -477,7 +477,11 @@ export class RulesProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific rule configurations and parse them into ToolRule instances
    */
-  async loadToolFiles(): Promise<ToolFile[]> {
+  async loadToolFiles({
+    forDeletion: _forDeletion = false,
+  }: {
+    forDeletion?: boolean;
+  } = {}): Promise<ToolFile[]> {
     try {
       switch (this.toolTarget) {
         case "agentsmd":
@@ -521,10 +525,6 @@ export class RulesProcessor extends FeatureProcessor {
       logger.error(`Failed to load tool files: ${formatError(error)}`);
       return [];
     }
-  }
-
-  async loadToolFilesToDelete(): Promise<ToolFile[]> {
-    return this.loadToolFiles();
   }
 
   private async loadToolRulesDefault({

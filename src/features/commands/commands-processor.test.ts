@@ -911,7 +911,7 @@ describe("CommandsProcessor", () => {
     });
   });
 
-  describe("loadToolFilesToDelete", () => {
+  describe("loadToolFiles with forDeletion: true", () => {
     it("should return the same files as loadToolFiles", async () => {
       processor = new CommandsProcessor({
         baseDir: testDir,
@@ -934,7 +934,7 @@ describe("CommandsProcessor", () => {
       vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommands[0]!);
 
       const toolFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete).toHaveLength(1);
@@ -951,7 +951,7 @@ describe("CommandsProcessor", () => {
 
         mockFindFilesByGlobs.mockResolvedValue([]);
 
-        const filesToDelete = await processor.loadToolFilesToDelete();
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
         expect(filesToDelete).toEqual([]);
       }
     });

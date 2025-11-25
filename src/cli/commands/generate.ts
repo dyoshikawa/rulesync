@@ -98,7 +98,7 @@ async function generateRules(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -139,7 +139,7 @@ async function generateIgnore(config: Config): Promise<number> {
         });
 
         if (config.getDelete()) {
-          const oldToolFiles = await processor.loadToolFilesToDelete();
+          const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
           await processor.removeAiFiles(oldToolFiles);
         }
 
@@ -190,7 +190,7 @@ async function generateMcp(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -231,7 +231,7 @@ async function generateCommands(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -272,7 +272,7 @@ async function generateSubagents(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
