@@ -144,38 +144,31 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getMcpServers(): McpServers {
-    // Return all servers, omitting rulesync-specific fields
-    return Object.fromEntries(
-      Object.entries(this.json.mcpServers).map(([serverName, serverConfig]) => [
-        serverName,
-        omit(serverConfig, ["targets", "description", "exposed"]),
-      ]),
-    );
-  }
+  getMcpServers({
+    type = "all",
+  }: { type?: "all" | "exposed" | "modularized" } = {}): McpServers {
+    const entries = Object.entries(this.json.mcpServers);
 
-  getExposedMcpServers(): McpServers {
-    // Return only servers with exposed: true, omitting description and exposed fields
-    return Object.fromEntries(
-      Object.entries(this.json.mcpServers)
-        .filter(([, serverConfig]) => !this.modularMcp || serverConfig.exposed)
-        .map(([serverName, serverConfig]) => [
-          serverName,
-          omit(serverConfig, ["targets", "description", "exposed"]),
-        ]),
-    );
-  }
+    const filteredEntries = entries.filter(([, serverConfig]) => {
+      switch (type) {
+        case "all":
+          return true;
+        case "exposed":
+          return !this.modularMcp || serverConfig.exposed;
+        case "modularized":
+          return this.modularMcp && !serverConfig.exposed;
+      }
+    });
 
-  getModularizedMcpServers(): McpServers {
-    // Return only servers with exposed: false, omitting description and exposed fields
     return Object.fromEntries(
-      Object.entries(this.json.mcpServers)
-        .filter(([, serverConfig]) => this.modularMcp && !serverConfig.exposed)
-        .map(([serverName, serverConfig]) => [
-          serverName,
-          // description is required for modular-mcp servers
-          omit(serverConfig, ["targets", "exposed"]),
-        ]),
+      filteredEntries.map(([serverName, serverConfig]) => {
+        // description is required for modular-mcp servers, so keep it
+        const fieldsToOmit =
+          type === "modularized"
+            ? (["targets", "exposed"] as const)
+            : (["targets", "description", "exposed"] as const);
+        return [serverName, omit(serverConfig, fieldsToOmit)];
+      }),
     );
   }
 
