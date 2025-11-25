@@ -28,6 +28,12 @@ describe("CopilotSkill", () => {
       const paths = CopilotSkill.getSettablePaths();
       expect(paths.relativeDirPath).toBe(join(".github", "skills"));
     });
+
+    it("should throw error when global is true", () => {
+      expect(() => CopilotSkill.getSettablePaths({ global: true })).toThrow(
+        "CopilotSkill does not support global mode.",
+      );
+    });
   });
 
   describe("constructor", () => {

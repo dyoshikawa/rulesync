@@ -28,6 +28,12 @@ describe("CursorSkill", () => {
       const paths = CursorSkill.getSettablePaths();
       expect(paths.relativeDirPath).toBe(join(".cursor", "skills"));
     });
+
+    it("should throw error when global is true", () => {
+      expect(() => CursorSkill.getSettablePaths({ global: true })).toThrow(
+        "CursorSkill does not support global mode.",
+      );
+    });
   });
 
   describe("constructor", () => {

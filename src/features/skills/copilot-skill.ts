@@ -13,7 +13,10 @@ import {
  * a compatible skill directory format at .github/skills/.
  */
 export class CopilotSkill extends SimulatedSkill {
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
+    if (options?.global) {
+      throw new Error("CopilotSkill does not support global mode.");
+    }
     return {
       relativeDirPath: join(".github", "skills"),
     };

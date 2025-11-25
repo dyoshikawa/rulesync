@@ -13,7 +13,10 @@ import {
  * a compatible skill directory format at .codex/skills/.
  */
 export class CodexCliSkill extends SimulatedSkill {
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
+    if (options?.global) {
+      throw new Error("CodexCliSkill does not support global mode.");
+    }
     return {
       relativeDirPath: join(".codex", "skills"),
     };

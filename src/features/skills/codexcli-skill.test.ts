@@ -28,6 +28,12 @@ describe("CodexCliSkill", () => {
       const paths = CodexCliSkill.getSettablePaths();
       expect(paths.relativeDirPath).toBe(join(".codex", "skills"));
     });
+
+    it("should throw error when global is true", () => {
+      expect(() => CodexCliSkill.getSettablePaths({ global: true })).toThrow(
+        "CodexCliSkill does not support global mode.",
+      );
+    });
   });
 
   describe("constructor", () => {

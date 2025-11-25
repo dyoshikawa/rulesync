@@ -13,7 +13,10 @@ import {
  * a compatible skill directory format at .cursor/skills/.
  */
 export class CursorSkill extends SimulatedSkill {
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
+    if (options?.global) {
+      throw new Error("CursorSkill does not support global mode.");
+    }
     return {
       relativeDirPath: join(".cursor", "skills"),
     };
