@@ -67,8 +67,7 @@ export class OpencodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    // eslint-disable-next-line no-type-assertion/no-type-assertion -- JSON.parse returns unknown, type is validated in validate()
-    this.json = JSON.parse(this.fileContent || "{}") as OpencodeConfig;
+    this.json = OpencodeConfigSchema.parse(JSON.parse(this.fileContent || "{}"));
   }
 
   getJson(): OpencodeConfig {
