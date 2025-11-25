@@ -10,6 +10,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     // AGENTS.md
     "**/AGENTS.md",
     "**/.agents/",
+    "**/.agents/skills/",
     // Amazon Q
     "**/.amazonq/",
     // Augment
@@ -31,20 +32,25 @@ export const gitignoreCommand = async (): Promise<void> => {
     // Codex
     "**/.codexignore",
     "**/.codex/",
+    "**/.codex/skills/",
     // Cursor
     "**/.cursor/",
     "**/.cursorignore",
     "**/.cursor/mcp.json",
+    "**/.cursor/subagents/",
+    "**/.cursor/skills/",
     // Gemini
     "**/GEMINI.md",
     "**/.gemini/memories/",
     "**/.gemini/commands/",
     "**/.gemini/subagents/",
+    "**/.gemini/skills/",
     // GitHub Copilot
     "**/.github/copilot-instructions.md",
     "**/.github/instructions/",
     "**/.github/prompts/",
     "**/.github/subagents/",
+    "**/.github/skills/",
     "**/.vscode/mcp.json",
     // Junie
     "**/.junie/guidelines.md",

@@ -271,3 +271,17 @@ modular-mcp.json
 # Project-level rules files
 CLAUDE.md
 .claude/memories/
+
+**/.agents/skills/
+**/CLAUDE.md
+**/.claude/memories/
+**/.claude/settings.local.json
+**/.mcp.json
+**/.codex/skills/
+**/.cursor/subagents/
+**/.cursor/skills/
+**/.gemini/skills/
+**/.github/skills/
+**/opencode.json
+**/.roo/subagents/
+**/modular-mcp.json
