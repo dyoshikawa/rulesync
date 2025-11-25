@@ -385,11 +385,12 @@ describe("OpencodeMcp", () => {
       });
 
       expect(opencodeMcp).toBeInstanceOf(OpencodeMcp);
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(opencodeMcp.getJson()).toEqual({
         mcp: {
           "test-server": {
-            command: "node",
-            args: ["test-server.js"],
+            type: "local",
+            command: ["node", "test-server.js"],
           },
         },
       });
@@ -424,12 +425,13 @@ describe("OpencodeMcp", () => {
       });
 
       expect(opencodeMcp.getFilePath()).toBe(join(customDir, "opencode.json"));
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(opencodeMcp.getJson()).toEqual({
         mcp: {
           "custom-server": {
-            command: "python",
-            args: ["server.py"],
-            env: {
+            type: "local",
+            command: ["python", "server.py"],
+            environment: {
               PYTHONPATH: "/custom/path",
             },
           },
@@ -458,11 +460,12 @@ describe("OpencodeMcp", () => {
         validate: true,
       });
 
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(opencodeMcp.getJson()).toEqual({
         mcp: {
           "validated-server": {
-            command: "node",
-            args: ["validated-server.js"],
+            type: "local",
+            command: ["node", "validated-server.js"],
           },
         },
       });
@@ -527,11 +530,12 @@ describe("OpencodeMcp", () => {
       });
 
       expect(opencodeMcp).toBeInstanceOf(OpencodeMcp);
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(opencodeMcp.getJson()).toEqual({
         mcp: {
           "global-server": {
-            command: "node",
-            args: ["global-server.js"],
+            type: "local",
+            command: ["node", "global-server.js"],
           },
         },
       });
@@ -561,11 +565,12 @@ describe("OpencodeMcp", () => {
       });
 
       expect(opencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(opencodeMcp.getJson()).toEqual({
         mcp: {
           "local-server": {
-            command: "python",
-            args: ["local-server.py"],
+            type: "local",
+            command: ["python", "local-server.py"],
           },
         },
       });
@@ -614,10 +619,11 @@ describe("OpencodeMcp", () => {
       });
 
       const json = opencodeMcp.getJson();
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(json.mcp).toEqual({
         "new-server": {
-          command: "python",
-          args: ["new-server.py"],
+          type: "local",
+          command: ["python", "new-server.py"],
         },
       });
       expect((json as any).userSettings).toEqual({
@@ -669,14 +675,15 @@ describe("OpencodeMcp", () => {
 
       const json = opencodeMcp.getJson();
       // Should replace mcp entirely, not merge individual servers
+      // fromRulesyncMcp converts standard MCP format to OpenCode format
       expect(json.mcp).toEqual({
         "new-server": {
-          command: "python",
-          args: ["new-server.py"],
+          type: "local",
+          command: ["python", "new-server.py"],
         },
         "another-server": {
-          command: "node",
-          args: ["another.js"],
+          type: "local",
+          command: ["node", "another.js"],
         },
       });
       expect((json as any).customProperty).toBe("value");
@@ -913,8 +920,18 @@ describe("OpencodeMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify data integrity
-      expect(newOpencodeMcp.getJson()).toEqual(originalJsonData);
+      // Note: toRulesyncMcp exports OpenCode format as-is, and fromRulesyncMcp converts it
+      // Since OpenCode format already has type: "local" and command as array,
+      // the conversion produces the same result
+      // Note: environment is only included if env was present in source
+      expect(newOpencodeMcp.getJson()).toEqual({
+        mcp: {
+          "workflow-server": {
+            type: "local",
+            command: ["node", "workflow-server.js", "--config", "config.json"],
+          },
+        },
+      });
       expect(newOpencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
     });
 
@@ -996,8 +1013,18 @@ describe("OpencodeMcp", () => {
         global: true,
       });
 
-      // Verify data integrity
-      expect(newOpencodeMcp.getJson()).toEqual(originalJsonData);
+      // Note: toRulesyncMcp exports OpenCode format as-is, and fromRulesyncMcp converts it
+      // Since OpenCode format already has type: "local" and command as array,
+      // the conversion produces the same result
+      // Note: environment is only included if env was present in source
+      expect(newOpencodeMcp.getJson()).toEqual({
+        mcp: {
+          "global-workflow-server": {
+            type: "local",
+            command: ["node", "global-server.js"],
+          },
+        },
+      });
       expect(newOpencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
     });
   });
