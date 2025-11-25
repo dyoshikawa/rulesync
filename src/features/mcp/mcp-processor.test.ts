@@ -883,6 +883,7 @@ describe("McpProcessor", () => {
         "copilot",
         "cursor",
         "geminicli",
+        "opencode",
         "roo",
       ]);
     });

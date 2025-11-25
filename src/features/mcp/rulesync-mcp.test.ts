@@ -606,7 +606,7 @@ describe("RulesyncMcp", () => {
     });
   });
 
-  describe("getExposedMcpServers", () => {
+  describe("getMcpServers with type: exposed", () => {
     it("should return only servers with exposed: true", () => {
       const jsonData = {
         mcpServers: {
@@ -643,7 +643,7 @@ describe("RulesyncMcp", () => {
         modularMcp: true,
       });
 
-      const result = rulesyncMcp.getExposedMcpServers();
+      const result = rulesyncMcp.getMcpServers({ type: "exposed" });
 
       // Only exposed servers should be returned
       expect(Object.keys(result)).toHaveLength(2);
