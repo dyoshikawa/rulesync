@@ -637,7 +637,14 @@ Test skill content`;
 
     it("should return all targets including simulated when includeSimulated is true", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: true });
-      expect(targets).toEqual(["claudecode", "copilot", "cursor", "codexcli"]);
+      expect(targets).toEqual([
+        "claudecode",
+        "copilot",
+        "cursor",
+        "codexcli",
+        "geminicli",
+        "agentsmd",
+      ]);
     });
 
     it("should return only non-simulated targets when includeSimulated is false", () => {
@@ -653,7 +660,7 @@ Test skill content`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(targets).toEqual(["copilot", "cursor", "codexcli"]);
+      expect(targets).toEqual(["copilot", "cursor", "codexcli", "geminicli", "agentsmd"]);
     });
   });
 
