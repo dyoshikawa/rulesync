@@ -22,6 +22,7 @@ export const ConfigParamsSchema = z.object({
   global: optional(z.boolean()),
   simulatedCommands: optional(z.boolean()),
   simulatedSubagents: optional(z.boolean()),
+  simulatedSkills: optional(z.boolean()),
   modularMcp: optional(z.boolean()),
   // Deprecated experimental options (for backward compatibility)
   experimentalGlobal: optional(z.boolean()),
@@ -45,6 +46,7 @@ export class Config {
   private readonly global: boolean;
   private readonly simulatedCommands: boolean;
   private readonly simulatedSubagents: boolean;
+  private readonly simulatedSkills: boolean;
   private readonly modularMcp: boolean;
 
   constructor({
@@ -56,6 +58,7 @@ export class Config {
     global,
     simulatedCommands,
     simulatedSubagents,
+    simulatedSkills,
     modularMcp,
     experimentalGlobal,
     experimentalSimulateCommands,
@@ -71,6 +74,7 @@ export class Config {
     this.global = global ?? experimentalGlobal ?? false;
     this.simulatedCommands = simulatedCommands ?? experimentalSimulateCommands ?? false;
     this.simulatedSubagents = simulatedSubagents ?? experimentalSimulateSubagents ?? false;
+    this.simulatedSkills = simulatedSkills ?? false;
     this.modularMcp = modularMcp ?? false;
   }
 
@@ -112,6 +116,10 @@ export class Config {
 
   public getSimulatedSubagents(): boolean {
     return this.simulatedSubagents;
+  }
+
+  public getSimulatedSkills(): boolean {
+    return this.simulatedSkills;
   }
 
   public getModularMcp(): boolean {

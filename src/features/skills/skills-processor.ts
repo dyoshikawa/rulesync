@@ -7,10 +7,15 @@ import { formatError } from "../../utils/error.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
+import { CodexCliSkill } from "./codexcli-skill.js";
+import { CopilotSkill } from "./copilot-skill.js";
+import { CursorSkill } from "./cursor-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
+import { SimulatedSkill } from "./simulated-skill.js";
 import { ToolSkill } from "./tool-skill.js";
 
-const skillsProcessorToolTargets: ToolTarget[] = ["claudecode"];
+const skillsProcessorToolTargets: ToolTarget[] = ["claudecode", "copilot", "cursor", "codexcli"];
+export const skillsProcessorToolTargetsSimulated: ToolTarget[] = ["copilot", "cursor", "codexcli"];
 export const skillsProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
 export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargets);
 
@@ -41,22 +46,54 @@ export class SkillsProcessor extends DirFeatureProcessor {
       (dir): dir is RulesyncSkill => dir instanceof RulesyncSkill,
     );
 
-    const toolSkills = rulesyncSkills
-      .map((rulesyncSkill) => {
-        switch (this.toolTarget) {
-          case "claudecode":
-            if (!ClaudecodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-              return null;
-            }
-            return ClaudecodeSkill.fromRulesyncSkill({
+    const toolSkills: ToolSkill[] = [];
+    for (const rulesyncSkill of rulesyncSkills) {
+      switch (this.toolTarget) {
+        case "claudecode":
+          if (!ClaudecodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            continue;
+          }
+          toolSkills.push(
+            ClaudecodeSkill.fromRulesyncSkill({
               rulesyncSkill: rulesyncSkill,
               global: this.global,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-        }
-      })
-      .filter((skill): skill is ClaudecodeSkill => skill !== null);
+            }),
+          );
+          break;
+        case "copilot":
+          if (!CopilotSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            continue;
+          }
+          toolSkills.push(
+            CopilotSkill.fromRulesyncSkill({
+              rulesyncSkill: rulesyncSkill,
+            }),
+          );
+          break;
+        case "cursor":
+          if (!CursorSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            continue;
+          }
+          toolSkills.push(
+            CursorSkill.fromRulesyncSkill({
+              rulesyncSkill: rulesyncSkill,
+            }),
+          );
+          break;
+        case "codexcli":
+          if (!CodexCliSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            continue;
+          }
+          toolSkills.push(
+            CodexCliSkill.fromRulesyncSkill({
+              rulesyncSkill: rulesyncSkill,
+            }),
+          );
+          break;
+        default:
+          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+      }
+    }
 
     return toolSkills;
   }
@@ -64,9 +101,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
   async convertToolDirsToRulesyncDirs(toolDirs: AiDir[]): Promise<AiDir[]> {
     const toolSkills = toolDirs.filter((dir): dir is ToolSkill => dir instanceof ToolSkill);
 
-    const rulesyncSkills = toolSkills.map((toolSkill) => {
-      return toolSkill.toRulesyncSkill();
-    });
+    const rulesyncSkills: RulesyncSkill[] = [];
+    for (const toolSkill of toolSkills) {
+      // Skip simulated skills as they cannot be converted back
+      if (toolSkill instanceof SimulatedSkill) {
+        logger.debug(`Skipping simulated skill conversion: ${toolSkill.getDirPath()}`);
+        continue;
+      }
+      rulesyncSkills.push(toolSkill.toRulesyncSkill());
+    }
 
     return rulesyncSkills;
   }
@@ -106,6 +149,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
     switch (this.toolTarget) {
       case "claudecode":
         return await this.loadClaudecodeSkills();
+      case "copilot":
+        return await this.loadSimulatedSkills(CopilotSkill);
+      case "cursor":
+        return await this.loadSimulatedSkills(CursorSkill);
+      case "codexcli":
+        return await this.loadSimulatedSkills(CodexCliSkill);
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
@@ -143,11 +192,55 @@ export class SkillsProcessor extends DirFeatureProcessor {
   }
 
   /**
+   * Load simulated skill configurations from tool-specific directories
+   */
+  private async loadSimulatedSkills(
+    SkillClass: typeof CopilotSkill | typeof CursorSkill | typeof CodexCliSkill,
+  ): Promise<ToolSkill[]> {
+    const paths = SkillClass.getSettablePaths();
+    const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
+    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+    const dirNames = dirPaths.map((path) => basename(path));
+
+    const toolSkills = (
+      await Promise.allSettled(
+        dirNames.map((dirName) =>
+          SkillClass.fromDir({
+            baseDir: this.baseDir,
+            dirName,
+          }),
+        ),
+      )
+    )
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    logger.info(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
+    return toolSkills;
+  }
+
+  /**
    * Implementation of abstract method from DirFeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(_params: { includeSimulated?: boolean } = {}): ToolTarget[] {
+  static getToolTargets({
+    includeSimulated = false,
+  }: {
+    includeSimulated?: boolean;
+  } = {}): ToolTarget[] {
+    if (!includeSimulated) {
+      return skillsProcessorToolTargets.filter(
+        (target) => !skillsProcessorToolTargetsSimulated.includes(target),
+      );
+    }
     return skillsProcessorToolTargets;
+  }
+
+  /**
+   * Return the simulated tool targets
+   */
+  static getToolTargetsSimulated(): ToolTarget[] {
+    return skillsProcessorToolTargetsSimulated;
   }
 
   /**

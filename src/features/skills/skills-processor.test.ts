@@ -630,18 +630,30 @@ Test skill content`;
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode as the only supported target", () => {
+    it("should return claudecode as the only supported target by default", () => {
       const targets = SkillsProcessor.getToolTargets();
       expect(targets).toEqual(["claudecode"]);
     });
 
-    it("should ignore includeSimulated parameter", () => {
+    it("should return all targets including simulated when includeSimulated is true", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: true });
+      expect(targets).toEqual(["claudecode", "copilot", "cursor", "codexcli"]);
+    });
+
+    it("should return only non-simulated targets when includeSimulated is false", () => {
+      const targets = SkillsProcessor.getToolTargets({ includeSimulated: false });
       expect(targets).toEqual(["claudecode"]);
     });
 
     it("should be callable without instance", () => {
       expect(() => SkillsProcessor.getToolTargets()).not.toThrow();
+    });
+  });
+
+  describe("getToolTargetsSimulated", () => {
+    it("should return simulated tool targets", () => {
+      const targets = SkillsProcessor.getToolTargetsSimulated();
+      expect(targets).toEqual(["copilot", "cursor", "codexcli"]);
     });
   });
 

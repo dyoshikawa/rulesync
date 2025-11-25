@@ -298,7 +298,12 @@ async function generateSkills(config: Config): Promise<number> {
 
   const toolTargets = config.getGlobal()
     ? intersection(config.getTargets(), SkillsProcessor.getToolTargetsGlobal())
-    : intersection(config.getTargets(), SkillsProcessor.getToolTargets());
+    : intersection(
+        config.getTargets(),
+        SkillsProcessor.getToolTargets({
+          includeSimulated: config.getSimulatedSkills(),
+        }),
+      );
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {

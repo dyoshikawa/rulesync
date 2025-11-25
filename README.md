@@ -134,10 +134,10 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|:------:|
 | AGENTS.md            |  ✅   |      |       |     🎮     |      🎮     |        |
 | Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
-| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |        |
+| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🎮   |
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |        |
-| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |        |
-| Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |        |
+| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |    🎮   |
+| Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    🎮   |
 | OpenCode               |  ✅   |       |       |         |          |        |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
 | Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |        |
@@ -151,7 +151,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 
 * ✅: Supports project mode
 * 🌏: Supports global mode
-* 🎮: Supports simulated commands/subagents (Project mode only)
+* 🎮: Supports simulated commands/subagents/skills (Project mode only)
 * 📦: Supports modular MCP (Experimental)
 
 ## Why Rulesync?
@@ -233,6 +233,7 @@ Example:
   "global": false,  // Generate for global(user scope) configuration files
   "simulatedCommands": false,  // Generate simulated commands
   "simulatedSubagents": false,  // Generate simulated subagents
+  "simulatedSkills": false,  // Generate simulated skills
   "modularMcp": false  // Enable modular-mcp for context compression (experimental, Claude Code only)
 
   // Deprecated experimental options (for backward compatibility)
@@ -324,6 +325,7 @@ Example:
 name: example-skill # skill name
 description: >- # skill description
   A sample skill that demonstrates the skill format
+targets: ["*"] # * = all, or specific tools
 claudecode: # for claudecode-specific parameters
   allowed-tools:
     - "Bash"
@@ -434,20 +436,21 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 > * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 > * Only Claude Code is supported for global mode commands.
 
-## Simulate Commands and Subagents
+## Simulate Commands, Subagents and Skills
 
-Simulated commands and subagents allow you to generate simulated commands and subagents for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
+Simulated commands, subagents and skills allow you to generate simulated features for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
 
-1. Prepare `.rulesync/commands/*.md` and `.rulesync/subagents/*.md` for your purposes.
-2. Generate simulated commands and subagents for specific tools that are included in copilot, cursor, codexcli and etc.
+1. Prepare `.rulesync/commands/*.md`, `.rulesync/subagents/*.md` and `.rulesync/skills/*/SKILL.md` for your purposes.
+2. Generate simulated commands, subagents and skills for specific tools that are included in copilot, cursor, codexcli and etc.
     ```bash
     npx rulesync generate \
       --targets copilot,cursor,codexcli \
-      --features commands,subagents \
+      --features commands,subagents,skills \
       --simulated-commands \
-      --simulated-subagents
+      --simulated-subagents \
+      --simulated-skills
     ```
-3. Use simulated commands and subagents in your prompts.
+3. Use simulated commands, subagents and skills in your prompts.
     - Prompt examples:
       ```txt
       # Execute simulated commands. By the way, `s/` stands for `simulate/`.
@@ -455,6 +458,9 @@ Simulated commands and subagents allow you to generate simulated commands and su
 
       # Execute simulated subagents
       Call your-subagent to achieve something.
+
+      # Use simulated skills
+      Use the skill your-skill to achieve something.
       ```
 
 ## Modular MCP (Experimental)

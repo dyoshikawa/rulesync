@@ -8,7 +8,7 @@ import {
   type ClaudecodeSkillFrontmatter,
   ClaudecodeSkillFrontmatterSchema,
 } from "./claudecode-skill.js";
-import { RulesyncSkill, type RulesyncSkillFrontmatter } from "./rulesync-skill.js";
+import { RulesyncSkill, type RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
 
 describe("ClaudecodeSkill", () => {
   let testDir: string;
@@ -287,7 +287,7 @@ describe("ClaudecodeSkill", () => {
 
   describe("fromRulesyncSkill", () => {
     it("should convert from RulesyncSkill without claudecode config", () => {
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "test-skill",
         description: "Test description",
       };
@@ -307,7 +307,7 @@ describe("ClaudecodeSkill", () => {
     });
 
     it("should convert from RulesyncSkill with claudecode config", () => {
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "restricted-skill",
         description: "Restricted skill",
         claudecode: {
@@ -330,7 +330,7 @@ describe("ClaudecodeSkill", () => {
     });
 
     it("should set correct relativeDirPath", () => {
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "test-skill",
         description: "Test skill",
       };
@@ -355,7 +355,7 @@ describe("ClaudecodeSkill", () => {
         },
       ];
 
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "test-skill",
         description: "Test skill",
       };
@@ -372,7 +372,7 @@ describe("ClaudecodeSkill", () => {
     });
 
     it("should skip validation when validate is false", () => {
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "valid-skill",
         description: "Valid skill",
       };
@@ -393,7 +393,7 @@ describe("ClaudecodeSkill", () => {
     });
 
     it("should support global mode", () => {
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "global-skill",
         description: "Global skill",
       };
@@ -416,7 +416,7 @@ describe("ClaudecodeSkill", () => {
 
   describe("isTargetedByRulesyncSkill", () => {
     it("should always return true for any RulesyncSkill", () => {
-      const rulesyncFrontmatter: RulesyncSkillFrontmatter = {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "test-skill",
         description: "Test skill",
       };

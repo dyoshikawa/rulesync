@@ -124,6 +124,10 @@ const main = async () => {
       "Generate simulated subagents. This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
+      "--simulated-skills",
+      "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
+    )
+    .option(
       "--experimental-global",
       "Generate for global(user scope) configuration files (deprecated: use --global instead)",
     )
@@ -151,6 +155,7 @@ const main = async () => {
           global: options.global,
           simulatedCommands: options.simulatedCommands,
           simulatedSubagents: options.simulatedSubagents,
+          simulatedSkills: options.simulatedSkills,
           modularMcp: options.modularMcp,
           experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
