@@ -45,6 +45,7 @@ describe("generateCommand", () => {
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulatedCommands: vi.fn().mockReturnValue(false),
       getSimulatedSubagents: vi.fn().mockReturnValue(false),
+      getSimulatedSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
       // Deprecated getters for backward compatibility
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
@@ -219,6 +220,7 @@ describe("generateCommand", () => {
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
       });
     });
 
@@ -237,6 +239,7 @@ describe("generateCommand", () => {
         toolTarget: "claudecode",
         simulateCommands: true,
         simulateSubagents: true,
+        simulateSkills: false,
       });
     });
 
@@ -303,6 +306,7 @@ describe("generateCommand", () => {
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
@@ -310,6 +314,7 @@ describe("generateCommand", () => {
         toolTarget: "claudecode",
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
       });
     });
 
@@ -784,6 +789,7 @@ describe("generateCommand", () => {
         global: true,
         simulateCommands: true,
         simulateSubagents: true,
+        simulateSkills: false,
       });
     });
 
@@ -856,6 +862,7 @@ describe("generateCommand", () => {
         global: true,
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
@@ -863,6 +870,7 @@ describe("generateCommand", () => {
         global: true,
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir3",
@@ -870,6 +878,7 @@ describe("generateCommand", () => {
         global: true,
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
       });
       expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
     });

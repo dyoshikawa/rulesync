@@ -5,6 +5,7 @@ import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
@@ -20,6 +21,10 @@ import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
 import { GeminiCliCommand } from "../commands/geminicli-command.js";
 import { RooCommand } from "../commands/roo-command.js";
+import { CodexCliSkill } from "../skills/codexcli-skill.js";
+import { CopilotSkill } from "../skills/copilot-skill.js";
+import { CursorSkill } from "../skills/cursor-skill.js";
+import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
 import { CopilotSubagent } from "../subagents/copilot-subagent.js";
@@ -79,6 +84,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
+  private readonly simulateSkills: boolean;
   private readonly global: boolean;
 
   constructor({
@@ -86,6 +92,7 @@ export class RulesProcessor extends FeatureProcessor {
     toolTarget,
     simulateCommands = false,
     simulateSubagents = false,
+    simulateSkills = false,
     global = false,
   }: {
     baseDir?: string;
@@ -93,6 +100,7 @@ export class RulesProcessor extends FeatureProcessor {
     global?: boolean;
     simulateCommands?: boolean;
     simulateSubagents?: boolean;
+    simulateSkills?: boolean;
   }) {
     super({ baseDir });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
@@ -105,6 +113,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.global = global;
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;
+    this.simulateSkills = simulateSkills;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -277,9 +286,9 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    const isSimulated = this.simulateCommands || this.simulateSubagents;
+    const isSimulated = this.simulateCommands || this.simulateSubagents || this.simulateSkills;
 
-    // For enabling simulated commands and subagents in Cursor, an additional convention rule is needed.
+    // For enabling simulated commands, subagents and skills in Cursor, an additional convention rule is needed.
     if (isSimulated && this.toolTarget === "cursor") {
       toolRules.push(
         new CursorRule({
@@ -291,6 +300,9 @@ export class RulesProcessor extends FeatureProcessor {
             commands: { relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath },
             subagents: {
               relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
+            },
+            skills: {
+              relativeDirPath: CursorSkill.getSettablePaths().relativeDirPath,
             },
           }),
           relativeDirPath: CursorRule.getSettablePaths().nonRoot.relativeDirPath,
@@ -359,6 +371,9 @@ export class RulesProcessor extends FeatureProcessor {
               subagents: {
                 relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
               },
+              skills: {
+                relativeDirPath: CodexCliSkill.getSettablePaths().relativeDirPath,
+              },
             }) +
             rootRule.getFileContent(),
         );
@@ -371,6 +386,9 @@ export class RulesProcessor extends FeatureProcessor {
             commands: { relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath },
             subagents: {
               relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
+            },
+            skills: {
+              relativeDirPath: CopilotSkill.getSettablePaths().relativeDirPath,
             },
           }) + rootRule.getFileContent(),
         );
@@ -972,11 +990,15 @@ export class RulesProcessor extends FeatureProcessor {
   private generateAdditionalConventionsSection({
     commands,
     subagents,
+    skills,
   }: {
     commands?: {
       relativeDirPath: string;
     };
     subagents?: {
+      relativeDirPath: string;
+    };
+    skills?: {
       relativeDirPath: string;
     };
   }): string {
@@ -997,7 +1019,7 @@ Users can use following syntax to invoke a custom command.
 s/<command> [arguments]
 \`\`\`
 
-This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.  
+This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.
 The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
 
 When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`, then execute the contents of that file as the block of operations.`
@@ -1013,6 +1035,18 @@ When users call a simulated subagent, it will look for the corresponding markdow
 For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`
       : "";
 
+    const skillsSection = skills
+      ? `## Simulated Skills
+
+Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks.
+
+When users invoke a simulated skill, look for the corresponding SKILL.md file in \`${join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "{skill}/SKILL.md")}\` and execute its contents as the block of operations.
+
+For example, if the user instructs \`Use the skill example-skill to achieve something\`, look for \`${join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "example-skill/SKILL.md")}\` and execute its contents.
+
+Additionally, you should proactively consider using available skills when they would help accomplish a task more effectively, even if the user doesn't explicitly request them.`
+      : "";
+
     const result =
       [
         overview,
@@ -1023,6 +1057,10 @@ For example, if the user instructs \`Call planner subagent to plan the refactori
         ...(this.simulateSubagents &&
         SubagentsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
           ? [subagentsSection]
+          : []),
+        ...(this.simulateSkills &&
+        SkillsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
+          ? [skillsSection]
           : []),
       ].join("\n\n") + "\n\n";
     return result;

@@ -94,6 +94,7 @@ async function generateRules(config: Config): Promise<number> {
         global: config.getGlobal(),
         simulateCommands: config.getSimulatedCommands(),
         simulateSubagents: config.getSimulatedSubagents(),
+        simulateSkills: config.getSimulatedSkills(),
       });
 
       if (config.getDelete()) {
