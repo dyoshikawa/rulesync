@@ -835,16 +835,16 @@ Second global content`;
     });
   });
 
-  describe("getToolTargetsGlobal", () => {
+  describe("getToolTargets with global: true", () => {
     it("should return only claudecode as global-supported target", () => {
-      const toolTargets = SubagentsProcessor.getToolTargetsGlobal();
+      const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toEqual(["claudecode"]);
     });
 
     it("should not include simulated targets", () => {
-      const toolTargets = SubagentsProcessor.getToolTargetsGlobal();
+      const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(toolTargets).not.toContain("copilot");
       expect(toolTargets).not.toContain("cursor");
@@ -855,7 +855,7 @@ Second global content`;
     });
 
     it("should be callable without instance", () => {
-      expect(() => SubagentsProcessor.getToolTargetsGlobal()).not.toThrow();
+      expect(() => SubagentsProcessor.getToolTargets({ global: true })).not.toThrow();
     });
   });
 

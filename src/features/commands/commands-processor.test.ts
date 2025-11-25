@@ -904,9 +904,9 @@ describe("CommandsProcessor", () => {
     });
   });
 
-  describe("getToolTargetsGlobal", () => {
+  describe("getToolTargets with global: true", () => {
     it("should return claudecode and cursor for global mode", () => {
-      const targets = CommandsProcessor.getToolTargetsGlobal();
+      const targets = CommandsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual(["claudecode", "cursor", "geminicli", "codexcli"]);
     });
   });

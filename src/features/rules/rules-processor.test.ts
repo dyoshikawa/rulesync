@@ -502,15 +502,15 @@ describe("RulesProcessor", () => {
     });
   });
 
-  describe("getToolTargetsGlobal", () => {
+  describe("getToolTargets with global: true", () => {
     it("should return claudecode and codexcli as global targets", () => {
-      const globalTargets = RulesProcessor.getToolTargetsGlobal();
+      const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       expect(globalTargets).toEqual(["claudecode", "codexcli", "geminicli"]);
     });
 
     it("should return a subset of regular tool targets", () => {
-      const globalTargets = RulesProcessor.getToolTargetsGlobal();
+      const globalTargets = RulesProcessor.getToolTargets({ global: true });
       const regularTargets = RulesProcessor.getToolTargets();
 
       // All global targets should be in regular targets
@@ -523,7 +523,7 @@ describe("RulesProcessor", () => {
     });
 
     it("should only include targets that support global mode", () => {
-      const globalTargets = RulesProcessor.getToolTargetsGlobal();
+      const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       // These are the targets that support global mode
       expect(globalTargets).toContain("claudecode");

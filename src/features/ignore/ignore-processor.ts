@@ -226,7 +226,10 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    if (global) {
+      throw new Error("IgnoreProcessor does not support global mode");
+    }
     return ignoreProcessorToolTargets;
   }
 }

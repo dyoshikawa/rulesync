@@ -887,12 +887,11 @@ export class RulesProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    if (global) {
+      return rulesProcessorToolTargetsGlobal;
+    }
     return rulesProcessorToolTargets;
-  }
-
-  static getToolTargetsGlobal(): ToolTarget[] {
-    return rulesProcessorToolTargetsGlobal;
   }
 
   private generateXmlReferencesSection(toolRules: ToolRule[]): string {
