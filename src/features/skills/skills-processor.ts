@@ -224,10 +224,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * Return the tool targets that this processor supports
    */
   static getToolTargets({
+    global = false,
     includeSimulated = false,
   }: {
+    global?: boolean;
     includeSimulated?: boolean;
   } = {}): ToolTarget[] {
+    if (global) {
+      return skillsProcessorToolTargetsGlobal;
+    }
     if (!includeSimulated) {
       return skillsProcessorToolTargets.filter(
         (target) => !skillsProcessorToolTargetsSimulated.includes(target),

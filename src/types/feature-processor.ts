@@ -13,9 +13,7 @@ export abstract class FeatureProcessor {
 
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
-  abstract loadToolFiles(): Promise<ToolFile[]>;
-
-  abstract loadToolFilesToDelete(): Promise<ToolFile[]>;
+  abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;
 
   abstract convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]>;
 
@@ -24,7 +22,9 @@ export abstract class FeatureProcessor {
   /**
    * Return tool targets that this feature supports.
    */
-  static getToolTargets(_params: { includeSimulated?: boolean } = {}): ToolTarget[] {
+  static getToolTargets(
+    _params: { global?: boolean; includeSimulated?: boolean } = {},
+  ): ToolTarget[] {
     throw new Error("Not implemented");
   }
 

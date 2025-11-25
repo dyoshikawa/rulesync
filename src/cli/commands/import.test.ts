@@ -46,13 +46,10 @@ describe("importCommand", () => {
 
     // Setup processor mocks with default return values
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
-    vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode", "codexcli"]);
     vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(McpProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
-    vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
 
     // Mock processor instances - create separate objects for each processor
     vi.mocked(RulesProcessor).mockImplementation(function () {
@@ -212,7 +209,10 @@ describe("importCommand", () => {
       await importCommand(options);
 
       // Verify that getToolTargets was called with includeSimulated: false
-      expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
+      expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({
+        global: false,
+        includeSimulated: false,
+      });
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -241,7 +241,10 @@ describe("importCommand", () => {
       await importCommand(options);
 
       // Verify that getToolTargets was called with includeSimulated: false
-      expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({ includeSimulated: false });
+      expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
+        global: false,
+        includeSimulated: false,
+      });
       expect(CommandsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -482,11 +485,9 @@ describe("importCommand", () => {
       });
 
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-      vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
 
       const options: ImportOptions = {
         targets: ["claudecode"],
@@ -516,7 +517,7 @@ describe("importCommand", () => {
       });
     });
 
-    it("should use getToolTargetsGlobal for supported processors in global mode", async () => {
+    it("should use getToolTargets with global: true for supported processors in global mode", async () => {
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
@@ -553,12 +554,10 @@ describe("importCommand", () => {
         } as any;
       });
 
-      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
-      vi.mocked(RulesProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-      vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
-      vi.mocked(CommandsProcessor.getToolTargetsGlobal).mockReturnValue(["claudecode"]);
+      vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       const options: ImportOptions = {
         targets: ["claudecode"],
@@ -566,9 +565,12 @@ describe("importCommand", () => {
 
       await importCommand(options);
 
-      // Verify getToolTargetsGlobal is called for processors that support it
-      expect(RulesProcessor.getToolTargetsGlobal).toHaveBeenCalled();
-      expect(CommandsProcessor.getToolTargetsGlobal).toHaveBeenCalled();
+      // Verify getToolTargets is called with global: true for processors that support it
+      expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
+      expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
+        global: true,
+        includeSimulated: false,
+      });
     });
   });
 });

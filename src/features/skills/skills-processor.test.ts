@@ -663,9 +663,17 @@ Test skill content`;
       expect(targets).toEqual(["claudecode"]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
+  });
+
+  describe("getToolTargets with global: true", () => {
+    it("should return claudecode for global mode", () => {
+      const targets = SkillsProcessor.getToolTargets({ global: true });
+      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
+    });
 
     it("should be callable without instance", () => {
-      expect(() => SkillsProcessor.getToolTargetsGlobal()).not.toThrow();
+      expect(() => SkillsProcessor.getToolTargets({ global: true })).not.toThrow();
     });
   });
 

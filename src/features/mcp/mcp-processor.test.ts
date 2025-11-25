@@ -887,7 +887,7 @@ describe("McpProcessor", () => {
     });
   });
 
-  describe("loadToolFilesToDelete", () => {
+  describe("loadToolFiles with forDeletion: true", () => {
     it("should return the same files as loadToolFiles", async () => {
       const mockMcp = new CopilotMcp({
         baseDir: testDir,
@@ -904,7 +904,7 @@ describe("McpProcessor", () => {
       });
 
       const toolFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete).toHaveLength(1);
@@ -934,7 +934,7 @@ describe("McpProcessor", () => {
           toolTarget: target,
         });
 
-        const filesToDelete = await processor.loadToolFilesToDelete();
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
@@ -950,7 +950,7 @@ describe("McpProcessor", () => {
       // Override the toolTarget property to simulate an unsupported target
       (processor as any).toolTarget = "unsupported";
 
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       // Should return empty array when error occurs
       expect(filesToDelete).toEqual([]);
@@ -973,13 +973,13 @@ describe("McpProcessor", () => {
       });
 
       const toolFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       // loadToolFiles should return the ClaudecodeMcp file
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockMcp);
 
-      // loadToolFilesToDelete should filter it out in global mode
+      // loadToolFiles with forDeletion: true should filter it out in global mode
       expect(filesToDelete).toHaveLength(0);
     });
 
@@ -1000,7 +1000,7 @@ describe("McpProcessor", () => {
       });
 
       const toolFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       // Both should return the same file in local mode
       expect(toolFiles).toHaveLength(1);

@@ -710,6 +710,22 @@ pnpm cicheck # Run code style check, type check, and tests
 # Manual test using current code
 pnpm dev generate -t claudecode -f "*"
 pnpm dev import -t claudecode -f "*"
+
+# Once you create .rulesync/rules/my-language.md and `pnpm dev generate`, you can use coding agents with your language.
+# Japanese setting example:
+cat << 'EOF' > .rulesync/rules/my-language.md
+---
+root: false
+targets: ['*']
+description: "It's a rule about language. If the rule file exists, you must always follow this."
+globs: ["**/*"]
+---
+
+I'm a Japanese developer. So you must always answer in Japanese. On the other hand, reasoning(thinking) should be in English to improve token efficiency.
+
+However, this project is for English speaking people. So when you write any code, comments, documentation, commit messages, PR title and PR descriptions, you must always use English.
+EOF
+pnpm dev generate
 ```
 
 ## FAQ

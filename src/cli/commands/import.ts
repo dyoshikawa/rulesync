@@ -56,9 +56,7 @@ async function importRules(config: Config, tool: ToolTarget): Promise<number> {
 
   const global = config.getGlobal();
 
-  const supportedTargets = global
-    ? RulesProcessor.getToolTargetsGlobal()
-    : RulesProcessor.getToolTargets();
+  const supportedTargets = RulesProcessor.getToolTargets({ global });
 
   if (!supportedTargets.includes(tool)) {
     return 0;
@@ -130,9 +128,7 @@ async function importMcp(config: Config, tool: ToolTarget): Promise<number> {
 
   const global = config.getGlobal();
 
-  const supportedTargets = global
-    ? McpProcessor.getToolTargetsGlobal()
-    : McpProcessor.getToolTargets();
+  const supportedTargets = McpProcessor.getToolTargets({ global });
 
   if (!supportedTargets.includes(tool)) {
     return 0;
@@ -166,9 +162,7 @@ async function importCommands(config: Config, tool: ToolTarget): Promise<number>
 
   const global = config.getGlobal();
 
-  const supportedTargets = global
-    ? CommandsProcessor.getToolTargetsGlobal()
-    : CommandsProcessor.getToolTargets({ includeSimulated: false });
+  const supportedTargets = CommandsProcessor.getToolTargets({ global, includeSimulated: false });
 
   if (!supportedTargets.includes(tool)) {
     return 0;
@@ -201,7 +195,8 @@ async function importSubagents(config: Config, tool: ToolTarget): Promise<number
   }
 
   // Use SubagentsProcessor for supported tools, excluding simulated ones
-  const supportedTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
+  const global = config.getGlobal();
+  const supportedTargets = SubagentsProcessor.getToolTargets({ global, includeSimulated: false });
   if (!supportedTargets.includes(tool)) {
     return 0;
   }
@@ -234,7 +229,7 @@ async function importSkills(config: Config, tool: ToolTarget): Promise<number> {
 
   const global = config.getGlobal();
 
-  const supportedTargets = SkillsProcessor.getToolTargets();
+  const supportedTargets = SkillsProcessor.getToolTargets({ global });
 
   if (!supportedTargets.includes(tool)) {
     return 0;
