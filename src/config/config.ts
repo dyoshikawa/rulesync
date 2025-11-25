@@ -20,9 +20,9 @@ export const ConfigParamsSchema = z.object({
   delete: z.boolean(),
   // New non-experimental options
   global: optional(z.boolean()),
-  simulatedCommands: optional(z.boolean()),
-  simulatedSubagents: optional(z.boolean()),
-  simulatedSkills: optional(z.boolean()),
+  simulateCommands: optional(z.boolean()),
+  simulateSubagents: optional(z.boolean()),
+  simulateSkills: optional(z.boolean()),
   modularMcp: optional(z.boolean()),
   // Deprecated experimental options (for backward compatibility)
   experimentalGlobal: optional(z.boolean()),
@@ -44,9 +44,9 @@ export class Config {
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
-  private readonly simulatedCommands: boolean;
-  private readonly simulatedSubagents: boolean;
-  private readonly simulatedSkills: boolean;
+  private readonly simulateCommands: boolean;
+  private readonly simulateSubagents: boolean;
+  private readonly simulateSkills: boolean;
   private readonly modularMcp: boolean;
 
   constructor({
@@ -56,9 +56,9 @@ export class Config {
     verbose,
     delete: isDelete,
     global,
-    simulatedCommands,
-    simulatedSubagents,
-    simulatedSkills,
+    simulateCommands,
+    simulateSubagents,
+    simulateSkills,
     modularMcp,
     experimentalGlobal,
     experimentalSimulateCommands,
@@ -72,9 +72,9 @@ export class Config {
 
     // Migration logic: prefer new options over experimental ones
     this.global = global ?? experimentalGlobal ?? false;
-    this.simulatedCommands = simulatedCommands ?? experimentalSimulateCommands ?? false;
-    this.simulatedSubagents = simulatedSubagents ?? experimentalSimulateSubagents ?? false;
-    this.simulatedSkills = simulatedSkills ?? false;
+    this.simulateCommands = simulateCommands ?? experimentalSimulateCommands ?? false;
+    this.simulateSubagents = simulateSubagents ?? experimentalSimulateSubagents ?? false;
+    this.simulateSkills = simulateSkills ?? false;
     this.modularMcp = modularMcp ?? false;
   }
 
@@ -110,16 +110,16 @@ export class Config {
     return this.global;
   }
 
-  public getSimulatedCommands(): boolean {
-    return this.simulatedCommands;
+  public getSimulateCommands(): boolean {
+    return this.simulateCommands;
   }
 
-  public getSimulatedSubagents(): boolean {
-    return this.simulatedSubagents;
+  public getSimulateSubagents(): boolean {
+    return this.simulateSubagents;
   }
 
-  public getSimulatedSkills(): boolean {
-    return this.simulatedSkills;
+  public getSimulateSkills(): boolean {
+    return this.simulateSkills;
   }
 
   public getModularMcp(): boolean {
@@ -132,13 +132,13 @@ export class Config {
     return this.global;
   }
 
-  /** @deprecated Use getSimulatedCommands() instead */
+  /** @deprecated Use getSimulateCommands() instead */
   public getExperimentalSimulateCommands(): boolean {
-    return this.simulatedCommands;
+    return this.simulateCommands;
   }
 
-  /** @deprecated Use getSimulatedSubagents() instead */
+  /** @deprecated Use getSimulateSubagents() instead */
   public getExperimentalSimulateSubagents(): boolean {
-    return this.simulatedSubagents;
+    return this.simulateSubagents;
   }
 }

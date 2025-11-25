@@ -93,9 +93,9 @@ async function generateRules(config: Config): Promise<number> {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
-        simulateCommands: config.getSimulatedCommands(),
-        simulateSubagents: config.getSimulatedSubagents(),
-        simulateSkills: config.getSimulatedSkills(),
+        simulateCommands: config.getSimulateCommands(),
+        simulateSubagents: config.getSimulateSubagents(),
+        simulateSkills: config.getSimulateSkills(),
       });
 
       if (config.getDelete()) {
@@ -219,7 +219,7 @@ async function generateCommands(config: Config): Promise<number> {
     config.getTargets(),
     CommandsProcessor.getToolTargets({
       global: config.getGlobal(),
-      includeSimulated: config.getSimulatedCommands(),
+      includeSimulated: config.getSimulateCommands(),
     }),
   );
 
@@ -260,7 +260,7 @@ async function generateSubagents(config: Config): Promise<number> {
     config.getTargets(),
     SubagentsProcessor.getToolTargets({
       global: config.getGlobal(),
-      includeSimulated: config.getSimulatedSubagents(),
+      includeSimulated: config.getSimulateSubagents(),
     }),
   );
 
@@ -301,7 +301,7 @@ async function generateSkills(config: Config): Promise<number> {
     config.getTargets(),
     SkillsProcessor.getToolTargets({
       global: config.getGlobal(),
-      includeSimulated: config.getSimulatedSkills(),
+      includeSimulated: config.getSimulateSkills(),
     }),
   );
 

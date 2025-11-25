@@ -31,9 +31,9 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   baseDirs: [process.cwd()],
   configPath: "rulesync.jsonc",
   global: false,
-  simulatedCommands: false,
-  simulatedSubagents: false,
-  simulatedSkills: false,
+  simulateCommands: false,
+  simulateSubagents: false,
+  simulateSkills: false,
   modularMcp: false,
   experimentalGlobal: false,
   experimentalSimulateCommands: false,
@@ -50,9 +50,9 @@ export class ConfigResolver {
     baseDirs,
     configPath = getDefaults().configPath,
     global,
-    simulatedCommands,
-    simulatedSubagents,
-    simulatedSkills,
+    simulateCommands,
+    simulateSubagents,
+    simulateSkills,
     modularMcp,
     experimentalGlobal,
     experimentalSimulateCommands,
@@ -97,21 +97,21 @@ export class ConfigResolver {
       experimentalGlobal ??
       configByFile.experimentalGlobal ??
       getDefaults().global;
-    const resolvedSimulatedCommands =
-      simulatedCommands ??
-      configByFile.simulatedCommands ??
+    const resolvedSimulateCommands =
+      simulateCommands ??
+      configByFile.simulateCommands ??
       experimentalSimulateCommands ??
       configByFile.experimentalSimulateCommands ??
-      getDefaults().simulatedCommands;
-    const resolvedSimulatedSubagents =
-      simulatedSubagents ??
-      configByFile.simulatedSubagents ??
+      getDefaults().simulateCommands;
+    const resolvedSimulateSubagents =
+      simulateSubagents ??
+      configByFile.simulateSubagents ??
       experimentalSimulateSubagents ??
       configByFile.experimentalSimulateSubagents ??
-      getDefaults().simulatedSubagents;
+      getDefaults().simulateSubagents;
 
-    const resolvedSimulatedSkills =
-      simulatedSkills ?? configByFile.simulatedSkills ?? getDefaults().simulatedSkills;
+    const resolvedSimulateSkills =
+      simulateSkills ?? configByFile.simulateSkills ?? getDefaults().simulateSkills;
 
     const configParams = {
       targets: targets ?? configByFile.targets ?? getDefaults().targets,
@@ -123,9 +123,9 @@ export class ConfigResolver {
         global: resolvedGlobal,
       }),
       global: resolvedGlobal,
-      simulatedCommands: resolvedSimulatedCommands,
-      simulatedSubagents: resolvedSimulatedSubagents,
-      simulatedSkills: resolvedSimulatedSkills,
+      simulateCommands: resolvedSimulateCommands,
+      simulateSubagents: resolvedSimulateSubagents,
+      simulateSkills: resolvedSimulateSkills,
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
     };
     return new Config(configParams);
@@ -146,12 +146,12 @@ function warnDeprecatedOptions({
   }
   if (experimentalSimulateCommands !== undefined) {
     logger.warn(
-      "'experimentalSimulateCommands' option is deprecated. Please use 'simulatedCommands' instead.",
+      "'experimentalSimulateCommands' option is deprecated. Please use 'simulateCommands' instead.",
     );
   }
   if (experimentalSimulateSubagents !== undefined) {
     logger.warn(
-      "'experimentalSimulateSubagents' option is deprecated. Please use 'simulatedSubagents' instead.",
+      "'experimentalSimulateSubagents' option is deprecated. Please use 'simulateSubagents' instead.",
     );
   }
 }

@@ -231,9 +231,9 @@ Example:
 
   // Advanced options
   "global": false,  // Generate for global(user scope) configuration files
-  "simulatedCommands": false,  // Generate simulated commands
-  "simulatedSubagents": false,  // Generate simulated subagents
-  "simulatedSkills": false,  // Generate simulated skills
+  "simulateCommands": false,  // Generate simulated commands
+  "simulateSubagents": false,  // Generate simulated subagents
+  "simulateSkills": false,  // Generate simulated skills
   "modularMcp": false  // Enable modular-mcp for context compression (experimental, Claude Code only)
 
   // Deprecated experimental options (for backward compatibility)
