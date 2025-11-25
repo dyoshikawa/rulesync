@@ -187,7 +187,11 @@ export class CommandsProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific command configurations and parse them into ToolCommand instances
    */
-  async loadToolFiles(): Promise<ToolFile[]> {
+  async loadToolFiles({
+    forDeletion: _forDeletion = false,
+  }: {
+    forDeletion?: boolean;
+  } = {}): Promise<ToolFile[]> {
     switch (this.toolTarget) {
       case "agentsmd":
         return await this.loadAgentsmdCommands();
@@ -206,10 +210,6 @@ export class CommandsProcessor extends FeatureProcessor {
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
-  }
-
-  async loadToolFilesToDelete(): Promise<ToolFile[]> {
-    return this.loadToolFiles();
   }
 
   private async loadToolCommandDefault({

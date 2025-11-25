@@ -433,7 +433,7 @@ describe("RulesProcessor", () => {
     });
   });
 
-  describe("loadToolFilesToDelete", () => {
+  describe("loadToolFiles with forDeletion: true", () => {
     it("should return the same files as loadToolFiles", async () => {
       await writeFileContent(
         join(testDir, "CLAUDE.md"),
@@ -449,7 +449,7 @@ describe("RulesProcessor", () => {
       });
 
       const toolFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete.length).toBeGreaterThan(0);
@@ -482,7 +482,7 @@ describe("RulesProcessor", () => {
           toolTarget: target,
         });
 
-        const filesToDelete = await processor.loadToolFilesToDelete();
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
@@ -495,7 +495,7 @@ describe("RulesProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       // Should return empty array when no files exist
       expect(filesToDelete).toEqual([]);

@@ -68,7 +68,6 @@ describe("generateCommand", () => {
     // Setup default processor mock instance
     mockProcessorInstance = {
       loadToolFiles: vi.fn().mockResolvedValue([]),
-      loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
       removeAiFiles: vi.fn().mockResolvedValue(undefined),
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
       loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -87,7 +86,6 @@ describe("generateCommand", () => {
     vi.mocked(RulesProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -98,7 +96,6 @@ describe("generateCommand", () => {
     vi.mocked(IgnoreProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -109,7 +106,6 @@ describe("generateCommand", () => {
     vi.mocked(McpProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -120,7 +116,6 @@ describe("generateCommand", () => {
     vi.mocked(SubagentsProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -131,7 +126,6 @@ describe("generateCommand", () => {
     vi.mocked(CommandsProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -242,8 +236,7 @@ describe("generateCommand", () => {
 
       // Create a custom mock instance for this test
       const customMockInstance = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue(oldFiles),
+        loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -258,7 +251,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(customMockInstance.loadToolFilesToDelete).toHaveBeenCalled();
+      expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeAiFiles).toHaveBeenCalledWith(oldFiles);
     });
 
@@ -268,7 +261,6 @@ describe("generateCommand", () => {
       // Create a custom mock instance for this test
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue(legacyFiles),
@@ -358,8 +350,7 @@ describe("generateCommand", () => {
 
       // Create a custom mock instance for this test
       const customMockInstance = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue(oldFiles),
+        loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -374,6 +365,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
+      expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeAiFiles).toHaveBeenCalledWith(oldFiles);
     });
 
@@ -603,7 +595,6 @@ describe("generateCommand", () => {
       // Create a custom mock instance that returns 0
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -627,7 +618,6 @@ describe("generateCommand", () => {
       // Create custom mock instances with specific return values
       const rulesMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -636,7 +626,6 @@ describe("generateCommand", () => {
       };
       const mcpMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -645,7 +634,6 @@ describe("generateCommand", () => {
       };
       const commandsMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -702,7 +690,6 @@ describe("generateCommand", () => {
       // Create a custom mock instance that returns 3
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -794,8 +781,7 @@ describe("generateCommand", () => {
 
       // Create a custom mock instance to track calls
       const customMockInstance = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([{ file: "old" }]),
+        loadToolFiles: vi.fn().mockResolvedValue([{ file: "old" }]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -810,7 +796,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(customMockInstance.loadToolFilesToDelete).toHaveBeenCalled();
+      expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeAiFiles).toHaveBeenCalled();
     });
 
@@ -822,7 +808,6 @@ describe("generateCommand", () => {
       // Create a custom mock instance that returns empty rulesync files
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -935,7 +920,6 @@ describe("generateCommand", () => {
       // Create a custom mock instance that returns 5
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
-        loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -972,7 +956,6 @@ describe("generateCommand", () => {
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
-          loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -983,7 +966,6 @@ describe("generateCommand", () => {
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
-          loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -994,7 +976,6 @@ describe("generateCommand", () => {
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
-          loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
@@ -1005,7 +986,6 @@ describe("generateCommand", () => {
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
-          loadToolFilesToDelete: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),

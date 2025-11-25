@@ -79,22 +79,15 @@ export class McpProcessor extends FeatureProcessor {
     }
   }
 
-  async loadToolFilesToDelete(): Promise<ToolFile[]> {
-    // When global mode, "~/.claude/.claude.json" should not be deleted.
-    if (this.global) {
-      return (await this.loadToolFiles()).filter(
-        (toolFile) => !(toolFile instanceof ClaudecodeMcp),
-      );
-    }
-
-    return this.loadToolFiles();
-  }
-
   /**
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific MCP configurations and parse them into ToolMcp instances
    */
-  async loadToolFiles(): Promise<ToolFile[]> {
+  async loadToolFiles({
+    forDeletion = false,
+  }: {
+    forDeletion?: boolean;
+  } = {}): Promise<ToolFile[]> {
     try {
       const toolMcps = await (async () => {
         switch (this.toolTarget) {
@@ -170,6 +163,12 @@ export class McpProcessor extends FeatureProcessor {
         }
       })();
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+
+      if (forDeletion && this.global) {
+        // When global mode, "~/.claude/.claude.json" should not be deleted.
+        return toolMcps.filter((toolFile) => !(toolFile instanceof ClaudecodeMcp));
+      }
+
       return toolMcps;
     } catch (error) {
       const errorMessage = `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`;
