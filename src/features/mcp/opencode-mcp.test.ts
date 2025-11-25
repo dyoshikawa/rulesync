@@ -391,6 +391,7 @@ describe("OpencodeMcp", () => {
           "test-server": {
             type: "local",
             command: ["node", "test-server.js"],
+            enabled: true,
           },
         },
       });
@@ -431,6 +432,7 @@ describe("OpencodeMcp", () => {
           "custom-server": {
             type: "local",
             command: ["python", "server.py"],
+            enabled: true,
             environment: {
               PYTHONPATH: "/custom/path",
             },
@@ -466,6 +468,7 @@ describe("OpencodeMcp", () => {
           "validated-server": {
             type: "local",
             command: ["node", "validated-server.js"],
+            enabled: true,
           },
         },
       });
@@ -536,6 +539,7 @@ describe("OpencodeMcp", () => {
           "global-server": {
             type: "local",
             command: ["node", "global-server.js"],
+            enabled: true,
           },
         },
       });
@@ -571,6 +575,7 @@ describe("OpencodeMcp", () => {
           "local-server": {
             type: "local",
             command: ["python", "local-server.py"],
+            enabled: true,
           },
         },
       });
@@ -624,6 +629,7 @@ describe("OpencodeMcp", () => {
         "new-server": {
           type: "local",
           command: ["python", "new-server.py"],
+          enabled: true,
         },
       });
       expect((json as any).userSettings).toEqual({
@@ -680,10 +686,12 @@ describe("OpencodeMcp", () => {
         "new-server": {
           type: "local",
           command: ["python", "new-server.py"],
+          enabled: true,
         },
         "another-server": {
           type: "local",
           command: ["node", "another.js"],
+          enabled: true,
         },
       });
       expect((json as any).customProperty).toBe("value");
@@ -929,6 +937,7 @@ describe("OpencodeMcp", () => {
           "workflow-server": {
             type: "local",
             command: ["node", "workflow-server.js", "--config", "config.json"],
+            enabled: true,
           },
         },
       });
@@ -1022,6 +1031,7 @@ describe("OpencodeMcp", () => {
           "global-workflow-server": {
             type: "local",
             command: ["node", "global-server.js"],
+            enabled: true,
           },
         },
       });

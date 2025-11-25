@@ -21,7 +21,7 @@ const OpencodeMcpLocalServerSchema = z.object({
   type: z.literal("local"),
   command: z.array(z.string()),
   environment: z.optional(z.record(z.string(), z.string())),
-  enabled: z.optional(z.boolean()),
+  enabled: z._default(z.boolean(), true),
   cwd: z.optional(z.string()),
 });
 
@@ -30,7 +30,7 @@ const OpencodeMcpRemoteServerSchema = z.object({
   type: z.literal("remote"),
   url: z.string(),
   headers: z.optional(z.record(z.string(), z.string())),
-  enabled: z.optional(z.boolean()),
+  enabled: z._default(z.boolean(), true),
 });
 
 // OpenCode MCP server schema (local or remote)
@@ -65,8 +65,8 @@ function convertToOpencodeFormat(mcpServers: McpServers): Record<string, Opencod
         const remoteServer: OpencodeMcpServer = {
           type: "remote",
           url: serverConfig.url ?? serverConfig.httpUrl ?? "",
+          enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
           ...(serverConfig.headers && { headers: serverConfig.headers }),
-          ...(serverConfig.disabled !== undefined && { enabled: !serverConfig.disabled }),
         };
         return [serverName, remoteServer];
       }
@@ -87,8 +87,8 @@ function convertToOpencodeFormat(mcpServers: McpServers): Record<string, Opencod
       const localServer: OpencodeMcpServer = {
         type: "local",
         command: commandArray,
+        enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
         ...(serverConfig.env && { environment: serverConfig.env }),
-        ...(serverConfig.disabled !== undefined && { enabled: !serverConfig.disabled }),
         ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
       };
       return [serverName, localServer];
@@ -156,7 +156,7 @@ export class OpencodeMcp extends ToolMcp {
       JSON.stringify({ mcp: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
-    const convertedMcp = convertToOpencodeFormat(rulesyncMcp.getExposedMcpServers());
+    const convertedMcp = convertToOpencodeFormat(rulesyncMcp.getMcpServers());
     const newJson = { ...json, mcp: convertedMcp };
 
     return new OpencodeMcp({
