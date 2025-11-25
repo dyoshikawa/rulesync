@@ -920,6 +920,28 @@ describe("OpencodeMcp", () => {
         },
       });
     });
+
+    it("should throw error when command array is empty", () => {
+      const jsonData = {
+        mcp: {
+          "empty-command-server": {
+            type: "local",
+            command: [],
+            enabled: true,
+          },
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+        validate: false,
+      });
+
+      expect(() => opencodeMcp.toRulesyncMcp()).toThrow(
+        'Server "empty-command-server" has an empty command array',
+      );
+    });
   });
 
   describe("validate", () => {

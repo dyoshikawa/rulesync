@@ -72,6 +72,9 @@ function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer
 
       // local server -> stdio
       const [command, ...args] = serverConfig.command;
+      if (!command) {
+        throw new Error(`Server "${serverName}" has an empty command array`);
+      }
       return [
         serverName,
         {
