@@ -49,6 +49,45 @@ type OpencodeConfig = z.infer<typeof OpencodeConfigSchema>;
 type OpencodeMcpServer = z.infer<typeof OpencodeMcpServerSchema>;
 
 /**
+ * Convert OpenCode native format back to standard MCP format
+ * - type: "local" -> "stdio", "remote" -> "sse"
+ * - command (array) -> command (first element) + args (rest)
+ * - environment -> env
+ * - enabled -> disabled (inverted)
+ */
+function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer>): McpServers {
+  return Object.fromEntries(
+    Object.entries(opencodeMcp).map(([serverName, serverConfig]) => {
+      if (serverConfig.type === "remote") {
+        return [
+          serverName,
+          {
+            type: "sse" as const,
+            url: serverConfig.url,
+            ...(serverConfig.enabled === false && { disabled: true }),
+            ...(serverConfig.headers && { headers: serverConfig.headers }),
+          },
+        ];
+      }
+
+      // local server -> stdio
+      const [command, ...args] = serverConfig.command;
+      return [
+        serverName,
+        {
+          type: "stdio" as const,
+          command,
+          ...(args.length > 0 && { args }),
+          ...(serverConfig.enabled === false && { disabled: true }),
+          ...(serverConfig.environment && { env: serverConfig.environment }),
+          ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
+        },
+      ];
+    }),
+  );
+}
+
+/**
  * Convert standard MCP format to OpenCode native format
  * - type: "stdio" -> "local", "sse"/"http" -> "remote"
  * - command + args -> command (merged array)
@@ -169,8 +208,9 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
+    const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {});
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: this.json.mcp }, null, 2),
+      fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
     });
   }
 

@@ -699,7 +699,7 @@ describe("OpencodeMcp", () => {
   });
 
   describe("toRulesyncMcp", () => {
-    it("should convert to RulesyncMcp with default configuration", () => {
+    it("should convert to RulesyncMcp with standard format (local -> stdio)", () => {
       const jsonData = {
         mcp: {
           filesystem: {
@@ -719,14 +719,22 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(
-        JSON.stringify({ mcpServers: jsonData.mcp }, null, 2),
-      );
+      // Should convert to standard format: type: "stdio", command: string, args: string[]
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          filesystem: {
+            type: "stdio",
+            command: "npx",
+            args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+            env: {},
+          },
+        },
+      });
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
     });
 
-    it("should preserve file content when converting to RulesyncMcp", () => {
+    it("should convert environment to env and preserve baseDir", () => {
       const jsonData = {
         mcp: {
           "complex-server": {
@@ -750,7 +758,19 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({ mcpServers: jsonData.mcp });
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "complex-server": {
+            type: "stdio",
+            command: "node",
+            args: ["complex-server.js", "--port", "3000"],
+            env: {
+              NODE_ENV: "production",
+              DEBUG: "mcp:*",
+            },
+          },
+        },
+      });
     });
 
     it("should handle empty mcp object when converting", () => {
@@ -795,15 +815,110 @@ describe("OpencodeMcp", () => {
       expect(exportedJson).toEqual({
         mcpServers: {
           "test-server": {
-            type: "local",
-            command: ["node", "server.js"],
-            environment: {},
-            enabled: true,
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            env: {},
           },
         },
       });
       expect((exportedJson as any).userSettings).toBeUndefined();
       expect((exportedJson as any).version).toBeUndefined();
+    });
+
+    it("should convert remote type to sse", () => {
+      const jsonData = {
+        mcp: {
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            headers: {
+              Authorization: "Bearer token",
+            },
+            enabled: true,
+          },
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/mcp",
+            headers: {
+              Authorization: "Bearer token",
+            },
+          },
+        },
+      });
+    });
+
+    it("should convert disabled servers (enabled: false -> disabled: true)", () => {
+      const jsonData = {
+        mcp: {
+          "disabled-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: false,
+          },
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "disabled-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            disabled: true,
+          },
+        },
+      });
+    });
+
+    it("should preserve cwd when converting", () => {
+      const jsonData = {
+        mcp: {
+          "cwd-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            cwd: "/custom/path",
+            enabled: true,
+          },
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "cwd-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            cwd: "/custom/path",
+          },
+        },
+      });
     });
   });
 
@@ -919,8 +1034,19 @@ describe("OpencodeMcp", () => {
         baseDir: testDir,
       });
 
-      // Step 2: Convert to RulesyncMcp
+      // Step 2: Convert to RulesyncMcp (now converts to standard format)
       const rulesyncMcp = originalOpencodeMcp.toRulesyncMcp();
+
+      // Verify RulesyncMcp has standard format
+      const rulesyncJson = JSON.parse(rulesyncMcp.getFileContent());
+      expect(rulesyncJson.mcpServers["workflow-server"]).toEqual({
+        type: "stdio",
+        command: "node",
+        args: ["workflow-server.js", "--config", "config.json"],
+        env: {
+          NODE_ENV: "test",
+        },
+      });
 
       // Step 3: Create new OpencodeMcp from RulesyncMcp
       const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
@@ -928,15 +1054,15 @@ describe("OpencodeMcp", () => {
         rulesyncMcp,
       });
 
-      // Note: toRulesyncMcp exports OpenCode format as-is, and fromRulesyncMcp converts it
-      // Since OpenCode format already has type: "local" and command as array,
-      // the conversion produces the same result
-      // Note: environment is only included if env was present in source
+      // After round-trip, should be back to OpenCode format
       expect(newOpencodeMcp.getJson()).toEqual({
         mcp: {
           "workflow-server": {
             type: "local",
             command: ["node", "workflow-server.js", "--config", "config.json"],
+            environment: {
+              NODE_ENV: "test",
+            },
             enabled: true,
           },
         },
@@ -1012,8 +1138,17 @@ describe("OpencodeMcp", () => {
         global: true,
       });
 
-      // Step 2: Convert to RulesyncMcp
+      // Step 2: Convert to RulesyncMcp (now converts to standard format)
       const rulesyncMcp = originalOpencodeMcp.toRulesyncMcp();
+
+      // Verify RulesyncMcp has standard format
+      const rulesyncJson = JSON.parse(rulesyncMcp.getFileContent());
+      expect(rulesyncJson.mcpServers["global-workflow-server"]).toEqual({
+        type: "stdio",
+        command: "node",
+        args: ["global-server.js"],
+        env: {},
+      });
 
       // Step 3: Create new OpencodeMcp from RulesyncMcp in global mode
       const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
@@ -1022,15 +1157,13 @@ describe("OpencodeMcp", () => {
         global: true,
       });
 
-      // Note: toRulesyncMcp exports OpenCode format as-is, and fromRulesyncMcp converts it
-      // Since OpenCode format already has type: "local" and command as array,
-      // the conversion produces the same result
-      // Note: environment is only included if env was present in source
+      // After round-trip, should be back to OpenCode format
       expect(newOpencodeMcp.getJson()).toEqual({
         mcp: {
           "global-workflow-server": {
             type: "local",
             command: ["node", "global-server.js"],
+            environment: {},
             enabled: true,
           },
         },
