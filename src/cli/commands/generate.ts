@@ -83,9 +83,10 @@ async function generateRules(config: Config): Promise<number> {
   let totalRulesOutputs = 0;
   logger.info("Generating rule files...");
 
-  const toolTargets = config.getGlobal()
-    ? intersection(config.getTargets(), RulesProcessor.getToolTargetsGlobal())
-    : intersection(config.getTargets(), RulesProcessor.getToolTargets());
+  const toolTargets = intersection(
+    config.getTargets(),
+    RulesProcessor.getToolTargets({ global: config.getGlobal() }),
+  );
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
       const processor = new RulesProcessor({
@@ -97,7 +98,7 @@ async function generateRules(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -138,7 +139,7 @@ async function generateIgnore(config: Config): Promise<number> {
         });
 
         if (config.getDelete()) {
-          const oldToolFiles = await processor.loadToolFilesToDelete();
+          const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
           await processor.removeAiFiles(oldToolFiles);
         }
 
@@ -175,9 +176,10 @@ async function generateMcp(config: Config): Promise<number> {
     logger.info("ℹ️  Modular MCP support is experimental.");
   }
 
-  const toolTargets = config.getGlobal()
-    ? intersection(config.getTargets(), McpProcessor.getToolTargetsGlobal())
-    : intersection(config.getTargets(), McpProcessor.getToolTargets());
+  const toolTargets = intersection(
+    config.getTargets(),
+    McpProcessor.getToolTargets({ global: config.getGlobal() }),
+  );
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
       const processor = new McpProcessor({
@@ -188,7 +190,7 @@ async function generateMcp(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -212,14 +214,13 @@ async function generateCommands(config: Config): Promise<number> {
   let totalCommandOutputs = 0;
   logger.info("Generating command files...");
 
-  const toolTargets = config.getGlobal()
-    ? intersection(config.getTargets(), CommandsProcessor.getToolTargetsGlobal())
-    : intersection(
-        config.getTargets(),
-        CommandsProcessor.getToolTargets({
-          includeSimulated: config.getSimulatedCommands(),
-        }),
-      );
+  const toolTargets = intersection(
+    config.getTargets(),
+    CommandsProcessor.getToolTargets({
+      global: config.getGlobal(),
+      includeSimulated: config.getSimulatedCommands(),
+    }),
+  );
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -230,7 +231,7 @@ async function generateCommands(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -254,14 +255,13 @@ async function generateSubagents(config: Config): Promise<number> {
   let totalSubagentOutputs = 0;
   logger.info("Generating subagent files...");
 
-  const toolTargets = config.getGlobal()
-    ? intersection(config.getTargets(), SubagentsProcessor.getToolTargetsGlobal())
-    : intersection(
-        config.getTargets(),
-        SubagentsProcessor.getToolTargets({
-          includeSimulated: config.getSimulatedSubagents(),
-        }),
-      );
+  const toolTargets = intersection(
+    config.getTargets(),
+    SubagentsProcessor.getToolTargets({
+      global: config.getGlobal(),
+      includeSimulated: config.getSimulatedSubagents(),
+    }),
+  );
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -272,7 +272,7 @@ async function generateSubagents(config: Config): Promise<number> {
       });
 
       if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFilesToDelete();
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
         await processor.removeAiFiles(oldToolFiles);
       }
 
@@ -296,9 +296,10 @@ async function generateSkills(config: Config): Promise<number> {
   let totalSkillOutputs = 0;
   logger.info("Generating skill files...");
 
-  const toolTargets = config.getGlobal()
-    ? intersection(config.getTargets(), SkillsProcessor.getToolTargetsGlobal())
-    : intersection(config.getTargets(), SkillsProcessor.getToolTargets());
+  const toolTargets = intersection(
+    config.getTargets(),
+    SkillsProcessor.getToolTargets({ global: config.getGlobal() }),
+  );
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {

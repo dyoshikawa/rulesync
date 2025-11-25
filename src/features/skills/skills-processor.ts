@@ -146,14 +146,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * Implementation of abstract method from DirFeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(_params: { includeSimulated?: boolean } = {}): ToolTarget[] {
+  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    if (global) {
+      return skillsProcessorToolTargetsGlobal;
+    }
     return skillsProcessorToolTargets;
-  }
-
-  /**
-   * Return the tool targets that this processor supports in global mode
-   */
-  static getToolTargetsGlobal(): ToolTarget[] {
-    return skillsProcessorToolTargetsGlobal;
   }
 }

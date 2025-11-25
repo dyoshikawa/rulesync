@@ -835,16 +835,16 @@ Second global content`;
     });
   });
 
-  describe("getToolTargetsGlobal", () => {
+  describe("getToolTargets with global: true", () => {
     it("should return only claudecode as global-supported target", () => {
-      const toolTargets = SubagentsProcessor.getToolTargetsGlobal();
+      const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toEqual(["claudecode"]);
     });
 
     it("should not include simulated targets", () => {
-      const toolTargets = SubagentsProcessor.getToolTargetsGlobal();
+      const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(toolTargets).not.toContain("copilot");
       expect(toolTargets).not.toContain("cursor");
@@ -855,7 +855,7 @@ Second global content`;
     });
 
     it("should be callable without instance", () => {
-      expect(() => SubagentsProcessor.getToolTargetsGlobal()).not.toThrow();
+      expect(() => SubagentsProcessor.getToolTargets({ global: true })).not.toThrow();
     });
   });
 
@@ -977,7 +977,7 @@ Valid content`,
     });
   });
 
-  describe("loadToolFilesToDelete", () => {
+  describe("loadToolFiles with forDeletion: true", () => {
     it("should return the same files as loadToolFiles", async () => {
       const processor = new SubagentsProcessor({
         baseDir: testDir,
@@ -996,7 +996,7 @@ Test agent content`;
       await writeFileContent(join(agentsDir, "test-agent.md"), subagentContent);
 
       const toolFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete).toHaveLength(1);
@@ -1020,7 +1020,7 @@ Test agent content`;
           toolTarget: target,
         });
 
-        const filesToDelete = await processor.loadToolFilesToDelete();
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
@@ -1033,7 +1033,7 @@ Test agent content`;
         toolTarget: "claudecode",
       });
 
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       expect(filesToDelete).toEqual([]);
     });
 
@@ -1061,7 +1061,7 @@ Second agent`;
       await writeFileContent(join(agentsDir, "agent-1.md"), agent1);
       await writeFileContent(join(agentsDir, "agent-2.md"), agent2);
 
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       expect(filesToDelete).toHaveLength(2);
       expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);

@@ -77,9 +77,19 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific ignore configurations and parse them into ToolIgnore instances
    */
-  async loadToolFiles(): Promise<ToolFile[]> {
+  async loadToolFiles({
+    forDeletion = false,
+  }: {
+    forDeletion?: boolean;
+  } = {}): Promise<ToolFile[]> {
     try {
       const toolIgnores = await this.loadToolIgnores();
+
+      if (forDeletion) {
+        // Claudecode ignore file is settings.local.json, so it should not be deleted.
+        return toolIgnores.filter((toolFile) => !(toolFile instanceof ClaudecodeIgnore));
+      }
+
       return toolIgnores;
     } catch (error) {
       const errorMessage = `Failed to load tool files: ${formatError(error)}`;
@@ -119,13 +129,6 @@ export class IgnoreProcessor extends FeatureProcessor {
       default:
         throw new Error(`Unsupported tool target: ${this.toolTarget}`);
     }
-  }
-
-  async loadToolFilesToDelete(): Promise<ToolFile[]> {
-    // Claudecode ignore file is settings.local.json, so it should not be deleted.
-    return (await this.loadToolFiles()).filter(
-      (toolFile) => !(toolFile instanceof ClaudecodeIgnore),
-    );
   }
 
   /**
@@ -226,7 +229,10 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Implementation of abstract method from FeatureProcessor
    * Return the tool targets that this processor supports
    */
-  static getToolTargets(): ToolTarget[] {
+  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    if (global) {
+      throw new Error("IgnoreProcessor does not support global mode");
+    }
     return ignoreProcessorToolTargets;
   }
 }

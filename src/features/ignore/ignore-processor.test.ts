@@ -467,7 +467,7 @@ describe("IgnoreProcessor", () => {
     });
   });
 
-  describe("loadToolFilesToDelete", () => {
+  describe("loadToolFiles with forDeletion: true", () => {
     it("should filter out ClaudecodeIgnore files when loading for deletion", async () => {
       // Create both .cursorignore and claudecode settings.local.json files
       await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
@@ -492,7 +492,7 @@ describe("IgnoreProcessor", () => {
       expect(claudecodeIgnoreFiles).toHaveLength(1);
 
       // Load tool files for deletion (should exclude ClaudecodeIgnore)
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       const claudecodeIgnoreFilesToDelete = filesToDelete.filter(
         (file) => file instanceof ClaudecodeIgnore,
       );
@@ -508,7 +508,7 @@ describe("IgnoreProcessor", () => {
       });
 
       const allFiles = await processor.loadToolFiles();
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
       // For non-claudecode targets, should return the same files
       expect(filesToDelete).toEqual(allFiles);
@@ -522,7 +522,7 @@ describe("IgnoreProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       expect(filesToDelete).toHaveLength(0);
     });
 
@@ -545,7 +545,7 @@ describe("IgnoreProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const filesToDelete = await processor.loadToolFilesToDelete();
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       // Should not include ClaudecodeIgnore but should include other files if any
       const hasClaudecodeIgnore = filesToDelete.some((file) => file instanceof ClaudecodeIgnore);
       expect(hasClaudecodeIgnore).toBe(false);
