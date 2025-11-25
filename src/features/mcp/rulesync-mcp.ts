@@ -144,6 +144,16 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
+  getMcpServers(): McpServers {
+    // Return all servers, omitting rulesync-specific fields
+    return Object.fromEntries(
+      Object.entries(this.json.mcpServers).map(([serverName, serverConfig]) => [
+        serverName,
+        omit(serverConfig, ["targets", "description", "exposed"]),
+      ]),
+    );
+  }
+
   getExposedMcpServers(): McpServers {
     // Return only servers with exposed: true, omitting description and exposed fields
     return Object.fromEntries(

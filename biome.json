@@ -28,7 +28,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["src/**/*.ts", "scripts/**/*.ts"]
+    "includes": ["src/**/*.ts", "scripts/**/*.ts", "opencode.json", "rulesync.jsonc"]
   },
   "vcs": {
     "enabled": true,

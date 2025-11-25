@@ -14,6 +14,7 @@ import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { ModularMcp } from "./modular-mcp.js";
+import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
@@ -25,6 +26,7 @@ export const mcpProcessorToolTargets: ToolTarget[] = [
   "copilot",
   "cursor",
   "geminicli",
+  "opencode",
   "roo",
 ];
 
@@ -34,7 +36,12 @@ export const McpProcessorToolTargetSchema = z.enum(
 );
 export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode", "codexcli", "geminicli"];
+export const mcpProcessorToolTargetsGlobal: ToolTarget[] = [
+  "claudecode",
+  "codexcli",
+  "geminicli",
+  "opencode",
+];
 
 export const mcpProcessorToolTargetsModular: ToolTarget[] = ["claudecode"];
 
@@ -150,6 +157,15 @@ export class McpProcessor extends FeatureProcessor {
               }),
             ];
           }
+          case "opencode": {
+            return [
+              await OpencodeMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+                global: this.global,
+              }),
+            ];
+          }
           case "roo": {
             return [
               await RooMcp.fromFile({
@@ -164,9 +180,16 @@ export class McpProcessor extends FeatureProcessor {
       })();
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
 
-      if (forDeletion && this.global) {
+      if (forDeletion) {
+        // `opencode.json` should not be deleted as it may contain other settings
+        let filteredMcps = toolMcps.filter((toolFile) => !(toolFile instanceof OpencodeMcp));
+
         // When global mode, "~/.claude/.claude.json" should not be deleted.
-        return toolMcps.filter((toolFile) => !(toolFile instanceof ClaudecodeMcp));
+        if (this.global) {
+          filteredMcps = filteredMcps.filter((toolFile) => !(toolFile instanceof ClaudecodeMcp));
+        }
+
+        return filteredMcps;
       }
 
       return toolMcps;
@@ -232,6 +255,12 @@ export class McpProcessor extends FeatureProcessor {
             });
           case "geminicli":
             return GeminiCliMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+              global: this.global,
+            });
+          case "opencode":
+            return OpencodeMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
               global: this.global,

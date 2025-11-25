@@ -226,7 +226,6 @@ package-lock.json
 .serena/memories/
 .serena/.gitignore
 
-**/opencode.json
 **/.opencode/memories/
 **/.opencode/commands/
 
