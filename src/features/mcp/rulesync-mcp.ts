@@ -144,9 +144,7 @@ export class RulesyncMcp extends RulesyncFile {
     });
   }
 
-  getMcpServers({
-    type = "all",
-  }: { type?: "all" | "exposed" | "modularized" } = {}): McpServers {
+  getMcpServers({ type = "all" }: { type?: "all" | "exposed" | "modularized" } = {}): McpServers {
     const entries = Object.entries(this.json.mcpServers);
 
     const filteredEntries = entries.filter(([, serverConfig]) => {
