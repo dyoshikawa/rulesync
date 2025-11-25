@@ -51,14 +51,37 @@
         "--project",
         "."
       ],
-      "environment": {},
-      "enabled": true
+      "enabled": true,
+      "environment": {}
     },
     "context7": {
       "type": "local",
-      "command": ["npx", "-y", "@upstash/context7-mcp"],
-      "environment": {},
-      "enabled": true
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "enabled": true,
+      "environment": {}
+    },
+    "fetch": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "mcp-server-fetch"
+      ],
+      "enabled": true,
+      "environment": {}
+    },
+    "rulesync-mcp": {
+      "type": "local",
+      "command": [
+        "pnpm",
+        "dev",
+        "mcp"
+      ],
+      "enabled": true,
+      "environment": {}
     }
   }
 }
