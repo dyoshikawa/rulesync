@@ -6,7 +6,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
   RulesyncSkill,
-  type RulesyncSkillFrontmatter,
+  type RulesyncSkillFrontmatterInput,
   RulesyncSkillFrontmatterSchema,
   type SkillFile,
 } from "./rulesync-skill.js";
@@ -27,7 +27,7 @@ describe("RulesyncSkill", () => {
 
   describe("constructor", () => {
     it("should create a RulesyncSkill with valid frontmatter and body", () => {
-      const frontmatter: RulesyncSkillFrontmatter = {
+      const frontmatter: RulesyncSkillFrontmatterInput = {
         name: "test-skill",
         description: "Test skill description",
       };
@@ -39,7 +39,11 @@ describe("RulesyncSkill", () => {
         otherFiles: [],
       });
 
-      expect(skill.getFrontmatter()).toEqual(frontmatter);
+      expect(skill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Test skill description",
+        targets: ["*"], // Default value added by z._default
+      });
       expect(skill.getBody()).toBe("This is a test skill body");
       expect(skill.getOtherFiles()).toEqual([]);
     });
@@ -80,7 +84,7 @@ describe("RulesyncSkill", () => {
     });
 
     it("should handle claudecode-specific configuration", () => {
-      const frontmatter: RulesyncSkillFrontmatter = {
+      const frontmatter: RulesyncSkillFrontmatterInput = {
         name: "claudecode-skill",
         description: "Claude Code specific skill",
         claudecode: {
@@ -101,7 +105,7 @@ describe("RulesyncSkill", () => {
     });
 
     it("should handle other skill files", () => {
-      const frontmatter: RulesyncSkillFrontmatter = {
+      const frontmatter: RulesyncSkillFrontmatterInput = {
         name: "complex-skill",
         description: "Skill with additional files",
       };
@@ -132,7 +136,7 @@ describe("RulesyncSkill", () => {
 
   describe("getFrontmatter", () => {
     it("should return the frontmatter object", () => {
-      const frontmatter: RulesyncSkillFrontmatter = {
+      const frontmatter: RulesyncSkillFrontmatterInput = {
         name: "test-skill",
         description: "Test description",
       };
@@ -144,7 +148,11 @@ describe("RulesyncSkill", () => {
         otherFiles: [],
       });
 
-      expect(skill.getFrontmatter()).toEqual(frontmatter);
+      expect(skill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Test description",
+        targets: ["*"], // Default value added by z._default
+      });
     });
   });
 
@@ -209,7 +217,7 @@ describe("RulesyncSkill", () => {
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const frontmatter: RulesyncSkillFrontmatter = {
+      const frontmatter: RulesyncSkillFrontmatterInput = {
         name: "valid-skill",
         description: "Valid skill description",
       };
@@ -279,7 +287,7 @@ It can span multiple lines.`;
       expect(skill.getFrontmatter()).toEqual({
         name: "test-skill",
         description: "Test skill from directory",
-        claudecode: undefined,
+        targets: ["*"], // Default value added by z._default
       });
       expect(skill.getBody()).toBe("This is the skill body content.\nIt can span multiple lines.");
       expect(skill.getOtherFiles()).toEqual([]);
@@ -458,7 +466,11 @@ This has leading and trailing whitespace.
       const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data).toEqual(frontmatter);
+        expect(result.data).toEqual({
+          name: "test-skill",
+          description: "Test description",
+          targets: ["*"], // Default value added by z._default
+        });
       }
     });
 
