@@ -272,3 +272,6 @@ modular-mcp.json
 # Project-level rules files
 CLAUDE.md
 .claude/memories/
+
+# Intellij IDEs
+.idea
