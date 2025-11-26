@@ -242,6 +242,7 @@ describe("gitignoreCommand", () => {
 **/.github/skills/
 **/.vscode/mcp.json
 **/.junie/guidelines.md
+**/.junie/mcp.json
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/

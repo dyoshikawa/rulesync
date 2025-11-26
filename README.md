@@ -148,7 +148,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Qwen Code              |  ✅   |   ✅   |       |         |          |        |
 | Kiro IDE               |  ✅   |   ✅   |      |         |          |        |
 | Amazon Q Developer CLI |  ✅   |       |  ✅   |         |          |        |
-| JetBrains Junie        |  ✅   |   ✅   |      |         |          |        |
+| JetBrains Junie        |  ✅   |   ✅   |  ✅   |         |          |        |
 | AugmentCode            |  ✅   |   ✅   |       |         |          |        |
 | Windsurf               |  ✅   |   ✅    |      |         |          |        |
 | Warp               |  ✅   |        |      |         |          |        |
