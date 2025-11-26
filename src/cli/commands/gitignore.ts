@@ -54,6 +54,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.vscode/mcp.json",
     // Junie
     "**/.junie/guidelines.md",
+    "**/.junie/mcp.json",
     // Kiro
     "**/.kiro/steering/",
     "**/.aiignore",
