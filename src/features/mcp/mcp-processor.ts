@@ -13,6 +13,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
+import { JunieMcp } from "./junie-mcp.js";
 import { ModularMcp } from "./modular-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -23,6 +24,7 @@ export const mcpProcessorToolTargets: ToolTarget[] = [
   "amazonqcli",
   "claudecode",
   "cline",
+  "junie",
   "copilot",
   "cursor",
   "geminicli",
@@ -118,6 +120,14 @@ export class McpProcessor extends FeatureProcessor {
           case "cline": {
             return [
               await ClineMcp.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+              }),
+            ];
+          }
+          case "junie": {
+            return [
+              await JunieMcp.fromFile({
                 baseDir: this.baseDir,
                 validate: true,
               }),
@@ -234,6 +244,11 @@ export class McpProcessor extends FeatureProcessor {
             });
           case "cline":
             return ClineMcp.fromRulesyncMcp({
+              baseDir: this.baseDir,
+              rulesyncMcp,
+            });
+          case "junie":
+            return JunieMcp.fromRulesyncMcp({
               baseDir: this.baseDir,
               rulesyncMcp,
             });
