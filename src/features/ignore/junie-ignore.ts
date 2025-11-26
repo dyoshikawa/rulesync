@@ -12,7 +12,7 @@ export class JunieIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".junieignore",
+      relativeFilePath: ".aiignore",
     };
   }
 
