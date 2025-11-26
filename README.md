@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/logo.png" alt="Rulesync Logo" width="600">
+  <img src="images/logo.jpg" alt="Rulesync Logo" width="600">
 </p>
 
 # Rulesync
