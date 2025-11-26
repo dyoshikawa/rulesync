@@ -364,58 +364,31 @@ Content 2`;
       expect(names).toEqual(["skill-1", "skill-2"]);
     });
 
-    it("should skip invalid skill directories and continue loading valid ones", async () => {
+    it("should throw error when invalid skill directory is found", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       await ensureDir(skillsDir);
 
-      const validSkillDir = join(skillsDir, "valid-skill");
       const invalidSkillDir = join(skillsDir, "invalid-skill");
-      await ensureDir(validSkillDir);
       await ensureDir(invalidSkillDir);
-
-      const validContent = `---
-name: valid-skill
-description: Valid skill
----
-Valid content`;
 
       const invalidContent = `---
 invalid yaml: [
 ---
 Invalid content`;
 
-      await writeFileContent(join(validSkillDir, "SKILL.md"), validContent);
       await writeFileContent(join(invalidSkillDir, "SKILL.md"), invalidContent);
 
-      const rulesyncDirs = await processor.loadRulesyncDirs();
-
-      expect(rulesyncDirs).toHaveLength(1);
-      const validRulesyncSkill = rulesyncDirs[0] as RulesyncSkill;
-      expect(validRulesyncSkill.getFrontmatter().name).toBe("valid-skill");
+      await expect(processor.loadRulesyncDirs()).rejects.toThrow();
     });
 
-    it("should ignore directories without SKILL.md file", async () => {
+    it("should throw error when directory without SKILL.md file is found", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       await ensureDir(skillsDir);
 
       const emptyDir = join(skillsDir, "empty-dir");
       await ensureDir(emptyDir);
 
-      const validSkillDir = join(skillsDir, "valid-skill");
-      await ensureDir(validSkillDir);
-
-      const validContent = `---
-name: valid-skill
-description: Valid skill
----
-Content`;
-
-      await writeFileContent(join(validSkillDir, "SKILL.md"), validContent);
-
-      const rulesyncDirs = await processor.loadRulesyncDirs();
-
-      expect(rulesyncDirs).toHaveLength(1);
-      expect((rulesyncDirs[0] as RulesyncSkill).getFrontmatter().name).toBe("valid-skill");
+      await expect(processor.loadRulesyncDirs()).rejects.toThrow("SKILL.md not found in");
     });
   });
 
@@ -515,23 +488,12 @@ Second content`;
       expect(names).toEqual(["skill-1", "skill-2"]);
     });
 
-    it("should handle directories that fail to load gracefully", async () => {
+    it("should throw error when directory fails to load", async () => {
       const skillsDir = join(testDir, ".claude", "skills");
       await ensureDir(skillsDir);
 
-      const validSkillDir = join(skillsDir, "valid");
       const invalidSkillDir = join(skillsDir, "invalid");
-      await ensureDir(validSkillDir);
       await ensureDir(invalidSkillDir);
-
-      await writeFileContent(
-        join(validSkillDir, "SKILL.md"),
-        `---
-name: valid
-description: Valid skill
----
-Valid content`,
-      );
 
       // Create invalid skill (no frontmatter)
       await writeFileContent(
@@ -539,11 +501,7 @@ Valid content`,
         "Invalid format without frontmatter",
       );
 
-      const toolDirs = await processor.loadToolDirs();
-
-      // Should at least load the valid skill
-      expect(toolDirs.length).toBeGreaterThanOrEqual(1);
-      expect(toolDirs.some((dir) => dir instanceof ClaudecodeSkill)).toBe(true);
+      await expect(processor.loadToolDirs()).rejects.toThrow();
     });
 
     describe("global mode", () => {

@@ -169,15 +169,11 @@ export class CommandsProcessor extends FeatureProcessor {
       join(RulesyncCommand.getSettablePaths().relativeDirPath, "*.md"),
     );
 
-    const rulesyncCommands = (
-      await Promise.allSettled(
-        rulesyncCommandPaths.map((path) =>
-          RulesyncCommand.fromFile({ relativeFilePath: basename(path) }),
-        ),
-      )
-    )
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value);
+    const rulesyncCommands = await Promise.all(
+      rulesyncCommandPaths.map((path) =>
+        RulesyncCommand.fromFile({ relativeFilePath: basename(path) }),
+      ),
+    );
 
     logger.info(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
     return rulesyncCommands;
@@ -225,58 +221,53 @@ export class CommandsProcessor extends FeatureProcessor {
       join(this.baseDir, relativeDirPath, `*.${extension}`),
     );
 
-    const toolCommands = (
-      await Promise.allSettled(
-        commandFilePaths.map((path) => {
-          switch (toolTarget) {
-            case "agentsmd":
-              return AgentsmdCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-              });
-            case "claudecode":
-              return ClaudecodeCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-                global: this.global,
-              });
-            case "geminicli":
-              return GeminiCliCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-                global: this.global,
-              });
-            case "roo":
-              return RooCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-              });
-            case "copilot":
-              return CopilotCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-              });
-            case "cursor":
-              return CursorCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-                global: this.global,
-              });
-            case "codexcli":
-              return CodexcliCommand.fromFile({
-                baseDir: this.baseDir,
-                relativeFilePath: basename(path),
-                global: this.global,
-              });
-            default:
-              throw new Error(`Unsupported tool target: ${toolTarget}`);
-          }
-        }),
-      )
-    )
-
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value);
+    const toolCommands = await Promise.all(
+      commandFilePaths.map((path) => {
+        switch (toolTarget) {
+          case "agentsmd":
+            return AgentsmdCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+            });
+          case "claudecode":
+            return ClaudecodeCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+              global: this.global,
+            });
+          case "geminicli":
+            return GeminiCliCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+              global: this.global,
+            });
+          case "roo":
+            return RooCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+            });
+          case "copilot":
+            return CopilotCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+            });
+          case "cursor":
+            return CursorCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+              global: this.global,
+            });
+          case "codexcli":
+            return CodexcliCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+              global: this.global,
+            });
+          default:
+            throw new Error(`Unsupported tool target: ${toolTarget}`);
+        }
+      }),
+    );
 
     logger.info(`Successfully loaded ${toolCommands.length} ${relativeDirPath} commands`);
     return toolCommands;

@@ -332,9 +332,7 @@ export class SubagentsProcessor extends FeatureProcessor {
   }): Promise<ToolSubagent[]> {
     const paths = await findFilesByGlobs(join(this.baseDir, relativeDirPath, "*.md"));
 
-    const subagents = (await Promise.allSettled(paths.map((path) => fromFile(basename(path)))))
-      .filter((r): r is PromiseFulfilledResult<ToolSubagent> => r.status === "fulfilled")
-      .map((r) => r.value);
+    const subagents = await Promise.all(paths.map((path) => fromFile(basename(path))));
 
     logger.info(`Successfully loaded ${subagents.length} ${relativeDirPath} subagents`);
 

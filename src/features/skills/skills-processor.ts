@@ -159,18 +159,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
-    const results = await Promise.allSettled(
+    const rulesyncSkills = await Promise.all(
       dirNames.map((dirName) =>
         RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
       ),
     );
-
-    const rulesyncSkills: RulesyncSkill[] = [];
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        rulesyncSkills.push(result.value);
-      }
-    }
 
     logger.info(`Successfully loaded ${rulesyncSkills.length} rulesync skills`);
     return rulesyncSkills;
@@ -212,19 +205,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
-    const toolSkills = (
-      await Promise.allSettled(
-        dirNames.map((dirName) =>
-          ClaudecodeSkill.fromDir({
-            baseDir: this.baseDir,
-            dirName,
-            global: this.global,
-          }),
-        ),
-      )
-    )
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value);
+    const toolSkills = await Promise.all(
+      dirNames.map((dirName) =>
+        ClaudecodeSkill.fromDir({
+          baseDir: this.baseDir,
+          dirName,
+          global: this.global,
+        }),
+      ),
+    );
 
     logger.info(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
     return toolSkills;
@@ -246,18 +235,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
-    const toolSkills = (
-      await Promise.allSettled(
-        dirNames.map((dirName) =>
-          SkillClass.fromDir({
-            baseDir: this.baseDir,
-            dirName,
-          }),
-        ),
-      )
-    )
-      .filter((result) => result.status === "fulfilled")
-      .map((result) => result.value);
+    const toolSkills = await Promise.all(
+      dirNames.map((dirName) =>
+        SkillClass.fromDir({
+          baseDir: this.baseDir,
+          dirName,
+        }),
+      ),
+    );
 
     logger.info(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
     return toolSkills;

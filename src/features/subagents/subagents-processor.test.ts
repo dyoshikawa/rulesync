@@ -693,31 +693,17 @@ Second content`;
       expect(toolFiles.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });
 
-    it("should handle files that fail to load gracefully", async () => {
+    it("should throw error when file fails to load", async () => {
       const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
-      // Create a file that will cause loading to fail
-      await writeFileContent(
-        join(agentsDir, "valid.md"),
-        `---
-name: valid
-description: Valid agent
----
-Valid content`,
-      );
-
-      // Create another file (this one might fail due to invalid format, depending on ClaudecodeSubagent implementation)
+      // Create a file that will cause loading to fail (invalid format without frontmatter)
       await writeFileContent(
         join(agentsDir, "might-fail.md"),
         "Invalid format without frontmatter",
       );
 
-      const toolFiles = await processor.loadToolFiles();
-
-      // Should at least load the valid file, may or may not load the invalid one depending on ClaudecodeSubagent's error handling
-      expect(toolFiles.length).toBeGreaterThanOrEqual(1);
-      expect(toolFiles.some((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+      await expect(processor.loadToolFiles()).rejects.toThrow();
     });
 
     describe("global mode", () => {
