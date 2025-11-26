@@ -1,4 +1,4 @@
-import { globSync } from "node:fs";
+import { existsSync, globSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -145,6 +145,17 @@ export async function fileExists(filepath: string): Promise<boolean> {
   try {
     await stat(filepath);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Synchronous variant of fileExists for places where async is not feasible
+ */
+export function fileExistsSync(filepath: string): boolean {
+  try {
+    return existsSync(filepath);
   } catch {
     return false;
   }
