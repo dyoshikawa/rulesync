@@ -228,7 +228,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should load JunieIgnore for junie target", async () => {
-      await writeFileContent(join(testDir, ".junieignore"), "*.log\nnode_modules/");
+      await writeFileContent(join(testDir, ".aiignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
         baseDir: testDir,
