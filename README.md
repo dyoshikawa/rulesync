@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo.jpg" alt="Rulesync Logo" width="600">
+</p>
+
 # Rulesync
 
 [![CI](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml/badge.svg)](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml)
