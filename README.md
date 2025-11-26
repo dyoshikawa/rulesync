@@ -1,8 +1,8 @@
-# Rulesync
-
 <p align="center">
-  <img src="images/logo.jpg" alt="Rulesync Logo" width="200">
+  <img src="images/logo.jpg" alt="Rulesync Logo" width="600">
 </p>
+
+# Rulesync
 
 [![CI](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml/badge.svg)](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/rulesync)](https://www.npmjs.com/package/rulesync)
