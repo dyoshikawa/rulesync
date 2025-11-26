@@ -522,7 +522,7 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual(mockRulesyncCommands);
     });
 
-    it("should handle failed file loading gracefully", async () => {
+    it("should throw error when file loading fails", async () => {
       const mockPaths = ["test1.md", "test2.md"];
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
@@ -541,10 +541,7 @@ describe("CommandsProcessor", () => {
         .mockResolvedValueOnce(mockRulesyncCommand)
         .mockRejectedValueOnce(new Error("Failed to load"));
 
-      const result = await processor.loadRulesyncFiles();
-
-      expect(result).toEqual([mockRulesyncCommand]);
-      expect(logger.info).toHaveBeenCalledWith("Successfully loaded 1 rulesync commands");
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow("Failed to load");
     });
 
     it("should return empty array when no files found", async () => {
@@ -787,7 +784,7 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual([mockCommand]);
     });
 
-    it("should handle failed file loading gracefully", async () => {
+    it("should throw error when file loading fails", async () => {
       const mockPaths = ["test1.md", "test2.md"];
       const mockCommand = new ClaudecodeCommand({
         baseDir: testDir,
@@ -804,14 +801,13 @@ describe("CommandsProcessor", () => {
         .mockResolvedValueOnce(mockCommand)
         .mockRejectedValueOnce(new Error("Failed to load"));
 
-      const result = await (processor as any).loadToolCommandDefault({
-        toolTarget: "claudecode",
-        relativeDirPath: join(".claude", "commands"),
-        extension: "md",
-      });
-
-      expect(result).toEqual([mockCommand]);
-      expect(logger.info).toHaveBeenCalledWith("Successfully loaded 1 .claude/commands commands");
+      await expect(
+        (processor as any).loadToolCommandDefault({
+          toolTarget: "claudecode",
+          relativeDirPath: join(".claude", "commands"),
+          extension: "md",
+        }),
+      ).rejects.toThrow("Failed to load");
     });
 
     it("should pass global parameter when loading claudecode commands", async () => {
