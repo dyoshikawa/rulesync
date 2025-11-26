@@ -27,9 +27,6 @@ updates:
     reviewers:
       - "dyoshikawa"
       - "cm-dyoshikawa"
-    allow:
-      # Allow all security updates
-      - dependency-type: "all"
 
   # Automatic updates for GitHub Actions
   - package-ecosystem: "github-actions"
