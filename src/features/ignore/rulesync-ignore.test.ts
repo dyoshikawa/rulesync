@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -498,6 +501,74 @@ build/`;
 
       // Should have been validated during construction
       expect(rulesyncIgnore.validate().success).toBe(true);
+    });
+  });
+
+  describe("dual source resolution (getSettablePaths)", () => {
+    it("should use .rulesync/.aiignore when it exists", async () => {
+      const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
+      await writeFileContent(aiignorePath, "# aiignore\ncache/\n");
+
+      const paths = RulesyncIgnore.getSettablePaths();
+
+      expect(paths.relativeDirPath).toBe(".");
+      expect(paths.relativeFilePath).toBe(join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"));
+    });
+
+    it("should default to .rulesync/.aiignore when neither ignore file exists", async () => {
+      const paths = RulesyncIgnore.getSettablePaths();
+
+      expect(paths.relativeDirPath).toBe(".");
+      expect(paths.relativeFilePath).toBe(join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"));
+    });
+
+    it("should use .rulesyncignore when .aiignore does not exist", async () => {
+      const legacyPath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      await writeFileContent(legacyPath, "dist/\nnode_modules/\n");
+
+      const paths = RulesyncIgnore.getSettablePaths();
+
+      expect(paths.relativeDirPath).toBe(".");
+      expect(paths.relativeFilePath).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+    });
+
+    it("should throw an error if both .rulesync/.aiignore and .rulesyncignore exist", async () => {
+      const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
+      const legacyPath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      await writeFileContent(aiignorePath, "ai/\n");
+      await writeFileContent(legacyPath, "legacy/\n");
+
+      expect(() => RulesyncIgnore.getSettablePaths()).toThrow(
+        "Both .rulesync/.aiignore and .rulesyncignore exist. Please keep only one ignore file.",
+      );
+    });
+  });
+
+  describe("dual source resolution (fromFile)", () => {
+    it("should read from .rulesync/.aiignore when present", async () => {
+      const content = "# prefer aiignore\ncoverage/\n.out/\n";
+      const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
+      await writeFileContent(aiignorePath, content);
+
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
+
+      expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(
+        join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"),
+      );
+      expect(rulesyncIgnore.getFileContent()).toBe(content);
+    });
+
+    it("should throw a descriptive error when both sources exist", async () => {
+      const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
+      const legacyPath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      await writeFileContent(aiignorePath, "ai/\n");
+      await writeFileContent(legacyPath, "legacy/\n");
+
+      await expect(RulesyncIgnore.fromFile()).rejects.toThrow(
+        "Both .rulesync/.aiignore and .rulesyncignore exist. Please keep only one ignore file.",
+      );
     });
   });
 });
