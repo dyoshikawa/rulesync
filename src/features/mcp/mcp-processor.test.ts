@@ -874,11 +874,12 @@ describe("McpProcessor", () => {
 
   describe("mcpProcessorToolTargets constant", () => {
     it("should contain all expected tool targets", () => {
-      expect(mcpProcessorToolTargets).toHaveLength(8);
+      expect(mcpProcessorToolTargets).toHaveLength(9);
       expect(mcpProcessorToolTargets).toEqual([
         "amazonqcli",
         "claudecode",
         "cline",
+        "junie",
         "copilot",
         "cursor",
         "geminicli",

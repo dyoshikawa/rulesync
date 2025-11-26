@@ -272,6 +272,9 @@ modular-mcp.json
 CLAUDE.md
 .claude/memories/
 
+# Intellij IDEs
+.idea
+
 **/.agents/skills/
 **/CLAUDE.md
 **/.claude/memories/
