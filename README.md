@@ -1,5 +1,9 @@
 # Rulesync
 
+<p align="center">
+  <img src="images/logo.jpg" alt="Rulesync Logo" width="200">
+</p>
+
 [![CI](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml/badge.svg)](https://github.com/dyoshikawa/rulesync/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/rulesync)](https://www.npmjs.com/package/rulesync)
 [![npm downloads](https://img.shields.io/npm/dt/rulesync)](https://www.npmjs.com/package/rulesync)
