@@ -19,7 +19,7 @@ jobs:
           ref: main
 
       - name: Setup mise
-        uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v2
+        uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v2
         with:
           experimental: true
 
