@@ -529,15 +529,13 @@ build/`;
       expect(() => RulesyncIgnore.getSettablePaths()).not.toThrow();
     });
 
-    it("should throw an error if both .rulesync/.aiignore and .rulesyncignore exist", async () => {
+    it("should not throw when both .rulesync/.aiignore and .rulesyncignore exist", async () => {
       const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
       const legacyPath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(aiignorePath, "ai/\n");
       await writeFileContent(legacyPath, "legacy/\n");
 
-      expect(() => RulesyncIgnore.getSettablePaths()).toThrow(
-        "Both .rulesync/.aiignore and .rulesyncignore exist. Please keep only one ignore file.",
-      );
+      expect(() => RulesyncIgnore.getSettablePaths()).not.toThrow();
     });
   });
 
@@ -555,15 +553,16 @@ build/`;
       expect(rulesyncIgnore.getFileContent()).toBe(content);
     });
 
-    it("should throw a descriptive error when both sources exist", async () => {
+    it("should read from .rulesync/.aiignore when both sources exist (recommended takes precedence)", async () => {
       const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
       const legacyPath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
-      await writeFileContent(aiignorePath, "ai/\n");
+      await writeFileContent(aiignorePath, "ai/\n# from recommended\n");
       await writeFileContent(legacyPath, "legacy/\n");
 
-      await expect(RulesyncIgnore.fromFile()).rejects.toThrow(
-        "Both .rulesync/.aiignore and .rulesyncignore exist. Please keep only one ignore file.",
-      );
+      const rulesyncIgnore = await RulesyncIgnore.fromFile();
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
+      expect(rulesyncIgnore.getFileContent()).toContain("from recommended");
     });
   });
 });

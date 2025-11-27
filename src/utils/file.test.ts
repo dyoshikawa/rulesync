@@ -11,7 +11,6 @@ import {
   directoryExists,
   ensureDir,
   fileExists,
-  fileExistsSync,
   findFiles,
   findRuleFiles,
   getHomeDirectory,
@@ -339,24 +338,6 @@ describe("file utilities", () => {
 
       it("should return true for directory", async () => {
         expect(await fileExists(testDir)).toBe(true);
-      });
-    });
-
-    describe("fileExistsSync", () => {
-      it("should return true for existing file (sync)", async () => {
-        const filePath = join(testDir, "exists-sync.txt");
-        await writeFileContent(filePath, "content");
-
-        expect(fileExistsSync(filePath)).toBe(true);
-      });
-
-      it("should return false for non-existent file (sync)", () => {
-        const filePath = join(testDir, "nonexistent-sync.txt");
-        expect(fileExistsSync(filePath)).toBe(false);
-      });
-
-      it("should return true for directory (sync)", () => {
-        expect(fileExistsSync(testDir)).toBe(true);
       });
     });
   });

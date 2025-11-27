@@ -399,8 +399,8 @@ Rulesync supports a single ignore list that can live in either location below:
 
 Rules and behavior:
 
-- You may use either location, but not both at the same time.
-- If both files exist, Rulesync will throw an error: "Both .rulesync/.aiignore and .rulesyncignore exist. Please keep only one ignore file."
+- You may use either location.
+- When both exist, Rulesync prefers `.rulesync/.aiignore` (recommended) over `.rulesyncignore` (legacy) when reading.
 - If neither file exists yet, Rulesync defaults to creating `.rulesync/.aiignore`.
 
 Notes:
