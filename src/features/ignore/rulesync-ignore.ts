@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import {
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
-  RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -24,8 +24,7 @@ export class RulesyncIgnore extends RulesyncFile {
     // - If neither exists yet, the default location used for creation is ".rulesync/.aiignore".
 
     const baseDir = process.cwd();
-    const aiignoreRelativePath = join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
-    const aiignorePath = join(baseDir, aiignoreRelativePath);
+    const aiignorePath = join(baseDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
     const legacyIgnorePath = join(baseDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
 
     const hasAiignore = fileExistsSync(aiignorePath);
@@ -42,10 +41,10 @@ export class RulesyncIgnore extends RulesyncFile {
     // 2) Else if .rulesyncignore exists -> use it
     // 3) Else (neither exists) -> default to .rulesync/.aiignore
     const relativeFilePath = hasAiignore
-      ? aiignoreRelativePath
+      ? RULESYNC_AIIGNORE_RELATIVE_FILE_PATH
       : hasLegacy
         ? RULESYNC_IGNORE_RELATIVE_FILE_PATH
-        : aiignoreRelativePath;
+        : RULESYNC_AIIGNORE_RELATIVE_FILE_PATH;
 
     return {
       relativeDirPath: ".",
