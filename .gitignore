@@ -288,3 +288,5 @@ CLAUDE.md
 **/opencode.json
 **/.roo/subagents/
 **/modular-mcp.json
+
+.agent/

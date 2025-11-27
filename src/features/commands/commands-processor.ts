@@ -8,6 +8,7 @@ import { formatError } from "../../utils/error.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
+import { AntigravityCommand } from "./antigravity-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
@@ -19,6 +20,7 @@ import { ToolCommand } from "./tool-command.js";
 
 const commandsProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
+  "antigravity",
   "claudecode",
   "geminicli",
   "roo",
@@ -73,6 +75,14 @@ export class CommandsProcessor extends FeatureProcessor {
               return null;
             }
             return AgentsmdCommand.fromRulesyncCommand({
+              baseDir: this.baseDir,
+              rulesyncCommand: rulesyncCommand,
+            });
+          case "antigravity":
+            if (!AntigravityCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
+              return null;
+            }
+            return AntigravityCommand.fromRulesyncCommand({
               baseDir: this.baseDir,
               rulesyncCommand: rulesyncCommand,
             });
@@ -137,6 +147,7 @@ export class CommandsProcessor extends FeatureProcessor {
           command,
         ): command is
           | AgentsmdCommand
+          | AntigravityCommand
           | ClaudecodeCommand
           | GeminiCliCommand
           | RooCommand
@@ -191,6 +202,8 @@ export class CommandsProcessor extends FeatureProcessor {
     switch (this.toolTarget) {
       case "agentsmd":
         return await this.loadAgentsmdCommands();
+      case "antigravity":
+        return await this.loadAntigravityCommands();
       case "claudecode":
         return await this.loadClaudecodeCommands();
       case "geminicli":
@@ -213,7 +226,15 @@ export class CommandsProcessor extends FeatureProcessor {
     relativeDirPath,
     extension,
   }: {
-    toolTarget: "agentsmd" | "claudecode" | "geminicli" | "roo" | "copilot" | "cursor" | "codexcli";
+    toolTarget:
+      | "agentsmd"
+      | "antigravity"
+      | "claudecode"
+      | "geminicli"
+      | "roo"
+      | "copilot"
+      | "cursor"
+      | "codexcli";
     relativeDirPath: string;
     extension: "md" | "toml" | "prompt.md";
   }): Promise<ToolCommand[]> {
@@ -226,6 +247,11 @@ export class CommandsProcessor extends FeatureProcessor {
         switch (toolTarget) {
           case "agentsmd":
             return AgentsmdCommand.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(path),
+            });
+          case "antigravity":
+            return AntigravityCommand.fromFile({
               baseDir: this.baseDir,
               relativeFilePath: basename(path),
             });
@@ -280,6 +306,17 @@ export class CommandsProcessor extends FeatureProcessor {
     return await this.loadToolCommandDefault({
       toolTarget: "agentsmd",
       relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath,
+      extension: "md",
+    });
+  }
+
+  /**
+   * Load Antigravity workflow configurations from .agent/workflows/ directory
+   */
+  private async loadAntigravityCommands(): Promise<ToolCommand[]> {
+    return await this.loadToolCommandDefault({
+      toolTarget: "antigravity",
+      relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
       extension: "md",
     });
   }
