@@ -319,4 +319,34 @@ describe("initCommand", () => {
       expect(logger.info).toHaveBeenCalledWith(`Skipped ${expectedFilePath} (already exists)`);
     });
   });
+
+  describe(".aiignore creation", () => {
+    it("should create .aiignore in .rulesync when it doesn't exist", async () => {
+      // by default in beforeEach, fileExists resolves to false
+
+      await initCommand();
+
+      const expectedIgnoreFilePath = join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME);
+
+      expect(writeFileContent).toHaveBeenCalledWith(expectedIgnoreFilePath, expect.any(String));
+      expect(logger.success).toHaveBeenCalledWith(`Created ${expectedIgnoreFilePath}`);
+    });
+
+    it("should skip creating .aiignore when it already exists", async () => {
+      // Make every file appear to exist to trigger skip path
+      vi.mocked(fileExists).mockResolvedValue(true);
+
+      await initCommand();
+
+      const expectedIgnoreFilePath = join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        `Skipped ${expectedIgnoreFilePath} (already exists)`,
+      );
+      // Ensure we did not attempt to write the .aiignore file
+      expect(
+        vi.mocked(writeFileContent).mock.calls.some((args) => args[0] === expectedIgnoreFilePath),
+      ).toBe(false);
+    });
+  });
 });
