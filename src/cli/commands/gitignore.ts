@@ -10,7 +10,6 @@ export const gitignoreCommand = async (): Promise<void> => {
     // AGENTS.md
     "**/AGENTS.md",
     "**/.agents/",
-    "**/.agents/skills/",
     // Amazon Q
     "**/.amazonq/",
     // Augment
@@ -36,9 +35,6 @@ export const gitignoreCommand = async (): Promise<void> => {
     // Cursor
     "**/.cursor/",
     "**/.cursorignore",
-    "**/.cursor/mcp.json",
-    "**/.cursor/subagents/",
-    "**/.cursor/skills/",
     // Gemini
     "**/GEMINI.md",
     "**/.gemini/memories/",
@@ -75,6 +71,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/WARP.md",
     // Others
     "**/modular-mcp.json",
+    "!.rulesync/.aiignore",
   ];
 
   let gitignoreContent = "";
