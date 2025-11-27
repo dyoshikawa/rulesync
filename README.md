@@ -394,7 +394,7 @@ Example:
 
 Rulesync supports a single ignore list that can live in either location below:
 
-- `.rulesync/.aiignore`
+- `.rulesync/.aiignore` (recommended)
 - `.rulesyncignore` (project root)
 
 Rules and behavior:
