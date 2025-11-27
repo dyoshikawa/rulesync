@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -82,7 +82,7 @@ describe("WindsurfIgnore", () => {
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
     });
 
     it("should preserve complex patterns", () => {
@@ -165,7 +165,7 @@ desktop.ini`;
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: "/test/project",
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -184,7 +184,7 @@ desktop.ini`;
     it("should use default baseDir when not provided", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
@@ -197,7 +197,7 @@ desktop.ini`;
 
     it("should preserve complex content from RulesyncIgnore", () => {
       const complexContent = `# Windsurf AI code editor ignore patterns
-# Generated from .rulesyncignore
+# Generated from .rulesync/.aiignore
 
 # Build outputs
 build/
@@ -233,7 +233,7 @@ Thumbs.db`;
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: complexContent,
       });
 
@@ -247,7 +247,7 @@ Thumbs.db`;
     it("should handle empty RulesyncIgnore content", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "",
       });
 
@@ -809,7 +809,7 @@ dist
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: "/different/path",
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
@@ -828,7 +828,7 @@ dist
       const originalContent = "*.log\nnode_modules/\n.env*\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: originalContent,
       });
 
@@ -869,7 +869,7 @@ file.with.dots.txt`;
 
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: complexContent,
       });
 

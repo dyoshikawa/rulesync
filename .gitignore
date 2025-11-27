@@ -208,7 +208,7 @@ package-lock.json
 **/.kiro/steering/
 **/.augmentignore
 
-**/.junie/guidelines.md
+**/.junie
 **/.noai
 
 **/.claude/commands/

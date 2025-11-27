@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CursorIgnore } from "./cursor-ignore.js";
@@ -81,7 +82,7 @@ describe("CursorIgnore", () => {
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(".rulesyncignore");
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
     });
 
     it("should handle empty content", () => {

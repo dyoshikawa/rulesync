@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -223,7 +223,7 @@ describe("ToolIgnore", () => {
       const rulesyncIgnore = toolIgnore.toRulesyncIgnore();
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
     });
   });
@@ -234,13 +234,13 @@ describe("ToolIgnore", () => {
       await ensureDir(rulesyncDir);
 
       const fileContent = "*.log\n# comment\nnode_modules/";
-      const rulesyncIgnorePath = join(rulesyncDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      const rulesyncIgnorePath = join(rulesyncDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
         baseDir: rulesyncDir,
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
@@ -258,7 +258,7 @@ describe("ToolIgnore", () => {
     it("should use default baseDir when not provided", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
@@ -293,7 +293,7 @@ describe("ToolIgnore", () => {
     it("should throw error when calling abstract fromRulesyncIgnore on base class", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
@@ -324,7 +324,7 @@ describe("ToolIgnore", () => {
       const rulesyncIgnore = toolIgnore.toRulesyncIgnore();
       expect(rulesyncIgnore.getBaseDir()).toBe(".");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
     });
   });

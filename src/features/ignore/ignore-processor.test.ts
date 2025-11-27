@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -113,7 +113,7 @@ describe("IgnoreProcessor", () => {
       const mockRulesyncIgnore = new MockRulesyncIgnore({
         baseDir: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
@@ -314,7 +314,7 @@ describe("IgnoreProcessor", () => {
       Object.assign(mockRulesyncIgnore, {
         baseDir: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
         getFileContent: () => "*.log\nnode_modules/",
       });
@@ -351,7 +351,7 @@ describe("IgnoreProcessor", () => {
       });
 
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
-        "No .rulesyncignore found.",
+        "No .rulesync/.aiignore found.",
       );
     });
 
@@ -360,7 +360,7 @@ describe("IgnoreProcessor", () => {
       Object.assign(mockRulesyncIgnore, {
         baseDir: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
         getFileContent: () => "*.log\nnode_modules/",
       });
@@ -423,7 +423,7 @@ describe("IgnoreProcessor", () => {
       Object.assign(mockRulesyncIgnore, {
         baseDir: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
         getFileContent: () => "*.log\nnode_modules/",
       });

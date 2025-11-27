@@ -47,13 +47,13 @@ export class ClaudecodeIgnore extends ToolIgnore {
       })
       .filter((pattern) => pattern.length > 0);
 
-    // Create the content in .rulesyncignore format (one pattern per line)
+    // Create the content in .rulesync/.aiignore format (one pattern per line)
     const fileContent = rulesyncPatterns.join("\n");
 
     return new RulesyncIgnore({
       baseDir: this.baseDir,
-      relativeDirPath: RulesyncIgnore.getSettablePaths().relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().relativeFilePath,
+      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
       fileContent,
     });
   }
