@@ -52,8 +52,8 @@ export class ClaudecodeIgnore extends ToolIgnore {
 
     return new RulesyncIgnore({
       baseDir: this.baseDir,
-      relativeDirPath: RulesyncIgnore.getSettablePaths().relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().relativeFilePath,
+      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
       fileContent,
     });
   }

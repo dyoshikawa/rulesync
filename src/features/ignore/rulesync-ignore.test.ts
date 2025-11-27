@@ -1,11 +1,12 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { removeFile, writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
 describe("RulesyncIgnore", () => {
@@ -505,31 +506,26 @@ build/`;
   });
 
   describe("dual source resolution (getSettablePaths)", () => {
-    it("should use .rulesync/.aiignore when it exists", async () => {
+    it("should return recommended and legacy paths (aiignore recommended)", async () => {
+      const paths = RulesyncIgnore.getSettablePaths();
+
+      expect(paths.recommended.relativeDirPath).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(paths.recommended.relativeFilePath).toBe(RULESYNC_AIIGNORE_FILE_NAME);
+      expect(paths.legacy.relativeDirPath).toBe(".");
+      expect(paths.legacy.relativeFilePath).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+    });
+
+    it("should not throw when only one of the files exists", async () => {
+      // Only aiignore exists
       const aiignorePath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
       await writeFileContent(aiignorePath, "# aiignore\ncache/\n");
+      expect(() => RulesyncIgnore.getSettablePaths()).not.toThrow();
 
-      const paths = RulesyncIgnore.getSettablePaths();
-
-      expect(paths.relativeDirPath).toBe(".");
-      expect(paths.relativeFilePath).toBe(join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"));
-    });
-
-    it("should default to .rulesync/.aiignore when neither ignore file exists", async () => {
-      const paths = RulesyncIgnore.getSettablePaths();
-
-      expect(paths.relativeDirPath).toBe(".");
-      expect(paths.relativeFilePath).toBe(join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"));
-    });
-
-    it("should use .rulesyncignore when .aiignore does not exist", async () => {
+      // Cleanup and create only legacy
+      await removeFile(aiignorePath);
       const legacyPath = join(testDir, RULESYNC_IGNORE_RELATIVE_FILE_PATH);
       await writeFileContent(legacyPath, "dist/\nnode_modules/\n");
-
-      const paths = RulesyncIgnore.getSettablePaths();
-
-      expect(paths.relativeDirPath).toBe(".");
-      expect(paths.relativeFilePath).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(() => RulesyncIgnore.getSettablePaths()).not.toThrow();
     });
 
     it("should throw an error if both .rulesync/.aiignore and .rulesyncignore exist", async () => {
@@ -553,10 +549,8 @@ build/`;
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
       expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
-      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(
-        join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"),
-      );
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
       expect(rulesyncIgnore.getFileContent()).toBe(content);
     });
 

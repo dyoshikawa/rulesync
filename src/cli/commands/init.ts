@@ -195,7 +195,7 @@ Attention, again, you are just the planner, so though you can read any files and
   await ensureDir(mcpPaths.recommended.relativeDirPath);
   await ensureDir(commandPaths.relativeDirPath);
   await ensureDir(subagentPaths.relativeDirPath);
-  await ensureDir(ignorePaths.relativeDirPath);
+  await ensureDir(ignorePaths.recommended.relativeDirPath);
 
   // Create rule sample file
   const ruleFilepath = join(rulePaths.recommended.relativeDirPath, sampleRuleFile.filename);
@@ -237,7 +237,10 @@ Attention, again, you are just the planner, so though you can read any files and
   }
 
   // Create ignore sample file
-  const ignoreFilepath = join(ignorePaths.relativeDirPath, ignorePaths.relativeFilePath);
+  const ignoreFilepath = join(
+    ignorePaths.recommended.relativeDirPath,
+    ignorePaths.recommended.relativeFilePath,
+  );
   if (!(await fileExists(ignoreFilepath))) {
     await writeFileContent(ignoreFilepath, sampleIgnoreFile.content);
     logger.success(`Created ${ignoreFilepath}`);

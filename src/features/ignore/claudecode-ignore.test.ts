@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -154,11 +155,9 @@ describe("ClaudecodeIgnore", () => {
 
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe("*.log\nnode_modules/**\n.env");
-      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       // When neither ignore file exists yet, Rulesync defaults to .rulesync/.aiignore
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(
-        join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore"),
-      );
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
     });
 
     it("should handle patterns without Read() wrapper", () => {

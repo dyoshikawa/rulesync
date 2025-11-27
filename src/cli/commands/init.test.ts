@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
@@ -58,8 +59,14 @@ describe("initCommand", () => {
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     } as any);
     vi.mocked(RulesyncIgnore.getSettablePaths).mockReturnValue({
-      relativeDirPath: ".",
-      relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+      recommended: {
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
+      },
+      legacy: {
+        relativeDirPath: ".",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+      },
     } as any);
   });
 
@@ -90,7 +97,7 @@ describe("initCommand", () => {
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(".");
+      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledTimes(6);
     });
 
@@ -263,7 +270,7 @@ describe("initCommand", () => {
         RULESYNC_RELATIVE_DIR_PATH,
         RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        ".",
+        RULESYNC_RELATIVE_DIR_PATH,
       ]);
     });
   });
