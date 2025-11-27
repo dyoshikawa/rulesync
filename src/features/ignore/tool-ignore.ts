@@ -1,4 +1,4 @@
-import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -64,7 +64,7 @@ export abstract class ToolIgnore extends ToolFile {
     return new RulesyncIgnore({
       baseDir: ".",
       relativeDirPath: ".",
-      relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+      relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       fileContent: this.fileContent,
     });
   }

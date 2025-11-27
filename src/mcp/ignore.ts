@@ -1,42 +1,45 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
-import { RULESYNC_IGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+} from "../constants/rulesync-paths.js";
 import { formatError } from "../utils/error.js";
 import { ensureDir, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 
 const maxIgnoreFileSizeBytes = 100 * 1024; // 100KB
 
 /**
- * Tool to get the content of .rulesyncignore file
+ * Tool to get the content of .rulesync/.aiignore file
  */
 async function getIgnoreFile(): Promise<{
   relativePathFromCwd: string;
   content: string;
 }> {
-  const ignoreFilePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+  const ignoreFilePath = join(process.cwd(), RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
 
   try {
     const content = await readFileContent(ignoreFilePath);
 
     return {
-      relativePathFromCwd: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+      relativePathFromCwd: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       content,
     };
   } catch (error) {
-    throw new Error(`Failed to read .rulesyncignore file: ${formatError(error)}`, {
+    throw new Error(`Failed to read .rulesync/.aiignore file: ${formatError(error)}`, {
       cause: error,
     });
   }
 }
 
 /**
- * Tool to create or update the .rulesyncignore file (upsert operation)
+ * Tool to create or update the .rulesync/.aiignore file (upsert operation)
  */
 async function putIgnoreFile({ content }: { content: string }): Promise<{
   relativePathFromCwd: string;
   content: string;
 }> {
-  const ignoreFilePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+  const ignoreFilePath = join(process.cwd(), RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
 
   // Check file size constraint
   const contentSizeBytes = Buffer.byteLength(content, "utf8");
@@ -54,34 +57,43 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
     await writeFileContent(ignoreFilePath, content);
 
     return {
-      relativePathFromCwd: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+      relativePathFromCwd: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       content,
     };
   } catch (error) {
-    throw new Error(`Failed to write .rulesyncignore file: ${formatError(error)}`, {
+    throw new Error(`Failed to write .rulesync/.aiignore file: ${formatError(error)}`, {
       cause: error,
     });
   }
 }
 
 /**
- * Tool to delete the .rulesyncignore file
+ * Tool to delete the .rulesyncignore (legacy) and .rulesync/.aiignore (recommended) files
  */
 async function deleteIgnoreFile(): Promise<{
   relativePathFromCwd: string;
 }> {
-  const ignoreFilePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+  const aiignorePath = join(process.cwd(), RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
+  const legacyIgnorePath = join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH);
 
   try {
-    await removeFile(ignoreFilePath);
+    // Attempt to remove both files. The removeFile helper is expected to be idempotent
+    // (no-throw for non-existent files). If any real IO error happens, the Promise.all
+    // will reject and we propagate an error.
+    await Promise.all([removeFile(aiignorePath), removeFile(legacyIgnorePath)]);
 
     return {
-      relativePathFromCwd: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+      // Keep the historical return shape — point to the recommended file path
+      // for backward compatibility.
+      relativePathFromCwd: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
     };
   } catch (error) {
-    throw new Error(`Failed to delete .rulesyncignore file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to delete .rulesyncignore and .rulesync/.aiignore files: ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -112,7 +124,7 @@ export const ignoreTools = {
   putIgnoreFile: {
     name: "putIgnoreFile",
     description:
-      "Create or update the .rulesyncignore file (upsert operation). content parameter is required.",
+      "Create or update the .rulesync/.aiignore file (upsert operation). content parameter is required.",
     parameters: ignoreToolSchemas.putIgnoreFile,
     execute: async (args: { content: string }) => {
       const result = await putIgnoreFile({ content: args.content });
@@ -121,7 +133,7 @@ export const ignoreTools = {
   },
   deleteIgnoreFile: {
     name: "deleteIgnoreFile",
-    description: "Delete the .rulesyncignore file from the project root.",
+    description: "Delete the .rulesyncignore and .rulesync/.aiignore files.",
     parameters: ignoreToolSchemas.deleteIgnoreFile,
     execute: async () => {
       const result = await deleteIgnoreFile();

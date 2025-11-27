@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RULESYNC_AIIGNORE_FILE_NAME,
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -65,7 +65,7 @@ describe("initCommand", () => {
       },
       legacy: {
         relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       },
     } as any);
   });
@@ -82,7 +82,7 @@ describe("initCommand", () => {
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json and ${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -294,7 +294,7 @@ describe("initCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json and ${RULESYNC_IGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
