@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_AIIGNORE_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
@@ -81,8 +84,8 @@ describe("QwencodeIgnore", () => {
 
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
-      expect(rulesyncIgnore.getRelativeDirPath()).toBe(".");
-      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
     });
 
     it("should handle empty content", () => {
