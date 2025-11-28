@@ -664,4 +664,67 @@ Test skill content`;
       expect(typeof processor.loadToolDirs).toBe("function");
     });
   });
+
+  describe("writeAiDirs", () => {
+    let processor: SkillsProcessor;
+
+    beforeEach(() => {
+      processor = new SkillsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+    });
+
+    it("should write skill file with frontmatter that can be read back", async () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+        },
+        body: "Test skill content",
+        validate: false,
+      });
+
+      const toolDirs = await processor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+      expect(toolDirs).toHaveLength(1);
+
+      await processor.writeAiDirs(toolDirs);
+
+      const loadedDirs = await processor.loadToolDirs();
+      expect(loadedDirs).toHaveLength(1);
+
+      const loadedSkill = loadedDirs[0] as ClaudecodeSkill;
+      expect(loadedSkill.getFrontmatter().name).toBe("test-skill");
+      expect(loadedSkill.getFrontmatter().description).toBe("Test skill description");
+      expect(loadedSkill.getBody()).toBe("Test skill content");
+    });
+
+    it("should write skill file with allowed-tools frontmatter", async () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "tool-skill",
+        frontmatter: {
+          name: "tool-skill",
+          description: "Skill with allowed tools",
+          claudecode: {
+            "allowed-tools": ["Bash", "Read", "Write"],
+          },
+        },
+        body: "Skill body",
+        validate: false,
+      });
+
+      const toolDirs = await processor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+      await processor.writeAiDirs(toolDirs);
+
+      const loadedDirs = await processor.loadToolDirs();
+      const loadedSkill = loadedDirs[0] as ClaudecodeSkill;
+
+      expect(loadedSkill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read", "Write"]);
+    });
+  });
 });
