@@ -13,6 +13,7 @@ describe("tool targets", () => {
       const expectedTargets = [
         "agentsmd",
         "amazonqcli",
+        "antigravity",
         "augmentcode",
         "augmentcode-legacy",
         "copilot",

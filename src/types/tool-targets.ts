@@ -3,6 +3,7 @@ import { z } from "zod/mini";
 export const ALL_TOOL_TARGETS = [
   "agentsmd",
   "amazonqcli",
+  "antigravity",
   "augmentcode",
   "augmentcode-legacy",
   "copilot",

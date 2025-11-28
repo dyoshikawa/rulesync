@@ -34,6 +34,7 @@ import { RooSubagent } from "../subagents/roo-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AmazonQCliRule } from "./amazonqcli-rule.js";
+import { AntigravityRule } from "./antigravity-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -55,6 +56,7 @@ import { WindsurfRule } from "./windsurf-rule.js";
 const rulesProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
   "amazonqcli",
+  "antigravity",
   "augmentcode",
   "augmentcode-legacy",
   "claudecode",
@@ -138,6 +140,15 @@ export class RulesProcessor extends FeatureProcessor {
               return null;
             }
             return AmazonQCliRule.fromRulesyncRule({
+              baseDir: this.baseDir,
+              rulesyncRule: rulesyncRule,
+              validate: true,
+            });
+          case "antigravity":
+            if (!AntigravityRule.isTargetedByRulesyncRule(rulesyncRule)) {
+              return null;
+            }
+            return AntigravityRule.fromRulesyncRule({
               baseDir: this.baseDir,
               rulesyncRule: rulesyncRule,
               validate: true,
