@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { addTrailingNewline, ensureDir, removeDirectory, writeFileContent } from "../utils/file.js";
+import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { ToolTarget } from "./tool-targets.js";
 
@@ -44,7 +45,8 @@ export abstract class DirFeatureProcessor {
       const mainFile = aiDir.getMainFile();
       if (mainFile) {
         const mainFilePath = join(dirPath, mainFile.name);
-        const contentWithNewline = addTrailingNewline(mainFile.body);
+        const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
+        const contentWithNewline = addTrailingNewline(content);
         await writeFileContent(mainFilePath, contentWithNewline);
       }
 
