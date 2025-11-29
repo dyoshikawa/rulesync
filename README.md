@@ -203,7 +203,7 @@ npx rulesync generate --targets claudecode --features rules,subagents
 npx rulesync generate --targets "*" --features rules
 
 # Generate simulated commands and subagents
-npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulated-commands --simulated-subagents
+npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
 # Add generated files to .gitignore
 npx rulesync gitignore
@@ -466,9 +466,9 @@ Simulated commands, subagents and skills allow you to generate simulated feature
     npx rulesync generate \
       --targets copilot,cursor,codexcli \
       --features commands,subagents,skills \
-      --simulated-commands \
-      --simulated-subagents \
-      --simulated-skills
+      --simulate-commands \
+      --simulate-subagents \
+      --simulate-skills
     ```
 3. Use simulated commands, subagents and skills in your prompts.
     - Prompt examples:
