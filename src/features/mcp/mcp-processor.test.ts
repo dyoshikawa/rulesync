@@ -890,13 +890,16 @@ describe("McpProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
-    it("should return the same files as loadToolFiles", async () => {
+    it("should return deletable files only", async () => {
       const mockMcp = new CopilotMcp({
         baseDir: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-mcp.yml",
         fileContent: JSON.stringify({ servers: {} }),
       });
+
+      // Mock isDeletable to return true (CopilotMcp should be deletable)
+      mockMcp.isDeletable = vi.fn().mockReturnValue(true);
 
       vi.mocked(CopilotMcp.fromFile).mockResolvedValue(mockMcp);
 
@@ -958,13 +961,16 @@ describe("McpProcessor", () => {
       expect(filesToDelete).toEqual([]);
     });
 
-    it("should filter out ClaudecodeMcp files in global mode", async () => {
+    it("should filter out non-deletable files in global mode", async () => {
       const mockMcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: ".claude.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
+
+      // Mock isDeletable to return false (simulating global mode behavior)
+      mockMcp.isDeletable = vi.fn().mockReturnValue(false);
 
       vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
 
@@ -981,17 +987,20 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockMcp);
 
-      // loadToolFiles with forDeletion: true should filter it out in global mode
+      // loadToolFiles with forDeletion: true should filter it out
       expect(filesToDelete).toHaveLength(0);
     });
 
-    it("should not filter out ClaudecodeMcp files in local mode", async () => {
+    it("should not filter out deletable files in local mode", async () => {
       const mockMcp = new ClaudecodeMcp({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
+
+      // Mock isDeletable to return true (simulating local mode behavior)
+      mockMcp.isDeletable = vi.fn().mockReturnValue(true);
 
       vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
 
