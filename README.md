@@ -213,11 +213,28 @@ npx rulesync gitignore
 
 You can configure Rulesync by creating a `rulesync.jsonc` file in the root of your project.
 
+### JSON Schema Support
+
+Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `rulesync.jsonc`:
+
+```jsonc
+// rulesync.jsonc
+{
+  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "targets": ["claudecode"],
+  "features": ["rules"]
+}
+```
+
+### Configuration Options
+
 Example:
 
 ```jsonc
 // rulesync.jsonc
 {
+  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+
   // List of tools to generate configurations for. You can specify "*" to generate all tools.
   "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
 

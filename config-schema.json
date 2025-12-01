@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "baseDirs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "agentsmd",
+          "amazonqcli",
+          "antigravity",
+          "augmentcode",
+          "augmentcode-legacy",
+          "copilot",
+          "cursor",
+          "cline",
+          "claudecode",
+          "codexcli",
+          "opencode",
+          "qwencode",
+          "roo",
+          "geminicli",
+          "kiro",
+          "junie",
+          "warp",
+          "windsurf",
+          "*"
+        ]
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "rules",
+          "ignore",
+          "mcp",
+          "subagents",
+          "commands",
+          "skills",
+          "*"
+        ]
+      }
+    },
+    "verbose": {
+      "type": "boolean"
+    },
+    "delete": {
+      "type": "boolean"
+    },
+    "global": {
+      "type": "boolean"
+    },
+    "simulateCommands": {
+      "type": "boolean"
+    },
+    "simulateSubagents": {
+      "type": "boolean"
+    },
+    "simulateSkills": {
+      "type": "boolean"
+    },
+    "modularMcp": {
+      "type": "boolean"
+    },
+    "experimentalGlobal": {
+      "type": "boolean"
+    },
+    "experimentalSimulateCommands": {
+      "type": "boolean"
+    },
+    "experimentalSimulateSubagents": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "title": "Rulesync Configuration",
+  "description": "Configuration file for Rulesync CLI tool"
+}

@@ -47,6 +47,7 @@
 		"eslint:fix": "eslint . --fix --max-warnings 0 --cache",
 		"fix": "pnpm run bcheck:fix && pnpm run oxlint:fix && pnpm run eslint:fix",
 		"generate": "pnpm run dev generate",
+		"generate:schema": "tsx scripts/generate-json-schema.ts",
 		"knip": "knip",
 		"oxlint": "oxlint . --max-warnings 0",
 		"oxlint:fix": "oxlint . --fix --max-warnings 0",
