@@ -590,6 +590,104 @@ Body content`;
     });
   });
 
+  describe("tool-specific field passthrough", () => {
+    it("fromRulesyncCommand should preserve copilot fields", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "passthrough-test.md",
+        frontmatter: {
+          targets: ["copilot"],
+          description: "Test command",
+          copilot: {
+            "custom-setting": true,
+            "another-field": "value",
+          },
+        },
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const copilotCommand = CopilotCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = copilotCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Test command");
+      expect(frontmatter.mode).toBe("agent");
+      expect(frontmatter["custom-setting"]).toBe(true);
+      expect(frontmatter["another-field"]).toBe("value");
+    });
+
+    it("toRulesyncCommand should preserve extra fields in copilot section", () => {
+      const command = new CopilotCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test.prompt.md",
+        frontmatter: {
+          mode: "agent",
+          description: "Test command",
+          "custom-field": { nested: "value" },
+        },
+        body: "Test body",
+        validate: false,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      const frontmatter = rulesyncCommand.getFrontmatter();
+
+      // mode should not be in copilot section (it's always "agent")
+      expect(frontmatter.copilot).toEqual({
+        "custom-field": { nested: "value" },
+      });
+    });
+
+    it("round-trip should preserve all fields except mode", () => {
+      const original = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "roundtrip.md",
+        frontmatter: {
+          targets: ["copilot"],
+          description: "Roundtrip test",
+          copilot: {
+            custom: { deep: { value: 42 } },
+          },
+        },
+        body: "Body content",
+        fileContent: "",
+      });
+
+      const copilot = CopilotCommand.fromRulesyncCommand({
+        rulesyncCommand: original,
+      });
+      const backToRulesync = copilot.toRulesyncCommand();
+
+      expect(backToRulesync.getFrontmatter().copilot).toEqual({
+        custom: { deep: { value: 42 } },
+      });
+    });
+
+    it("should not include copilot section when no extra fields", () => {
+      const command = new CopilotCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test.prompt.md",
+        frontmatter: {
+          mode: "agent",
+          description: "Test command",
+        },
+        body: "Test body",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      const frontmatter = rulesyncCommand.getFrontmatter();
+
+      expect(frontmatter.copilot).toBeUndefined();
+    });
+  });
+
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({

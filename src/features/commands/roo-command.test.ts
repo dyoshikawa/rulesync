@@ -524,6 +524,105 @@ This file has invalid frontmatter`;
     });
   });
 
+  describe("tool-specific field passthrough", () => {
+    it("fromRulesyncCommand should preserve roo fields", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: ".",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "passthrough-test.md",
+        frontmatter: {
+          targets: ["roo"],
+          description: "Test command",
+          roo: {
+            "argument-hint": "custom hint",
+            "custom-setting": true,
+          },
+        },
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const rooCommand = RooCommand.fromRulesyncCommand({
+        baseDir: ".",
+        rulesyncCommand,
+      });
+
+      const frontmatter = rooCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Test command");
+      expect(frontmatter["argument-hint"]).toBe("custom hint");
+      expect(frontmatter["custom-setting"]).toBe(true);
+    });
+
+    it("toRulesyncCommand should preserve extra fields in roo section", () => {
+      const command = new RooCommand({
+        baseDir: ".",
+        relativeDirPath: ".roo/commands",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "Test command",
+          "argument-hint": "hint",
+          "custom-field": { nested: "value" },
+        },
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      const frontmatter = rulesyncCommand.getFrontmatter();
+
+      expect(frontmatter.roo).toEqual({
+        "argument-hint": "hint",
+        "custom-field": { nested: "value" },
+      });
+    });
+
+    it("round-trip should preserve all fields", () => {
+      const original = new RulesyncCommand({
+        baseDir: ".",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "roundtrip.md",
+        frontmatter: {
+          targets: ["roo"],
+          description: "Roundtrip test",
+          roo: {
+            "argument-hint": "hint value",
+            custom: { deep: { value: 42 } },
+          },
+        },
+        body: "Body content",
+        fileContent: "",
+      });
+
+      const roo = RooCommand.fromRulesyncCommand({
+        rulesyncCommand: original,
+      });
+      const backToRulesync = roo.toRulesyncCommand();
+
+      expect(backToRulesync.getFrontmatter().roo).toEqual({
+        "argument-hint": "hint value",
+        custom: { deep: { value: 42 } },
+      });
+    });
+
+    it("should not include roo section when no extra fields", () => {
+      const command = new RooCommand({
+        baseDir: ".",
+        relativeDirPath: ".roo/commands",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "Test command",
+        },
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      const frontmatter = rulesyncCommand.getFrontmatter();
+
+      expect(frontmatter.roo).toBeUndefined();
+    });
+  });
+
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
