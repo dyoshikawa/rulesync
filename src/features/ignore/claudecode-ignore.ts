@@ -33,6 +33,14 @@ export class ClaudecodeIgnore extends ToolIgnore {
     };
   }
 
+  /**
+   * ClaudecodeIgnore uses settings.local.json which is a user-managed config file.
+   * It should not be deleted by rulesync.
+   */
+  override isDeletable(): boolean {
+    return false;
+  }
+
   toRulesyncIgnore(): RulesyncIgnore {
     // Convert ClaudecodeIgnore patterns to RulesyncIgnore format
     // ClaudecodeIgnore stores patterns as "Read(pattern)" in JSON
