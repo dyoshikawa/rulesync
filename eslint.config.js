@@ -58,7 +58,11 @@ export default defineConfig([
         [
           {
             module: "node:fs",
-            allowReferenceFrom: ["src/utils/file.ts", "src/utils/file.test.ts"],
+            allowReferenceFrom: [
+              "src/utils/file.ts",
+              "src/utils/file.test.ts",
+              "scripts/**/*.ts",
+            ],
             allowSameModule: false,
           },
           {
@@ -91,6 +95,15 @@ export default defineConfig([
       "@typescript-eslint/no-explicit-any": "off", // Allow any in tests
       "no-new": "off", // Allow new in tests
       "no-type-assertion/no-type-assertion": "off", // Allow type assertions in tests
+    },
+  },
+
+  {
+    // Scripts are run locally by developers, not bundled for distribution
+    // Allow full zod (not zod/mini) for JSON Schema generation
+    files: ["scripts/**/*.ts"],
+    rules: {
+      "zod-import/zod-import": "off",
     },
   },
 

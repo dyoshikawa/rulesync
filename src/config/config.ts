@@ -34,6 +34,13 @@ export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
 export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
 export type PartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
 
+// Schema for config file that includes $schema property for editor support
+export const ConfigFileSchema = z.object({
+  $schema: optional(z.string()),
+  ...z.partial(ConfigParamsSchema).shape,
+});
+export type ConfigFile = z.infer<typeof ConfigFileSchema>;
+
 export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
 export type RequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
 

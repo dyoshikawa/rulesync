@@ -11,9 +11,10 @@ import {
 import { logger } from "../utils/logger.js";
 import {
   Config,
+  ConfigFile,
+  ConfigFileSchema,
   ConfigParams,
   PartialConfigParams,
-  PartialConfigParamsSchema,
   RequiredConfigParams,
 } from "./config.js";
 
@@ -66,7 +67,11 @@ export class ConfigResolver {
       try {
         const fileContent = await readFileContent(validatedConfigPath);
         const jsonData = parseJsonc(fileContent);
-        configByFile = PartialConfigParamsSchema.parse(jsonData);
+        // Parse with ConfigFileSchema to allow $schema property, then extract config params
+        const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
+        // Exclude $schema from config params
+        const { $schema: _schema, ...configParams } = parsed;
+        configByFile = configParams;
       } catch (error) {
         logger.error(`Failed to load config file: ${formatError(error)}`);
         throw error;

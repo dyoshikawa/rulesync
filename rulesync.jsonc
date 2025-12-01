@@ -1,4 +1,6 @@
 {
+  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+
   // List of tools to generate configurations for
   "targets": ["cursor", "claudecode", "geminicli", "codexcli", "copilot", "opencode"],
 
