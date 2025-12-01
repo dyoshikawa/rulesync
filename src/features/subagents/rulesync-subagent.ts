@@ -7,25 +7,22 @@ import {
   RulesyncFileFromFileParams,
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
-import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
+import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 
-export const RulesyncSubagentModelSchema = z.enum(["opus", "sonnet", "haiku", "inherit"]);
-
-export const RulesyncSubagentFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+// Tool-specific sections (e.g., claudecode:) are preserved as additional keys
+export const RulesyncSubagentFrontmatterSchema = z.looseObject({
   targets: RulesyncTargetsSchema,
   name: z.string(),
   description: z.string(),
-  claudecode: z.optional(
-    z.object({
-      model: RulesyncSubagentModelSchema,
-    }),
-  ),
 });
 
-export type RulesyncSubagentFrontmatter = z.infer<typeof RulesyncSubagentFrontmatterSchema>;
+// Tool-specific sections are typed as optional Record<string, unknown> per tool target
+export type RulesyncSubagentFrontmatter = z.infer<typeof RulesyncSubagentFrontmatterSchema> &
+  Partial<Record<ToolTarget, Record<string, unknown>>>;
 
 export type RulesyncSubagentParams = Omit<RulesyncFileParams, "fileContent"> & {
   frontmatter: RulesyncSubagentFrontmatter;

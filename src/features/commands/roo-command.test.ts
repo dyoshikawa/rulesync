@@ -448,11 +448,11 @@ This file has invalid frontmatter`;
       expect(result.success).toBe(false);
     });
 
-    it("should allow frontmatter with extra properties", () => {
+    it("should preserve frontmatter with extra properties (looseObject)", () => {
       const frontmatter = {
         description: "Valid description",
         "argument-hint": "Valid hint",
-        extraProperty: "Allowed but ignored",
+        extraProperty: "Preserved by looseObject",
       };
 
       const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
@@ -460,7 +460,9 @@ This file has invalid frontmatter`;
       if (result.success) {
         expect(result.data.description).toBe("Valid description");
         expect(result.data["argument-hint"]).toBe("Valid hint");
-        expect((result.data as any).extraProperty).toBeUndefined();
+        expect((result.data as Record<string, unknown>).extraProperty).toBe(
+          "Preserved by looseObject",
+        );
       }
     });
   });

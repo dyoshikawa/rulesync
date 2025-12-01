@@ -13,7 +13,8 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export const ClaudecodeSubagentFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const ClaudecodeSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   model: z.optional(z.enum(["opus", "sonnet", "haiku", "inherit"])),
@@ -64,15 +65,20 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
+    const { name, description, model, ...restFields } = this.frontmatter;
+
+    // Build claudecode section with known and unknown fields
+    const claudecodeSection: Record<string, unknown> = {
+      ...(model && { model }),
+      ...restFields,
+    };
+
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["claudecode"] as const,
-      name: this.frontmatter.name,
-      description: this.frontmatter.description,
-      ...(this.frontmatter.model && {
-        claudecode: {
-          model: this.frontmatter.model,
-        },
-      }),
+      name,
+      description,
+      // Only include claudecode section if there are fields
+      ...(Object.keys(claudecodeSection).length > 0 && { claudecode: claudecodeSection }),
     };
 
     return new RulesyncSubagent({
@@ -92,11 +98,22 @@ export class ClaudecodeSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const claudecodeFrontmatter: ClaudecodeSubagentFrontmatter = {
+    const claudecodeSection = rulesyncFrontmatter.claudecode ?? {};
+
+    // Build claudecode frontmatter from rulesync frontmatter + claudecode section
+    const rawClaudecodeFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      model: rulesyncFrontmatter.claudecode?.model,
+      ...claudecodeSection,
     };
+
+    // Validate with ClaudecodeSubagentFrontmatterSchema (validates model if present)
+    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(rawClaudecodeFrontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid claudecode subagent frontmatter: ${formatError(result.error)}`);
+    }
+
+    const claudecodeFrontmatter = result.data;
 
     // Generate proper file content with Claude Code specific frontmatter
     const body = rulesyncSubagent.getBody();

@@ -13,15 +13,13 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export const GeminiCliCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const GeminiCliCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   prompt: z.string(),
 });
 
-export type GeminiCliCommandFrontmatter = {
-  description: string;
-  prompt: string;
-};
+export type GeminiCliCommandFrontmatter = z.infer<typeof GeminiCliCommandFrontmatterSchema>;
 
 export type GeminiCliCommandParams = {
   frontmatter: GeminiCliCommandFrontmatter;
@@ -77,7 +75,7 @@ export class GeminiCliCommand extends ToolCommand {
   toRulesyncCommand(): RulesyncCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["geminicli"],
-      description: this.frontmatter.description,
+      description: this.frontmatter.description ?? "",
     };
 
     // Generate proper file content with Rulesync specific frontmatter

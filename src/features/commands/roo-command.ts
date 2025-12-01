@@ -11,7 +11,8 @@ import {
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
-export const RooCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const RooCommandFrontmatterSchema = z.looseObject({
   description: z.string(),
   "argument-hint": optional(z.string()),
 });
@@ -66,9 +67,13 @@ export class RooCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
+    const { description, ...restFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["roo"],
-      description: this.frontmatter.description,
+      description,
+      // Preserve extra fields in roo section
+      ...(Object.keys(restFields).length > 0 && { roo: restFields }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
@@ -92,8 +97,12 @@ export class RooCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): RooCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
+    // Merge roo-specific fields from rulesync frontmatter
+    const rooFields = rulesyncFrontmatter.roo ?? {};
+
     const rooFrontmatter: RooCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
+      ...rooFields,
     };
 
     // Generate proper file content with Roo Code specific frontmatter

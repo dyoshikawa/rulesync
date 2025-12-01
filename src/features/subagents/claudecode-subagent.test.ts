@@ -591,6 +591,150 @@ describe("ClaudecodeSubagent", () => {
     });
   });
 
+  describe("tool-specific field passthrough", () => {
+    it("fromRulesyncSubagent should preserve extra claudecode fields", () => {
+      const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+        targets: ["claudecode"],
+        name: "test-agent",
+        description: "Test agent",
+        claudecode: {
+          model: "sonnet",
+          "allowed-tools": ["Bash", "Read"],
+          "max-tokens": 4096,
+        },
+      };
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Test content",
+      });
+
+      const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent,
+      }) as ClaudecodeSubagent;
+
+      const frontmatter = claudecodeSubagent.getFrontmatter();
+      expect(frontmatter.model).toBe("sonnet");
+      expect(frontmatter["allowed-tools"]).toEqual(["Bash", "Read"]);
+      expect(frontmatter["max-tokens"]).toBe(4096);
+    });
+
+    it("toRulesyncSubagent should preserve extra fields in claudecode section", () => {
+      const frontmatter: ClaudecodeSubagentFrontmatter = {
+        name: "test-agent",
+        description: "Test agent",
+        model: "opus",
+        "allowed-tools": ["Grep"],
+        "custom-setting": true,
+      };
+
+      const subagent = new ClaudecodeSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        relativeFilePath: "test-agent.md",
+        frontmatter,
+        body: "Test content",
+        fileContent: stringifyFrontmatter("Test content", frontmatter),
+        validate: false,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      const result = rulesyncSubagent.getFrontmatter();
+
+      expect(result.claudecode?.model).toBe("opus");
+      expect(result.claudecode?.["allowed-tools"]).toEqual(["Grep"]);
+      expect(result.claudecode?.["custom-setting"]).toBe(true);
+    });
+
+    it("round-trip should preserve all fields", () => {
+      const original = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "roundtrip.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          name: "roundtrip-agent",
+          description: "Roundtrip test",
+          claudecode: {
+            model: "haiku",
+            "allowed-tools": ["Read", "Write"],
+            custom: { deep: { value: 42 } },
+          },
+        },
+        body: "Body content",
+      });
+
+      const claudecode = ClaudecodeSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent: original,
+      }) as ClaudecodeSubagent;
+      const backToRulesync = claudecode.toRulesyncSubagent();
+
+      expect(backToRulesync.getFrontmatter().claudecode).toEqual({
+        model: "haiku",
+        "allowed-tools": ["Read", "Write"],
+        custom: { deep: { value: 42 } },
+      });
+    });
+
+    it("should not include claudecode section when no model or extra fields", () => {
+      const frontmatter: ClaudecodeSubagentFrontmatter = {
+        name: "test-agent",
+        description: "Test agent",
+      };
+
+      const subagent = new ClaudecodeSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        relativeFilePath: "test-agent.md",
+        frontmatter,
+        body: "Test content",
+        fileContent: stringifyFrontmatter("Test content", frontmatter),
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      const result = rulesyncSubagent.getFrontmatter();
+
+      expect(result.claudecode).toBeUndefined();
+    });
+
+    it("should handle empty claudecode fields in RulesyncSubagent", () => {
+      const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+        targets: ["claudecode"],
+        name: "test-agent",
+        description: "Test agent",
+        claudecode: {},
+      };
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "empty-test.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Test content",
+      });
+
+      const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent,
+      }) as ClaudecodeSubagent;
+
+      const frontmatter = claudecodeSubagent.getFrontmatter();
+      expect(frontmatter.name).toBe("test-agent");
+      expect(frontmatter.description).toBe("Test agent");
+      expect(frontmatter.model).toBeUndefined();
+      // Only name and description should be present
+      expect(Object.keys(frontmatter).toSorted()).toEqual(["description", "name"]);
+    });
+  });
+
   describe("fromFile", () => {
     it("should load subagent from file", async () => {
       const frontmatter: ClaudecodeSubagentFrontmatter = {
