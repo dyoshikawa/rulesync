@@ -994,7 +994,7 @@ export class RulesProcessor extends FeatureProcessor {
       );
     }
 
-    return lines.join("\n") + "\n";
+    return lines.join("\n") + "\n\n";
   }
 
   private generateAdditionalConventionsSection({
