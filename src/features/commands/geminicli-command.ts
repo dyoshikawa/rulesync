@@ -13,15 +13,13 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export const GeminiCliCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const GeminiCliCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   prompt: z.string(),
 });
 
-export type GeminiCliCommandFrontmatter = {
-  description: string;
-  prompt: string;
-};
+export type GeminiCliCommandFrontmatter = z.infer<typeof GeminiCliCommandFrontmatterSchema>;
 
 export type GeminiCliCommandParams = {
   frontmatter: GeminiCliCommandFrontmatter;
@@ -54,9 +52,10 @@ export class GeminiCliCommand extends ToolCommand {
           `Invalid frontmatter in Gemini CLI command file: ${formatError(result.error)}`,
         );
       }
+      // Preserve all fields including unknown ones (looseObject passthrough)
       return {
+        ...result.data,
         description: result.data.description || "",
-        prompt: result.data.prompt,
       };
     } catch (error) {
       throw new Error(`Failed to parse TOML command file: ${error}`, { cause: error });
@@ -75,9 +74,13 @@ export class GeminiCliCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
+    const { description, prompt: _prompt, ...restFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["geminicli"],
-      description: this.frontmatter.description,
+      description: description ?? "",
+      // Preserve extra fields in geminicli section (excluding prompt which is the body)
+      ...(Object.keys(restFields).length > 0 && { geminicli: restFields }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
@@ -102,12 +105,18 @@ export class GeminiCliCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): GeminiCliCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
+    // Merge geminicli-specific fields from rulesync frontmatter
+    const geminicliFields = rulesyncFrontmatter.geminicli ?? {};
+
     const geminiFrontmatter: GeminiCliCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
       prompt: rulesyncCommand.getBody(),
+      ...geminicliFields,
     };
 
     // Generate proper file content with TOML format
+    // Note: TOML format only supports description and prompt fields
+    // Extra fields from geminicli section are stored in the object but not serialized to TOML
     const tomlContent = `description = "${geminiFrontmatter.description}"
 prompt = """
 ${geminiFrontmatter.prompt}

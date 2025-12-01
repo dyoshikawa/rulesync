@@ -685,6 +685,129 @@ Body`;
     });
   });
 
+  describe("tool-specific field passthrough", () => {
+    it("fromRulesyncCommand should preserve claudecode fields", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "passthrough-test.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Test command",
+          claudecode: {
+            "allowed-tools": ["Bash", "Read"],
+            "custom-setting": true,
+          },
+        },
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = claudecodeCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Test command");
+      expect(frontmatter["allowed-tools"]).toEqual(["Bash", "Read"]);
+      expect(frontmatter["custom-setting"]).toBe(true);
+    });
+
+    it("toRulesyncCommand should preserve extra fields in claudecode section", () => {
+      const command = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: ".claude/commands",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "Test command",
+          "allowed-tools": ["Grep"],
+          "another-field": { nested: "value" },
+        },
+        body: "Test body",
+        validate: false,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      const frontmatter = rulesyncCommand.getFrontmatter();
+
+      expect(frontmatter.claudecode).toEqual({
+        "allowed-tools": ["Grep"],
+        "another-field": { nested: "value" },
+      });
+    });
+
+    it("round-trip should preserve all fields", () => {
+      const original = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "roundtrip.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Roundtrip test",
+          claudecode: {
+            "allowed-tools": ["Read", "Write"],
+            custom: { deep: { value: 42 } },
+          },
+        },
+        body: "Body content",
+        fileContent: "",
+      });
+
+      const claudecode = ClaudecodeCommand.fromRulesyncCommand({
+        rulesyncCommand: original,
+      });
+      const backToRulesync = claudecode.toRulesyncCommand();
+
+      expect(backToRulesync.getFrontmatter().claudecode).toEqual({
+        "allowed-tools": ["Read", "Write"],
+        custom: { deep: { value: 42 } },
+      });
+    });
+
+    it("should not include claudecode section when no extra fields", () => {
+      const command = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: ".claude/commands",
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "Test command",
+        },
+        body: "Test body",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      const frontmatter = rulesyncCommand.getFrontmatter();
+
+      expect(frontmatter.claudecode).toBeUndefined();
+    });
+
+    it("should handle empty claudecode fields in RulesyncCommand", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "empty-test.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Test command",
+          claudecode: {},
+        },
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = claudecodeCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Test command");
+      // No extra fields should be added
+      expect(Object.keys(frontmatter)).toEqual(["description"]);
+    });
+  });
+
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({

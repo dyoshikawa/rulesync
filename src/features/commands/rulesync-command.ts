@@ -7,17 +7,21 @@ import {
   RulesyncFileFromFileParams,
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
-import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
+import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 
-export const RulesyncCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+// Tool-specific sections (e.g., claudecode:, copilot:) are preserved as additional keys
+export const RulesyncCommandFrontmatterSchema = z.looseObject({
   targets: RulesyncTargetsSchema,
   description: z.string(),
 });
 
-export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatterSchema>;
+// Tool-specific sections are typed as optional Record<string, unknown> per tool target
+export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatterSchema> &
+  Partial<Record<ToolTarget, Record<string, unknown>>>;
 
 export type RulesyncCommandParams = {
   frontmatter: RulesyncCommandFrontmatter;

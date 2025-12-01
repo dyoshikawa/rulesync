@@ -4,27 +4,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import type { RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
-import {
-  RulesyncSubagent,
-  RulesyncSubagentFrontmatterSchema,
-  RulesyncSubagentModelSchema,
-} from "./rulesync-subagent.js";
-
-describe("RulesyncSubagentModelSchema", () => {
-  it("should accept valid model values", () => {
-    expect(() => RulesyncSubagentModelSchema.parse("opus")).not.toThrow();
-    expect(() => RulesyncSubagentModelSchema.parse("sonnet")).not.toThrow();
-    expect(() => RulesyncSubagentModelSchema.parse("haiku")).not.toThrow();
-    expect(() => RulesyncSubagentModelSchema.parse("inherit")).not.toThrow();
-  });
-
-  it("should reject invalid model values", () => {
-    expect(() => RulesyncSubagentModelSchema.parse("invalid")).toThrow();
-    expect(() => RulesyncSubagentModelSchema.parse("")).toThrow();
-    expect(() => RulesyncSubagentModelSchema.parse(null)).toThrow();
-    expect(() => RulesyncSubagentModelSchema.parse(undefined)).toThrow();
-  });
-});
+import { RulesyncSubagent, RulesyncSubagentFrontmatterSchema } from "./rulesync-subagent.js";
 
 describe("RulesyncSubagentFrontmatterSchema", () => {
   it("should accept valid frontmatter with required fields", () => {
@@ -83,17 +63,25 @@ describe("RulesyncSubagentFrontmatterSchema", () => {
     expect(() => RulesyncSubagentFrontmatterSchema.parse(missingTargets)).toThrow();
   });
 
-  it("should reject frontmatter with invalid claudecode model", () => {
-    const invalidClaudeCodeModel = {
+  it("should preserve claudecode section with any fields (model validation is tool-specific)", () => {
+    const frontmatterWithAnyClaudecodeFields = {
       targets: ["*"],
       name: "test-subagent",
       description: "A test subagent",
       claudecode: {
-        model: "invalid-model",
+        model: "any-value",
+        "custom-field": "preserved",
       },
     };
 
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(invalidClaudeCodeModel)).toThrow();
+    // RulesyncSubagent doesn't validate model - that's ClaudecodeSubagent's responsibility
+    const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatterWithAnyClaudecodeFields);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const claudecode = result.data.claudecode as Record<string, unknown>;
+      expect(claudecode.model).toBe("any-value");
+      expect(claudecode["custom-field"]).toBe("preserved");
+    }
   });
 });
 

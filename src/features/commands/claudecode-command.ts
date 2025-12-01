@@ -12,7 +12,8 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export const ClaudecodeCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
   description: z.string(),
 });
 
@@ -62,9 +63,13 @@ export class ClaudecodeCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
+    const { description, ...restFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
-      description: this.frontmatter.description,
+      description,
+      // Preserve extra fields in claudecode section
+      ...(Object.keys(restFields).length > 0 && { claudecode: restFields }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
@@ -89,8 +94,12 @@ export class ClaudecodeCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
+    // Merge claudecode-specific fields from rulesync frontmatter
+    const claudecodeFields = rulesyncFrontmatter.claudecode ?? {};
+
     const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
+      ...claudecodeFields,
     };
 
     // Generate proper file content with Claude Code specific frontmatter
@@ -146,7 +155,7 @@ export class ClaudecodeCommand extends ToolCommand {
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
-    // Validate frontmatter using ClaudecodeCommandFrontmatterSchema
+    // Validate required fields using ClaudecodeCommandFrontmatterSchema
     const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);

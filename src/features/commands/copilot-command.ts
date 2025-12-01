@@ -12,7 +12,8 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export const CopilotCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const CopilotCommandFrontmatterSchema = z.looseObject({
   mode: z.literal("agent"),
   description: z.string(),
 });
@@ -62,9 +63,13 @@ export class CopilotCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
+    const { mode: _mode, description, ...restFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
-      description: this.frontmatter.description,
+      description,
+      // Preserve extra fields in copilot section (excluding mode which is fixed)
+      ...(Object.keys(restFields).length > 0 && { copilot: restFields }),
     };
 
     // Strip .prompt.md extension and normalize to .md
@@ -108,9 +113,13 @@ export class CopilotCommand extends ToolCommand {
     const paths = this.getSettablePaths();
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
+    // Merge copilot-specific fields from rulesync frontmatter
+    const copilotFields = rulesyncFrontmatter.copilot ?? {};
+
     const copilotFrontmatter: CopilotCommandFrontmatter = {
       mode: "agent",
       description: rulesyncFrontmatter.description,
+      ...copilotFields,
     };
 
     const body = rulesyncCommand.getBody();
