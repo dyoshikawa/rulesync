@@ -6,7 +6,6 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
-import { logger } from "../../utils/logger.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -41,7 +40,6 @@ export type SimulatedSkillParams = {
  *
  * Unlike native skills, simulated skills:
  * - Cannot be converted back to RulesyncSkill (one-way conversion)
- * - Ignore otherFiles from the source RulesyncSkill
  * - Have minimal frontmatter (no tool-specific options like allowed-tools)
  */
 export abstract class SimulatedSkill extends ToolSkill {
@@ -125,21 +123,13 @@ export abstract class SimulatedSkill extends ToolSkill {
       description: rulesyncFrontmatter.description,
     };
 
-    // Log warning if otherFiles are present but will be ignored
-    const otherFiles = rulesyncSkill.getOtherFiles();
-    if (otherFiles.length > 0) {
-      logger.warn(
-        `Skill "${rulesyncFrontmatter.name}" has ${otherFiles.length} additional file(s) that will be ignored for simulated skill generation.`,
-      );
-    }
-
     return {
       baseDir: rulesyncSkill.getBaseDir(),
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: simulatedFrontmatter,
       body: rulesyncSkill.getBody(),
-      otherFiles: [], // Simulated skills ignore otherFiles
+      otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
     };
   }
@@ -166,13 +156,20 @@ export abstract class SimulatedSkill extends ToolSkill {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
 
+    const otherFiles = await this.collectOtherFiles(
+      baseDir,
+      actualRelativeDirPath,
+      dirName,
+      SKILL_FILE_NAME,
+    );
+
     return {
       baseDir,
       relativeDirPath: actualRelativeDirPath,
       dirName,
       frontmatter: result.data,
       body: content.trim(),
-      otherFiles: [], // Simulated skills ignore otherFiles
+      otherFiles,
       validate: true,
     };
   }

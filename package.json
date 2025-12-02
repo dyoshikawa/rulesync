@@ -79,15 +79,15 @@
 		"zod": "4.1.13"
 	},
 	"devDependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.1.53",
-		"@biomejs/biome": "2.3.7",
+		"@anthropic-ai/claude-agent-sdk": "0.1.55",
+		"@biomejs/biome": "2.3.8",
 		"@eslint/js": "9.39.1",
 		"@secretlint/secretlint-rule-preset-recommend": "11.2.5",
 		"@tsconfig/node24": "24.0.3",
 		"@types/js-yaml": "4.0.9",
 		"@types/node": "24.10.1",
-		"@typescript/native-preview": "7.0.0-dev.20251125.1",
-		"@vitest/coverage-v8": "4.0.13",
+		"@typescript/native-preview": "7.0.0-dev.20251130.1",
+		"@vitest/coverage-v8": "4.0.14",
 		"cspell": "9.3.2",
 		"eslint": "9.39.1",
 		"eslint-plugin-import": "2.32.0",
@@ -100,12 +100,12 @@
 		"oxlint": "1.30.0",
 		"secretlint": "11.2.5",
 		"simple-git-hooks": "2.13.1",
-		"sort-package-json": "3.4.0",
+		"sort-package-json": "3.5.0",
 		"tsup": "8.5.1",
-		"tsx": "4.20.6",
+		"tsx": "4.21.0",
 		"typescript": "5.9.3",
 		"typescript-eslint": "8.48.0",
-		"vitest": "4.0.13"
+		"vitest": "4.0.14"
 	},
 	"packageManager": "pnpm@10.23.0",
 	"engines": {
