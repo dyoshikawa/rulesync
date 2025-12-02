@@ -158,6 +158,15 @@ export async function listDirectoryFiles(dir: string): Promise<string[]> {
   }
 }
 
+export async function listDirectoryDirectories(dir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
 export async function findFiles(dir: string, extension: string = ".md"): Promise<string[]> {
   try {
     const files = await readdir(dir);

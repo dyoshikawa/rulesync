@@ -688,6 +688,16 @@ The Rulesync MCP server provides the following tools:
 </details>
 
 <details>
+<summary>Skills Management</summary>
+
+- `listSkills` - List all skill directories
+- `getSkill` - Get a specific skill (SKILL.md and other files)
+- `putSkill` - Create or update a skill directory
+- `deleteSkill` - Delete a skill directory
+
+</details>
+
+<details>
 <summary>Ignore Files Management</summary>
 
 - `getIgnoreFile` - Get the ignore file

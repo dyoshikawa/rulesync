@@ -3,6 +3,7 @@ import { commandTools } from "../../mcp/commands.js";
 import { ignoreTools } from "../../mcp/ignore.js";
 import { mcpTools } from "../../mcp/mcp.js";
 import { ruleTools } from "../../mcp/rules.js";
+import { skillTools } from "../../mcp/skills.js";
 import { subagentTools } from "../../mcp/subagents.js";
 import { logger } from "../../utils/logger.js";
 
@@ -15,7 +16,7 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
     // eslint-disable-next-line no-type-assertion/no-type-assertion
     version: version as `${number}.${number}.${number}`,
     instructions:
-      "This server handles Rulesync files including rules, commands, MCP, ignore files, and subagents for any AI agents. It should be used when you need those files.",
+      "This server handles Rulesync files including rules, commands, MCP, ignore files, subagents and skills for any AI agents. It should be used when you need those files.",
   });
 
   // Register rule tools
@@ -35,6 +36,12 @@ export async function mcpCommand({ version }: { version: string }): Promise<void
   server.addTool(subagentTools.getSubagent);
   server.addTool(subagentTools.putSubagent);
   server.addTool(subagentTools.deleteSubagent);
+
+  // Register skill tools
+  server.addTool(skillTools.listSkills);
+  server.addTool(skillTools.getSkill);
+  server.addTool(skillTools.putSkill);
+  server.addTool(skillTools.deleteSkill);
 
   // Register ignore tools
   server.addTool(ignoreTools.getIgnoreFile);
