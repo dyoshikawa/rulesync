@@ -36,6 +36,18 @@ describe("OpencodeMcp", () => {
     });
   });
 
+  describe("isDeletable", () => {
+    it("should always return false because opencode.json may contain other settings", () => {
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify({ mcp: {} }),
+      });
+
+      expect(opencodeMcp.isDeletable()).toBe(false);
+    });
+  });
+
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const validJsonContent = JSON.stringify({

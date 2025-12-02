@@ -36,6 +36,30 @@ describe("ClaudecodeMcp", () => {
     });
   });
 
+  describe("isDeletable", () => {
+    it("should return true in local mode", () => {
+      const claudecodeMcp = new ClaudecodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+        global: false,
+      });
+
+      expect(claudecodeMcp.isDeletable()).toBe(true);
+    });
+
+    it("should return false in global mode", () => {
+      const claudecodeMcp = new ClaudecodeMcp({
+        relativeDirPath: ".claude",
+        relativeFilePath: ".claude.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+        global: true,
+      });
+
+      expect(claudecodeMcp.isDeletable()).toBe(false);
+    });
+  });
+
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const validJsonContent = JSON.stringify({

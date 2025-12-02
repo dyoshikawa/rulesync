@@ -111,5 +111,13 @@ export abstract class AiFile {
     this.fileContent = newFileContent;
   }
 
+  /**
+   * Returns whether this file can be deleted by rulesync.
+   * Override in subclasses that should not be deleted (e.g., user-managed config files).
+   */
+  isDeletable(): boolean {
+    return true;
+  }
+
   abstract validate(): ValidationResult;
 }

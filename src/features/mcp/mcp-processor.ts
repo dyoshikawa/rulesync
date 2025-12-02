@@ -191,15 +191,7 @@ export class McpProcessor extends FeatureProcessor {
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
 
       if (forDeletion) {
-        // `opencode.json` should not be deleted as it may contain other settings
-        let filteredMcps = toolMcps.filter((toolFile) => !(toolFile instanceof OpencodeMcp));
-
-        // When global mode, "~/.claude/.claude.json" should not be deleted.
-        if (this.global) {
-          filteredMcps = filteredMcps.filter((toolFile) => !(toolFile instanceof ClaudecodeMcp));
-        }
-
-        return filteredMcps;
+        return toolMcps.filter((toolFile) => toolFile.isDeletable());
       }
 
       return toolMcps;

@@ -150,6 +150,13 @@ export class OpencodeMcp extends ToolMcp {
     return this.json;
   }
 
+  /**
+   * opencode.json may contain other settings, so it should not be deleted.
+   */
+  override isDeletable(): boolean {
+    return false;
+  }
+
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {

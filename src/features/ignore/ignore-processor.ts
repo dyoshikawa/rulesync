@@ -86,8 +86,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       const toolIgnores = await this.loadToolIgnores();
 
       if (forDeletion) {
-        // Claudecode ignore file is settings.local.json, so it should not be deleted.
-        return toolIgnores.filter((toolFile) => !(toolFile instanceof ClaudecodeIgnore));
+        return toolIgnores.filter((toolFile) => toolFile.isDeletable());
       }
 
       return toolIgnores;

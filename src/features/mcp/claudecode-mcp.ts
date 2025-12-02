@@ -23,6 +23,15 @@ export class ClaudecodeMcp extends ToolMcp {
     return this.json;
   }
 
+  /**
+   * In global mode, ~/.claude/.claude.json should not be deleted
+   * as it may contain other user settings.
+   * In local mode, .mcp.json can be safely deleted.
+   */
+  override isDeletable(): boolean {
+    return !this.global;
+  }
+
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {

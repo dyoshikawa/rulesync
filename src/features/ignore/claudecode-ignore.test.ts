@@ -132,6 +132,18 @@ describe("ClaudecodeIgnore", () => {
     });
   });
 
+  describe("isDeletable", () => {
+    it("should return false because settings.local.json is user-managed", () => {
+      const claudecodeIgnore = new ClaudecodeIgnore({
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.local.json",
+        fileContent: JSON.stringify({ permissions: { deny: [] } }),
+      });
+
+      expect(claudecodeIgnore.isDeletable()).toBe(false);
+    });
+  });
+
   describe("toRulesyncIgnore", () => {
     it("should convert Read() patterns to plain patterns", () => {
       const jsonContent = JSON.stringify(
