@@ -13,7 +13,7 @@ import {
   checkPathTraversal,
   directoryExists,
   ensureDir,
-  listDirectoryDirectories,
+  findFilesByGlobs,
   removeDirectory,
   writeFileContent,
 } from "../utils/file.js";
@@ -76,10 +76,13 @@ async function listSkills(): Promise<
   const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
 
   try {
-    const dirs = await listDirectoryDirectories(skillsDir);
+    // Find all skill directories (directories containing SKILL.md)
+    const skillDirPaths = await findFilesByGlobs(join(skillsDir, "*"), { type: "dir" });
 
     const skills = await Promise.all(
-      dirs.map(async (dirName) => {
+      skillDirPaths.map(async (dirPath) => {
+        const dirName = dirPath.split("/").pop();
+        if (!dirName) return null;
         try {
           // Read the skill using RulesyncSkill
           const skill = await RulesyncSkill.fromDir({
