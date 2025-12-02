@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
@@ -56,8 +56,7 @@ function mcpSkillFileToAiDirFile(file: McpSkillFile): AiDirFile {
  * @example ".rulesync/skills/my-skill" -> "my-skill"
  */
 function extractDirName(relativeDirPathFromCwd: string): string {
-  const parts = relativeDirPathFromCwd.split("/");
-  const dirName = parts[parts.length - 1];
+  const dirName = basename(relativeDirPathFromCwd);
   if (!dirName) {
     throw new Error(`Invalid path: ${relativeDirPathFromCwd}`);
   }
@@ -81,7 +80,7 @@ async function listSkills(): Promise<
 
     const skills = await Promise.all(
       skillDirPaths.map(async (dirPath) => {
-        const dirName = dirPath.split("/").pop();
+        const dirName = basename(dirPath);
         if (!dirName) return null;
         try {
           // Read the skill using RulesyncSkill
@@ -227,7 +226,7 @@ async function putSkill({
       });
       const filePath = join(skillDirPath, file.name);
       // Ensure subdirectory exists if file has path separators
-      const fileDir = join(skillDirPath, file.name.split("/").slice(0, -1).join("/"));
+      const fileDir = join(skillDirPath, dirname(file.name));
       if (fileDir !== skillDirPath) {
         await ensureDir(fileDir);
       }
