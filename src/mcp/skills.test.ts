@@ -330,6 +330,24 @@ description: "Original"
       ).rejects.toThrow(/path traversal/i);
     });
 
+    it("should reject path traversal attempts in otherFiles", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+
+      await expect(
+        skillTools.putSkill.execute({
+          relativeDirPathFromCwd: ".rulesync/skills/test-skill",
+          frontmatter: {
+            name: "test-skill",
+            targets: ["*"],
+            description: "test",
+          },
+          body: "test body",
+          otherFiles: [{ name: "../../../etc/passwd", body: "malicious content" }],
+        }),
+      ).rejects.toThrow(/path traversal/i);
+    });
+
     it("should reject oversized skills", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       await ensureDir(skillsDir);

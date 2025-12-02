@@ -220,6 +220,11 @@ async function putSkill({
 
     // Write other files
     for (const file of otherFiles) {
+      // Validate file path to prevent path traversal
+      checkPathTraversal({
+        relativePath: file.name,
+        intendedRootDir: skillDirPath,
+      });
       const filePath = join(skillDirPath, file.name);
       // Ensure subdirectory exists if file has path separators
       const fileDir = join(skillDirPath, file.name.split("/").slice(0, -1).join("/"));
