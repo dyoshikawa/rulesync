@@ -86,7 +86,7 @@
 		"@tsconfig/node24": "24.0.3",
 		"@types/js-yaml": "4.0.9",
 		"@types/node": "24.10.1",
-		"@typescript/native-preview": "7.0.0-dev.20251201.1",
+		"@typescript/native-preview": "7.0.0-dev.20251202.1",
 		"@vitest/coverage-v8": "4.0.14",
 		"cspell": "9.4.0",
 		"eslint": "9.39.1",
