@@ -14,37 +14,116 @@ import { CursorSkill } from "./cursor-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
-import { ToolSkill } from "./tool-skill.js";
+import {
+  ToolSkill,
+  ToolSkillFromDirParams,
+  ToolSkillFromRulesyncSkillParams,
+  ToolSkillSettablePaths,
+} from "./tool-skill.js";
 
-const skillsProcessorToolTargets: ToolTarget[] = [
+/**
+ * Factory entry for each tool skill class.
+ * Stores the class reference and metadata for a tool.
+ */
+type ToolSkillFactory = {
+  class: {
+    isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean;
+    fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): ToolSkill;
+    fromDir(params: ToolSkillFromDirParams): Promise<ToolSkill>;
+    getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
+  };
+  meta: {
+    /** Whether the tool supports simulated skills (embedded in rules) */
+    supportsSimulated: boolean;
+    /** Whether the tool supports global (user-level) skills */
+    supportsGlobal: boolean;
+  };
+};
+
+/**
+ * Supported tool targets for SkillsProcessor.
+ * Using a tuple to preserve order for consistent iteration.
+ */
+const skillsProcessorToolTargetTuple = [
+  "agentsmd",
   "claudecode",
+  "codexcli",
   "copilot",
   "cursor",
-  "codexcli",
   "geminicli",
-  "agentsmd",
-];
-export const skillsProcessorToolTargetsSimulated: ToolTarget[] = [
-  "copilot",
-  "cursor",
-  "codexcli",
-  "geminicli",
-  "agentsmd",
-];
-export const skillsProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
-export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargets);
+] as const;
 
-export type SkillsProcessorToolTarget = z.infer<typeof SkillsProcessorToolTargetSchema>;
+export type SkillsProcessorToolTarget = (typeof skillsProcessorToolTargetTuple)[number];
+
+// Schema for runtime validation
+export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargetTuple);
+
+/**
+ * Factory Map mapping tool targets to their skill factories.
+ * Using Map to preserve insertion order for consistent iteration.
+ */
+const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>([
+  ["agentsmd", { class: AgentsmdSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "claudecode",
+    { class: ClaudecodeSkill, meta: { supportsSimulated: false, supportsGlobal: true } },
+  ],
+  ["codexcli", { class: CodexCliSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  ["copilot", { class: CopilotSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  ["cursor", { class: CursorSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "geminicli",
+    { class: GeminiCliSkill, meta: { supportsSimulated: true, supportsGlobal: false } },
+  ],
+]);
+
+/**
+ * Factory retrieval function type for dependency injection.
+ * Allows injecting custom factory implementations for testing purposes.
+ */
+type GetFactory = (target: SkillsProcessorToolTarget) => ToolSkillFactory;
+
+const defaultGetFactory: GetFactory = (target) => {
+  const factory = toolSkillFactories.get(target);
+  if (!factory) {
+    throw new Error(`Unsupported tool target: ${target}`);
+  }
+  return factory;
+};
+
+// Derive tool target arrays from factory metadata
+const allToolTargetKeys = [...toolSkillFactories.keys()];
+
+const skillsProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+
+export const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
+  (target) => {
+    const factory = toolSkillFactories.get(target);
+    return factory?.meta.supportsSimulated ?? false;
+  },
+);
+
+export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSkillFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
   private readonly global: boolean;
+  private readonly getFactory: GetFactory;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
-  }: { baseDir?: string; toolTarget: SkillsProcessorToolTarget; global?: boolean }) {
+    getFactory = defaultGetFactory,
+  }: {
+    baseDir?: string;
+    toolTarget: ToolTarget;
+    global?: boolean;
+    getFactory?: GetFactory;
+  }) {
     super({ baseDir });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
@@ -54,6 +133,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.getFactory = getFactory;
   }
 
   async convertRulesyncDirsToToolDirs(rulesyncDirs: AiDir[]): Promise<AiDir[]> {
@@ -61,74 +141,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
       (dir): dir is RulesyncSkill => dir instanceof RulesyncSkill,
     );
 
-    const toolSkills: ToolSkill[] = [];
-    for (const rulesyncSkill of rulesyncSkills) {
-      switch (this.toolTarget) {
-        case "claudecode":
-          if (!ClaudecodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            continue;
-          }
-          toolSkills.push(
-            ClaudecodeSkill.fromRulesyncSkill({
-              rulesyncSkill: rulesyncSkill,
-              global: this.global,
-            }),
-          );
-          break;
-        case "copilot":
-          if (!CopilotSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            continue;
-          }
-          toolSkills.push(
-            CopilotSkill.fromRulesyncSkill({
-              rulesyncSkill: rulesyncSkill,
-            }),
-          );
-          break;
-        case "cursor":
-          if (!CursorSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            continue;
-          }
-          toolSkills.push(
-            CursorSkill.fromRulesyncSkill({
-              rulesyncSkill: rulesyncSkill,
-            }),
-          );
-          break;
-        case "codexcli":
-          if (!CodexCliSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            continue;
-          }
-          toolSkills.push(
-            CodexCliSkill.fromRulesyncSkill({
-              rulesyncSkill: rulesyncSkill,
-            }),
-          );
-          break;
-        case "geminicli":
-          if (!GeminiCliSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            continue;
-          }
-          toolSkills.push(
-            GeminiCliSkill.fromRulesyncSkill({
-              rulesyncSkill: rulesyncSkill,
-            }),
-          );
-          break;
-        case "agentsmd":
-          if (!AgentsmdSkill.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            continue;
-          }
-          toolSkills.push(
-            AgentsmdSkill.fromRulesyncSkill({
-              rulesyncSkill: rulesyncSkill,
-            }),
-          );
-          break;
-        default:
-          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      }
-    }
+    const factory = this.getFactory(this.toolTarget);
+
+    const toolSkills = rulesyncSkills
+      .map((rulesyncSkill) => {
+        if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
+          return null;
+        }
+        return factory.class.fromRulesyncSkill({
+          rulesyncSkill: rulesyncSkill,
+          global: this.global,
+        });
+      })
+      .filter((skill): skill is ToolSkill => skill !== null);
 
     return toolSkills;
   }
@@ -174,40 +199,16 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * Load tool-specific skill configurations and parse them into ToolSkill instances
    */
   async loadToolDirs(): Promise<AiDir[]> {
-    switch (this.toolTarget) {
-      case "claudecode":
-        return await this.loadClaudecodeSkills();
-      case "copilot":
-        return await this.loadSimulatedSkills(CopilotSkill);
-      case "cursor":
-        return await this.loadSimulatedSkills(CursorSkill);
-      case "codexcli":
-        return await this.loadSimulatedSkills(CodexCliSkill);
-      case "geminicli":
-        return await this.loadSimulatedSkills(GeminiCliSkill);
-      case "agentsmd":
-        return await this.loadSimulatedSkills(AgentsmdSkill);
-      default:
-        throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-    }
-  }
+    const factory = this.getFactory(this.toolTarget);
+    const paths = factory.class.getSettablePaths({ global: this.global });
 
-  async loadToolDirsToDelete(): Promise<AiDir[]> {
-    return this.loadToolDirs();
-  }
-
-  /**
-   * Load Claude Code skill configurations from .claude/skills/ directory
-   */
-  private async loadClaudecodeSkills(): Promise<ToolSkill[]> {
-    const paths = ClaudecodeSkill.getSettablePaths({ global: this.global });
     const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
     const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
     const toolSkills = await Promise.all(
       dirNames.map((dirName) =>
-        ClaudecodeSkill.fromDir({
+        factory.class.fromDir({
           baseDir: this.baseDir,
           dirName,
           global: this.global,
@@ -219,33 +220,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
     return toolSkills;
   }
 
-  /**
-   * Load simulated skill configurations from tool-specific directories
-   */
-  private async loadSimulatedSkills(
-    SkillClass:
-      | typeof CopilotSkill
-      | typeof CursorSkill
-      | typeof CodexCliSkill
-      | typeof GeminiCliSkill
-      | typeof AgentsmdSkill,
-  ): Promise<ToolSkill[]> {
-    const paths = SkillClass.getSettablePaths();
-    const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
-    const dirNames = dirPaths.map((path) => basename(path));
-
-    const toolSkills = await Promise.all(
-      dirNames.map((dirName) =>
-        SkillClass.fromDir({
-          baseDir: this.baseDir,
-          dirName,
-        }),
-      ),
-    );
-
-    logger.info(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
-    return toolSkills;
+  async loadToolDirsToDelete(): Promise<AiDir[]> {
+    return this.loadToolDirs();
   }
 
   /**

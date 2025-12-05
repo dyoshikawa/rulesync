@@ -204,6 +204,9 @@ describe("SkillsProcessor", () => {
       processorWithMockTarget.baseDir = testDir;
       processorWithMockTarget.toolTarget = "unsupported";
       processorWithMockTarget.global = false;
+      processorWithMockTarget.getFactory = (target: any) => {
+        throw new Error(`Unsupported tool target: ${target}`);
+      };
 
       const rulesyncSkill = new RulesyncSkill({
         baseDir: testDir,
@@ -408,6 +411,9 @@ Invalid content`;
       const processorWithMockTarget = Object.create(SkillsProcessor.prototype);
       processorWithMockTarget.baseDir = testDir;
       processorWithMockTarget.toolTarget = "unsupported";
+      processorWithMockTarget.getFactory = (target: any) => {
+        throw new Error(`Unsupported tool target: ${target}`);
+      };
 
       await expect(processorWithMockTarget.loadToolDirs()).rejects.toThrow(
         "Unsupported tool target: unsupported",
@@ -595,14 +601,9 @@ Test skill content`;
 
     it("should return all targets including simulated when includeSimulated is true", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: true });
-      expect(targets).toEqual([
-        "claudecode",
-        "copilot",
-        "cursor",
-        "codexcli",
-        "geminicli",
-        "agentsmd",
-      ]);
+      expect(new Set(targets)).toEqual(
+        new Set(["agentsmd", "claudecode", "codexcli", "copilot", "cursor", "geminicli"]),
+      );
     });
 
     it("should return only non-simulated targets when includeSimulated is false", () => {
@@ -618,7 +619,9 @@ Test skill content`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(targets).toEqual(["copilot", "cursor", "codexcli", "geminicli", "agentsmd"]);
+      expect(new Set(targets)).toEqual(
+        new Set(["agentsmd", "codexcli", "copilot", "cursor", "geminicli"]),
+      );
     });
   });
 
