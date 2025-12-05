@@ -16,6 +16,14 @@ import {
   subagentsProcessorToolTargetsSimulated,
 } from "./subagents-processor.js";
 
+/**
+ * Creates a mock getFactory that throws an error for unsupported tool targets.
+ * Used to test error handling when an invalid tool target is provided.
+ */
+const createMockGetFactoryThatThrowsUnsupported = () => {
+  throw new Error("Unsupported tool target: unsupported");
+};
+
 describe("SubagentsProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -156,10 +164,11 @@ describe("SubagentsProcessor", () => {
     });
 
     it("should throw error for unsupported tool target", async () => {
-      // Create processor with mock tool target (bypassing constructor validation)
-      const processorWithMockTarget = Object.create(SubagentsProcessor.prototype);
-      processorWithMockTarget.baseDir = testDir;
-      processorWithMockTarget.toolTarget = "unsupported";
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        getFactory: createMockGetFactoryThatThrowsUnsupported,
+      });
 
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
@@ -170,9 +179,9 @@ describe("SubagentsProcessor", () => {
         validate: false,
       });
 
-      await expect(
-        processorWithMockTarget.convertRulesyncFilesToToolFiles([rulesyncSubagent]),
-      ).rejects.toThrow("Unsupported tool target: unsupported");
+      await expect(processor.convertRulesyncFilesToToolFiles([rulesyncSubagent])).rejects.toThrow(
+        "Unsupported tool target: unsupported",
+      );
     });
 
     it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
@@ -522,12 +531,13 @@ Invalid content`;
     });
 
     it("should throw error for unsupported tool target", async () => {
-      // Create processor with mock tool target
-      const processorWithMockTarget = Object.create(SubagentsProcessor.prototype);
-      processorWithMockTarget.baseDir = testDir;
-      processorWithMockTarget.toolTarget = "unsupported";
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        getFactory: createMockGetFactoryThatThrowsUnsupported,
+      });
 
-      await expect(processorWithMockTarget.loadToolFiles()).rejects.toThrow(
+      await expect(processor.loadToolFiles()).rejects.toThrow(
         "Unsupported tool target: unsupported",
       );
     });
@@ -853,27 +863,16 @@ Second global content`;
     });
 
     it("should export subagentsProcessorToolTargets constant", () => {
-      expect(subagentsProcessorToolTargets).toEqual([
-        "agentsmd",
-        "claudecode",
-        "copilot",
-        "cursor",
-        "codexcli",
-        "geminicli",
-        "roo",
-      ]);
+      expect(new Set(subagentsProcessorToolTargets)).toEqual(
+        new Set(["agentsmd", "claudecode", "codexcli", "copilot", "cursor", "geminicli", "roo"]),
+      );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);
     });
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
-      expect(subagentsProcessorToolTargetsSimulated).toEqual([
-        "agentsmd",
-        "copilot",
-        "cursor",
-        "codexcli",
-        "geminicli",
-        "roo",
-      ]);
+      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
+        new Set(["agentsmd", "codexcli", "copilot", "cursor", "geminicli", "roo"]),
+      );
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });
 

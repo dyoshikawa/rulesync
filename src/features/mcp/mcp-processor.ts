@@ -18,50 +18,184 @@ import { ModularMcp } from "./modular-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
-import { ToolMcp } from "./tool-mcp.js";
+import {
+  ToolMcp,
+  ToolMcpFromFileParams,
+  ToolMcpFromRulesyncMcpParams,
+  ToolMcpSettablePaths,
+} from "./tool-mcp.js";
 
-export const mcpProcessorToolTargets: ToolTarget[] = [
+/**
+ * Supported tool targets for McpProcessor.
+ * Using a tuple to preserve order for consistent iteration.
+ */
+const mcpProcessorToolTargetTuple = [
   "amazonqcli",
   "claudecode",
   "cline",
-  "junie",
+  "codexcli",
   "copilot",
   "cursor",
   "geminicli",
+  "junie",
   "opencode",
   "roo",
-];
+] as const;
 
-export const McpProcessorToolTargetSchema = z.enum(
-  // codexcli is not in the list of tool targets but we add it here because it is a valid tool target for global mode generation
-  mcpProcessorToolTargets.concat("codexcli"),
-);
-export type McpProcessorToolTarget = z.infer<typeof McpProcessorToolTargetSchema>;
+export type McpProcessorToolTarget = (typeof mcpProcessorToolTargetTuple)[number];
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = [
-  "claudecode",
-  "codexcli",
-  "geminicli",
-  "opencode",
-];
+// Schema for runtime validation
+export const McpProcessorToolTargetSchema = z.enum(mcpProcessorToolTargetTuple);
 
-export const mcpProcessorToolTargetsModular: ToolTarget[] = ["claudecode"];
+/**
+ * Factory entry for each tool MCP class.
+ * Stores the class reference and metadata for a tool.
+ */
+type ToolMcpFactory = {
+  class: {
+    fromRulesyncMcp(
+      params: ToolMcpFromRulesyncMcpParams & { global?: boolean; modularMcp?: boolean },
+    ): ToolMcp | Promise<ToolMcp>;
+    fromFile(params: ToolMcpFromFileParams): Promise<ToolMcp>;
+    getSettablePaths(options?: { global?: boolean }): ToolMcpSettablePaths;
+  };
+  meta: {
+    /** Whether the tool supports project-level MCP configuration */
+    supportsProject: boolean;
+    /** Whether the tool supports global (user-level) MCP configuration */
+    supportsGlobal: boolean;
+    /** Whether the tool supports modular-mcp for context compression */
+    supportsModular: boolean;
+  };
+};
+
+/**
+ * Factory Map mapping tool targets to their MCP factories.
+ * Using Map to preserve insertion order for consistent iteration.
+ */
+const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
+  [
+    "amazonqcli",
+    {
+      class: AmazonqcliMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "claudecode",
+    {
+      class: ClaudecodeMcp,
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: true },
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClineMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "codexcli",
+    {
+      class: CodexcliMcp,
+      meta: { supportsProject: false, supportsGlobal: true, supportsModular: false },
+    },
+  ],
+  [
+    "copilot",
+    {
+      class: CopilotMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "cursor",
+    {
+      class: CursorMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "geminicli",
+    {
+      class: GeminiCliMcp,
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
+    },
+  ],
+  [
+    "junie",
+    {
+      class: JunieMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "opencode",
+    {
+      class: OpencodeMcp,
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
+    },
+  ],
+  [
+    "roo",
+    {
+      class: RooMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+]);
+
+// Derive tool target arrays from factory metadata
+const allToolTargetKeys = [...toolMcpFactories.keys()];
+
+export const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolMcpFactories.get(target);
+  return factory?.meta.supportsProject ?? false;
+});
+
+export const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolMcpFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
+
+export const mcpProcessorToolTargetsModular: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolMcpFactories.get(target);
+  return factory?.meta.supportsModular ?? false;
+});
+
+/**
+ * Factory retrieval function type for dependency injection.
+ * Allows injecting custom factory implementations for testing purposes.
+ */
+type GetFactory = (target: McpProcessorToolTarget) => ToolMcpFactory;
+
+const defaultGetFactory: GetFactory = (target) => {
+  const factory = toolMcpFactories.get(target);
+  if (!factory) {
+    throw new Error(`Unsupported tool target: ${target}`);
+  }
+  return factory;
+};
 
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
   private readonly modularMcp: boolean;
+  private readonly getFactory: GetFactory;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
     modularMcp = false,
+    getFactory = defaultGetFactory,
   }: {
     baseDir?: string;
-    toolTarget: McpProcessorToolTarget;
+    toolTarget: ToolTarget;
     global?: boolean;
     modularMcp?: boolean;
+    getFactory?: GetFactory;
   }) {
     super({ baseDir });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
@@ -73,6 +207,7 @@ export class McpProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.modularMcp = modularMcp;
+    this.getFactory = getFactory;
   }
 
   /**
@@ -98,96 +233,14 @@ export class McpProcessor extends FeatureProcessor {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
     try {
-      const toolMcps = await (async () => {
-        switch (this.toolTarget) {
-          case "amazonqcli": {
-            return [
-              await AmazonqcliMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-              }),
-            ];
-          }
-          case "claudecode": {
-            return [
-              await ClaudecodeMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-                global: this.global,
-              }),
-            ];
-          }
-          case "cline": {
-            return [
-              await ClineMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-              }),
-            ];
-          }
-          case "junie": {
-            return [
-              await JunieMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-              }),
-            ];
-          }
-          case "codexcli": {
-            return [
-              await CodexcliMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-                global: this.global,
-              }),
-            ];
-          }
-          case "copilot": {
-            return [
-              await CopilotMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-              }),
-            ];
-          }
-          case "cursor": {
-            return [
-              await CursorMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-              }),
-            ];
-          }
-          case "geminicli": {
-            return [
-              await GeminiCliMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-                global: this.global,
-              }),
-            ];
-          }
-          case "opencode": {
-            return [
-              await OpencodeMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-                global: this.global,
-              }),
-            ];
-          }
-          case "roo": {
-            return [
-              await RooMcp.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-              }),
-            ];
-          }
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-        }
-      })();
+      const factory = this.getFactory(this.toolTarget);
+      const toolMcps = [
+        await factory.class.fromFile({
+          baseDir: this.baseDir,
+          validate: true,
+          global: this.global,
+        }),
+      ];
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
 
       if (forDeletion) {
@@ -219,67 +272,15 @@ export class McpProcessor extends FeatureProcessor {
       throw new Error(`No ${RULESYNC_MCP_RELATIVE_FILE_PATH} found.`);
     }
 
+    const factory = this.getFactory(this.toolTarget);
     const toolMcps = await Promise.all(
       [rulesyncMcp].map(async (rulesyncMcp) => {
-        switch (this.toolTarget) {
-          case "amazonqcli":
-            return AmazonqcliMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-            });
-          case "claudecode":
-            return await ClaudecodeMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-              global: this.global,
-              modularMcp: this.modularMcp,
-            });
-          case "cline":
-            return ClineMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-            });
-          case "junie":
-            return JunieMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-            });
-          case "copilot":
-            return CopilotMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-            });
-          case "cursor":
-            return CursorMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-            });
-          case "codexcli":
-            return await CodexcliMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-              global: this.global,
-            });
-          case "geminicli":
-            return GeminiCliMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-              global: this.global,
-            });
-          case "opencode":
-            return OpencodeMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-              global: this.global,
-            });
-          case "roo":
-            return RooMcp.fromRulesyncMcp({
-              baseDir: this.baseDir,
-              rulesyncMcp,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-        }
+        return await factory.class.fromRulesyncMcp({
+          baseDir: this.baseDir,
+          rulesyncMcp,
+          global: this.global,
+          modularMcp: this.modularMcp,
+        });
       }),
     );
 
@@ -288,10 +289,9 @@ export class McpProcessor extends FeatureProcessor {
     // Add modular-mcp.json if modularMcp is enabled and target supports modular-mcp
     if (this.modularMcp && mcpProcessorToolTargetsModular.includes(this.toolTarget)) {
       // Map tool target to relative directory path
-      const relativeDirPath =
-        this.toolTarget === "claudecode"
-          ? ClaudecodeMcp.getSettablePaths({ global: this.global }).relativeDirPath
-          : undefined;
+      const relativeDirPath = factory.class.getSettablePaths({
+        global: this.global,
+      }).relativeDirPath;
 
       toolFiles.push(
         ModularMcp.fromRulesyncMcp({

@@ -15,7 +15,6 @@ import {
   McpProcessor,
   type McpProcessorToolTarget,
   McpProcessorToolTargetSchema,
-  mcpProcessorToolTargets,
 } from "./mcp-processor.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -165,6 +164,7 @@ describe("McpProcessor", () => {
         expect(AmazonqcliMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
         });
       });
     });
@@ -247,6 +247,7 @@ describe("McpProcessor", () => {
         expect(ClineMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
         });
       });
     });
@@ -274,6 +275,7 @@ describe("McpProcessor", () => {
         expect(CopilotMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
         });
       });
     });
@@ -301,6 +303,7 @@ describe("McpProcessor", () => {
         expect(CursorMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
         });
       });
     });
@@ -426,6 +429,7 @@ describe("McpProcessor", () => {
         expect(RooMcp.fromFile).toHaveBeenCalledWith({
           baseDir: testDir,
           validate: true,
+          global: false,
         });
       });
     });
@@ -490,6 +494,8 @@ describe("McpProcessor", () => {
       expect(AmazonqcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
+        modularMcp: false,
       });
     });
 
@@ -591,6 +597,8 @@ describe("McpProcessor", () => {
       expect(ClineMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
+        modularMcp: false,
       });
     });
 
@@ -623,6 +631,8 @@ describe("McpProcessor", () => {
       expect(CopilotMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
+        modularMcp: false,
       });
     });
 
@@ -655,6 +665,8 @@ describe("McpProcessor", () => {
       expect(CursorMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
+        modularMcp: false,
       });
     });
 
@@ -688,6 +700,7 @@ describe("McpProcessor", () => {
         baseDir: testDir,
         rulesyncMcp,
         global: false,
+        modularMcp: false,
       });
     });
 
@@ -722,6 +735,7 @@ describe("McpProcessor", () => {
         baseDir: testDir,
         rulesyncMcp,
         global: true,
+        modularMcp: false,
       });
     });
 
@@ -754,6 +768,7 @@ describe("McpProcessor", () => {
         baseDir: testDir,
         rulesyncMcp,
         global: true,
+        modularMcp: false,
       });
     });
 
@@ -786,6 +801,8 @@ describe("McpProcessor", () => {
       expect(RooMcp.fromRulesyncMcp).toHaveBeenCalledWith({
         baseDir: testDir,
         rulesyncMcp,
+        global: false,
+        modularMcp: false,
       });
     });
 
@@ -842,13 +859,13 @@ describe("McpProcessor", () => {
     it("should return supported tool targets", () => {
       const targets = McpProcessor.getToolTargets();
 
-      expect(targets).toEqual(mcpProcessorToolTargets);
       expect(targets).toContain("amazonqcli");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("cline");
       expect(targets).toContain("copilot");
       expect(targets).toContain("cursor");
       expect(targets).toContain("roo");
+      expect(targets).not.toContain("codexcli"); // codexcli is global-only
     });
   });
 
@@ -869,23 +886,6 @@ describe("McpProcessor", () => {
       expect(() => McpProcessorToolTargetSchema.parse(123)).toThrow();
       expect(() => McpProcessorToolTargetSchema.parse(null)).toThrow();
       expect(() => McpProcessorToolTargetSchema.parse(undefined)).toThrow();
-    });
-  });
-
-  describe("mcpProcessorToolTargets constant", () => {
-    it("should contain all expected tool targets", () => {
-      expect(mcpProcessorToolTargets).toHaveLength(9);
-      expect(mcpProcessorToolTargets).toEqual([
-        "amazonqcli",
-        "claudecode",
-        "cline",
-        "junie",
-        "copilot",
-        "cursor",
-        "geminicli",
-        "opencode",
-        "roo",
-      ]);
     });
   });
 
