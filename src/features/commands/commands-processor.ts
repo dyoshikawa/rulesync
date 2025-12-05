@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { ToolTarget } from "../../types/tool-targets.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -16,41 +16,174 @@ import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import { ToolCommand } from "./tool-command.js";
+import {
+  ToolCommand,
+  ToolCommandFromFileParams,
+  ToolCommandFromRulesyncCommandParams,
+  ToolCommandSettablePaths,
+} from "./tool-command.js";
 
-const commandsProcessorToolTargets: ToolTarget[] = [
+/**
+ * Factory entry for each tool command class.
+ * Stores the class reference and metadata for a tool.
+ */
+type ToolCommandFactory = {
+  class: {
+    isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean;
+    fromRulesyncCommand(params: ToolCommandFromRulesyncCommandParams): ToolCommand;
+    fromFile(params: ToolCommandFromFileParams): Promise<ToolCommand>;
+    getSettablePaths(options?: { global?: boolean }): ToolCommandSettablePaths;
+  };
+  meta: {
+    /** File extension for the command file */
+    extension: "md" | "toml" | "prompt.md";
+    /** Whether the tool supports project-level commands */
+    supportsProject: boolean;
+    /** Whether the tool supports global (user-level) commands */
+    supportsGlobal: boolean;
+    /** Whether the command is simulated (embedded in rules) */
+    isSimulated: boolean;
+  };
+};
+
+/**
+ * Supported tool targets for CommandsProcessor.
+ * Using a tuple to preserve order for consistent iteration.
+ */
+const commandsProcessorToolTargetTuple = [
   "agentsmd",
   "antigravity",
   "claudecode",
-  "geminicli",
-  "roo",
+  "codexcli",
   "copilot",
   "cursor",
-];
-export const CommandsProcessorToolTargetSchema = z.enum(
-  // codexcli is not in the list of tool targets but we add it here because it is a valid tool target for global mode generation
-  commandsProcessorToolTargets.concat("codexcli"),
-);
-
-const commandsProcessorToolTargetsSimulated: ToolTarget[] = ["agentsmd"];
-export const commandsProcessorToolTargetsGlobal: ToolTarget[] = [
-  "claudecode",
-  "cursor",
   "geminicli",
-  "codexcli",
-];
+  "roo",
+] as const;
 
-export type CommandsProcessorToolTarget = z.infer<typeof CommandsProcessorToolTargetSchema>;
+export type CommandsProcessorToolTarget = (typeof commandsProcessorToolTargetTuple)[number];
+
+// Schema for runtime validation
+export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTargetTuple);
+
+/**
+ * Factory Map mapping tool targets to their command factories.
+ * Using Map to preserve insertion order for consistent iteration.
+ */
+const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFactory>([
+  [
+    "agentsmd",
+    {
+      class: AgentsmdCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: true },
+    },
+  ],
+  [
+    "antigravity",
+    {
+      class: AntigravityCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
+    },
+  ],
+  [
+    "claudecode",
+    {
+      class: ClaudecodeCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "codexcli",
+    {
+      class: CodexcliCommand,
+      meta: { extension: "md", supportsProject: false, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "copilot",
+    {
+      class: CopilotCommand,
+      meta: {
+        extension: "prompt.md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+      },
+    },
+  ],
+  [
+    "cursor",
+    {
+      class: CursorCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "geminicli",
+    {
+      class: GeminiCliCommand,
+      meta: { extension: "toml", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "roo",
+    {
+      class: RooCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
+    },
+  ],
+]);
+
+/**
+ * Factory retrieval function type for dependency injection.
+ * Allows injecting custom factory implementations for testing purposes.
+ */
+type GetFactory = (target: CommandsProcessorToolTarget) => ToolCommandFactory;
+
+const defaultGetFactory: GetFactory = (target) => {
+  const factory = toolCommandFactories.get(target);
+  if (!factory) {
+    throw new Error(`Unsupported tool target: ${target}`);
+  }
+  return factory;
+};
+
+// Derive tool target arrays from factory metadata
+const allToolTargetKeys = [...toolCommandFactories.keys()];
+
+const commandsProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolCommandFactories.get(target);
+  return factory?.meta.supportsProject ?? false;
+});
+
+const commandsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolCommandFactories.get(target);
+  return factory?.meta.isSimulated ?? false;
+});
+
+export const commandsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
+  (target) => {
+    const factory = toolCommandFactories.get(target);
+    return factory?.meta.supportsGlobal ?? false;
+  },
+);
 
 export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
   private readonly global: boolean;
+  private readonly getFactory: GetFactory;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
-  }: { baseDir?: string; toolTarget: CommandsProcessorToolTarget; global?: boolean }) {
+    getFactory = defaultGetFactory,
+  }: {
+    baseDir?: string;
+    toolTarget: ToolTarget;
+    global?: boolean;
+    getFactory?: GetFactory;
+  }) {
     super({ baseDir });
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
@@ -60,6 +193,7 @@ export class CommandsProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.getFactory = getFactory;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -67,94 +201,20 @@ export class CommandsProcessor extends FeatureProcessor {
       (file): file is RulesyncCommand => file instanceof RulesyncCommand,
     );
 
+    const factory = this.getFactory(this.toolTarget);
+
     const toolCommands = rulesyncCommands
       .map((rulesyncCommand) => {
-        switch (this.toolTarget) {
-          case "agentsmd":
-            if (!AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return AgentsmdCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-            });
-          case "antigravity":
-            if (!AntigravityCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return AntigravityCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-            });
-          case "claudecode":
-            if (!ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return ClaudecodeCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-              global: this.global,
-            });
-          case "geminicli":
-            if (!GeminiCliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return GeminiCliCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-              global: this.global,
-            });
-          case "roo":
-            if (!RooCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return RooCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-            });
-          case "copilot":
-            if (!CopilotCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return CopilotCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-            });
-          case "cursor":
-            if (!CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return CursorCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-              global: this.global,
-            });
-          case "codexcli":
-            if (!CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand)) {
-              return null;
-            }
-            return CodexcliCommand.fromRulesyncCommand({
-              baseDir: this.baseDir,
-              rulesyncCommand: rulesyncCommand,
-              global: this.global,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        if (!factory.class.isTargetedByRulesyncCommand(rulesyncCommand)) {
+          return null;
         }
+        return factory.class.fromRulesyncCommand({
+          baseDir: this.baseDir,
+          rulesyncCommand,
+          global: this.global,
+        });
       })
-      .filter(
-        (
-          command,
-        ): command is
-          | AgentsmdCommand
-          | AntigravityCommand
-          | ClaudecodeCommand
-          | GeminiCliCommand
-          | RooCommand
-          | CopilotCommand
-          | CursorCommand
-          | CodexcliCommand => command !== null,
-      );
+      .filter((command): command is ToolCommand => command !== null);
 
     return toolCommands;
   }
@@ -195,200 +255,31 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load tool-specific command configurations and parse them into ToolCommand instances
    */
   async loadToolFiles({
-    forDeletion: _forDeletion = false,
+    forDeletion = false,
   }: {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
-    switch (this.toolTarget) {
-      case "agentsmd":
-        return await this.loadAgentsmdCommands();
-      case "antigravity":
-        return await this.loadAntigravityCommands();
-      case "claudecode":
-        return await this.loadClaudecodeCommands();
-      case "geminicli":
-        return await this.loadGeminicliCommands();
-      case "roo":
-        return await this.loadRooCommands();
-      case "copilot":
-        return await this.loadCopilotCommands();
-      case "cursor":
-        return await this.loadCursorCommands();
-      case "codexcli":
-        return await this.loadCodexcliCommands();
-      default:
-        throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-    }
-  }
+    const factory = this.getFactory(this.toolTarget);
+    const paths = factory.class.getSettablePaths({ global: this.global });
 
-  private async loadToolCommandDefault({
-    toolTarget,
-    relativeDirPath,
-    extension,
-  }: {
-    toolTarget:
-      | "agentsmd"
-      | "antigravity"
-      | "claudecode"
-      | "geminicli"
-      | "roo"
-      | "copilot"
-      | "cursor"
-      | "codexcli";
-    relativeDirPath: string;
-    extension: "md" | "toml" | "prompt.md";
-  }): Promise<ToolCommand[]> {
     const commandFilePaths = await findFilesByGlobs(
-      join(this.baseDir, relativeDirPath, `*.${extension}`),
+      join(this.baseDir, paths.relativeDirPath, `*.${factory.meta.extension}`),
     );
 
     const toolCommands = await Promise.all(
-      commandFilePaths.map((path) => {
-        switch (toolTarget) {
-          case "agentsmd":
-            return AgentsmdCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-            });
-          case "antigravity":
-            return AntigravityCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-            });
-          case "claudecode":
-            return ClaudecodeCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-              global: this.global,
-            });
-          case "geminicli":
-            return GeminiCliCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-              global: this.global,
-            });
-          case "roo":
-            return RooCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-            });
-          case "copilot":
-            return CopilotCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-            });
-          case "cursor":
-            return CursorCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-              global: this.global,
-            });
-          case "codexcli":
-            return CodexcliCommand.fromFile({
-              baseDir: this.baseDir,
-              relativeFilePath: basename(path),
-              global: this.global,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${toolTarget}`);
-        }
-      }),
+      commandFilePaths.map((path) =>
+        factory.class.fromFile({
+          baseDir: this.baseDir,
+          relativeFilePath: basename(path),
+          global: this.global,
+        }),
+      ),
     );
 
-    logger.info(`Successfully loaded ${toolCommands.length} ${relativeDirPath} commands`);
-    return toolCommands;
-  }
+    const result = forDeletion ? toolCommands.filter((cmd) => cmd.isDeletable()) : toolCommands;
 
-  /**
-   * Load Agents.md command configurations from .agents/commands/ directory
-   */
-  private async loadAgentsmdCommands(): Promise<ToolCommand[]> {
-    return await this.loadToolCommandDefault({
-      toolTarget: "agentsmd",
-      relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath,
-      extension: "md",
-    });
-  }
-
-  /**
-   * Load Antigravity workflow configurations from .agent/workflows/ directory
-   */
-  private async loadAntigravityCommands(): Promise<ToolCommand[]> {
-    return await this.loadToolCommandDefault({
-      toolTarget: "antigravity",
-      relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
-      extension: "md",
-    });
-  }
-
-  /**
-   * Load Copilot command configurations from .github/prompts/ directory
-   */
-  private async loadCopilotCommands(): Promise<ToolCommand[]> {
-    return await this.loadToolCommandDefault({
-      toolTarget: "copilot",
-      relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath,
-      extension: "prompt.md",
-    });
-  }
-
-  /**
-   * Load Claude Code command configurations from .claude/commands/ directory
-   */
-  private async loadClaudecodeCommands(): Promise<ToolCommand[]> {
-    const paths = ClaudecodeCommand.getSettablePaths({ global: this.global });
-    return await this.loadToolCommandDefault({
-      toolTarget: "claudecode",
-      relativeDirPath: paths.relativeDirPath,
-      extension: "md",
-    });
-  }
-
-  /**
-   * Load Cursor command configurations from .cursor/commands/ directory
-   */
-  private async loadCursorCommands(): Promise<ToolCommand[]> {
-    const paths = CursorCommand.getSettablePaths({ global: this.global });
-    return await this.loadToolCommandDefault({
-      toolTarget: "cursor",
-      relativeDirPath: paths.relativeDirPath,
-      extension: "md",
-    });
-  }
-
-  /**
-   * Load Gemini CLI command configurations from .gemini/commands/ directory
-   */
-  private async loadGeminicliCommands(): Promise<ToolCommand[]> {
-    const paths = GeminiCliCommand.getSettablePaths({ global: this.global });
-    return await this.loadToolCommandDefault({
-      toolTarget: "geminicli",
-      relativeDirPath: paths.relativeDirPath,
-      extension: "toml",
-    });
-  }
-
-  /**
-   * Load Codex CLI command configurations from .codex/prompts/ directory
-   */
-  private async loadCodexcliCommands(): Promise<ToolCommand[]> {
-    const paths = CodexcliCommand.getSettablePaths({ global: this.global });
-    return await this.loadToolCommandDefault({
-      toolTarget: "codexcli",
-      relativeDirPath: paths.relativeDirPath,
-      extension: "md",
-    });
-  }
-
-  /**
-   * Load Roo Code command configurations from .roo/commands/ directory
-   */
-  private async loadRooCommands(): Promise<ToolCommand[]> {
-    return await this.loadToolCommandDefault({
-      toolTarget: "roo",
-      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
-      extension: "md",
-    });
+    logger.info(`Successfully loaded ${result.length} ${paths.relativeDirPath} commands`);
+    return result;
   }
 
   /**
@@ -403,17 +294,17 @@ export class CommandsProcessor extends FeatureProcessor {
     includeSimulated?: boolean;
   } = {}): ToolTarget[] {
     if (global) {
-      return commandsProcessorToolTargetsGlobal;
+      return [...commandsProcessorToolTargetsGlobal];
     }
     if (!includeSimulated) {
       return commandsProcessorToolTargets.filter(
         (target) => !commandsProcessorToolTargetsSimulated.includes(target),
       );
     }
-    return commandsProcessorToolTargets;
+    return [...commandsProcessorToolTargets];
   }
 
   static getToolTargetsSimulated(): ToolTarget[] {
-    return commandsProcessorToolTargetsSimulated;
+    return [...commandsProcessorToolTargetsSimulated];
   }
 }

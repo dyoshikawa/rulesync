@@ -49,7 +49,13 @@ import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { ToolRule, ToolRuleFromFileParams } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
+} from "./tool-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { WindsurfRule } from "./windsurf-rule.js";
 
@@ -82,12 +88,71 @@ export const rulesProcessorToolTargetsGlobal: ToolTarget[] = [
   "geminicli",
 ];
 
+/**
+ * Factory entry for each tool rule class.
+ * Stores the class reference and metadata for a tool.
+ */
+type ToolRuleFactory = {
+  class: {
+    isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean;
+    fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): ToolRule;
+    fromFile(params: ToolRuleFromFileParams): Promise<ToolRule>;
+    getSettablePaths(options?: {
+      global?: boolean;
+    }): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal;
+  };
+  meta: {
+    /** File extension for the rule file */
+    extension: "md" | "mdc";
+  };
+};
+
+/**
+ * Factory Map mapping tool targets to their rule factories.
+ * Using Map to preserve insertion order for consistent iteration.
+ */
+const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
+  ["agentsmd", { class: AgentsMdRule, meta: { extension: "md" } }],
+  ["amazonqcli", { class: AmazonQCliRule, meta: { extension: "md" } }],
+  ["antigravity", { class: AntigravityRule, meta: { extension: "md" } }],
+  ["augmentcode", { class: AugmentcodeRule, meta: { extension: "md" } }],
+  ["augmentcode-legacy", { class: AugmentcodeLegacyRule, meta: { extension: "md" } }],
+  ["claudecode", { class: ClaudecodeRule, meta: { extension: "md" } }],
+  ["cline", { class: ClineRule, meta: { extension: "md" } }],
+  ["codexcli", { class: CodexcliRule, meta: { extension: "md" } }],
+  ["copilot", { class: CopilotRule, meta: { extension: "md" } }],
+  ["cursor", { class: CursorRule, meta: { extension: "mdc" } }],
+  ["geminicli", { class: GeminiCliRule, meta: { extension: "md" } }],
+  ["junie", { class: JunieRule, meta: { extension: "md" } }],
+  ["kiro", { class: KiroRule, meta: { extension: "md" } }],
+  ["opencode", { class: OpenCodeRule, meta: { extension: "md" } }],
+  ["qwencode", { class: QwencodeRule, meta: { extension: "md" } }],
+  ["roo", { class: RooRule, meta: { extension: "md" } }],
+  ["warp", { class: WarpRule, meta: { extension: "md" } }],
+  ["windsurf", { class: WindsurfRule, meta: { extension: "md" } }],
+]);
+
+/**
+ * Factory retrieval function type for dependency injection.
+ * Allows injecting custom factory implementations for testing purposes.
+ */
+type GetFactory = (target: RulesProcessorToolTarget) => ToolRuleFactory;
+
+const defaultGetFactory: GetFactory = (target) => {
+  const factory = toolRuleFactories.get(target);
+  if (!factory) {
+    throw new Error(`Unsupported tool target: ${target}`);
+  }
+  return factory;
+};
+
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly global: boolean;
+  private readonly getFactory: GetFactory;
 
   constructor({
     baseDir = process.cwd(),
@@ -96,13 +161,15 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSubagents = false,
     simulateSkills = false,
     global = false,
+    getFactory = defaultGetFactory,
   }: {
     baseDir?: string;
-    toolTarget: RulesProcessorToolTarget;
+    toolTarget: ToolTarget;
     global?: boolean;
     simulateCommands?: boolean;
     simulateSubagents?: boolean;
     simulateSkills?: boolean;
+    getFactory?: GetFactory;
   }) {
     super({ baseDir });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
@@ -116,6 +183,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;
     this.simulateSkills = simulateSkills;
+    this.getFactory = getFactory;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -123,177 +191,19 @@ export class RulesProcessor extends FeatureProcessor {
       (file): file is RulesyncRule => file instanceof RulesyncRule,
     );
 
+    const factory = this.getFactory(this.toolTarget);
+
     const toolRules = rulesyncRules
       .map((rulesyncRule) => {
-        switch (this.toolTarget) {
-          case "agentsmd":
-            if (!AgentsMdRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return AgentsMdRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "amazonqcli":
-            if (!AmazonQCliRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return AmazonQCliRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "antigravity":
-            if (!AntigravityRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return AntigravityRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "augmentcode":
-            if (!AugmentcodeRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return AugmentcodeRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "augmentcode-legacy":
-            if (!AugmentcodeLegacyRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return AugmentcodeLegacyRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "claudecode":
-            if (!ClaudecodeRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return ClaudecodeRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-              global: this.global,
-            });
-          case "cline":
-            if (!ClineRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return ClineRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "codexcli":
-            if (!CodexcliRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return CodexcliRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-              global: this.global,
-            });
-          case "copilot":
-            if (!CopilotRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return CopilotRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "cursor":
-            if (!CursorRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return CursorRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "geminicli":
-            if (!GeminiCliRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return GeminiCliRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-              global: this.global,
-            });
-          case "junie":
-            if (!JunieRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return JunieRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "kiro":
-            if (!KiroRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return KiroRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "opencode":
-            if (!OpenCodeRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return OpenCodeRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "qwencode":
-            if (!QwencodeRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return QwencodeRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "roo":
-            if (!RooRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return RooRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "warp":
-            if (!WarpRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return WarpRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          case "windsurf":
-            if (!WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)) {
-              return null;
-            }
-            return WindsurfRule.fromRulesyncRule({
-              baseDir: this.baseDir,
-              rulesyncRule: rulesyncRule,
-              validate: true,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        if (!factory.class.isTargetedByRulesyncRule(rulesyncRule)) {
+          return null;
         }
+        return factory.class.fromRulesyncRule({
+          baseDir: this.baseDir,
+          rulesyncRule,
+          validate: true,
+          global: this.global,
+        });
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
@@ -512,404 +422,58 @@ export class RulesProcessor extends FeatureProcessor {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
     try {
-      switch (this.toolTarget) {
-        case "agentsmd":
-          return await this.loadAgentsmdRules();
-        case "amazonqcli":
-          return await this.loadAmazonqcliRules();
-        case "augmentcode":
-          return await this.loadAugmentcodeRules();
-        case "augmentcode-legacy":
-          return await this.loadAugmentcodeLegacyRules();
-        case "claudecode":
-          return await this.loadClaudecodeRules();
-        case "cline":
-          return await this.loadClineRules();
-        case "codexcli":
-          return await this.loadCodexcliRules();
-        case "copilot":
-          return await this.loadCopilotRules();
-        case "cursor":
-          return await this.loadCursorRules();
-        case "geminicli":
-          return await this.loadGeminicliRules();
-        case "junie":
-          return await this.loadJunieRules();
-        case "kiro":
-          return await this.loadKiroRules();
-        case "opencode":
-          return await this.loadOpencodeRules();
-        case "qwencode":
-          return await this.loadQwencodeRules();
-        case "roo":
-          return await this.loadRooRules();
-        case "warp":
-          return await this.loadWarpRules();
-        case "windsurf":
-          return await this.loadWindsurfRules();
-        default:
-          throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      }
+      const factory = this.getFactory(this.toolTarget);
+      const settablePaths = factory.class.getSettablePaths({ global: this.global });
+
+      const rootToolRules = await (async () => {
+        if (!settablePaths.root) {
+          return [];
+        }
+
+        const rootFilePaths = await findFilesByGlobs(
+          join(
+            this.baseDir,
+            settablePaths.root.relativeDirPath ?? ".",
+            settablePaths.root.relativeFilePath,
+          ),
+        );
+        return await Promise.all(
+          rootFilePaths.map((filePath) =>
+            factory.class.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            }),
+          ),
+        );
+      })();
+      logger.debug(`Found ${rootToolRules.length} root tool rule files`);
+
+      const nonRootToolRules = await (async () => {
+        if (!settablePaths.nonRoot) {
+          return [];
+        }
+
+        const nonRootFilePaths = await findFilesByGlobs(
+          join(this.baseDir, settablePaths.nonRoot.relativeDirPath, `*.${factory.meta.extension}`),
+        );
+        return await Promise.all(
+          nonRootFilePaths.map((filePath) =>
+            factory.class.fromFile({
+              baseDir: this.baseDir,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            }),
+          ),
+        );
+      })();
+      logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
+
+      return [...rootToolRules, ...nonRootToolRules];
     } catch (error) {
       logger.error(`Failed to load tool files: ${formatError(error)}`);
       return [];
     }
-  }
-
-  private async loadToolRulesDefault({
-    root,
-    nonRoot,
-  }: {
-    root?: {
-      relativeDirPath: string;
-      relativeFilePath: string;
-      fromFile: (params: ToolRuleFromFileParams) => Promise<ToolRule>;
-    };
-    nonRoot?: {
-      relativeDirPath: string;
-      fromFile: (params: ToolRuleFromFileParams) => Promise<ToolRule>;
-      extension: "md" | "mdc";
-    };
-  }) {
-    const rootToolRules = await (async () => {
-      if (!root) {
-        return [];
-      }
-
-      const rootFilePaths = await findFilesByGlobs(
-        join(this.baseDir, root.relativeDirPath ?? ".", root.relativeFilePath),
-      );
-      return await Promise.all(
-        rootFilePaths.map((filePath) =>
-          root.fromFile({
-            baseDir: this.baseDir,
-            relativeFilePath: basename(filePath),
-            global: this.global,
-          }),
-        ),
-      );
-    })();
-    logger.debug(`Found ${rootToolRules.length} root tool rule files`);
-
-    const nonRootToolRules = await (async () => {
-      if (!nonRoot) {
-        return [];
-      }
-
-      const nonRootFilePaths = await findFilesByGlobs(
-        join(this.baseDir, nonRoot.relativeDirPath, `*.${nonRoot.extension}`),
-      );
-      return await Promise.all(
-        nonRootFilePaths.map((filePath) =>
-          nonRoot.fromFile({
-            baseDir: this.baseDir,
-            relativeFilePath: basename(filePath),
-            global: this.global,
-          }),
-        ),
-      );
-    })();
-    logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
-
-    return [...rootToolRules, ...nonRootToolRules];
-  }
-
-  /**
-   * Load AGENTS.md rule configuration
-   */
-  private async loadAgentsmdRules(): Promise<ToolRule[]> {
-    const settablePaths = AgentsMdRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => AgentsMdRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => AgentsMdRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  private async loadWarpRules(): Promise<ToolRule[]> {
-    const settablePaths = WarpRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => WarpRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => WarpRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Amazon Q Developer CLI rule configurations from .amazonq/rules/ directory
-   */
-  private async loadAmazonqcliRules(): Promise<ToolRule[]> {
-    const settablePaths = AmazonQCliRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => AmazonQCliRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load AugmentCode rule configurations from .augment/rules/ directory
-   */
-  private async loadAugmentcodeRules(): Promise<ToolRule[]> {
-    const settablePaths = AugmentcodeRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => AugmentcodeRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load AugmentCode legacy rule configuration from .augment-guidelines file and .augment/rules/ directory
-   */
-  private async loadAugmentcodeLegacyRules(): Promise<ToolRule[]> {
-    const settablePaths = AugmentcodeLegacyRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => AugmentcodeLegacyRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Claude Code rule configuration from CLAUDE.md file
-   */
-  private async loadClaudecodeRules(): Promise<ToolRule[]> {
-    const settablePaths = ClaudecodeRule.getSettablePaths({ global: this.global });
-    return this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => ClaudecodeRule.fromFile(params),
-      },
-      ...(settablePaths.nonRoot
-        ? {
-            nonRoot: {
-              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-              fromFile: (params) => ClaudecodeRule.fromFile(params),
-              extension: "md",
-            },
-          }
-        : {}),
-    });
-  }
-
-  /**
-   * Load Cline rule configurations from .clinerules/ directory
-   */
-  private async loadClineRules(): Promise<ToolRule[]> {
-    const settablePaths = ClineRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => ClineRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load OpenAI Codex CLI rule configuration from AGENTS.md and .codex/memories/*.md files
-   */
-  private async loadCodexcliRules(): Promise<ToolRule[]> {
-    const settablePaths = CodexcliRule.getSettablePaths({ global: this.global });
-
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => CodexcliRule.fromFile(params),
-      },
-      ...(settablePaths.nonRoot
-        ? {
-            nonRoot: {
-              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-              fromFile: (params) => CodexcliRule.fromFile(params),
-              extension: "md",
-            },
-          }
-        : {}),
-    });
-  }
-
-  /**
-   * Load GitHub Copilot rule configuration from .github/copilot-instructions.md file
-   */
-  private async loadCopilotRules(): Promise<ToolRule[]> {
-    const settablePaths = CopilotRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => CopilotRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => CopilotRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Cursor rule configurations from .cursor/rules/ directory
-   */
-  private async loadCursorRules(): Promise<ToolRule[]> {
-    const settablePaths = CursorRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => CursorRule.fromFile(params),
-        extension: "mdc",
-      },
-    });
-  }
-
-  /**
-   * Load Gemini CLI rule configuration from GEMINI.md file
-   */
-  private async loadGeminicliRules(): Promise<ToolRule[]> {
-    const settablePaths = GeminiCliRule.getSettablePaths({ global: this.global });
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => GeminiCliRule.fromFile(params),
-      },
-      ...(settablePaths.nonRoot
-        ? {
-            nonRoot: {
-              relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-              fromFile: (params) => GeminiCliRule.fromFile(params),
-              extension: "md",
-            },
-          }
-        : {}),
-    });
-  }
-
-  /**
-   * Load JetBrains Junie rule configuration from .junie/guidelines.md file
-   */
-  private async loadJunieRules(): Promise<ToolRule[]> {
-    const settablePaths = JunieRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => JunieRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => JunieRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Kiro rule configurations from .kiro/steering/ directory
-   */
-  private async loadKiroRules(): Promise<ToolRule[]> {
-    const settablePaths = KiroRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => KiroRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load OpenCode rule configuration from AGENTS.md file and .opencode/memories/*.md files
-   */
-  private async loadOpencodeRules(): Promise<ToolRule[]> {
-    const settablePaths = OpenCodeRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => OpenCodeRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => OpenCodeRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Qwen Code rule configuration from QWEN.md file and .qwen/memories/*.md files
-   */
-  private async loadQwencodeRules(): Promise<ToolRule[]> {
-    const settablePaths = QwencodeRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      root: {
-        relativeDirPath: settablePaths.root.relativeDirPath,
-        relativeFilePath: settablePaths.root.relativeFilePath,
-        fromFile: (params) => QwencodeRule.fromFile(params),
-      },
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => QwencodeRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Roo Code rule configurations from .roo/rules/ directory
-   */
-  private async loadRooRules(): Promise<ToolRule[]> {
-    const settablePaths = RooRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => RooRule.fromFile(params),
-        extension: "md",
-      },
-    });
-  }
-
-  /**
-   * Load Windsurf rule configurations from .windsurf/rules/ directory
-   */
-  private async loadWindsurfRules(): Promise<ToolRule[]> {
-    const settablePaths = WindsurfRule.getSettablePaths();
-    return await this.loadToolRulesDefault({
-      nonRoot: {
-        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
-        fromFile: (params) => WindsurfRule.fromFile(params),
-        extension: "md",
-      },
-    });
   }
 
   /**

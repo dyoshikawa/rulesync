@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { ToolTarget } from "../../types/tool-targets.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -16,40 +16,126 @@ import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
-import { ToolSubagent } from "./tool-subagent.js";
+import {
+  ToolSubagent,
+  ToolSubagentFromFileParams,
+  ToolSubagentFromRulesyncSubagentParams,
+  ToolSubagentSettablePaths,
+} from "./tool-subagent.js";
 
-export const subagentsProcessorToolTargets: ToolTarget[] = [
+/**
+ * Factory entry for each tool subagent class.
+ * Stores the class reference and metadata for a tool.
+ */
+type ToolSubagentFactory = {
+  class: {
+    isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean;
+    fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): ToolSubagent;
+    fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
+    getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
+  };
+  meta: {
+    /** Whether the tool supports simulated subagents (embedded in rules) */
+    supportsSimulated: boolean;
+    /** Whether the tool supports global (user-level) subagents */
+    supportsGlobal: boolean;
+  };
+};
+
+/**
+ * Supported tool targets for SubagentsProcessor.
+ * Using a tuple to preserve order for consistent iteration.
+ */
+const subagentsProcessorToolTargetTuple = [
   "agentsmd",
   "claudecode",
+  "codexcli",
   "copilot",
   "cursor",
-  "codexcli",
   "geminicli",
   "roo",
-];
+] as const;
 
-export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = [
-  "agentsmd",
-  "copilot",
-  "cursor",
-  "codexcli",
-  "geminicli",
-  "roo",
-];
-export const subagentsProcessorToolTargetsGlobal: ToolTarget[] = ["claudecode"];
-export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargets);
+export type SubagentsProcessorToolTarget = (typeof subagentsProcessorToolTargetTuple)[number];
 
-export type SubagentsProcessorToolTarget = z.infer<typeof SubagentsProcessorToolTargetSchema>;
+// Schema for runtime validation
+export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolTargetTuple);
+
+/**
+ * Factory Map mapping tool targets to their subagent factories.
+ * Using Map to preserve insertion order for consistent iteration.
+ */
+const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagentFactory>([
+  [
+    "agentsmd",
+    { class: AgentsmdSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+  ],
+  [
+    "claudecode",
+    { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+  ],
+  [
+    "codexcli",
+    { class: CodexCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+  ],
+  ["copilot", { class: CopilotSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  ["cursor", { class: CursorSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "geminicli",
+    { class: GeminiCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+  ],
+  ["roo", { class: RooSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+]);
+
+/**
+ * Factory retrieval function type for dependency injection.
+ * Allows injecting custom factory implementations for testing purposes.
+ */
+type GetFactory = (target: SubagentsProcessorToolTarget) => ToolSubagentFactory;
+
+const defaultGetFactory: GetFactory = (target) => {
+  const factory = toolSubagentFactories.get(target);
+  if (!factory) {
+    throw new Error(`Unsupported tool target: ${target}`);
+  }
+  return factory;
+};
+
+// Derive tool target arrays from factory metadata
+const allToolTargetKeys = [...toolSubagentFactories.keys()];
+
+export const subagentsProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+
+export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
+  (target) => {
+    const factory = toolSubagentFactories.get(target);
+    return factory?.meta.supportsSimulated ?? false;
+  },
+);
+
+export const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
+  (target) => {
+    const factory = toolSubagentFactories.get(target);
+    return factory?.meta.supportsGlobal ?? false;
+  },
+);
 
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
+  private readonly getFactory: GetFactory;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
-  }: { baseDir?: string; toolTarget: SubagentsProcessorToolTarget; global?: boolean }) {
+    getFactory = defaultGetFactory,
+  }: {
+    baseDir?: string;
+    toolTarget: ToolTarget;
+    global?: boolean;
+    getFactory?: GetFactory;
+  }) {
     super({ baseDir });
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
@@ -59,6 +145,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.getFactory = getFactory;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -66,76 +153,19 @@ export class SubagentsProcessor extends FeatureProcessor {
       (file): file is RulesyncSubagent => file instanceof RulesyncSubagent,
     );
 
+    const factory = this.getFactory(this.toolTarget);
+
     const toolSubagents = rulesyncSubagents
       .map((rulesyncSubagent) => {
-        switch (this.toolTarget) {
-          case "agentsmd":
-            if (!AgentsmdSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return AgentsmdSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-            });
-          case "claudecode":
-            if (!ClaudecodeSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return ClaudecodeSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-              global: this.global,
-            });
-          case "copilot":
-            if (!CopilotSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return CopilotSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-            });
-          case "cursor":
-            if (!CursorSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return CursorSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-            });
-          case "codexcli":
-            if (!CodexCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return CodexCliSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-            });
-          case "geminicli":
-            if (!GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return GeminiCliSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-            });
-          case "roo":
-            if (!RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-              return null;
-            }
-            return RooSubagent.fromRulesyncSubagent({
-              baseDir: this.baseDir,
-              relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-              rulesyncSubagent: rulesyncSubagent,
-            });
-          default:
-            throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+        if (!factory.class.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
+          return null;
         }
+        return factory.class.fromRulesyncSubagent({
+          baseDir: this.baseDir,
+          relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+          rulesyncSubagent: rulesyncSubagent,
+          global: this.global,
+        });
       })
       .filter((subagent): subagent is ToolSubagent => subagent !== null);
 
@@ -223,120 +253,33 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load tool-specific subagent configurations and parse them into ToolSubagent instances
    */
   async loadToolFiles({
-    forDeletion: _forDeletion = false,
+    forDeletion = false,
   }: {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
-    switch (this.toolTarget) {
-      case "agentsmd":
-        return await this.loadAgentsmdSubagents();
-      case "claudecode":
-        return await this.loadClaudecodeSubagents();
-      case "copilot":
-        return await this.loadCopilotSubagents();
-      case "cursor":
-        return await this.loadCursorSubagents();
-      case "codexcli":
-        return await this.loadCodexCliSubagents();
-      case "geminicli":
-        return await this.loadGeminiCliSubagents();
-      case "roo":
-        return await this.loadRooSubagents();
-      default:
-        throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-    }
-  }
+    const factory = this.getFactory(this.toolTarget);
+    const paths = factory.class.getSettablePaths({ global: this.global });
 
-  /**
-   * Load Agents.md subagent configurations from .agents/subagents/ directory
-   */
-  private async loadAgentsmdSubagents(): Promise<ToolSubagent[]> {
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: AgentsmdSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => AgentsmdSubagent.fromFile({ relativeFilePath }),
-    });
-  }
+    const subagentFilePaths = await findFilesByGlobs(
+      join(this.baseDir, paths.relativeDirPath, "*.md"),
+    );
 
-  /**
-   * Load Claude Code subagent configurations from .claude/agents/ directory
-   */
-  private async loadClaudecodeSubagents(): Promise<ToolSubagent[]> {
-    const paths = ClaudecodeSubagent.getSettablePaths({ global: this.global });
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: paths.relativeDirPath,
-      fromFile: (relativeFilePath) =>
-        ClaudecodeSubagent.fromFile({
+    const toolSubagents = await Promise.all(
+      subagentFilePaths.map((path) =>
+        factory.class.fromFile({
           baseDir: this.baseDir,
-          relativeFilePath,
+          relativeFilePath: basename(path),
           global: this.global,
         }),
-    });
-  }
+      ),
+    );
 
-  /**
-   * Load Copilot subagent configurations from .github/subagents/ directory
-   */
-  private async loadCopilotSubagents(): Promise<ToolSubagent[]> {
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => CopilotSubagent.fromFile({ relativeFilePath }),
-    });
-  }
+    const result = forDeletion
+      ? toolSubagents.filter((subagent) => subagent.isDeletable())
+      : toolSubagents;
 
-  /**
-   * Load Cursor subagent configurations from .cursor/subagents/ directory
-   */
-  private async loadCursorSubagents(): Promise<ToolSubagent[]> {
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => CursorSubagent.fromFile({ relativeFilePath }),
-    });
-  }
-
-  /**
-   * Load CodexCli subagent configurations from .codex/subagents/ directory
-   */
-  private async loadCodexCliSubagents(): Promise<ToolSubagent[]> {
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => CodexCliSubagent.fromFile({ relativeFilePath }),
-    });
-  }
-
-  /**
-   * Load GeminiCli subagent configurations from .gemini/subagents/ directory
-   */
-  private async loadGeminiCliSubagents(): Promise<ToolSubagent[]> {
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: GeminiCliSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => GeminiCliSubagent.fromFile({ relativeFilePath }),
-    });
-  }
-
-  /**
-   * Load Roo subagent configurations from .roo/subagents/ directory
-   */
-  private async loadRooSubagents(): Promise<ToolSubagent[]> {
-    return await this.loadToolSubagentsDefault({
-      relativeDirPath: RooSubagent.getSettablePaths().relativeDirPath,
-      fromFile: (relativeFilePath) => RooSubagent.fromFile({ relativeFilePath }),
-    });
-  }
-
-  private async loadToolSubagentsDefault({
-    relativeDirPath,
-    fromFile,
-  }: {
-    relativeDirPath: string;
-    fromFile: (relativeFilePath: string) => Promise<ToolSubagent>;
-  }): Promise<ToolSubagent[]> {
-    const paths = await findFilesByGlobs(join(this.baseDir, relativeDirPath, "*.md"));
-
-    const subagents = await Promise.all(paths.map((path) => fromFile(basename(path))));
-
-    logger.info(`Successfully loaded ${subagents.length} ${relativeDirPath} subagents`);
-
-    return subagents;
+    logger.info(`Successfully loaded ${result.length} ${paths.relativeDirPath} subagents`);
+    return result;
   }
 
   /**
@@ -351,17 +294,17 @@ export class SubagentsProcessor extends FeatureProcessor {
     includeSimulated?: boolean;
   } = {}): ToolTarget[] {
     if (global) {
-      return subagentsProcessorToolTargetsGlobal;
+      return [...subagentsProcessorToolTargetsGlobal];
     }
     if (!includeSimulated) {
       return subagentsProcessorToolTargets.filter(
         (target) => !subagentsProcessorToolTargetsSimulated.includes(target),
       );
     }
-    return subagentsProcessorToolTargets;
+    return [...subagentsProcessorToolTargets];
   }
 
   static getToolTargetsSimulated(): ToolTarget[] {
-    return subagentsProcessorToolTargetsSimulated;
+    return [...subagentsProcessorToolTargetsSimulated];
   }
 }
