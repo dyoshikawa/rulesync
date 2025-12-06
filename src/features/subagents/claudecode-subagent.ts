@@ -17,7 +17,10 @@ import {
 export const ClaudecodeSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  model: z.optional(z.enum(["opus", "sonnet", "haiku", "inherit"])),
+  model: z.optional(z.string()),
+  tools: z.optional(z.union([z.string(), z.array(z.string())])),
+  permissionMode: z.optional(z.string()),
+  skills: z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type ClaudecodeSubagentFrontmatter = z.infer<typeof ClaudecodeSubagentFrontmatterSchema>;

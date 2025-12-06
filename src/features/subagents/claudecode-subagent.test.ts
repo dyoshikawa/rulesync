@@ -25,24 +25,23 @@ describe("ClaudecodeSubagentFrontmatterSchema", () => {
     const frontmatterWithModel = {
       name: "test-agent",
       description: "A test agent",
-      model: "sonnet" as const,
+      model: "claude-3-5-sonnet-latest",
     };
 
     expect(() => ClaudecodeSubagentFrontmatterSchema.parse(frontmatterWithModel)).not.toThrow();
   });
 
-  it("should accept all valid model values", () => {
-    const models = ["opus", "sonnet", "haiku", "inherit"] as const;
+  it("should accept optional Claude Code specific fields", () => {
+    const frontmatter = {
+      name: "test-agent",
+      description: "A test agent",
+      model: "haiku",
+      tools: ["Read", "Write"],
+      permissionMode: "default",
+      skills: "skill-creator",
+    };
 
-    for (const model of models) {
-      const frontmatter = {
-        name: "test-agent",
-        description: "A test agent",
-        model,
-      };
-
-      expect(() => ClaudecodeSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
-    }
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
   });
 
   it("should reject frontmatter missing required fields", () => {
@@ -63,7 +62,17 @@ describe("ClaudecodeSubagentFrontmatterSchema", () => {
     const invalidFrontmatter = {
       name: "test-agent",
       description: "A test agent",
-      model: "invalid-model",
+      model: 123,
+    };
+
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+  });
+
+  it("should reject invalid tool definitions", () => {
+    const invalidFrontmatter = {
+      name: "test-agent",
+      description: "A test agent",
+      tools: 123,
     };
 
     expect(() => ClaudecodeSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
@@ -144,7 +153,7 @@ describe("ClaudecodeSubagent", () => {
       const invalidFrontmatter = {
         name: "test-agent",
         description: "A test agent",
-        model: "invalid-model",
+        model: 123,
       } as any;
 
       expect(() => {
@@ -165,7 +174,7 @@ describe("ClaudecodeSubagent", () => {
       const invalidFrontmatter = {
         name: "test-agent",
         description: "A test agent",
-        model: "invalid-model",
+        model: 123,
       } as any;
 
       expect(() => {
@@ -268,7 +277,7 @@ describe("ClaudecodeSubagent", () => {
       const invalidFrontmatter = {
         name: "test-agent",
         description: "A test agent",
-        model: "invalid-model",
+        model: 123,
       } as any;
 
       const subagent = new ClaudecodeSubagent({
@@ -601,6 +610,9 @@ describe("ClaudecodeSubagent", () => {
           model: "sonnet",
           "allowed-tools": ["Bash", "Read"],
           "max-tokens": 4096,
+          tools: ["Read", "Write"],
+          permissionMode: "default",
+          skills: ["skill-creator"],
         },
       };
 
@@ -622,6 +634,9 @@ describe("ClaudecodeSubagent", () => {
       expect(frontmatter.model).toBe("sonnet");
       expect(frontmatter["allowed-tools"]).toEqual(["Bash", "Read"]);
       expect(frontmatter["max-tokens"]).toBe(4096);
+      expect(frontmatter.tools).toEqual(["Read", "Write"]);
+      expect(frontmatter.permissionMode).toBe("default");
+      expect(frontmatter.skills).toEqual(["skill-creator"]);
     });
 
     it("toRulesyncSubagent should preserve extra fields in claudecode section", () => {
@@ -630,6 +645,9 @@ describe("ClaudecodeSubagent", () => {
         description: "Test agent",
         model: "opus",
         "allowed-tools": ["Grep"],
+        tools: ["Read", "Write"],
+        permissionMode: "default",
+        skills: ["skill-creator"],
         "custom-setting": true,
       };
 
@@ -648,6 +666,9 @@ describe("ClaudecodeSubagent", () => {
 
       expect(result.claudecode?.model).toBe("opus");
       expect(result.claudecode?.["allowed-tools"]).toEqual(["Grep"]);
+      expect(result.claudecode?.tools).toEqual(["Read", "Write"]);
+      expect(result.claudecode?.permissionMode).toBe("default");
+      expect(result.claudecode?.skills).toEqual(["skill-creator"]);
       expect(result.claudecode?.["custom-setting"]).toBe(true);
     });
 
@@ -793,7 +814,7 @@ describe("ClaudecodeSubagent", () => {
       const invalidFrontmatter = {
         name: "invalid-agent",
         description: "An agent with invalid frontmatter",
-        model: "invalid-model",
+        model: 123,
       };
 
       const body = "Agent content";
