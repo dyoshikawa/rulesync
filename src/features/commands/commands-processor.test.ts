@@ -8,6 +8,7 @@ import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
+import { OpencodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
@@ -36,6 +37,11 @@ vi.mock("./claudecode-command.js", () => ({
 }));
 vi.mock("./geminicli-command.js", () => ({
   GeminiCliCommand: vi.fn().mockImplementation(function (config) {
+    return { ...config, isDeletable: () => true };
+  }),
+}));
+vi.mock("./opencode-command.js", () => ({
+  OpencodeCommand: vi.fn().mockImplementation(function (config) {
     return { ...config, isDeletable: () => true };
   }),
 }));
@@ -79,6 +85,16 @@ vi.mocked(GeminiCliCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValu
 vi.mocked(GeminiCliCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: join(".gemini", "commands") });
+
+// Set up static methods after mocking
+vi.mocked(OpencodeCommand).fromFile = vi.fn();
+vi.mocked(OpencodeCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(OpencodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
+vi.mocked(OpencodeCommand).getSettablePaths = vi
+  .fn()
+  .mockImplementation((options: { global?: boolean } = {}) => ({
+    relativeDirPath: join(options.global ? ".config/opencode" : ".opencode", "command"),
+  }));
 
 // Set up static methods after mocking
 vi.mocked(RooCommand).fromFile = vi.fn();
@@ -767,7 +783,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should work for all supported tool targets", async () => {
-      const targets: CommandsProcessorToolTarget[] = ["claudecode", "geminicli", "roo"];
+      const targets: CommandsProcessorToolTarget[] = ["claudecode", "geminicli", "opencode", "roo"];
 
       for (const target of targets) {
         processor = new CommandsProcessor({
