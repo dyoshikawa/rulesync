@@ -8,6 +8,7 @@ import { ClaudecodeCommand } from "./claudecode-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
+import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
@@ -36,6 +37,11 @@ vi.mock("./claudecode-command.js", () => ({
 }));
 vi.mock("./geminicli-command.js", () => ({
   GeminiCliCommand: vi.fn().mockImplementation(function (config) {
+    return { ...config, isDeletable: () => true };
+  }),
+}));
+vi.mock("./opencode-command.js", () => ({
+  OpenCodeCommand: vi.fn().mockImplementation(function (config) {
     return { ...config, isDeletable: () => true };
   }),
 }));
@@ -79,6 +85,16 @@ vi.mocked(GeminiCliCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValu
 vi.mocked(GeminiCliCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: join(".gemini", "commands") });
+
+// Set up static methods after mocking
+vi.mocked(OpenCodeCommand).fromFile = vi.fn();
+vi.mocked(OpenCodeCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(OpenCodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
+vi.mocked(OpenCodeCommand).getSettablePaths = vi.fn().mockImplementation((options = {}) => ({
+  relativeDirPath: options.global
+    ? join(".config", "opencode", "command")
+    : join(".opencode", "command"),
+}));
 
 // Set up static methods after mocking
 vi.mocked(RooCommand).fromFile = vi.fn();
@@ -718,14 +734,23 @@ describe("CommandsProcessor", () => {
     it("should exclude simulated targets by default", () => {
       const targets = CommandsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
-        new Set(["antigravity", "claudecode", "geminicli", "roo", "copilot", "cursor"]),
+        new Set(["antigravity", "claudecode", "geminicli", "opencode", "roo", "copilot", "cursor"]),
       );
     });
 
     it("should include simulated targets when includeSimulated is true", () => {
       const targets = CommandsProcessor.getToolTargets({ includeSimulated: true });
       expect(new Set(targets)).toEqual(
-        new Set(["agentsmd", "antigravity", "claudecode", "geminicli", "roo", "copilot", "cursor"]),
+        new Set([
+          "agentsmd",
+          "antigravity",
+          "claudecode",
+          "geminicli",
+          "opencode",
+          "roo",
+          "copilot",
+          "cursor",
+        ]),
       );
     });
   });
@@ -733,7 +758,9 @@ describe("CommandsProcessor", () => {
   describe("getToolTargets with global: true", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
-      expect(new Set(targets)).toEqual(new Set(["claudecode", "cursor", "geminicli", "codexcli"]));
+      expect(new Set(targets)).toEqual(
+        new Set(["claudecode", "cursor", "geminicli", "codexcli", "opencode"]),
+      );
     });
   });
 
