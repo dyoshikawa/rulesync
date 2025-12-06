@@ -51,7 +51,9 @@ export class OpenCodeCommand extends ToolCommand {
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "opencode", "command") : join(".opencode", "command"),
+      relativeDirPath: global
+        ? join(".config", "opencode", "command")
+        : join(".opencode", "command"),
     };
   }
 

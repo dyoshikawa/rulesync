@@ -90,11 +90,11 @@ vi.mocked(GeminiCliCommand).getSettablePaths = vi
 vi.mocked(OpenCodeCommand).fromFile = vi.fn();
 vi.mocked(OpenCodeCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(OpenCodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
-vi.mocked(OpenCodeCommand).getSettablePaths = vi
-  .fn()
-  .mockImplementation((options = {}) => ({
-    relativeDirPath: options.global ? join(".config", "opencode", "command") : join(".opencode", "command"),
-  }));
+vi.mocked(OpenCodeCommand).getSettablePaths = vi.fn().mockImplementation((options = {}) => ({
+  relativeDirPath: options.global
+    ? join(".config", "opencode", "command")
+    : join(".opencode", "command"),
+}));
 
 // Set up static methods after mocking
 vi.mocked(RooCommand).fromFile = vi.fn();
@@ -741,7 +741,16 @@ describe("CommandsProcessor", () => {
     it("should include simulated targets when includeSimulated is true", () => {
       const targets = CommandsProcessor.getToolTargets({ includeSimulated: true });
       expect(new Set(targets)).toEqual(
-        new Set(["agentsmd", "antigravity", "claudecode", "geminicli", "opencode", "roo", "copilot", "cursor"]),
+        new Set([
+          "agentsmd",
+          "antigravity",
+          "claudecode",
+          "geminicli",
+          "opencode",
+          "roo",
+          "copilot",
+          "cursor",
+        ]),
       );
     });
   });
@@ -749,7 +758,9 @@ describe("CommandsProcessor", () => {
   describe("getToolTargets with global: true", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
-      expect(new Set(targets)).toEqual(new Set(["claudecode", "cursor", "geminicli", "codexcli", "opencode"]));
+      expect(new Set(targets)).toEqual(
+        new Set(["claudecode", "cursor", "geminicli", "codexcli", "opencode"]),
+      );
     });
   });
 
