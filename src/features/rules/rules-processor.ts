@@ -293,7 +293,8 @@ export class RulesProcessor extends FeatureProcessor {
                 relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
               },
               skills: {
-                relativeDirPath: CodexCliSkill.getSettablePaths().relativeDirPath,
+                relativeDirPath: CodexCliSkill.getSettablePaths({ global: this.global })
+                  .relativeDirPath,
               },
             }) +
             rootRule.getFileContent(),

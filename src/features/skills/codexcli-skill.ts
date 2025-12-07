@@ -100,7 +100,9 @@ export class CodexCliSkill extends ToolSkill {
     if (!result.success) {
       return {
         success: false,
-        error: new Error(`Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`),
+        error: new Error(
+          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
+        ),
       };
     }
 

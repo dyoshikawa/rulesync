@@ -126,8 +126,6 @@ const defaultGetFactory: GetFactory = (target) => {
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolSkillFactories.keys()];
 
-const skillsProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
-
 const skillsProcessorToolTargetsProject: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolSkillFactories.get(target);
   return factory?.meta.supportsProject ?? true;
@@ -277,7 +275,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
     }
     const projectTargets = skillsProcessorToolTargetsProject;
     if (!includeSimulated) {
-      return projectTargets.filter((target) => !skillsProcessorToolTargetsSimulated.includes(target));
+      return projectTargets.filter(
+        (target) => !skillsProcessorToolTargetsSimulated.includes(target),
+      );
     }
     return projectTargets;
   }

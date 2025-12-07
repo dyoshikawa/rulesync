@@ -619,9 +619,7 @@ Test skill content`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(new Set(targets)).toEqual(
-        new Set(["agentsmd", "copilot", "cursor", "geminicli"]),
-      );
+      expect(new Set(targets)).toEqual(new Set(["agentsmd", "copilot", "cursor", "geminicli"]));
     });
   });
 
