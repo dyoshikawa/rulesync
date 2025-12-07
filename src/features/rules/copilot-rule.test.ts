@@ -415,12 +415,7 @@ This is test rule content from file.`;
       const githubDir = join(testDir, ".github");
       await ensureDir(githubDir);
 
-      const rootContent = `---
-applyTo: "**/*"
-excludeAgent: "coding-agent"
----
-
-This is the root copilot instructions content.`;
+      const rootContent = "This is the root copilot instructions content.";
       const rootFilePath = join(githubDir, "copilot-instructions.md");
       await writeFileContent(rootFilePath, rootContent);
 
@@ -430,10 +425,7 @@ This is the root copilot instructions content.`;
         validate: true,
       });
 
-      expect(copilotRule.getFrontmatter()).toEqual({
-        applyTo: "**/*",
-        excludeAgent: "coding-agent",
-      });
+      expect(copilotRule.getFrontmatter()).toEqual({});
       expect(copilotRule.getBody()).toBe("This is the root copilot instructions content.");
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
@@ -620,18 +612,17 @@ description: "Test trimming"
   });
 
   describe("getFileContent", () => {
-    it("should include frontmatter for root rule", () => {
+    it("should omit frontmatter for root rule", () => {
       const body = "This is the root rule content.";
-      const frontmatter = {
-        description: "Root rule",
-        applyTo: "**",
-        excludeAgent: "code-review" as const,
-      };
       const copilotRule = new CopilotRule({
         baseDir: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
-        frontmatter,
+        frontmatter: {
+          description: "Root rule",
+          applyTo: "**",
+          excludeAgent: "code-review" as const,
+        },
         body,
         root: true,
       });
@@ -639,7 +630,7 @@ description: "Test trimming"
       const fileContent = copilotRule.getFileContent();
       const { frontmatter: parsedFrontmatter, body: parsedBody } = parseFrontmatter(fileContent);
 
-      expect(parsedFrontmatter).toEqual(frontmatter);
+      expect(parsedFrontmatter).toEqual({});
       expect(parsedBody.trim()).toBe(body);
     });
 
@@ -683,7 +674,7 @@ description: "Test trimming"
       const fileContent = copilotRule.getFileContent();
       const { frontmatter, body } = parseFrontmatter(fileContent);
 
-      expect(frontmatter).toEqual({ description: "", applyTo: "**" });
+      expect(frontmatter).toEqual({});
       expect(body.trim()).toBe("");
     });
 

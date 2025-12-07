@@ -64,11 +64,10 @@ export class CopilotRule extends ToolRule {
       }
     }
 
-    const fileContent = stringifyFrontmatter(body, frontmatter);
-
     super({
       ...rest,
-      fileContent,
+      // If the rule is a root rule, the file content does not contain frontmatter.
+      fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -170,6 +169,19 @@ export class CopilotRule extends ToolRule {
       : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
+    if (isRoot) {
+      // Root file: no frontmatter expected
+      return new CopilotRule({
+        baseDir: baseDir,
+        relativeDirPath: this.getSettablePaths().root.relativeDirPath,
+        relativeFilePath: this.getSettablePaths().root.relativeFilePath,
+        frontmatter: {},
+        body: fileContent.trim(),
+        validate,
+        root: isRoot,
+      });
+    }
+
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CopilotRuleFrontmatterSchema
@@ -182,14 +194,10 @@ export class CopilotRule extends ToolRule {
 
     return new CopilotRule({
       baseDir: baseDir,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot
-        ? this.getSettablePaths().root.relativeFilePath
-        : relativeFilePath.endsWith(".instructions.md")
-          ? relativeFilePath
-          : relativeFilePath.replace(/\.md$/, ".instructions.md"),
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeFilePath: relativeFilePath.endsWith(".instructions.md")
+        ? relativeFilePath
+        : relativeFilePath.replace(/\.md$/, ".instructions.md"),
       frontmatter: result.data,
       body: content.trim(),
       validate,
