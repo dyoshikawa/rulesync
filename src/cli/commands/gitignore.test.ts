@@ -241,7 +241,7 @@ describe("gitignoreCommand", () => {
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/
-**/.opencode/commands/
+**/.opencode/command/
 **/opencode.json
 **/QWEN.md
 **/.qwen/memories/
