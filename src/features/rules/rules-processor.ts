@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { XMLBuilder } from "fast-xml-parser";
+import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -259,7 +259,7 @@ export class RulesProcessor extends FeatureProcessor {
       case "agentsmd": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) +
+          this.generateToonReferencesSection(toolRules) +
             this.generateAdditionalConventionsSection({
               commands: { relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath },
               subagents: {
@@ -273,7 +273,7 @@ export class RulesProcessor extends FeatureProcessor {
       case "augmentcode-legacy": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
         );
         return toolRules;
       }
@@ -287,7 +287,7 @@ export class RulesProcessor extends FeatureProcessor {
       case "codexcli": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) +
+          this.generateToonReferencesSection(toolRules) +
             this.generateAdditionalConventionsSection({
               subagents: {
                 relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
@@ -318,7 +318,7 @@ export class RulesProcessor extends FeatureProcessor {
       case "geminicli": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) +
+          this.generateToonReferencesSection(toolRules) +
             this.generateAdditionalConventionsSection({
               commands: { relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath },
               subagents: {
@@ -332,28 +332,28 @@ export class RulesProcessor extends FeatureProcessor {
       case "kiro": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
         );
         return toolRules;
       }
       case "opencode": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
         );
         return toolRules;
       }
       case "qwencode": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
         );
         return toolRules;
       }
       case "warp": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
-          this.generateXmlReferencesSection(toolRules) + rootRule.getFileContent(),
+          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
         );
         return toolRules;
       }
@@ -487,7 +487,7 @@ export class RulesProcessor extends FeatureProcessor {
     return rulesProcessorToolTargets;
   }
 
-  private generateXmlReferencesSection(toolRules: ToolRule[]): string {
+  private generateToonReferencesSection(toolRules: ToolRule[]): string {
     const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
 
     if (toolRulesWithoutRoot.length === 0) {
@@ -496,43 +496,34 @@ export class RulesProcessor extends FeatureProcessor {
 
     const lines: string[] = [];
     lines.push(
-      "Please also reference the following documents as needed. In this case, `@` stands for the project root directory.",
+      "Please also reference the following documents as needed. The list below is provided in TOON format, and `@` stands for the project root directory.",
     );
     lines.push("");
 
-    // Build XML structure using fast-xml-parser XMLBuilder
-    const documentsData = {
-      Documents: {
-        Document: toolRulesWithoutRoot.map((rule) => {
-          const rulesyncRule = rule.toRulesyncRule();
-          const frontmatter = rulesyncRule.getFrontmatter();
+    const documents = toolRulesWithoutRoot.map((rule) => {
+      const rulesyncRule = rule.toRulesyncRule();
+      const frontmatter = rulesyncRule.getFrontmatter();
 
-          const relativePath = `@${rule.getRelativePathFromCwd()}`;
-          const document: Record<string, string> = {
-            Path: relativePath,
-          };
+      const relativePath = `@${rule.getRelativePathFromCwd()}`;
+      const document: Record<string, string> = {
+        Path: relativePath,
+      };
 
-          if (frontmatter.description) {
-            document.Description = frontmatter.description;
-          }
+      if (frontmatter.description) {
+        document.Description = frontmatter.description;
+      }
 
-          if (frontmatter.globs && frontmatter.globs.length > 0) {
-            document.FilePatterns = frontmatter.globs.join(", ");
-          }
+      if (frontmatter.globs && frontmatter.globs.length > 0) {
+        document.FilePatterns = frontmatter.globs.join(", ");
+      }
 
-          return document;
-        }),
-      },
-    };
-
-    const builder = new XMLBuilder({
-      format: true,
-      ignoreAttributes: false,
-      suppressEmptyNode: false,
+      return document;
     });
 
-    const xmlContent = builder.build(documentsData);
-    lines.push(xmlContent);
+    const toonContent = encode({
+      Documents: documents,
+    });
+    lines.push(toonContent);
 
     return lines.join("\n") + "\n";
   }
