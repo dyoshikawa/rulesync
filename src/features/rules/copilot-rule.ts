@@ -17,6 +17,7 @@ import {
 export const CopilotRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
   applyTo: z.optional(z.string()),
+  excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
 });
 
 export type CopilotRuleFrontmatter = z.infer<typeof CopilotRuleFrontmatterSchema>;
@@ -88,6 +89,9 @@ export class CopilotRule extends ToolRule {
       root: this.isRoot(),
       description: this.frontmatter.description,
       globs,
+      ...(this.frontmatter.excludeAgent && {
+        copilot: { excludeAgent: this.frontmatter.excludeAgent },
+      }),
     };
 
     // Strip .instructions.md extension and normalize to .md
@@ -115,6 +119,7 @@ export class CopilotRule extends ToolRule {
     const copilotFrontmatter: CopilotRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
       applyTo: rulesyncFrontmatter.globs?.length ? rulesyncFrontmatter.globs.join(",") : undefined,
+      excludeAgent: rulesyncFrontmatter.copilot?.excludeAgent,
     };
 
     // Generate proper file content with Copilot specific frontmatter
@@ -169,18 +174,14 @@ export class CopilotRule extends ToolRule {
       return new CopilotRule({
         baseDir: baseDir,
         relativeDirPath: this.getSettablePaths().root.relativeDirPath,
-        relativeFilePath: isRoot ? this.getSettablePaths().root.relativeFilePath : relativeFilePath,
-        frontmatter: {
-          description: "",
-          applyTo: "**",
-        },
+        relativeFilePath: this.getSettablePaths().root.relativeFilePath,
+        frontmatter: {},
         body: fileContent.trim(),
         validate,
         root: isRoot,
       });
     }
 
-    // Non-root file: parse frontmatter
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
 
     // Validate frontmatter using CopilotRuleFrontmatterSchema
