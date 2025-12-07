@@ -56,7 +56,7 @@ export const gitignoreCommand = async (): Promise<void> => {
     "**/.aiignore",
     // OpenCode
     "**/.opencode/memories/",
-    "**/.opencode/commands/",
+    "**/.opencode/command/",
     "**/opencode.json",
     // Qwen
     "**/QWEN.md",

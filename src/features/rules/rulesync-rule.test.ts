@@ -608,6 +608,31 @@ Invalid legacy rule`;
       expect(result.success).toBe(false);
     });
 
+    it("should validate copilot configuration", () => {
+      const frontmatter = {
+        copilot: {
+          excludeAgent: "code-review" as const,
+        },
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+
+      expect(result.success).toBe(true);
+      expect(result.data?.copilot).toEqual(frontmatter.copilot);
+    });
+
+    it("should reject invalid copilot configuration", () => {
+      const frontmatter = {
+        copilot: {
+          excludeAgent: "unknown-agent",
+        },
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+
+      expect(result.success).toBe(false);
+    });
+
     it("should allow partial cursor configuration", () => {
       const frontmatter = {
         cursor: {
