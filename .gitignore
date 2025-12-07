@@ -290,3 +290,8 @@ CLAUDE.md
 **/modular-mcp.json
 
 .agent/
+
+**/.junie/guidelines.md
+**/.junie/mcp.json
+**/.opencode/command/
+!.rulesync/.aiignore
