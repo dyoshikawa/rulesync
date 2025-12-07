@@ -602,7 +602,7 @@ Test skill content`;
     it("should return all targets including simulated when includeSimulated is true", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: true });
       expect(new Set(targets)).toEqual(
-        new Set(["agentsmd", "claudecode", "codexcli", "copilot", "cursor", "geminicli"]),
+        new Set(["agentsmd", "claudecode", "copilot", "cursor", "geminicli"]),
       );
     });
 
@@ -620,23 +620,23 @@ Test skill content`;
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
       expect(new Set(targets)).toEqual(
-        new Set(["agentsmd", "codexcli", "copilot", "cursor", "geminicli"]),
+        new Set(["agentsmd", "copilot", "cursor", "geminicli"]),
       );
     });
   });
 
   describe("getToolTargetsGlobal", () => {
-    it("should return claudecode for global mode", () => {
+    it("should return global targets in global mode", () => {
       const targets = SkillsProcessor.getToolTargetsGlobal();
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "codexcli"]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode for global mode", () => {
+    it("should return global targets when global option is true", () => {
       const targets = SkillsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "codexcli"]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
 

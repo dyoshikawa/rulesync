@@ -24,15 +24,15 @@ describe("CodexCliSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .codex/skills as relativeDirPath", () => {
-      const paths = CodexCliSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".codex", "skills"));
+    it("should throw error in project mode", () => {
+      expect(() => CodexCliSkill.getSettablePaths()).toThrow(
+        "CodexCliSkill only supports global mode. Please pass { global: true }.",
+      );
     });
 
-    it("should throw error when global is true", () => {
-      expect(() => CodexCliSkill.getSettablePaths({ global: true })).toThrow(
-        "CodexCliSkill does not support global mode.",
-      );
+    it("should return .codex/skills as relativeDirPath in global mode", () => {
+      const paths = CodexCliSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".codex", "skills"));
     });
   });
 
@@ -48,6 +48,7 @@ describe("CodexCliSkill", () => {
         },
         body: "This is the body of the codex cli skill.",
         validate: true,
+        global: true,
       });
 
       expect(skill).toBeInstanceOf(CodexCliSkill);
@@ -74,6 +75,7 @@ This is the body of the codex cli skill.`;
       const skill = await CodexCliSkill.fromDir({
         baseDir: testDir,
         dirName: "test-skill",
+        global: true,
       });
 
       expect(skill).toBeInstanceOf(CodexCliSkill);
@@ -92,6 +94,7 @@ This is the body of the codex cli skill.`;
         CodexCliSkill.fromDir({
           baseDir: testDir,
           dirName: "empty-skill",
+          global: true,
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
     });
@@ -114,6 +117,7 @@ This is the body of the codex cli skill.`;
       const codexCliSkill = CodexCliSkill.fromRulesyncSkill({
         rulesyncSkill,
         validate: true,
+        global: true,
       });
 
       expect(codexCliSkill).toBeInstanceOf(CodexCliSkill);
@@ -179,7 +183,7 @@ This is the body of the codex cli skill.`;
   });
 
   describe("toRulesyncSkill", () => {
-    it("should throw error because CodexCliSkill is simulated", () => {
+    it("should convert to a RulesyncSkill", () => {
       const skill = new CodexCliSkill({
         baseDir: testDir,
         relativeDirPath: join(".codex", "skills"),
@@ -190,11 +194,17 @@ This is the body of the codex cli skill.`;
         },
         body: "Test body",
         validate: true,
+        global: true,
       });
 
-      expect(() => skill.toRulesyncSkill()).toThrow(
-        "Not implemented because it is a SIMULATED skill.",
-      );
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test description",
+        targets: ["codexcli"],
+      });
+      expect(rulesyncSkill.getBody()).toBe("Test body");
     });
   });
 });

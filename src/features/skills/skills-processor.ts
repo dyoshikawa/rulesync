@@ -33,6 +33,8 @@ type ToolSkillFactory = {
     getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
   };
   meta: {
+    /** Whether the tool supports project (workspace-level) skills */
+    supportsProject: boolean;
     /** Whether the tool supports simulated skills (embedded in rules) */
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) skills */
@@ -63,17 +65,47 @@ export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargetT
  * Using Map to preserve insertion order for consistent iteration.
  */
 const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>([
-  ["agentsmd", { class: AgentsmdSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "agentsmd",
+    {
+      class: AgentsmdSkill,
+      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
   [
     "claudecode",
-    { class: ClaudecodeSkill, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: ClaudecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
   ],
-  ["codexcli", { class: CodexCliSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
-  ["copilot", { class: CopilotSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
-  ["cursor", { class: CursorSkill, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "codexcli",
+    {
+      class: CodexCliSkill,
+      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "copilot",
+    {
+      class: CopilotSkill,
+      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
+  [
+    "cursor",
+    {
+      class: CursorSkill,
+      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
   [
     "geminicli",
-    { class: GeminiCliSkill, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: GeminiCliSkill,
+      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+    },
   ],
 ]);
 
@@ -95,6 +127,11 @@ const defaultGetFactory: GetFactory = (target) => {
 const allToolTargetKeys = [...toolSkillFactories.keys()];
 
 const skillsProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+
+const skillsProcessorToolTargetsProject: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSkillFactories.get(target);
+  return factory?.meta.supportsProject ?? true;
+});
 
 export const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
   (target) => {
@@ -238,12 +275,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
     if (global) {
       return skillsProcessorToolTargetsGlobal;
     }
+    const projectTargets = skillsProcessorToolTargetsProject;
     if (!includeSimulated) {
-      return skillsProcessorToolTargets.filter(
-        (target) => !skillsProcessorToolTargetsSimulated.includes(target),
-      );
+      return projectTargets.filter((target) => !skillsProcessorToolTargetsSimulated.includes(target));
     }
-    return skillsProcessorToolTargets;
+    return projectTargets;
   }
 
   /**
