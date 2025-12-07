@@ -574,7 +574,10 @@ Command body`;
     });
 
     it("should reject invalid disable-model-invocation definitions", () => {
-      const invalidFrontmatter = { description: "Valid description", "disable-model-invocation": "yes" };
+      const invalidFrontmatter = {
+        description: "Valid description",
+        "disable-model-invocation": "yes",
+      };
       const result = ClaudecodeCommandFrontmatterSchema.safeParse(invalidFrontmatter);
 
       expect(result.success).toBe(false);
