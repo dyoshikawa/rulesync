@@ -18,6 +18,7 @@ export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   "argument-hint": z.optional(z.string()),
   model: z.optional(z.string()),
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFrontmatterSchema>;
