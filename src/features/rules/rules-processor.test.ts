@@ -2,11 +2,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
+import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
+import { OpenCodeRule } from "./opencode-rule.js";
 import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { WarpRule } from "./warp-rule.js";
@@ -656,6 +658,92 @@ describe("RulesProcessor", () => {
         expect(result[0]?.getRelativeDirPath()).toBe(".");
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
+    });
+  });
+
+  describe("last-wins behavior for overlapping targets", () => {
+    it("should overwrite AGENTS.md when agentsmd and opencode both target the same file", async () => {
+      // Setup: Create rulesync rules directory
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(
+        join(testDir, ".rulesync", "rules", "overview.md"),
+        `---
+root: true
+targets: ["agentsmd", "opencode"]
+---
+# Shared Content`,
+      );
+
+      // Process agentsmd first
+      const agentsMdProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "agentsmd",
+      });
+      const agentsMdRulesyncFiles = await agentsMdProcessor.loadRulesyncFiles();
+      const agentsMdToolFiles =
+        await agentsMdProcessor.convertRulesyncFilesToToolFiles(agentsMdRulesyncFiles);
+      await agentsMdProcessor.writeAiFiles(agentsMdToolFiles);
+
+      // Verify agentsmd wrote the file
+      const agentsMdContent = await readFileContent(join(testDir, "AGENTS.md"));
+      expect(agentsMdContent).toContain("# Shared Content");
+      expect(agentsMdToolFiles[0]).toBeInstanceOf(AgentsMdRule);
+
+      // Process opencode second (should overwrite)
+      const openCodeProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+      const openCodeRulesyncFiles = await openCodeProcessor.loadRulesyncFiles();
+      const openCodeToolFiles =
+        await openCodeProcessor.convertRulesyncFilesToToolFiles(openCodeRulesyncFiles);
+      await openCodeProcessor.writeAiFiles(openCodeToolFiles);
+
+      // Verify opencode overwrote the file
+      const finalContent = await readFileContent(join(testDir, "AGENTS.md"));
+      expect(finalContent).toContain("# Shared Content");
+      expect(openCodeToolFiles[0]).toBeInstanceOf(OpenCodeRule);
+
+      // Both targets should have written to the same file path
+      expect(agentsMdToolFiles[0]?.getFilePath()).toBe(openCodeToolFiles[0]?.getFilePath());
+    });
+
+    it("should apply last-wins in reverse order when targets are reversed", async () => {
+      // Setup: Create rulesync rules directory
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(
+        join(testDir, ".rulesync", "rules", "overview.md"),
+        `---
+root: true
+targets: ["opencode", "agentsmd"]
+---
+# Reversed Order Content`,
+      );
+
+      // Process opencode first
+      const openCodeProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+      const openCodeRulesyncFiles = await openCodeProcessor.loadRulesyncFiles();
+      const openCodeToolFiles =
+        await openCodeProcessor.convertRulesyncFilesToToolFiles(openCodeRulesyncFiles);
+      await openCodeProcessor.writeAiFiles(openCodeToolFiles);
+
+      // Process agentsmd second (should overwrite)
+      const agentsMdProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "agentsmd",
+      });
+      const agentsMdRulesyncFiles = await agentsMdProcessor.loadRulesyncFiles();
+      const agentsMdToolFiles =
+        await agentsMdProcessor.convertRulesyncFilesToToolFiles(agentsMdRulesyncFiles);
+      await agentsMdProcessor.writeAiFiles(agentsMdToolFiles);
+
+      // Verify agentsmd's content is the final result
+      const finalContent = await readFileContent(join(testDir, "AGENTS.md"));
+      expect(finalContent).toContain("# Reversed Order Content");
+      expect(agentsMdToolFiles[0]).toBeInstanceOf(AgentsMdRule);
     });
   });
 });

@@ -273,6 +273,34 @@ Example:
 }
 ```
 
+### Target Order and File Conflicts
+
+When multiple targets write to the same output file, **the last target in the array wins**. This is the "last-wins" behavior.
+
+For example, both `agentsmd` and `opencode` generate `AGENTS.md`:
+
+```jsonc
+{
+  // opencode wins because it comes last
+  "targets": ["agentsmd", "opencode"],
+  "features": ["rules"]
+}
+```
+
+In this case:
+1. `agentsmd` generates `AGENTS.md` first
+2. `opencode` generates `AGENTS.md` second, overwriting the previous file
+
+If you want `agentsmd`'s output instead, reverse the order:
+
+```jsonc
+{
+  // agentsmd wins because it comes last
+  "targets": ["opencode", "agentsmd"],
+  "features": ["rules"]
+}
+```
+
 ## Each File Format
 
 ### `rulesync/rules/*.md`
