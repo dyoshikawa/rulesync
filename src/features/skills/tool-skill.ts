@@ -1,5 +1,9 @@
+import { join } from "node:path";
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
+import { fileExists, readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
   rulesyncSkill: RulesyncSkill;
@@ -16,6 +20,20 @@ export type ToolSkillFromDirParams = {
   relativeDirPath?: string;
   dirName: string;
   global?: boolean;
+};
+
+/**
+ * Common data loaded from a skill directory.
+ * Used by loadSkillDirContent to return parsed file data.
+ */
+export type LoadedSkillDirContent = {
+  baseDir: string;
+  relativeDirPath: string;
+  dirName: string;
+  frontmatter: Record<string, unknown>;
+  body: string;
+  otherFiles: SkillFile[];
+  global: boolean;
 };
 
 /**
@@ -106,5 +124,55 @@ export abstract class ToolSkill extends AiDir {
    */
   static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Load and parse skill directory content.
+   * This is a helper method that handles the common logic of reading SKILL.md,
+   * parsing frontmatter, and collecting other files.
+   *
+   * Subclasses should call this method and then validate the frontmatter
+   * against their specific schema.
+   *
+   * @param params - Parameters including settablePaths callback to get tool-specific paths
+   * @returns Parsed skill directory content
+   */
+  protected static async loadSkillDirContent({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    dirName,
+    global = false,
+    getSettablePaths,
+  }: ToolSkillFromDirParams & {
+    getSettablePaths: (options: { global: boolean }) => ToolSkillSettablePaths;
+  }): Promise<LoadedSkillDirContent> {
+    const settablePaths = getSettablePaths({ global });
+    const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
+    const skillDirPath = join(baseDir, actualRelativeDirPath, dirName);
+    const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
+
+    if (!(await fileExists(skillFilePath))) {
+      throw new Error(`${SKILL_FILE_NAME} not found in ${skillDirPath}`);
+    }
+
+    const fileContent = await readFileContent(skillFilePath);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+
+    const otherFiles = await this.collectOtherFiles(
+      baseDir,
+      actualRelativeDirPath,
+      dirName,
+      SKILL_FILE_NAME,
+    );
+
+    return {
+      baseDir,
+      relativeDirPath: actualRelativeDirPath,
+      dirName,
+      frontmatter,
+      body: content.trim(),
+      otherFiles,
+      global,
+    };
   }
 }

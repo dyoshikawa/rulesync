@@ -3,8 +3,6 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -114,7 +112,7 @@ export class CodexCliSkill extends ToolSkill {
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
-      targets: ["codexcli"],
+      targets: ["*"],
     };
 
     return new RulesyncSkill({
@@ -159,45 +157,29 @@ export class CodexCliSkill extends ToolSkill {
     return targets.includes("*") || targets.includes("codexcli");
   }
 
-  static async fromDir({
-    baseDir = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillFromDirParams): Promise<CodexCliSkill> {
-    const settablePaths = CodexCliSkill.getSettablePaths({ global });
-    const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
-    const skillDirPath = join(baseDir, actualRelativeDirPath, dirName);
-    const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
+  static async fromDir(params: ToolSkillFromDirParams): Promise<CodexCliSkill> {
+    const loaded = await this.loadSkillDirContent({
+      ...params,
+      getSettablePaths: CodexCliSkill.getSettablePaths,
+    });
 
-    if (!(await fileExists(skillFilePath))) {
-      throw new Error(`${SKILL_FILE_NAME} not found in ${skillDirPath}`);
-    }
-
-    const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
-
-    const result = CodexCliSkillFrontmatterSchema.safeParse(frontmatter);
+    const result = CodexCliSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
+      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      throw new Error(
+        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
+      );
     }
-
-    const otherFiles = await this.collectOtherFiles(
-      baseDir,
-      actualRelativeDirPath,
-      dirName,
-      SKILL_FILE_NAME,
-    );
 
     return new CodexCliSkill({
-      baseDir,
-      relativeDirPath: actualRelativeDirPath,
-      dirName,
+      baseDir: loaded.baseDir,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
       frontmatter: result.data,
-      body: content.trim(),
-      otherFiles,
+      body: loaded.body,
+      otherFiles: loaded.otherFiles,
       validate: true,
-      global,
+      global: loaded.global,
     });
   }
 }

@@ -292,10 +292,13 @@ export class RulesProcessor extends FeatureProcessor {
               subagents: {
                 relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
               },
-              skills: {
-                relativeDirPath: CodexCliSkill.getSettablePaths({ global: this.global })
-                  .relativeDirPath,
-              },
+              // Codex CLI skills are only supported in global mode
+              ...(this.global && {
+                skills: {
+                  relativeDirPath: CodexCliSkill.getSettablePaths({ global: this.global })
+                    .relativeDirPath,
+                },
+              }),
             }) +
             rootRule.getFileContent(),
         );

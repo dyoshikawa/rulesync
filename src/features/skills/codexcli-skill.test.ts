@@ -202,7 +202,7 @@ This is the body of the codex cli skill.`;
       expect(rulesyncSkill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test description",
-        targets: ["codexcli"],
+        targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
     });
