@@ -3,8 +3,6 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -173,45 +171,29 @@ export class ClaudecodeSkill extends ToolSkill {
     return true;
   }
 
-  static async fromDir({
-    baseDir = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
-    const settablePaths = this.getSettablePaths({ global });
-    const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
-    const skillDirPath = join(baseDir, actualRelativeDirPath, dirName);
-    const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
+  static async fromDir(params: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
+    const loaded = await this.loadSkillDirContent({
+      ...params,
+      getSettablePaths: ClaudecodeSkill.getSettablePaths,
+    });
 
-    if (!(await fileExists(skillFilePath))) {
-      throw new Error(`${SKILL_FILE_NAME} not found in ${skillDirPath}`);
-    }
-
-    const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
-
-    const result = ClaudecodeSkillFrontmatterSchema.safeParse(frontmatter);
+    const result = ClaudecodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
+      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      throw new Error(
+        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
+      );
     }
-
-    const otherFiles = await this.collectOtherFiles(
-      baseDir,
-      actualRelativeDirPath,
-      dirName,
-      SKILL_FILE_NAME,
-    );
 
     return new ClaudecodeSkill({
-      baseDir,
-      relativeDirPath: actualRelativeDirPath,
-      dirName,
+      baseDir: loaded.baseDir,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
       frontmatter: result.data,
-      body: content.trim(),
-      otherFiles,
+      body: loaded.body,
+      otherFiles: loaded.otherFiles,
       validate: true,
-      global,
+      global: loaded.global,
     });
   }
 }
