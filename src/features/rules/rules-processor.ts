@@ -17,13 +17,10 @@ import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
-import { CopilotCommand } from "../commands/copilot-command.js";
-import { CursorCommand } from "../commands/cursor-command.js";
-import { GeminiCliCommand } from "../commands/geminicli-command.js";
-import { RooCommand } from "../commands/roo-command.js";
-import { CodexCliSkill } from "../skills/codexcli-skill.js";
+import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { CopilotSkill } from "../skills/copilot-skill.js";
 import { CursorSkill } from "../skills/cursor-skill.js";
+import { GeminiCliSkill } from "../skills/geminicli-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
@@ -82,11 +79,35 @@ const rulesProcessorToolTargets: ToolTarget[] = [
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
 
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = [
-  "claudecode",
-  "codexcli",
-  "geminicli",
-];
+/**
+ * Reference section style for root rule content.
+ * - `toon`: Uses TOON format for referencing non-root rules
+ * - `claudecode`: Uses Claude Code specific reference format
+ * - `none`: No reference section added to root rule
+ */
+type ReferenceSectionStyle = "toon" | "claudecode" | "none";
+
+/**
+ * Feature path configuration with path getter function.
+ * If getRelativeDirPath returns empty string or throws, the feature will be skipped.
+ */
+type FeaturePathConfig = {
+  /** Function to get the relative directory path for the feature. Returns null if not supported for the given mode. */
+  getRelativeDirPath: (options?: { global?: boolean }) => string | null;
+};
+
+/**
+ * Configuration for additional conventions (simulated features).
+ * Specifies which simulated features are supported for the tool and their paths.
+ */
+type AdditionalConventionsConfig = {
+  /** Command feature configuration */
+  commands?: FeaturePathConfig;
+  /** Subagent feature configuration */
+  subagents?: FeaturePathConfig;
+  /** Skill feature configuration */
+  skills?: FeaturePathConfig;
+};
 
 /**
  * Factory entry for each tool rule class.
@@ -104,6 +125,14 @@ type ToolRuleFactory = {
   meta: {
     /** File extension for the rule file */
     extension: "md" | "mdc";
+    /** Whether this tool supports global (user scope) mode */
+    supportsGlobal: boolean;
+    /** How non-root rules are referenced in the root rule */
+    referenceSectionStyle: ReferenceSectionStyle;
+    /** Configuration for additional conventions (simulated features) */
+    additionalConventions?: AdditionalConventionsConfig;
+    /** Whether to create a separate rule file for additional conventions instead of prepending to root */
+    createsSeparateConventionsRule?: boolean;
   };
 };
 
@@ -112,25 +141,212 @@ type ToolRuleFactory = {
  * Using Map to preserve insertion order for consistent iteration.
  */
 const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
-  ["agentsmd", { class: AgentsMdRule, meta: { extension: "md" } }],
-  ["amazonqcli", { class: AmazonQCliRule, meta: { extension: "md" } }],
-  ["antigravity", { class: AntigravityRule, meta: { extension: "md" } }],
-  ["augmentcode", { class: AugmentcodeRule, meta: { extension: "md" } }],
-  ["augmentcode-legacy", { class: AugmentcodeLegacyRule, meta: { extension: "md" } }],
-  ["claudecode", { class: ClaudecodeRule, meta: { extension: "md" } }],
-  ["cline", { class: ClineRule, meta: { extension: "md" } }],
-  ["codexcli", { class: CodexcliRule, meta: { extension: "md" } }],
-  ["copilot", { class: CopilotRule, meta: { extension: "md" } }],
-  ["cursor", { class: CursorRule, meta: { extension: "mdc" } }],
-  ["geminicli", { class: GeminiCliRule, meta: { extension: "md" } }],
-  ["junie", { class: JunieRule, meta: { extension: "md" } }],
-  ["kiro", { class: KiroRule, meta: { extension: "md" } }],
-  ["opencode", { class: OpenCodeRule, meta: { extension: "md" } }],
-  ["qwencode", { class: QwencodeRule, meta: { extension: "md" } }],
-  ["roo", { class: RooRule, meta: { extension: "md" } }],
-  ["warp", { class: WarpRule, meta: { extension: "md" } }],
-  ["windsurf", { class: WindsurfRule, meta: { extension: "md" } }],
+  [
+    "agentsmd",
+    {
+      class: AgentsMdRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        referenceSectionStyle: "toon",
+        additionalConventions: {
+          commands: {
+            getRelativeDirPath: () => AgentsmdCommand.getSettablePaths().relativeDirPath,
+          },
+          subagents: {
+            getRelativeDirPath: () => AgentsmdSubagent.getSettablePaths().relativeDirPath,
+          },
+          skills: {
+            getRelativeDirPath: () => AgentsmdSkill.getSettablePaths().relativeDirPath,
+          },
+        },
+      },
+    },
+  ],
+  [
+    "amazonqcli",
+    {
+      class: AmazonQCliRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+    },
+  ],
+  [
+    "antigravity",
+    {
+      class: AntigravityRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      class: AugmentcodeRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+    },
+  ],
+  [
+    "augmentcode-legacy",
+    {
+      class: AugmentcodeLegacyRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+    },
+  ],
+  [
+    "claudecode",
+    {
+      class: ClaudecodeRule,
+      meta: { extension: "md", supportsGlobal: true, referenceSectionStyle: "claudecode" },
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClineRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+    },
+  ],
+  [
+    "codexcli",
+    {
+      class: CodexcliRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        referenceSectionStyle: "toon",
+        additionalConventions: {
+          subagents: {
+            getRelativeDirPath: () => CodexCliSubagent.getSettablePaths().relativeDirPath,
+          },
+        },
+      },
+    },
+  ],
+  [
+    "copilot",
+    {
+      class: CopilotRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        referenceSectionStyle: "none",
+        additionalConventions: {
+          subagents: {
+            getRelativeDirPath: () => CopilotSubagent.getSettablePaths().relativeDirPath,
+          },
+          skills: {
+            getRelativeDirPath: () => CopilotSkill.getSettablePaths().relativeDirPath,
+          },
+        },
+      },
+    },
+  ],
+  [
+    "cursor",
+    {
+      class: CursorRule,
+      meta: {
+        extension: "mdc",
+        supportsGlobal: false,
+        referenceSectionStyle: "none",
+        additionalConventions: {
+          subagents: {
+            getRelativeDirPath: () => CursorSubagent.getSettablePaths().relativeDirPath,
+          },
+          skills: {
+            getRelativeDirPath: () => CursorSkill.getSettablePaths().relativeDirPath,
+          },
+        },
+        createsSeparateConventionsRule: true,
+      },
+    },
+  ],
+  [
+    "geminicli",
+    {
+      class: GeminiCliRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        referenceSectionStyle: "toon",
+        additionalConventions: {
+          subagents: {
+            getRelativeDirPath: () => GeminiCliSubagent.getSettablePaths().relativeDirPath,
+          },
+          skills: {
+            getRelativeDirPath: () => GeminiCliSkill.getSettablePaths().relativeDirPath,
+          },
+        },
+      },
+    },
+  ],
+  [
+    "junie",
+    {
+      class: JunieRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+    },
+  ],
+  [
+    "opencode",
+    {
+      class: OpenCodeRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      class: QwencodeRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+    },
+  ],
+  [
+    "roo",
+    {
+      class: RooRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        referenceSectionStyle: "none",
+        additionalConventions: {
+          subagents: {
+            getRelativeDirPath: () => RooSubagent.getSettablePaths().relativeDirPath,
+          },
+        },
+        createsSeparateConventionsRule: true,
+      },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+    },
+  ],
+  [
+    "windsurf",
+    {
+      class: WindsurfRule,
+      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+    },
+  ],
 ]);
+
+/**
+ * Tool targets that support global (user scope) mode.
+ * Derived from the factory meta configuration.
+ */
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = Array.from(toolRuleFactories.entries())
+  .filter(([_, factory]) => factory.meta.supportsGlobal)
+  .map(([target]) => target);
 
 /**
  * Factory retrieval function type for dependency injection.
@@ -192,6 +408,7 @@ export class RulesProcessor extends FeatureProcessor {
     );
 
     const factory = this.getFactory(this.toolTarget);
+    const { meta } = factory;
 
     const toolRules = rulesyncRules
       .map((rulesyncRule) => {
@@ -209,45 +426,30 @@ export class RulesProcessor extends FeatureProcessor {
 
     const isSimulated = this.simulateCommands || this.simulateSubagents || this.simulateSkills;
 
-    // For enabling simulated commands, subagents and skills in Cursor, an additional convention rule is needed.
-    if (isSimulated && this.toolTarget === "cursor") {
-      toolRules.push(
-        new CursorRule({
-          baseDir: this.baseDir,
-          frontmatter: {
-            alwaysApply: true,
-          },
-          body: this.generateAdditionalConventionsSection({
-            commands: { relativeDirPath: CursorCommand.getSettablePaths().relativeDirPath },
-            subagents: {
-              relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
-            },
-            skills: {
-              relativeDirPath: CursorSkill.getSettablePaths().relativeDirPath,
-            },
+    // For tools that create a separate conventions rule file (e.g., cursor, roo)
+    if (isSimulated && meta.createsSeparateConventionsRule && meta.additionalConventions) {
+      const conventionsContent = this.generateAdditionalConventionsSectionFromMeta(meta);
+      const settablePaths = factory.class.getSettablePaths();
+      const nonRootPath = settablePaths.nonRoot;
+      if (nonRootPath) {
+        toolRules.push(
+          factory.class.fromRulesyncRule({
+            baseDir: this.baseDir,
+            rulesyncRule: new RulesyncRule({
+              baseDir: this.baseDir,
+              relativeDirPath: nonRootPath.relativeDirPath,
+              relativeFilePath: `additional-conventions.${meta.extension}`,
+              frontmatter: {
+                root: false,
+                targets: [this.toolTarget],
+              },
+              body: conventionsContent,
+            }),
+            validate: true,
+            global: this.global,
           }),
-          relativeDirPath: CursorRule.getSettablePaths().nonRoot.relativeDirPath,
-          relativeFilePath: "additional-conventions.mdc",
-          validate: true,
-        }),
-      );
-    }
-
-    if (isSimulated && this.toolTarget === "roo") {
-      toolRules.push(
-        new RooRule({
-          baseDir: this.baseDir,
-          relativeDirPath: RooRule.getSettablePaths().nonRoot.relativeDirPath,
-          relativeFilePath: "additional-conventions.md",
-          fileContent: this.generateAdditionalConventionsSection({
-            commands: { relativeDirPath: RooCommand.getSettablePaths().relativeDirPath },
-            subagents: {
-              relativeDirPath: RooSubagent.getSettablePaths().relativeDirPath,
-            },
-          }),
-          validate: true,
-        }),
-      );
+        );
+      }
     }
 
     const rootRuleIndex = toolRules.findIndex((rule) => rule.isRoot());
@@ -255,115 +457,85 @@ export class RulesProcessor extends FeatureProcessor {
       return toolRules;
     }
 
-    switch (this.toolTarget) {
-      case "agentsmd": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) +
-            this.generateAdditionalConventionsSection({
-              commands: { relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath },
-              subagents: {
-                relativeDirPath: AgentsmdSubagent.getSettablePaths().relativeDirPath,
-              },
-            }) +
-            rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "augmentcode-legacy": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "claudecode": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "codexcli": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) +
-            this.generateAdditionalConventionsSection({
-              subagents: {
-                relativeDirPath: CodexCliSubagent.getSettablePaths().relativeDirPath,
-              },
-              // Codex CLI skills are only supported in global mode
-              ...(this.global && {
-                skills: {
-                  relativeDirPath: CodexCliSkill.getSettablePaths({ global: this.global })
-                    .relativeDirPath,
-                },
-              }),
-            }) +
-            rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "copilot": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateAdditionalConventionsSection({
-            commands: { relativeDirPath: CopilotCommand.getSettablePaths().relativeDirPath },
-            subagents: {
-              relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
-            },
-            skills: {
-              relativeDirPath: CopilotSkill.getSettablePaths().relativeDirPath,
-            },
-          }) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "geminicli": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) +
-            this.generateAdditionalConventionsSection({
-              commands: { relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath },
-              subagents: {
-                relativeDirPath: GeminiCliSubagent.getSettablePaths().relativeDirPath,
-              },
-            }) +
-            rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "kiro": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "opencode": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "qwencode": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      case "warp": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateToonReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
-        return toolRules;
-      }
-      default:
-        return toolRules;
+    // For tools that don't create a separate conventions rule, prepend to the root rule
+    const rootRule = toolRules[rootRuleIndex];
+    if (!rootRule) {
+      return toolRules;
     }
+
+    // Generate reference section based on meta configuration
+    const referenceSection = this.generateReferenceSectionFromMeta(meta, toolRules);
+
+    // Generate additional conventions section (only if not creating a separate rule)
+    const conventionsSection =
+      !meta.createsSeparateConventionsRule && meta.additionalConventions
+        ? this.generateAdditionalConventionsSectionFromMeta(meta)
+        : "";
+
+    // Prepend sections to root rule content
+    const newContent = referenceSection + conventionsSection + rootRule.getFileContent();
+    rootRule.setFileContent(newContent);
+
+    return toolRules;
+  }
+
+  /**
+   * Generate reference section based on meta configuration.
+   */
+  private generateReferenceSectionFromMeta(
+    meta: ToolRuleFactory["meta"],
+    toolRules: ToolRule[],
+  ): string {
+    switch (meta.referenceSectionStyle) {
+      case "toon":
+        return this.generateToonReferencesSection(toolRules);
+      case "claudecode":
+        return this.generateReferencesSection(toolRules);
+      case "none":
+      default:
+        return "";
+    }
+  }
+
+  /**
+   * Generate additional conventions section based on meta configuration.
+   */
+  private generateAdditionalConventionsSectionFromMeta(meta: ToolRuleFactory["meta"]): string {
+    const { additionalConventions } = meta;
+    if (!additionalConventions) {
+      return "";
+    }
+
+    const conventions: Parameters<typeof this.generateAdditionalConventionsSection>[0] = {};
+
+    if (additionalConventions.commands) {
+      const relativeDirPath = additionalConventions.commands.getRelativeDirPath({
+        global: this.global,
+      });
+      if (relativeDirPath) {
+        conventions.commands = { relativeDirPath };
+      }
+    }
+
+    if (additionalConventions.subagents) {
+      const relativeDirPath = additionalConventions.subagents.getRelativeDirPath({
+        global: this.global,
+      });
+      if (relativeDirPath) {
+        conventions.subagents = { relativeDirPath };
+      }
+    }
+
+    if (additionalConventions.skills) {
+      const relativeDirPath = additionalConventions.skills.getRelativeDirPath({
+        global: this.global,
+      });
+      if (relativeDirPath) {
+        conventions.skills = { relativeDirPath };
+      }
+    }
+
+    return this.generateAdditionalConventionsSection(conventions);
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
