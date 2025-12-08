@@ -139,7 +139,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 |------------------------|:-----:|:------:|:-----:|:--------:|:---------:|:------:|
 | AGENTS.md            |  ✅   |      |       |     🎮     |      🎮     |    🎮   |
 | Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
-| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🎮   |
+| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🌏   |
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
 | GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |    🎮   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    🎮   |
@@ -182,6 +182,13 @@ You can use global mode via Rulesync by enabling `--global` option.
 
 ### 🎮 **Simulate Commands and Subagents**
 Simulated commands and subagents allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
+
+## Case Studies
+
+Rulesync is trusted by leading companies and recognized by the industry:
+
+- **Anthropic Official Customer Story**: [Classmethod Inc. - Improving AI coding tool consistency with Rulesync](https://claude.com/customers/classmethod)
+- **Asoview Inc.**: [Adopting Rulesync for unified AI development rules](https://tech.asoview.co.jp/entry/2025/12/06/100000)
 
 ## Quick Commands
 
