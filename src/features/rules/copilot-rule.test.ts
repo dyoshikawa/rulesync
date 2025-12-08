@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { CopilotRule, CopilotRuleFrontmatterSchema } from "./copilot-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -206,6 +207,27 @@ describe("CopilotRule", () => {
       expect(rulesyncRule.getBody()).toBe("Root rule content");
     });
 
+    it("should include copilot-specific fields when converting", () => {
+      const copilotRule = new CopilotRule({
+        baseDir: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        frontmatter: {
+          description: "Root rule",
+          applyTo: "**",
+          excludeAgent: "code-review",
+        },
+        body: "Root rule content",
+        root: true,
+      });
+
+      const rulesyncRule = copilotRule.toRulesyncRule();
+
+      expect(rulesyncRule.getFrontmatter().copilot).toEqual({
+        excludeAgent: "code-review",
+      });
+    });
+
     it("should handle undefined description in frontmatter", () => {
       const copilotRule = new CopilotRule({
         baseDir: testDir,
@@ -284,6 +306,33 @@ describe("CopilotRule", () => {
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
       expect(copilotRule.isRoot()).toBe(true);
+    });
+
+    it("should carry copilot-specific fields from RulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "root.md",
+        frontmatter: {
+          targets: ["*"],
+          root: true,
+          description: "Root rule from rulesync",
+          globs: ["**/*"],
+          copilot: {
+            excludeAgent: "coding-agent",
+          },
+        },
+        body: "Root rulesync rule content",
+        validate: true,
+      });
+
+      const copilotRule = CopilotRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+        validate: true,
+      });
+
+      expect(copilotRule.getFrontmatter().excludeAgent).toBe("coding-agent");
     });
 
     it("should use default baseDir when not provided", () => {
@@ -376,10 +425,7 @@ This is test rule content from file.`;
         validate: true,
       });
 
-      expect(copilotRule.getFrontmatter()).toEqual({
-        description: "",
-        applyTo: "**",
-      });
+      expect(copilotRule.getFrontmatter()).toEqual({});
       expect(copilotRule.getBody()).toBe("This is the root copilot instructions content.");
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
@@ -566,7 +612,7 @@ description: "Test trimming"
   });
 
   describe("getFileContent", () => {
-    it("should return only body for root rule (without frontmatter)", () => {
+    it("should omit frontmatter for root rule", () => {
       const body = "This is the root rule content.";
       const copilotRule = new CopilotRule({
         baseDir: testDir,
@@ -575,18 +621,17 @@ description: "Test trimming"
         frontmatter: {
           description: "Root rule",
           applyTo: "**",
+          excludeAgent: "code-review" as const,
         },
         body,
         root: true,
       });
 
       const fileContent = copilotRule.getFileContent();
+      const { frontmatter: parsedFrontmatter, body: parsedBody } = parseFrontmatter(fileContent);
 
-      // Root rule should only contain body, no frontmatter
-      expect(fileContent).toBe(body);
-      expect(fileContent).not.toContain("---");
-      expect(fileContent).not.toContain("description:");
-      expect(fileContent).not.toContain("applyTo:");
+      expect(parsedFrontmatter).toEqual({});
+      expect(parsedBody.trim()).toBe(body);
     });
 
     it("should return body with frontmatter for non-root rule", () => {
@@ -627,7 +672,10 @@ description: "Test trimming"
       });
 
       const fileContent = copilotRule.getFileContent();
-      expect(fileContent).toBe("");
+      const { frontmatter, body } = parseFrontmatter(fileContent);
+
+      expect(frontmatter).toEqual({});
+      expect(body.trim()).toBe("");
     });
 
     it("should handle complex frontmatter for non-root rule", () => {
@@ -725,6 +773,29 @@ description: "Test trimming"
       if (result.success) {
         expect(result.data).toEqual(partialFrontmatter);
       }
+    });
+
+    it("should validate frontmatter with excludeAgent", () => {
+      const frontmatterWithExclude = {
+        excludeAgent: "coding-agent" as const,
+      };
+
+      const result = CopilotRuleFrontmatterSchema.safeParse(frontmatterWithExclude);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(frontmatterWithExclude);
+      }
+    });
+
+    it("should reject invalid excludeAgent", () => {
+      const invalidFrontmatter = {
+        excludeAgent: "invalid-agent",
+      };
+
+      const result = CopilotRuleFrontmatterSchema.safeParse(invalidFrontmatter);
+
+      expect(result.success).toBe(false);
     });
 
     it("should reject frontmatter with invalid types", () => {

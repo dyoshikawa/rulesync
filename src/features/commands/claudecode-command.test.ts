@@ -546,6 +546,43 @@ Command body`;
       expect(result.success).toBe(false);
     });
 
+    it("should accept Claude Code specific fields", () => {
+      const frontmatterWithExtras = {
+        description: "Valid description",
+        "allowed-tools": ["Bash", "Read"],
+        "argument-hint": "[message]",
+        model: "claude-3-5-haiku-20241022",
+        "disable-model-invocation": true,
+      };
+
+      const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatterWithExtras);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data["allowed-tools"]).toEqual(["Bash", "Read"]);
+        expect(result.data["argument-hint"]).toBe("[message]");
+        expect(result.data.model).toBe("claude-3-5-haiku-20241022");
+        expect(result.data["disable-model-invocation"]).toBe(true);
+      }
+    });
+
+    it("should reject invalid allowed-tools definitions", () => {
+      const invalidFrontmatter = { description: "Valid description", "allowed-tools": 123 };
+      const result = ClaudecodeCommandFrontmatterSchema.safeParse(invalidFrontmatter);
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject invalid disable-model-invocation definitions", () => {
+      const invalidFrontmatter = {
+        description: "Valid description",
+        "disable-model-invocation": "yes",
+      };
+      const result = ClaudecodeCommandFrontmatterSchema.safeParse(invalidFrontmatter);
+
+      expect(result.success).toBe(false);
+    });
+
     it("should allow additional properties", () => {
       const frontmatterWithExtra = {
         description: "Valid description",
@@ -696,6 +733,9 @@ Body`;
           description: "Test command",
           claudecode: {
             "allowed-tools": ["Bash", "Read"],
+            "argument-hint": "[message]",
+            model: "claude-3-5-sonnet-latest",
+            "disable-model-invocation": true,
             "custom-setting": true,
           },
         },
@@ -711,6 +751,9 @@ Body`;
       const frontmatter = claudecodeCommand.getFrontmatter();
       expect(frontmatter.description).toBe("Test command");
       expect(frontmatter["allowed-tools"]).toEqual(["Bash", "Read"]);
+      expect(frontmatter["argument-hint"]).toBe("[message]");
+      expect(frontmatter.model).toBe("claude-3-5-sonnet-latest");
+      expect(frontmatter["disable-model-invocation"]).toBe(true);
       expect(frontmatter["custom-setting"]).toBe(true);
     });
 
@@ -722,6 +765,9 @@ Body`;
         frontmatter: {
           description: "Test command",
           "allowed-tools": ["Grep"],
+          "argument-hint": "[args]",
+          model: "claude-3-5-haiku-latest",
+          "disable-model-invocation": false,
           "another-field": { nested: "value" },
         },
         body: "Test body",
@@ -733,6 +779,9 @@ Body`;
 
       expect(frontmatter.claudecode).toEqual({
         "allowed-tools": ["Grep"],
+        "argument-hint": "[args]",
+        model: "claude-3-5-haiku-latest",
+        "disable-model-invocation": false,
         "another-field": { nested: "value" },
       });
     });
@@ -747,6 +796,9 @@ Body`;
           description: "Roundtrip test",
           claudecode: {
             "allowed-tools": ["Read", "Write"],
+            "argument-hint": "[details]",
+            model: "claude-3-opus-20240808",
+            "disable-model-invocation": true,
             custom: { deep: { value: 42 } },
           },
         },
@@ -761,6 +813,9 @@ Body`;
 
       expect(backToRulesync.getFrontmatter().claudecode).toEqual({
         "allowed-tools": ["Read", "Write"],
+        "argument-hint": "[details]",
+        model: "claude-3-opus-20240808",
+        "disable-model-invocation": true,
         custom: { deep: { value: 42 } },
       });
     });
