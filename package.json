@@ -66,12 +66,12 @@
 		"pre-commit": "pnpm exec lint-staged"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "1.22.0",
+		"@modelcontextprotocol/sdk": "1.24.3",
 		"@toon-format/toon": "2.1.0",
 		"commander": "14.0.2",
 		"consola": "3.4.2",
 		"es-toolkit": "1.42.0",
-		"fastmcp": "3.23.1",
+		"fastmcp": "3.25.3",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.1",
 		"jsonc-parser": "3.3.1",
