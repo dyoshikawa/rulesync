@@ -496,37 +496,39 @@ export class RulesProcessor extends FeatureProcessor {
 
     const lines: string[] = [];
     lines.push(
-      "Please also reference the following documents as needed. The list below is provided in TOON format, and `@` stands for the project root directory.",
+      "Please also reference the following rules as needed. The list below is provided in TOON format, and `@` stands for the project root directory.",
     );
     lines.push("");
 
-    const documents = toolRulesWithoutRoot.map((rule) => {
-      const rulesyncRule = rule.toRulesyncRule();
+    const rules = toolRulesWithoutRoot.map((toolRule) => {
+      const rulesyncRule = toolRule.toRulesyncRule();
       const frontmatter = rulesyncRule.getFrontmatter();
 
-      const document: {
+      const rule: {
         path: string;
         description?: string;
-        filePatterns?: string[];
+        applyTo?: string[];
       } = {
-        path: `@${rule.getRelativePathFromCwd()}`,
+        path: `@${toolRule.getRelativePathFromCwd()}`,
       };
 
       if (frontmatter.description) {
-        document.description = frontmatter.description;
+        rule.description = frontmatter.description;
       }
 
       if (frontmatter.globs && frontmatter.globs.length > 0) {
-        document.filePatterns = frontmatter.globs;
+        rule.applyTo = frontmatter.globs;
       }
 
-      return document;
+      return rule;
     });
 
-    const toonContent = encode(documents);
+    const toonContent = encode({
+      rules,
+    });
     lines.push(toonContent);
 
-    return lines.join("\n") + "\n";
+    return lines.join("\n") + "\n\n";
   }
 
   private generateReferencesSection(toolRules: ToolRule[]): string {
@@ -537,16 +539,16 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     const lines: string[] = [];
-    lines.push("Please also reference the following documents as needed:");
+    lines.push("Please also reference the following rules as needed:");
     lines.push("");
 
-    for (const rule of toolRulesWithoutRoot) {
+    for (const toolRule of toolRulesWithoutRoot) {
       // Escape double quotes in description
-      const escapedDescription = rule.getDescription()?.replace(/"/g, '\\"');
-      const globsText = rule.getGlobs()?.join(",");
+      const escapedDescription = toolRule.getDescription()?.replace(/"/g, '\\"');
+      const globsText = toolRule.getGlobs()?.join(",");
 
       lines.push(
-        `@${rule.getRelativePathFromCwd()} description: "${escapedDescription}" globs: "${globsText}"`,
+        `@${toolRule.getRelativePathFromCwd()} description: "${escapedDescription}" applyTo: "${globsText}"`,
       );
     }
 

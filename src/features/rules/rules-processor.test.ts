@@ -279,12 +279,12 @@ describe("RulesProcessor", () => {
 
       // Check that the root rule contains the references section
       const content = rootRule?.getFileContent();
-      expect(content).toContain("Please also reference the following documents as needed:");
+      expect(content).toContain("Please also reference the following rules as needed:");
       expect(content).toContain(
-        '@.claude/memories/feature-rule.md description: "Feature specific rule" globs: "src/**/*.ts,tests/**/*.test.ts"',
+        '@.claude/memories/feature-rule.md description: "Feature specific rule" applyTo: "src/**/*.ts,tests/**/*.test.ts"',
       );
       expect(content).toContain(
-        '@.claude/memories/minimal-rule.md description: "undefined" globs: "undefined"',
+        '@.claude/memories/minimal-rule.md description: "undefined" applyTo: "undefined"',
       );
       expect(content).toContain("# Root rule content");
     });
@@ -322,7 +322,7 @@ describe("RulesProcessor", () => {
       const content = rootRule?.getFileContent();
 
       expect(content).toContain(
-        '@.claude/memories/no-metadata.md description: "undefined" globs: "undefined"',
+        '@.claude/memories/no-metadata.md description: "undefined" applyTo: "undefined"',
       );
     });
 
@@ -361,7 +361,7 @@ describe("RulesProcessor", () => {
       const content = rootRule?.getFileContent();
 
       expect(content).toContain(
-        '@.claude/memories/quoted.md description: "Rule with \\"quotes\\" in description" globs: "**/*.ts"',
+        '@.claude/memories/quoted.md description: "Rule with \\"quotes\\" in description" applyTo: "**/*.ts"',
       );
     });
 
@@ -428,7 +428,7 @@ describe("RulesProcessor", () => {
       const content = rootRule?.getFileContent();
 
       expect(content).toContain(
-        '@.claude/memories/multi-glob.md description: "Multiple glob patterns" globs: "src/**/*.ts,tests/**/*.test.ts,**/*.config.js"',
+        '@.claude/memories/multi-glob.md description: "Multiple glob patterns" applyTo: "src/**/*.ts,tests/**/*.test.ts,**/*.config.js"',
       );
     });
   });
