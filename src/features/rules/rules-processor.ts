@@ -1,11 +1,11 @@
 import { basename, join } from "node:path";
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
-  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
@@ -21,9 +21,12 @@ import { CopilotCommand } from "../commands/copilot-command.js";
 import { CursorCommand } from "../commands/cursor-command.js";
 import { GeminiCliCommand } from "../commands/geminicli-command.js";
 import { RooCommand } from "../commands/roo-command.js";
+import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { CodexCliSkill } from "../skills/codexcli-skill.js";
 import { CopilotSkill } from "../skills/copilot-skill.js";
 import { CursorSkill } from "../skills/cursor-skill.js";
+import { GeminiCliSkill } from "../skills/geminicli-skill.js";
+import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
@@ -223,7 +226,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
             },
             skills: {
-              relativeDirPath: CursorSkill.getSettablePaths().relativeDirPath,
+              skillList: await this.buildSkillList(CursorSkill),
             },
           }),
           relativeDirPath: CursorRule.getSettablePaths().nonRoot.relativeDirPath,
@@ -265,6 +268,9 @@ export class RulesProcessor extends FeatureProcessor {
               subagents: {
                 relativeDirPath: AgentsmdSubagent.getSettablePaths().relativeDirPath,
               },
+              skills: {
+                skillList: await this.buildSkillList(AgentsmdSkill),
+              },
             }) +
             rootRule.getFileContent(),
         );
@@ -295,8 +301,7 @@ export class RulesProcessor extends FeatureProcessor {
               // Codex CLI skills are only supported in global mode
               ...(this.global && {
                 skills: {
-                  relativeDirPath: CodexCliSkill.getSettablePaths({ global: this.global })
-                    .relativeDirPath,
+                  skillList: await this.buildSkillList(CodexCliSkill),
                 },
               }),
             }) +
@@ -313,7 +318,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
             },
             skills: {
-              relativeDirPath: CopilotSkill.getSettablePaths().relativeDirPath,
+              skillList: await this.buildSkillList(CopilotSkill),
             },
           }) + rootRule.getFileContent(),
         );
@@ -327,6 +332,9 @@ export class RulesProcessor extends FeatureProcessor {
               commands: { relativeDirPath: GeminiCliCommand.getSettablePaths().relativeDirPath },
               subagents: {
                 relativeDirPath: GeminiCliSubagent.getSettablePaths().relativeDirPath,
+              },
+              skills: {
+                skillList: await this.buildSkillList(GeminiCliSkill),
               },
             }) +
             rootRule.getFileContent(),
@@ -363,6 +371,39 @@ export class RulesProcessor extends FeatureProcessor {
       }
       default:
         return toolRules;
+    }
+  }
+
+  private async buildSkillList(skillClass: {
+    isTargetedByRulesyncSkill: (rulesyncSkill: RulesyncSkill) => boolean;
+    getSettablePaths: (options?: { global?: boolean }) => { relativeDirPath: string };
+  }): Promise<
+    Array<{
+      name: string;
+      description: string;
+      path: string;
+    }>
+  > {
+    try {
+      const rulesyncSkills = await this.loadRulesyncSkills();
+      const toolRelativeDirPath = skillClass.getSettablePaths({
+        global: this.global,
+      }).relativeDirPath;
+      return rulesyncSkills
+        .filter((skill) => skillClass.isTargetedByRulesyncSkill(skill))
+        .map((skill) => {
+          const frontmatter = skill.getFrontmatter();
+          // Use tool-specific relative path, not rulesync's path
+          const relativePath = join(toolRelativeDirPath, skill.getDirName(), SKILL_FILE_NAME);
+          return {
+            name: frontmatter.name,
+            description: frontmatter.description,
+            path: relativePath,
+          };
+        });
+    } catch {
+      // If skills directory doesn't exist or can't be read, return empty array
+      return [];
     }
   }
 
@@ -571,7 +612,11 @@ export class RulesProcessor extends FeatureProcessor {
       relativeDirPath: string;
     };
     skills?: {
-      relativeDirPath: string;
+      skillList?: Array<{
+        name: string;
+        description: string;
+        path: string;
+      }>;
     };
   }): string {
     const overview = `# Additional Conventions Beyond the Built-in Functions
@@ -607,17 +652,7 @@ When users call a simulated subagent, it will look for the corresponding markdow
 For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`
       : "";
 
-    const skillsSection = skills
-      ? `## Simulated Skills
-
-Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks.
-
-When users invoke a simulated skill, look for the corresponding SKILL.md file in \`${join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "{skill}/SKILL.md")}\` and execute its contents as the block of operations.
-
-For example, if the user instructs \`Use the skill example-skill to achieve something\`, look for \`${join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "example-skill/SKILL.md")}\` and execute its contents.
-
-Additionally, you should proactively consider using available skills when they would help accomplish a task more effectively, even if the user doesn't explicitly request them.`
-      : "";
+    const skillsSection = skills ? this.generateSkillsSection(skills) : "";
 
     const result =
       [
@@ -636,5 +671,44 @@ Additionally, you should proactively consider using available skills when they w
           : []),
       ].join("\n\n") + "\n\n";
     return result;
+  }
+
+  private generateSkillsSection(skills: {
+    skillList?: Array<{
+      name: string;
+      description: string;
+      path: string;
+    }>;
+  }): string {
+    if (!skills.skillList || skills.skillList.length === 0) {
+      return "";
+    }
+
+    const skillListLines = skills.skillList.map(
+      (skill) => `- **${skill.name}**: ${skill.description} (path: \`${skill.path}\`)`,
+    );
+
+    return `## Simulated Skills
+
+Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks. When you determine that a skill would be helpful for the current task, read the corresponding SKILL.md file and execute its instructions.
+
+### Available Skills
+
+${skillListLines.join("\n")}`;
+  }
+
+  private async loadRulesyncSkills(): Promise<RulesyncSkill[]> {
+    const paths = RulesyncSkill.getSettablePaths();
+    const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
+    const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
+    const dirNames = dirPaths.map((path) => basename(path));
+
+    const rulesyncSkills = await Promise.all(
+      dirNames.map((dirName) =>
+        RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
+      ),
+    );
+
+    return rulesyncSkills;
   }
 }
