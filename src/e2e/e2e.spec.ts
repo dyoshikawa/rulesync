@@ -95,26 +95,36 @@ This is a test rule for E2E testing.
       "rules",
     ]);
 
-    // Verify that the CLAUDE.md file was generated
-    const claudeMdPath = join(testDir, "CLAUDE.md");
+    // Verify that the CLAUDE.md file was generated (modular rules format: .claude/CLAUDE.md)
+    const claudeMdPath = join(testDir, ".claude", "CLAUDE.md");
     const generatedContent = await readFileContent(claudeMdPath);
     expect(generatedContent).toContain("Test Rule");
   });
 
   it("should import claudecode rules", async () => {
-    // Setup: Create a CLAUDE.md file to import
+    // Setup: Create a .claude/CLAUDE.md file to import (modular rules format)
+    const claudeDir = join(testDir, ".claude");
+    await ensureDir(claudeDir);
     const claudeMdContent = `# Project Overview
 
 This is a test project for E2E testing.
 `;
-    const claudeMdPath = join(testDir, "CLAUDE.md");
+    const claudeMdPath = join(claudeDir, "CLAUDE.md");
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
-    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "import", "--targets", "claudecode"]);
+    await execFileAsync(rulesyncCmd, [
+      ...rulesyncArgs,
+      "import",
+      "--targets",
+      "claudecode",
+      "--features",
+      "rules",
+    ]);
 
     // Verify that the imported rule file was created
-    const importedRulePath = join(testDir, ".rulesync", "rules", RULESYNC_OVERVIEW_FILE_NAME);
+    // Note: The imported file keeps the original filename (CLAUDE.md), not overview.md
+    const importedRulePath = join(testDir, ".rulesync", "rules", "CLAUDE.md");
     const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
   });
