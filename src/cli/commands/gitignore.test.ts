@@ -211,7 +211,9 @@ describe("gitignoreCommand", () => {
 **/.augment/rules/
 **/.augment-guidelines
 **/CLAUDE.md
+**/.claude/CLAUDE.md
 **/.claude/memories/
+**/.claude/rules/
 **/.claude/commands/
 **/.claude/agents/
 **/.claude/skills/
