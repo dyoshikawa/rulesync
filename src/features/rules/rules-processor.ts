@@ -278,10 +278,8 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "claudecode": {
-        const rootRule = toolRules[rootRuleIndex];
-        rootRule?.setFileContent(
-          this.generateReferencesSection(toolRules) + rootRule.getFileContent(),
-        );
+        // Claude Code's modular rules system (.claude/rules/*.md with frontmatter)
+        // no longer requires @ references in the root file
         return toolRules;
       }
       case "codexcli": {
@@ -531,30 +529,6 @@ export class RulesProcessor extends FeatureProcessor {
       rules,
     });
     lines.push(toonContent);
-
-    return lines.join("\n") + "\n\n";
-  }
-
-  private generateReferencesSection(toolRules: ToolRule[]): string {
-    const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
-
-    if (toolRulesWithoutRoot.length === 0) {
-      return "";
-    }
-
-    const lines: string[] = [];
-    lines.push("Please also reference the following rules as needed:");
-    lines.push("");
-
-    for (const toolRule of toolRulesWithoutRoot) {
-      // Escape double quotes in description
-      const escapedDescription = toolRule.getDescription()?.replace(/"/g, '\\"');
-      const globsText = toolRule.getGlobs()?.join(",");
-
-      lines.push(
-        `@${toolRule.getRelativePathFromCwd()} description: "${escapedDescription}" applyTo: "${globsText}"`,
-      );
-    }
 
     return lines.join("\n") + "\n\n";
   }

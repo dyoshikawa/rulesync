@@ -27,50 +27,84 @@ describe("ClaudecodeRule", () => {
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
-        relativeFilePath: "test-memory.md",
-        fileContent: "# Test Memory\n\nThis is a test memory.",
+        relativeDirPath: ".claude/rules",
+        relativeFilePath: "test-rule.md",
+        frontmatter: { paths: "src/**/*.ts" },
+        body: "# Test Rule\n\nThis is a test rule.",
       });
 
       expect(claudecodeRule).toBeInstanceOf(ClaudecodeRule);
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/memories");
-      expect(claudecodeRule.getRelativeFilePath()).toBe("test-memory.md");
-      expect(claudecodeRule.getFileContent()).toBe("# Test Memory\n\nThis is a test memory.");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("test-rule.md");
+      expect(claudecodeRule.getBody()).toBe("# Test Rule\n\nThis is a test rule.");
+      expect(claudecodeRule.getFrontmatter()).toEqual({ paths: "src/**/*.ts" });
     });
 
     it("should create instance with custom baseDir", () => {
       const claudecodeRule = new ClaudecodeRule({
         baseDir: "/custom/path",
-        relativeDirPath: ".claude/memories",
-        relativeFilePath: "custom-memory.md",
-        fileContent: "# Custom Memory",
+        relativeDirPath: ".claude/rules",
+        relativeFilePath: "custom-rule.md",
+        frontmatter: {},
+        body: "# Custom Rule",
       });
 
-      expect(claudecodeRule.getFilePath()).toBe("/custom/path/.claude/memories/custom-memory.md");
+      expect(claudecodeRule.getFilePath()).toBe("/custom/path/.claude/rules/custom-rule.md");
     });
 
-    it("should create instance for root CLAUDE.md file", () => {
+    it("should create instance for root .claude/CLAUDE.md file", () => {
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".",
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
-        fileContent: "# Project Overview\n\nThis is the main Claude Code memory.",
+        frontmatter: {},
+        body: "# Project Overview\n\nThis is the main Claude Code memory.",
         root: true,
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
-      expect(claudecodeRule.getFileContent()).toBe(
+      expect(claudecodeRule.getBody()).toBe(
         "# Project Overview\n\nThis is the main Claude Code memory.",
       );
       expect(claudecodeRule.isRoot()).toBe(true);
     });
 
+    it("should include frontmatter in file content for non-root files", () => {
+      const claudecodeRule = new ClaudecodeRule({
+        relativeDirPath: ".claude/rules",
+        relativeFilePath: "api-rules.md",
+        frontmatter: { paths: "src/api/**/*.ts" },
+        body: "# API Rules",
+        root: false,
+      });
+
+      const fileContent = claudecodeRule.getFileContent();
+      expect(fileContent).toContain("---");
+      expect(fileContent).toContain("paths: src/api/**/*.ts");
+      expect(fileContent).toContain("# API Rules");
+    });
+
+    it("should not include frontmatter in file content for root files", () => {
+      const claudecodeRule = new ClaudecodeRule({
+        relativeDirPath: ".claude",
+        relativeFilePath: "CLAUDE.md",
+        frontmatter: {},
+        body: "# Root Content",
+        root: true,
+      });
+
+      const fileContent = claudecodeRule.getFileContent();
+      expect(fileContent).toBe("# Root Content");
+      expect(fileContent).not.toContain("---");
+    });
+
     it("should validate content by default", () => {
       expect(() => {
         const _instance = new ClaudecodeRule({
-          relativeDirPath: ".claude/memories",
+          relativeDirPath: ".claude/rules",
           relativeFilePath: "test.md",
-          fileContent: "", // empty content should be valid since validate always returns success
+          frontmatter: {},
+          body: "",
         });
       }).not.toThrow();
     });
@@ -78,9 +112,10 @@ describe("ClaudecodeRule", () => {
     it("should skip validation when requested", () => {
       expect(() => {
         const _instance = new ClaudecodeRule({
-          relativeDirPath: ".claude/memories",
+          relativeDirPath: ".claude/rules",
           relativeFilePath: "test.md",
-          fileContent: "",
+          frontmatter: {},
+          body: "",
           validate: false,
         });
       }).not.toThrow();
@@ -88,71 +123,105 @@ describe("ClaudecodeRule", () => {
 
     it("should handle root rule parameter", () => {
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".",
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
-        fileContent: "# Root Memory",
+        frontmatter: {},
+        body: "# Root Rule",
         root: true,
       });
 
-      expect(claudecodeRule.getFileContent()).toBe("# Root Memory");
+      expect(claudecodeRule.getBody()).toBe("# Root Rule");
       expect(claudecodeRule.isRoot()).toBe(true);
     });
   });
 
   describe("fromFile", () => {
-    it("should create instance from root CLAUDE.md file", async () => {
-      // Setup test file - for root, the file should be directly at baseDir/CLAUDE.md
+    it("should create instance from root .claude/CLAUDE.md file", async () => {
+      // Setup test file - for root, the file should be at baseDir/.claude/CLAUDE.md
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
       const testContent = "# Claude Code Project\n\nProject overview and instructions.";
-      await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
 
       const claudecodeRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
         relativeFilePath: "CLAUDE.md",
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
-      expect(claudecodeRule.getFileContent()).toBe(testContent);
-      expect(claudecodeRule.getFilePath()).toBe(join(testDir, "CLAUDE.md"));
+      expect(claudecodeRule.getBody()).toBe(testContent);
+      expect(claudecodeRule.getFilePath()).toBe(join(testDir, ".claude/CLAUDE.md"));
       expect(claudecodeRule.isRoot()).toBe(true);
     });
 
-    it("should create instance from memory file", async () => {
+    it("should create instance from rules file with frontmatter", async () => {
       // Setup test file
-      const memoriesDir = join(testDir, ".claude/memories");
-      await ensureDir(memoriesDir);
-      const testContent = "# Memory Rule\n\nContent from memory file.";
-      await writeFileContent(join(memoriesDir, "memory-test.md"), testContent);
+      const rulesDir = join(testDir, ".claude/rules");
+      await ensureDir(rulesDir);
+      const testContent = `---
+paths: src/**/*.ts
+---
+
+# TypeScript Rules
+
+Content from rules file.`;
+      await writeFileContent(join(rulesDir, "typescript-rules.md"), testContent);
 
       const claudecodeRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
-        relativeFilePath: "memory-test.md",
+        relativeFilePath: "typescript-rules.md",
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/memories");
-      expect(claudecodeRule.getRelativeFilePath()).toBe("memory-test.md");
-      expect(claudecodeRule.getFileContent()).toBe(testContent);
-      expect(claudecodeRule.getFilePath()).toBe(join(testDir, ".claude/memories/memory-test.md"));
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("typescript-rules.md");
+      expect(claudecodeRule.getBody()).toBe("# TypeScript Rules\n\nContent from rules file.");
+      expect(claudecodeRule.getFrontmatter()).toEqual({ paths: "src/**/*.ts" });
+      expect(claudecodeRule.getFilePath()).toBe(join(testDir, ".claude/rules/typescript-rules.md"));
       expect(claudecodeRule.isRoot()).toBe(false);
     });
 
+    it("should create instance from rules file without frontmatter paths", async () => {
+      const rulesDir = join(testDir, ".claude/rules");
+      await ensureDir(rulesDir);
+      const testContent = `---
+---
+
+# General Rules
+
+Content applies to all files.`;
+      await writeFileContent(join(rulesDir, "general.md"), testContent);
+
+      const claudecodeRule = await ClaudecodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "general.md",
+      });
+
+      expect(claudecodeRule.getBody()).toBe("# General Rules\n\nContent applies to all files.");
+      expect(claudecodeRule.getFrontmatter()).toEqual({});
+    });
+
     it("should use default baseDir when not provided", async () => {
-      // Setup test file in test directory - for root CLAUDE.md, it should be at baseDir/CLAUDE.md
+      // Setup test file in test directory
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
       const testContent = "# Default BaseDir Test";
-      await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
 
       const claudecodeRule = await ClaudecodeRule.fromFile({
         relativeFilePath: "CLAUDE.md",
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
-      expect(claudecodeRule.getFileContent()).toBe(testContent);
+      expect(claudecodeRule.getBody()).toBe(testContent);
     });
 
     it("should handle validation parameter", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
       const testContent = "# Validation Test";
-      await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
 
       const claudecodeRuleWithValidation = await ClaudecodeRule.fromFile({
         baseDir: testDir,
@@ -166,8 +235,8 @@ describe("ClaudecodeRule", () => {
         validate: false,
       });
 
-      expect(claudecodeRuleWithValidation.getFileContent()).toBe(testContent);
-      expect(claudecodeRuleWithoutValidation.getFileContent()).toBe(testContent);
+      expect(claudecodeRuleWithValidation.getBody()).toBe(testContent);
+      expect(claudecodeRuleWithoutValidation.getBody()).toBe(testContent);
     });
 
     it("should throw error when file does not exist", async () => {
@@ -180,32 +249,38 @@ describe("ClaudecodeRule", () => {
     });
 
     it("should detect root vs non-root files correctly", async () => {
-      // Setup root CLAUDE.md file and memory files
-      const memoriesDir = join(testDir, ".claude/memories");
-      await ensureDir(memoriesDir);
+      // Setup root .claude/CLAUDE.md file and rules files
+      const claudeDir = join(testDir, ".claude");
+      const rulesDir = join(testDir, ".claude/rules");
+      await ensureDir(claudeDir);
+      await ensureDir(rulesDir);
 
       const rootContent = "# Root Project Overview";
-      const memoryContent = "# Memory Rule";
+      const ruleContent = `---
+paths: "**/*.md"
+---
 
-      // Root file goes directly in baseDir
-      await writeFileContent(join(testDir, "CLAUDE.md"), rootContent);
-      // Memory file goes in .claude/memories
-      await writeFileContent(join(memoriesDir, "memory.md"), memoryContent);
+# Markdown Rules`;
+
+      // Root file goes in .claude/CLAUDE.md
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), rootContent);
+      // Rules file goes in .claude/rules/
+      await writeFileContent(join(rulesDir, "markdown.md"), ruleContent);
 
       const rootRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
         relativeFilePath: "CLAUDE.md",
       });
 
-      const memoryRule = await ClaudecodeRule.fromFile({
+      const markdownRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
-        relativeFilePath: "memory.md",
+        relativeFilePath: "markdown.md",
       });
 
       expect(rootRule.isRoot()).toBe(true);
-      expect(rootRule.getRelativeDirPath()).toBe(".");
-      expect(memoryRule.isRoot()).toBe(false);
-      expect(memoryRule.getRelativeDirPath()).toBe(".claude/memories");
+      expect(rootRule.getRelativeDirPath()).toBe(".claude");
+      expect(markdownRule.isRoot()).toBe(false);
+      expect(markdownRule.getRelativeDirPath()).toBe(".claude/rules");
     });
   });
 
@@ -228,11 +303,9 @@ describe("ClaudecodeRule", () => {
       });
 
       expect(claudecodeRule).toBeInstanceOf(ClaudecodeRule);
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
-      expect(claudecodeRule.getFileContent()).toContain(
-        "# Test RulesyncRule\n\nContent from rulesync.",
-      );
+      expect(claudecodeRule.getBody()).toBe("# Test RulesyncRule\n\nContent from rulesync.");
       expect(claudecodeRule.isRoot()).toBe(true);
     });
 
@@ -244,7 +317,7 @@ describe("ClaudecodeRule", () => {
           root: false,
           targets: ["*"],
           description: "Test detail rule",
-          globs: [],
+          globs: ["src/**/*.ts"],
         },
         body: "# Detail RulesyncRule\n\nContent from detail rulesync.",
       });
@@ -254,12 +327,51 @@ describe("ClaudecodeRule", () => {
       });
 
       expect(claudecodeRule).toBeInstanceOf(ClaudecodeRule);
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/memories");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
       expect(claudecodeRule.getRelativeFilePath()).toBe("detail-rule.md");
-      expect(claudecodeRule.getFileContent()).toContain(
+      expect(claudecodeRule.getBody()).toBe(
         "# Detail RulesyncRule\n\nContent from detail rulesync.",
       );
       expect(claudecodeRule.isRoot()).toBe(false);
+    });
+
+    it("should convert globs to paths field", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api-rules.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["src/api/**/*.ts", "src/routes/**/*.ts"],
+        },
+        body: "# API Rules",
+      });
+
+      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(claudecodeRule.getFrontmatter().paths).toBe("src/api/**/*.ts, src/routes/**/*.ts");
+    });
+
+    it("should prefer claudecode.paths over globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["src/**/*.ts"],
+          claudecode: { paths: "custom/path/**/*.ts" },
+        },
+        body: "# Test",
+      });
+
+      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(claudecodeRule.getFrontmatter().paths).toBe("custom/path/**/*.ts");
     });
 
     it("should use custom baseDir", () => {
@@ -280,7 +392,7 @@ describe("ClaudecodeRule", () => {
         rulesyncRule,
       });
 
-      expect(claudecodeRule.getFilePath()).toBe("/custom/base/.claude/memories/custom-base.md");
+      expect(claudecodeRule.getFilePath()).toBe("/custom/base/.claude/rules/custom-base.md");
     });
 
     it("should handle validation parameter", () => {
@@ -306,8 +418,8 @@ describe("ClaudecodeRule", () => {
         validate: false,
       });
 
-      expect(claudecodeRuleWithValidation.getFileContent()).toContain("# Validation Test");
-      expect(claudecodeRuleWithoutValidation.getFileContent()).toContain("# Validation Test");
+      expect(claudecodeRuleWithValidation.getBody()).toBe("# Validation Test");
+      expect(claudecodeRuleWithoutValidation.getBody()).toBe("# Validation Test");
     });
   });
 
@@ -315,9 +427,10 @@ describe("ClaudecodeRule", () => {
     it("should convert ClaudecodeRule to RulesyncRule for root rule", () => {
       const claudecodeRule = new ClaudecodeRule({
         baseDir: testDir,
-        relativeDirPath: ".",
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
-        fileContent: "# Convert Test\n\nThis will be converted.",
+        frontmatter: {},
+        body: "# Convert Test\n\nThis will be converted.",
         root: true,
       });
 
@@ -326,15 +439,16 @@ describe("ClaudecodeRule", () => {
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
-      expect(rulesyncRule.getFileContent()).toContain("# Convert Test\n\nThis will be converted.");
+      expect(rulesyncRule.getBody()).toBe("# Convert Test\n\nThis will be converted.");
     });
 
-    it("should convert ClaudecodeRule to RulesyncRule for memory rule", () => {
+    it("should convert ClaudecodeRule to RulesyncRule for rules file", () => {
       const claudecodeRule = new ClaudecodeRule({
         baseDir: testDir,
-        relativeDirPath: ".claude/memories",
-        relativeFilePath: "memory-convert.md",
-        fileContent: "# Memory Convert Test\n\nThis memory will be converted.",
+        relativeDirPath: ".claude/rules",
+        relativeFilePath: "rule-convert.md",
+        frontmatter: { paths: "src/**/*.ts" },
+        body: "# Rule Convert Test\n\nThis rule will be converted.",
         root: false,
       });
 
@@ -342,18 +456,19 @@ describe("ClaudecodeRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("memory-convert.md");
-      expect(rulesyncRule.getFileContent()).toContain(
-        "# Memory Convert Test\n\nThis memory will be converted.",
-      );
+      expect(rulesyncRule.getRelativeFilePath()).toBe("rule-convert.md");
+      expect(rulesyncRule.getBody()).toBe("# Rule Convert Test\n\nThis rule will be converted.");
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+      expect(rulesyncRule.getFrontmatter().claudecode?.paths).toBe("src/**/*.ts");
     });
 
     it("should preserve metadata in conversion", () => {
       const claudecodeRule = new ClaudecodeRule({
-        baseDir: "/test/path",
-        relativeDirPath: ".",
+        baseDir: testDir,
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
-        fileContent: "# Metadata Test\n\nWith metadata preserved.",
+        frontmatter: {},
+        body: "# Metadata Test\n\nWith metadata preserved.",
         root: true,
       });
 
@@ -362,18 +477,17 @@ describe("ClaudecodeRule", () => {
       expect(rulesyncRule.getFilePath()).toBe(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
       );
-      expect(rulesyncRule.getFileContent()).toContain(
-        "# Metadata Test\n\nWith metadata preserved.",
-      );
+      expect(rulesyncRule.getBody()).toBe("# Metadata Test\n\nWith metadata preserved.");
     });
   });
 
   describe("validate", () => {
-    it("should always return success", () => {
+    it("should always return success for valid frontmatter", () => {
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".",
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
-        fileContent: "# Any content is valid",
+        frontmatter: {},
+        body: "# Any content is valid",
       });
 
       const result = claudecodeRule.validate();
@@ -382,11 +496,12 @@ describe("ClaudecodeRule", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should return success for empty content", () => {
+    it("should return success for empty body", () => {
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
+        relativeDirPath: ".claude/rules",
         relativeFilePath: "empty.md",
-        fileContent: "",
+        frontmatter: {},
+        body: "",
       });
 
       const result = claudecodeRule.validate();
@@ -399,7 +514,6 @@ describe("ClaudecodeRule", () => {
       const contents = [
         "# Markdown content",
         "Plain text content",
-        "---\nfrontmatter: true\n---\nContent with frontmatter",
         "/* Code comments */",
         "Invalid markdown ### ###",
         "Special characters: éñ中文🎉",
@@ -408,9 +522,10 @@ describe("ClaudecodeRule", () => {
 
       for (const content of contents) {
         const claudecodeRule = new ClaudecodeRule({
-          relativeDirPath: ".",
+          relativeDirPath: ".claude",
           relativeFilePath: "CLAUDE.md",
-          fileContent: content,
+          frontmatter: {},
+          body: content,
         });
 
         const result = claudecodeRule.validate();
@@ -423,8 +538,10 @@ describe("ClaudecodeRule", () => {
   describe("integration tests", () => {
     it("should handle complete workflow from file to rulesync rule", async () => {
       // Create original file
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
       const originalContent = "# Integration Test\n\nComplete workflow test.";
-      await writeFileContent(join(testDir, "CLAUDE.md"), originalContent);
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), originalContent);
 
       // Load from file
       const claudecodeRule = await ClaudecodeRule.fromFile({
@@ -436,31 +553,38 @@ describe("ClaudecodeRule", () => {
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
       // Verify conversion
-      expect(rulesyncRule.getFileContent()).toContain(originalContent);
+      expect(rulesyncRule.getBody()).toBe(originalContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
-    it("should handle complete workflow from memory file to rulesync rule", async () => {
-      // Create memory file
-      const memoriesDir = join(testDir, ".claude/memories");
-      await ensureDir(memoriesDir);
-      const originalContent = "# Memory Integration Test\n\nMemory workflow test.";
-      await writeFileContent(join(memoriesDir, "memory-integration.md"), originalContent);
+    it("should handle complete workflow from rules file to rulesync rule", async () => {
+      // Create rules file
+      const rulesDir = join(testDir, ".claude/rules");
+      await ensureDir(rulesDir);
+      const originalContent = `---
+paths: "src/**/*.ts"
+---
+
+# Rules Integration Test
+
+Rules workflow test.`;
+      await writeFileContent(join(rulesDir, "rules-integration.md"), originalContent);
 
       // Load from file
       const claudecodeRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
-        relativeFilePath: "memory-integration.md",
+        relativeFilePath: "rules-integration.md",
       });
 
       // Convert to rulesync rule
       const rulesyncRule = claudecodeRule.toRulesyncRule();
 
       // Verify conversion
-      expect(rulesyncRule.getFileContent()).toContain(originalContent);
+      expect(rulesyncRule.getBody()).toBe("# Rules Integration Test\n\nRules workflow test.");
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("memory-integration.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe("rules-integration.md");
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
     });
 
     it("should handle roundtrip conversion rulesync -> claudecode -> rulesync", () => {
@@ -490,8 +614,8 @@ describe("ClaudecodeRule", () => {
       const finalRulesync = claudecodeRule.toRulesyncRule();
 
       // Verify content preservation
-      expect(finalRulesync.getFileContent()).toContain(originalBody);
-      expect(finalRulesync.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME); // Should be overview.md for root
+      expect(finalRulesync.getBody()).toBe(originalBody);
+      expect(finalRulesync.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle roundtrip conversion rulesync -> claudecode -> rulesync for detail rule", () => {
@@ -506,7 +630,7 @@ describe("ClaudecodeRule", () => {
           root: false,
           targets: ["*"],
           description: "Detail roundtrip test",
-          globs: [],
+          globs: ["src/**/*.ts"],
         },
         body: originalBody,
       });
@@ -521,32 +645,49 @@ describe("ClaudecodeRule", () => {
       const finalRulesync = claudecodeRule.toRulesyncRule();
 
       // Verify content preservation
-      expect(finalRulesync.getFileContent()).toContain(originalBody);
+      expect(finalRulesync.getBody()).toBe(originalBody);
       expect(finalRulesync.getRelativeFilePath()).toBe("detail-roundtrip.md");
+      expect(finalRulesync.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
     });
 
     it("should preserve directory structure in file paths", async () => {
       // Test nested directory structure
-      const nestedDir = join(testDir, ".claude/memories/nested");
+      const nestedDir = join(testDir, ".claude/rules/nested");
       await ensureDir(nestedDir);
-      const content = "# Nested Rule\n\nIn a nested directory.";
+      const content = `---
+paths: "nested/**/*.ts"
+---
+
+# Nested Rule
+
+In a nested directory.`;
       await writeFileContent(join(nestedDir, "nested-rule.md"), content);
 
-      // This should work with the current implementation since fromFile
-      // determines path based on the relativeFilePath parameter
       const claudecodeRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
         relativeFilePath: "nested/nested-rule.md",
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/memories");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
       expect(claudecodeRule.getRelativeFilePath()).toBe("nested/nested-rule.md");
-      expect(claudecodeRule.getFileContent()).toBe(content);
+      expect(claudecodeRule.getBody()).toBe("# Nested Rule\n\nIn a nested directory.");
     });
   });
 
-  describe("getSettablePaths with global flag", () => {
-    it("should return global-specific paths", () => {
+  describe("getSettablePaths", () => {
+    it("should return project paths by default", () => {
+      const paths = ClaudecodeRule.getSettablePaths();
+
+      expect(paths.root).toEqual({
+        relativeDirPath: ".claude",
+        relativeFilePath: "CLAUDE.md",
+      });
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: ".claude/rules",
+      });
+    });
+
+    it("should return global paths when global=true", () => {
       const paths = ClaudecodeRule.getSettablePaths({ global: true });
 
       expect(paths).toHaveProperty("root");
@@ -555,14 +696,6 @@ describe("ClaudecodeRule", () => {
         relativeFilePath: "CLAUDE.md",
       });
       expect(paths).not.toHaveProperty("nonRoot");
-    });
-
-    it("should have different paths than regular getSettablePaths", () => {
-      const globalPaths = ClaudecodeRule.getSettablePaths({ global: true });
-      const regularPaths = ClaudecodeRule.getSettablePaths();
-
-      expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
-      expect(globalPaths.root.relativeFilePath).toBe(regularPaths.root.relativeFilePath);
     });
   });
 
@@ -581,7 +714,7 @@ describe("ClaudecodeRule", () => {
 
       expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
-      expect(claudecodeRule.getFileContent()).toBe(testContent);
+      expect(claudecodeRule.getBody()).toBe(testContent);
       expect(claudecodeRule.getFilePath()).toBe(join(testDir, ".claude/CLAUDE.md"));
       expect(claudecodeRule.isRoot()).toBe(true);
     });
@@ -604,8 +737,10 @@ describe("ClaudecodeRule", () => {
     });
 
     it("should use regular paths when global=false", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
       const testContent = "# Non-Global Mode Test";
-      await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
 
       const claudecodeRule = await ClaudecodeRule.fromFile({
         baseDir: testDir,
@@ -613,7 +748,7 @@ describe("ClaudecodeRule", () => {
         global: false,
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
     });
   });
@@ -660,7 +795,7 @@ describe("ClaudecodeRule", () => {
         global: false,
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
       expect(claudecodeRule.isRoot()).toBe(true);
     });
@@ -682,7 +817,7 @@ describe("ClaudecodeRule", () => {
         rulesyncRule,
       });
 
-      expect(claudecodeRule.getRelativeDirPath()).toBe(".");
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
     });
   });
@@ -774,9 +909,10 @@ describe("ClaudecodeRule", () => {
   describe("edge cases", () => {
     it("should handle files with special characters in names", () => {
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
+        relativeDirPath: ".claude/rules",
         relativeFilePath: "special-chars@#$.md",
-        fileContent: "# Special chars in filename",
+        frontmatter: {},
+        body: "# Special chars in filename",
       });
 
       expect(claudecodeRule.getRelativeFilePath()).toBe("special-chars@#$.md");
@@ -785,12 +921,13 @@ describe("ClaudecodeRule", () => {
     it("should handle very long content", () => {
       const longContent = "# Long Content\n\n" + "A".repeat(10000);
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
+        relativeDirPath: ".claude/rules",
         relativeFilePath: "long-content.md",
-        fileContent: longContent,
+        frontmatter: {},
+        body: longContent,
       });
 
-      expect(claudecodeRule.getFileContent()).toBe(longContent);
+      expect(claudecodeRule.getBody()).toBe(longContent);
       expect(claudecodeRule.validate().success).toBe(true);
     });
 
@@ -804,13 +941,14 @@ describe("ClaudecodeRule", () => {
 
       for (const content of contentVariations) {
         const claudecodeRule = new ClaudecodeRule({
-          relativeDirPath: ".claude/memories",
+          relativeDirPath: ".claude/rules",
           relativeFilePath: "line-endings.md",
-          fileContent: content,
+          frontmatter: {},
+          body: content,
         });
 
         expect(claudecodeRule.validate().success).toBe(true);
-        expect(claudecodeRule.getFileContent()).toBe(content);
+        expect(claudecodeRule.getBody()).toBe(content);
       }
     });
 
@@ -818,13 +956,30 @@ describe("ClaudecodeRule", () => {
       const unicodeContent =
         "# Unicode Test 🚀\n\nEmojis: 😀🎉\nChinese: 你好世界\nArabic: مرحبا بالعالم\nRussian: Привет мир";
       const claudecodeRule = new ClaudecodeRule({
-        relativeDirPath: ".claude/memories",
+        relativeDirPath: ".claude/rules",
         relativeFilePath: "unicode.md",
-        fileContent: unicodeContent,
+        frontmatter: {},
+        body: unicodeContent,
       });
 
-      expect(claudecodeRule.getFileContent()).toBe(unicodeContent);
+      expect(claudecodeRule.getBody()).toBe(unicodeContent);
       expect(claudecodeRule.validate().success).toBe(true);
+    });
+
+    it("should handle multiple comma-separated paths in paths field", () => {
+      const claudecodeRule = new ClaudecodeRule({
+        relativeDirPath: ".claude/rules",
+        relativeFilePath: "multi-paths.md",
+        frontmatter: { paths: "src/**/*.ts, tests/**/*.test.ts, lib/**/*.js" },
+        body: "# Multi-path rule",
+      });
+
+      const rulesyncRule = claudecodeRule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().globs).toEqual([
+        "src/**/*.ts",
+        "tests/**/*.test.ts",
+        "lib/**/*.js",
+      ]);
     });
   });
 });

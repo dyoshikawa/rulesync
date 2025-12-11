@@ -39,6 +39,13 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
     }),
   ),
+  claudecode: z.optional(
+    z.object({
+      // Override globs with Claude Code specific paths field
+      // @example "src/**/*.ts"
+      paths: z.optional(z.string()),
+    }),
+  ),
 });
 
 export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSchema>;
@@ -149,6 +156,7 @@ export class RulesyncRule extends RulesyncFile {
       globs: result.data.globs ?? [],
       agentsmd: result.data.agentsmd,
       cursor: result.data.cursor,
+      claudecode: result.data.claudecode,
     };
 
     const filename = basename(legacyPath);
@@ -190,6 +198,7 @@ export class RulesyncRule extends RulesyncFile {
       globs: result.data.globs ?? [],
       agentsmd: result.data.agentsmd,
       cursor: result.data.cursor,
+      claudecode: result.data.claudecode,
     };
 
     const filename = basename(filePath);

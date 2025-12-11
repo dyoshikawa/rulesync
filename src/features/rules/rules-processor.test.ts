@@ -230,8 +230,8 @@ describe("RulesProcessor", () => {
     });
   });
 
-  describe("generateReferencesSection", () => {
-    it("should generate references section with description and globs for claudecode", async () => {
+  describe("claudecode modular rules", () => {
+    it("should not generate @ references section for claudecode (uses modular rules)", async () => {
       const processor = new RulesProcessor({
         toolTarget: "claudecode",
       });
@@ -261,16 +261,6 @@ describe("RulesProcessor", () => {
           },
           body: "# Feature rule content",
         }),
-        new RulesyncRule({
-          baseDir: testDir,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "minimal-rule.md",
-          frontmatter: {
-            root: false,
-            targets: ["*"],
-          },
-          body: "# Minimal rule content",
-        }),
       ];
 
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
@@ -279,19 +269,14 @@ describe("RulesProcessor", () => {
       const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
       expect(rootRule).toBeDefined();
 
-      // Check that the root rule contains the references section
+      // Root rule should NOT contain @ references (new modular rules system)
       const content = rootRule?.getFileContent();
-      expect(content).toContain("Please also reference the following rules as needed:");
-      expect(content).toContain(
-        '@.claude/memories/feature-rule.md description: "Feature specific rule" applyTo: "src/**/*.ts,tests/**/*.test.ts"',
-      );
-      expect(content).toContain(
-        '@.claude/memories/minimal-rule.md description: "undefined" applyTo: "undefined"',
-      );
-      expect(content).toContain("# Root rule content");
+      expect(content).toBe("# Root rule content");
+      expect(content).not.toContain("Please also reference");
+      expect(content).not.toContain("@.claude/");
     });
 
-    it("should handle rules with undefined description and globs", async () => {
+    it("should generate files at .claude/CLAUDE.md and .claude/rules/*.md", async () => {
       const processor = new RulesProcessor({
         toolTarget: "claudecode",
       });
@@ -310,140 +295,42 @@ describe("RulesProcessor", () => {
         new RulesyncRule({
           baseDir: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "no-metadata.md",
+          relativeFilePath: "detail.md",
           frontmatter: {
             root: false,
             targets: ["*"],
-          },
-          body: "# No metadata",
-        }),
-      ];
-
-      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
-      const content = rootRule?.getFileContent();
-
-      expect(content).toContain(
-        '@.claude/memories/no-metadata.md description: "undefined" applyTo: "undefined"',
-      );
-    });
-
-    it("should escape double quotes in description", async () => {
-      const processor = new RulesProcessor({
-        toolTarget: "claudecode",
-      });
-
-      const rulesyncRules = [
-        new RulesyncRule({
-          baseDir: testDir,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "root.md",
-          frontmatter: {
-            root: true,
-            targets: ["*"],
-          },
-          body: "# Root",
-        }),
-        new RulesyncRule({
-          baseDir: testDir,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "quoted.md",
-          frontmatter: {
-            root: false,
-            targets: ["*"],
-            description: 'Rule with "quotes" in description',
             globs: ["**/*.ts"],
           },
-          body: "# Quoted",
+          body: "# Detail",
         }),
       ];
 
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
       const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
-      const content = rootRule?.getFileContent();
+      const detailRule = result.find((rule) => rule instanceof ClaudecodeRule && !rule.isRoot());
 
-      expect(content).toContain(
-        '@.claude/memories/quoted.md description: "Rule with \\"quotes\\" in description" applyTo: "**/*.ts"',
-      );
-    });
-
-    it("should not generate references section when only root rule exists", async () => {
-      const processor = new RulesProcessor({
-        toolTarget: "claudecode",
-      });
-
-      const rulesyncRules = [
-        new RulesyncRule({
-          baseDir: testDir,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "root.md",
-          frontmatter: {
-            root: true,
-            targets: ["*"],
-            description: "Only root rule",
-            globs: ["**/*"],
-          },
-          body: "# Root only content",
-        }),
-      ];
-
-      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
-      const content = rootRule?.getFileContent();
-
-      expect(content).toBe("# Root only content");
-      expect(content).not.toContain("Please also reference the following documents");
-    });
-
-    it("should handle multiple globs correctly", async () => {
-      const processor = new RulesProcessor({
-        toolTarget: "claudecode",
-      });
-
-      const rulesyncRules = [
-        new RulesyncRule({
-          baseDir: testDir,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "root.md",
-          frontmatter: {
-            root: true,
-            targets: ["*"],
-          },
-          body: "# Root",
-        }),
-        new RulesyncRule({
-          baseDir: testDir,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-          relativeFilePath: "multi-glob.md",
-          frontmatter: {
-            root: false,
-            targets: ["*"],
-            description: "Multiple glob patterns",
-            globs: ["src/**/*.ts", "tests/**/*.test.ts", "**/*.config.js"],
-          },
-          body: "# Multi glob",
-        }),
-      ];
-
-      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
-      const content = rootRule?.getFileContent();
-
-      expect(content).toContain(
-        '@.claude/memories/multi-glob.md description: "Multiple glob patterns" applyTo: "src/**/*.ts,tests/**/*.test.ts,**/*.config.js"',
-      );
+      expect(rootRule?.getRelativeDirPath()).toBe(".claude");
+      expect(rootRule?.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(detailRule?.getRelativeDirPath()).toBe(".claude/rules");
+      expect(detailRule?.getRelativeFilePath()).toBe("detail.md");
     });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
     it("should return the same files as loadToolFiles", async () => {
+      // Setup files with new modular rules structure
+      await ensureDir(join(testDir, ".claude"));
+      await ensureDir(join(testDir, ".claude", "rules"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
       await writeFileContent(
-        join(testDir, "CLAUDE.md"),
-        "# Root\n\n@.claude/memories/memory1.md\n@.claude/memories/memory2.md",
+        join(testDir, ".claude", "rules", "rule1.md"),
+        "---\npaths: src/**/*.ts\n---\n\n# Rule 1",
       );
-      await ensureDir(join(testDir, ".claude", "memories"));
-      await writeFileContent(join(testDir, ".claude", "memories", "memory1.md"), "# Memory 1");
-      await writeFileContent(join(testDir, ".claude", "memories", "memory2.md"), "# Memory 2");
+      await writeFileContent(
+        join(testDir, ".claude", "rules", "rule2.md"),
+        "---\npaths: tests/**/*.ts\n---\n\n# Rule 2",
+      );
 
       const processor = new RulesProcessor({
         baseDir: testDir,
@@ -655,7 +542,7 @@ describe("RulesProcessor", () => {
 
         expect(result).toHaveLength(1);
         expect(result[0]).toBeInstanceOf(ClaudecodeRule);
-        expect(result[0]?.getRelativeDirPath()).toBe(".");
+        expect(result[0]?.getRelativeDirPath()).toBe(".claude");
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
     });
