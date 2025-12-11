@@ -191,7 +191,9 @@ dist/`;
 **/.augment/rules/
 **/.augment-guidelines
 **/CLAUDE.md
+**/.claude/CLAUDE.md
 **/.claude/memories/
+**/.claude/rules/
 **/.claude/commands/
 **/.claude/agents/
 **/.claude/skills/
@@ -210,6 +212,7 @@ dist/`;
 **/.gemini/commands/
 **/.gemini/subagents/
 **/.gemini/skills/
+**/.geminiignore
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/

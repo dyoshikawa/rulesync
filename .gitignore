@@ -257,3 +257,6 @@ CLAUDE.md
 **/WARP.md
 **/modular-mcp.json
 !.rulesync/.aiignore
+
+**/.claude/CLAUDE.md
+**/.claude/rules/

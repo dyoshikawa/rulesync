@@ -17,7 +17,9 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.augment-guidelines",
   // Claude Code
   "**/CLAUDE.md",
+  "**/.claude/CLAUDE.md",
   "**/.claude/memories/",
+  "**/.claude/rules/",
   "**/.claude/commands/",
   "**/.claude/agents/",
   "**/.claude/skills/",
