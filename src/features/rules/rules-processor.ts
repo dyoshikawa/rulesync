@@ -37,6 +37,7 @@ import { AmazonQCliRule } from "./amazonqcli-rule.js";
 import { AntigravityRule } from "./antigravity-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
+import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
@@ -66,6 +67,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "augmentcode",
   "augmentcode-legacy",
   "claudecode",
+  "claudecode-legacy",
   "cline",
   "codexcli",
   "copilot",
@@ -84,6 +86,7 @@ export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSc
 
 export const rulesProcessorToolTargetsGlobal: ToolTarget[] = [
   "claudecode",
+  "claudecode-legacy",
   "codexcli",
   "geminicli",
 ];
@@ -118,6 +121,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
   ["augmentcode", { class: AugmentcodeRule, meta: { extension: "md" } }],
   ["augmentcode-legacy", { class: AugmentcodeLegacyRule, meta: { extension: "md" } }],
   ["claudecode", { class: ClaudecodeRule, meta: { extension: "md" } }],
+  ["claudecode-legacy", { class: ClaudecodeLegacyRule, meta: { extension: "md" } }],
   ["cline", { class: ClineRule, meta: { extension: "md" } }],
   ["codexcli", { class: CodexcliRule, meta: { extension: "md" } }],
   ["copilot", { class: CopilotRule, meta: { extension: "md" } }],
@@ -278,6 +282,11 @@ export class RulesProcessor extends FeatureProcessor {
         return toolRules;
       }
       case "claudecode": {
+        // Modular rules: Files in .claude/rules/ are automatically loaded
+        // No explicit references needed in .claude/CLAUDE.md
+        return toolRules;
+      }
+      case "claudecode-legacy": {
         const rootRule = toolRules[rootRuleIndex];
         rootRule?.setFileContent(
           this.generateReferencesSection(toolRules) + rootRule.getFileContent(),

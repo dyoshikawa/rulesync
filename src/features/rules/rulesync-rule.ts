@@ -27,6 +27,13 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       subprojectPath: z.optional(z.string()),
     }),
   ),
+  claudecode: z.optional(
+    z.object({
+      // Glob patterns for conditional rules (takes precedence over globs)
+      // @example "src/**/*.ts, tests/**/*.test.ts"
+      paths: z.optional(z.string()),
+    }),
+  ),
   cursor: z.optional(
     z.object({
       alwaysApply: z.optional(z.boolean()),

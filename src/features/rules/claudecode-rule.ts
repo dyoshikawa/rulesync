@@ -1,14 +1,34 @@
 import { join } from "node:path";
+import { z } from "zod/mini";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
+
+/**
+ * Frontmatter schema for Claude Code modular rules
+ * @see https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
+ */
+export const ClaudecodeRuleFrontmatterSchema = z.object({
+  paths: z.optional(z.string()),
+});
+
+export type ClaudecodeRuleFrontmatter = z.infer<typeof ClaudecodeRuleFrontmatterSchema>;
+
+export type ClaudecodeRuleParams = Omit<ToolRuleParams, "fileContent"> & {
+  frontmatter: ClaudecodeRuleFrontmatter;
+  body: string;
+};
 
 export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   root: {
@@ -23,12 +43,21 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
 export type ClaudecodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 /**
- * Rule generator for Claude Code AI assistant
+ * Rule generator for Claude Code AI assistant (Modular Rules)
  *
- * Generates CLAUDE.md memory files based on rulesync rule content.
- * Supports the Claude Code memory system with import references.
+ * Generates modular rule files based on rulesync rule content.
+ * Supports the Claude Code modular rules system.
+ *
+ * Modular rules format:
+ * - {project}/.claude/CLAUDE.md (root: true)
+ * - {project}/.claude/rules/*.md (root: false, with optional `paths` frontmatter)
+ *
+ * @see https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
  */
 export class ClaudecodeRule extends ToolRule {
+  private readonly frontmatter: ClaudecodeRuleFrontmatter;
+  private readonly body: string;
+
   static getSettablePaths({
     global,
   }: {
@@ -44,13 +73,42 @@ export class ClaudecodeRule extends ToolRule {
     }
     return {
       root: {
-        relativeDirPath: ".",
+        relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
       },
       nonRoot: {
-        relativeDirPath: join(".claude", "memories"),
+        relativeDirPath: join(".claude", "rules"),
       },
     };
+  }
+
+  constructor({ frontmatter, body, ...rest }: ClaudecodeRuleParams) {
+    // Validate frontmatter before calling super
+    if (rest.validate) {
+      const result = ClaudecodeRuleFrontmatterSchema.safeParse(frontmatter);
+      if (!result.success) {
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+        );
+      }
+    }
+
+    super({
+      ...rest,
+      // Root file: no frontmatter; Non-root file: with optional paths frontmatter
+      fileContent: rest.root ? body : ClaudecodeRule.generateFileContent(body, frontmatter),
+    });
+
+    this.frontmatter = frontmatter;
+    this.body = body;
+  }
+
+  private static generateFileContent(body: string, frontmatter: ClaudecodeRuleFrontmatter): string {
+    // Only include frontmatter if paths is defined
+    if (frontmatter.paths) {
+      return stringifyFrontmatter(body, { paths: frontmatter.paths });
+    }
+    return body;
   }
 
   static async fromFile({
@@ -63,16 +121,16 @@ export class ClaudecodeRule extends ToolRule {
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
-      const relativePath = paths.root.relativeFilePath;
       const fileContent = await readFileContent(
-        join(baseDir, paths.root.relativeDirPath, relativePath),
+        join(baseDir, paths.root.relativeDirPath, paths.root.relativeFilePath),
       );
 
       return new ClaudecodeRule({
         baseDir,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
-        fileContent,
+        frontmatter: {},
+        body: fileContent.trim(),
         validate,
         root: true,
       });
@@ -84,11 +142,22 @@ export class ClaudecodeRule extends ToolRule {
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+
+    // Validate frontmatter
+    const result = ClaudecodeRuleFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(
+        `Invalid frontmatter in ${join(baseDir, relativePath)}: ${formatError(result.error)}`,
+      );
+    }
+
     return new ClaudecodeRule({
       baseDir,
       relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath: relativeFilePath,
-      fileContent,
+      relativeFilePath,
+      frontmatter: result.data,
+      body: content.trim(),
       validate,
       root: false,
     });
@@ -100,24 +169,104 @@ export class ClaudecodeRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): ClaudecodeRule {
+    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+    const root = rulesyncFrontmatter.root ?? false;
     const paths = this.getSettablePaths({ global });
-    return new ClaudecodeRule(
-      this.buildToolRuleParamsDefault({
+
+    // Convert globs to paths format
+    // claudecode.paths takes precedence over globs
+    const claudecodePaths = rulesyncFrontmatter.claudecode?.paths;
+    const globs = rulesyncFrontmatter.globs;
+    const pathsValue = claudecodePaths ?? (globs?.length ? globs.join(", ") : undefined);
+
+    const claudecodeFrontmatter: ClaudecodeRuleFrontmatter = {
+      paths: root ? undefined : pathsValue,
+    };
+
+    const body = rulesyncRule.getBody();
+
+    if (root) {
+      return new ClaudecodeRule({
         baseDir,
-        rulesyncRule,
+        frontmatter: claudecodeFrontmatter,
+        body,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
         validate,
-        rootPath: paths.root,
-        nonRootPath: paths.nonRoot,
-      }),
-    );
+        root,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error("nonRoot path is not set");
+    }
+
+    return new ClaudecodeRule({
+      baseDir,
+      frontmatter: claudecodeFrontmatter,
+      body,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      validate,
+      root,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    // Convert paths field to globs array
+    let globs: string[] | undefined;
+    if (this.isRoot()) {
+      globs = ["**/*"];
+    } else if (this.frontmatter.paths) {
+      // Split comma-separated glob patterns
+      globs = this.frontmatter.paths.split(",").map((g) => g.trim());
+    }
+
+    const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
+      targets: ["*"],
+      root: this.isRoot(),
+      description: this.description,
+      globs,
+      ...(this.frontmatter.paths && {
+        claudecode: { paths: this.frontmatter.paths },
+      }),
+    };
+
+    return new RulesyncRule({
+      baseDir: this.getBaseDir(),
+      frontmatter: rulesyncFrontmatter,
+      body: this.body,
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath: this.getRelativeFilePath(),
+      validate: true,
+    });
   }
 
   validate(): ValidationResult {
-    return { success: true, error: null };
+    // Check if frontmatter is set (may be undefined during construction)
+    if (!this.frontmatter) {
+      return { success: true, error: null };
+    }
+
+    const result = ClaudecodeRuleFrontmatterSchema.safeParse(this.frontmatter);
+    if (result.success) {
+      return { success: true, error: null };
+    } else {
+      return {
+        success: false,
+        error: new Error(
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+        ),
+      };
+    }
+  }
+
+  getFrontmatter(): ClaudecodeRuleFrontmatter {
+    return this.frontmatter;
+  }
+
+  getBody(): string {
+    return this.body;
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
