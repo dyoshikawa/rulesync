@@ -233,6 +233,7 @@ CLAUDE.md
 **/.gemini/commands/
 **/.gemini/subagents/
 **/.gemini/skills/
+**/.geminiignore
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
