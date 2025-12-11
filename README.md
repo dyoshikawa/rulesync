@@ -189,6 +189,7 @@ Rulesync is trusted by leading companies and recognized by the industry:
 
 - **Anthropic Official Customer Story**: [Classmethod Inc. - Improving AI coding tool consistency with Rulesync](https://claude.com/customers/classmethod)
 - **Asoview Inc.**: [Adopting Rulesync for unified AI development rules](https://tech.asoview.co.jp/entry/2025/12/06/100000)
+- **KAKEHASHI Tech Blog**: [モノレポ と「育つ仕様書」で実現する、LLM時代のマルチ言語システム構築](https://kakehashi-dev.hatenablog.com/entry/2025/12/08/110000)
 
 ## Quick Commands
 
