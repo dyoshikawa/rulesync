@@ -295,3 +295,6 @@ CLAUDE.md
 **/.junie/mcp.json
 **/.opencode/command/
 !.rulesync/.aiignore
+
+**/.claude/CLAUDE.md
+**/.claude/rules/
