@@ -10,6 +10,7 @@ import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.j
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
+import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
@@ -238,9 +239,9 @@ describe("RulesProcessor", () => {
   });
 
   describe("generateReferencesSection", () => {
-    it("should generate references section with description and globs for claudecode", async () => {
+    it("should generate references section with description and globs for claudecode-legacy", async () => {
       const processor = new RulesProcessor({
-        toolTarget: "claudecode",
+        toolTarget: "claudecode-legacy",
       });
 
       const rulesyncRules = [
@@ -262,7 +263,7 @@ describe("RulesProcessor", () => {
           relativeFilePath: "feature-rule.md",
           frontmatter: {
             root: false,
-            targets: ["claudecode"],
+            targets: ["claudecode-legacy"],
             description: "Feature specific rule",
             globs: ["src/**/*.ts", "tests/**/*.test.ts"],
           },
@@ -283,7 +284,7 @@ describe("RulesProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
 
       // Find the root rule
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeLegacyRule && rule.isRoot());
       expect(rootRule).toBeDefined();
 
       // Check that the root rule contains the references section
@@ -300,7 +301,7 @@ describe("RulesProcessor", () => {
 
     it("should handle rules with undefined description and globs", async () => {
       const processor = new RulesProcessor({
-        toolTarget: "claudecode",
+        toolTarget: "claudecode-legacy",
       });
 
       const rulesyncRules = [
@@ -327,7 +328,7 @@ describe("RulesProcessor", () => {
       ];
 
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeLegacyRule && rule.isRoot());
       const content = rootRule?.getFileContent();
 
       expect(content).toContain(
@@ -337,7 +338,7 @@ describe("RulesProcessor", () => {
 
     it("should escape double quotes in description", async () => {
       const processor = new RulesProcessor({
-        toolTarget: "claudecode",
+        toolTarget: "claudecode-legacy",
       });
 
       const rulesyncRules = [
@@ -366,7 +367,7 @@ describe("RulesProcessor", () => {
       ];
 
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeLegacyRule && rule.isRoot());
       const content = rootRule?.getFileContent();
 
       expect(content).toContain(
@@ -374,9 +375,9 @@ describe("RulesProcessor", () => {
       );
     });
 
-    it("should not generate references section when only root rule exists", async () => {
+    it("should not generate references section when only root rule exists for claudecode-legacy", async () => {
       const processor = new RulesProcessor({
-        toolTarget: "claudecode",
+        toolTarget: "claudecode-legacy",
       });
 
       const rulesyncRules = [
@@ -395,16 +396,58 @@ describe("RulesProcessor", () => {
       ];
 
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeLegacyRule && rule.isRoot());
       const content = rootRule?.getFileContent();
 
       expect(content).toBe("# Root only content");
       expect(content).not.toContain("Please also reference the following documents");
     });
 
-    it("should handle multiple globs correctly", async () => {
+    it("should not generate references section for claudecode (modular rules)", async () => {
       const processor = new RulesProcessor({
         toolTarget: "claudecode",
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+            description: "Root rule",
+            globs: ["**/*"],
+          },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "feature.md",
+          frontmatter: {
+            root: false,
+            targets: ["*"],
+            description: "Feature rule",
+            globs: ["src/**/*.ts"],
+          },
+          body: "# Feature content",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      // Modular rules should NOT include references section (files are auto-loaded)
+      expect(content).toBe("# Root content");
+      expect(content).not.toContain("Please also reference");
+      expect(content).not.toContain("@.claude/");
+    });
+
+    it("should handle multiple globs correctly for claudecode-legacy", async () => {
+      const processor = new RulesProcessor({
+        toolTarget: "claudecode-legacy",
       });
 
       const rulesyncRules = [
@@ -433,7 +476,7 @@ describe("RulesProcessor", () => {
       ];
 
       const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeLegacyRule && rule.isRoot());
       const content = rootRule?.getFileContent();
 
       expect(content).toContain(
@@ -443,7 +486,7 @@ describe("RulesProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
-    it("should return the same files as loadToolFiles", async () => {
+    it("should return the same files as loadToolFiles for claudecode-legacy", async () => {
       await writeFileContent(
         join(testDir, "CLAUDE.md"),
         "# Root\n\n@.claude/memories/memory1.md\n@.claude/memories/memory2.md",
@@ -454,7 +497,7 @@ describe("RulesProcessor", () => {
 
       const processor = new RulesProcessor({
         baseDir: testDir,
-        toolTarget: "claudecode",
+        toolTarget: "claudecode-legacy",
       });
 
       const toolFiles = await processor.loadToolFiles();
@@ -471,6 +514,7 @@ describe("RulesProcessor", () => {
         "augmentcode",
         "augmentcode-legacy",
         "claudecode",
+        "claudecode-legacy",
         "cline",
         "copilot",
         "cursor",
@@ -512,10 +556,10 @@ describe("RulesProcessor", () => {
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode and codexcli as global targets", () => {
+    it("should return claudecode, claudecode-legacy, codexcli and geminicli as global targets", () => {
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
-      expect(globalTargets).toEqual(["claudecode", "codexcli", "geminicli"]);
+      expect(globalTargets).toEqual(["claudecode", "claudecode-legacy", "codexcli", "geminicli"]);
     });
 
     it("should return a subset of regular tool targets", () => {
@@ -536,9 +580,10 @@ describe("RulesProcessor", () => {
 
       // These are the targets that support global mode
       expect(globalTargets).toContain("claudecode");
+      expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("geminicli");
-      expect(globalTargets.length).toBe(3);
+      expect(globalTargets.length).toBe(4);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -662,7 +707,8 @@ describe("RulesProcessor", () => {
 
         expect(result).toHaveLength(1);
         expect(result[0]).toBeInstanceOf(ClaudecodeRule);
-        expect(result[0]?.getRelativeDirPath()).toBe(".");
+        // Modular rules use .claude directory for root file
+        expect(result[0]?.getRelativeDirPath()).toBe(".claude");
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
     });
