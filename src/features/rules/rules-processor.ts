@@ -156,6 +156,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly simulateSkills: boolean;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly skills?: RulesyncSkill[];
 
   constructor({
     baseDir = process.cwd(),
@@ -165,6 +166,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSkills = false,
     global = false,
     getFactory = defaultGetFactory,
+    skills,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
@@ -173,6 +175,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSubagents?: boolean;
     simulateSkills?: boolean;
     getFactory?: GetFactory;
+    skills?: RulesyncSkill[];
   }) {
     super({ baseDir });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
@@ -187,6 +190,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateSubagents = simulateSubagents;
     this.simulateSkills = simulateSkills;
     this.getFactory = getFactory;
+    this.skills = skills;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -385,7 +389,8 @@ export class RulesProcessor extends FeatureProcessor {
     }>
   > {
     try {
-      const rulesyncSkills = await this.loadRulesyncSkills();
+      // Use passed-in skills instead of loading them
+      const rulesyncSkills = this.skills ?? [];
       const toolRelativeDirPath = skillClass.getSettablePaths({
         global: this.global,
       }).relativeDirPath;
@@ -402,7 +407,7 @@ export class RulesProcessor extends FeatureProcessor {
           };
         });
     } catch {
-      // If skills directory doesn't exist or can't be read, return empty array
+      // If skills are not available or can't be processed, return empty array
       return [];
     }
   }
@@ -695,20 +700,5 @@ Simulated skills are specialized capabilities that can be invoked to handle spec
 ### Available Skills
 
 ${skillListLines.join("\n")}`;
-  }
-
-  private async loadRulesyncSkills(): Promise<RulesyncSkill[]> {
-    const paths = RulesyncSkill.getSettablePaths();
-    const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
-    const dirNames = dirPaths.map((path) => basename(path));
-
-    const rulesyncSkills = await Promise.all(
-      dirNames.map((dirName) =>
-        RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
-      ),
-    );
-
-    return rulesyncSkills;
   }
 }

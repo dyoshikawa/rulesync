@@ -7,6 +7,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
+import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -780,10 +781,35 @@ targets: ["copilot"]
 This is the body of test skill 2.`,
       );
 
+      // Create skill instances directly
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "test-skill-1",
+          frontmatter: {
+            name: "Test Skill One",
+            description: "First test skill for testing",
+            targets: ["*"],
+          },
+          body: "This is the body of test skill 1.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "test-skill-2",
+          frontmatter: {
+            name: "Test Skill Two",
+            description: "Second test skill for testing",
+            targets: ["copilot"],
+          },
+          body: "This is the body of test skill 2.",
+        }),
+      ];
+
       const processor = new RulesProcessor({
         baseDir: testDir,
         toolTarget: "copilot",
         simulateSkills: true,
+        skills,
       });
 
       const rulesyncRules = [
@@ -825,10 +851,24 @@ targets: ["cursor"]
 Cursor skill body.`,
       );
 
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "cursor-skill",
+          frontmatter: {
+            name: "Cursor Skill",
+            description: "A skill for cursor",
+            targets: ["cursor"],
+          },
+          body: "Cursor skill body.",
+        }),
+      ];
+
       const processor = new RulesProcessor({
         baseDir: testDir,
         toolTarget: "cursor",
         simulateSkills: true,
+        skills,
       });
 
       const rulesyncRules = [
@@ -886,10 +926,34 @@ targets: ["cursor"]
 Cursor skill body.`,
       );
 
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "copilot-only-skill",
+          frontmatter: {
+            name: "Copilot Only Skill",
+            description: "Only for copilot",
+            targets: ["copilot"],
+          },
+          body: "Copilot skill body.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "cursor-only-skill",
+          frontmatter: {
+            name: "Cursor Only Skill",
+            description: "Only for cursor",
+            targets: ["cursor"],
+          },
+          body: "Cursor skill body.",
+        }),
+      ];
+
       const processor = new RulesProcessor({
         baseDir: testDir,
         toolTarget: "copilot",
         simulateSkills: true,
+        skills,
       });
 
       const rulesyncRules = [
@@ -1000,10 +1064,24 @@ targets: ["agentsmd"]
 AgentsMd skill body.`,
       );
 
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "agentsmd-skill",
+          frontmatter: {
+            name: "AgentsMd Skill",
+            description: "A skill for agentsmd",
+            targets: ["agentsmd"],
+          },
+          body: "AgentsMd skill body.",
+        }),
+      ];
+
       const processor = new RulesProcessor({
         baseDir: testDir,
         toolTarget: "agentsmd",
         simulateSkills: true,
+        skills,
       });
 
       const rulesyncRules = [
@@ -1042,10 +1120,24 @@ targets: ["geminicli"]
 GeminiCli skill body.`,
       );
 
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "geminicli-skill",
+          frontmatter: {
+            name: "GeminiCli Skill",
+            description: "A skill for geminicli",
+            targets: ["geminicli"],
+          },
+          body: "GeminiCli skill body.",
+        }),
+      ];
+
       const processor = new RulesProcessor({
         baseDir: testDir,
         toolTarget: "geminicli",
         simulateSkills: true,
+        skills,
       });
 
       const rulesyncRules = [
@@ -1151,11 +1243,41 @@ targets: ["*"]
 Universal.`,
       );
 
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "geminicli-only",
+          frontmatter: {
+            name: "GeminiCli Only",
+            description: "Only for geminicli",
+            targets: ["geminicli"],
+          },
+          body: "GeminiCli only.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "agentsmd-only",
+          frontmatter: {
+            name: "AgentsMd Only",
+            description: "Only for agentsmd",
+            targets: ["agentsmd"],
+          },
+          body: "AgentsMd only.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "universal",
+          frontmatter: { name: "Universal Skill", description: "For all tools", targets: ["*"] },
+          body: "Universal.",
+        }),
+      ];
+
       // Test geminicli - should include geminicli-only and universal, not agentsmd-only
       const geminicliProcessor = new RulesProcessor({
         baseDir: testDir,
         toolTarget: "geminicli",
         simulateSkills: true,
+        skills,
       });
 
       const rulesyncRules = [
@@ -1187,6 +1309,7 @@ Universal.`,
         baseDir: testDir,
         toolTarget: "agentsmd",
         simulateSkills: true,
+        skills,
       });
 
       const agentsmdResult = await agentsmdProcessor.convertRulesyncFilesToToolFiles(rulesyncRules);

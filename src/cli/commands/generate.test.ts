@@ -211,6 +211,7 @@ describe("generateCommand", () => {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        skills: [],
       });
     });
 
@@ -230,6 +231,7 @@ describe("generateCommand", () => {
         simulateCommands: true,
         simulateSubagents: true,
         simulateSkills: false,
+        skills: [],
       });
     });
 
@@ -295,6 +297,7 @@ describe("generateCommand", () => {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        skills: [],
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
@@ -303,6 +306,7 @@ describe("generateCommand", () => {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        skills: [],
       });
     });
 
@@ -776,6 +780,7 @@ describe("generateCommand", () => {
         simulateCommands: true,
         simulateSubagents: true,
         simulateSkills: false,
+        skills: [],
       });
     });
 
@@ -847,6 +852,7 @@ describe("generateCommand", () => {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        skills: [],
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
@@ -855,6 +861,7 @@ describe("generateCommand", () => {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        skills: [],
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir3",
@@ -863,6 +870,7 @@ describe("generateCommand", () => {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        skills: [],
       });
       expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
     });
