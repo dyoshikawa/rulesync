@@ -523,6 +523,39 @@ describe("OpencodeMcp", () => {
       expect(opencodeMcp.getJson()).toEqual({ mcp: {} });
     });
 
+    it("should convert streamable-http servers to remote entries", async () => {
+      const jsonData = {
+        mcpServers: {
+          "streaming-server": {
+            type: "streamable-http" as const,
+            url: "https://example.com/mcp",
+            headers: { Authorization: "Bearer token" },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "streaming-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+            headers: { Authorization: "Bearer token" },
+          },
+        },
+      });
+    });
+
     it("should create instance from RulesyncMcp in global mode", async () => {
       const jsonData = {
         mcpServers: {

@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 
 export const McpServerSchema = z.object({
-  type: z.optional(z.enum(["stdio", "sse", "http"])),
+  type: z.optional(z.enum(["stdio", "sse", "http", "streamable-http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),
   url: z.optional(z.string()),
@@ -12,7 +12,7 @@ export const McpServerSchema = z.object({
   timeout: z.optional(z.number()),
   trust: z.optional(z.boolean()),
   cwd: z.optional(z.string()),
-  transport: z.optional(z.enum(["stdio", "sse", "http"])),
+  transport: z.optional(z.enum(["stdio", "sse", "http", "streamable-http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),
