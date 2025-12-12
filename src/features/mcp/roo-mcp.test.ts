@@ -315,6 +315,85 @@ describe("RooMcp", () => {
       expect(rooMcp).toBeInstanceOf(RooMcp);
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);
     });
+
+    it("should convert http type to streamable-http", () => {
+      const mcpContent = {
+        mcpServers: {
+          "http-server": {
+            type: "http",
+            url: "http://localhost:8080",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(mcpContent),
+      });
+
+      const rooMcp = RooMcp.fromRulesyncMcp({
+        rulesyncMcp,
+      });
+
+      const result = JSON.parse(rooMcp.getFileContent());
+      expect(result.mcpServers["http-server"].type).toBe("streamable-http");
+      expect(result.mcpServers["http-server"].url).toBe("http://localhost:8080");
+    });
+
+    it("should convert http transport to streamable-http", () => {
+      const mcpContent = {
+        mcpServers: {
+          "http-server": {
+            transport: "http",
+            url: "http://localhost:8080",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(mcpContent),
+      });
+
+      const rooMcp = RooMcp.fromRulesyncMcp({
+        rulesyncMcp,
+      });
+
+      const result = JSON.parse(rooMcp.getFileContent());
+      expect(result.mcpServers["http-server"].transport).toBe("streamable-http");
+    });
+
+    it("should not convert stdio or sse types", () => {
+      const mcpContent = {
+        mcpServers: {
+          "stdio-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+          },
+          "sse-server": {
+            type: "sse",
+            url: "http://localhost:8080/sse",
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(mcpContent),
+      });
+
+      const rooMcp = RooMcp.fromRulesyncMcp({
+        rulesyncMcp,
+      });
+
+      const result = JSON.parse(rooMcp.getFileContent());
+      expect(result.mcpServers["stdio-server"].type).toBe("stdio");
+      expect(result.mcpServers["sse-server"].type).toBe("sse");
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -371,6 +450,112 @@ describe("RooMcp", () => {
       const rulesyncMcp = rooMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(complexMcpContent);
+    });
+
+    it("should convert streamable-http type to http", () => {
+      const rooMcpContent = {
+        mcpServers: {
+          "http-server": {
+            type: "streamable-http",
+            url: "http://localhost:8080",
+          },
+        },
+      };
+
+      const rooMcp = new RooMcp({
+        relativeDirPath: ".roo",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(rooMcpContent),
+      });
+
+      const rulesyncMcp = rooMcp.toRulesyncMcp();
+
+      const result = JSON.parse(rulesyncMcp.getFileContent());
+      expect(result.mcpServers["http-server"].type).toBe("http");
+      expect(result.mcpServers["http-server"].url).toBe("http://localhost:8080");
+    });
+
+    it("should convert streamable-http transport to http", () => {
+      const rooMcpContent = {
+        mcpServers: {
+          "http-server": {
+            transport: "streamable-http",
+            url: "http://localhost:8080",
+          },
+        },
+      };
+
+      const rooMcp = new RooMcp({
+        relativeDirPath: ".roo",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(rooMcpContent),
+      });
+
+      const rulesyncMcp = rooMcp.toRulesyncMcp();
+
+      const result = JSON.parse(rulesyncMcp.getFileContent());
+      expect(result.mcpServers["http-server"].transport).toBe("http");
+    });
+
+    it("should not convert stdio or sse types when importing", () => {
+      const rooMcpContent = {
+        mcpServers: {
+          "stdio-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+          },
+          "sse-server": {
+            type: "sse",
+            url: "http://localhost:8080/sse",
+          },
+        },
+      };
+
+      const rooMcp = new RooMcp({
+        relativeDirPath: ".roo",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(rooMcpContent),
+      });
+
+      const rulesyncMcp = rooMcp.toRulesyncMcp();
+
+      const result = JSON.parse(rulesyncMcp.getFileContent());
+      expect(result.mcpServers["stdio-server"].type).toBe("stdio");
+      expect(result.mcpServers["sse-server"].type).toBe("sse");
+    });
+
+    it("should round-trip http type correctly", () => {
+      const originalContent = {
+        mcpServers: {
+          "http-server": {
+            type: "http",
+            url: "http://localhost:8080",
+          },
+          "stdio-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(originalContent),
+      });
+
+      // Convert to Roo format
+      const rooMcp = RooMcp.fromRulesyncMcp({ rulesyncMcp });
+      const rooResult = JSON.parse(rooMcp.getFileContent());
+      expect(rooResult.mcpServers["http-server"].type).toBe("streamable-http");
+
+      // Convert back to Rulesync format
+      const backToRulesync = rooMcp.toRulesyncMcp();
+      const finalResult = JSON.parse(backToRulesync.getFileContent());
+      expect(finalResult.mcpServers["http-server"].type).toBe("http");
+      expect(finalResult.mcpServers["stdio-server"].type).toBe("stdio");
     });
   });
 
