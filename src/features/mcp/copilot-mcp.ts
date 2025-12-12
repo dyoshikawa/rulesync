@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { ValidationResult } from "../../types/ai-file.js";
+import { McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -12,15 +13,27 @@ import {
 
 export type CopilotMcpParams = ToolMcpParams;
 
+type CopilotMcpConfig = {
+  servers?: McpServers;
+};
+
+function convertToCopilotFormat(mcpServers: McpServers): CopilotMcpConfig {
+  return { servers: mcpServers };
+}
+
+function convertFromCopilotFormat(copilotConfig: CopilotMcpConfig): McpServers {
+  return copilotConfig.servers ?? {};
+}
+
 export class CopilotMcp extends ToolMcp {
-  private readonly json: Record<string, unknown>;
+  private readonly json: CopilotMcpConfig;
 
   constructor(params: ToolMcpParams) {
     super(params);
     this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
   }
 
-  getJson(): Record<string, unknown> {
+  getJson(): CopilotMcpConfig {
     return this.json;
   }
 
@@ -56,17 +69,21 @@ export class CopilotMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): CopilotMcp {
+    const copilotConfig = convertToCopilotFormat(rulesyncMcp.getMcpServers());
     return new CopilotMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncMcp.getFileContent(),
+      fileContent: JSON.stringify(copilotConfig, null, 2),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    const mcpServers = convertFromCopilotFormat(this.json);
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify({ mcpServers }, null, 2),
+    });
   }
 
   validate(): ValidationResult {

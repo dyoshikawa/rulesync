@@ -23,7 +23,7 @@ describe("CopilotMcp", () => {
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const validJsonContent = JSON.stringify({
-        mcpServers: {
+        servers: {
           "@anthropic-ai/mcp-server-filesystem": {
             command: "npx",
             args: ["-y", "@anthropic-ai/mcp-server-filesystem", "/workspace"],
@@ -45,7 +45,7 @@ describe("CopilotMcp", () => {
 
     it("should create instance with custom baseDir", () => {
       const validJsonContent = JSON.stringify({
-        mcpServers: {},
+        servers: {},
       });
 
       const copilotMcp = new CopilotMcp({
@@ -60,7 +60,7 @@ describe("CopilotMcp", () => {
 
     it("should parse JSON content correctly", () => {
       const jsonData = {
-        mcpServers: {
+        servers: {
           "test-server": {
             command: "node",
             args: ["server.js"],
@@ -95,7 +95,7 @@ describe("CopilotMcp", () => {
 
     it("should validate content by default", () => {
       const validJsonContent = JSON.stringify({
-        mcpServers: {},
+        servers: {},
       });
 
       expect(() => {
@@ -109,7 +109,7 @@ describe("CopilotMcp", () => {
 
     it("should skip validation when validate is false", () => {
       const validJsonContent = JSON.stringify({
-        mcpServers: {},
+        servers: {},
       });
 
       expect(() => {
@@ -141,7 +141,7 @@ describe("CopilotMcp", () => {
       await ensureDir(vscodeDir);
 
       const jsonData = {
-        mcpServers: {
+        servers: {
           filesystem: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", testDir],
@@ -165,7 +165,7 @@ describe("CopilotMcp", () => {
       await ensureDir(vscodeDir);
 
       const jsonData = {
-        mcpServers: {
+        servers: {
           git: {
             command: "node",
             args: ["git-server.js"],
@@ -187,7 +187,7 @@ describe("CopilotMcp", () => {
       await ensureDir(vscodeDir);
 
       const jsonData = {
-        mcpServers: {
+        servers: {
           "valid-server": {
             command: "node",
             args: ["server.js"],
@@ -209,7 +209,7 @@ describe("CopilotMcp", () => {
       await ensureDir(vscodeDir);
 
       const jsonData = {
-        mcpServers: {},
+        servers: {},
       };
       await writeFileContent(join(vscodeDir, "mcp.json"), JSON.stringify(jsonData));
 
@@ -231,19 +231,17 @@ describe("CopilotMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should create instance from RulesyncMcp with default parameters", () => {
-      const jsonData = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["test-server.js"],
-          },
+    it("should convert mcpServers key to servers key", () => {
+      const inputMcpServers = {
+        "test-server": {
+          command: "node",
+          args: ["test-server.js"],
         },
       };
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
       const copilotMcp = CopilotMcp.fromRulesyncMcp({
@@ -251,20 +249,20 @@ describe("CopilotMcp", () => {
       });
 
       expect(copilotMcp).toBeInstanceOf(CopilotMcp);
-      expect(copilotMcp.getJson()).toEqual(jsonData);
+      // Output should have servers key, not mcpServers
+      expect(copilotMcp.getJson()).toEqual({ servers: inputMcpServers });
+      expect(copilotMcp.getJson()).not.toHaveProperty("mcpServers");
       expect(copilotMcp.getRelativeDirPath()).toBe(".vscode");
       expect(copilotMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should create instance from RulesyncMcp with custom baseDir", () => {
-      const jsonData = {
-        mcpServers: {
-          "custom-server": {
-            command: "python",
-            args: ["server.py"],
-            env: {
-              PYTHONPATH: "/custom/path",
-            },
+      const inputMcpServers = {
+        "custom-server": {
+          command: "python",
+          args: ["server.py"],
+          env: {
+            PYTHONPATH: "/custom/path",
           },
         },
       };
@@ -272,7 +270,7 @@ describe("CopilotMcp", () => {
         baseDir: "/custom/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
       const copilotMcp = CopilotMcp.fromRulesyncMcp({
@@ -281,22 +279,21 @@ describe("CopilotMcp", () => {
       });
 
       expect(copilotMcp.getFilePath()).toBe("/target/dir/.vscode/mcp.json");
-      expect(copilotMcp.getJson()).toEqual(jsonData);
+      // Output should have servers key
+      expect(copilotMcp.getJson()).toEqual({ servers: inputMcpServers });
     });
 
     it("should handle validation when validate is true", () => {
-      const jsonData = {
-        mcpServers: {
-          "validated-server": {
-            command: "node",
-            args: ["validated-server.js"],
-          },
+      const inputMcpServers = {
+        "validated-server": {
+          command: "node",
+          args: ["validated-server.js"],
         },
       };
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
       const copilotMcp = CopilotMcp.fromRulesyncMcp({
@@ -304,17 +301,14 @@ describe("CopilotMcp", () => {
         validate: true,
       });
 
-      expect(copilotMcp.getJson()).toEqual(jsonData);
+      expect(copilotMcp.getJson()).toEqual({ servers: inputMcpServers });
     });
 
     it("should skip validation when validate is false", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const copilotMcp = CopilotMcp.fromRulesyncMcp({
@@ -322,101 +316,104 @@ describe("CopilotMcp", () => {
         validate: false,
       });
 
-      expect(copilotMcp.getJson()).toEqual(jsonData);
+      expect(copilotMcp.getJson()).toEqual({ servers: {} });
     });
 
     it("should handle empty mcpServers object", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const copilotMcp = CopilotMcp.fromRulesyncMcp({
         rulesyncMcp,
       });
 
-      expect(copilotMcp.getJson()).toEqual(jsonData);
+      expect(copilotMcp.getJson()).toEqual({ servers: {} });
     });
   });
 
   describe("toRulesyncMcp", () => {
-    it("should convert to RulesyncMcp with default configuration", () => {
-      const jsonData = {
-        mcpServers: {
-          filesystem: {
-            command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-          },
+    it("should convert servers key to mcpServers key", () => {
+      const inputServers = {
+        filesystem: {
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
         },
       };
       const copilotMcp = new CopilotMcp({
         relativeDirPath: ".vscode",
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ servers: inputServers }),
       });
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
+      // Output should have mcpServers key, not servers
+      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
     });
 
-    it("should preserve file content when converting to RulesyncMcp", () => {
-      const jsonData = {
-        mcpServers: {
-          "complex-server": {
-            command: "node",
-            args: ["complex-server.js", "--port", "3000"],
-            env: {
-              NODE_ENV: "production",
-              DEBUG: "mcp:*",
-            },
+    it("should preserve server data when converting to RulesyncMcp", () => {
+      const inputServers = {
+        "complex-server": {
+          command: "node",
+          args: ["complex-server.js", "--port", "3000"],
+          env: {
+            NODE_ENV: "production",
+            DEBUG: "mcp:*",
           },
-          "another-server": {
-            command: "python",
-            args: ["another-server.py"],
-          },
+        },
+        "another-server": {
+          command: "python",
+          args: ["another-server.py"],
         },
       };
       const copilotMcp = new CopilotMcp({
         baseDir: "/test/dir",
         relativeDirPath: ".vscode",
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ servers: inputServers }),
       });
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
     });
 
-    it("should handle empty mcpServers object when converting", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
+    it("should handle empty servers object when converting", () => {
       const copilotMcp = new CopilotMcp({
         relativeDirPath: ".vscode",
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ servers: {} }),
       });
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: {} });
+    });
+
+    it("should handle missing servers key", () => {
+      const copilotMcp = new CopilotMcp({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({}),
+      });
+
+      const rulesyncMcp = copilotMcp.toRulesyncMcp();
+
+      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: {} });
     });
   });
 
   describe("validate", () => {
     it("should return successful validation result", () => {
       const jsonData = {
-        mcpServers: {
+        servers: {
           "test-server": {
             command: "node",
             args: ["server.js"],
@@ -438,7 +435,7 @@ describe("CopilotMcp", () => {
 
     it("should always return success (no validation logic implemented)", () => {
       const jsonData = {
-        mcpServers: {},
+        servers: {},
       };
       const copilotMcp = new CopilotMcp({
         relativeDirPath: ".vscode",
@@ -455,7 +452,7 @@ describe("CopilotMcp", () => {
 
     it("should return success for complex MCP configuration", () => {
       const jsonData = {
-        mcpServers: {
+        servers: {
           filesystem: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
@@ -500,85 +497,81 @@ describe("CopilotMcp", () => {
       const vscodeDir = join(testDir, ".vscode");
       await ensureDir(vscodeDir);
 
-      const originalJsonData = {
-        mcpServers: {
-          "workflow-server": {
-            command: "node",
-            args: ["workflow-server.js", "--config", "config.json"],
-            env: {
-              NODE_ENV: "test",
-            },
+      const originalServers = {
+        "workflow-server": {
+          command: "node",
+          args: ["workflow-server.js", "--config", "config.json"],
+          env: {
+            NODE_ENV: "test",
           },
         },
       };
       await writeFileContent(
         join(vscodeDir, "mcp.json"),
-        JSON.stringify(originalJsonData, null, 2),
+        JSON.stringify({ servers: originalServers }, null, 2),
       );
 
-      // Step 1: Load from file
+      // Step 1: Load from file (has servers key)
       const originalCopilotMcp = await CopilotMcp.fromFile({
         baseDir: testDir,
       });
+      expect(originalCopilotMcp.getJson()).toEqual({ servers: originalServers });
 
-      // Step 2: Convert to RulesyncMcp
+      // Step 2: Convert to RulesyncMcp (should have mcpServers key)
       const rulesyncMcp = originalCopilotMcp.toRulesyncMcp();
+      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: originalServers });
 
-      // Step 3: Create new CopilotMcp from RulesyncMcp
+      // Step 3: Create new CopilotMcp from RulesyncMcp (should have servers key again)
       const newCopilotMcp = CopilotMcp.fromRulesyncMcp({
         baseDir: testDir,
         rulesyncMcp,
       });
 
-      // Verify data integrity
-      expect(newCopilotMcp.getJson()).toEqual(originalJsonData);
+      // Verify data integrity - servers key is preserved through round-trip
+      expect(newCopilotMcp.getJson()).toEqual({ servers: originalServers });
       expect(newCopilotMcp.getFilePath()).toBe(join(testDir, ".vscode/mcp.json"));
     });
 
     it("should maintain data consistency across transformations", () => {
-      const complexJsonData = {
-        mcpServers: {
-          "primary-server": {
-            command: "node",
-            args: ["primary.js", "--mode", "production"],
-            env: {
-              NODE_ENV: "production",
-              LOG_LEVEL: "info",
-              API_KEY: "secret",
-            },
-          },
-          "secondary-server": {
-            command: "python",
-            args: ["secondary.py", "--workers", "4"],
-            env: {
-              PYTHONPATH: "/app/lib",
-            },
+      const originalServers = {
+        "primary-server": {
+          command: "node",
+          args: ["primary.js", "--mode", "production"],
+          env: {
+            NODE_ENV: "production",
+            LOG_LEVEL: "info",
+            API_KEY: "secret",
           },
         },
-        config: {
-          timeout: 60000,
-          maxRetries: 5,
-          logLevel: "debug",
+        "secondary-server": {
+          command: "python",
+          args: ["secondary.py", "--workers", "4"],
+          env: {
+            PYTHONPATH: "/app/lib",
+          },
         },
       };
 
-      // Create CopilotMcp
+      // Create CopilotMcp with servers key
       const copilotMcp = new CopilotMcp({
         baseDir: "/project",
         relativeDirPath: ".vscode",
         relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(complexJsonData),
+        fileContent: JSON.stringify({ servers: originalServers }),
       });
 
       // Convert to RulesyncMcp and back
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
+      // RulesyncMcp should have mcpServers key
+      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: originalServers });
+
       const newCopilotMcp = CopilotMcp.fromRulesyncMcp({
         baseDir: "/project",
         rulesyncMcp,
       });
 
-      // Verify all data is preserved
-      expect(newCopilotMcp.getJson()).toEqual(complexJsonData);
+      // Verify all data is preserved with servers key
+      expect(newCopilotMcp.getJson()).toEqual({ servers: originalServers });
       expect(newCopilotMcp.getFilePath()).toBe("/project/.vscode/mcp.json");
     });
   });
