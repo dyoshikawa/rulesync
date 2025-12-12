@@ -56,17 +56,37 @@ export class CopilotMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): CopilotMcp {
+    const { mcpServers, ...rest } = rulesyncMcp.getJson();
+    const copilotJson = {
+      ...rest,
+      servers: mcpServers,
+    } satisfies Record<string, unknown>;
+
     return new CopilotMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncMcp.getFileContent(),
+      fileContent: JSON.stringify(copilotJson, null, 2),
       validate,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    const { servers, mcpServers, ...rest } = this.getJson();
+    const mergedMcpServers =
+      (typeof servers === "object" && servers !== null
+        ? servers
+        : typeof mcpServers === "object" && mcpServers !== null
+          ? mcpServers
+          : {}) ?? {};
+    const rulesyncJson = {
+      ...rest,
+      mcpServers: mergedMcpServers,
+    } satisfies Record<string, unknown>;
+
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify(rulesyncJson, null, 2),
+    });
   }
 
   validate(): ValidationResult {
