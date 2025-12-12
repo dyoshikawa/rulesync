@@ -877,9 +877,8 @@ This is the body of test skill 2.`,
 
       // Should include the skills section
       expect(content).toContain("## Simulated Skills");
-      expect(content).toContain("### Available Skills");
-      expect(content).toContain("**Test Skill One**: First test skill for testing");
-      expect(content).toContain("**Test Skill Two**: Second test skill for testing");
+      expect(content).toContain("Test Skill One,First test skill for testing");
+      expect(content).toContain("Test Skill Two,Second test skill for testing");
     });
 
     it("should include skill list in generated content for cursor when simulateSkills is true", async () => {
@@ -941,8 +940,7 @@ Cursor skill body.`,
       expect(additionalConventionsRule).toBeDefined();
       const content = additionalConventionsRule?.getFileContent();
       expect(content).toContain("## Simulated Skills");
-      expect(content).toContain("### Available Skills");
-      expect(content).toContain("**Cursor Skill**: A skill for cursor");
+      expect(content).toContain("Cursor Skill,A skill for cursor");
     });
 
     it("should filter skills based on targets", async () => {
@@ -1020,7 +1018,7 @@ Cursor skill body.`,
       const content = rootRule?.getFileContent();
 
       // Should include the copilot-targeted skill but not the cursor-targeted one
-      expect(content).toContain("**Copilot Only Skill**: Only for copilot");
+      expect(content).toContain("Copilot Only Skill,Only for copilot");
       expect(content).not.toContain("Cursor Only Skill");
     });
 
@@ -1050,7 +1048,6 @@ Cursor skill body.`,
 
       // When no skills exist, the skills section should not be added at all
       expect(content).not.toContain("## Simulated Skills");
-      expect(content).not.toContain("### Available Skills");
     });
 
     it("should not include skills section when simulateSkills is false", async () => {
@@ -1148,8 +1145,7 @@ AgentsMd skill body.`,
       const content = rootRule?.getFileContent();
 
       expect(content).toContain("## Simulated Skills");
-      expect(content).toContain("### Available Skills");
-      expect(content).toContain("**AgentsMd Skill**: A skill for agentsmd");
+      expect(content).toContain("AgentsMd Skill,A skill for agentsmd");
     });
 
     it("should include skill list in generated content for geminicli when simulateSkills is true", async () => {
@@ -1204,8 +1200,7 @@ GeminiCli skill body.`,
       const content = rootRule?.getFileContent();
 
       expect(content).toContain("## Simulated Skills");
-      expect(content).toContain("### Available Skills");
-      expect(content).toContain("**GeminiCli Skill**: A skill for geminicli");
+      expect(content).toContain("GeminiCli Skill,A skill for geminicli");
     });
 
     it("should not include skill list for codexcli even in global mode (codexcli does not support simulated skills)", async () => {
@@ -1346,8 +1341,8 @@ Universal.`,
       );
       const geminicliContent = geminicliRootRule?.getFileContent();
 
-      expect(geminicliContent).toContain("**GeminiCli Only**: Only for geminicli");
-      expect(geminicliContent).toContain("**Universal Skill**: For all tools");
+      expect(geminicliContent).toContain("GeminiCli Only,Only for geminicli");
+      expect(geminicliContent).toContain("Universal Skill,For all tools");
       expect(geminicliContent).not.toContain("AgentsMd Only");
 
       // Test agentsmd - should include agentsmd-only and universal, not geminicli-only
@@ -1364,8 +1359,8 @@ Universal.`,
       );
       const agentsmdContent = agentsmdRootRule?.getFileContent();
 
-      expect(agentsmdContent).toContain("**AgentsMd Only**: Only for agentsmd");
-      expect(agentsmdContent).toContain("**Universal Skill**: For all tools");
+      expect(agentsmdContent).toContain("AgentsMd Only,Only for agentsmd");
+      expect(agentsmdContent).toContain("Universal Skill,For all tools");
       expect(agentsmdContent).not.toContain("GeminiCli Only");
     });
   });

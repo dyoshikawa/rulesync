@@ -234,7 +234,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: CursorSubagent.getSettablePaths().relativeDirPath,
             },
             skills: {
-              skillList: await this.buildSkillList(CursorSkill),
+              skillList: this.buildSkillList(CursorSkill),
             },
           }),
           relativeDirPath: CursorRule.getSettablePaths().nonRoot.relativeDirPath,
@@ -277,7 +277,7 @@ export class RulesProcessor extends FeatureProcessor {
                 relativeDirPath: AgentsmdSubagent.getSettablePaths().relativeDirPath,
               },
               skills: {
-                skillList: await this.buildSkillList(AgentsmdSkill),
+                skillList: this.buildSkillList(AgentsmdSkill),
               },
             }) +
             rootRule.getFileContent(),
@@ -314,7 +314,7 @@ export class RulesProcessor extends FeatureProcessor {
               // Codex CLI skills are only supported in global mode
               ...(this.global && {
                 skills: {
-                  skillList: await this.buildSkillList(CodexCliSkill),
+                  skillList: this.buildSkillList(CodexCliSkill),
                 },
               }),
             }) +
@@ -331,7 +331,7 @@ export class RulesProcessor extends FeatureProcessor {
               relativeDirPath: CopilotSubagent.getSettablePaths().relativeDirPath,
             },
             skills: {
-              skillList: await this.buildSkillList(CopilotSkill),
+              skillList: this.buildSkillList(CopilotSkill),
             },
           }) + rootRule.getFileContent(),
         );
@@ -347,7 +347,7 @@ export class RulesProcessor extends FeatureProcessor {
                 relativeDirPath: GeminiCliSubagent.getSettablePaths().relativeDirPath,
               },
               skills: {
-                skillList: await this.buildSkillList(GeminiCliSkill),
+                skillList: this.buildSkillList(GeminiCliSkill),
               },
             }) +
             rootRule.getFileContent(),
@@ -387,38 +387,31 @@ export class RulesProcessor extends FeatureProcessor {
     }
   }
 
-  private async buildSkillList(skillClass: {
+  private buildSkillList(skillClass: {
     isTargetedByRulesyncSkill: (rulesyncSkill: RulesyncSkill) => boolean;
     getSettablePaths: (options?: { global?: boolean }) => { relativeDirPath: string };
-  }): Promise<
-    Array<{
-      name: string;
-      description: string;
-      path: string;
-    }>
-  > {
-    try {
-      // Use passed-in skills instead of loading them
-      const rulesyncSkills = this.skills ?? [];
-      const toolRelativeDirPath = skillClass.getSettablePaths({
-        global: this.global,
-      }).relativeDirPath;
-      return rulesyncSkills
-        .filter((skill) => skillClass.isTargetedByRulesyncSkill(skill))
-        .map((skill) => {
-          const frontmatter = skill.getFrontmatter();
-          // Use tool-specific relative path, not rulesync's path
-          const relativePath = join(toolRelativeDirPath, skill.getDirName(), SKILL_FILE_NAME);
-          return {
-            name: frontmatter.name,
-            description: frontmatter.description,
-            path: relativePath,
-          };
-        });
-    } catch {
-      // If skills are not available or can't be processed, return empty array
-      return [];
-    }
+  }): Array<{
+    name: string;
+    description: string;
+    path: string;
+  }> {
+    if (!this.skills) return [];
+
+    const toolRelativeDirPath = skillClass.getSettablePaths({
+      global: this.global,
+    }).relativeDirPath;
+    return this.skills
+      .filter((skill) => skillClass.isTargetedByRulesyncSkill(skill))
+      .map((skill) => {
+        const frontmatter = skill.getFrontmatter();
+        // Use tool-specific relative path, not rulesync's path
+        const relativePath = join(toolRelativeDirPath, skill.getDirName(), SKILL_FILE_NAME);
+        return {
+          name: frontmatter.name,
+          description: frontmatter.description,
+          path: relativePath,
+        };
+      });
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
@@ -698,16 +691,16 @@ For example, if the user instructs \`Call planner subagent to plan the refactori
       return "";
     }
 
-    const skillListLines = skills.skillList.map(
-      (skill) => `- **${skill.name}**: ${skill.description} (path: \`${skill.path}\`)`,
-    );
+    const skillListWithAtPrefix = skills.skillList.map((skill) => ({
+      ...skill,
+      path: `@${skill.path}`,
+    }));
+    const toonContent = encode({ skillList: skillListWithAtPrefix });
 
     return `## Simulated Skills
 
 Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks. When you determine that a skill would be helpful for the current task, read the corresponding SKILL.md file and execute its instructions.
 
-### Available Skills
-
-${skillListLines.join("\n")}`;
+${toonContent}`;
   }
 }
