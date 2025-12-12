@@ -6,6 +6,7 @@ import { CommandsProcessor } from "../../features/commands/commands-processor.js
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
+import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
@@ -28,8 +29,6 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   }
 
   logger.info(`Base directories: ${config.getBaseDirs().join(", ")}`);
-  // Generate rule files (rules feature)
-  const totalRulesOutputs = await generateRules(config);
 
   // Generate ignore files (ignore feature)
   const totalIgnoreOutputs = await generateIgnore(config);
@@ -44,7 +43,12 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   const totalSubagentOutputs = await generateSubagents(config);
 
   // Generate skill files (skills feature)
-  const totalSkillOutputs = await generateSkills(config);
+  const skillsResult = await generateSkills(config);
+
+  // Generate rule files (rules feature)
+  const totalRulesOutputs = await generateRules(config, {
+    skills: skillsResult.skills,
+  });
 
   // Check if any features generated content
   const totalGenerated =
@@ -53,7 +57,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     totalCommandOutputs +
     totalIgnoreOutputs +
     totalSubagentOutputs +
-    totalSkillOutputs;
+    skillsResult.totalOutputs;
   if (totalGenerated === 0) {
     const enabledFeatures = config.getFeatures().join(", ");
     logger.warn(`⚠️  No files generated for enabled features: ${enabledFeatures}`);
@@ -68,13 +72,16 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     if (totalMcpOutputs > 0) parts.push(`${totalMcpOutputs} MCP files`);
     if (totalCommandOutputs > 0) parts.push(`${totalCommandOutputs} commands`);
     if (totalSubagentOutputs > 0) parts.push(`${totalSubagentOutputs} subagents`);
-    if (totalSkillOutputs > 0) parts.push(`${totalSkillOutputs} skills`);
+    if (skillsResult.totalOutputs > 0) parts.push(`${skillsResult.totalOutputs} skills`);
 
     logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   }
 }
 
-async function generateRules(config: Config): Promise<number> {
+async function generateRules(
+  config: Config,
+  options?: { skills?: RulesyncSkill[] },
+): Promise<number> {
   if (!config.getFeatures().includes("rules")) {
     logger.debug("Skipping rule generation (not in --features)");
     return 0;
@@ -96,6 +103,7 @@ async function generateRules(config: Config): Promise<number> {
         simulateCommands: config.getSimulateCommands(),
         simulateSubagents: config.getSimulateSubagents(),
         simulateSkills: config.getSimulateSkills(),
+        skills: options?.skills,
       });
 
       if (config.getDelete()) {
@@ -288,13 +296,16 @@ async function generateSubagents(config: Config): Promise<number> {
   return totalSubagentOutputs;
 }
 
-async function generateSkills(config: Config): Promise<number> {
+async function generateSkills(
+  config: Config,
+): Promise<{ totalOutputs: number; skills: RulesyncSkill[] }> {
   if (!config.getFeatures().includes("skills")) {
     logger.debug("Skipping skill generation (not in --features)");
-    return 0;
+    return { totalOutputs: 0, skills: [] };
   }
 
   let totalSkillOutputs = 0;
+  const allSkills: RulesyncSkill[] = [];
   logger.info("Generating skill files...");
 
   const toolTargets = intersection(
@@ -319,6 +330,14 @@ async function generateSkills(config: Config): Promise<number> {
       }
 
       const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      // Collect RulesyncSkill instances
+      for (const rulesyncDir of rulesyncDirs) {
+        if (rulesyncDir instanceof RulesyncSkill) {
+          allSkills.push(rulesyncDir);
+        }
+      }
+
       const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
       const writtenCount = await processor.writeAiDirs(toolDirs);
       totalSkillOutputs += writtenCount;
@@ -326,5 +345,5 @@ async function generateSkills(config: Config): Promise<number> {
     }
   }
 
-  return totalSkillOutputs;
+  return { totalOutputs: totalSkillOutputs, skills: allSkills };
 }

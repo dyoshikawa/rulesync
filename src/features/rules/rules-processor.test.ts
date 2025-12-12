@@ -1,14 +1,21 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { SKILL_FILE_NAME } from "../../constants/general.js";
+import {
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
+import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
+import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
+import { GeminiCliRule } from "./geminicli-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -790,6 +797,571 @@ targets: ["opencode", "agentsmd"]
       const finalContent = await readFileContent(join(testDir, "AGENTS.md"));
       expect(finalContent).toContain("# Reversed Order Content");
       expect(agentsMdToolFiles[0]).toBeInstanceOf(AgentsMdRule);
+    });
+  });
+  describe("simulateSkills", () => {
+    it("should include skill list in generated content for copilot when simulateSkills is true", async () => {
+      // Create skill directories
+      const skillDir1 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill-1");
+      const skillDir2 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill-2");
+      await ensureDir(skillDir1);
+      await ensureDir(skillDir2);
+      await writeFileContent(
+        join(skillDir1, SKILL_FILE_NAME),
+        `---
+name: Test Skill One
+description: First test skill for testing
+targets: ["*"]
+---
+
+This is the body of test skill 1.`,
+      );
+      await writeFileContent(
+        join(skillDir2, SKILL_FILE_NAME),
+        `---
+name: Test Skill Two
+description: Second test skill for testing
+targets: ["copilot"]
+---
+
+This is the body of test skill 2.`,
+      );
+
+      // Create skill instances directly
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "test-skill-1",
+          frontmatter: {
+            name: "Test Skill One",
+            description: "First test skill for testing",
+            targets: ["*"],
+          },
+          body: "This is the body of test skill 1.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "test-skill-2",
+          frontmatter: {
+            name: "Test Skill Two",
+            description: "Second test skill for testing",
+            targets: ["copilot"],
+          },
+          body: "This is the body of test skill 2.",
+        }),
+      ];
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        simulateSkills: true,
+        skills,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof CopilotRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      // Should include the skills section
+      expect(content).toContain("## Simulated Skills");
+      expect(content).toContain("Test Skill One,First test skill for testing");
+      expect(content).toContain("Test Skill Two,Second test skill for testing");
+    });
+
+    it("should include skill list in generated content for cursor when simulateSkills is true", async () => {
+      // Create skill directories
+      const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "cursor-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: Cursor Skill
+description: A skill for cursor
+targets: ["cursor"]
+---
+
+Cursor skill body.`,
+      );
+
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "cursor-skill",
+          frontmatter: {
+            name: "Cursor Skill",
+            description: "A skill for cursor",
+            targets: ["cursor"],
+          },
+          body: "Cursor skill body.",
+        }),
+      ];
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+        simulateSkills: true,
+        skills,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // Find the additional conventions rule for cursor
+      const additionalConventionsRule = result.find(
+        (rule) =>
+          rule instanceof CursorRule && rule.getRelativeFilePath() === "additional-conventions.mdc",
+      );
+
+      expect(additionalConventionsRule).toBeDefined();
+      const content = additionalConventionsRule?.getFileContent();
+      expect(content).toContain("## Simulated Skills");
+      expect(content).toContain("Cursor Skill,A skill for cursor");
+    });
+
+    it("should filter skills based on targets", async () => {
+      // Create skill directories
+      const skillDir1 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "copilot-only-skill");
+      const skillDir2 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "cursor-only-skill");
+      await ensureDir(skillDir1);
+      await ensureDir(skillDir2);
+      await writeFileContent(
+        join(skillDir1, SKILL_FILE_NAME),
+        `---
+name: Copilot Only Skill
+description: Only for copilot
+targets: ["copilot"]
+---
+
+Copilot skill body.`,
+      );
+      await writeFileContent(
+        join(skillDir2, SKILL_FILE_NAME),
+        `---
+name: Cursor Only Skill
+description: Only for cursor
+targets: ["cursor"]
+---
+
+Cursor skill body.`,
+      );
+
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "copilot-only-skill",
+          frontmatter: {
+            name: "Copilot Only Skill",
+            description: "Only for copilot",
+            targets: ["copilot"],
+          },
+          body: "Copilot skill body.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "cursor-only-skill",
+          frontmatter: {
+            name: "Cursor Only Skill",
+            description: "Only for cursor",
+            targets: ["cursor"],
+          },
+          body: "Cursor skill body.",
+        }),
+      ];
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        simulateSkills: true,
+        skills,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof CopilotRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      // Should include the copilot-targeted skill but not the cursor-targeted one
+      expect(content).toContain("Copilot Only Skill,Only for copilot");
+      expect(content).not.toContain("Cursor Only Skill");
+    });
+
+    it("should not include skills section when no skills exist", async () => {
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        simulateSkills: true,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof CopilotRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      // When no skills exist, the skills section should not be added at all
+      expect(content).not.toContain("## Simulated Skills");
+    });
+
+    it("should not include skills section when simulateSkills is false", async () => {
+      // Create a skill directory
+      const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: Test Skill
+description: A test skill
+targets: ["*"]
+---
+
+Test skill body.`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        simulateSkills: false,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof CopilotRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      // Should not include skills section at all (but other sections may still be added)
+      expect(content).not.toContain("## Simulated Skills");
+      expect(content).toContain("# Root Rule");
+    });
+
+    it("should include skill list in generated content for agentsmd when simulateSkills is true", async () => {
+      const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "agentsmd-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: AgentsMd Skill
+description: A skill for agentsmd
+targets: ["agentsmd"]
+---
+
+AgentsMd skill body.`,
+      );
+
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "agentsmd-skill",
+          frontmatter: {
+            name: "AgentsMd Skill",
+            description: "A skill for agentsmd",
+            targets: ["agentsmd"],
+          },
+          body: "AgentsMd skill body.",
+        }),
+      ];
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "agentsmd",
+        simulateSkills: true,
+        skills,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof AgentsMdRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      expect(content).toContain("## Simulated Skills");
+      expect(content).toContain("AgentsMd Skill,A skill for agentsmd");
+    });
+
+    it("should include skill list in generated content for geminicli when simulateSkills is true", async () => {
+      const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "geminicli-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: GeminiCli Skill
+description: A skill for geminicli
+targets: ["geminicli"]
+---
+
+GeminiCli skill body.`,
+      );
+
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "geminicli-skill",
+          frontmatter: {
+            name: "GeminiCli Skill",
+            description: "A skill for geminicli",
+            targets: ["geminicli"],
+          },
+          body: "GeminiCli skill body.",
+        }),
+      ];
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "geminicli",
+        simulateSkills: true,
+        skills,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof GeminiCliRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      expect(content).toContain("## Simulated Skills");
+      expect(content).toContain("GeminiCli Skill,A skill for geminicli");
+    });
+
+    it("should not include skill list for codexcli even in global mode (codexcli does not support simulated skills)", async () => {
+      const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "codexcli-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: CodexCli Skill
+description: A skill for codexcli
+targets: ["codexcli"]
+---
+
+CodexCli skill body.`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "codexcli",
+        simulateSkills: true,
+        global: true,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof CodexcliRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      // codexcli does not support simulated skills (supportsSimulated: false)
+      expect(content).not.toContain("## Simulated Skills");
+    });
+
+    it("should filter skills by target for each tool", async () => {
+      // Create skills with different targets
+      const skillDir1 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "geminicli-only");
+      const skillDir2 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "agentsmd-only");
+      const skillDir3 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "universal");
+      await ensureDir(skillDir1);
+      await ensureDir(skillDir2);
+      await ensureDir(skillDir3);
+      await writeFileContent(
+        join(skillDir1, SKILL_FILE_NAME),
+        `---
+name: GeminiCli Only
+description: Only for geminicli
+targets: ["geminicli"]
+---
+
+GeminiCli only.`,
+      );
+      await writeFileContent(
+        join(skillDir2, SKILL_FILE_NAME),
+        `---
+name: AgentsMd Only
+description: Only for agentsmd
+targets: ["agentsmd"]
+---
+
+AgentsMd only.`,
+      );
+      await writeFileContent(
+        join(skillDir3, SKILL_FILE_NAME),
+        `---
+name: Universal Skill
+description: For all tools
+targets: ["*"]
+---
+
+Universal.`,
+      );
+
+      const skills = [
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "geminicli-only",
+          frontmatter: {
+            name: "GeminiCli Only",
+            description: "Only for geminicli",
+            targets: ["geminicli"],
+          },
+          body: "GeminiCli only.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "agentsmd-only",
+          frontmatter: {
+            name: "AgentsMd Only",
+            description: "Only for agentsmd",
+            targets: ["agentsmd"],
+          },
+          body: "AgentsMd only.",
+        }),
+        new RulesyncSkill({
+          baseDir: testDir,
+          dirName: "universal",
+          frontmatter: { name: "Universal Skill", description: "For all tools", targets: ["*"] },
+          body: "Universal.",
+        }),
+      ];
+
+      // Test geminicli - should include geminicli-only and universal, not agentsmd-only
+      const geminicliProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "geminicli",
+        simulateSkills: true,
+        skills,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root Rule",
+        }),
+      ];
+
+      const geminicliResult =
+        await geminicliProcessor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const geminicliRootRule = geminicliResult.find(
+        (rule) => rule instanceof GeminiCliRule && rule.isRoot(),
+      );
+      const geminicliContent = geminicliRootRule?.getFileContent();
+
+      expect(geminicliContent).toContain("GeminiCli Only,Only for geminicli");
+      expect(geminicliContent).toContain("Universal Skill,For all tools");
+      expect(geminicliContent).not.toContain("AgentsMd Only");
+
+      // Test agentsmd - should include agentsmd-only and universal, not geminicli-only
+      const agentsmdProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "agentsmd",
+        simulateSkills: true,
+        skills,
+      });
+
+      const agentsmdResult = await agentsmdProcessor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const agentsmdRootRule = agentsmdResult.find(
+        (rule) => rule instanceof AgentsMdRule && rule.isRoot(),
+      );
+      const agentsmdContent = agentsmdRootRule?.getFileContent();
+
+      expect(agentsmdContent).toContain("AgentsMd Only,Only for agentsmd");
+      expect(agentsmdContent).toContain("Universal Skill,For all tools");
+      expect(agentsmdContent).not.toContain("GeminiCli Only");
     });
   });
 });
