@@ -88,12 +88,12 @@ export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
 
 /**
- * Reference section style for root rule content.
- * - `toon`: Uses TOON format for referencing non-root rules
- * - `claudecode`: Uses Claude Code specific reference format
- * - `none`: No reference section added to root rule
+ * Rule discovery mode for determining how non-root rules are referenced.
+ * - `auto`: Tool auto-discovers rules in a directory, no reference section needed
+ * - `toon`: Tool requires explicit references using TOON format
+ * - `claudecode-legacy`: Uses Claude Code specific reference format (legacy mode only)
  */
-type ReferenceSectionStyle = "toon" | "claudecode" | "none";
+type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
 
 /**
  * Type for command class that provides settable paths.
@@ -156,8 +156,8 @@ type ToolRuleFactory = {
     extension: "md" | "mdc";
     /** Whether this tool supports global (user scope) mode */
     supportsGlobal: boolean;
-    /** How non-root rules are referenced in the root rule */
-    referenceSectionStyle: ReferenceSectionStyle;
+    /** How non-root rules are discovered or referenced */
+    ruleDiscoveryMode: RuleDiscoveryMode;
     /** Configuration for additional conventions (simulated features) */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
@@ -177,7 +177,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "md",
         supportsGlobal: false,
-        referenceSectionStyle: "toon",
+        ruleDiscoveryMode: "toon",
         additionalConventions: {
           commands: { commandClass: AgentsmdCommand },
           subagents: { subagentClass: AgentsmdSubagent },
@@ -190,49 +190,49 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "amazonqcli",
     {
       class: AmazonQCliRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
   [
     "antigravity",
     {
       class: AntigravityRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
   [
     "augmentcode",
     {
       class: AugmentcodeRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
   [
     "augmentcode-legacy",
     {
       class: AugmentcodeLegacyRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeRule,
-      meta: { extension: "md", supportsGlobal: true, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "auto" },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeLegacyRule,
-      meta: { extension: "md", supportsGlobal: true, referenceSectionStyle: "claudecode" },
+      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "claudecode-legacy" },
     },
   ],
   [
     "cline",
     {
       class: ClineRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
   [
@@ -242,7 +242,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "md",
         supportsGlobal: true,
-        referenceSectionStyle: "toon",
+        ruleDiscoveryMode: "toon",
         additionalConventions: {
           subagents: { subagentClass: CodexCliSubagent },
           skills: { skillClass: CodexCliSkill, globalOnly: true },
@@ -257,7 +257,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "md",
         supportsGlobal: false,
-        referenceSectionStyle: "none",
+        ruleDiscoveryMode: "auto",
         additionalConventions: {
           commands: { commandClass: CopilotCommand },
           subagents: { subagentClass: CopilotSubagent },
@@ -273,7 +273,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "mdc",
         supportsGlobal: false,
-        referenceSectionStyle: "none",
+        ruleDiscoveryMode: "auto",
         additionalConventions: {
           commands: { commandClass: CursorCommand },
           subagents: { subagentClass: CursorSubagent },
@@ -290,7 +290,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "md",
         supportsGlobal: true,
-        referenceSectionStyle: "toon",
+        ruleDiscoveryMode: "toon",
         additionalConventions: {
           commands: { commandClass: GeminiCliCommand },
           subagents: { subagentClass: GeminiCliSubagent },
@@ -303,28 +303,28 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "junie",
     {
       class: JunieRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
     },
   ],
   [
     "kiro",
     {
       class: KiroRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
     },
   ],
   [
     "opencode",
     {
       class: OpenCodeRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
     },
   ],
   [
     "qwencode",
     {
       class: QwencodeRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
     },
   ],
   [
@@ -334,7 +334,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "md",
         supportsGlobal: false,
-        referenceSectionStyle: "none",
+        ruleDiscoveryMode: "auto",
         additionalConventions: {
           commands: { commandClass: RooCommand },
           subagents: { subagentClass: RooSubagent },
@@ -347,14 +347,14 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "warp",
     {
       class: WarpRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "toon" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
     },
   ],
   [
     "windsurf",
     {
       class: WindsurfRule,
-      meta: { extension: "md", supportsGlobal: false, referenceSectionStyle: "none" },
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
 ]);
@@ -537,12 +537,12 @@ export class RulesProcessor extends FeatureProcessor {
     meta: ToolRuleFactory["meta"],
     toolRules: ToolRule[],
   ): string {
-    switch (meta.referenceSectionStyle) {
+    switch (meta.ruleDiscoveryMode) {
       case "toon":
         return this.generateToonReferencesSection(toolRules);
-      case "claudecode":
+      case "claudecode-legacy":
         return this.generateReferencesSection(toolRules);
-      case "none":
+      case "auto":
       default:
         return "";
     }
