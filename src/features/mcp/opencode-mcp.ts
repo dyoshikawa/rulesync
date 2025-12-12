@@ -13,7 +13,7 @@ import {
 } from "./tool-mcp.js";
 
 // OpenCode MCP server schemas
-// OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http",
+// OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http"/"streamable-http",
 // "environment" instead of "env", and "enabled" instead of "disabled"
 
 // OpenCode native format for local servers
@@ -92,7 +92,7 @@ function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer
 
 /**
  * Convert standard MCP format to OpenCode native format
- * - type: "stdio" -> "local", "sse"/"http" -> "remote"
+ * - type: "stdio" -> "local", "sse"/"http"/"streamable-http" -> "remote"
  * - command + args -> command (merged array)
  * - env -> environment
  * - disabled -> enabled (inverted)
@@ -101,7 +101,10 @@ function convertToOpencodeFormat(mcpServers: McpServers): Record<string, Opencod
   return Object.fromEntries(
     Object.entries(mcpServers).map(([serverName, serverConfig]) => {
       const isRemote =
-        serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
+        serverConfig.type === "sse" ||
+        serverConfig.type === "http" ||
+        serverConfig.type === "streamable-http" ||
+        serverConfig.url;
 
       if (isRemote) {
         const remoteServer: OpencodeMcpServer = {
