@@ -2,6 +2,7 @@ import { globSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import { kebabCase } from "es-toolkit";
 import { logger } from "./logger.js";
 import { isEnvTest } from "./vitest.js";
 
@@ -257,4 +258,27 @@ export function validateBaseDir(baseDir: string): void {
   }
 
   checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
+}
+
+/**
+ * Converts a filename to kebab-case format using es-toolkit.
+ * Useful for tools like Antigravity that require lowercase filenames with hyphens.
+ *
+ * @param filename - The filename to convert (e.g., "MyFile.md")
+ * @returns The kebab-cased filename (e.g., "my-file.md")
+ *
+ * @example
+ * toKebabCaseFilename("CodingGuidelines.md") // "coding-guidelines.md"
+ * toKebabCaseFilename("API_Reference.md") // "api-reference.md"
+ */
+export function toKebabCaseFilename(filename: string): string {
+  // Extract extension
+  const lastDotIndex = filename.lastIndexOf(".");
+  const extension = lastDotIndex > 0 ? filename.slice(lastDotIndex) : "";
+  const nameWithoutExt = lastDotIndex > 0 ? filename.slice(0, lastDotIndex) : filename;
+
+  // Use es-toolkit's kebabCase for consistent conversion
+  const kebabName = kebabCase(nameWithoutExt);
+
+  return kebabName + extension;
 }

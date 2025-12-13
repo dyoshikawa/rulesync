@@ -285,6 +285,88 @@ trigger: always_on
       expect(antigravityRule.getFilePath()).toBe("/project/.agent/rules/my-custom-root.md");
       expect(antigravityRule.getRelativeFilePath()).toBe("my-custom-root.md");
     });
+
+    it("should convert PascalCase filenames to kebab-case", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "CodingGuidelines.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "",
+          globs: [],
+        },
+        body: "# Coding Guidelines",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getRelativeFilePath()).toBe("coding-guidelines.md");
+      expect(antigravityRule.getRelativeDirPath()).toBe(".agent/rules");
+    });
+
+    it("should convert snake_case filenames to kebab-case", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api_reference.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "",
+          globs: [],
+        },
+        body: "# API Reference",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getRelativeFilePath()).toBe("api-reference.md");
+    });
+
+    it("should convert mixed case filenames with numbers to kebab-case", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "API_Guide_v2.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "",
+          globs: [],
+        },
+        body: "# API Guide v2",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // es-toolkit's kebabCase adds hyphens before numbers
+      expect(antigravityRule.getRelativeFilePath()).toBe("api-guide-v-2.md");
+    });
+
+    it("should preserve already kebab-case filenames", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "coding-guidelines.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "",
+          globs: [],
+        },
+        body: "# Coding Guidelines",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getRelativeFilePath()).toBe("coding-guidelines.md");
+    });
   });
 
   describe("toRulesyncRule", () => {

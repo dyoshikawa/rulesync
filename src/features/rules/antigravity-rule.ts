@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toKebabCaseFilename } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -49,6 +49,11 @@ export type AntigravityRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> &
  *
  * Generates rule files for Antigravity's .agent/rules/ directory.
  * All rules (both root and non-root from RulesyncRule) are placed in .agent/rules.
+ *
+ * Filename requirements:
+ * - Filenames must be lowercase, numbers, and hyphens only
+ * - Automatically converts filenames to kebab-case during generation
+ *   (e.g., "CodingGuidelines.md" → "coding-guidelines.md")
  *
  * Supports frontmatter configuration with different trigger types:
  * - always_on: Rule always applies (default)
@@ -386,10 +391,12 @@ export class AntigravityRule extends ToolRule {
     // Both root and non-root rules are placed in .agent/rules directory
     const paths = this.getSettablePaths();
 
+    const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
+
     return new AntigravityRule({
       baseDir,
       relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      relativeFilePath: kebabCaseFilename,
       frontmatter,
       body: rulesyncRule.getBody(),
       validate,
