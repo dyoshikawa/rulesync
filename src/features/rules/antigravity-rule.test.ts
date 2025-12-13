@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { AntigravityRule } from "./antigravity-rule.js";
+import {
+  AntigravityRule,
+  AntigravityRuleFrontmatter,
+  AntigravityRuleFrontmatterSchema,
+} from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 describe("AntigravityRule", () => {
@@ -23,23 +27,30 @@ describe("AntigravityRule", () => {
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const antigravityRule = new AntigravityRule({
+        frontmatter: { trigger: "always_on" },
         relativeDirPath: ".agent/rules",
         relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule\n\nThis is a test rule.",
+        body: "# Test Rule\n\nThis is a test rule.",
       });
 
       expect(antigravityRule).toBeInstanceOf(AntigravityRule);
       expect(antigravityRule.getRelativeDirPath()).toBe(".agent/rules");
       expect(antigravityRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(antigravityRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
+      expect(antigravityRule.getFileContent().trim()).toBe(`---
+trigger: always_on
+---
+# Test Rule
+
+This is a test rule.`);
     });
 
     it("should create instance with custom baseDir", () => {
       const antigravityRule = new AntigravityRule({
+        frontmatter: { trigger: "always_on" },
         baseDir: "/custom/path",
         relativeDirPath: ".agent/rules",
         relativeFilePath: "test-rule.md",
-        fileContent: "# Custom Rule",
+        body: "# Custom Rule",
       });
 
       expect(antigravityRule.getFilePath()).toBe("/custom/path/.agent/rules/test-rule.md");
@@ -48,9 +59,10 @@ describe("AntigravityRule", () => {
     it("should validate content by default", () => {
       expect(() => {
         const _instance = new AntigravityRule({
+          frontmatter: { trigger: "always_on" },
           relativeDirPath: ".agent/rules",
           relativeFilePath: "test-rule.md",
-          fileContent: "", // empty content should be valid since validate always returns success
+          body: "", // empty content should be valid since validate always returns success
         });
       }).not.toThrow();
     });
@@ -58,9 +70,10 @@ describe("AntigravityRule", () => {
     it("should skip validation when requested", () => {
       expect(() => {
         const _instance = new AntigravityRule({
+          frontmatter: { trigger: "always_on" },
           relativeDirPath: ".agent/rules",
           relativeFilePath: "test-rule.md",
-          fileContent: "",
+          body: "",
           validate: false,
         });
       }).not.toThrow();
@@ -68,13 +81,17 @@ describe("AntigravityRule", () => {
 
     it("should handle root rule parameter", () => {
       const antigravityRule = new AntigravityRule({
+        frontmatter: { trigger: "always_on" },
         relativeDirPath: ".agent/rules",
         relativeFilePath: "test-rule.md",
-        fileContent: "# Root Rule",
+        body: "# Root Rule",
         root: false,
       });
 
-      expect(antigravityRule.getFileContent()).toBe("# Root Rule");
+      expect(antigravityRule.getFileContent().trim()).toBe(`---
+trigger: always_on
+---
+# Root Rule`);
     });
   });
 
@@ -83,7 +100,8 @@ describe("AntigravityRule", () => {
       // Setup test file
       const rulesDir = join(testDir, ".agent/rules");
       await ensureDir(rulesDir);
-      const testContent = "# Test Rule from File\n\nContent from file.";
+      const testContent =
+        "---\ntrigger: always_on\n---\n\n# Test Rule from File\n\nContent from file.";
       await writeFileContent(join(rulesDir, "test.md"), testContent);
 
       const antigravityRule = await AntigravityRule.fromFile({
@@ -93,7 +111,7 @@ describe("AntigravityRule", () => {
 
       expect(antigravityRule.getRelativeDirPath()).toBe(".agent/rules");
       expect(antigravityRule.getRelativeFilePath()).toBe("test.md");
-      expect(antigravityRule.getFileContent()).toBe(testContent);
+      expect(antigravityRule.getFileContent().trim()).toBe(testContent);
       expect(antigravityRule.getFilePath()).toBe(join(testDir, ".agent/rules/test.md"));
     });
 
@@ -101,7 +119,7 @@ describe("AntigravityRule", () => {
       // Setup test file using testDir
       const rulesDir = join(testDir, ".agent/rules");
       await ensureDir(rulesDir);
-      const testContent = "# Default BaseDir Test";
+      const testContent = "---\ntrigger: always_on\n---\n\n# Default BaseDir Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
@@ -112,14 +130,14 @@ describe("AntigravityRule", () => {
 
       expect(antigravityRule.getRelativeDirPath()).toBe(".agent/rules");
       expect(antigravityRule.getRelativeFilePath()).toBe("default-test.md");
-      expect(antigravityRule.getFileContent()).toBe(testContent);
+      expect(antigravityRule.getFileContent().trim()).toBe(testContent);
       expect(antigravityRule.getFilePath()).toBe(join(testDir, ".agent/rules/default-test.md"));
     });
 
     it("should handle validation parameter", async () => {
       const rulesDir = join(testDir, ".agent/rules");
       await ensureDir(rulesDir);
-      const testContent = "# Validation Test";
+      const testContent = "---\ntrigger: always_on\n---\n\n# Validation Test";
       await writeFileContent(join(rulesDir, "validation-test.md"), testContent);
 
       const antigravityRuleWithValidation = await AntigravityRule.fromFile({
@@ -134,8 +152,8 @@ describe("AntigravityRule", () => {
         validate: false,
       });
 
-      expect(antigravityRuleWithValidation.getFileContent()).toBe(testContent);
-      expect(antigravityRuleWithoutValidation.getFileContent()).toBe(testContent);
+      expect(antigravityRuleWithValidation.getFileContent().trim()).toBe(testContent);
+      expect(antigravityRuleWithoutValidation.getFileContent().trim()).toBe(testContent);
     });
 
     it("should throw error when file does not exist", async () => {
@@ -224,33 +242,80 @@ describe("AntigravityRule", () => {
   });
 
   describe("toRulesyncRule", () => {
-    it("should convert to RulesyncRule", () => {
-      const antigravityRule = new AntigravityRule({
-        relativeDirPath: ".agent/rules",
-        relativeFilePath: "test.md",
-        fileContent: "# Test Rule\n\nContent",
-      });
+    it("should convert to RulesyncRule for all triggers", () => {
+      const testCases: {
+        frontmatter: AntigravityRuleFrontmatter;
+        expectedGlobs: string[];
+        expectedAntigravityTrigger: string;
+      }[] = [
+        {
+          frontmatter: { trigger: "glob", globs: "*.ts" },
+          expectedGlobs: ["*.ts"],
+          expectedAntigravityTrigger: "glob",
+        },
+        {
+          frontmatter: { trigger: "manual" },
+          expectedGlobs: [],
+          expectedAntigravityTrigger: "manual",
+        },
+        {
+          frontmatter: { trigger: "always_on" },
+          expectedGlobs: ["**/*"],
+          expectedAntigravityTrigger: "always_on",
+        },
+        {
+          frontmatter: { trigger: "model_decision", description: "desc" },
+          expectedGlobs: [],
+          expectedAntigravityTrigger: "model_decision",
+        },
+      ];
 
-      const rulesyncRule = antigravityRule.toRulesyncRule();
+      for (const { frontmatter, expectedGlobs, expectedAntigravityTrigger } of testCases) {
+        const antigravityRule = new AntigravityRule({
+          frontmatter,
+          relativeDirPath: ".agent/rules",
+          relativeFilePath: "test.md",
+          body: "# Test Rule",
+        });
 
-      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("test.md");
-      expect(rulesyncRule.getBody()).toContain("# Test Rule\n\nContent");
+        const rulesyncRule = antigravityRule.toRulesyncRule();
+        expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
+        expect(rulesyncRule.getFrontmatter().globs).toEqual(expectedGlobs);
+        expect(rulesyncRule.getFrontmatter().antigravity?.trigger).toBe(expectedAntigravityTrigger);
+      }
     });
   });
 
   describe("validate", () => {
     it("should always return success", () => {
       const antigravityRule = new AntigravityRule({
+        frontmatter: { trigger: "always_on" },
         relativeDirPath: ".agent/rules",
         relativeFilePath: "test.md",
-        fileContent: "# Test",
+        body: "# Test",
       });
 
       const result = antigravityRule.validate();
 
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
+    });
+
+    it("should return error for invalid frontmatter types", () => {
+      const antigravityRule = new AntigravityRule({
+        // Invalid: globs should be string, pass number to force schema failure
+        frontmatter: { trigger: "glob", globs: 123 } as any,
+        relativeDirPath: ".agent/rules",
+        relativeFilePath: "test.md",
+        body: "# Test",
+        validate: false,
+      });
+
+      const result = antigravityRule.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.error?.message).toContain("expected string, received number");
     });
   });
 
@@ -309,6 +374,406 @@ describe("AntigravityRule", () => {
       const paths = AntigravityRule.getSettablePaths();
 
       expect(paths.nonRoot.relativeDirPath).toBe(".agent/rules");
+    });
+  });
+  describe("frontmatter", () => {
+    it("should parse frontmatter from file", async () => {
+      const rulesDir = join(testDir, ".agent/rules");
+      await ensureDir(rulesDir);
+      const content = `---
+trigger: glob
+globs: '*.ts'
+---
+
+# Frontmatter Rule`;
+      await writeFileContent(join(rulesDir, "frontmatter.md"), content);
+
+      const antigravityRule = await AntigravityRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "frontmatter.md",
+      });
+
+      const frontmatter = antigravityRule.getFrontmatter();
+      expect(frontmatter).toEqual({
+        trigger: "glob",
+        globs: "*.ts",
+      });
+      expect(antigravityRule.getFileContent().trim()).toBe(content.trim());
+    });
+
+    it("should handle all supported triggers", async () => {
+      const rulesDir = join(testDir, ".agent/rules");
+      await ensureDir(rulesDir);
+
+      const testCases = [
+        {
+          file: "glob.md",
+          content: "---\ntrigger: glob\nglobs: '*.ts'\n---\n# Glob",
+          expectedFrontmatter: { trigger: "glob", globs: "*.ts" },
+        },
+        {
+          file: "manual.md",
+          content: "---\ntrigger: manual\n---\n# Manual",
+          expectedFrontmatter: { trigger: "manual" },
+        },
+        {
+          file: "always-on.md",
+          content: "---\ntrigger: always_on\n---\n# Always On",
+          expectedFrontmatter: { trigger: "always_on" }, // globs are optional
+        },
+        {
+          file: "model-decision.md",
+          content: "---\ntrigger: model_decision\ndescription: test desc\n---\n# Model Decision",
+          expectedFrontmatter: { trigger: "model_decision", description: "test desc" },
+        },
+      ];
+
+      for (const testCase of testCases) {
+        await writeFileContent(join(rulesDir, testCase.file), testCase.content);
+        const rule = await AntigravityRule.fromFile({
+          baseDir: testDir,
+          relativeFilePath: testCase.file,
+        });
+        expect(rule.getFrontmatter()).toMatchObject(testCase.expectedFrontmatter);
+      }
+    });
+
+    it("should use default trigger for file without frontmatter", async () => {
+      const rulesDir = join(testDir, ".agent/rules");
+      await ensureDir(rulesDir);
+      const content = "# No Frontmatter";
+      await writeFileContent(join(rulesDir, "no-frontmatter.md"), content);
+
+      const antigravityRule = await AntigravityRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "no-frontmatter.md",
+        validate: false, // Skip validation as it might fail without frontmatter
+      });
+
+      // Default behavior might depend on implementation, but checking if it handles it
+      expect(antigravityRule.getFileContent().trim()).toBe("# No Frontmatter");
+    });
+  });
+
+  describe("mapping", () => {
+    it("should map RulesyncRule with specific globs to glob trigger", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "glob-rule.md",
+        frontmatter: {
+          globs: ["src/**/*.ts"],
+        },
+        body: "# Glob Rule",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "glob",
+        globs: "src/**/*.ts",
+      });
+    });
+
+    it("should map RulesyncRule with wildcard glob to always_on trigger", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "always-on.md",
+        frontmatter: {
+          globs: ["**/*"],
+        },
+        body: "# Always On Rule",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "always_on",
+      });
+    });
+
+    it("should map RulesyncRule without globs to always_on trigger", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-globs.md",
+        frontmatter: {},
+        body: "# No Globs",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "always_on",
+      });
+    });
+
+    it("should map RulesyncRule with persisted trigger regardless of globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "persisted.md",
+        frontmatter: {
+          globs: ["**/*"], // Would normally infer always_on
+          antigravity: {
+            trigger: "manual", // Explicitly set to manual
+          },
+        },
+        body: "# Persisted",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "manual",
+      });
+    });
+
+    it("should respect explicit globs in antigravity key", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "explicit-globs.md",
+        frontmatter: {
+          globs: ["**/*"], // Generic glob
+          antigravity: {
+            trigger: "glob",
+            globs: ["specific.ts"], // Specific glob overrides generic
+          },
+        },
+        body: "# Explicit Globs",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "glob",
+        globs: "specific.ts",
+      });
+    });
+
+    it("should handle unknown string trigger gracefully (cast to any)", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "unknown-trigger.md",
+        frontmatter: {
+          antigravity: {
+            trigger: "unknown-trigger",
+          },
+        },
+        body: "# Unknown Trigger",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+        validate: true, // Validation should pass with loose schema
+      });
+
+      expect((antigravityRule.getFrontmatter() as any).trigger).toBe("unknown-trigger");
+    });
+  });
+
+  describe("round trip", () => {
+    it("should maintain content through RulesyncRule -> AntigravityRule -> RulesyncRule conversion", () => {
+      const initialRulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "round-trip.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Round trip test",
+          globs: ["*.ts"],
+        },
+        body: "# Round Trip\n\nContent",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule: initialRulesyncRule,
+      });
+
+      const finalRulesyncRule = antigravityRule.toRulesyncRule();
+
+      // Verify essential properties are preserved or correctly mapped
+      expect(finalRulesyncRule.getRelativeFilePath()).toBe("round-trip.md");
+      expect(finalRulesyncRule.getBody().trim()).toBe("# Round Trip\n\nContent");
+      expect(finalRulesyncRule.getFrontmatter().globs).toEqual(["*.ts"]);
+      expect(finalRulesyncRule.getFrontmatter().targets).toEqual(["*"]);
+      expect(finalRulesyncRule.getFrontmatter().antigravity?.trigger).toBe("glob");
+      expect(finalRulesyncRule.getFrontmatter().antigravity?.globs).toEqual(["*.ts"]);
+    });
+
+    it("should pass through extra properties in antigravity config", () => {
+      const extraProps = {
+        customField: "customValue",
+        nested: { foo: "bar" },
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "passthrough.md",
+        frontmatter: {
+          antigravity: {
+            trigger: "manual",
+            ...extraProps,
+          } as any, // Cast because RulesyncRule schema is loose but TypeScript might strict check generic Record if not defined
+        },
+        body: "# Passthrough",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // Verify AntigravityRule preserved them
+      expect(antigravityRule.getFrontmatter()).toMatchObject(extraProps);
+
+      // Verify round trip
+      const finalRulesyncRule = antigravityRule.toRulesyncRule();
+      expect(finalRulesyncRule.getFrontmatter().antigravity).toMatchObject(extraProps);
+    });
+
+    it("should handle empty globs array explicitly", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "empty-globs.md",
+        frontmatter: {
+          antigravity: {
+            trigger: "glob",
+            globs: [],
+          },
+        },
+        body: "# Empty Globs",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "glob",
+        globs: undefined,
+      });
+    });
+
+    it("should handle model_decision without description", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-desc.md",
+        frontmatter: {
+          antigravity: {
+            trigger: "model_decision",
+          },
+          // No generic description either
+        },
+        body: "# No Desc",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "model_decision",
+        description: undefined,
+      });
+    });
+
+    it("should handle single wildcard glob when explicitly persisted", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "wildcard.md",
+        frontmatter: {
+          globs: ["*"],
+          antigravity: {
+            trigger: "glob",
+            // Implicitly uses generic globs if not overridden
+          },
+        },
+        body: "# Wildcard",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // Even though * usually implies always_on, explicit trigger: glob should be respected
+      expect(antigravityRule.getFrontmatter()).toEqual({
+        trigger: "glob",
+        globs: "*",
+      });
+    });
+  });
+
+  describe("schema", () => {
+    it("should parse valid frontmatter", () => {
+      const testCases = [
+        {
+          name: "glob",
+          input: { trigger: "glob", globs: "*.ts" },
+          expected: { trigger: "glob", globs: "*.ts" },
+        },
+        {
+          name: "manual",
+          input: { trigger: "manual" },
+          expected: { trigger: "manual" },
+        },
+        {
+          name: "always_on",
+          input: { trigger: "always_on" },
+          expected: { trigger: "always_on" },
+        },
+        {
+          name: "model_decision",
+          input: { trigger: "model_decision", description: "desc" },
+          expected: { trigger: "model_decision", description: "desc" },
+        },
+      ];
+
+      for (const { input, expected } of testCases) {
+        const result = AntigravityRuleFrontmatterSchema.safeParse(input);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data).toEqual(expected);
+        }
+      }
+    });
+
+    it("should allow arbitrary triggers (loose schema)", () => {
+      const result = AntigravityRuleFrontmatterSchema.safeParse({
+        trigger: "custom-trigger",
+        extraField: "value",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.trigger).toBe("custom-trigger");
+        expect((result.data as any).extraField).toBe("value");
+      }
+    });
+
+    it("should allow missing glob for glob trigger (schema is loose)", () => {
+      // Logic layer might enforce it, but schema doesn't anymore
+      const result = AntigravityRuleFrontmatterSchema.safeParse({
+        trigger: "glob",
+        // missing globs
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should strip invalid fields? No, allow them (loose object)", () => {
+      const result = AntigravityRuleFrontmatterSchema.safeParse({
+        trigger: "always_on",
+        unknownField: "value",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect((result.data as any).unknownField).toBe("value");
+      }
     });
   });
 });

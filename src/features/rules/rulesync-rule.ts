@@ -46,6 +46,12 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
     }),
   ),
+  antigravity: z.optional(
+    z.looseObject({
+      trigger: z.optional(z.string()),
+      globs: z.optional(z.array(z.string())),
+    }),
+  ),
 });
 
 export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSchema>;
