@@ -48,6 +48,8 @@ export type AntigravityRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> &
  * Rule generator for Google Antigravity IDE
  *
  * Generates rule files for Antigravity's .agent/rules/ directory.
+ * All rules (both root and non-root from RulesyncRule) are placed in .agent/rules.
+ *
  * Supports frontmatter configuration with different trigger types:
  * - always_on: Rule always applies (default)
  * - glob: Rule applies to files matching glob patterns
@@ -381,15 +383,17 @@ export class AntigravityRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
+    // Both root and non-root rules are placed in .agent/rules directory
+    const paths = this.getSettablePaths();
+
     return new AntigravityRule({
-      ...this.buildToolRuleParamsDefault({
-        baseDir,
-        rulesyncRule,
-        validate,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
+      baseDir,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
       frontmatter,
       body: rulesyncRule.getBody(),
+      validate,
+      root: false,
     });
   }
 
@@ -398,6 +402,9 @@ export class AntigravityRule extends ToolRule {
    *
    * The Antigravity configuration is preserved in the RulesyncRule's
    * frontmatter.antigravity field for round-trip compatibility.
+   *
+   * Note: All Antigravity rules are treated as non-root (root: false),
+   * as they are all placed in the .agent/rules directory.
    *
    * @returns RulesyncRule instance with Antigravity config preserved
    */

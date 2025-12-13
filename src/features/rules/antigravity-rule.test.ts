@@ -239,6 +239,52 @@ trigger: always_on
       expect(withValidation.getFileContent()).toContain("# Validation Test");
       expect(withoutValidation.getFileContent()).toContain("# Validation Test");
     });
+
+    it("should place root rules in .agent/rules directory", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Project overview",
+          globs: ["**/*"],
+        },
+        body: "# Project Overview\n\nThis is the root rule.",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // Root rules are also placed in .agent/rules directory
+      expect(antigravityRule.getRelativeDirPath()).toBe(".agent/rules");
+      expect(antigravityRule.getRelativeFilePath()).toBe("overview.md");
+      expect(antigravityRule.isRoot()).toBe(false);
+      expect(antigravityRule.getFileContent()).toContain("# Project Overview");
+    });
+
+    it("should maintain original filename for root rules", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "my-custom-root.md",
+        frontmatter: {
+          root: true,
+          targets: ["antigravity"],
+          description: "",
+          globs: ["**/*"],
+        },
+        body: "# Custom Root Rule",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        baseDir: "/project",
+        rulesyncRule,
+      });
+
+      expect(antigravityRule.getFilePath()).toBe("/project/.agent/rules/my-custom-root.md");
+      expect(antigravityRule.getRelativeFilePath()).toBe("my-custom-root.md");
+    });
   });
 
   describe("toRulesyncRule", () => {
@@ -283,6 +329,55 @@ trigger: always_on
         expect(rulesyncRule.getFrontmatter().globs).toEqual(expectedGlobs);
         expect(rulesyncRule.getFrontmatter().antigravity?.trigger).toBe(expectedAntigravityTrigger);
       }
+    });
+
+    it("should always convert to root: false", () => {
+      // Test with a rule that was created from a root RulesyncRule
+      const rootRulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Project overview",
+          globs: ["**/*"],
+        },
+        body: "# Project Overview",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule: rootRulesyncRule,
+      });
+
+      const convertedRulesyncRule = antigravityRule.toRulesyncRule();
+
+      // All Antigravity rules are converted to root: false
+      expect(convertedRulesyncRule.getFrontmatter().root).toBe(false);
+      expect(convertedRulesyncRule.getBody()).toBe("# Project Overview");
+      expect(convertedRulesyncRule.getRelativeFilePath()).toBe("overview.md");
+    });
+
+    it("should preserve non-root status when converting", () => {
+      const nonRootRulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "coding-style.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Coding style guide",
+          globs: ["**/*.ts"],
+        },
+        body: "# Coding Style",
+      });
+
+      const antigravityRule = AntigravityRule.fromRulesyncRule({
+        rulesyncRule: nonRootRulesyncRule,
+      });
+
+      const convertedRulesyncRule = antigravityRule.toRulesyncRule();
+
+      expect(convertedRulesyncRule.getFrontmatter().root).toBe(false);
+      expect(convertedRulesyncRule.getBody()).toBe("# Coding Style");
     });
   });
 
