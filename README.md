@@ -324,6 +324,10 @@ cursor: # cursor specific parameters
   alwaysApply: true
   description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
   globs: ["*"]
+antigravity: # antigravity specific parameters
+  trigger: "always_on" # always_on, glob, manual, or model_decision
+  globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
+  description: "When to apply this rule" # (optional) used with "model_decision" trigger
 ---
 
 # Rulesync Project Overview

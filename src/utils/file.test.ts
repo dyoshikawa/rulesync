@@ -21,6 +21,7 @@ import {
   removeDirectory,
   removeFile,
   resolvePath,
+  toKebabCaseFilename,
   validateBaseDir,
   writeFileContent,
   writeJsonFile,
@@ -565,6 +566,99 @@ describe("file utilities", () => {
       it("should allow dot directories that are not parent references", () => {
         expect(() => validateBaseDir(".config")).not.toThrow();
         expect(() => validateBaseDir(".local/share")).not.toThrow();
+      });
+    });
+  });
+
+  describe("toKebabCaseFilename", () => {
+    describe("basic conversions", () => {
+      it("should convert PascalCase to kebab-case", () => {
+        expect(toKebabCaseFilename("CodingGuidelines.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("MyFile.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("APIReference.md")).toBe("api-reference.md");
+      });
+
+      it("should convert camelCase to kebab-case", () => {
+        expect(toKebabCaseFilename("codingGuidelines.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("myFile.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("apiReference.md")).toBe("api-reference.md");
+      });
+
+      it("should convert snake_case to kebab-case", () => {
+        expect(toKebabCaseFilename("coding_guidelines.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("my_file.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("api_reference.md")).toBe("api-reference.md");
+      });
+
+      it("should convert SCREAMING_SNAKE_CASE to kebab-case", () => {
+        expect(toKebabCaseFilename("CODING_GUIDELINES.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("MY_FILE.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("API_REFERENCE.md")).toBe("api-reference.md");
+      });
+    });
+
+    describe("mixed formats", () => {
+      it("should handle mixed case and underscores", () => {
+        // es-toolkit's kebabCase adds hyphens before numbers
+        expect(toKebabCaseFilename("API_Guide_v2.md")).toBe("api-guide-v-2.md");
+        expect(toKebabCaseFilename("My_CodingStyle.md")).toBe("my-coding-style.md");
+      });
+
+      it("should handle spaces", () => {
+        expect(toKebabCaseFilename("Coding Guidelines.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("My File Name.md")).toBe("my-file-name.md");
+      });
+
+      it("should handle multiple consecutive separators", () => {
+        expect(toKebabCaseFilename("my___file.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("my---file.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("my   file.md")).toBe("my-file.md");
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should preserve already kebab-case filenames", () => {
+        expect(toKebabCaseFilename("coding-guidelines.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("my-file.md")).toBe("my-file.md");
+      });
+
+      it("should preserve file extensions", () => {
+        expect(toKebabCaseFilename("MyFile.txt")).toBe("my-file.txt");
+        // es-toolkit treats everything before the last dot as the name
+        expect(toKebabCaseFilename("MyFile.test.ts")).toBe("my-file-test.ts");
+        expect(toKebabCaseFilename("MyFile")).toBe("my-file");
+      });
+
+      it("should handle filenames with numbers", () => {
+        // es-toolkit's kebabCase adds hyphens before numbers
+        expect(toKebabCaseFilename("version2.md")).toBe("version-2.md");
+        expect(toKebabCaseFilename("File123.md")).toBe("file-123.md");
+        expect(toKebabCaseFilename("v2APIGuide.md")).toBe("v-2-api-guide.md");
+      });
+
+      it("should remove leading and trailing hyphens", () => {
+        expect(toKebabCaseFilename("-MyFile-.md")).toBe("my-file.md");
+        expect(toKebabCaseFilename("_MyFile_.md")).toBe("my-file.md");
+      });
+
+      it("should handle single word filenames", () => {
+        expect(toKebabCaseFilename("README.md")).toBe("readme.md");
+        expect(toKebabCaseFilename("file.md")).toBe("file.md");
+      });
+
+      it("should handle empty or minimal names", () => {
+        // ".md" has no name before extension, so extension becomes the name
+        expect(toKebabCaseFilename(".md")).toBe("md");
+        expect(toKebabCaseFilename("a.md")).toBe("a.md");
+      });
+    });
+
+    describe("real-world examples", () => {
+      it("should convert typical rule filenames", () => {
+        expect(toKebabCaseFilename("CodingGuidelines.md")).toBe("coding-guidelines.md");
+        expect(toKebabCaseFilename("TestingStrategy.md")).toBe("testing-strategy.md");
+        expect(toKebabCaseFilename("API_Documentation.md")).toBe("api-documentation.md");
+        expect(toKebabCaseFilename("ProjectOverview.md")).toBe("project-overview.md");
       });
     });
   });
