@@ -143,6 +143,10 @@ const main = async () => {
       "--modular-mcp",
       "Generate modular-mcp configuration for context compression (experimental)",
     )
+    .option(
+      "--check",
+      "Check if generated files are synchronized without writing (exit 1 if out of sync)",
+    )
     .action(async (options) => {
       try {
         await generateCommand({
@@ -157,6 +161,7 @@ const main = async () => {
           simulateSubagents: options.simulateSubagents,
           simulateSkills: options.simulateSkills,
           modularMcp: options.modularMcp,
+          check: options.check,
           experimentalGlobal: options.experimentalGlobal,
           experimentalSimulateCommands: options.experimentalSimulateCommands,
           experimentalSimulateSubagents: options.experimentalSimulateSubagents,
