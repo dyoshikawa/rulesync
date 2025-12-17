@@ -47,6 +47,7 @@ describe("generateCommand", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
+      getCheck: vi.fn().mockReturnValue(false),
       // Deprecated getters for backward compatibility
       getExperimentalGlobal: vi.fn().mockReturnValue(false),
       getExperimentalSimulateCommands: vi.fn().mockReturnValue(false),
@@ -92,6 +93,7 @@ describe("generateCommand", () => {
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({ results: [], outOfSyncCount: 0 }),
       } as any;
     });
     vi.mocked(IgnoreProcessor).mockImplementation(function () {
@@ -102,6 +104,7 @@ describe("generateCommand", () => {
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({ results: [], outOfSyncCount: 0 }),
       } as any;
     });
     vi.mocked(McpProcessor).mockImplementation(function () {
@@ -112,6 +115,7 @@ describe("generateCommand", () => {
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({ results: [], outOfSyncCount: 0 }),
       } as any;
     });
     vi.mocked(SubagentsProcessor).mockImplementation(function () {
@@ -122,6 +126,7 @@ describe("generateCommand", () => {
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({ results: [], outOfSyncCount: 0 }),
       } as any;
     });
     vi.mocked(CommandsProcessor).mockImplementation(function () {
@@ -132,6 +137,7 @@ describe("generateCommand", () => {
         loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({ results: [], outOfSyncCount: 0 }),
       } as any;
     });
   });
@@ -1079,6 +1085,181 @@ describe("generateCommand", () => {
       expect(logger.success).toHaveBeenCalledWith("Generated 1 cursor rule(s) in dir1");
       expect(logger.success).toHaveBeenCalledWith("Generated 1 claudecode rule(s) in dir2");
       expect(logger.success).toHaveBeenCalledWith("Generated 1 cursor rule(s) in dir2");
+    });
+  });
+
+  describe("check mode", () => {
+    beforeEach(() => {
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+    });
+
+    it("should log checking files message when check mode is enabled", async () => {
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      expect(logger.info).toHaveBeenCalledWith("Checking files...");
+      expect(logger.info).toHaveBeenCalledWith("Checking rule files...");
+    });
+
+    it("should not write files when check mode is enabled", async () => {
+      const customMockInstance = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({
+          results: [{ filePath: "test.md", status: "unchanged" }],
+          outOfSyncCount: 0,
+        }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      expect(customMockInstance.compareAiFiles).toHaveBeenCalled();
+      expect(customMockInstance.writeAiFiles).not.toHaveBeenCalled();
+    });
+
+    it("should show success message when all files are synchronized", async () => {
+      const customMockInstance = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({
+          results: [{ filePath: "test.md", status: "unchanged" }],
+          outOfSyncCount: 0,
+        }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      expect(logger.success).toHaveBeenCalledWith("All files are up to date.");
+      expect(mockExit).not.toHaveBeenCalled();
+    });
+
+    it("should exit with code 1 when files are out of sync", async () => {
+      const customMockInstance = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([{ tool: "converted", getFilePath: () => "test.md" }]),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({
+          results: [{ filePath: "test.md", status: "update" }],
+          outOfSyncCount: 1,
+        }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await expect(generateCommand(options)).rejects.toThrow("Process exit");
+
+      expect(logger.info).toHaveBeenCalledWith("Would update: test.md");
+      expect(logger.error).toHaveBeenCalledWith("1 file(s) out of sync.");
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it("should report files that would be created", async () => {
+      const customMockInstance = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([{ tool: "converted", getFilePath: () => "new-file.md" }]),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+        compareAiFiles: vi.fn().mockResolvedValue({
+          results: [{ filePath: "new-file.md", status: "create" }],
+          outOfSyncCount: 1,
+        }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await expect(generateCommand(options)).rejects.toThrow("Process exit");
+
+      expect(logger.info).toHaveBeenCalledWith("Would create: new-file.md");
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it("should report files that would be deleted with --delete flag", async () => {
+      mockConfig.getDelete.mockReturnValue(true);
+
+      const customMockInstance = {
+        loadToolFiles: vi.fn().mockResolvedValue([{ getFilePath: () => "old-file.md" }]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+        compareAiFiles: vi.fn().mockResolvedValue({
+          results: [],
+          outOfSyncCount: 0,
+        }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await expect(generateCommand(options)).rejects.toThrow("Process exit");
+
+      expect(customMockInstance.removeAiFiles).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith("Would delete: old-file.md");
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it("should show warning when no files to check", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      const customMockInstance = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+        writeAiFiles: vi.fn().mockResolvedValue(0),
+        compareAiFiles: vi.fn().mockResolvedValue({
+          results: [],
+          outOfSyncCount: 0,
+        }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return customMockInstance as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      expect(logger.warn).toHaveBeenCalledWith("⚠️  No files to check for enabled features: rules");
     });
   });
 });

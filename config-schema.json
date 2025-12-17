@@ -75,6 +75,9 @@
     "modularMcp": {
       "type": "boolean"
     },
+    "check": {
+      "type": "boolean"
+    },
     "experimentalGlobal": {
       "type": "boolean"
     },

@@ -213,6 +213,9 @@ npx rulesync generate --targets "*" --features rules
 # Generate simulated commands and subagents
 npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
+# Check if generated files are synchronized (for CI/CD)
+npx rulesync generate --targets "*" --features "*" --check
+
 # Add generated files to .gitignore
 npx rulesync gitignore
 ```
@@ -265,7 +268,8 @@ Example:
   "simulateCommands": false,  // Generate simulated commands
   "simulateSubagents": false,  // Generate simulated subagents
   "simulateSkills": false,  // Generate simulated skills
-  "modularMcp": false  // Enable modular-mcp for context compression (experimental, Claude Code only)
+  "modularMcp": false,  // Enable modular-mcp for context compression (experimental, Claude Code only)
+  "check": false  // Check if generated files are synchronized without writing (for CI/CD)
 
   // Deprecated experimental options (for backward compatibility)
   // "experimentalGlobal": false,
@@ -688,6 +692,29 @@ Focus on the difference of MCP tools usage.
 
 So, in this case, approximately 92% reduction in MCP tools consumption!
 </details>
+
+## CI/CD Integration
+
+Use the `--check` flag to validate that generated files are synchronized with source rules without modifying any files:
+
+```bash
+npx rulesync generate --targets "*" --features "*" --check
+```
+
+- Exit code 0: All files are up to date
+- Exit code 1: Files are out of sync
+
+### Use Cases
+
+- **Pre-commit validation**: Prevent commits when developers forget to run `rulesync generate`
+- **CI/CD pipeline checks**: Fail builds if configuration files don't match source rules
+
+### Example GitHub Actions Workflow
+
+```yaml
+- name: Check rulesync files are up to date
+  run: npx rulesync generate --targets "*" --features "*" --check
+```
 
 ## Rulesync MCP Server (Experimental)
 
