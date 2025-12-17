@@ -24,6 +24,7 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   modularMcp: optional(z.boolean()),
+  check: optional(z.boolean()),
   // Deprecated experimental options (for backward compatibility)
   experimentalGlobal: optional(z.boolean()),
   experimentalSimulateCommands: optional(z.boolean()),
@@ -69,6 +70,7 @@ export class Config {
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly modularMcp: boolean;
+  private readonly check: boolean;
 
   constructor({
     baseDirs,
@@ -81,6 +83,7 @@ export class Config {
     simulateSubagents,
     simulateSkills,
     modularMcp,
+    check,
     experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
@@ -100,6 +103,7 @@ export class Config {
     this.simulateSubagents = simulateSubagents ?? experimentalSimulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
     this.modularMcp = modularMcp ?? false;
+    this.check = check ?? false;
   }
 
   private validateConflictingTargets(targets: RulesyncTargets): void {
@@ -170,6 +174,10 @@ export class Config {
 
   public getModularMcp(): boolean {
     return this.modularMcp;
+  }
+
+  public getCheck(): boolean {
+    return this.check;
   }
 
   // Deprecated getters for backward compatibility

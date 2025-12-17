@@ -36,6 +36,7 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateSubagents: false,
   simulateSkills: false,
   modularMcp: false,
+  check: false,
   experimentalGlobal: false,
   experimentalSimulateCommands: false,
   experimentalSimulateSubagents: false,
@@ -55,6 +56,7 @@ export class ConfigResolver {
     simulateSubagents,
     simulateSkills,
     modularMcp,
+    check,
     experimentalGlobal,
     experimentalSimulateCommands,
     experimentalSimulateSubagents,
@@ -132,6 +134,7 @@ export class ConfigResolver {
       simulateSubagents: resolvedSimulateSubagents,
       simulateSkills: resolvedSimulateSkills,
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
+      check: check ?? configByFile.check ?? getDefaults().check,
     };
     return new Config(configParams);
   }
