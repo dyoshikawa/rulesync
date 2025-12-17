@@ -6,6 +6,7 @@ import { readFileContent, readOrInitializeFileContent } from "../../utils/file.j
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
+  ToolMcpForDeletionParams,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   type ToolMcpParams,
@@ -124,5 +125,19 @@ export class CodexcliMcp extends ToolMcp {
     }
 
     return filtered;
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolMcpForDeletionParams): CodexcliMcp {
+    return new CodexcliMcp({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
+    });
   }
 }

@@ -5,6 +5,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
@@ -67,6 +68,20 @@ export class AugmentcodeRule extends ToolRule {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): AugmentcodeRule {
+    return new AugmentcodeRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
+    });
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {

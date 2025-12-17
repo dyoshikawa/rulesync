@@ -574,12 +574,42 @@ Test skill content`;
 
       await writeFileContent(join(skillDir, "SKILL.md"), skillContent);
 
-      const toolDirs = await processor.loadToolDirs();
       const dirsToDelete = await processor.loadToolDirsToDelete();
 
-      expect(dirsToDelete).toEqual(toolDirs);
       expect(dirsToDelete).toHaveLength(1);
       expect(dirsToDelete[0]).toBeInstanceOf(ClaudecodeSkill);
+      expect(dirsToDelete[0]?.getDirName()).toBe("test-skill");
+    });
+
+    it("should succeed even when SKILL.md has broken frontmatter", async () => {
+      const processor = new SkillsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const skillsDir = join(testDir, ".claude", "skills");
+      await ensureDir(skillsDir);
+
+      const skillDir = join(skillsDir, "broken-skill");
+      await ensureDir(skillDir);
+
+      // File with broken YAML frontmatter (unclosed bracket, invalid syntax)
+      const brokenFrontmatter = `---
+name: [broken-skill
+description: This frontmatter is invalid YAML
+  - unclosed bracket
+  invalid: : syntax
+---
+Content that would fail parsing`;
+
+      await writeFileContent(join(skillDir, "SKILL.md"), brokenFrontmatter);
+
+      // forDeletion should succeed without parsing file content
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete).toHaveLength(1);
+      expect(dirsToDelete[0]).toBeInstanceOf(ClaudecodeSkill);
+      expect(dirsToDelete[0]?.getDirName()).toBe("broken-skill");
     });
 
     it("should return empty array when no dirs exist", async () => {

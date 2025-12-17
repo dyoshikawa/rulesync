@@ -3,6 +3,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
@@ -30,5 +31,9 @@ export class CodexCliSubagent extends SimulatedSubagent {
       rulesyncSubagent,
       toolTarget: "codexcli",
     });
+  }
+
+  static forDeletion(params: ToolSubagentForDeletionParams): CodexCliSubagent {
+    return new CodexCliSubagent(this.forDeletionDefault(params));
   }
 }

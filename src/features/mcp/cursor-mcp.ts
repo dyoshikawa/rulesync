@@ -4,6 +4,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
+  ToolMcpForDeletionParams,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpParams,
@@ -87,5 +88,19 @@ export class CursorMcp extends ToolMcp {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolMcpForDeletionParams): CursorMcp {
+    return new CursorMcp({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "{}",
+      validate: false,
+    });
   }
 }

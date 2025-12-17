@@ -8,6 +8,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
@@ -187,6 +188,22 @@ export class ClaudecodeSubagent extends ToolSubagent {
       body: content.trim(),
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolSubagentForDeletionParams): ClaudecodeSubagent {
+    return new ClaudecodeSubagent({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      fileContent: "",
+      validate: false,
     });
   }
 }

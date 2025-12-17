@@ -18,6 +18,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
@@ -32,6 +33,7 @@ type ToolSubagentFactory = {
     isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean;
     fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): ToolSubagent;
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
+    forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
   };
   meta: {
@@ -264,6 +266,22 @@ export class SubagentsProcessor extends FeatureProcessor {
       join(this.baseDir, paths.relativeDirPath, "*.md"),
     );
 
+    if (forDeletion) {
+      const toolSubagents = subagentFilePaths
+        .map((path) =>
+          factory.class.forDeletion({
+            baseDir: this.baseDir,
+            relativeDirPath: paths.relativeDirPath,
+            relativeFilePath: basename(path),
+            global: this.global,
+          }),
+        )
+        .filter((subagent) => subagent.isDeletable());
+
+      logger.info(`Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`);
+      return toolSubagents;
+    }
+
     const toolSubagents = await Promise.all(
       subagentFilePaths.map((path) =>
         factory.class.fromFile({
@@ -274,12 +292,8 @@ export class SubagentsProcessor extends FeatureProcessor {
       ),
     );
 
-    const result = forDeletion
-      ? toolSubagents.filter((subagent) => subagent.isDeletable())
-      : toolSubagents;
-
-    logger.info(`Successfully loaded ${result.length} ${paths.relativeDirPath} subagents`);
-    return result;
+    logger.info(`Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`);
+    return toolSubagents;
   }
 
   /**

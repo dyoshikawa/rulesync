@@ -3,6 +3,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
@@ -30,5 +31,9 @@ export class RooSubagent extends SimulatedSubagent {
       rulesyncSubagent,
       toolTarget: "roo",
     });
+  }
+
+  static forDeletion(params: ToolSubagentForDeletionParams): RooSubagent {
+    return new RooSubagent(this.forDeletionDefault(params));
   }
 }

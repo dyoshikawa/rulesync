@@ -5,6 +5,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
@@ -73,6 +74,20 @@ export class ClineRule extends ToolRule {
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): ClineRule {
+    return new ClineRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }

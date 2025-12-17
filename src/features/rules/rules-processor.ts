@@ -55,6 +55,7 @@ import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
@@ -147,6 +148,7 @@ type ToolRuleFactory = {
     isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean;
     fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): ToolRule;
     fromFile(params: ToolRuleFromFileParams): Promise<ToolRule>;
+    forDeletion(params: ToolRuleForDeletionParams): ToolRule;
     getSettablePaths(options?: {
       global?: boolean;
     }): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal;
@@ -643,7 +645,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load tool-specific rule configurations and parse them into ToolRule instances
    */
   async loadToolFiles({
-    forDeletion: _forDeletion = false,
+    forDeletion = false,
   }: {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
@@ -663,6 +665,20 @@ export class RulesProcessor extends FeatureProcessor {
             settablePaths.root.relativeFilePath,
           ),
         );
+
+        if (forDeletion) {
+          return rootFilePaths
+            .map((filePath) =>
+              factory.class.forDeletion({
+                baseDir: this.baseDir,
+                relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+                relativeFilePath: basename(filePath),
+                global: this.global,
+              }),
+            )
+            .filter((rule) => rule.isDeletable());
+        }
+
         return await Promise.all(
           rootFilePaths.map((filePath) =>
             factory.class.fromFile({
@@ -683,6 +699,20 @@ export class RulesProcessor extends FeatureProcessor {
         const nonRootFilePaths = await findFilesByGlobs(
           join(this.baseDir, settablePaths.nonRoot.relativeDirPath, `*.${factory.meta.extension}`),
         );
+
+        if (forDeletion) {
+          return nonRootFilePaths
+            .map((filePath) =>
+              factory.class.forDeletion({
+                baseDir: this.baseDir,
+                relativeDirPath: settablePaths.nonRoot?.relativeDirPath ?? ".",
+                relativeFilePath: basename(filePath),
+                global: this.global,
+              }),
+            )
+            .filter((rule) => rule.isDeletable());
+        }
+
         return await Promise.all(
           nonRootFilePaths.map((filePath) =>
             factory.class.fromFile({

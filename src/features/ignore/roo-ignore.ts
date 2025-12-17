@@ -3,6 +3,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
+  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
@@ -62,6 +63,20 @@ export class RooIgnore extends ToolIgnore {
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolIgnoreForDeletionParams): RooIgnore {
+    return new RooIgnore({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }

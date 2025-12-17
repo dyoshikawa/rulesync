@@ -493,7 +493,7 @@ describe("IgnoreProcessor", () => {
       expect(filesToDelete).toHaveLength(0);
     });
 
-    it("should return all deletable files for targets with deletable files", async () => {
+    it("should return deletable files with correct paths", async () => {
       await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
@@ -501,23 +501,27 @@ describe("IgnoreProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const allFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      // CursorIgnore is deletable, so should return the same files
-      expect(filesToDelete).toEqual(allFiles);
+      // CursorIgnore is deletable, so should return the file
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]?.isDeletable()).toBe(true);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe(".cursorignore");
     });
 
-    it("should return empty array when no tool files exist", async () => {
+    it("should return instance for standard path even when file does not exist on disk", async () => {
+      // No file created on disk
       const processor = new IgnoreProcessor({
         baseDir: testDir,
         toolTarget: "cursor",
       });
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
-      expect(filesToDelete).toHaveLength(0);
+
+      // forDeletion creates an instance for the standard path regardless of file existence
+      // The actual deletion logic handles checking if the file exists
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe(".cursorignore");
     });
   });
 

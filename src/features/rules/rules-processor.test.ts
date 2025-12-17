@@ -486,7 +486,7 @@ describe("RulesProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
-    it("should return the same files as loadToolFiles for claudecode-legacy", async () => {
+    it("should return files with correct paths for deletion for claudecode-legacy", async () => {
       await writeFileContent(
         join(testDir, "CLAUDE.md"),
         "# Root\n\n@.claude/memories/memory1.md\n@.claude/memories/memory2.md",
@@ -500,11 +500,13 @@ describe("RulesProcessor", () => {
         toolTarget: "claudecode-legacy",
       });
 
-      const toolFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete.length).toBeGreaterThan(0);
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("CLAUDE.md");
+      expect(filePaths).toContain("memory1.md");
+      expect(filePaths).toContain("memory2.md");
     });
 
     it("should work for all supported tool targets", async () => {
@@ -552,6 +554,31 @@ describe("RulesProcessor", () => {
 
       // Should return empty array when no files exist
       expect(filesToDelete).toEqual([]);
+    });
+
+    it("should succeed even when file has broken frontmatter", async () => {
+      // File with broken YAML frontmatter (unclosed bracket, invalid syntax)
+      const brokenFrontmatter = `---
+root: [true
+globs: This frontmatter is invalid YAML
+  - unclosed bracket
+  invalid: : syntax
+---
+Content that would fail parsing`;
+
+      await writeFileContent(join(testDir, "CLAUDE.md"), brokenFrontmatter);
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode-legacy",
+      });
+
+      // forDeletion should succeed without parsing file content
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete.length).toBeGreaterThan(0);
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("CLAUDE.md");
     });
   });
 
