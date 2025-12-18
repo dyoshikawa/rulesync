@@ -1,16 +1,7 @@
 import { join } from "node:path";
-import {
-  addTrailingNewline,
-  directoryExists,
-  ensureDir,
-  fileExists,
-  readFileContent,
-  removeDirectory,
-  writeFileContent,
-} from "../utils/file.js";
+import { addTrailingNewline, ensureDir, removeDirectory, writeFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
-import type { CompareAiFilesResult, FileComparisonResult } from "./file-comparison.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class DirFeatureProcessor {
@@ -75,71 +66,5 @@ export abstract class DirFeatureProcessor {
     for (const aiDir of aiDirs) {
       await removeDirectory(aiDir.getDirPath());
     }
-  }
-
-  /**
-   * Compare generated directories with existing directories on disk.
-   * Returns comparison results without modifying any files.
-   */
-  async compareAiDirs(aiDirs: AiDir[]): Promise<CompareAiFilesResult> {
-    const results: FileComparisonResult[] = [];
-
-    for (const aiDir of aiDirs) {
-      const dirPath = aiDir.getDirPath();
-
-      // Check if directory exists
-      if (!(await directoryExists(dirPath))) {
-        results.push({ filePath: dirPath, status: "create" });
-        continue;
-      }
-
-      // Compare main file if exists
-      const mainFile = aiDir.getMainFile();
-      if (mainFile) {
-        const mainFilePath = join(dirPath, mainFile.name);
-        const newContent = addTrailingNewline(
-          stringifyFrontmatter(mainFile.body, mainFile.frontmatter),
-        );
-
-        if (await fileExists(mainFilePath)) {
-          const existingContent = await readFileContent(mainFilePath);
-          if (existingContent !== newContent) {
-            results.push({ filePath: dirPath, status: "update" });
-            continue;
-          }
-        } else {
-          results.push({ filePath: dirPath, status: "update" });
-          continue;
-        }
-      }
-
-      // Compare other files
-      const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
-      let hasChanges = false;
-      for (const file of otherFiles) {
-        const filePath = join(dirPath, file.relativeFilePathToDirPath);
-        const newContent = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-
-        if (await fileExists(filePath)) {
-          const existingContent = await readFileContent(filePath);
-          if (existingContent !== newContent) {
-            hasChanges = true;
-            break;
-          }
-        } else {
-          hasChanges = true;
-          break;
-        }
-      }
-
-      if (hasChanges) {
-        results.push({ filePath: dirPath, status: "update" });
-      } else {
-        results.push({ filePath: dirPath, status: "unchanged" });
-      }
-    }
-
-    const outOfSyncCount = results.filter((r) => r.status !== "unchanged").length;
-    return { results, outOfSyncCount };
   }
 }

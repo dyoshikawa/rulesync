@@ -1,12 +1,5 @@
-import {
-  addTrailingNewline,
-  fileExists,
-  readFileContent,
-  removeFile,
-  writeFileContent,
-} from "../utils/file.js";
+import { addTrailingNewline, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
-import type { CompareAiFilesResult, FileComparisonResult } from "./file-comparison.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
@@ -52,32 +45,5 @@ export abstract class FeatureProcessor {
     for (const aiFile of aiFiles) {
       await removeFile(aiFile.getFilePath());
     }
-  }
-
-  /**
-   * Compare generated files with existing files on disk.
-   * Returns comparison results without modifying any files.
-   */
-  async compareAiFiles(aiFiles: AiFile[]): Promise<CompareAiFilesResult> {
-    const results: FileComparisonResult[] = [];
-
-    for (const aiFile of aiFiles) {
-      const filePath = aiFile.getFilePath();
-      const newContent = addTrailingNewline(aiFile.getFileContent());
-
-      if (await fileExists(filePath)) {
-        const existingContent = await readFileContent(filePath);
-        if (existingContent === newContent) {
-          results.push({ filePath, status: "unchanged" });
-        } else {
-          results.push({ filePath, status: "update" });
-        }
-      } else {
-        results.push({ filePath, status: "create" });
-      }
-    }
-
-    const outOfSyncCount = results.filter((r) => r.status !== "unchanged").length;
-    return { results, outOfSyncCount };
   }
 }
