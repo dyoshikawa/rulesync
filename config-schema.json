@@ -74,15 +74,6 @@
     },
     "modularMcp": {
       "type": "boolean"
-    },
-    "experimentalGlobal": {
-      "type": "boolean"
-    },
-    "experimentalSimulateCommands": {
-      "type": "boolean"
-    },
-    "experimentalSimulateSubagents": {
-      "type": "boolean"
     }
   },
   "additionalProperties": false,

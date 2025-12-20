@@ -24,10 +24,6 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   modularMcp: optional(z.boolean()),
-  // Deprecated experimental options (for backward compatibility)
-  experimentalGlobal: optional(z.boolean()),
-  experimentalSimulateCommands: optional(z.boolean()),
-  experimentalSimulateSubagents: optional(z.boolean()),
 });
 export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
 
@@ -81,9 +77,6 @@ export class Config {
     simulateSubagents,
     simulateSkills,
     modularMcp,
-    experimentalGlobal,
-    experimentalSimulateCommands,
-    experimentalSimulateSubagents,
   }: ConfigParams) {
     // Validate conflicting targets
     this.validateConflictingTargets(targets);
@@ -94,10 +87,9 @@ export class Config {
     this.verbose = verbose;
     this.delete = isDelete;
 
-    // Migration logic: prefer new options over experimental ones
-    this.global = global ?? experimentalGlobal ?? false;
-    this.simulateCommands = simulateCommands ?? experimentalSimulateCommands ?? false;
-    this.simulateSubagents = simulateSubagents ?? experimentalSimulateSubagents ?? false;
+    this.global = global ?? false;
+    this.simulateCommands = simulateCommands ?? false;
+    this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
     this.modularMcp = modularMcp ?? false;
   }
@@ -170,21 +162,5 @@ export class Config {
 
   public getModularMcp(): boolean {
     return this.modularMcp;
-  }
-
-  // Deprecated getters for backward compatibility
-  /** @deprecated Use getGlobal() instead */
-  public getExperimentalGlobal(): boolean {
-    return this.global;
-  }
-
-  /** @deprecated Use getSimulateCommands() instead */
-  public getExperimentalSimulateCommands(): boolean {
-    return this.simulateCommands;
-  }
-
-  /** @deprecated Use getSimulateSubagents() instead */
-  public getExperimentalSimulateSubagents(): boolean {
-    return this.simulateSubagents;
   }
 }

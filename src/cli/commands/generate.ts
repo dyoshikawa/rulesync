@@ -111,10 +111,7 @@ async function generateRules(
         await processor.removeAiFiles(oldToolFiles);
       }
 
-      let rulesyncFiles = await processor.loadRulesyncFiles();
-      if (rulesyncFiles.length === 0) {
-        rulesyncFiles = await processor.loadRulesyncFilesLegacy();
-      }
+      const rulesyncFiles = await processor.loadRulesyncFiles();
 
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
