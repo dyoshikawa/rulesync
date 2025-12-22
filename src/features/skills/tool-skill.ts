@@ -22,6 +22,13 @@ export type ToolSkillFromDirParams = {
   global?: boolean;
 };
 
+export type ToolSkillForDeletionParams = {
+  baseDir?: string;
+  relativeDirPath: string;
+  dirName: string;
+  global?: boolean;
+};
+
 /**
  * Common data loaded from a skill directory.
  * Used by loadSkillDirContent to return parsed file data.
@@ -81,6 +88,15 @@ export abstract class ToolSkill extends AiDir {
    * @returns Promise resolving to a concrete ToolSkill instance
    */
   static async fromDir(_params: ToolSkillFromDirParams): Promise<ToolSkill> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Create a minimal instance for deletion purposes.
+   * This method does not read or parse directory content, making it safe to use
+   * even when skill files have old/incompatible formats.
+   */
+  static forDeletion(_params: ToolSkillForDeletionParams): ToolSkill {
     throw new Error("Please implement this method in the subclass.");
   }
 

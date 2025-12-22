@@ -6,6 +6,7 @@ import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
+  ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
@@ -194,6 +195,24 @@ export class ClaudecodeSkill extends ToolSkill {
       otherFiles: loaded.otherFiles,
       validate: true,
       global: loaded.global,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    dirName,
+    global = false,
+  }: ToolSkillForDeletionParams): ClaudecodeSkill {
+    return new ClaudecodeSkill({
+      baseDir,
+      relativeDirPath,
+      dirName,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      otherFiles: [],
+      validate: false,
+      global,
     });
   }
 }

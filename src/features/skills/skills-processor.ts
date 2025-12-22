@@ -16,6 +16,7 @@ import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import {
   ToolSkill,
+  ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
@@ -30,6 +31,7 @@ type ToolSkillFactory = {
     isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean;
     fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): ToolSkill;
     fromDir(params: ToolSkillFromDirParams): Promise<ToolSkill>;
+    forDeletion(params: ToolSkillForDeletionParams): ToolSkill;
     getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
   };
   meta: {
@@ -256,7 +258,26 @@ export class SkillsProcessor extends DirFeatureProcessor {
   }
 
   async loadToolDirsToDelete(): Promise<AiDir[]> {
-    return this.loadToolDirs();
+    const factory = this.getFactory(this.toolTarget);
+    const paths = factory.class.getSettablePaths({ global: this.global });
+
+    const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
+    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+    const dirNames = dirPaths.map((path) => basename(path));
+
+    const toolSkills = dirNames.map((dirName) =>
+      factory.class.forDeletion({
+        baseDir: this.baseDir,
+        relativeDirPath: paths.relativeDirPath,
+        dirName,
+        global: this.global,
+      }),
+    );
+
+    logger.info(
+      `Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills for deletion`,
+    );
+    return toolSkills;
   }
 
   /**
