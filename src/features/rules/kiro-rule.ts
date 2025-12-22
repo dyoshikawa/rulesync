@@ -4,6 +4,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
@@ -70,6 +71,21 @@ export class KiroRule extends ToolRule {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): KiroRule {
+    return new KiroRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
+      root: false,
+    });
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {

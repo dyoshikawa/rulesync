@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
@@ -398,6 +401,85 @@ This has leading and trailing whitespace.
       });
 
       expect(rule.getBody()).toBe("This has leading and trailing whitespace.");
+    });
+  });
+
+  describe("fromFileLegacy", () => {
+    it("should load rule from legacy path", async () => {
+      const legacyRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(legacyRulesDir);
+
+      const ruleContent = `---
+root: true
+targets:
+  - copilot
+description: Legacy rule
+---
+
+Legacy rule body`;
+
+      const filePath = join(legacyRulesDir, "legacy-rule.md");
+      await writeFileContent(filePath, ruleContent);
+
+      const rule = await RulesyncRule.fromFileLegacy({
+        relativeFilePath: "legacy-rule.md",
+      });
+
+      expect(rule.getFrontmatter()).toEqual({
+        root: true,
+        targets: ["copilot"],
+        description: "Legacy rule",
+        globs: [],
+        cursor: undefined,
+      });
+      expect(rule.getBody()).toBe("Legacy rule body");
+    });
+
+    it("should apply default values in legacy loader", async () => {
+      const legacyRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(legacyRulesDir);
+
+      const ruleContent = `---
+---
+
+Empty frontmatter legacy rule`;
+
+      const filePath = join(legacyRulesDir, "empty-legacy.md");
+      await writeFileContent(filePath, ruleContent);
+
+      const rule = await RulesyncRule.fromFileLegacy({
+        relativeFilePath: "empty-legacy.md",
+      });
+
+      expect(rule.getFrontmatter()).toEqual({
+        root: false,
+        targets: ["*"],
+        description: "",
+        globs: [],
+        cursor: undefined,
+      });
+      expect(rule.getBody()).toBe("Empty frontmatter legacy rule");
+    });
+
+    it("should throw error for invalid legacy frontmatter", async () => {
+      const legacyRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(legacyRulesDir);
+
+      const ruleContent = `---
+root: invalid-value
+targets: 123
+---
+
+Invalid legacy rule`;
+
+      const filePath = join(legacyRulesDir, "invalid-legacy.md");
+      await writeFileContent(filePath, ruleContent);
+
+      await expect(
+        RulesyncRule.fromFileLegacy({
+          relativeFilePath: "invalid-legacy.md",
+        }),
+      ).rejects.toThrow("Invalid frontmatter");
     });
   });
 

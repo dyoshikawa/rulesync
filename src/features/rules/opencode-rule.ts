@@ -4,6 +4,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   type ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
@@ -75,6 +76,23 @@ export class OpenCodeRule extends ToolRule {
     // OpenCode rules are always valid since they use plain markdown format
     // Similar to AgentsMdRule, no complex frontmatter validation needed
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): OpenCodeRule {
+    const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".";
+
+    return new OpenCodeRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
+      root: isRoot,
+    });
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {

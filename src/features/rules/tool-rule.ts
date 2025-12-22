@@ -24,6 +24,13 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
 
 export type ToolRuleFromFileParams = AiFileFromFileParams;
 
+export type ToolRuleForDeletionParams = {
+  baseDir?: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+  global?: boolean;
+};
+
 export type ToolRuleSettablePaths = {
   root?: {
     relativeDirPath: string;
@@ -77,6 +84,15 @@ export abstract class ToolRule extends ToolFile {
   }
 
   static async fromFile(_params: ToolRuleFromFileParams | undefined): Promise<ToolRule> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Create a minimal instance for deletion purposes.
+   * This method does not read or parse file content, making it safe to use
+   * even when files have old/incompatible formats.
+   */
+  static forDeletion(_params: ToolRuleForDeletionParams): ToolRule {
     throw new Error("Please implement this method in the subclass.");
   }
 
