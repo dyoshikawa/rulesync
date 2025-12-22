@@ -20,6 +20,7 @@ import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
+  ToolMcpForDeletionParams,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpSettablePaths,
@@ -57,6 +58,7 @@ type ToolMcpFactory = {
       params: ToolMcpFromRulesyncMcpParams & { global?: boolean; modularMcp?: boolean },
     ): ToolMcp | Promise<ToolMcp>;
     fromFile(params: ToolMcpFromFileParams): Promise<ToolMcp>;
+    forDeletion(params: ToolMcpForDeletionParams): ToolMcp;
     getSettablePaths(options?: { global?: boolean }): ToolMcpSettablePaths;
   };
   meta: {
@@ -234,6 +236,21 @@ export class McpProcessor extends FeatureProcessor {
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = this.getFactory(this.toolTarget);
+      const paths = factory.class.getSettablePaths({ global: this.global });
+
+      if (forDeletion) {
+        const toolMcp = factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: paths.relativeFilePath,
+          global: this.global,
+        });
+
+        const toolMcps = toolMcp.isDeletable() ? [toolMcp] : [];
+        logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+        return toolMcps;
+      }
+
       const toolMcps = [
         await factory.class.fromFile({
           baseDir: this.baseDir,
@@ -242,11 +259,6 @@ export class McpProcessor extends FeatureProcessor {
         }),
       ];
       logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
-
-      if (forDeletion) {
-        return toolMcps.filter((toolFile) => toolFile.isDeletable());
-      }
-
       return toolMcps;
     } catch (error) {
       const errorMessage = `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`;

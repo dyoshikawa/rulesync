@@ -5,6 +5,7 @@ import { ModularMcp } from "./modular-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
+  ToolMcpForDeletionParams,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpParams,
@@ -117,5 +118,19 @@ export class ClaudecodeMcp extends ToolMcp {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolMcpForDeletionParams): ClaudecodeMcp {
+    return new ClaudecodeMcp({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "{}",
+      validate: false,
+    });
   }
 }
