@@ -36,9 +36,6 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateSubagents: false,
   simulateSkills: false,
   modularMcp: false,
-  experimentalGlobal: false,
-  experimentalSimulateCommands: false,
-  experimentalSimulateSubagents: false,
 });
 
 // oxlint-disable-next-line no-extraneous-class
@@ -55,9 +52,6 @@ export class ConfigResolver {
     simulateSubagents,
     simulateSkills,
     modularMcp,
-    experimentalGlobal,
-    experimentalSimulateCommands,
-    experimentalSimulateSubagents,
   }: ConfigResolverResolveParams): Promise<Config> {
     // Validate configPath to prevent path traversal attacks
     const validatedConfigPath = resolvePath(configPath, process.cwd());
@@ -78,42 +72,11 @@ export class ConfigResolver {
       }
     }
 
-    // Warn about deprecated experimental options from both CLI and config file
-    const deprecatedGlobal = experimentalGlobal ?? configByFile.experimentalGlobal;
-    const deprecatedCommands =
-      experimentalSimulateCommands ?? configByFile.experimentalSimulateCommands;
-    const deprecatedSubagents =
-      experimentalSimulateSubagents ?? configByFile.experimentalSimulateSubagents;
-
-    if (deprecatedGlobal !== undefined) {
-      warnDeprecatedOptions({ experimentalGlobal: deprecatedGlobal });
-    }
-    if (deprecatedCommands !== undefined) {
-      warnDeprecatedOptions({ experimentalSimulateCommands: deprecatedCommands });
-    }
-    if (deprecatedSubagents !== undefined) {
-      warnDeprecatedOptions({ experimentalSimulateSubagents: deprecatedSubagents });
-    }
-
-    // Resolve options with migration logic (new options take priority over experimental ones)
-    const resolvedGlobal =
-      global ??
-      configByFile.global ??
-      experimentalGlobal ??
-      configByFile.experimentalGlobal ??
-      getDefaults().global;
+    const resolvedGlobal = global ?? configByFile.global ?? getDefaults().global;
     const resolvedSimulateCommands =
-      simulateCommands ??
-      configByFile.simulateCommands ??
-      experimentalSimulateCommands ??
-      configByFile.experimentalSimulateCommands ??
-      getDefaults().simulateCommands;
+      simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
     const resolvedSimulateSubagents =
-      simulateSubagents ??
-      configByFile.simulateSubagents ??
-      experimentalSimulateSubagents ??
-      configByFile.experimentalSimulateSubagents ??
-      getDefaults().simulateSubagents;
+      simulateSubagents ?? configByFile.simulateSubagents ?? getDefaults().simulateSubagents;
 
     const resolvedSimulateSkills =
       simulateSkills ?? configByFile.simulateSkills ?? getDefaults().simulateSkills;
@@ -134,30 +97,6 @@ export class ConfigResolver {
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
     };
     return new Config(configParams);
-  }
-}
-
-function warnDeprecatedOptions({
-  experimentalGlobal,
-  experimentalSimulateCommands,
-  experimentalSimulateSubagents,
-}: {
-  experimentalGlobal?: boolean;
-  experimentalSimulateCommands?: boolean;
-  experimentalSimulateSubagents?: boolean;
-}): void {
-  if (experimentalGlobal !== undefined) {
-    logger.warn("'experimentalGlobal' option is deprecated. Please use 'global' instead.");
-  }
-  if (experimentalSimulateCommands !== undefined) {
-    logger.warn(
-      "'experimentalSimulateCommands' option is deprecated. Please use 'simulateCommands' instead.",
-    );
-  }
-  if (experimentalSimulateSubagents !== undefined) {
-    logger.warn(
-      "'experimentalSimulateSubagents' option is deprecated. Please use 'simulateSubagents' instead.",
-    );
   }
 }
 

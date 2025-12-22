@@ -47,10 +47,6 @@ describe("generateCommand", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
-      // Deprecated getters for backward compatibility
-      getExperimentalGlobal: vi.fn().mockReturnValue(false),
-      getExperimentalSimulateCommands: vi.fn().mockReturnValue(false),
-      getExperimentalSimulateSubagents: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
@@ -71,7 +67,6 @@ describe("generateCommand", () => {
       loadToolFiles: vi.fn().mockResolvedValue([]),
       removeAiFiles: vi.fn().mockResolvedValue(undefined),
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-      loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
       convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
       writeAiFiles: vi.fn().mockResolvedValue(1),
     };
@@ -89,7 +84,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
@@ -99,7 +93,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
@@ -109,7 +102,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
@@ -119,7 +111,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
@@ -129,7 +120,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       } as any;
@@ -218,8 +208,6 @@ describe("generateCommand", () => {
     it("should pass simulation options to RulesProcessor", async () => {
       mockConfig.getSimulateCommands.mockReturnValue(true);
       mockConfig.getSimulateSubagents.mockReturnValue(true);
-      mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
-      mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
@@ -244,7 +232,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
@@ -258,30 +245,6 @@ describe("generateCommand", () => {
 
       expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeAiFiles).toHaveBeenCalledWith(oldFiles);
-    });
-
-    it("should use legacy files when no rulesync files found", async () => {
-      const legacyFiles = [{ file: "legacy" }];
-
-      // Create a custom mock instance for this test
-      const customMockInstance = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        removeAiFiles: vi.fn().mockResolvedValue(undefined),
-        loadRulesyncFiles: vi.fn().mockResolvedValue([]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue(legacyFiles),
-        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
-      };
-      vi.mocked(RulesProcessor).mockImplementation(function () {
-        return customMockInstance as any;
-      });
-
-      const options: GenerateOptions = {};
-
-      await generateCommand(options);
-
-      expect(customMockInstance.loadRulesyncFilesLegacy).toHaveBeenCalled();
-      expect(customMockInstance.convertRulesyncFilesToToolFiles).toHaveBeenCalledWith(legacyFiles);
     });
 
     it("should process multiple base directories", async () => {
@@ -362,7 +325,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
@@ -411,7 +373,6 @@ describe("generateCommand", () => {
 
     it("should pass includeSimulated flag to getToolTargets", async () => {
       mockConfig.getSimulateCommands.mockReturnValue(true);
-      mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
@@ -513,7 +474,6 @@ describe("generateCommand", () => {
 
     it("should pass includeSimulated flag to getToolTargets", async () => {
       mockConfig.getSimulateSubagents.mockReturnValue(true);
-      mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
@@ -527,7 +487,6 @@ describe("generateCommand", () => {
     describe("global mode", () => {
       beforeEach(() => {
         mockConfig.getGlobal.mockReturnValue(true);
-        mockConfig.getExperimentalGlobal.mockReturnValue(true);
       });
 
       it("should use getToolTargets with global: true in global mode", async () => {
@@ -575,7 +534,6 @@ describe("generateCommand", () => {
 
       it("should not process simulated targets in global mode even if simulateSubagents is true", async () => {
         mockConfig.getSimulateSubagents.mockReturnValue(true);
-        mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
         mockConfig.getTargets.mockReturnValue(["claudecode", "copilot"]);
         vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         vi.mocked(intersection).mockReturnValue(["claudecode"]);
@@ -606,7 +564,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(0),
       };
@@ -629,7 +586,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(2),
       };
@@ -637,7 +593,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(3),
       };
@@ -645,7 +600,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
@@ -701,7 +655,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(3),
       };
@@ -746,11 +699,10 @@ describe("generateCommand", () => {
   describe("global mode", () => {
     beforeEach(() => {
       mockConfig.getGlobal.mockReturnValue(true);
-      mockConfig.getExperimentalGlobal.mockReturnValue(true);
       mockConfig.getFeatures.mockReturnValue(["rules", "mcp", "commands", "ignore", "subagents"]);
     });
 
-    it("should use getToolTargets with global: true when experimentalGlobal is enabled", async () => {
+    it("should use getToolTargets with global: true when global mode is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
@@ -765,8 +717,6 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getSimulateCommands.mockReturnValue(true);
       mockConfig.getSimulateSubagents.mockReturnValue(true);
-      mockConfig.getExperimentalSimulateCommands.mockReturnValue(true);
-      mockConfig.getExperimentalSimulateSubagents.mockReturnValue(true);
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
@@ -795,7 +745,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "old" }]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
@@ -809,31 +758,6 @@ describe("generateCommand", () => {
 
       expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeAiFiles).toHaveBeenCalled();
-    });
-
-    it("should call loadRulesyncFilesLegacy in global mode when loadRulesyncFiles returns empty", async () => {
-      mockConfig.getFeatures.mockReturnValue(["rules"]);
-      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
-      vi.mocked(intersection).mockReturnValue(["claudecode"]);
-
-      // Create a custom mock instance that returns empty rulesync files
-      const customMockInstance = {
-        loadToolFiles: vi.fn().mockResolvedValue([]),
-        removeAiFiles: vi.fn().mockResolvedValue(undefined),
-        loadRulesyncFiles: vi.fn().mockResolvedValue([]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
-        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
-      };
-      vi.mocked(RulesProcessor).mockImplementation(function () {
-        return customMockInstance as any;
-      });
-
-      const options: GenerateOptions = {};
-
-      await generateCommand(options);
-
-      expect(customMockInstance.loadRulesyncFilesLegacy).toHaveBeenCalled();
     });
 
     it("should use each baseDir in global mode", async () => {
@@ -939,7 +863,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(5),
       };
@@ -975,7 +898,6 @@ describe("generateCommand", () => {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-          loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
@@ -985,7 +907,6 @@ describe("generateCommand", () => {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-          loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
@@ -995,7 +916,6 @@ describe("generateCommand", () => {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-          loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
@@ -1005,7 +925,6 @@ describe("generateCommand", () => {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeAiFiles: vi.fn().mockResolvedValue(undefined),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-          loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([{ file: "legacy" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue(3),
         } as any;
@@ -1035,7 +954,6 @@ describe("generateCommand", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        loadRulesyncFilesLegacy: vi.fn().mockResolvedValue([]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(2),
       };

@@ -1,7 +1,7 @@
 import { globSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { kebabCase } from "es-toolkit";
 import { logger } from "./logger.js";
 import { isEnvTest } from "./vitest.js";
@@ -188,27 +188,9 @@ export async function findFilesByGlobs(
   }
 }
 
-/**
- * Finds rule files in both new (.rulesync/rules/*.md) and legacy (.rulesync/*.md) locations
- * with priority given to the new location. Files in both locations with the same name
- * are deduplicated with priority given to the new location.
- */
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {
   const rulesDir = join(aiRulesDir, "rules");
-  const newLocationFiles = await findFiles(rulesDir, ".md");
-  const legacyLocationFiles = await findFiles(aiRulesDir, ".md");
-
-  // Get basenames from new location files for deduplication
-  const newLocationBasenames = new Set(newLocationFiles.map((file) => basename(file, ".md")));
-
-  // Filter legacy files to exclude those that exist in new location
-  const filteredLegacyFiles = legacyLocationFiles.filter((file) => {
-    const fileBasename = basename(file, ".md");
-    return !newLocationBasenames.has(fileBasename);
-  });
-
-  // Return combined list with new location files first
-  return [...newLocationFiles, ...filteredLegacyFiles];
+  return findFiles(rulesDir, ".md");
 }
 
 export async function removeDirectory(dirPath: string): Promise<void> {

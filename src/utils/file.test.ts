@@ -396,29 +396,17 @@ describe("file utilities", () => {
   });
 
   describe("findRuleFiles", () => {
-    it("should prioritize new location over legacy location", async () => {
+    it("should only return files from the rules directory", async () => {
       const aiRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
 
-      // Create files in both locations with same name
       await writeFileContent(join(aiRulesDir, "common.md"), "legacy content");
       await writeFileContent(join(rulesDir, "common.md"), "new content");
       await writeFileContent(join(rulesDir, "new-only.md"), "new only");
-      await writeFileContent(join(aiRulesDir, "legacy-only.md"), "legacy only");
 
       const ruleFiles = await findRuleFiles(aiRulesDir);
 
-      expect(ruleFiles).toHaveLength(3);
-      expect(ruleFiles).toContain(join(rulesDir, "common.md"));
-      expect(ruleFiles).toContain(join(rulesDir, "new-only.md"));
-      expect(ruleFiles).toContain(join(aiRulesDir, "legacy-only.md"));
-
-      // Verify new location comes first
-      const newFiles = ruleFiles.filter((f) => f.includes("/rules/"));
-      const legacyFiles = ruleFiles.filter((f) => !f.includes("/rules/"));
-      if (newFiles.length > 0 && legacyFiles.length > 0) {
-        expect(ruleFiles.indexOf(newFiles[0]!)).toBeLessThan(ruleFiles.indexOf(legacyFiles[0]!));
-      }
+      expect(ruleFiles).toEqual([join(rulesDir, "common.md"), join(rulesDir, "new-only.md")]);
     });
 
     it("should handle missing directories gracefully", async () => {

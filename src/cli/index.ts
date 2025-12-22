@@ -58,10 +58,6 @@ const main = async () => {
     )
     .option("-V, --verbose", "Verbose output")
     .option("-g, --global", "Import for global(user scope) configuration files")
-    .option(
-      "--experimental-global",
-      "Import for global(user scope) configuration files (deprecated: use --global instead)",
-    )
     .action(async (options) => {
       try {
         await importCommand({
@@ -70,7 +66,6 @@ const main = async () => {
           verbose: options.verbose,
           configPath: options.config,
           global: options.global,
-          experimentalGlobal: options.experimentalGlobal,
         });
       } catch (error) {
         logger.error(formatError(error));
@@ -128,18 +123,6 @@ const main = async () => {
       "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
-      "--experimental-global",
-      "Generate for global(user scope) configuration files (deprecated: use --global instead)",
-    )
-    .option(
-      "--experimental-simulate-commands",
-      "Generate simulated commands (deprecated: use --simulate-commands instead)",
-    )
-    .option(
-      "--experimental-simulate-subagents",
-      "Generate simulated subagents (deprecated: use --simulate-subagents instead)",
-    )
-    .option(
       "--modular-mcp",
       "Generate modular-mcp configuration for context compression (experimental)",
     )
@@ -157,9 +140,6 @@ const main = async () => {
           simulateSubagents: options.simulateSubagents,
           simulateSkills: options.simulateSkills,
           modularMcp: options.modularMcp,
-          experimentalGlobal: options.experimentalGlobal,
-          experimentalSimulateCommands: options.experimentalSimulateCommands,
-          experimentalSimulateSubagents: options.experimentalSimulateSubagents,
         });
       } catch (error) {
         logger.error(formatError(error));
