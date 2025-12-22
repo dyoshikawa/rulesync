@@ -96,7 +96,7 @@ RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
 
 # Install Safe Chain
-RUN curl -fsSL https://raw.githubusercontent.com/AikidoSec/safe-chain/main/install-scripts/install-safe-chain.sh | sh
+RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh
 
 # Install global packages
 ENV PNPM_HOME=/home/node/.pnpm
