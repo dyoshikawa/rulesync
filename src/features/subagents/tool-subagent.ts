@@ -18,12 +18,28 @@ export type ToolSubagentSettablePaths = {
 export type ToolSubagentFromFileParams = AiFileFromFileParams & {
   global?: boolean;
 };
+
+export type ToolSubagentForDeletionParams = {
+  baseDir?: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+  global?: boolean;
+};
 export abstract class ToolSubagent extends ToolFile {
   static getSettablePaths(): ToolSubagentSettablePaths {
     throw new Error("Please implement this method in the subclass.");
   }
 
   static async fromFile(_params: ToolSubagentFromFileParams): Promise<ToolSubagent> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Create a minimal instance for deletion purposes.
+   * This method does not read or parse file content, making it safe to use
+   * even when files have old/incompatible formats.
+   */
+  static forDeletion(_params: ToolSubagentForDeletionParams): ToolSubagent {
     throw new Error("Please implement this method in the subclass.");
   }
 
