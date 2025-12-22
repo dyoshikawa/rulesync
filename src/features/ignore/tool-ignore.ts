@@ -21,6 +21,12 @@ export type ToolIgnoreSettablePaths = {
 };
 
 export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
+
+export type ToolIgnoreForDeletionParams = {
+  baseDir?: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+};
 export abstract class ToolIgnore extends ToolFile {
   protected patterns: string[];
 
@@ -73,6 +79,15 @@ export abstract class ToolIgnore extends ToolFile {
   }
 
   static async fromFile(_params: ToolIgnoreFromFileParams): Promise<ToolIgnore> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Create a minimal instance for deletion purposes.
+   * This method does not read or parse file content, making it safe to use
+   * even when files have old/incompatible formats.
+   */
+  static forDeletion(_params: ToolIgnoreForDeletionParams): ToolIgnore {
     throw new Error("Please implement this method in the subclass.");
   }
 }
