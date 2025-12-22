@@ -19,6 +19,7 @@ import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -33,6 +34,7 @@ type ToolCommandFactory = {
     isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean;
     fromRulesyncCommand(params: ToolCommandFromRulesyncCommandParams): ToolCommand;
     fromFile(params: ToolCommandFromFileParams): Promise<ToolCommand>;
+    forDeletion(params: ToolCommandForDeletionParams): ToolCommand;
     getSettablePaths(options?: { global?: boolean }): ToolCommandSettablePaths;
   };
   meta: {
@@ -275,6 +277,22 @@ export class CommandsProcessor extends FeatureProcessor {
       join(this.baseDir, paths.relativeDirPath, `*.${factory.meta.extension}`),
     );
 
+    if (forDeletion) {
+      const toolCommands = commandFilePaths
+        .map((path) =>
+          factory.class.forDeletion({
+            baseDir: this.baseDir,
+            relativeDirPath: paths.relativeDirPath,
+            relativeFilePath: basename(path),
+            global: this.global,
+          }),
+        )
+        .filter((cmd) => cmd.isDeletable());
+
+      logger.info(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
+      return toolCommands;
+    }
+
     const toolCommands = await Promise.all(
       commandFilePaths.map((path) =>
         factory.class.fromFile({
@@ -285,10 +303,8 @@ export class CommandsProcessor extends FeatureProcessor {
       ),
     );
 
-    const result = forDeletion ? toolCommands.filter((cmd) => cmd.isDeletable()) : toolCommands;
-
-    logger.info(`Successfully loaded ${result.length} ${paths.relativeDirPath} commands`);
-    return result;
+    logger.info(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
+    return toolCommands;
   }
 
   /**

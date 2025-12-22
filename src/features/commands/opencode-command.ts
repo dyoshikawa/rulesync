@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -161,6 +162,21 @@ export class OpenCodeCommand extends ToolCommand {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
       toolTarget: "opencode",
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): OpenCodeCommand {
+    return new OpenCodeCommand({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { description: "" },
+      body: "",
+      validate: false,
     });
   }
 }

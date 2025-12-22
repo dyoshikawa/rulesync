@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -168,6 +169,21 @@ export class CopilotCommand extends ToolCommand {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
       toolTarget: "copilot",
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): CopilotCommand {
+    return new CopilotCommand({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { mode: "agent", description: "" },
+      body: "",
+      validate: false,
     });
   }
 }
