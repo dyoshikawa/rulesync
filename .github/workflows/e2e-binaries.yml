@@ -28,7 +28,6 @@ jobs:
           mkdir -p dist-deno
           deno task compile:linux-x64
           deno task compile:linux-arm64
-          deno task compile:darwin-x64
           deno task compile:darwin-arm64
           deno task compile:windows-x64
 
