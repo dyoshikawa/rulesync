@@ -8,6 +8,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
@@ -201,6 +202,24 @@ export class CopilotRule extends ToolRule {
       frontmatter: result.data,
       body: content.trim(),
       validate,
+      root: isRoot,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): CopilotRule {
+    const isRoot = relativeFilePath === this.getSettablePaths().root.relativeFilePath;
+
+    return new CopilotRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: {},
+      body: "",
+      validate: false,
       root: isRoot,
     });
   }

@@ -3,6 +3,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
@@ -117,6 +118,25 @@ export class GeminiCliRule extends ToolRule {
     // Gemini CLI uses plain markdown without frontmatter requirements
     // Validation always succeeds
     return { success: true as const, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+    global = false,
+  }: ToolRuleForDeletionParams): GeminiCliRule {
+    const paths = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+
+    return new GeminiCliRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
+      root: isRoot,
+    });
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {

@@ -5,6 +5,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
@@ -102,6 +103,24 @@ export class AugmentcodeLegacyRule extends ToolRule {
       relativeFilePath: isRoot ? settablePaths.root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,
+      root: isRoot,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): AugmentcodeLegacyRule {
+    const settablePaths = this.getSettablePaths();
+    const isRoot = relativeFilePath === settablePaths.root.relativeFilePath;
+
+    return new AugmentcodeLegacyRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
       root: isRoot,
     });
   }
