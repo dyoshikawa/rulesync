@@ -63,10 +63,6 @@ jobs:
           if [ "$MATRIX_OS" = "ubuntu-latest" ]; then
             chmod +x dist-deno/rulesync-linux-x64
             BINARY_PATH=dist-deno/rulesync-linux-x64
-          elif [ "$MATRIX_OS" = "macos-15-intel" ]; then
-            # macos-15-intel is Intel (x64)
-            chmod +x dist-deno/rulesync-darwin-x64
-            BINARY_PATH=dist-deno/rulesync-darwin-x64
           else
             # macos-latest is Apple Silicon (arm64)
             chmod +x dist-deno/rulesync-darwin-arm64
