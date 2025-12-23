@@ -36,7 +36,6 @@
 		"bcheck": "biome check .",
 		"bcheck:fix": "biome check --write .",
 		"build": "tsup src/cli/index.ts --format esm --dts --clean",
-		"bundle:deno": "tsup --config tsup.deno.config.ts",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
 		"cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
 		"cicheck:code": "pnpm run check && pnpm run test",
