@@ -32,7 +32,7 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p dist-deno
-          deno task compile:linux-arm64
+          deno task compile:darwin-arm64
 
       - name: Cache binaries
         uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
