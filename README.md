@@ -57,15 +57,6 @@ chmod +x rulesync
 sudo mv rulesync /usr/local/bin/
 ```
 
-#### macOS (Intel)
-
-```bash
-curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-x64 -o rulesync
-chmod +x rulesync
-# Place the binary wherever set PATH
-sudo mv rulesync /usr/local/bin/
-```
-
 #### macOS (Apple Silicon)
 
 ```bash
