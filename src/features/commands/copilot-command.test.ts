@@ -15,7 +15,7 @@ describe("CopilotCommand", () => {
   let cleanup: () => Promise<void>;
 
   const validMarkdownContent = `---
-mode: agent
+agent: agent
 description: Test copilot command description
 ---
 
@@ -23,7 +23,7 @@ This is the body of the copilot command.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required mode field
+# Missing required agent/mode field
 description: Test
 ---
 
@@ -59,7 +59,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test copilot command description",
         },
         body: "This is the body of the copilot command.\nIt can be multiline.",
@@ -71,7 +71,7 @@ Body content`;
         "This is the body of the copilot command.\nIt can be multiline.",
       );
       expect(command.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "Test copilot command description",
       });
     });
@@ -82,7 +82,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "",
         },
         body: "This is a copilot command without description.",
@@ -91,7 +91,7 @@ Body content`;
 
       expect(command.getBody()).toBe("This is a copilot command without description.");
       expect(command.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "",
       });
     });
@@ -102,7 +102,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test description",
         },
         body: "Test body",
@@ -120,7 +120,7 @@ Body content`;
             relativeDirPath: join(".github", "prompts"),
             relativeFilePath: "invalid-command.prompt.md",
             frontmatter: {
-              // Missing required mode and description field
+              // Missing required agent/mode and description field
             } as CopilotCommandFrontmatter,
             body: "Body content",
             validate: true,
@@ -136,7 +136,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test description",
         },
         body: "This is the body content.\nWith multiple lines.",
@@ -148,13 +148,13 @@ Body content`;
   });
 
   describe("getFrontmatter", () => {
-    it("should return frontmatter with mode and description", () => {
+    it("should return frontmatter with agent and description", () => {
       const command = new CopilotCommand({
         baseDir: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test copilot command",
         },
         body: "Test body",
@@ -163,7 +163,7 @@ Body content`;
 
       const frontmatter = command.getFrontmatter();
       expect(frontmatter).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "Test copilot command",
       });
     });
@@ -176,7 +176,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test description",
         },
         body: "Test body",
@@ -200,7 +200,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "example.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Example description",
         },
         body: "Example body",
@@ -236,7 +236,7 @@ Body content`;
       expect(copilotCommand).toBeInstanceOf(CopilotCommand);
       expect(copilotCommand.getBody()).toBe("Test command content");
       expect(copilotCommand.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "Test description from rulesync",
       });
       expect(copilotCommand.getRelativeFilePath()).toBe("test-command.prompt.md");
@@ -285,7 +285,7 @@ Body content`;
       });
 
       expect(copilotCommand.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "",
       });
     });
@@ -308,7 +308,7 @@ Body content`;
         "This is the body of the copilot command.\nIt can be multiline.",
       );
       expect(command.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "Test copilot command description",
       });
       expect(command.getRelativeFilePath()).toBe("test-file-command.prompt.md");
@@ -373,7 +373,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "valid-command.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Valid description",
         },
         body: "Valid body",
@@ -391,7 +391,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "command-with-extras.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Command with extra properties",
           // Additional properties should be allowed but not validated
           extra: "property",
@@ -407,9 +407,9 @@ Body content`;
   });
 
   describe("CopilotCommandFrontmatterSchema", () => {
-    it("should validate valid frontmatter with mode and description", () => {
+    it("should validate valid frontmatter with agent and description", () => {
       const validFrontmatter = {
-        mode: "agent" as const,
+        agent: "agent" as const,
         description: "Test description",
       };
 
@@ -417,7 +417,17 @@ Body content`;
       expect(result).toEqual(validFrontmatter);
     });
 
-    it("should throw error for frontmatter without mode", () => {
+    it("should validate legacy frontmatter with mode and description", () => {
+      const validFrontmatter = {
+        mode: "agent" as const,
+        description: "Legacy description",
+      };
+
+      const result = CopilotCommandFrontmatterSchema.parse(validFrontmatter);
+      expect(result).toEqual(validFrontmatter);
+    });
+
+    it("should throw error for frontmatter without agent or mode", () => {
       const invalidFrontmatter = {
         description: "Test",
       };
@@ -427,7 +437,7 @@ Body content`;
 
     it("should throw error for frontmatter without description", () => {
       const invalidFrontmatter = {
-        mode: "agent",
+        agent: "agent",
       };
 
       expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
@@ -444,7 +454,7 @@ Body content`;
 
     it("should throw error for frontmatter with invalid types", () => {
       const invalidFrontmatter = {
-        mode: "agent",
+        agent: "agent",
         description: 123, // Should be string
       };
 
@@ -459,7 +469,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "empty-body.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Command with empty body",
         },
         body: "",
@@ -468,7 +478,7 @@ Body content`;
 
       expect(command.getBody()).toBe("");
       expect(command.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "Command with empty body",
       });
     });
@@ -482,7 +492,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "special-char.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Special characters test",
         },
         body: specialContent,
@@ -503,7 +513,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "long-content.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Long content test",
         },
         body: longContent,
@@ -520,7 +530,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "multiline-desc.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "This is a multi-line\ndescription with\nmultiple lines",
         },
         body: "Test body",
@@ -528,7 +538,7 @@ Body content`;
       });
 
       expect(command.getFrontmatter()).toEqual({
-        mode: "agent",
+        agent: "agent",
         description: "This is a multi-line\ndescription with\nmultiple lines",
       });
     });
@@ -541,7 +551,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "windows-lines.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Windows line endings test",
         },
         body: windowsContent,
@@ -559,7 +569,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test",
         },
         body: "Body",
@@ -579,7 +589,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test",
         },
         body: "Body",
@@ -615,7 +625,8 @@ Body content`;
 
       const frontmatter = copilotCommand.getFrontmatter();
       expect(frontmatter.description).toBe("Test command");
-      expect(frontmatter.mode).toBe("agent");
+      expect(frontmatter.agent).toBe("agent");
+      expect(frontmatter.mode).toBeUndefined();
       expect(frontmatter["custom-setting"]).toBe(true);
       expect(frontmatter["another-field"]).toBe("value");
     });
@@ -626,7 +637,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test command",
           "custom-field": { nested: "value" },
         },
@@ -637,13 +648,13 @@ Body content`;
       const rulesyncCommand = command.toRulesyncCommand();
       const frontmatter = rulesyncCommand.getFrontmatter();
 
-      // mode should not be in copilot section (it's always "agent")
+      // agent/mode marker should not be in copilot section (it's always "agent")
       expect(frontmatter.copilot).toEqual({
         "custom-field": { nested: "value" },
       });
     });
 
-    it("round-trip should preserve all fields except mode", () => {
+    it("round-trip should preserve all fields except the agent marker", () => {
       const original = new RulesyncCommand({
         baseDir: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -675,7 +686,7 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
-          mode: "agent",
+          agent: "agent",
           description: "Test command",
         },
         body: "Test body",

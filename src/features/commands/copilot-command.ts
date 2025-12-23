@@ -13,12 +13,27 @@ import {
 } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const CopilotCommandFrontmatterSchema = z.looseObject({
+const CopilotCommandFrontmatterWithModeSchema = z.looseObject({
   mode: z.literal("agent"),
   description: z.string(),
 });
 
+const CopilotCommandFrontmatterWithAgentSchema = z.looseObject({
+  agent: z.literal("agent"),
+  description: z.string(),
+});
+
+export const CopilotCommandFrontmatterSchema = z.union([
+  CopilotCommandFrontmatterWithAgentSchema,
+  CopilotCommandFrontmatterWithModeSchema,
+]);
+
 export type CopilotCommandFrontmatter = z.infer<typeof CopilotCommandFrontmatterSchema>;
+
+type CopilotAgent = "agent";
+
+const extractCopilotAgentValue = (value: unknown): CopilotAgent | undefined =>
+  value === "agent" ? "agent" : undefined;
 
 export type CopilotCommandParams = {
   frontmatter: CopilotCommandFrontmatter;
@@ -63,13 +78,14 @@ export class CopilotCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { mode: _mode, description, ...restFields } = this.frontmatter;
+    const { description, ...restFields } = this.frontmatter;
+    const { mode: _mode, agent: _agent, ...copilotFields } = restFields;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      // Preserve extra fields in copilot section (excluding mode which is fixed)
-      ...(Object.keys(restFields).length > 0 && { copilot: restFields }),
+      // Preserve extra fields in copilot section (excluding mode/agent which is fixed)
+      ...(Object.keys(copilotFields).length > 0 && { copilot: copilotFields }),
     };
 
     // Strip .prompt.md extension and normalize to .md
@@ -116,10 +132,17 @@ export class CopilotCommand extends ToolCommand {
     // Merge copilot-specific fields from rulesync frontmatter
     const copilotFields = rulesyncFrontmatter.copilot ?? {};
 
+    const agentValue: CopilotAgent =
+      extractCopilotAgentValue(copilotFields.agent) ??
+      extractCopilotAgentValue(copilotFields.mode) ??
+      "agent";
+
+    const { agent: _agent, mode: _mode, ...restCopilotFields } = copilotFields;
+
     const copilotFrontmatter: CopilotCommandFrontmatter = {
-      mode: "agent",
+      agent: agentValue,
       description: rulesyncFrontmatter.description,
-      ...copilotFields,
+      ...restCopilotFields,
     };
 
     const body = rulesyncCommand.getBody();
