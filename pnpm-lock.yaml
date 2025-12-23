@@ -14,18 +14,24 @@ importers:
       '@toon-format/toon':
         specifier: 2.1.0
         version: 2.1.0
+      '@valibot/to-json-schema':
+        specifier: 1.5.0
+        version: 1.5.0(valibot@1.2.0(typescript@5.9.3))
       commander:
         specifier: 14.0.2
         version: 14.0.2
       consola:
         specifier: 3.4.2
         version: 3.4.2
+      effect:
+        specifier: 3.19.13
+        version: 3.19.13
       es-toolkit:
         specifier: 1.43.0
         version: 1.43.0
       fastmcp:
         specifier: 3.25.4
-        version: 3.25.4(hono@4.11.1)
+        version: 3.25.4(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(hono@4.11.1)(sury@11.0.0-alpha.4)
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -38,6 +44,9 @@ importers:
       smol-toml:
         specifier: 1.5.2
         version: 1.5.2
+      sury:
+        specifier: 11.0.0-alpha.4
+        version: 11.0.0-alpha.4
       zod:
         specifier: 4.2.1
         version: 4.2.1
@@ -1401,6 +1410,11 @@ packages:
     resolution: {integrity: sha512-PmKa/JV9oVC+34VDVDj8fCnjtJKbcFXzPOOUtebsQhudnJN2L7cUvSUAvsPA36W3MwHA030rNUHaelcKG9bY3w==}
     hasBin: true
 
+  '@valibot/to-json-schema@1.5.0':
+    resolution: {integrity: sha512-GE7DmSr1C2UCWPiV0upRH6mv0cCPsqYGs819fb6srCS1tWhyXrkGGe+zxUiwzn/L1BOfADH4sNjY/YHCuP8phQ==}
+    peerDependencies:
+      valibot: ^1.2.0
+
   '@vitest/coverage-v8@4.0.16':
     resolution: {integrity: sha512-2rNdjEIsPRzsdu6/9Eq0AYAzYdpP6Bx9cje9tL3FE5XzXRQF1fNU9pe/1yE8fCrS0HD+fBtt6gLPh6LI57tX7A==}
     peerDependencies:
@@ -1797,6 +1811,9 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
+  effect@3.19.13:
+    resolution: {integrity: sha512-8MZ783YuHRwHZX2Mmm+bpGxq+7XPd88sWwYAz2Ysry80sEKpftDZXs2Hg9ZyjESi1IBTNHF0oDKe0zJRkUlyew==}
+
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
 
@@ -2008,6 +2025,10 @@ packages:
   extend-shallow@2.0.1:
     resolution: {integrity: sha512-zCnTtlxNoAiDc3gqY2aYAWFx7XWWiasuF2K8Me5WbN8otHKTUKBwjPtNpRs/rbUZm7KxWAaNj7P1a/p52GbVug==}
     engines: {node: '>=0.10.0'}
+
+  fast-check@3.23.2:
+    resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
+    engines: {node: '>=8.0.0'}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -2837,6 +2858,9 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
+  pure-rand@6.1.0:
+    resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
   qs@6.14.0:
     resolution: {integrity: sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w==}
     engines: {node: '>=0.6'}
@@ -3152,6 +3176,14 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
+  sury@11.0.0-alpha.4:
+    resolution: {integrity: sha512-oeG/GJWZvQCKtGPpLbu0yCZudfr5LxycDo5kh7SJmKHDPCsEPJssIZL2Eb4Tl7g9aPEvIDuRrkS+L0pybsMEMA==}
+    peerDependencies:
+      rescript: 12.x
+    peerDependenciesMeta:
+      rescript:
+        optional: true
+
   table@6.9.0:
     resolution: {integrity: sha512-9kY+CygyYM6j02t5YFHbNz2FN5QmYGv9zAjVp4lCDjlCw7amdckXlEt/bjMhUIfj4ThGRE4gCUH5+yGnNuPo5A==}
     engines: {node: '>=10.0.0'}
@@ -3322,6 +3354,14 @@ packages:
 
   uri-templates@0.2.0:
     resolution: {integrity: sha512-EWkjYEN0L6KOfEoOH6Wj4ghQqU7eBZMJqRHQnxQAq+dSEzRPClkWjf8557HkWQXF6BrAUoLSAyy9i3RVTliaNg==}
+
+  valibot@1.2.0:
+    resolution: {integrity: sha512-mm1rxUsmOxzrwnX5arGS+U4T25RdvpPjPN4yR0u9pUBov9+zGVtO84tif1eY4r6zWxVxu3KzIyknJy3rxfRZZg==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   validate-npm-package-license@3.0.4:
     resolution: {integrity: sha512-DpKm2Ui/xN7/HQKCtpZxoRWBhZ9Z0kqtygG8XCgNQ8ZlDnxuQmWhj566j8fN4Cu3/JmbhsDo7fcAJq4s9h27Ew==}
@@ -4577,6 +4617,10 @@ snapshots:
       '@typescript/native-preview-win32-arm64': 7.0.0-dev.20251220.1
       '@typescript/native-preview-win32-x64': 7.0.0-dev.20251220.1
 
+  '@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3))':
+    dependencies:
+      valibot: 1.2.0(typescript@5.9.3)
+
   '@vitest/coverage-v8@4.0.16(vitest@4.0.16(@types/node@25.0.3)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
@@ -5047,6 +5091,11 @@ snapshots:
 
   ee-first@1.1.1: {}
 
+  effect@3.19.13:
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      fast-check: 3.23.2
+
   emoji-regex@10.6.0: {}
 
   emoji-regex@8.0.0: {}
@@ -5415,6 +5464,10 @@ snapshots:
     dependencies:
       is-extendable: 0.1.1
 
+  fast-check@3.23.2:
+    dependencies:
+      pure-rand: 6.1.0
+
   fast-deep-equal@3.1.3: {}
 
   fast-equals@5.4.0: {}
@@ -5433,7 +5486,7 @@ snapshots:
 
   fast-uri@3.1.0: {}
 
-  fastmcp@3.25.4(hono@4.11.1):
+  fastmcp@3.25.4(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(hono@4.11.1)(sury@11.0.0-alpha.4):
     dependencies:
       '@modelcontextprotocol/sdk': 1.25.1(hono@4.11.1)(zod@4.2.1)
       '@standard-schema/spec': 1.1.0
@@ -5444,7 +5497,7 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.16.0
       uri-templates: 0.2.0
-      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.25.0(zod@4.2.1))(zod@4.2.1)
+      xsschema: 0.4.0-beta.5(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(sury@11.0.0-alpha.4)(zod-to-json-schema@3.25.0(zod@4.2.1))(zod@4.2.1)
       yargs: 18.0.0
       zod: 4.2.1
       zod-to-json-schema: 3.25.0(zod@4.2.1)
@@ -6242,6 +6295,8 @@ snapshots:
 
   punycode@2.3.1: {}
 
+  pure-rand@6.1.0: {}
+
   qs@6.14.0:
     dependencies:
       side-channel: 1.1.0
@@ -6646,6 +6701,8 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
+  sury@11.0.0-alpha.4: {}
+
   table@6.9.0:
     dependencies:
       ajv: 8.17.1
@@ -6836,6 +6893,10 @@ snapshots:
 
   uri-templates@0.2.0: {}
 
+  valibot@1.2.0(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
   validate-npm-package-license@3.0.4:
     dependencies:
       spdx-correct: 3.2.0
@@ -6971,8 +7032,11 @@ snapshots:
 
   xdg-basedir@5.1.0: {}
 
-  xsschema@0.4.0-beta.5(zod-to-json-schema@3.25.0(zod@4.2.1))(zod@4.2.1):
+  xsschema@0.4.0-beta.5(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(sury@11.0.0-alpha.4)(zod-to-json-schema@3.25.0(zod@4.2.1))(zod@4.2.1):
     optionalDependencies:
+      '@valibot/to-json-schema': 1.5.0(valibot@1.2.0(typescript@5.9.3))
+      effect: 3.19.13
+      sury: 11.0.0-alpha.4
       zod: 4.2.1
       zod-to-json-schema: 3.25.0(zod@4.2.1)
 

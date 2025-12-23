@@ -35,7 +35,7 @@
 	"scripts": {
 		"bcheck": "biome check .",
 		"bcheck:fix": "biome check --write .",
-		"build": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
+		"build": "tsup src/cli/index.ts --format esm --dts --clean",
 		"bundle:deno": "tsup --config tsup.deno.config.ts",
 		"check": "pnpm run bcheck && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
 		"cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
@@ -68,14 +68,17 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "1.25.1",
 		"@toon-format/toon": "2.1.0",
+		"@valibot/to-json-schema": "1.5.0",
 		"commander": "14.0.2",
 		"consola": "3.4.2",
+		"effect": "3.19.13",
 		"es-toolkit": "1.43.0",
 		"fastmcp": "3.25.4",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.1",
 		"jsonc-parser": "3.3.1",
 		"smol-toml": "1.5.2",
+		"sury": "11.0.0-alpha.4",
 		"zod": "4.2.1"
 	},
 	"devDependencies": {

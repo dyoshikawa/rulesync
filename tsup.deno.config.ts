@@ -10,7 +10,7 @@ export default defineConfig({
 	external: [
 		"@valibot/to-json-schema",
 		"effect",
-		"sury",
+		"sury"
 	],
 	platform: "node",
 	target: "node22",
