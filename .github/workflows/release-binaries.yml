@@ -23,12 +23,6 @@ jobs:
         with:
           experimental: true
 
-      - name: Install dependencies
-        run: pnpm install --ignore-scripts
-
-      - name: Bundle with tsup
-        run: pnpm run bundle:deno
-
       - name: Build binaries
         run: |
           mkdir -p dist-deno
@@ -46,7 +40,6 @@ jobs:
           files: |
             dist-deno/rulesync-linux-x64
             dist-deno/rulesync-linux-arm64
-            dist-deno/rulesync-darwin-x64
             dist-deno/rulesync-darwin-arm64
             dist-deno/rulesync-windows-x64.exe
             dist-deno/SHA256SUMS
