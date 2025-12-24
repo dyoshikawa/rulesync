@@ -8,6 +8,7 @@ import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -166,6 +167,20 @@ ${geminiFrontmatter.prompt}
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
       toolTarget: "geminicli",
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): GeminiCliCommand {
+    return new GeminiCliCommand({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }

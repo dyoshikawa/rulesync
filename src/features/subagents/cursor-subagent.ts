@@ -3,6 +3,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
@@ -30,5 +31,9 @@ export class CursorSubagent extends SimulatedSubagent {
       rulesyncSubagent,
       toolTarget: "cursor",
     });
+  }
+
+  static forDeletion(params: ToolSubagentForDeletionParams): CursorSubagent {
+    return new CursorSubagent(this.forDeletionDefault(params));
   }
 }

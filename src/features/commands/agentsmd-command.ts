@@ -5,6 +5,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { SimulatedCommand, SimulatedCommandFrontmatterSchema } from "./simulated-command.js";
 import {
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -60,5 +61,15 @@ export class AgentsmdCommand extends SimulatedCommand {
       rulesyncCommand,
       toolTarget: "agentsmd",
     });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): AgentsmdCommand {
+    return new AgentsmdCommand(
+      this.forDeletionDefault({ baseDir, relativeDirPath, relativeFilePath }),
+    );
   }
 }

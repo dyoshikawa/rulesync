@@ -14,6 +14,13 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
 
 export type ToolMcpFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate" | "global">;
 
+export type ToolMcpForDeletionParams = {
+  baseDir?: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+  global?: boolean;
+};
+
 export type ToolMcpSettablePaths = {
   relativeDirPath: string;
   relativeFilePath: string;
@@ -59,6 +66,15 @@ export abstract class ToolMcp extends ToolFile {
   }
 
   static async fromFile(_params: ToolMcpFromFileParams): Promise<ToolMcp> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Create a minimal instance for deletion purposes.
+   * This method does not read or parse file content, making it safe to use
+   * even when files have old/incompatible formats.
+   */
+  static forDeletion(_params: ToolMcpForDeletionParams): ToolMcp {
     throw new Error("Please implement this method in the subclass.");
   }
 

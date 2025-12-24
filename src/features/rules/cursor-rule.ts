@@ -9,6 +9,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
@@ -234,6 +235,21 @@ export class CursorRule extends ToolRule {
       frontmatter: result.data,
       body: content.trim(),
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): CursorRule {
+    return new CursorRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: {},
+      body: "",
+      validate: false,
     });
   }
 

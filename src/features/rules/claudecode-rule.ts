@@ -8,6 +8,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
@@ -160,6 +161,26 @@ export class ClaudecodeRule extends ToolRule {
       body: content.trim(),
       validate,
       root: false,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+    global = false,
+  }: ToolRuleForDeletionParams): ClaudecodeRule {
+    const paths = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+
+    return new ClaudecodeRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: {},
+      body: "",
+      validate: false,
+      root: isRoot,
     });
   }
 

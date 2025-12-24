@@ -6,6 +6,7 @@ import { readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
+  ToolMcpForDeletionParams,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpParams,
@@ -233,5 +234,19 @@ export class OpencodeMcp extends ToolMcp {
       return { success: false, error: result.error };
     }
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolMcpForDeletionParams): OpencodeMcp {
+    return new OpencodeMcp({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "{}",
+      validate: false,
+    });
   }
 }

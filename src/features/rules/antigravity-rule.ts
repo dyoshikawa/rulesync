@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
@@ -477,6 +478,22 @@ export class AntigravityRule extends ToolRule {
       return { success: false, error: new Error(formatError(result.error)) };
     }
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): AntigravityRule {
+    return new AntigravityRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: {},
+      body: "",
+      validate: false,
+      root: false,
+    });
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {

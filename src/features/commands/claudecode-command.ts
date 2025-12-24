@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -172,6 +173,21 @@ export class ClaudecodeCommand extends ToolCommand {
       frontmatter: result.data,
       body: content.trim(),
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): ClaudecodeCommand {
+    return new ClaudecodeCommand({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { description: "" },
+      body: "",
+      validate: false,
     });
   }
 }

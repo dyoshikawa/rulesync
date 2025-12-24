@@ -15,6 +15,13 @@ export type ToolCommandSettablePaths = {
   relativeDirPath: string;
 };
 
+export type ToolCommandForDeletionParams = {
+  baseDir?: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+  global?: boolean;
+};
+
 /**
  * Abstract base class for AI development tool-specific command formats.
  *
@@ -49,6 +56,18 @@ export abstract class ToolCommand extends AiFile {
    * @returns Promise resolving to a concrete ToolCommand instance
    */
   static async fromFile(_params: ToolCommandFromFileParams): Promise<ToolCommand> {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Create a minimal instance for deletion purposes.
+   * This method does not read or parse file content, making it safe to use
+   * even when files have old/incompatible formats.
+   *
+   * @param params - Parameters including the file path
+   * @returns A concrete ToolCommand instance with minimal data for deletion
+   */
+  static forDeletion(_params: ToolCommandForDeletionParams): ToolCommand {
     throw new Error("Please implement this method in the subclass.");
   }
 

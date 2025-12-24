@@ -77,6 +77,11 @@ vi.mocked(ClaudecodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnVal
 vi.mocked(ClaudecodeCommand).getSettablePaths = vi.fn().mockImplementation((_options = {}) => ({
   relativeDirPath: join(".claude", "commands"),
 }));
+vi.mocked(ClaudecodeCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
 
 // Set up static methods after mocking
 vi.mocked(GeminiCliCommand).fromFile = vi.fn();
@@ -85,6 +90,11 @@ vi.mocked(GeminiCliCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValu
 vi.mocked(GeminiCliCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: join(".gemini", "commands") });
+vi.mocked(GeminiCliCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
 
 // Set up static methods after mocking
 vi.mocked(OpenCodeCommand).fromFile = vi.fn();
@@ -95,6 +105,11 @@ vi.mocked(OpenCodeCommand).getSettablePaths = vi.fn().mockImplementation((option
     ? join(".config", "opencode", "command")
     : join(".opencode", "command"),
 }));
+vi.mocked(OpenCodeCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
 
 // Set up static methods after mocking
 vi.mocked(RooCommand).fromFile = vi.fn();
@@ -103,6 +118,11 @@ vi.mocked(RooCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true
 vi.mocked(RooCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: join(".roo", "commands") });
+vi.mocked(RooCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
 
 // Set up static methods after mocking
 vi.mocked(CursorCommand).fromFile = vi.fn();
@@ -110,6 +130,11 @@ vi.mocked(CursorCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(CursorCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
 vi.mocked(CursorCommand).getSettablePaths = vi.fn().mockImplementation((_options = {}) => ({
   relativeDirPath: join(".cursor", "commands"),
+}));
+vi.mocked(CursorCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
 }));
 
 describe("CommandsProcessor", () => {
@@ -765,32 +790,24 @@ describe("CommandsProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
-    it("should return the same files as loadToolFiles", async () => {
+    it("should return files with correct paths for deletion", async () => {
       processor = new CommandsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
       });
 
-      const mockCommands = [
-        new ClaudecodeCommand({
-          baseDir: testDir,
-          relativeDirPath: join(".claude", "commands"),
-          relativeFilePath: "test.md",
-          frontmatter: {
-            description: "test description",
-          },
-          body: "content",
-        }),
-      ];
-
       mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
-      vi.mocked(ClaudecodeCommand.fromFile).mockResolvedValue(mockCommands[0]!);
 
-      const toolFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("test.md");
+      expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: testDir,
+          relativeFilePath: "test.md",
+        }),
+      );
     });
 
     it("should work for all supported tool targets", async () => {
@@ -815,27 +832,20 @@ describe("CommandsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const deletableCommand = {
-        baseDir: testDir,
-        relativeDirPath: join(".claude", "commands"),
-        relativeFilePath: "deletable.md",
-        isDeletable: () => true,
-      };
-      const nonDeletableCommand = {
-        baseDir: testDir,
-        relativeDirPath: join(".claude", "commands"),
-        relativeFilePath: "non-deletable.md",
-        isDeletable: () => false,
-      };
-
       mockFindFilesByGlobs.mockResolvedValue(["deletable.md", "non-deletable.md"]);
-      vi.mocked(ClaudecodeCommand.fromFile)
-        .mockResolvedValueOnce(deletableCommand as unknown as ClaudecodeCommand)
-        .mockResolvedValueOnce(nonDeletableCommand as unknown as ClaudecodeCommand);
+
+      // Mock forDeletion to return instances with different isDeletable results
+      (vi.mocked(ClaudecodeCommand).forDeletion as ReturnType<typeof vi.fn>).mockImplementation(
+        (params: { relativeFilePath: string }) => ({
+          ...params,
+          isDeletable: () => params.relativeFilePath !== "non-deletable.md",
+          getRelativeFilePath: () => params.relativeFilePath,
+        }),
+      );
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       expect(filesToDelete).toHaveLength(1);
-      expect(filesToDelete[0]).toBe(deletableCommand);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("deletable.md");
     });
 
     it("should return all files when forDeletion is false regardless of isDeletable", async () => {

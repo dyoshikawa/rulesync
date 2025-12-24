@@ -3,6 +3,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
+  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
@@ -83,6 +84,20 @@ export class AugmentcodeIgnore extends ToolIgnore {
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolIgnoreForDeletionParams): AugmentcodeIgnore {
+    return new AugmentcodeIgnore({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }

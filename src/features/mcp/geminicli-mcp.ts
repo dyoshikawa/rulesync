@@ -4,6 +4,7 @@ import { readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
+  ToolMcpForDeletionParams,
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
   ToolMcpParams,
@@ -89,5 +90,19 @@ export class GeminiCliMcp extends ToolMcp {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolMcpForDeletionParams): GeminiCliMcp {
+    return new GeminiCliMcp({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "{}",
+      validate: false,
+    });
   }
 }

@@ -6,6 +6,7 @@ import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
+  ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
@@ -180,6 +181,24 @@ export class CodexCliSkill extends ToolSkill {
       otherFiles: loaded.otherFiles,
       validate: true,
       global: loaded.global,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    dirName,
+    global = false,
+  }: ToolSkillForDeletionParams): CodexCliSkill {
+    return new CodexCliSkill({
+      baseDir,
+      relativeDirPath,
+      dirName,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      otherFiles: [],
+      validate: false,
+      global,
     });
   }
 }

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
+  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
@@ -55,6 +56,20 @@ export class WindsurfIgnore extends ToolIgnore {
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolIgnoreForDeletionParams): WindsurfIgnore {
+    return new WindsurfIgnore({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }

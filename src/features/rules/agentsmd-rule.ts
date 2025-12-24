@@ -4,6 +4,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
@@ -62,6 +63,23 @@ export class AgentsMdRule extends ToolRule {
       relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
       validate,
+      root: isRoot,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): AgentsMdRule {
+    const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".";
+
+    return new AgentsMdRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
       root: isRoot,
     });
   }

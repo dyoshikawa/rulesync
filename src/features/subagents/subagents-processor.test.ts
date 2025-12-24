@@ -963,7 +963,7 @@ Valid content`,
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
-    it("should return the same files as loadToolFiles", async () => {
+    it("should return files with correct paths for deletion", async () => {
       const processor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
@@ -980,12 +980,11 @@ Test agent content`;
 
       await writeFileContent(join(agentsDir, "test-agent.md"), subagentContent);
 
-      const toolFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("test-agent.md");
     });
 
     it("should work for all supported tool targets", async () => {
@@ -1050,6 +1049,34 @@ Second agent`;
 
       expect(filesToDelete).toHaveLength(2);
       expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+    });
+
+    it("should succeed even when file has broken frontmatter", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      // File with broken YAML frontmatter (unclosed bracket, invalid syntax)
+      const brokenFrontmatter = `---
+name: [broken-agent
+description: This frontmatter is invalid YAML
+  - unclosed bracket
+  invalid: : syntax
+---
+Content that would fail parsing`;
+
+      await writeFileContent(join(agentsDir, "broken-agent.md"), brokenFrontmatter);
+
+      // forDeletion should succeed without parsing file content
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("broken-agent.md");
     });
   });
 });

@@ -4,6 +4,7 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
+  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
@@ -131,6 +132,20 @@ export class ClaudecodeIgnore extends ToolIgnore {
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent: fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolIgnoreForDeletionParams): ClaudecodeIgnore {
+    return new ClaudecodeIgnore({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "{}",
+      validate: false,
     });
   }
 }

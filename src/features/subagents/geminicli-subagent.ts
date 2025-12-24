@@ -3,6 +3,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
@@ -30,5 +31,9 @@ export class GeminiCliSubagent extends SimulatedSubagent {
       rulesyncSubagent,
       toolTarget: "geminicli",
     });
+  }
+
+  static forDeletion(params: ToolSubagentForDeletionParams): GeminiCliSubagent {
+    return new GeminiCliSubagent(this.forDeletionDefault(params));
   }
 }

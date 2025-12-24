@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
@@ -169,6 +170,22 @@ export class AntigravityCommand extends ToolCommand {
       body: content.trim(),
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): AntigravityCommand {
+    return new AntigravityCommand({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { description: "" },
+      body: "",
+      fileContent: "",
+      validate: false,
     });
   }
 }

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
+  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
@@ -79,6 +80,20 @@ export class AmazonqcliIgnore extends ToolIgnore {
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolIgnoreForDeletionParams): AmazonqcliIgnore {
+    return new AmazonqcliIgnore({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }
