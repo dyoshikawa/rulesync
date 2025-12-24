@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
+  ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
   ToolSubagentFromRulesyncSubagentParams,
 } from "./tool-subagent.js";
@@ -121,6 +122,21 @@ export abstract class SimulatedSubagent extends ToolSubagent {
       frontmatter: result.data,
       body: content.trim(),
       validate,
+    };
+  }
+
+  protected static forDeletionDefault({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolSubagentForDeletionParams): ConstructorParameters<typeof SimulatedSubagent>[0] {
+    return {
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      validate: false,
     };
   }
 }
