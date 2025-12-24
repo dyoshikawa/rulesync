@@ -204,7 +204,7 @@ export class CopilotCommand extends ToolCommand {
       baseDir,
       relativeDirPath,
       relativeFilePath,
-      frontmatter: { mode: "agent", description: "" },
+      frontmatter: { agent: "agent", description: "" },
       body: "",
       validate: false,
     });
