@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill, SimulatedSkillParams } from "./simulated-skill.js";
 import {
+  ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
@@ -40,5 +41,10 @@ export class CursorSkill extends SimulatedSkill {
       rulesyncSkill,
       toolTarget: "cursor",
     });
+  }
+
+  static forDeletion(params: ToolSkillForDeletionParams): CursorSkill {
+    const baseParams = this.forDeletionDefault(params);
+    return new CursorSkill(baseParams);
   }
 }

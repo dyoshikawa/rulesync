@@ -9,6 +9,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
+  ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
@@ -171,6 +172,27 @@ export abstract class SimulatedSkill extends ToolSkill {
       body: content.trim(),
       otherFiles,
       validate: true,
+    };
+  }
+
+  /**
+   * Create minimal params for deletion purposes.
+   * This method does not read or parse directory content, making it safe to use
+   * even when skill files have old/incompatible formats.
+   */
+  protected static forDeletionDefault({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    dirName,
+  }: ToolSkillForDeletionParams): SimulatedSkillParams {
+    return {
+      baseDir,
+      relativeDirPath,
+      dirName,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      otherFiles: [],
+      validate: false,
     };
   }
 
