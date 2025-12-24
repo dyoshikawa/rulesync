@@ -827,7 +827,7 @@ targets: ["opencode", "agentsmd"]
     });
   });
   describe("simulateSkills", () => {
-    it("should include skill list in generated content for copilot when simulateSkills is true", async () => {
+    it("should not inject simulated skills for copilot", async () => {
       // Create skill directories
       const skillDir1 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill-1");
       const skillDir2 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill-2");
@@ -902,10 +902,8 @@ This is the body of test skill 2.`,
       const rootRule = result.find((rule) => rule instanceof CopilotRule && rule.isRoot());
       const content = rootRule?.getFileContent();
 
-      // Should include the skills section
-      expect(content).toContain("## Simulated Skills");
-      expect(content).toContain("Test Skill One,First test skill for testing");
-      expect(content).toContain("Test Skill Two,Second test skill for testing");
+      expect(content).not.toContain("## Simulated Skills");
+      expect(content).toContain("# Root Rule");
     });
 
     it("should include skill list in generated content for cursor when simulateSkills is true", async () => {
@@ -970,7 +968,7 @@ Cursor skill body.`,
       expect(content).toContain("Cursor Skill,A skill for cursor");
     });
 
-    it("should filter skills based on targets", async () => {
+    it("should skip simulated skills for copilot targets", async () => {
       // Create skill directories
       const skillDir1 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "copilot-only-skill");
       const skillDir2 = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "cursor-only-skill");
@@ -1044,9 +1042,8 @@ Cursor skill body.`,
       const rootRule = result.find((rule) => rule instanceof CopilotRule && rule.isRoot());
       const content = rootRule?.getFileContent();
 
-      // Should include the copilot-targeted skill but not the cursor-targeted one
-      expect(content).toContain("Copilot Only Skill,Only for copilot");
-      expect(content).not.toContain("Cursor Only Skill");
+      expect(content).not.toContain("## Simulated Skills");
+      expect(content).toContain("# Root Rule");
     });
 
     it("should not include skills section when no skills exist", async () => {

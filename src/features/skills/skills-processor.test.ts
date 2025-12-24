@@ -624,9 +624,9 @@ Content that would fail parsing`;
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode as the only supported target by default", () => {
+    it("should return supported non-simulated targets by default", () => {
       const targets = SkillsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "copilot"]);
     });
 
     it("should return all targets including simulated when includeSimulated is true", () => {
@@ -638,7 +638,7 @@ Content that would fail parsing`;
 
     it("should return only non-simulated targets when includeSimulated is false", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: false });
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "copilot"]);
     });
 
     it("should be callable without instance", () => {
@@ -649,7 +649,7 @@ Content that would fail parsing`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(new Set(targets)).toEqual(new Set(["agentsmd", "copilot", "cursor", "geminicli"]));
+      expect(new Set(targets)).toEqual(new Set(["agentsmd", "cursor", "geminicli"]));
     });
   });
 
