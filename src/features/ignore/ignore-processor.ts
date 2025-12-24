@@ -19,6 +19,7 @@ import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
+  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
@@ -49,6 +50,7 @@ type ToolIgnoreFactory = {
       params: ToolIgnoreFromRulesyncIgnoreParams,
     ): ToolIgnore | Promise<ToolIgnore>;
     fromFile(params: ToolIgnoreFromFileParams): Promise<ToolIgnore>;
+    forDeletion(params: ToolIgnoreForDeletionParams): ToolIgnore;
     getSettablePaths(): ToolIgnoreSettablePaths;
   };
 };
@@ -129,12 +131,21 @@ export class IgnoreProcessor extends FeatureProcessor {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
     try {
-      const toolIgnores = await this.loadToolIgnores();
+      const factory = this.getFactory(this.toolTarget);
+      const paths = factory.class.getSettablePaths();
 
       if (forDeletion) {
-        return toolIgnores.filter((toolFile) => toolFile.isDeletable());
+        const toolIgnore = factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: paths.relativeFilePath,
+        });
+
+        const toolIgnores = toolIgnore.isDeletable() ? [toolIgnore] : [];
+        return toolIgnores;
       }
 
+      const toolIgnores = await this.loadToolIgnores();
       return toolIgnores;
     } catch (error) {
       const errorMessage = `Failed to load tool files: ${formatError(error)}`;
