@@ -5,6 +5,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
@@ -86,6 +87,20 @@ export class CursorCommand extends ToolCommand {
       relativeFilePath: basename(relativeFilePath),
       fileContent: content.trim(),
       validate,
+    });
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): CursorCommand {
+    return new CursorCommand({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
     });
   }
 }

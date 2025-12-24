@@ -7,6 +7,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
@@ -123,6 +124,21 @@ export abstract class SimulatedCommand extends ToolCommand {
       frontmatter: result.data,
       body: content.trim(),
       validate,
+    };
+  }
+
+  protected static forDeletionDefault({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): ConstructorParameters<typeof SimulatedCommand>[0] {
+    return {
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { description: "" },
+      body: "",
+      validate: false,
     };
   }
 }
