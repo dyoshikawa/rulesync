@@ -15,7 +15,7 @@ import {
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const CopilotCommandFrontmatterSchema = z.looseObject({
-  mode: z.literal("agent"),
+  mode: z.optional(z.string()),
   description: z.string(),
 });
 
@@ -118,7 +118,6 @@ export class CopilotCommand extends ToolCommand {
     const copilotFields = rulesyncFrontmatter.copilot ?? {};
 
     const copilotFrontmatter: CopilotCommandFrontmatter = {
-      mode: "agent",
       description: rulesyncFrontmatter.description,
       ...copilotFields,
     };
@@ -181,7 +180,7 @@ export class CopilotCommand extends ToolCommand {
       baseDir,
       relativeDirPath,
       relativeFilePath,
-      frontmatter: { mode: "agent", description: "" },
+      frontmatter: { description: "" },
       body: "",
       validate: false,
     });
