@@ -53,20 +53,60 @@ describe("McpProcessor", () => {
     // Setup static method mocks
     (AmazonqcliMcp as any).fromFile = vi.fn();
     (AmazonqcliMcp as any).fromRulesyncMcp = vi.fn();
+    (AmazonqcliMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (ClaudecodeMcp as any).fromFile = vi.fn();
     (ClaudecodeMcp as any).fromRulesyncMcp = vi.fn();
+    (ClaudecodeMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (ClineMcp as any).fromFile = vi.fn();
     (ClineMcp as any).fromRulesyncMcp = vi.fn();
+    (ClineMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (CodexcliMcp as any).fromFile = vi.fn();
     (CodexcliMcp as any).fromRulesyncMcp = vi.fn();
+    (CodexcliMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (CopilotMcp as any).fromFile = vi.fn();
     (CopilotMcp as any).fromRulesyncMcp = vi.fn();
+    (CopilotMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (CursorMcp as any).fromFile = vi.fn();
     (CursorMcp as any).fromRulesyncMcp = vi.fn();
+    (CursorMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (GeminiCliMcp as any).fromFile = vi.fn();
     (GeminiCliMcp as any).fromRulesyncMcp = vi.fn();
+    (GeminiCliMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (RooMcp as any).fromFile = vi.fn();
     (RooMcp as any).fromRulesyncMcp = vi.fn();
+    (RooMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (RulesyncMcp as any).fromFile = vi.fn();
   });
 
@@ -891,28 +931,20 @@ describe("McpProcessor", () => {
 
   describe("loadToolFiles with forDeletion: true", () => {
     it("should return deletable files only", async () => {
-      const mockMcp = new CopilotMcp({
-        baseDir: testDir,
-        relativeDirPath: ".github",
-        relativeFilePath: "copilot-mcp.yml",
-        fileContent: JSON.stringify({ servers: {} }),
-      });
-
-      // Mock isDeletable to return true (CopilotMcp should be deletable)
-      mockMcp.isDeletable = vi.fn().mockReturnValue(true);
-
-      vi.mocked(CopilotMcp.fromFile).mockResolvedValue(mockMcp);
-
       const processor = new McpProcessor({
         baseDir: testDir,
         toolTarget: "copilot",
       });
 
-      const toolFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(filesToDelete).toEqual(toolFiles);
       expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("mcp.json");
+      expect(vi.mocked(CopilotMcp).forDeletion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: testDir,
+        }),
+      );
     });
 
     it("should work for all supported tool targets", async () => {
@@ -925,14 +957,6 @@ describe("McpProcessor", () => {
         "roo",
       ];
 
-      // Setup mocks to reject to simulate no files
-      vi.mocked(AmazonqcliMcp.fromFile).mockRejectedValue(new Error("File not found"));
-      vi.mocked(ClaudecodeMcp.fromFile).mockRejectedValue(new Error("File not found"));
-      vi.mocked(ClineMcp.fromFile).mockRejectedValue(new Error("File not found"));
-      vi.mocked(CopilotMcp.fromFile).mockRejectedValue(new Error("File not found"));
-      vi.mocked(CursorMcp.fromFile).mockRejectedValue(new Error("File not found"));
-      vi.mocked(RooMcp.fromFile).mockRejectedValue(new Error("File not found"));
-
       for (const target of targets) {
         const processor = new McpProcessor({
           baseDir: testDir,
@@ -941,8 +965,8 @@ describe("McpProcessor", () => {
 
         const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-        // Should return empty array since no files exist
-        expect(filesToDelete).toEqual([]);
+        // Should return files since forDeletion creates instances for deletion
+        expect(filesToDelete).toHaveLength(1);
       }
     });
 
@@ -962,17 +986,14 @@ describe("McpProcessor", () => {
     });
 
     it("should filter out non-deletable files in global mode", async () => {
-      const mockMcp = new ClaudecodeMcp({
-        baseDir: testDir,
-        relativeDirPath: ".claude",
-        relativeFilePath: ".claude.json",
-        fileContent: JSON.stringify({ mcpServers: {} }),
-      });
-
-      // Mock isDeletable to return false (simulating global mode behavior)
-      mockMcp.isDeletable = vi.fn().mockReturnValue(false);
-
-      vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
+      // Mock forDeletion to return non-deletable instance
+      (vi.mocked(ClaudecodeMcp).forDeletion as ReturnType<typeof vi.fn>).mockImplementation(
+        (params: { relativeFilePath: string }) => ({
+          ...params,
+          isDeletable: () => false,
+          getRelativeFilePath: () => params.relativeFilePath,
+        }),
+      );
 
       const processor = new McpProcessor({
         baseDir: testDir,
@@ -980,43 +1001,24 @@ describe("McpProcessor", () => {
         global: true,
       });
 
-      const toolFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      // loadToolFiles should return the ClaudecodeMcp file
-      expect(toolFiles).toHaveLength(1);
-      expect(toolFiles[0]).toBe(mockMcp);
-
-      // loadToolFiles with forDeletion: true should filter it out
+      // loadToolFiles with forDeletion: true should filter out non-deletable files
       expect(filesToDelete).toHaveLength(0);
     });
 
     it("should not filter out deletable files in local mode", async () => {
-      const mockMcp = new ClaudecodeMcp({
-        baseDir: testDir,
-        relativeDirPath: ".",
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({ mcpServers: {} }),
-      });
-
-      // Mock isDeletable to return true (simulating local mode behavior)
-      mockMcp.isDeletable = vi.fn().mockReturnValue(true);
-
-      vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
-
       const processor = new McpProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
         global: false,
       });
 
-      const toolFiles = await processor.loadToolFiles();
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      // Both should return the same file in local mode
-      expect(toolFiles).toHaveLength(1);
+      // Should return files in local mode
       expect(filesToDelete).toHaveLength(1);
-      expect(filesToDelete).toEqual(toolFiles);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe(".mcp.json");
     });
   });
 });
