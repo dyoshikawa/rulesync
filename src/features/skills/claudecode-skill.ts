@@ -166,10 +166,9 @@ export class ClaudecodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
-    // Skills don't have targets field like commands/subagents do
-    // All skills are available to Claude Code
-    return true;
+  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
+    const targets = rulesyncSkill.getFrontmatter().targets;
+    return targets.includes("*") || targets.includes("claudecode");
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
