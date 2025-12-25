@@ -225,6 +225,7 @@ dist/`;
 **/.aiignore
 **/.opencode/memories/
 **/.opencode/command/
+**/.opencode/skills/
 **/opencode.json
 **/QWEN.md
 **/.qwen/memories/
