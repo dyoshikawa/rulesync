@@ -229,6 +229,39 @@ describe("RulesProcessor", () => {
         expect(result[0]).toBeInstanceOf(ruleClass);
       }
     });
+
+    it("should embed tool-specific simulated feature paths in additional conventions", async () => {
+      const processor = new RulesProcessor({
+        toolTarget: "agentsmd",
+        simulateCommands: true,
+        simulateSubagents: true,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "agentsmd-root.md",
+          frontmatter: {
+            root: true,
+            targets: ["agentsmd"],
+          },
+          body: "Root body",
+        }),
+      ];
+
+      const toolRules = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = toolRules.find(
+        (rule): rule is AgentsMdRule => rule instanceof AgentsMdRule && rule.isRoot(),
+      );
+
+      expect(rootRule).toBeDefined();
+      const content = rootRule?.getFileContent();
+
+      expect(content).toContain(join(".agents", "commands", "{command}.md"));
+      expect(content).toContain(join(".agents", "subagents", "{subagent}.md"));
+      expect(content).toContain(join(".agents", "subagents", "planner.md"));
+    });
   });
 
   describe("generateReferencesSection", () => {
