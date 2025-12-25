@@ -12,7 +12,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const ClaudecodeSkillFrontmatterSchema = z.object({
+export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "allowed-tools": z.optional(z.array(z.string())),

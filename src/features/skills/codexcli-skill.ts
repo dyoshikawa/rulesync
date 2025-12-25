@@ -12,7 +12,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const CodexCliSkillFrontmatterSchema = z.object({
+export const CodexCliSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });
