@@ -78,43 +78,7 @@ prompt = "Unclosed string`;
       });
     });
 
-    it("should create instance without validation when validate is false", () => {
-      // When validate is false, skip parsing and use default values
-      const command = new GeminiCliCommand({
-        baseDir: testDir,
-        relativeDirPath: ".gemini/commands",
-        relativeFilePath: "invalid-command.toml",
-        fileContent: invalidTomlContent,
-        validate: false,
-      });
-
-      expect(command).toBeInstanceOf(GeminiCliCommand);
-      expect(command.getBody()).toBe("");
-      expect(command.getFrontmatter()).toEqual({
-        description: "",
-        prompt: "",
-      });
-    });
-
-    it("should create instance with empty fileContent when validate is false", () => {
-      // This is the forDeletion use case - empty content with validate: false
-      const command = new GeminiCliCommand({
-        baseDir: testDir,
-        relativeDirPath: ".gemini/commands",
-        relativeFilePath: "to-delete.toml",
-        fileContent: "",
-        validate: false,
-      });
-
-      expect(command).toBeInstanceOf(GeminiCliCommand);
-      expect(command.getBody()).toBe("");
-      expect(command.getFrontmatter()).toEqual({
-        description: "",
-        prompt: "",
-      });
-    });
-
-    it("should throw error for invalid TOML content when validation is enabled", () => {
+    it("should throw error for invalid TOML content", () => {
       expect(
         () =>
           new GeminiCliCommand({
