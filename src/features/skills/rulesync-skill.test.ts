@@ -322,6 +322,35 @@ Claude Code skill body`;
       });
     });
 
+    it("should load skill with opencode configuration", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      const skillDir = join(skillsDir, "opencode-skill");
+      await ensureDir(skillDir);
+
+      const skillContent = `---
+name: opencode-skill
+description: OpenCode skill
+opencode:
+  allowed-tools:
+    - Bash
+    - Read
+    - Write
+---
+
+OpenCode skill body`;
+
+      const skillFilePath = join(skillDir, SKILL_FILE_NAME);
+      await writeFileContent(skillFilePath, skillContent);
+
+      const skill = await RulesyncSkill.fromDir({
+        dirName: "opencode-skill",
+      });
+
+      expect(skill.getFrontmatter().opencode).toEqual({
+        "allowed-tools": ["Bash", "Read", "Write"],
+      });
+    });
+
     it("should collect other skill files from directory", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       const skillDir = join(skillsDir, "multi-file-skill");

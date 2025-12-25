@@ -15,7 +15,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const SimulatedSkillFrontmatterSchema = z.object({
+export const SimulatedSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });
