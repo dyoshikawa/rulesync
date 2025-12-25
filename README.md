@@ -332,8 +332,7 @@ Example:
 description: 'Review a pull request' # command description
 targets: ["*"] # * = all, or specific tools
 copilot: # copilot specific parameters (optional)
-  mode: "agent" # (optional) deprecated, but supported for backward compatibility
-  description: "Review a pull request" # (optional) copilot-specific description
+  description: "Review a pull request"
 ---
 
 target_pr = $ARGUMENTS
