@@ -12,9 +12,10 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
 } from "./tool-subagent.js";
 
-export const SimulatedSubagentFrontmatterSchema = z.object({
+export const SimulatedSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  tools: z.optional(z.array(z.string())),
 });
 
 export type SimulatedSubagentFrontmatter = z.infer<typeof SimulatedSubagentFrontmatterSchema>;

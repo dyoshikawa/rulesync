@@ -180,6 +180,35 @@ describe("RulesProcessor", () => {
       expect(result).toHaveLength(0);
     });
 
+    it("should not generate simulated subagent conventions for copilot", async () => {
+      const processor = new RulesProcessor({
+        toolTarget: "copilot",
+        simulateSubagents: true,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "copilot-rule.md",
+          frontmatter: {
+            targets: ["copilot"],
+            root: true,
+          },
+          body: "Root body",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result).toHaveLength(1);
+      const rule = result[0];
+      expect(rule).toBeDefined();
+      if (!rule) return;
+      expect(rule).toBeInstanceOf(CopilotRule);
+      expect(rule.getFileContent()).toBe("Root body");
+    });
+
     it("should throw error for unsupported tool target", () => {
       expect(() => {
         new RulesProcessor({

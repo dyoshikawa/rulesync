@@ -56,6 +56,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
+      expect(content).toContain("**/.github/agents/");
       expect(content).toContain("**/.github/subagents/");
       expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
@@ -216,6 +217,7 @@ dist/`;
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
+**/.github/agents/
 **/.github/subagents/
 **/.github/skills/
 **/.vscode/mcp.json
