@@ -23,8 +23,8 @@ This is the body of the copilot command.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required mode field
-description: Test
+# Missing required description field
+mode: agent
 ---
 
 Body content`;
@@ -236,7 +236,6 @@ Body content`;
       expect(copilotCommand).toBeInstanceOf(CopilotCommand);
       expect(copilotCommand.getBody()).toBe("Test command content");
       expect(copilotCommand.getFrontmatter()).toEqual({
-        mode: "agent",
         description: "Test description from rulesync",
       });
       expect(copilotCommand.getRelativeFilePath()).toBe("test-command.prompt.md");
@@ -285,7 +284,6 @@ Body content`;
       });
 
       expect(copilotCommand.getFrontmatter()).toEqual({
-        mode: "agent",
         description: "",
       });
     });
@@ -409,7 +407,7 @@ Body content`;
   describe("CopilotCommandFrontmatterSchema", () => {
     it("should validate valid frontmatter with mode and description", () => {
       const validFrontmatter = {
-        mode: "agent" as const,
+        mode: "agent",
         description: "Test description",
       };
 
@@ -417,12 +415,13 @@ Body content`;
       expect(result).toEqual(validFrontmatter);
     });
 
-    it("should throw error for frontmatter without mode", () => {
-      const invalidFrontmatter = {
+    it("should validate frontmatter without mode (mode is optional)", () => {
+      const validFrontmatter = {
         description: "Test",
       };
 
-      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+      const result = CopilotCommandFrontmatterSchema.parse(validFrontmatter);
+      expect(result).toEqual(validFrontmatter);
     });
 
     it("should throw error for frontmatter without description", () => {
@@ -433,13 +432,14 @@ Body content`;
       expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
 
-    it("should throw error for frontmatter with invalid mode", () => {
-      const invalidFrontmatter = {
-        mode: "invalid", // Should be 'agent'
+    it("should validate frontmatter with any string mode (mode is optional string)", () => {
+      const validFrontmatter = {
+        mode: "custom-mode",
         description: "Test",
       };
 
-      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+      const result = CopilotCommandFrontmatterSchema.parse(validFrontmatter);
+      expect(result).toEqual(validFrontmatter);
     });
 
     it("should throw error for frontmatter with invalid types", () => {
@@ -615,7 +615,7 @@ Body content`;
 
       const frontmatter = copilotCommand.getFrontmatter();
       expect(frontmatter.description).toBe("Test command");
-      expect(frontmatter.mode).toBe("agent");
+      expect(frontmatter.mode).toBeUndefined(); // mode is now optional and not auto-set
       expect(frontmatter["custom-setting"]).toBe(true);
       expect(frontmatter["another-field"]).toBe("value");
     });
@@ -637,7 +637,7 @@ Body content`;
       const rulesyncCommand = command.toRulesyncCommand();
       const frontmatter = rulesyncCommand.getFrontmatter();
 
-      // mode should not be in copilot section (it's always "agent")
+      // mode should not be in copilot section (it's excluded from extra fields)
       expect(frontmatter.copilot).toEqual({
         "custom-field": { nested: "value" },
       });

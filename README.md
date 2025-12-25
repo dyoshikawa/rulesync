@@ -331,6 +331,8 @@ Example:
 ---
 description: 'Review a pull request' # command description
 targets: ["*"] # * = all, or specific tools
+copilot: # copilot specific parameters (optional)
+  description: "Review a pull request"
 ---
 
 target_pr = $ARGUMENTS
