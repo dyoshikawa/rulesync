@@ -153,8 +153,9 @@ export class OpenCodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
-    return true;
+  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
+    const targets = rulesyncSkill.getFrontmatter().targets;
+    return targets.includes("*") || targets.includes("opencode");
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<OpenCodeSkill> {

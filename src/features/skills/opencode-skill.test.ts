@@ -119,6 +119,32 @@ describe("OpenCodeSkill", () => {
   });
 
   describe("fromRulesyncSkill", () => {
+    it("should create instance from RulesyncSkill with project paths", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          opencode: {
+            "allowed-tools": ["Bash", "Read"],
+          },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const skill = OpenCodeSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: false,
+      });
+
+      expect(skill).toBeInstanceOf(OpenCodeSkill);
+      expect(skill.getRelativeDirPath()).toBe(join(".opencode", "skills"));
+      expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
+    });
+
     it("should create instance from RulesyncSkill and respect global paths", () => {
       const rulesyncSkill = new RulesyncSkill({
         baseDir: testDir,
@@ -174,6 +200,59 @@ It can be multiline.`;
         "allowed-tools": ["Bash", "Read"],
       });
       expect(skill.getBody()).toBe("This is the body of the opencode skill.\nIt can be multiline.");
+    });
+  });
+
+  describe("isTargetedByRulesyncSkill", () => {
+    it("should return true when targets include opencode", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          targets: ["opencode"],
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(OpenCodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
+    });
+
+    it("should return true when targets include wildcard", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          targets: ["*"],
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(OpenCodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
+    });
+
+    it("should return false when targets do not include opencode or wildcard", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          targets: ["claudecode", "cursor"],
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(OpenCodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(false);
     });
   });
 
