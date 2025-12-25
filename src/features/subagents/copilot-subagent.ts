@@ -12,7 +12,7 @@ import {
 export class CopilotSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".github", "subagents"),
+      relativeDirPath: join(".github", "agents"),
     };
   }
 
@@ -22,8 +22,26 @@ export class CopilotSubagent extends SimulatedSubagent {
   }
 
   static fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
-    const baseParams = this.fromRulesyncSubagentDefault(params);
-    return new CopilotSubagent(baseParams);
+    const { baseDir = process.cwd(), relativeDirPath, rulesyncSubagent, validate = true } = params;
+    const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
+    const copilotConfig = rulesyncFrontmatter.copilot;
+    const userTools = Array.isArray(copilotConfig?.tools)
+      ? copilotConfig.tools.filter((tool): tool is string => typeof tool === "string")
+      : [];
+    const tools = Array.from(new Set(["agent/runSubagent", ...userTools]));
+
+    return new CopilotSubagent({
+      baseDir,
+      relativeDirPath: relativeDirPath ?? this.getSettablePaths().relativeDirPath,
+      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      frontmatter: {
+        name: rulesyncFrontmatter.name,
+        description: rulesyncFrontmatter.description,
+        ...(tools.length > 0 ? { tools } : {}),
+      },
+      body: rulesyncSubagent.getBody(),
+      validate,
+    });
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
