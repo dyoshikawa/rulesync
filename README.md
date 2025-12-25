@@ -132,7 +132,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
 | Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🌏   |
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
-| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |    🎮   |
+| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |    ✅   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    🎮   |
 | OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |          |   ✅ 🌏  |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |

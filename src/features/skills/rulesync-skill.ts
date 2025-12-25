@@ -22,6 +22,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
     }),
   ),
+  copilot: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+    }),
+  ),
 });
 
 // Export schema with targets optional for input but guaranteed in output
@@ -37,6 +42,9 @@ export type RulesyncSkillFrontmatterInput = {
   };
   opencode?: {
     "allowed-tools"?: string[];
+  };
+  copilot?: {
+    license?: string;
   };
 };
 

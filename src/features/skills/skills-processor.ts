@@ -94,7 +94,7 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "copilot",
     {
       class: CopilotSkill,
-      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [
