@@ -23,7 +23,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     }),
   ),
   copilot: z.optional(
-    z.object({
+    z.looseObject({
       license: z.optional(z.string()),
     }),
   ),

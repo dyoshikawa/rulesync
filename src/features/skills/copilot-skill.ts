@@ -12,7 +12,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const CopilotSkillFrontmatterSchema = z.object({
+export const CopilotSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   license: z.optional(z.string()),
