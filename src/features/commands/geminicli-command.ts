@@ -33,9 +33,16 @@ export class GeminiCliCommand extends ToolCommand {
 
   constructor(params: AiFileParams) {
     super(params);
-    const parsed = this.parseTomlContent(this.fileContent);
-    this.frontmatter = parsed;
-    this.body = parsed.prompt;
+    // Only parse TOML content when validation is enabled.
+    // When validate is false (e.g., forDeletion), skip parsing to avoid errors with empty content.
+    if (params.validate !== false) {
+      const parsed = this.parseTomlContent(this.fileContent);
+      this.frontmatter = parsed;
+      this.body = parsed.prompt;
+    } else {
+      this.frontmatter = { description: "", prompt: "" };
+      this.body = "";
+    }
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

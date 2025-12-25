@@ -79,16 +79,39 @@ prompt = "Unclosed string`;
     });
 
     it("should create instance without validation when validate is false", () => {
-      expect(
-        () =>
-          new GeminiCliCommand({
-            baseDir: testDir,
-            relativeDirPath: ".gemini/commands",
-            relativeFilePath: "invalid-command.toml",
-            fileContent: invalidTomlContent,
-            validate: false,
-          }),
-      ).toThrow(); // Will still throw because parseTomlContent is called in constructor
+      // When validate is false, skip parsing and use default values
+      const command = new GeminiCliCommand({
+        baseDir: testDir,
+        relativeDirPath: ".gemini/commands",
+        relativeFilePath: "invalid-command.toml",
+        fileContent: invalidTomlContent,
+        validate: false,
+      });
+
+      expect(command).toBeInstanceOf(GeminiCliCommand);
+      expect(command.getBody()).toBe("");
+      expect(command.getFrontmatter()).toEqual({
+        description: "",
+        prompt: "",
+      });
+    });
+
+    it("should create instance with empty fileContent when validate is false", () => {
+      // This is the forDeletion use case - empty content with validate: false
+      const command = new GeminiCliCommand({
+        baseDir: testDir,
+        relativeDirPath: ".gemini/commands",
+        relativeFilePath: "to-delete.toml",
+        fileContent: "",
+        validate: false,
+      });
+
+      expect(command).toBeInstanceOf(GeminiCliCommand);
+      expect(command.getBody()).toBe("");
+      expect(command.getFrontmatter()).toEqual({
+        description: "",
+        prompt: "",
+      });
     });
 
     it("should throw error for invalid TOML content when validation is enabled", () => {
@@ -582,6 +605,35 @@ ${longPrompt}
 
       const result = GeminiCliCommand.isTargetedByRulesyncCommand(rulesyncCommand);
       expect(result).toBe(true);
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create instance for deletion with empty content", () => {
+      const command = GeminiCliCommand.forDeletion({
+        baseDir: testDir,
+        relativeDirPath: ".gemini/commands",
+        relativeFilePath: "to-delete.toml",
+      });
+
+      expect(command).toBeInstanceOf(GeminiCliCommand);
+      expect(command.getBody()).toBe("");
+      expect(command.getFrontmatter()).toEqual({
+        description: "",
+        prompt: "",
+      });
+      expect(command.getRelativeDirPath()).toBe(".gemini/commands");
+      expect(command.getRelativeFilePath()).toBe("to-delete.toml");
+    });
+
+    it("should use process.cwd() as default baseDir", () => {
+      const command = GeminiCliCommand.forDeletion({
+        relativeDirPath: ".gemini/commands",
+        relativeFilePath: "to-delete.toml",
+      });
+
+      expect(command).toBeInstanceOf(GeminiCliCommand);
+      expect(command.getBaseDir()).toBe(testDir); // testDir is mocked as process.cwd()
     });
   });
 });
