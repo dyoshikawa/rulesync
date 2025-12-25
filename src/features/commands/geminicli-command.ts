@@ -175,11 +175,15 @@ ${geminiFrontmatter.prompt}
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): GeminiCliCommand {
+    // Provide minimal valid TOML to pass constructor parsing.
+    // The constructor always calls parseTomlContent(), so we need valid TOML even for deletion.
+    const placeholderToml = `description = ""
+prompt = ""`;
     return new GeminiCliCommand({
       baseDir,
       relativeDirPath,
       relativeFilePath,
-      fileContent: "",
+      fileContent: placeholderToml,
       validate: false,
     });
   }
