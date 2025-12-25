@@ -8,12 +8,17 @@ import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 
-const RulesyncSkillFrontmatterSchemaInternal = z.object({
+const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string(),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   claudecode: z.optional(
-    z.object({
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+    }),
+  ),
+  opencode: z.optional(
+    z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
     }),
   ),
@@ -33,6 +38,9 @@ export type RulesyncSkillFrontmatterInput = {
   description: string;
   targets?: ("*" | string)[];
   claudecode?: {
+    "allowed-tools"?: string[];
+  };
+  opencode?: {
     "allowed-tools"?: string[];
   };
   copilot?: {

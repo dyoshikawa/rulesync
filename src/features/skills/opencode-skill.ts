@@ -12,39 +12,36 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const CodexCliSkillFrontmatterSchema = z.looseObject({
+export const OpenCodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  "allowed-tools": z.optional(z.array(z.string())),
 });
 
-export type CodexCliSkillFrontmatter = z.infer<typeof CodexCliSkillFrontmatterSchema>;
+export type OpenCodeSkillFrontmatter = z.infer<typeof OpenCodeSkillFrontmatterSchema>;
 
-export type CodexCliSkillParams = {
+export type OpenCodeSkillParams = {
   baseDir?: string;
   relativeDirPath?: string;
   dirName: string;
-  frontmatter: CodexCliSkillFrontmatter;
+  frontmatter: OpenCodeSkillFrontmatter;
   body: string;
   otherFiles?: SkillFile[];
   validate?: boolean;
   global?: boolean;
 };
 
-/**
- * Represents a Codex CLI skill directory.
- * Codex CLI currently supports skills only in global mode under ~/.codex/skills.
- */
-export class CodexCliSkill extends ToolSkill {
+export class OpenCodeSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
-    relativeDirPath = join(".codex", "skills"),
+    relativeDirPath = join(".opencode", "skills"),
     dirName,
     frontmatter,
     body,
     otherFiles = [],
     validate = true,
     global = false,
-  }: CodexCliSkillParams) {
+  }: OpenCodeSkillParams) {
     super({
       baseDir,
       relativeDirPath,
@@ -67,19 +64,16 @@ export class CodexCliSkill extends ToolSkill {
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
-    if (!global) {
-      throw new Error("CodexCliSkill only supports global mode. Please pass { global: true }.");
-    }
     return {
-      relativeDirPath: join(".codex", "skills"),
+      relativeDirPath: global ? join(".config", "opencode", "skills") : join(".opencode", "skills"),
     };
   }
 
-  getFrontmatter(): CodexCliSkillFrontmatter {
+  getFrontmatter(): OpenCodeSkillFrontmatter {
     if (!this.mainFile?.frontmatter) {
       throw new Error("Frontmatter is not defined");
     }
-    const result = CodexCliSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = OpenCodeSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
     return result;
   }
 
@@ -88,14 +82,13 @@ export class CodexCliSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    if (!this.mainFile) {
+    if (this.mainFile === undefined) {
       return {
         success: false,
         error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
       };
     }
-
-    const result = CodexCliSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
+    const result = OpenCodeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
@@ -114,6 +107,11 @@ export class CodexCliSkill extends ToolSkill {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(frontmatter["allowed-tools"] && {
+        opencode: {
+          "allowed-tools": frontmatter["allowed-tools"],
+        },
+      }),
     };
 
     return new RulesyncSkill({
@@ -132,20 +130,22 @@ export class CodexCliSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
-  }: ToolSkillFromRulesyncSkillParams): CodexCliSkill {
-    const settablePaths = CodexCliSkill.getSettablePaths({ global });
+  }: ToolSkillFromRulesyncSkillParams): OpenCodeSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
-    const codexFrontmatter: CodexCliSkillFrontmatter = {
+    const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      "allowed-tools": rulesyncFrontmatter.opencode?.["allowed-tools"],
     };
 
-    return new CodexCliSkill({
+    const settablePaths = OpenCodeSkill.getSettablePaths({ global });
+
+    return new OpenCodeSkill({
       baseDir: rulesyncSkill.getBaseDir(),
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
-      frontmatter: codexFrontmatter,
+      frontmatter: opencodeFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
@@ -155,16 +155,16 @@ export class CodexCliSkill extends ToolSkill {
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("codexcli");
+    return targets.includes("*") || targets.includes("opencode");
   }
 
-  static async fromDir(params: ToolSkillFromDirParams): Promise<CodexCliSkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<OpenCodeSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: CodexCliSkill.getSettablePaths,
+      getSettablePaths: OpenCodeSkill.getSettablePaths,
     });
 
-    const result = CodexCliSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    const result = OpenCodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
       const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
@@ -172,7 +172,7 @@ export class CodexCliSkill extends ToolSkill {
       );
     }
 
-    return new CodexCliSkill({
+    return new OpenCodeSkill({
       baseDir: loaded.baseDir,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -189,8 +189,8 @@ export class CodexCliSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     global = false,
-  }: ToolSkillForDeletionParams): CodexCliSkill {
-    return new CodexCliSkill({
+  }: ToolSkillForDeletionParams): OpenCodeSkill {
+    return new OpenCodeSkill({
       baseDir,
       relativeDirPath,
       dirName,
