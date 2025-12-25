@@ -17,13 +17,7 @@ import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
-import { CopilotCommand } from "../commands/copilot-command.js";
-import { CursorCommand } from "../commands/cursor-command.js";
-import { GeminiCliCommand } from "../commands/geminicli-command.js";
-import { RooCommand } from "../commands/roo-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
-import { CodexCliSkill } from "../skills/codexcli-skill.js";
-import { CopilotSkill } from "../skills/copilot-skill.js";
 import { CursorSkill } from "../skills/cursor-skill.js";
 import { GeminiCliSkill } from "../skills/geminicli-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
@@ -247,7 +241,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         ruleDiscoveryMode: "toon",
         additionalConventions: {
           subagents: { subagentClass: CodexCliSubagent },
-          skills: { skillClass: CodexCliSkill, globalOnly: true },
         },
       },
     },
@@ -261,9 +254,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         additionalConventions: {
-          commands: { commandClass: CopilotCommand },
           subagents: { subagentClass: CopilotSubagent },
-          skills: { skillClass: CopilotSkill },
         },
       },
     },
@@ -277,7 +268,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         additionalConventions: {
-          commands: { commandClass: CursorCommand },
           subagents: { subagentClass: CursorSubagent },
           skills: { skillClass: CursorSkill },
         },
@@ -294,7 +284,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         additionalConventions: {
-          commands: { commandClass: GeminiCliCommand },
           subagents: { subagentClass: GeminiCliSubagent },
           skills: { skillClass: GeminiCliSkill },
         },
@@ -338,7 +327,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         additionalConventions: {
-          commands: { commandClass: RooCommand },
           subagents: { subagentClass: RooSubagent },
         },
         createsSeparateConventionsRule: true,
