@@ -59,6 +59,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   // OpenCode
   "**/.opencode/memories/",
   "**/.opencode/command/",
+  "**/.opencode/skills/",
   "**/opencode.json",
   // Qwen
   "**/QWEN.md",
