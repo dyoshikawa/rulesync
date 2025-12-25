@@ -132,7 +132,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
 | Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🌏   |
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
-| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |    ✅   |
+| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    ✅      |    ✅   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    🎮   |
 | OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |          |   ✅ 🌏  |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
@@ -358,6 +358,9 @@ description: >- # subagent description
   fix a bug. This agent can be called by the user explicitly only.
 claudecode: # for claudecode-specific parameters
   model: inherit # opus, sonnet, haiku or inherit
+copilot: # copilot-specific parameters
+  tools:
+    - web/fetch # agent/runSubagent is always included automatically
 ---
 
 You are the planner for any tasks.
@@ -365,7 +368,10 @@ You are the planner for any tasks.
 Based on the user's instruction, create a plan while analyzing the related files. Then, report the plan in detail. You can output files to @tmp/ if needed.
 
 Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
+
 ```
+
+Rulesync always adds `agent/runSubagent` to Copilot custom agents' `tools` list and merges any additional tools you specify without creating duplicates.
 
 ### `.rulesync/skills/*/SKILL.md`
 
