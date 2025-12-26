@@ -24,7 +24,6 @@ import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
-import { CopilotSubagent } from "../subagents/copilot-subagent.js";
 import { CursorSubagent } from "../subagents/cursor-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
@@ -253,9 +252,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
-        additionalConventions: {
-          subagents: { subagentClass: CopilotSubagent },
-        },
       },
     },
   ],

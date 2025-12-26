@@ -56,6 +56,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
+      expect(content).toContain("**/.github/agents/");
       expect(content).toContain("**/.github/subagents/");
       expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
@@ -215,6 +216,7 @@ dist/`;
 **/.geminiignore
 **/.github/copilot-instructions.md
 **/.github/instructions/
+**/.github/agents/
 **/.github/prompts/
 **/.github/subagents/
 **/.github/skills/
@@ -240,12 +242,12 @@ dist/`;
 `;
 
       vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue(rulesyncBlock);
+      vi.mocked(readFileContent).mockResolvedValue(`${rulesyncBlock}\n`);
 
       await gitignoreCommand();
 
-      expect(logger.success).toHaveBeenCalledWith(".gitignore is already up to date");
-      expect(writeFileContent).not.toHaveBeenCalled();
+      expect(logger.success).toHaveBeenCalledWith("Updated .gitignore with rulesync entries:");
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
   });
 

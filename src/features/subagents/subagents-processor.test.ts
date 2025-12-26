@@ -338,13 +338,15 @@ Claude content`,
 
       const copilotSubagent = new CopilotSubagent({
         baseDir: testDir,
-        relativeDirPath: ".github/subagents",
+        relativeDirPath: ".github/agents",
         relativeFilePath: "copilot-agent.md",
         frontmatter: {
           name: "copilot-agent",
           description: "Copilot agent",
+          tools: ["agent/runSubagent"],
         },
         body: "Copilot content",
+        fileContent: "",
         validate: false,
       });
 
@@ -376,11 +378,9 @@ Claude content`,
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
-      // Only ClaudecodeSubagent should be converted (non-simulated)
-      expect(rulesyncFiles).toHaveLength(1);
-      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
-      const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
-      expect(rulesyncSubagent.getFrontmatter().name).toBe("claude-agent");
+      // Claudecode and Copilot subagents should be converted (non-simulated)
+      expect(rulesyncFiles).toHaveLength(2);
+      expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
     });
   });
 
@@ -558,8 +558,8 @@ Invalid content`;
       expect(toolFiles).toEqual([]);
     });
 
-    it("should load copilot subagent files from .github/subagents", async () => {
-      const subagentsDir = join(testDir, ".github", "subagents");
+    it("should load copilot subagent files from .github/agents", async () => {
+      const subagentsDir = join(testDir, ".github", "agents");
       await ensureDir(subagentsDir);
 
       const subagentContent = `---
@@ -800,7 +800,7 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
-      expect(toolTargets).not.toContain("copilot");
+      expect(toolTargets).toContain("copilot");
       expect(toolTargets).not.toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
     });
@@ -810,7 +810,7 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
-      expect(toolTargets).not.toContain("copilot");
+      expect(toolTargets).toContain("copilot");
       expect(toolTargets).not.toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
     });
@@ -871,7 +871,7 @@ Second global content`;
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
       expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
-        new Set(["agentsmd", "codexcli", "copilot", "cursor", "geminicli", "roo"]),
+        new Set(["agentsmd", "codexcli", "cursor", "geminicli", "roo"]),
       );
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });
