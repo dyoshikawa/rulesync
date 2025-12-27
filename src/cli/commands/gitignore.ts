@@ -48,7 +48,6 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.github/instructions/",
   "**/.github/prompts/",
   "**/.github/agents/",
-  "**/.github/subagents/",
   "**/.github/skills/",
   "**/.vscode/mcp.json",
   // Junie
