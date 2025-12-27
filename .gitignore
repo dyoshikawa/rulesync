@@ -199,10 +199,6 @@ modular-mcp.json
 .rulesync/rules/my-language.md
 .claude/memories/my-language.md
 
-# Project-level rules files
-CLAUDE.md
-.claude/memories/
-
 # Intellij IDEs
 .idea
 
@@ -239,7 +235,7 @@ CLAUDE.md
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
-**/.github/subagents/
+**/.github/agents/
 **/.github/skills/
 **/.vscode/mcp.json
 **/.junie/guidelines.md
