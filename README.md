@@ -132,7 +132,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
 | Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🌏   |
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
-| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    🎮      |    ✅   |
+| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    ✅      |    ✅   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    🎮   |
 | OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |          |   ✅ 🌏  |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
@@ -172,7 +172,7 @@ Apply consistent rules across all AI tools, improving code quality and developme
 You can use global mode via Rulesync by enabling `--global` option.
 
 ### 🎮 **Simulate Commands and Subagents**
-Simulated commands and subagents allow you to generate simulated commands and subagents for copilot, cursor and codexcli. This is useful for shortening your prompts.
+Simulated commands and subagents allow you to generate simulated commands and subagents for cursor and codexcli. This is useful for shortening your prompts.
 
 ## Case Studies
 
@@ -358,6 +358,9 @@ description: >- # subagent description
   fix a bug. This agent can be called by the user explicitly only.
 claudecode: # for claudecode-specific parameters
   model: inherit # opus, sonnet, haiku or inherit
+copilot: # for GitHub Copilot specific parameters
+  tools:
+    - web/fetch # agent/runSubagent is always included automatically
 ---
 
 You are the planner for any tasks.
@@ -503,10 +506,10 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 
 ## Simulate Commands, Subagents and Skills
 
-Simulated commands, subagents and skills allow you to generate simulated features for copilot, cursor, codexcli and etc. This is useful for shortening your prompts.
+Simulated commands, subagents and skills allow you to generate simulated features for cursor, codexcli and etc. This is useful for shortening your prompts.
 
 1. Prepare `.rulesync/commands/*.md`, `.rulesync/subagents/*.md` and `.rulesync/skills/*/SKILL.md` for your purposes.
-2. Generate simulated commands, subagents and skills for specific tools that are included in copilot, cursor, codexcli and etc.
+2. Generate simulated commands, subagents and skills for specific tools that are included in cursor, codexcli and etc.
     ```bash
     npx rulesync generate \
       --targets copilot,cursor,codexcli \

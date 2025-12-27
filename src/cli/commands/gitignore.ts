@@ -47,7 +47,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.github/copilot-instructions.md",
   "**/.github/instructions/",
   "**/.github/prompts/",
-  "**/.github/subagents/",
+  "**/.github/agents/",
   "**/.github/skills/",
   "**/.vscode/mcp.json",
   // Junie

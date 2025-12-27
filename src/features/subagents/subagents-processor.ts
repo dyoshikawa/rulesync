@@ -80,7 +80,10 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "codexcli",
     { class: CodexCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
   ],
-  ["copilot", { class: CopilotSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "copilot",
+    { class: CopilotSubagent, meta: { supportsSimulated: false, supportsGlobal: false } },
+  ],
   ["cursor", { class: CursorSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
   [
     "geminicli",
