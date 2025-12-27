@@ -258,6 +258,32 @@ describe("SubagentsProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(CodexCliSubagent);
     });
+
+    it("should convert RulesyncSubagent to OpenCodeSubagent for opencode target", async () => {
+      const processor = new SubagentsProcessor({
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "opencode-agent.md",
+        frontmatter: {
+          name: "opencode-agent",
+          description: "Handles opencode tasks",
+          targets: ["opencode"],
+        },
+        body: "Opencode agent body",
+        validate: false,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      const [opencodeSubagent] = toolFiles;
+      expect(opencodeSubagent?.getRelativeDirPath()).toBe(".opencode/agents");
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
@@ -801,6 +827,7 @@ Second global content`;
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
       expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("opencode");
       expect(toolTargets).not.toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
     });
@@ -811,6 +838,7 @@ Second global content`;
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
       expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("opencode");
       expect(toolTargets).not.toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
     });
@@ -823,6 +851,7 @@ Second global content`;
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("cursor");
       expect(toolTargets).toContain("codexcli");
+      expect(toolTargets).toContain("opencode");
       expect(toolTargets).toEqual(subagentsProcessorToolTargets);
     });
 
@@ -832,11 +861,11 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return only claudecode as global-supported target", () => {
+    it("should return claudecode and opencode as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
-      expect(toolTargets).toEqual(["claudecode"]);
+      expect(toolTargets).toEqual(["claudecode", "opencode"]);
     });
 
     it("should not include simulated targets", () => {
@@ -848,6 +877,7 @@ Second global content`;
       expect(toolTargets).not.toContain("agentsmd");
       expect(toolTargets).not.toContain("geminicli");
       expect(toolTargets).not.toContain("roo");
+      expect(toolTargets).not.toContain("copilot");
     });
 
     it("should be callable without instance", () => {
@@ -864,7 +894,16 @@ Second global content`;
 
     it("should export subagentsProcessorToolTargets constant", () => {
       expect(new Set(subagentsProcessorToolTargets)).toEqual(
-        new Set(["agentsmd", "claudecode", "codexcli", "copilot", "cursor", "geminicli", "roo"]),
+        new Set([
+          "agentsmd",
+          "claudecode",
+          "codexcli",
+          "copilot",
+          "cursor",
+          "geminicli",
+          "opencode",
+          "roo",
+        ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);
     });
@@ -883,6 +922,7 @@ Second global content`;
         "copilot",
         "cursor",
         "codexcli",
+        "opencode",
       ];
       validTargets.forEach((target) => {
         expect(subagentsProcessorToolTargets).toContain(target);

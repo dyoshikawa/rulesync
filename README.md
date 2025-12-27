@@ -134,7 +134,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
 | GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    ✅      |    ✅   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    🎮   |
-| OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |          |   ✅ 🌏  |
+| OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |   ✅ 🌏    |   ✅ 🌏  |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
 | Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |        |
 | Qwen Code              |  ✅   |   ✅   |       |         |          |        |
@@ -361,6 +361,17 @@ claudecode: # for claudecode-specific parameters
 copilot: # for GitHub Copilot specific parameters
   tools:
     - web/fetch # agent/runSubagent is always included automatically
+opencode: # for OpenCode-specific parameters
+  mode: subagent # must be set so OpenCode treats the agent as a subagent
+  model: anthropic/claude-sonnet-4-20250514
+  temperature: 0.1
+  tools:
+    write: false
+    edit: false
+    bash: false
+  permission:
+    bash:
+      "git diff": allow
 ---
 
 You are the planner for any tasks.
