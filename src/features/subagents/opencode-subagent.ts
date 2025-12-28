@@ -55,7 +55,7 @@ export class OpenCodeSubagent extends ToolSubagent {
     global?: boolean;
   } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "opencode", "agents") : join(".opencode", "agents"),
+      relativeDirPath: global ? join(".config", "opencode", "agent") : join(".opencode", "agent"),
     };
   }
 

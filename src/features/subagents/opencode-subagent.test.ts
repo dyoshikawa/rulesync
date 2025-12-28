@@ -24,18 +24,18 @@ describe("OpenCodeSubagent", () => {
 
   it("should return settable paths for project and global scopes", () => {
     expect(OpenCodeSubagent.getSettablePaths()).toEqual({
-      relativeDirPath: ".opencode/agents",
+      relativeDirPath: ".opencode/agent",
     });
 
     expect(OpenCodeSubagent.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: join(".config", "opencode", "agents"),
+      relativeDirPath: join(".config", "opencode", "agent"),
     });
   });
 
   it("should create a RulesyncSubagent with opencode section and subagent mode", () => {
     const subagent = new OpenCodeSubagent({
       baseDir: testDir,
-      relativeDirPath: ".opencode/agents",
+      relativeDirPath: ".opencode/agent",
       relativeFilePath: "review.md",
       frontmatter: {
         description: "Reviews code",
@@ -92,11 +92,11 @@ describe("OpenCodeSubagent", () => {
       model: "model-x",
       mode: "subagent",
     });
-    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agents"));
+    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agent"));
   });
 
   it("should load from file and validate frontmatter", async () => {
-    const dirPath = join(testDir, ".opencode", "agents");
+    const dirPath = join(testDir, ".opencode", "agent");
     const filePath = join(dirPath, "general.md");
 
     await writeFileContent(
@@ -122,7 +122,7 @@ Assist with any tasks`,
   });
 
   it("should throw for invalid frontmatter when mode is missing", async () => {
-    const dirPath = join(testDir, ".opencode", "agents");
+    const dirPath = join(testDir, ".opencode", "agent");
     const filePath = join(dirPath, "invalid.md");
 
     await writeFileContent(
