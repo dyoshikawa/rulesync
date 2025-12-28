@@ -626,7 +626,7 @@ Content that would fail parsing`;
   describe("getToolTargets", () => {
     it("should return supported non-simulated project targets by default", () => {
       const targets = SkillsProcessor.getToolTargets();
-      expect(new Set(targets)).toEqual(new Set(["claudecode", "copilot", "opencode"]));
+      expect(new Set(targets)).toEqual(new Set(["claudecode", "copilot", "cursor", "opencode"]));
     });
 
     it("should return all targets including simulated when includeSimulated is true", () => {
@@ -638,7 +638,7 @@ Content that would fail parsing`;
 
     it("should return only non-simulated targets when includeSimulated is false", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: false });
-      expect(new Set(targets)).toEqual(new Set(["claudecode", "copilot", "opencode"]));
+      expect(new Set(targets)).toEqual(new Set(["claudecode", "copilot", "cursor", "opencode"]));
     });
 
     it("should be callable without instance", () => {
@@ -649,7 +649,7 @@ Content that would fail parsing`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(new Set(targets)).toEqual(new Set(["agentsmd", "cursor", "geminicli"]));
+      expect(new Set(targets)).toEqual(new Set(["agentsmd", "geminicli"]));
     });
   });
 

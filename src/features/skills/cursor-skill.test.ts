@@ -179,7 +179,7 @@ This is the body of the cursor skill.`;
   });
 
   describe("toRulesyncSkill", () => {
-    it("should throw error because CursorSkill is simulated", () => {
+    it("should convert to RulesyncSkill", () => {
       const skill = new CursorSkill({
         baseDir: testDir,
         relativeDirPath: join(".cursor", "skills"),
@@ -192,9 +192,51 @@ This is the body of the cursor skill.`;
         validate: true,
       });
 
-      expect(() => skill.toRulesyncSkill()).toThrow(
-        "Not implemented because it is a SIMULATED skill.",
-      );
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill).toBeInstanceOf(RulesyncSkill);
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test description",
+        targets: ["*"],
+      });
+      expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create minimal instance for deletion", () => {
+      const skill = CursorSkill.forDeletion({
+        dirName: "cleanup",
+        relativeDirPath: join(".cursor", "skills"),
+      });
+
+      expect(skill.getDirName()).toBe("cleanup");
+      expect(skill.getRelativeDirPath()).toBe(join(".cursor", "skills"));
+      expect(skill.getGlobal()).toBe(false);
+    });
+
+    it("should use process.cwd() as default baseDir", () => {
+      const skill = CursorSkill.forDeletion({
+        dirName: "cleanup",
+        relativeDirPath: join(".cursor", "skills"),
+      });
+
+      expect(skill).toBeInstanceOf(CursorSkill);
+      expect(skill.getBaseDir()).toBe(testDir);
+    });
+
+    it("should create instance with empty frontmatter for deletion", () => {
+      const skill = CursorSkill.forDeletion({
+        dirName: "to-delete",
+        relativeDirPath: join(".cursor", "skills"),
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "",
+        description: "",
+      });
+      expect(skill.getBody()).toBe("");
     });
   });
 });
