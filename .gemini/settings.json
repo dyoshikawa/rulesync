@@ -1,7 +1,6 @@
 {
   "mcpServers": {
     "serena": {
-      "exposed": true,
       "type": "stdio",
       "command": "uvx",
       "args": [
@@ -19,7 +18,6 @@
       "env": {}
     },
     "context7": {
-      "description": "Up-to-date documentation and code examples for libraries. You should usually use this MCP server when you search for library documentation.",
       "type": "stdio",
       "command": "npx",
       "args": [
