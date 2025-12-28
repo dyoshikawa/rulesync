@@ -21,4 +21,5 @@ globs: ["**/*.ts"]
 - When writing any path, you must always use `join` function in `node:path` to join the path because it must support both Windows and Unix-like paths.
 - When writing Rulesync file paths, you must condsider using constants in `src/constants/rulesync-paths.ts` to avoid hardcoding paths.
 - You should always use `z.looseObject()` for zod schemas representing frontmatter keys. This is because various AI tools update very quickly and parameters are constantly being added.
+- When adding or modifying functionality, also review the guidance in `feature-change-guidelines.md` to keep implementation and documentation aligned.
 
