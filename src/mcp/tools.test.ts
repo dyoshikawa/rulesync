@@ -85,6 +85,64 @@ describe("rulesyncTool", () => {
 
     const getParsed = JSON.parse(getResult);
     expect(getParsed.content).toContain("sample");
+
+    const deleteResult = await rulesyncTool.execute({
+      feature: "mcp",
+      operation: "delete",
+    });
+
+    const deleteParsed = JSON.parse(deleteResult);
+    expect(deleteParsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+
+    // Verify the file is deleted by checking get throws
+    await expect(
+      rulesyncTool.execute({
+        feature: "mcp",
+        operation: "get",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("handles ignore file lifecycle through a single tool", async () => {
+    const rulesyncDir = join(testDir, ".rulesync");
+    await ensureDir(rulesyncDir);
+
+    const content = "node_modules/\n.env\n*.log";
+
+    const putResult = await rulesyncTool.execute({
+      feature: "ignore",
+      operation: "put",
+      content,
+    });
+
+    const putParsed = JSON.parse(putResult);
+    expect(putParsed.relativePathFromCwd).toBe(".rulesync/.aiignore");
+    expect(putParsed.content).toContain("node_modules/");
+
+    const getResult = await rulesyncTool.execute({
+      feature: "ignore",
+      operation: "get",
+    });
+
+    const getParsed = JSON.parse(getResult);
+    expect(getParsed.content).toContain("node_modules/");
+    expect(getParsed.content).toContain(".env");
+
+    const deleteResult = await rulesyncTool.execute({
+      feature: "ignore",
+      operation: "delete",
+    });
+
+    const deleteParsed = JSON.parse(deleteResult);
+    expect(deleteParsed.relativePathFromCwd).toBe(".rulesync/.aiignore");
+
+    // Verify the file is deleted by checking get throws
+    await expect(
+      rulesyncTool.execute({
+        feature: "ignore",
+        operation: "get",
+      }),
+    ).rejects.toThrow();
   });
 
   it("rejects unsupported feature operations", async () => {
