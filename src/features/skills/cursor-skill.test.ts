@@ -203,4 +203,40 @@ This is the body of the cursor skill.`;
       expect(rulesyncSkill.getBody()).toBe("Test body");
     });
   });
+
+  describe("forDeletion", () => {
+    it("should create minimal instance for deletion", () => {
+      const skill = CursorSkill.forDeletion({
+        dirName: "cleanup",
+        relativeDirPath: join(".cursor", "skills"),
+      });
+
+      expect(skill.getDirName()).toBe("cleanup");
+      expect(skill.getRelativeDirPath()).toBe(join(".cursor", "skills"));
+      expect(skill.getGlobal()).toBe(false);
+    });
+
+    it("should use process.cwd() as default baseDir", () => {
+      const skill = CursorSkill.forDeletion({
+        dirName: "cleanup",
+        relativeDirPath: join(".cursor", "skills"),
+      });
+
+      expect(skill).toBeInstanceOf(CursorSkill);
+      expect(skill.getBaseDir()).toBe(testDir);
+    });
+
+    it("should create instance with empty frontmatter for deletion", () => {
+      const skill = CursorSkill.forDeletion({
+        dirName: "to-delete",
+        relativeDirPath: join(".cursor", "skills"),
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "",
+        description: "",
+      });
+      expect(skill.getBody()).toBe("");
+    });
+  });
 });
