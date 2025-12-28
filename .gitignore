@@ -244,6 +244,7 @@ modular-mcp.json
 **/.aiignore
 **/.opencode/memories/
 **/.opencode/command/
+**/.opencode/agent/
 **/.opencode/skills/
 **/opencode.json
 **/QWEN.md
