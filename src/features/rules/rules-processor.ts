@@ -18,7 +18,6 @@ import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
-import { CursorSkill } from "../skills/cursor-skill.js";
 import { GeminiCliSkill } from "../skills/geminicli-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
@@ -265,7 +264,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         ruleDiscoveryMode: "auto",
         additionalConventions: {
           subagents: { subagentClass: CursorSubagent },
-          skills: { skillClass: CursorSkill },
         },
         createsSeparateConventionsRule: true,
       },
