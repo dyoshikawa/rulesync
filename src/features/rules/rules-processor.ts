@@ -3,10 +3,8 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
-  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
-  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -834,7 +832,7 @@ s/<command> [arguments]
 This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.
 The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
 
-When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`, then execute the contents of that file as the block of operations.`
+When users call a custom slash command, you have to look for the markdown file, \`${join(commands.relativeDirPath, "{command}.md")}\`, then execute the contents of that file as the block of operations.`
       : "";
 
     const subagentsSection = subagents
@@ -842,9 +840,9 @@ When users call a custom slash command, you have to look for the markdown file, 
 
 Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
 
-When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`, and execute its contents as the block of operations.
+When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(subagents.relativeDirPath, "{subagent}.md")}\`, and execute its contents as the block of operations.
 
-For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`
+For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(subagents.relativeDirPath, "planner.md")}\`, and execute its contents as the block of operations.`
       : "";
 
     const skillsSection = skills ? this.generateSkillsSection(skills) : "";
