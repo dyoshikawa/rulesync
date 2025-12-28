@@ -156,7 +156,7 @@ function ensureBody({ body, feature, operation }: RulesyncToolArgs): string {
 export const rulesyncTool = {
   name: "rulesyncTool",
   description:
-    "Manage Rulesync files through a single MCP tool. Choose a feature (rule, command, subagent, skill, ignore, mcp), an operation (list/get/put/delete), and the target path.",
+    "Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill support list/get/put/delete; ignore/mcp support get/put/delete only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp).",
   parameters: rulesyncToolSchema,
   execute: async (args: RulesyncToolArgs) => {
     const parsed = rulesyncToolSchema.parse(args);
