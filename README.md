@@ -695,7 +695,8 @@ So, in this case, approximately 92% reduction in MCP tools consumption!
 
 Rulesync provides an MCP (Model Context Protocol) server that enables AI agents to manage your Rulesync files. This allows AI agents to discover, read, create, update, and delete files dynamically.
 
-The MCP server exposes the only one tool to minimize your agent's token usage. Approximately less than 1k tokens for the tool definition.
+> [!NOTE]
+> The MCP server exposes the only one tool to minimize your agent's token usage. Approximately less than 1k tokens for the tool definition.
 
 ### Available Tools
 
