@@ -179,7 +179,7 @@ This is the body of the cursor skill.`;
   });
 
   describe("toRulesyncSkill", () => {
-    it("should throw error because CursorSkill is simulated", () => {
+    it("should convert to RulesyncSkill", () => {
       const skill = new CursorSkill({
         baseDir: testDir,
         relativeDirPath: join(".cursor", "skills"),
@@ -192,9 +192,15 @@ This is the body of the cursor skill.`;
         validate: true,
       });
 
-      expect(() => skill.toRulesyncSkill()).toThrow(
-        "Not implemented because it is a SIMULATED skill.",
-      );
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill).toBeInstanceOf(RulesyncSkill);
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test description",
+        targets: ["*"],
+      });
+      expect(rulesyncSkill.getBody()).toBe("Test body");
     });
   });
 });
