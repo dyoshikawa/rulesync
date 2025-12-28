@@ -691,9 +691,11 @@ Focus on the difference of MCP tools usage.
 So, in this case, approximately 92% reduction in MCP tools consumption!
 </details>
 
-## Rulesync MCP Server (Experimental)
+## Rulesync MCP Server
 
 Rulesync provides an MCP (Model Context Protocol) server that enables AI agents to manage your Rulesync files. This allows AI agents to discover, read, create, update, and delete files dynamically.
+
+The MCP server exposes the only one tool to minimize your agent's token usage. Approximately less than 1k tokens for the tool definition.
 
 ### Available Tools
 
@@ -702,40 +704,40 @@ The Rulesync MCP server provides the following tools:
 <details>
 <summary>Rules Management</summary>
 
-- `listRules` - List all rule files
-- `getRule` - Get a specific rule file
-- `putRule` - Create or update a rule file
-- `deleteRule` - Delete a rule file
+- `list` - List all rule files
+- `get` - Get a specific rule file
+- `put` - Create or update a rule file
+- `delete` - Delete a rule file
 
 </details>
 
 <details>
 <summary>Commands Management</summary>
 
-- `listCommands` - List all command files
-- `getCommand` - Get a specific command file
-- `putCommand` - Create or update a command file
-- `deleteCommand` - Delete a command file
+- `list` - List all command files
+- `get` - Get a specific command file
+- `put` - Create or update a command file
+- `delete` - Delete a command file
 
 </details>
 
 <details>
 <summary>Subagents Management</summary>
 
-- `listSubagents` - List all subagent files
-- `getSubagent` - Get a specific subagent file
-- `putSubagent` - Create or update a subagent file
-- `deleteSubagent` - Delete a subagent file
+- `list` - List all subagent files
+- `get` - Get a specific subagent file
+- `put` - Create or update a subagent file
+- `delete` - Delete a subagent file
 
 </details>
 
 <details>
 <summary>Skills Management</summary>
 
-- `listSkills` - List all skill directories
-- `getSkill` - Get a specific skill (SKILL.md and other files)
-- `putSkill` - Create or update a skill directory
-- `deleteSkill` - Delete a skill directory
+- `list` - List all skill directories
+- `get` - Get a specific skill (SKILL.md and other files)
+- `put` - Create or update a skill directory
+- `delete` - Delete a skill directory
 
 </details>
 
