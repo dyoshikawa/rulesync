@@ -7,7 +7,7 @@ globs: ["**/*"]
 
 # Guidelines for Adding or Modifying Features
 
-- Keep the README star table and the “each file format” section synchronized with the implemented functionality.
+- Keep the README star table and the “Each File Format” section in the README synchronized with the implemented functionality.
 - Check whether `rules-processor.ts` needs an updated Additional Convention, especially the `supportsSimulated` and `supportsGlobal` values within `additionalConvention`.
 - Review frontmatter in both rulesync files (`rulesync-*.ts`) and tool files (`[toolname]-*.ts`). For overlapping parameters (e.g., `description`), prefer the rulesync value by default, but if the tool file defines the parameter, that tool-specific value takes precedence.
 - Evaluate whether `gitignore.ts` needs additions or changes in its generated output.
