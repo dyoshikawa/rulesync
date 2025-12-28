@@ -59,6 +59,16 @@
       ],
       "enabled": true,
       "environment": {}
+    },
+    "rulesync": {
+      "type": "local",
+      "command": [
+        "pnpm",
+        "dev",
+        "mcp"
+      ],
+      "enabled": true,
+      "environment": {}
     }
   }
 }
