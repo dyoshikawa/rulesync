@@ -10,6 +10,7 @@ import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCommand } from "./antigravity-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
+import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
@@ -57,6 +58,7 @@ const commandsProcessorToolTargetTuple = [
   "agentsmd",
   "antigravity",
   "claudecode",
+  "cline",
   "codexcli",
   "copilot",
   "cursor",
@@ -93,6 +95,13 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     "claudecode",
     {
       class: ClaudecodeCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClineCommand,
       meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
     },
   ],

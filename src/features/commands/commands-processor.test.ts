@@ -5,6 +5,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
+import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
@@ -47,6 +48,11 @@ vi.mock("./opencode-command.js", () => ({
 }));
 vi.mock("./roo-command.js", () => ({
   RooCommand: vi.fn().mockImplementation(function (config) {
+    return { ...config, isDeletable: () => true };
+  }),
+}));
+vi.mock("./cline-command.js", () => ({
+  ClineCommand: vi.fn().mockImplementation(function (config) {
     return { ...config, isDeletable: () => true };
   }),
 }));
@@ -119,6 +125,21 @@ vi.mocked(RooCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: join(".roo", "commands") });
 vi.mocked(RooCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
+
+// Set up static methods after mocking
+vi.mocked(ClineCommand).fromFile = vi.fn();
+vi.mocked(ClineCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(ClineCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
+vi.mocked(ClineCommand).getSettablePaths = vi.fn().mockImplementation((options = {}) => ({
+  relativeDirPath: options.global
+    ? join("Documents", "Cline", "Workflows")
+    : join(".clinerules", "workflows"),
+}));
+vi.mocked(ClineCommand).forDeletion = vi.fn().mockImplementation((params) => ({
   ...params,
   isDeletable: () => true,
   getRelativeFilePath: () => params.relativeFilePath,
@@ -759,7 +780,16 @@ describe("CommandsProcessor", () => {
     it("should exclude simulated targets by default", () => {
       const targets = CommandsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
-        new Set(["antigravity", "claudecode", "geminicli", "opencode", "roo", "copilot", "cursor"]),
+        new Set([
+          "antigravity",
+          "claudecode",
+          "cline",
+          "copilot",
+          "cursor",
+          "geminicli",
+          "opencode",
+          "roo",
+        ]),
       );
     });
 
@@ -770,6 +800,7 @@ describe("CommandsProcessor", () => {
           "agentsmd",
           "antigravity",
           "claudecode",
+          "cline",
           "geminicli",
           "opencode",
           "roo",
@@ -784,7 +815,7 @@ describe("CommandsProcessor", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
       expect(new Set(targets)).toEqual(
-        new Set(["claudecode", "cursor", "geminicli", "codexcli", "opencode"]),
+        new Set(["claudecode", "cline", "cursor", "geminicli", "codexcli", "opencode"]),
       );
     });
   });
@@ -811,7 +842,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should work for all supported tool targets", async () => {
-      const targets: CommandsProcessorToolTarget[] = ["claudecode", "geminicli", "roo"];
+      const targets: CommandsProcessorToolTarget[] = ["claudecode", "cline", "geminicli", "roo"];
 
       for (const target of targets) {
         processor = new CommandsProcessor({
