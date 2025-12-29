@@ -822,7 +822,7 @@ pnpm dev generate
 
 ### How to add support for a new Tool/Feature
 
-To add support for a new Tool/Feature, you can following steps:
+To add support for a new Tool/Feature, you can follow these steps:
 
 1. Create `src/features/{feature}/{tool}-{feature}.ts` and implement with reference to existing files.
 2. Modify `src/features/{feature}/{feature}-processor.ts` to incorporate the `{tool}-{feature}.ts` implementation.
