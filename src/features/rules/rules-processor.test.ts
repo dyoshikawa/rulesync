@@ -576,10 +576,16 @@ Content that would fail parsing`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, claudecode-legacy, codexcli and geminicli as global targets", () => {
+    it("should return claudecode, claudecode-legacy, codexcli, geminicli and kilo as global targets", () => {
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
-      expect(globalTargets).toEqual(["claudecode", "claudecode-legacy", "codexcli", "geminicli"]);
+      expect(globalTargets).toEqual([
+        "claudecode",
+        "claudecode-legacy",
+        "codexcli",
+        "geminicli",
+        "kilo",
+      ]);
     });
 
     it("should return a subset of regular tool targets", () => {
@@ -603,7 +609,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("geminicli");
-      expect(globalTargets.length).toBe(4);
+      expect(globalTargets).toContain("kilo");
+      expect(globalTargets.length).toBe(5);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

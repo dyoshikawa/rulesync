@@ -136,6 +136,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    ✅   |
 | OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |   ✅ 🌏    |   ✅ 🌏  |
 | Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
+| Kilo Code              |  ✅ 🌏   |        |       |          |          |        |
 | Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |        |
 | Qwen Code              |  ✅   |   ✅   |       |         |          |        |
 | Kiro IDE               |  ✅   |   ✅   |      |         |          |        |
@@ -322,6 +323,10 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ...
 ```
+
+### `.kilocode/rules/*.md` (Kilo Code)
+
+Kilo Code loads project rules from `.kilocode/rules/` and global rules from `~/.kilocode/rules/`. The tool also supports mode-specific directories like `.kilocode/rules-{mode}` and legacy single-file fallbacks such as `.kilocoderules-{mode}` (or `.kilocoderules`, `.clinerules`, and `.roorules`), but Rulesync generates the directory-based layout by default.
 
 ### `rulesync/commands/*.md`
 

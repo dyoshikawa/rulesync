@@ -40,6 +40,7 @@ import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
 import { JunieRule } from "./junie-rule.js";
+import { KiloRule } from "./kilo-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
@@ -70,6 +71,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "cursor",
   "geminicli",
   "junie",
+  "kilo",
   "kiro",
   "opencode",
   "qwencode",
@@ -289,6 +291,13 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     {
       class: JunieRule,
       meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+    },
+  ],
+  [
+    "kilo",
+    {
+      class: KiloRule,
+      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "auto" },
     },
   ],
   [
