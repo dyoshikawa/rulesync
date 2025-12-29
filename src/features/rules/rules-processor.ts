@@ -28,7 +28,6 @@ import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
-import { AmazonQCliRule } from "./amazonqcli-rule.js";
 import { AntigravityRule } from "./antigravity-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
@@ -178,13 +177,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
           skills: { skillClass: AgentsmdSkill },
         },
       },
-    },
-  ],
-  [
-    "amazonqcli",
-    {
-      class: AmazonQCliRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
   [
