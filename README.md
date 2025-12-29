@@ -826,7 +826,7 @@ To add support for a new Tool/Feature, you can following steps:
 
 1. Create `src/features/{feature}/{tool}-{feature}.ts` and implement with reference to existing files.
 2. Modify `src/features/{feature}/{feature}-processor.ts` to incorporate the `{tool}-{feature}.ts` implementation.
-3. With reference to [.rulesync/rules/feature-change-guidelines.md], modify related files such as `README.md` and `src/cli/commands/gitignore.ts` especially.
+3. With reference to [.rulesync/rules/feature-change-guidelines.md](.rulesync/rules/feature-change-guidelines.md), modify related files such as `README.md` and `src/cli/commands/gitignore.ts` especially.
 
 ## FAQ
 
