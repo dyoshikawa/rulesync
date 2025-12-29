@@ -72,11 +72,11 @@
 		"consola": "3.4.2",
 		"effect": "3.19.13",
 		"es-toolkit": "1.43.0",
-		"fastmcp": "3.25.4",
+		"fastmcp": "3.26.7",
 		"gray-matter": "4.0.3",
 		"js-yaml": "4.1.1",
 		"jsonc-parser": "3.3.1",
-		"smol-toml": "1.5.2",
+		"smol-toml": "1.6.0",
 		"sury": "11.0.0-alpha.4",
 		"zod": "4.2.1"
 	},
