@@ -791,7 +791,7 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 
 Issues and Pull Requests are welcome!
 
-For development setup:
+### Development Setup
 
 ```bash
 git clone https://github.com/dyoshikawa/rulesync # Should be your fork repository url actually
@@ -819,6 +819,14 @@ However, this project is for English speaking people. So when you write any code
 EOF
 pnpm dev generate
 ```
+
+### How to add support for a new Tool/Feature
+
+To add support for a new Tool/Feature, you can following steps:
+
+1. Create `src/features/{feature}/{tool}-{feature}.ts` and implement with reference to existing files.
+2. Modify `src/features/{feature}/{feature}-processor.ts` to incorporate the `{tool}-{feature}.ts` implementation.
+3. With reference to [.rulesync/rules/feature-change-guidelines.md], modify related files such as `README.md` and `src/cli/commands/gitignore.ts` especially.
 
 ## FAQ
 
