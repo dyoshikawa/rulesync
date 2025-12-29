@@ -33,6 +33,7 @@ import {
 const mcpProcessorToolTargetTuple = [
   "amazonqcli",
   "claudecode",
+  "claudecode-legacy",
   "cline",
   "codexcli",
   "copilot",
@@ -85,6 +86,13 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
   ],
   [
     "claudecode",
+    {
+      class: ClaudecodeMcp,
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: true },
+    },
+  ],
+  [
+    "claudecode-legacy",
     {
       class: ClaudecodeMcp,
       meta: { supportsProject: true, supportsGlobal: true, supportsModular: true },

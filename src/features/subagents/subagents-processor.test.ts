@@ -826,6 +826,7 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("claudecode-legacy");
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("opencode");
       expect(toolTargets).not.toContain("cursor");
@@ -837,6 +838,7 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("claudecode-legacy");
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("opencode");
       expect(toolTargets).not.toContain("cursor");
@@ -848,6 +850,7 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("claudecode-legacy");
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("cursor");
       expect(toolTargets).toContain("codexcli");
@@ -865,7 +868,7 @@ Second global content`;
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
-      expect(toolTargets).toEqual(["claudecode", "opencode"]);
+      expect(toolTargets).toEqual(["claudecode", "claudecode-legacy", "opencode"]);
     });
 
     it("should not include simulated targets", () => {
@@ -889,6 +892,7 @@ Second global content`;
     it("should export SubagentsProcessorToolTargetSchema", () => {
       expect(SubagentsProcessorToolTargetSchema).toBeDefined();
       expect(() => SubagentsProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
+      expect(() => SubagentsProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => SubagentsProcessorToolTargetSchema.parse("invalid")).toThrow();
     });
 
@@ -897,6 +901,7 @@ Second global content`;
         new Set([
           "agentsmd",
           "claudecode",
+          "claudecode-legacy",
           "codexcli",
           "copilot",
           "cursor",
@@ -919,6 +924,7 @@ Second global content`;
       const validTargets: SubagentsProcessorToolTarget[] = [
         "agentsmd",
         "claudecode",
+        "claudecode-legacy",
         "copilot",
         "cursor",
         "codexcli",

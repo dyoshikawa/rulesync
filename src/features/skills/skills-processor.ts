@@ -52,6 +52,7 @@ type ToolSkillFactory = {
 const skillsProcessorToolTargetTuple = [
   "agentsmd",
   "claudecode",
+  "claudecode-legacy",
   "codexcli",
   "copilot",
   "cursor",
@@ -78,6 +79,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
   ],
   [
     "claudecode",
+    {
+      class: ClaudecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "claudecode-legacy",
     {
       class: ClaudecodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },

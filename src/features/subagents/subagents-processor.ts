@@ -52,6 +52,7 @@ type ToolSubagentFactory = {
 const subagentsProcessorToolTargetTuple = [
   "agentsmd",
   "claudecode",
+  "claudecode-legacy",
   "codexcli",
   "copilot",
   "cursor",
@@ -76,6 +77,10 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
   ],
   [
     "claudecode",
+    { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+  ],
+  [
+    "claudecode-legacy",
     { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
   ],
   [
