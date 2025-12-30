@@ -30,7 +30,6 @@ import {
  * Using a tuple to preserve order for consistent iteration.
  */
 const mcpProcessorToolTargetTuple = [
-  
   "claudecode",
   "claudecode-legacy",
   "cline",
