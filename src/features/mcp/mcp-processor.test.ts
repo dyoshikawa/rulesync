@@ -854,7 +854,6 @@ describe("McpProcessor", () => {
     it("should return supported tool targets", () => {
       const targets = McpProcessor.getToolTargets();
 
-      expect(targets).toContain("amazonqcli");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("claudecode-legacy");
       expect(targets).toContain("cline");
@@ -869,7 +868,6 @@ describe("McpProcessor", () => {
     it("should validate valid tool targets", () => {
       expect(() => McpProcessorToolTargetSchema.parse("copilot")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cursor")).not.toThrow();
-      expect(() => McpProcessorToolTargetSchema.parse("amazonqcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
@@ -913,7 +911,6 @@ describe("McpProcessor", () => {
         "cursor",
         "roo",
       ];
-
       for (const target of targets) {
         const processor = new McpProcessor({
           baseDir: testDir,
