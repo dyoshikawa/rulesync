@@ -55,6 +55,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.opencode/agent/");
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
+      expect(content).toContain("**/.kilocode/rules/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
       expect(content).toContain("**/.github/agents/");
@@ -222,6 +223,7 @@ dist/`;
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
+**/.kilocode/rules/
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/
@@ -261,6 +263,7 @@ dist/`;
 
       expect(logger.info).toHaveBeenCalledWith("  **/.amazonq/");
       expect(logger.info).toHaveBeenCalledWith("  **/.cursor/");
+      expect(logger.info).toHaveBeenCalledWith("  **/.kilocode/rules/");
       expect(logger.info).toHaveBeenCalledWith("  **/.opencode/agent/");
       expect(logger.info).toHaveBeenCalledWith("  **/CLAUDE.md");
     });
