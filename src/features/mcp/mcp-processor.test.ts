@@ -853,7 +853,6 @@ describe("McpProcessor", () => {
   describe("getToolTargets", () => {
     it("should return supported tool targets", () => {
       const targets = McpProcessor.getToolTargets();
-
       expect(targets).toContain("claudecode");
       expect(targets).toContain("claudecode-legacy");
       expect(targets).toContain("cline");
