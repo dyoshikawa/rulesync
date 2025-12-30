@@ -51,6 +51,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.amazonq/");
       expect(content).toContain("**/.cursor/");
       expect(content).toContain("**/.clinerules/");
+      expect(content).toContain("**/.clinerules/workflows/");
       expect(content).toContain("**/CLAUDE.md");
       expect(content).toContain("**/.opencode/agent/");
       expect(content).toContain("**/.gemini/memories/");
@@ -201,6 +202,7 @@ dist/`;
 **/.claude/settings.local.json
 **/.mcp.json
 **/.clinerules/
+**/.clinerules/workflows/
 **/.clineignore
 **/.cline/mcp.json
 **/.codexignore
