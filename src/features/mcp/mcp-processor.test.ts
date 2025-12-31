@@ -236,6 +236,32 @@ describe("McpProcessor", () => {
         });
       });
 
+      it("should load ClaudecodeMcp files for claudecode-legacy target", async () => {
+        const mockMcp = new ClaudecodeMcp({
+          baseDir: testDir,
+          relativeDirPath: ".claudecode",
+          relativeFilePath: "mcp.json",
+          fileContent: JSON.stringify({ servers: {} }),
+        });
+
+        vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
+
+        const processor = new McpProcessor({
+          baseDir: testDir,
+          toolTarget: "claudecode-legacy",
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: false,
+        });
+      });
+
       it("should load ClaudecodeMcp files in global mode", async () => {
         const mockMcp = new ClaudecodeMcp({
           baseDir: testDir,
@@ -901,6 +927,7 @@ describe("McpProcessor", () => {
 
       expect(targets).toContain("amazonqcli");
       expect(targets).toContain("claudecode");
+      expect(targets).toContain("claudecode-legacy");
       expect(targets).toContain("cline");
       expect(targets).toContain("copilot");
       expect(targets).toContain("cursor");
@@ -915,6 +942,7 @@ describe("McpProcessor", () => {
       expect(() => McpProcessorToolTargetSchema.parse("cursor")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("amazonqcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
+      expect(() => McpProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("codexcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("roo")).not.toThrow();
@@ -951,6 +979,7 @@ describe("McpProcessor", () => {
       const targets: McpProcessorToolTarget[] = [
         "amazonqcli",
         "claudecode",
+        "claudecode-legacy",
         "cline",
         "copilot",
         "cursor",

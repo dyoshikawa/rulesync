@@ -626,19 +626,31 @@ Content that would fail parsing`;
   describe("getToolTargets", () => {
     it("should return supported non-simulated project targets by default", () => {
       const targets = SkillsProcessor.getToolTargets();
-      expect(new Set(targets)).toEqual(new Set(["claudecode", "copilot", "cursor", "opencode"]));
+      expect(new Set(targets)).toEqual(
+        new Set(["claudecode", "claudecode-legacy", "copilot", "cursor", "opencode"]),
+      );
     });
 
     it("should return all targets including simulated when includeSimulated is true", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: true });
       expect(new Set(targets)).toEqual(
-        new Set(["agentsmd", "claudecode", "copilot", "cursor", "geminicli", "opencode"]),
+        new Set([
+          "agentsmd",
+          "claudecode",
+          "claudecode-legacy",
+          "copilot",
+          "cursor",
+          "geminicli",
+          "opencode",
+        ]),
       );
     });
 
     it("should return only non-simulated targets when includeSimulated is false", () => {
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: false });
-      expect(new Set(targets)).toEqual(new Set(["claudecode", "copilot", "cursor", "opencode"]));
+      expect(new Set(targets)).toEqual(
+        new Set(["claudecode", "claudecode-legacy", "copilot", "cursor", "opencode"]),
+      );
     });
 
     it("should be callable without instance", () => {
@@ -656,7 +668,7 @@ Content that would fail parsing`;
   describe("getToolTargetsGlobal", () => {
     it("should return global targets in global mode", () => {
       const targets = SkillsProcessor.getToolTargetsGlobal();
-      expect(targets).toEqual(["claudecode", "codexcli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "claudecode-legacy", "codexcli", "opencode"]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
   });
@@ -664,7 +676,7 @@ Content that would fail parsing`;
   describe("getToolTargets with global: true", () => {
     it("should return global targets when global option is true", () => {
       const targets = SkillsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["claudecode", "codexcli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "claudecode-legacy", "codexcli", "opencode"]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
 
@@ -677,6 +689,7 @@ Content that would fail parsing`;
     it("should export SkillsProcessorToolTargetSchema", () => {
       expect(SkillsProcessorToolTargetSchema).toBeDefined();
       expect(() => SkillsProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
+      expect(() => SkillsProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("opencode")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("invalid")).toThrow();
     });

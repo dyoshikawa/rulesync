@@ -161,6 +161,15 @@ describe("CommandsProcessor", () => {
       expect(processor).toBeInstanceOf(CommandsProcessor);
     });
 
+    it("should create instance with claudecode-legacy tool target", () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode-legacy",
+      });
+
+      expect(processor).toBeInstanceOf(CommandsProcessor);
+    });
+
     it("should throw error for invalid tool target", () => {
       expect(() => {
         processor = new CommandsProcessor({
@@ -759,7 +768,16 @@ describe("CommandsProcessor", () => {
     it("should exclude simulated targets by default", () => {
       const targets = CommandsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
-        new Set(["antigravity", "claudecode", "geminicli", "opencode", "roo", "copilot", "cursor"]),
+        new Set([
+          "antigravity",
+          "claudecode",
+          "claudecode-legacy",
+          "geminicli",
+          "opencode",
+          "roo",
+          "copilot",
+          "cursor",
+        ]),
       );
     });
 
@@ -770,6 +788,7 @@ describe("CommandsProcessor", () => {
           "agentsmd",
           "antigravity",
           "claudecode",
+          "claudecode-legacy",
           "geminicli",
           "opencode",
           "roo",
@@ -784,7 +803,7 @@ describe("CommandsProcessor", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
       expect(new Set(targets)).toEqual(
-        new Set(["claudecode", "cursor", "geminicli", "codexcli", "opencode"]),
+        new Set(["claudecode", "claudecode-legacy", "cursor", "geminicli", "codexcli", "opencode"]),
       );
     });
   });
@@ -811,7 +830,12 @@ describe("CommandsProcessor", () => {
     });
 
     it("should work for all supported tool targets", async () => {
-      const targets: CommandsProcessorToolTarget[] = ["claudecode", "geminicli", "roo"];
+      const targets: CommandsProcessorToolTarget[] = [
+        "claudecode",
+        "claudecode-legacy",
+        "geminicli",
+        "roo",
+      ];
 
       for (const target of targets) {
         processor = new CommandsProcessor({
