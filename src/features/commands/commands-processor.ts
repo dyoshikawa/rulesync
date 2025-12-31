@@ -57,6 +57,7 @@ const commandsProcessorToolTargetTuple = [
   "agentsmd",
   "antigravity",
   "claudecode",
+  "claudecode-legacy",
   "codexcli",
   "copilot",
   "cursor",
@@ -91,6 +92,13 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
   ],
   [
     "claudecode",
+    {
+      class: ClaudecodeCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "claudecode-legacy",
     {
       class: ClaudecodeCommand,
       meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
