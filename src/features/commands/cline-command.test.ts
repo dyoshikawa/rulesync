@@ -53,6 +53,21 @@ Step 1`;
         relativeDirPath: join(testDir, "Documents", "Cline", "Workflows"),
       });
     });
+
+    it("should throw when global path cannot be determined", () => {
+      const previousHome = process.env.HOME;
+      const previousUserProfile = process.env.USERPROFILE;
+
+      delete process.env.HOME;
+      delete process.env.USERPROFILE;
+
+      expect(() => ClineCommand.getSettablePaths({ global: true })).toThrow(
+        "Cannot resolve home directory for global Cline workflows. Please set HOME or USERPROFILE.",
+      );
+
+      process.env.HOME = previousHome;
+      process.env.USERPROFILE = previousUserProfile;
+    });
   });
 
   describe("constructor", () => {
@@ -95,7 +110,7 @@ Step 1`;
       const rulesyncCommand = clineCommand.toRulesyncCommand();
 
       expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
-      expect(rulesyncCommand.getFrontmatter().targets).toEqual(["cline"]);
+      expect(rulesyncCommand.getFrontmatter().targets).toEqual(["*"]);
       expect(rulesyncCommand.getBody()).toBe(validContent);
       expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
     });
