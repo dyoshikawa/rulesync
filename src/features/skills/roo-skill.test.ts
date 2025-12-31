@@ -29,11 +29,6 @@ describe("RooSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".roo", "skills"));
     });
 
-    it("should allow mode specific skills directory", () => {
-      const paths = RooSkill.getSettablePaths({ modeSlug: "code" });
-      expect(paths.relativeDirPath).toBe(join(".roo", "skills-code"));
-    });
-
     it("should return same path for global mode (Roo Code uses same structure)", () => {
       // Roo Code uses ~/.roo/skills/ for global and .roo/skills/ for project
       // The relative path structure is the same, only the base directory differs
@@ -41,13 +36,6 @@ describe("RooSkill", () => {
       const globalPaths = RooSkill.getSettablePaths({ global: true });
       expect(projectPaths.relativeDirPath).toBe(join(".roo", "skills"));
       expect(globalPaths.relativeDirPath).toBe(join(".roo", "skills"));
-    });
-
-    it("should return same path for global mode with modeSlug", () => {
-      const projectPaths = RooSkill.getSettablePaths({ global: false, modeSlug: "code" });
-      const globalPaths = RooSkill.getSettablePaths({ global: true, modeSlug: "code" });
-      expect(projectPaths.relativeDirPath).toBe(join(".roo", "skills-code"));
-      expect(globalPaths.relativeDirPath).toBe(join(".roo", "skills-code"));
     });
   });
 
@@ -133,7 +121,7 @@ Follow PDF extraction steps.`;
   });
 
   describe("fromRulesyncSkill", () => {
-    it("should create instance from RulesyncSkill with modeSlug path", () => {
+    it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
         baseDir: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -148,11 +136,10 @@ Follow PDF extraction steps.`;
 
       const rooSkill = RooSkill.fromRulesyncSkill({
         rulesyncSkill,
-        modeSlug: "code",
       });
 
       expect(rooSkill).toBeInstanceOf(RooSkill);
-      expect(rooSkill.getRelativeDirPath()).toBe(join(".roo", "skills-code"));
+      expect(rooSkill.getRelativeDirPath()).toBe(join(".roo", "skills"));
       expect(rooSkill.getFrontmatter().name).toBe("pdf-processing");
     });
   });
@@ -229,16 +216,6 @@ Follow PDF extraction steps.`;
 
       expect(skill.getDirName()).toBe("obsolete");
       expect(skill.getRelativeDirPath()).toBe(join(".roo", "skills"));
-    });
-
-    it("should use mode specific path when provided", () => {
-      const skill = RooSkill.forDeletion({
-        dirName: "obsolete",
-        relativeDirPath: join(".roo", "skills"),
-        modeSlug: "code",
-      });
-
-      expect(skill.getRelativeDirPath()).toBe(join(".roo", "skills-code"));
     });
   });
 });

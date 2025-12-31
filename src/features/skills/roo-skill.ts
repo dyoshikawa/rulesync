@@ -32,7 +32,7 @@ export type RooSkillParams = {
 
 /**
  * Represents a Roo Code skill directory.
- * Skills can be stored under .roo/skills or .roo/skills-{modeSlug} directories with SKILL.md files.
+ * Skills are stored under .roo/skills/ directories with SKILL.md files.
  */
 export class RooSkill extends ToolSkill {
   constructor({
@@ -68,18 +68,15 @@ export class RooSkill extends ToolSkill {
 
   static getSettablePaths({
     global: _global = false,
-    modeSlug,
   }: {
     global?: boolean;
-    modeSlug?: string;
   } = {}): ToolSkillSettablePaths {
-    // Note: Roo Code uses the same relative path structure for both project and global modes.
-    // Project: .roo/skills/ or .roo/skills-{modeSlug}/
-    // Global: ~/.roo/skills/ or ~/.roo/skills-{modeSlug}/
-    // The _global parameter is accepted for interface consistency but doesn't affect the path.
-    const skillsDir = modeSlug ? `skills-${modeSlug}` : "skills";
+    // Roo Code skills use the same relative path for both project and global modes
+    // The actual location differs based on baseDir:
+    // - Project mode: {process.cwd()}/.roo/skills/
+    // - Global mode: {getHomeDirectory()}/.roo/skills/
     return {
-      relativeDirPath: join(".roo", skillsDir),
+      relativeDirPath: join(".roo", "skills"),
     };
   }
 
@@ -149,9 +146,8 @@ export class RooSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
-    modeSlug,
-  }: ToolSkillFromRulesyncSkillParams & { modeSlug?: string }): RooSkill {
-    const settablePaths = RooSkill.getSettablePaths({ global, modeSlug });
+  }: ToolSkillFromRulesyncSkillParams): RooSkill {
+    const settablePaths = RooSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const rooFrontmatter: RooSkillFrontmatter = {
@@ -176,19 +172,10 @@ export class RooSkill extends ToolSkill {
     return targets.includes("*") || targets.includes("roo");
   }
 
-  static async fromDir({
-    baseDir = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-    modeSlug,
-  }: ToolSkillFromDirParams & { modeSlug?: string }): Promise<RooSkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<RooSkill> {
     const loaded = await this.loadSkillDirContent({
-      baseDir,
-      relativeDirPath,
-      dirName,
-      global,
-      getSettablePaths: (options) => RooSkill.getSettablePaths({ ...options, modeSlug }),
+      ...params,
+      getSettablePaths: RooSkill.getSettablePaths,
     });
 
     const result = RooSkillFrontmatterSchema.safeParse(loaded.frontmatter);
@@ -228,14 +215,10 @@ export class RooSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     global = false,
-    modeSlug,
-  }: ToolSkillForDeletionParams & { modeSlug?: string }): RooSkill {
-    const settablePaths = RooSkill.getSettablePaths({ global, modeSlug });
-    const resolvedRelativeDirPath =
-      modeSlug !== undefined ? settablePaths.relativeDirPath : relativeDirPath;
+  }: ToolSkillForDeletionParams): RooSkill {
     return new RooSkill({
       baseDir,
-      relativeDirPath: resolvedRelativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",
