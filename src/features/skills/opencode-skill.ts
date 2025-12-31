@@ -34,7 +34,7 @@ export type OpenCodeSkillParams = {
 export class OpenCodeSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
-    relativeDirPath = join(".opencode", "skills"),
+    relativeDirPath = join(".opencode", "skill"),
     dirName,
     frontmatter,
     body,
@@ -65,7 +65,7 @@ export class OpenCodeSkill extends ToolSkill {
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "opencode", "skills") : join(".opencode", "skills"),
+      relativeDirPath: global ? join(".config", "opencode", "skill") : join(".opencode", "skill"),
     };
   }
 
