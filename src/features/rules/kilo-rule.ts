@@ -22,7 +22,7 @@ export type KiloRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
  * Supports both project-level and global rules using the `.kilocode/rules` directory.
  */
 export class KiloRule extends ToolRule {
-  static getSettablePaths(): KiloRuleSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): KiloRuleSettablePaths {
     return {
       nonRoot: {
         relativeDirPath: join(".kilocode", "rules"),

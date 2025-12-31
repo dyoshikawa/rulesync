@@ -107,4 +107,14 @@ describe("KiloRule", () => {
       expect(KiloRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
     });
   });
+
+  describe("getSettablePaths", () => {
+    it("should return the same paths for both project and global mode", () => {
+      const projectPaths = KiloRule.getSettablePaths();
+      const globalPaths = KiloRule.getSettablePaths({ global: true });
+
+      expect(projectPaths.nonRoot.relativeDirPath).toBe(".kilocode/rules");
+      expect(globalPaths.nonRoot.relativeDirPath).toBe(".kilocode/rules");
+    });
+  });
 });
