@@ -135,7 +135,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    ✅      |    ✅   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    ✅   |
 | OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |   ✅ 🌏    |   ✅ 🌏  |
-| Cline                  |  ✅    |   ✅    |  ✅    |          |          |        |
+| Cline                  |  ✅    |   ✅    |  ✅    |     ✅ 🌏  |          |        |
 | Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |   ✅ 🌏  |
 | Qwen Code              |  ✅   |   ✅   |       |         |          |        |
 | Kiro IDE               |  ✅   |   ✅   |      |         |          |        |
