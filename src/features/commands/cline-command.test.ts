@@ -50,23 +50,8 @@ Step 1`;
       const paths = ClineCommand.getSettablePaths({ global: true });
 
       expect(paths).toEqual({
-        relativeDirPath: join(testDir, "Documents", "Cline", "Workflows"),
+        relativeDirPath: join("Documents", "Cline", "Workflows"),
       });
-    });
-
-    it("should throw when global path cannot be determined", () => {
-      const previousHome = process.env.HOME;
-      const previousUserProfile = process.env.USERPROFILE;
-
-      delete process.env.HOME;
-      delete process.env.USERPROFILE;
-
-      expect(() => ClineCommand.getSettablePaths({ global: true })).toThrow(
-        "Cannot resolve home directory for global Cline workflows. Please set HOME or USERPROFILE.",
-      );
-
-      process.env.HOME = previousHome;
-      process.env.USERPROFILE = previousUserProfile;
     });
   });
 
@@ -170,8 +155,9 @@ Step 1`;
     });
 
     it("should load global workflows when global is true", async () => {
-      const globalDir = join(testDir, "Documents", "Cline", "Workflows");
-      const filePath = join(globalDir, "global.md");
+      const globalDir = join("Documents", "Cline", "Workflows");
+      const absoluteGlobalDir = join(testDir, globalDir);
+      const filePath = join(absoluteGlobalDir, "global.md");
       await writeFileContent(filePath, validContent);
 
       const command = await ClineCommand.fromFile({

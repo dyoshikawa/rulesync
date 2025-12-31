@@ -1,6 +1,6 @@
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, join } from "node:path";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { checkPathTraversal, readFileContent } from "../../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -16,18 +16,8 @@ export type ClineCommandParams = AiFileParams;
 export class ClineCommand extends ToolCommand {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
     if (global) {
-      const homeDir = process.env.HOME ?? process.env.USERPROFILE;
-
-      if (!homeDir) {
-        throw new Error(
-          "Cannot resolve home directory for global Cline workflows. Please set HOME or USERPROFILE.",
-        );
-      }
-
-      const resolvedHomeDir = resolve(homeDir);
-
       return {
-        relativeDirPath: join(resolvedHomeDir, "Documents", "Cline", "Workflows"),
+        relativeDirPath: join("Documents", "Cline", "Workflows"),
       };
     }
 
@@ -92,16 +82,9 @@ export class ClineCommand extends ToolCommand {
     global = false,
   }: ToolCommandFromFileParams): Promise<ClineCommand> {
     const paths = this.getSettablePaths({ global });
-    const basePath = isAbsolute(paths.relativeDirPath)
-      ? paths.relativeDirPath
-      : join(baseDir, paths.relativeDirPath);
-
-    checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: basePath });
-
-    const filePath = join(basePath, relativeFilePath);
+    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
-
     const { body: content } = parseFrontmatter(fileContent);
 
     return new ClineCommand({
