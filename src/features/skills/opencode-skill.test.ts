@@ -31,7 +31,7 @@ describe("OpenCodeSkill", () => {
     it("should create instance with valid content", () => {
       const skill = new OpenCodeSkill({
         baseDir: testDir,
-        relativeDirPath: join(".opencode", "skills"),
+        relativeDirPath: join(".opencode", "skill"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -53,7 +53,7 @@ describe("OpenCodeSkill", () => {
     it("should create instance without validation when validate is false", () => {
       const skill = new OpenCodeSkill({
         baseDir: testDir,
-        relativeDirPath: join(".opencode", "skills"),
+        relativeDirPath: join(".opencode", "skill"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -70,7 +70,7 @@ describe("OpenCodeSkill", () => {
       expect(() => {
         new OpenCodeSkill({
           baseDir: testDir,
-          relativeDirPath: join(".opencode", "skills"),
+          relativeDirPath: join(".opencode", "skill"),
           dirName: "test-skill",
           frontmatter: {
             name: "",
@@ -87,10 +87,10 @@ describe("OpenCodeSkill", () => {
   describe("getSettablePaths", () => {
     it("should return project and global paths", () => {
       expect(OpenCodeSkill.getSettablePaths()).toEqual({
-        relativeDirPath: join(".opencode", "skills"),
+        relativeDirPath: join(".opencode", "skill"),
       });
       expect(OpenCodeSkill.getSettablePaths({ global: true })).toEqual({
-        relativeDirPath: join(".config", "opencode", "skills"),
+        relativeDirPath: join(".config", "opencode", "skill"),
       });
     });
   });
@@ -141,7 +141,7 @@ describe("OpenCodeSkill", () => {
       });
 
       expect(skill).toBeInstanceOf(OpenCodeSkill);
-      expect(skill.getRelativeDirPath()).toBe(join(".opencode", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".opencode", "skill"));
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
 
@@ -167,14 +167,14 @@ describe("OpenCodeSkill", () => {
       });
 
       expect(skill).toBeInstanceOf(OpenCodeSkill);
-      expect(skill.getRelativeDirPath()).toBe(join(".config", "opencode", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".config", "opencode", "skill"));
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
   });
 
   describe("fromDir", () => {
     it("should create instance from valid skill directory", async () => {
-      const skillDir = join(testDir, ".opencode", "skills", "test-skill");
+      const skillDir = join(testDir, ".opencode", "skill", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
