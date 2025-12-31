@@ -27,6 +27,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.mcp.json",
   // Cline
   "**/.clinerules/",
+  "**/.clinerules/workflows/",
   "**/.clineignore",
   "**/.cline/mcp.json",
   // Codex
