@@ -826,7 +826,15 @@ describe("CommandsProcessor", () => {
     it("should return claudecode and cursor for global mode", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
       expect(new Set(targets)).toEqual(
-        new Set(["claudecode", "claudecode-legacy", "cline", "cursor", "geminicli", "codexcli", "opencode"]),
+        new Set([
+          "claudecode",
+          "claudecode-legacy",
+          "cline",
+          "cursor",
+          "geminicli",
+          "codexcli",
+          "opencode",
+        ]),
       );
     });
   });
