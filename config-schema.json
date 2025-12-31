@@ -17,7 +17,6 @@
         "type": "string",
         "enum": [
           "agentsmd",
-          "amazonqcli",
           "antigravity",
           "augmentcode",
           "augmentcode-legacy",
