@@ -57,7 +57,6 @@ import { WindsurfRule } from "./windsurf-rule.js";
 
 const rulesProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
-  "amazonqcli",
   "antigravity",
   "augmentcode",
   "augmentcode-legacy",
