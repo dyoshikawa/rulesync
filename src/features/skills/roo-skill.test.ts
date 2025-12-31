@@ -33,6 +33,22 @@ describe("RooSkill", () => {
       const paths = RooSkill.getSettablePaths({ modeSlug: "code" });
       expect(paths.relativeDirPath).toBe(join(".roo", "skills-code"));
     });
+
+    it("should return same path for global mode (Roo Code uses same structure)", () => {
+      // Roo Code uses ~/.roo/skills/ for global and .roo/skills/ for project
+      // The relative path structure is the same, only the base directory differs
+      const projectPaths = RooSkill.getSettablePaths({ global: false });
+      const globalPaths = RooSkill.getSettablePaths({ global: true });
+      expect(projectPaths.relativeDirPath).toBe(join(".roo", "skills"));
+      expect(globalPaths.relativeDirPath).toBe(join(".roo", "skills"));
+    });
+
+    it("should return same path for global mode with modeSlug", () => {
+      const projectPaths = RooSkill.getSettablePaths({ global: false, modeSlug: "code" });
+      const globalPaths = RooSkill.getSettablePaths({ global: true, modeSlug: "code" });
+      expect(projectPaths.relativeDirPath).toBe(join(".roo", "skills-code"));
+      expect(globalPaths.relativeDirPath).toBe(join(".roo", "skills-code"));
+    });
   });
 
   describe("constructor", () => {

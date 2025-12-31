@@ -67,11 +67,16 @@ export class RooSkill extends ToolSkill {
   }
 
   static getSettablePaths({
+    global: _global = false,
     modeSlug,
   }: {
     global?: boolean;
     modeSlug?: string;
   } = {}): ToolSkillSettablePaths {
+    // Note: Roo Code uses the same relative path structure for both project and global modes.
+    // Project: .roo/skills/ or .roo/skills-{modeSlug}/
+    // Global: ~/.roo/skills/ or ~/.roo/skills-{modeSlug}/
+    // The _global parameter is accepted for interface consistency but doesn't affect the path.
     const skillsDir = modeSlug ? `skills-${modeSlug}` : "skills";
     return {
       relativeDirPath: join(".roo", skillsDir),
