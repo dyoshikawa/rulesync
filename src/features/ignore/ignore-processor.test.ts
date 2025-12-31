@@ -8,6 +8,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
+import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
@@ -86,6 +87,8 @@ describe("IgnoreProcessor", () => {
       const validTargets = [
         "amazonqcli",
         "augmentcode",
+        "claudecode",
+        "claudecode-legacy",
         "cline",
         "cursor",
         "geminicli",
@@ -452,6 +455,7 @@ describe("IgnoreProcessor", () => {
         "amazonqcli",
         "augmentcode",
         "claudecode",
+        "claudecode-legacy",
         "cline",
         "cursor",
         "geminicli",
@@ -489,6 +493,31 @@ describe("IgnoreProcessor", () => {
       expect(allFiles[0]?.isDeletable()).toBe(false);
 
       // Load tool files for deletion (should exclude non-deletable files)
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      expect(filesToDelete).toHaveLength(0);
+    });
+
+    it("should treat claudecode-legacy ignore files the same as claudecode", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.local.json"),
+        JSON.stringify({
+          permissions: {
+            deny: ["Read(*.secret)", "Read(*.env)"],
+          },
+        }),
+      );
+
+      const processor = new IgnoreProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode-legacy",
+      });
+
+      const allFiles = await processor.loadToolFiles();
+      expect(allFiles).toHaveLength(1);
+      expect(allFiles[0]).toBeInstanceOf(ClaudecodeIgnore);
+      expect(allFiles[0]?.isDeletable()).toBe(false);
+
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       expect(filesToDelete).toHaveLength(0);
     });

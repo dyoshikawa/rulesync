@@ -27,6 +27,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       license: z.optional(z.string()),
     }),
   ),
+  roo: z.optional(z.looseObject({})),
 });
 
 // Export schema with targets optional for input but guaranteed in output
@@ -46,6 +47,7 @@ export type RulesyncSkillFrontmatterInput = {
   copilot?: {
     license?: string;
   };
+  roo?: Record<string, unknown>;
 };
 
 // Type for output/validated data (targets is always present after validation)
