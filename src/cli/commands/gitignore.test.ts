@@ -56,7 +56,6 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.roo/skills/");
-      expect(content).toContain("**/.roo/skills-*/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
       expect(content).toContain("**/.github/agents/");
@@ -235,7 +234,6 @@ dist/`;
 **/.qwen/memories/
 **/.roo/rules/
 **/.roo/skills/
-**/.roo/skills-*/
 **/.rooignore
 **/.roo/mcp.json
 **/.roo/subagents/
