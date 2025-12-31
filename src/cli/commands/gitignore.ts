@@ -62,13 +62,15 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.opencode/memories/",
   "**/.opencode/command/",
   "**/.opencode/agent/",
-  "**/.opencode/skills/",
+  "**/.opencode/skill/",
   "**/opencode.json",
+
   // Qwen
   "**/QWEN.md",
   "**/.qwen/memories/",
   // Roo
   "**/.roo/rules/",
+  "**/.roo/skills/",
   "**/.rooignore",
   "**/.roo/mcp.json",
   "**/.roo/subagents/",

@@ -245,11 +245,12 @@ modular-mcp.json
 **/.opencode/memories/
 **/.opencode/command/
 **/.opencode/agent/
-**/.opencode/skills/
+**/.opencode/skill/
 **/opencode.json
 **/QWEN.md
 **/.qwen/memories/
 **/.roo/rules/
+**/.roo/skills/
 **/.rooignore
 **/.roo/mcp.json
 **/.roo/subagents/

@@ -12,36 +12,39 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const OpenCodeSkillFrontmatterSchema = z.looseObject({
+export const RooSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  "allowed-tools": z.optional(z.array(z.string())),
 });
 
-export type OpenCodeSkillFrontmatter = z.infer<typeof OpenCodeSkillFrontmatterSchema>;
+export type RooSkillFrontmatter = z.infer<typeof RooSkillFrontmatterSchema>;
 
-export type OpenCodeSkillParams = {
+export type RooSkillParams = {
   baseDir?: string;
   relativeDirPath?: string;
   dirName: string;
-  frontmatter: OpenCodeSkillFrontmatter;
+  frontmatter: RooSkillFrontmatter;
   body: string;
   otherFiles?: SkillFile[];
   validate?: boolean;
   global?: boolean;
 };
 
-export class OpenCodeSkill extends ToolSkill {
+/**
+ * Represents a Roo Code skill directory.
+ * Skills are stored under .roo/skills/ directories with SKILL.md files.
+ */
+export class RooSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
-    relativeDirPath = join(".opencode", "skill"),
+    relativeDirPath = join(".roo", "skills"),
     dirName,
     frontmatter,
     body,
     otherFiles = [],
     validate = true,
     global = false,
-  }: OpenCodeSkillParams) {
+  }: RooSkillParams) {
     super({
       baseDir,
       relativeDirPath,
@@ -63,17 +66,25 @@ export class OpenCodeSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
+  static getSettablePaths({
+    global: _global = false,
+  }: {
+    global?: boolean;
+  } = {}): ToolSkillSettablePaths {
+    // Roo Code skills use the same relative path for both project and global modes
+    // The actual location differs based on baseDir:
+    // - Project mode: {process.cwd()}/.roo/skills/
+    // - Global mode: {getHomeDirectory()}/.roo/skills/
     return {
-      relativeDirPath: global ? join(".config", "opencode", "skill") : join(".opencode", "skill"),
+      relativeDirPath: join(".roo", "skills"),
     };
   }
 
-  getFrontmatter(): OpenCodeSkillFrontmatter {
+  getFrontmatter(): RooSkillFrontmatter {
     if (!this.mainFile?.frontmatter) {
       throw new Error("Frontmatter is not defined");
     }
-    const result = OpenCodeSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = RooSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
     return result;
   }
 
@@ -82,18 +93,28 @@ export class OpenCodeSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    if (this.mainFile === undefined) {
+    if (!this.mainFile) {
       return {
         success: false,
         error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
       };
     }
-    const result = OpenCodeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
+
+    const result = RooSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
         error: new Error(
           `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
+        ),
+      };
+    }
+
+    if (result.data.name !== this.getDirName()) {
+      return {
+        success: false,
+        error: new Error(
+          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
         ),
       };
     }
@@ -107,11 +128,6 @@ export class OpenCodeSkill extends ToolSkill {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(frontmatter["allowed-tools"] && {
-        opencode: {
-          "allowed-tools": frontmatter["allowed-tools"],
-        },
-      }),
     };
 
     return new RulesyncSkill({
@@ -130,22 +146,20 @@ export class OpenCodeSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
-  }: ToolSkillFromRulesyncSkillParams): OpenCodeSkill {
+  }: ToolSkillFromRulesyncSkillParams): RooSkill {
+    const settablePaths = RooSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
-    const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
+    const rooFrontmatter: RooSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      "allowed-tools": rulesyncFrontmatter.opencode?.["allowed-tools"],
     };
 
-    const settablePaths = OpenCodeSkill.getSettablePaths({ global });
-
-    return new OpenCodeSkill({
+    return new RooSkill({
       baseDir: rulesyncSkill.getBaseDir(),
       relativeDirPath: settablePaths.relativeDirPath,
-      dirName: rulesyncSkill.getDirName(),
-      frontmatter: opencodeFrontmatter,
+      dirName: rooFrontmatter.name,
+      frontmatter: rooFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
@@ -155,16 +169,16 @@ export class OpenCodeSkill extends ToolSkill {
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("opencode");
+    return targets.includes("*") || targets.includes("roo");
   }
 
-  static async fromDir(params: ToolSkillFromDirParams): Promise<OpenCodeSkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<RooSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: OpenCodeSkill.getSettablePaths,
+      getSettablePaths: RooSkill.getSettablePaths,
     });
 
-    const result = OpenCodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    const result = RooSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
       const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
@@ -172,7 +186,19 @@ export class OpenCodeSkill extends ToolSkill {
       );
     }
 
-    return new OpenCodeSkill({
+    if (result.data.name !== loaded.dirName) {
+      const skillFilePath = join(
+        loaded.baseDir,
+        loaded.relativeDirPath,
+        loaded.dirName,
+        SKILL_FILE_NAME,
+      );
+      throw new Error(
+        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
+      );
+    }
+
+    return new RooSkill({
       baseDir: loaded.baseDir,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -189,8 +215,8 @@ export class OpenCodeSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     global = false,
-  }: ToolSkillForDeletionParams): OpenCodeSkill {
-    return new OpenCodeSkill({
+  }: ToolSkillForDeletionParams): RooSkill {
+    return new RooSkill({
       baseDir,
       relativeDirPath,
       dirName,
