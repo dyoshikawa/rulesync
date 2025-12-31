@@ -219,6 +219,7 @@ modular-mcp.json
 **/.claude/settings.local.json
 **/.mcp.json
 **/.clinerules/
+**/.clinerules/workflows/
 **/.clineignore
 **/.cline/mcp.json
 **/.codexignore
