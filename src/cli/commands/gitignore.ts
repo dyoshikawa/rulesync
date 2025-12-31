@@ -67,6 +67,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.qwen/memories/",
   // Roo
   "**/.roo/rules/",
+  "**/.roo/skills/",
   "**/.rooignore",
   "**/.roo/mcp.json",
   "**/.roo/subagents/",

@@ -250,6 +250,7 @@ modular-mcp.json
 **/QWEN.md
 **/.qwen/memories/
 **/.roo/rules/
+**/.roo/skills/
 **/.rooignore
 **/.roo/mcp.json
 **/.roo/subagents/
