@@ -7,11 +7,8 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type KiloRuleParams = ToolRuleParams;
 
 export type KiloRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
 
