@@ -11,7 +11,7 @@ import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { mcpCommand } from "./commands/mcp.js";
 
-const getVersion = () => "4.3.2";
+const getVersion = () => "5.0.0";
 
 const main = async () => {
   const program = new Command();
