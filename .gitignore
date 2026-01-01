@@ -240,6 +240,7 @@ modular-mcp.json
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
+**/.kilocode/rules/
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/
