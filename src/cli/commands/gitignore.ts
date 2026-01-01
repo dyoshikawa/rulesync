@@ -9,8 +9,6 @@ const RULESYNC_IGNORE_ENTRIES = [
   // AGENTS.md
   "**/AGENTS.md",
   "**/.agents/",
-  // Amazon Q
-  "**/.amazonq/",
   // Augment
   "**/.augmentignore",
   "**/.augment/rules/",

@@ -4,7 +4,6 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -20,7 +19,6 @@ import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 // Mock all MCP classes with their static methods
-vi.mock("./amazonqcli-mcp.js");
 vi.mock("./claudecode-mcp.js");
 vi.mock("./cline-mcp.js");
 vi.mock("./codexcli-mcp.js");
@@ -51,13 +49,6 @@ describe("McpProcessor", () => {
     vi.clearAllMocks();
 
     // Setup static method mocks
-    (AmazonqcliMcp as any).fromFile = vi.fn();
-    (AmazonqcliMcp as any).fromRulesyncMcp = vi.fn();
-    (AmazonqcliMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
-      ...params,
-      isDeletable: () => true,
-      getRelativeFilePath: () => params.relativeFilePath,
-    }));
     (ClaudecodeMcp as any).fromFile = vi.fn();
     (ClaudecodeMcp as any).fromRulesyncMcp = vi.fn();
     (ClaudecodeMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
@@ -181,34 +172,6 @@ describe("McpProcessor", () => {
   });
 
   describe("loadToolFiles", () => {
-    describe("amazonqcli", () => {
-      it("should load AmazonqcliMcp files", async () => {
-        const mockMcp = new AmazonqcliMcp({
-          baseDir: testDir,
-          relativeDirPath: ".amazonqcli",
-          relativeFilePath: "mcp.json",
-          fileContent: JSON.stringify({ servers: {} }),
-        });
-
-        vi.mocked(AmazonqcliMcp.fromFile).mockResolvedValue(mockMcp);
-
-        const processor = new McpProcessor({
-          baseDir: testDir,
-          toolTarget: "amazonqcli",
-        });
-
-        const files = await processor.loadToolFiles();
-
-        expect(files).toHaveLength(1);
-        expect(files[0]).toBe(mockMcp);
-        expect(AmazonqcliMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
-          validate: true,
-          global: false,
-        });
-      });
-    });
-
     describe("claudecode", () => {
       it("should load ClaudecodeMcp files", async () => {
         const mockMcp = new ClaudecodeMcp({
@@ -531,40 +494,6 @@ describe("McpProcessor", () => {
   });
 
   describe("convertRulesyncFilesToToolFiles", () => {
-    it("should convert rulesync files to amazonqcli tool files", async () => {
-      const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({ servers: {} }),
-      });
-
-      const mockToolMcp = new AmazonqcliMcp({
-        baseDir: testDir,
-        relativeDirPath: ".amazonqcli",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify({ servers: {} }),
-      });
-
-      vi.mocked(AmazonqcliMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
-
-      const processor = new McpProcessor({
-        baseDir: testDir,
-        toolTarget: "amazonqcli",
-      });
-
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
-
-      expect(toolFiles).toHaveLength(1);
-      expect(toolFiles[0]).toBe(mockToolMcp);
-      expect(AmazonqcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
-        rulesyncMcp,
-        global: false,
-        modularMcp: false,
-      });
-    });
-
     it("should convert rulesync files to claudecode tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
@@ -924,8 +853,6 @@ describe("McpProcessor", () => {
   describe("getToolTargets", () => {
     it("should return supported tool targets", () => {
       const targets = McpProcessor.getToolTargets();
-
-      expect(targets).toContain("amazonqcli");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("claudecode-legacy");
       expect(targets).toContain("cline");
@@ -940,7 +867,6 @@ describe("McpProcessor", () => {
     it("should validate valid tool targets", () => {
       expect(() => McpProcessorToolTargetSchema.parse("copilot")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cursor")).not.toThrow();
-      expect(() => McpProcessorToolTargetSchema.parse("amazonqcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
@@ -977,7 +903,6 @@ describe("McpProcessor", () => {
 
     it("should work for all supported tool targets", async () => {
       const targets: McpProcessorToolTarget[] = [
-        "amazonqcli",
         "claudecode",
         "claudecode-legacy",
         "cline",
@@ -985,7 +910,6 @@ describe("McpProcessor", () => {
         "cursor",
         "roo",
       ];
-
       for (const target of targets) {
         const processor = new McpProcessor({
           baseDir: testDir,

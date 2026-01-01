@@ -12,7 +12,6 @@ describe("tool targets", () => {
     it("should contain expected AI tool targets", () => {
       const expectedTargets = [
         "agentsmd",
-        "amazonqcli",
         "antigravity",
         "augmentcode",
         "augmentcode-legacy",

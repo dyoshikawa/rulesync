@@ -6,7 +6,6 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { AmazonqcliIgnore } from "./amazonqcli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
@@ -27,7 +26,6 @@ import {
 import { WindsurfIgnore } from "./windsurf-ignore.js";
 
 const ignoreProcessorToolTargets: ToolTarget[] = [
-  "amazonqcli",
   "augmentcode",
   "claudecode",
   "claudecode-legacy",
@@ -57,7 +55,6 @@ type ToolIgnoreFactory = {
 };
 
 const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory>([
-  ["amazonqcli", { class: AmazonqcliIgnore }],
   ["augmentcode", { class: AugmentcodeIgnore }],
   ["claudecode", { class: ClaudecodeIgnore }],
   ["claudecode-legacy", { class: ClaudecodeIgnore }],
