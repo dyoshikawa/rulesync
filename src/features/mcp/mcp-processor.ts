@@ -6,7 +6,6 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
-import { AmazonqcliMcp } from "./amazonqcli-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -31,7 +30,6 @@ import {
  * Using a tuple to preserve order for consistent iteration.
  */
 const mcpProcessorToolTargetTuple = [
-  "amazonqcli",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -77,13 +75,6 @@ type ToolMcpFactory = {
  * Using Map to preserve insertion order for consistent iteration.
  */
 const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
-  [
-    "amazonqcli",
-    {
-      class: AmazonqcliMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
-    },
-  ],
   [
     "claudecode",
     {

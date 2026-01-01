@@ -9,8 +9,6 @@ const RULESYNC_IGNORE_ENTRIES = [
   // AGENTS.md
   "**/AGENTS.md",
   "**/.agents/",
-  // Amazon Q
-  "**/.amazonq/",
   // Augment
   "**/.augmentignore",
   "**/.augment/rules/",
@@ -27,6 +25,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.mcp.json",
   // Cline
   "**/.clinerules/",
+  "**/.clinerules/workflows/",
   "**/.clineignore",
   "**/.cline/mcp.json",
   // Codex
