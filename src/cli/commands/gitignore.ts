@@ -54,6 +54,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.junie/mcp.json",
   // Kilo Code
   "**/.kilocode/rules/",
+  "**/.kilocode/skills/",
   // Kiro
   "**/.kiro/steering/",
   "**/.aiignore",
