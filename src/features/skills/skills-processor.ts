@@ -12,6 +12,7 @@ import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
+import { KiloSkill } from "./kilo-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -58,6 +59,7 @@ const skillsProcessorToolTargetTuple = [
   "copilot",
   "cursor",
   "geminicli",
+  "kilo",
   "opencode",
   "roo",
 ] as const;
@@ -119,6 +121,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     {
       class: GeminiCliSkill,
       meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
+  [
+    "kilo",
+    {
+      class: KiloSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
