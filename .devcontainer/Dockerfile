@@ -97,6 +97,9 @@ RUN mise trust /workspace && mise install
 RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
 
+# Install goose
+RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+
 # Install Safe Chain
 RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh
 
@@ -109,13 +112,10 @@ RUN mkdir -p "$PNPM_HOME" && \
     @anthropic-ai/claude-code \
     opencode-ai \
     @openai/codex \
-    opencommit \
     @google/gemini-cli \
     difit \
     @musistudio/claude-code-router
 
-# Enable smol mode in Bun to reduce memory usage
-RUN echo 'smol = true' > /home/node/bunfig.toml
 
 # Claude Code Router config
 COPY ccr.config.json /home/node/.claude-code-router/config.json
