@@ -56,6 +56,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.kilocode/rules/");
+      expect(content).toContain("**/.kilocode/workflows/");
       expect(content).toContain("**/.roo/skills/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
@@ -220,6 +221,7 @@ dist/`;
 **/.junie/guidelines.md
 **/.junie/mcp.json
 **/.kilocode/rules/
+**/.kilocode/workflows/
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/
