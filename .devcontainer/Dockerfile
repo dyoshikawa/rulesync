@@ -5,55 +5,55 @@ ENV TZ="$TZ"
 
 # Install basic development tools and iptables/ipset
 RUN apt update && apt install -y less \
-  git \
-  procps \
-  sudo \
-  fzf \
-  zsh \
-  man-db \
-  unzip \
-  gnupg2 \
-  gh \
-  iptables \
-  ipset \
-  iproute2 \
-  dnsutils \
-  aggregate \
-  jq \
-  vim \
-  bubblewrap \
-  socat \
-  ripgrep
+    git \
+    procps \
+    sudo \
+    fzf \
+    zsh \
+    man-db \
+    unzip \
+    gnupg2 \
+    gh \
+    iptables \
+    ipset \
+    iproute2 \
+    dnsutils \
+    aggregate \
+    jq \
+    vim \
+    bubblewrap \
+    socat \
+    ripgrep
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
-  chown -R node:node /usr/local/share
+    chown -R node:node /usr/local/share
 
 ARG USERNAME=node
 
 # Allow node user to run specific sudo commands without password
 RUN echo "node ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/node && \
-  chmod 0440 /etc/sudoers.d/node
+    chmod 0440 /etc/sudoers.d/node
 
 # Persist bash history.
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
-  && mkdir /commandhistory \
-  && touch /commandhistory/.bash_history \
-  && chown -R $USERNAME /commandhistory
+    && mkdir /commandhistory \
+    && touch /commandhistory/.bash_history \
+    && chown -R $USERNAME /commandhistory
 
 # Set `DEVCONTAINER` environment variable to help with orientation
 ENV DEVCONTAINER=true
 
 # Create workspace and config directories and set permissions
 RUN mkdir -p /workspace /home/node/.claude && \
-  chown -R node:node /workspace /home/node/.claude
+    chown -R node:node /workspace /home/node/.claude
 
 WORKDIR /workspace
 
 RUN ARCH=$(dpkg --print-architecture) && \
-  wget "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_${ARCH}.deb" && \
-  sudo dpkg -i "git-delta_0.18.2_${ARCH}.deb" && \
-  rm "git-delta_0.18.2_${ARCH}.deb"
+    wget "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_${ARCH}.deb" && \
+    sudo dpkg -i "git-delta_0.18.2_${ARCH}.deb" && \
+    rm "git-delta_0.18.2_${ARCH}.deb"
 
 # Set up non-root user
 USER node
@@ -67,12 +67,12 @@ ENV SHELL=/bin/zsh
 
 # Default powerline10k theme
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
-  -p git \
-  -p fzf \
-  -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
-  -a "source /usr/share/doc/fzf/examples/completion.zsh" \
-  -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
-  -x
+    -p git \
+    -p fzf \
+    -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
+    -a "source /usr/share/doc/fzf/examples/completion.zsh" \
+    -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
+    -x
 
 ### Customize ###
 
@@ -85,6 +85,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 ENV PATH=$PATH:/home/node/.local/bin
 RUN curl https://mise.run | sh
 RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
+RUN echo "eval \"\$(/home/node/.local/bin/mise activate bash)\"" >> "/home/node/.bashrc"
 
 # Copy mise.toml and run mise trust and install
 # NOTE: The tools installed in this image are based on the contents of mise.toml at build time.
@@ -96,6 +97,9 @@ RUN mise trust /workspace && mise install
 RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
 
+# Install goose
+RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+
 # Install Safe Chain
 RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh
 
@@ -103,25 +107,24 @@ RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/
 ENV PNPM_HOME=/home/node/.pnpm
 ENV PATH=$PATH:$PNPM_HOME
 RUN mkdir -p "$PNPM_HOME" && \
-  mise exec -- pnpm setup && \
-  mise exec -- pnpm add -g \
+    mise exec -- pnpm setup && \
+    mise exec -- pnpm add -g \
     @anthropic-ai/claude-code \
     opencode-ai \
     @openai/codex \
-    opencommit \
     @google/gemini-cli \
     difit \
     @musistudio/claude-code-router
 
-# Enable smol mode in Bun to reduce memory usage
-RUN echo 'smol = true' > /home/node/bunfig.toml
 
 # Claude Code Router config
 COPY ccr.config.json /home/node/.claude-code-router/config.json
 RUN sudo chown -R node:node /home/node/.claude-code-router
 
 # Aliases
-RUN echo "alias claude=\"claude --dangerously-skip-permissions\"" >> "/home/node/.zshrc"
+ENV CLAUDE_COMMAND="alias claude=\"claude --dangerously-skip-permissions\""
+RUN echo ${CLAUDE_COMMAND} >> "/home/node/.zshrc"
+RUN echo ${CLAUDE_COMMAND} >> "/home/node/.bashrc"
 
 # Install init.sh
 ENV PATH=$PATH:/home/node/bin

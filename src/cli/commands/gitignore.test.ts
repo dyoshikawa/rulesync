@@ -55,6 +55,8 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.opencode/agent/");
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
+      expect(content).toContain("**/.kilocode/rules/");
+      expect(content).toContain("**/.kilocode/workflows/");
       expect(content).toContain("**/.roo/skills/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
@@ -218,6 +220,8 @@ dist/`;
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
+**/.kilocode/rules/
+**/.kilocode/workflows/
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/
@@ -257,6 +261,7 @@ dist/`;
       expect(logger.success).toHaveBeenCalledWith("Updated .gitignore with rulesync entries:");
 
       expect(logger.info).toHaveBeenCalledWith("  **/.cursor/");
+      expect(logger.info).toHaveBeenCalledWith("  **/.kilocode/rules/");
       expect(logger.info).toHaveBeenCalledWith("  **/.opencode/agent/");
       expect(logger.info).toHaveBeenCalledWith("  **/CLAUDE.md");
     });
