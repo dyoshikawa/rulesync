@@ -134,6 +134,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
 | GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    ✅      |    ✅   |
 | Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    ✅   |
+| goose                  |  ✅ 🌏  |       |       |         |          |        |
 | OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |   ✅ 🌏    |   ✅ 🌏  |
 | Cline                  |  ✅    |   ✅    |  ✅    |     ✅ 🌏  |          |        |
 | Kilo Code              |  ✅ 🌏   |        |       |          |          |        |
@@ -326,6 +327,10 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 ### `.kilocode/rules/*.md` (Kilo Code)
 
 Kilo Code loads project rules from `.kilocode/rules/` and global rules from `~/.kilocode/rules/`. The tool also supports mode-specific directories like `.kilocode/rules-{mode}` and legacy single-file fallbacks such as `.kilocoderules-{mode}` (or `.kilocoderules`, `.clinerules`, and `.roorules`), but Rulesync generates the directory-based layout by default.
+
+### `.goosehints` (goose)
+
+goose reads `.goosehints` files to load persistent guidance. Use `~/.config/goose/.goosehints` for global hints and place `.goosehints` files at the project root or in any subdirectory for scoped rules. goose automatically merges hints from the current directory up to the repository root.
 
 ### `rulesync/commands/*.md`
 

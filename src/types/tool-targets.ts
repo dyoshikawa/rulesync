@@ -12,6 +12,7 @@ export const ALL_TOOL_TARGETS = [
   "copilot",
   "cursor",
   "geminicli",
+  "goose",
   "junie",
   "kilo",
   "kiro",

@@ -22,6 +22,7 @@ describe("tool targets", () => {
         "copilot",
         "cursor",
         "geminicli",
+        "goose",
         "junie",
         "kilo",
         "kiro",

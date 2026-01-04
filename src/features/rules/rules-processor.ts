@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -38,6 +38,7 @@ import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
+import { GooseRule } from "./goose-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KiroRule } from "./kiro-rule.js";
@@ -68,6 +69,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "copilot",
   "cursor",
   "geminicli",
+  "goose",
   "junie",
   "kilo",
   "kiro",
@@ -147,7 +149,7 @@ type ToolRuleFactory = {
   };
   meta: {
     /** File extension for the rule file */
-    extension: "md" | "mdc";
+    extension: "md" | "mdc" | "goosehints";
     /** Whether this tool supports global (user scope) mode */
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
@@ -275,6 +277,13 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
           skills: { skillClass: GeminiCliSkill },
         },
       },
+    },
+  ],
+  [
+    "goose",
+    {
+      class: GooseRule,
+      meta: { extension: "goosehints", supportsGlobal: true, ruleDiscoveryMode: "auto" },
     },
   ],
   [
@@ -679,7 +688,12 @@ export class RulesProcessor extends FeatureProcessor {
         }
 
         const nonRootFilePaths = await findFilesByGlobs(
-          join(this.baseDir, settablePaths.nonRoot.relativeDirPath, `*.${factory.meta.extension}`),
+          join(
+            this.baseDir,
+            settablePaths.nonRoot.relativeDirPath,
+            "**",
+            `*.${factory.meta.extension}`,
+          ),
         );
 
         if (forDeletion) {
@@ -688,7 +702,10 @@ export class RulesProcessor extends FeatureProcessor {
               factory.class.forDeletion({
                 baseDir: this.baseDir,
                 relativeDirPath: settablePaths.nonRoot?.relativeDirPath ?? ".",
-                relativeFilePath: basename(filePath),
+                relativeFilePath: relative(
+                  join(this.baseDir, settablePaths.nonRoot?.relativeDirPath ?? "."),
+                  filePath,
+                ),
                 global: this.global,
               }),
             )
@@ -699,7 +716,10 @@ export class RulesProcessor extends FeatureProcessor {
           nonRootFilePaths.map((filePath) =>
             factory.class.fromFile({
               baseDir: this.baseDir,
-              relativeFilePath: basename(filePath),
+              relativeFilePath: relative(
+                join(this.baseDir, settablePaths.nonRoot?.relativeDirPath ?? "."),
+                filePath,
+              ),
               global: this.global,
             }),
           ),
