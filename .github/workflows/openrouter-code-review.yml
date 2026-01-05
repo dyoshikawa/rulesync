@@ -1,29 +1,31 @@
 name: OpenRouter Code Review
 
 permissions:
-  contents: read
-  pull-requests: write
+    contents: read
+    pull-requests: write
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize]
+    pull_request:
+        types: [opened, reopened, synchronize]
 
 jobs:
-  code-review:
-    if: ${{ contains(github.event.pull_request.title, ":review") }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Display PR title
-        run: echo "PullRequest: ${{ github.event.pull_request.title }}"
-      - name: Run ChatGPT Code Review (OpenRouter GLM)
-        uses: anc95/ChatGPT-CodeReview@main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENAI_API_ENDPOINT: https://openrouter.ai/api/v1
-          MODEL: 01-ai/glm-4-7b
-          LANGUAGE: English
-          PROMPT: |
-            You are an experienced reviewer for TypeScript and Node.js projects.
-            Read the diff and briefly list any critical bugs or security concerns.
-            If the changes are only minor, respond with "No critical issues found."
+    code-review:
+        if: ${{ contains(github.event.pull_request.title, ":review") }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Display PR title
+              run: 'echo "PullRequest: $PR_TITLE"'
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+            - name: Run Code Review
+              uses: anc95/ChatGPT-CodeReview@763282a7d171b9a8224bb2590803eed11b918837 # v1.0.22
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+                  OPENAI_API_ENDPOINT: https://openrouter.ai/api/v1
+                  MODEL: z-ai/glm-4.7
+                  LANGUAGE: English
+                  PROMPT: |
+                      Please review this pull request. Refer to the following files as important review references:
+                      - .rulesync/subagents/code-reviewer.md
+                      - .rulesync/subagents/security-reviewer.md
