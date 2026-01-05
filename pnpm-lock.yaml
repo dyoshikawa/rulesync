@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: 1.25.1
-        version: 1.25.1(hono@4.11.1)(zod@4.2.1)
+        version: 1.25.1(hono@4.11.1)(zod@4.3.4)
       '@toon-format/toon':
         specifier: 2.1.0
         version: 2.1.0
@@ -24,14 +24,14 @@ importers:
         specifier: 3.4.2
         version: 3.4.2
       effect:
-        specifier: 3.19.13
-        version: 3.19.13
+        specifier: 3.19.14
+        version: 3.19.14
       es-toolkit:
         specifier: 1.43.0
         version: 1.43.0
       fastmcp:
         specifier: 3.26.7
-        version: 3.26.7(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(hono@4.11.1)(sury@11.0.0-alpha.4)
+        version: 3.26.7(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.14)(hono@4.11.1)(sury@11.0.0-alpha.4)
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -48,12 +48,12 @@ importers:
         specifier: 11.0.0-alpha.4
         version: 11.0.0-alpha.4
       zod:
-        specifier: 4.2.1
-        version: 4.2.1
+        specifier: 4.3.4
+        version: 4.3.4
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.1.76
-        version: 0.1.76(zod@4.2.1)
+        version: 0.1.76(zod@4.3.4)
       '@biomejs/biome':
         specifier: 2.3.11
         version: 2.3.11
@@ -1661,8 +1661,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@3.19.13:
-    resolution: {integrity: sha512-8MZ783YuHRwHZX2Mmm+bpGxq+7XPd88sWwYAz2Ysry80sEKpftDZXs2Hg9ZyjESi1IBTNHF0oDKe0zJRkUlyew==}
+  effect@3.19.14:
+    resolution: {integrity: sha512-3vwdq0zlvQOxXzXNKRIPKTqZNMyGCdaFUBfMPqpsyzZDre67kgC1EEHDV4EoQTovJ4w5fmJW756f86kkuz7WFA==}
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
@@ -3397,14 +3397,14 @@ packages:
     peerDependencies:
       zod: ^3.25 || ^4
 
-  zod@4.2.1:
-    resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
+  zod@4.3.4:
+    resolution: {integrity: sha512-Zw/uYiiyF6pUT1qmKbZziChgNPRu+ZRneAsMUDU6IwmXdWt5JwcUfy2bvLOCUtz5UniaN/Zx5aFttZYbYc7O/A==}
 
 snapshots:
 
-  '@anthropic-ai/claude-agent-sdk@0.1.76(zod@4.2.1)':
+  '@anthropic-ai/claude-agent-sdk@0.1.76(zod@4.3.4)':
     dependencies:
-      zod: 4.2.1
+      zod: 4.3.4
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.33.5
       '@img/sharp-darwin-x64': 0.33.5
@@ -3926,7 +3926,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@modelcontextprotocol/sdk@1.25.1(hono@4.11.1)(zod@4.2.1)':
+  '@modelcontextprotocol/sdk@1.25.1(hono@4.11.1)(zod@4.3.4)':
     dependencies:
       '@hono/node-server': 1.19.7(hono@4.11.1)
       ajv: 8.17.1
@@ -3942,8 +3942,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.2.1
-      zod-to-json-schema: 3.25.1(zod@4.2.1)
+      zod: 4.3.4
+      zod-to-json-schema: 3.25.1(zod@4.3.4)
     transitivePeerDependencies:
       - hono
       - supports-color
@@ -4859,7 +4859,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@3.19.13:
+  effect@3.19.14:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 3.23.2
@@ -5225,9 +5225,9 @@ snapshots:
 
   fast-uri@3.1.0: {}
 
-  fastmcp@3.26.7(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(hono@4.11.1)(sury@11.0.0-alpha.4):
+  fastmcp@3.26.7(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.14)(hono@4.11.1)(sury@11.0.0-alpha.4):
     dependencies:
-      '@modelcontextprotocol/sdk': 1.25.1(hono@4.11.1)(zod@4.2.1)
+      '@modelcontextprotocol/sdk': 1.25.1(hono@4.11.1)(zod@4.3.4)
       '@standard-schema/spec': 1.1.0
       execa: 9.6.1
       file-type: 21.2.0
@@ -5236,10 +5236,10 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.16.0
       uri-templates: 0.2.0
-      xsschema: 0.4.0-beta.5(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(sury@11.0.0-alpha.4)(zod-to-json-schema@3.25.1(zod@4.2.1))(zod@4.2.1)
+      xsschema: 0.4.0-beta.5(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.14)(sury@11.0.0-alpha.4)(zod-to-json-schema@3.25.1(zod@4.3.4))(zod@4.3.4)
       yargs: 18.0.0
-      zod: 4.2.1
-      zod-to-json-schema: 3.25.1(zod@4.2.1)
+      zod: 4.3.4
+      zod-to-json-schema: 3.25.1(zod@4.3.4)
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@valibot/to-json-schema'
@@ -5707,7 +5707,7 @@ snapshots:
       smol-toml: 1.6.0
       strip-json-comments: 5.0.3
       typescript: 5.9.3
-      zod: 4.2.1
+      zod: 4.3.4
 
   levn@0.4.1:
     dependencies:
@@ -6765,13 +6765,13 @@ snapshots:
 
   xdg-basedir@5.1.0: {}
 
-  xsschema@0.4.0-beta.5(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.13)(sury@11.0.0-alpha.4)(zod-to-json-schema@3.25.1(zod@4.2.1))(zod@4.2.1):
+  xsschema@0.4.0-beta.5(@valibot/to-json-schema@1.5.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.19.14)(sury@11.0.0-alpha.4)(zod-to-json-schema@3.25.1(zod@4.3.4))(zod@4.3.4):
     optionalDependencies:
       '@valibot/to-json-schema': 1.5.0(valibot@1.2.0(typescript@5.9.3))
-      effect: 3.19.13
+      effect: 3.19.14
       sury: 11.0.0-alpha.4
-      zod: 4.2.1
-      zod-to-json-schema: 3.25.1(zod@4.2.1)
+      zod: 4.3.4
+      zod-to-json-schema: 3.25.1(zod@4.3.4)
 
   y18n@5.0.8: {}
 
@@ -6792,8 +6792,8 @@ snapshots:
 
   yoctocolors@2.1.2: {}
 
-  zod-to-json-schema@3.25.1(zod@4.2.1):
+  zod-to-json-schema@3.25.1(zod@4.3.4):
     dependencies:
-      zod: 4.2.1
+      zod: 4.3.4
 
-  zod@4.2.1: {}
+  zod@4.3.4: {}
