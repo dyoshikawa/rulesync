@@ -116,7 +116,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN curl -fsSL https://opencode.ai/install | bash
 
 # Aliases
-ENV CLAUDE_COMMAND="alias claude=\"claude --dangerously-skip-permissions\""
+ENV CLAUDE_COMMAND="alias claude=\"ENABLE_TOOL_SEARCH=1 claude --dangerously-skip-permissions\""
 RUN echo ${CLAUDE_COMMAND} >> "/home/node/.zshrc"
 RUN echo ${CLAUDE_COMMAND} >> "/home/node/.bashrc"
 
