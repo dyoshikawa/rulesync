@@ -130,7 +130,7 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "kilo",
     {
       class: KiloMcp,
-      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
     },
   ],
   [

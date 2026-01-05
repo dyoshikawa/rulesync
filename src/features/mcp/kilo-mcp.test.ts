@@ -2,7 +2,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -25,13 +24,6 @@ describe("KiloMcp", () => {
       expect(KiloMcp.getSettablePaths()).toEqual({
         relativeDirPath: ".kilocode",
         relativeFilePath: "mcp.json",
-      });
-    });
-
-    it("should return global path", () => {
-      expect(KiloMcp.getSettablePaths({ global: true })).toEqual({
-        relativeDirPath: ".",
-        relativeFilePath: "mcp_settings.json",
       });
     });
   });
@@ -62,25 +54,6 @@ describe("KiloMcp", () => {
         },
       });
     });
-
-    it("should use global path when requested", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({ mcpServers: {} }),
-        validate: true,
-      });
-
-      const kiloMcp = KiloMcp.fromRulesyncMcp({
-        rulesyncMcp,
-        baseDir: testDir,
-        global: true,
-      });
-
-      expect(kiloMcp.getRelativeDirPath()).toBe(".");
-      expect(kiloMcp.getRelativeFilePath()).toBe("mcp_settings.json");
-    });
   });
 
   describe("fromFile", () => {
@@ -89,21 +62,6 @@ describe("KiloMcp", () => {
 
       expect(kiloMcp.getFilePath()).toBe(join(testDir, ".kilocode", "mcp.json"));
       expect(JSON.parse(kiloMcp.getFileContent())).toEqual({ mcpServers: {} });
-    });
-
-    it("should read existing global file", async () => {
-      const globalPath = join(testDir, "mcp_settings.json");
-      await writeFileContent(
-        globalPath,
-        JSON.stringify({ mcpServers: { api: { command: "go" } } }, null, 2),
-      );
-
-      const kiloMcp = await KiloMcp.fromFile({ baseDir: testDir, global: true });
-
-      expect(kiloMcp.getFilePath()).toBe(globalPath);
-      expect(JSON.parse(kiloMcp.getFileContent())).toEqual({
-        mcpServers: { api: { command: "go" } },
-      });
     });
   });
 

@@ -222,6 +222,8 @@ dist/`;
 **/.junie/mcp.json
 **/.kilocode/rules/
 **/.kilocode/workflows/
+**/.kilocode/mcp.json
+**/.kilocodeignore
 **/.kiro/steering/
 **/.aiignore
 **/.opencode/memories/

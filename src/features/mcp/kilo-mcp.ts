@@ -23,14 +23,7 @@ export class KiloMcp extends ToolMcp {
     return this.json;
   }
 
-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    if (global) {
-      return {
-        relativeDirPath: ".",
-        relativeFilePath: "mcp_settings.json",
-      };
-    }
-
+  static getSettablePaths(): ToolMcpSettablePaths {
     return {
       relativeDirPath: ".kilocode",
       relativeFilePath: "mcp.json",
@@ -40,9 +33,8 @@ export class KiloMcp extends ToolMcp {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-    global = false,
   }: ToolMcpFromFileParams): Promise<KiloMcp> {
-    const paths = this.getSettablePaths({ global });
+    const paths = this.getSettablePaths();
     const fileContent = await readOrInitializeFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({ mcpServers: {} }, null, 2),
@@ -61,9 +53,8 @@ export class KiloMcp extends ToolMcp {
     baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
-    global = false,
   }: ToolMcpFromRulesyncMcpParams): KiloMcp {
-    const paths = this.getSettablePaths({ global });
+    const paths = this.getSettablePaths();
     const fileContent = JSON.stringify(
       { mcpServers: rulesyncMcp.getMcpServers({ type: "exposed" }) },
       null,
