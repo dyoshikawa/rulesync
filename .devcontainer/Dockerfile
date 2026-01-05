@@ -5,25 +5,25 @@ ENV TZ="$TZ"
 
 # Install basic development tools and iptables/ipset
 RUN apt update && apt install -y less \
-  git \
-  procps \
-  sudo \
-  fzf \
-  zsh \
-  man-db \
-  unzip \
-  gnupg2 \
-  gh \
-  iptables \
-  ipset \
-  iproute2 \
-  dnsutils \
-  aggregate \
-  jq \
-  vim \
-  bubblewrap \
-  socat \
-  ripgrep
+    git \
+    procps \
+    sudo \
+    fzf \
+    zsh \
+    man-db \
+    unzip \
+    gnupg2 \
+    gh \
+    iptables \
+    ipset \
+    iproute2 \
+    dnsutils \
+    aggregate \
+    jq \
+    vim \
+    bubblewrap \
+    socat \
+    ripgrep
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
@@ -84,9 +84,8 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install mise
 ENV PATH=$PATH:/home/node/.local/bin
 RUN curl https://mise.run | sh
-ENV MISE_ACTIVATE_COMMAND="eval \"\$(/home/node/.local/bin/mise activate zsh)\""
-RUN echo ${MISE_ACTIVATE_COMMAND} >> "/home/node/.zshrc"
-RUN echo ${MISE_ACTIVATE_COMMAND} >> "/home/node/.bashrc"
+RUN echo "eval \"\$(/home/node/.local/bin/mise activate zsh)\"" >> "/home/node/.zshrc"
+RUN echo "eval \"\$(/home/node/.local/bin/mise activate bash)\"" >> "/home/node/.bashrc"
 
 # Copy mise.toml and run mise trust and install
 # NOTE: The tools installed in this image are based on the contents of mise.toml at build time.
@@ -97,6 +96,9 @@ RUN mise trust /workspace && mise install
 # Install pinact using Go installed by mise
 RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
+
+# Install goose
+RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
 
 # Install Safe Chain
 RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh
@@ -110,13 +112,10 @@ RUN mkdir -p "$PNPM_HOME" && \
     @anthropic-ai/claude-code \
     opencode-ai \
     @openai/codex \
-    opencommit \
     @google/gemini-cli \
     difit \
     @musistudio/claude-code-router
 
-# Enable smol mode in Bun to reduce memory usage
-RUN echo 'smol = true' > /home/node/bunfig.toml
 
 # Claude Code Router config
 COPY ccr.config.json /home/node/.claude-code-router/config.json

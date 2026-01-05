@@ -55,6 +55,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Kilo Code
   "**/.kilocode/rules/",
   "**/.kilocode/skills/",
+  "**/.kilocode/workflows/",
   // Kiro
   "**/.kiro/steering/",
   "**/.aiignore",
