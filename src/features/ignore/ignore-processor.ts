@@ -12,6 +12,7 @@ import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
+import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
@@ -33,6 +34,7 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "cursor",
   "geminicli",
   "junie",
+  "kilo",
   "kiro",
   "qwencode",
   "roo",
@@ -62,6 +64,7 @@ const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory
   ["cursor", { class: CursorIgnore }],
   ["geminicli", { class: GeminiCliIgnore }],
   ["junie", { class: JunieIgnore }],
+  ["kilo", { class: KiloIgnore }],
   ["kiro", { class: KiroIgnore }],
   ["qwencode", { class: QwencodeIgnore }],
   ["roo", { class: RooIgnore }],

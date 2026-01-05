@@ -457,6 +457,7 @@ describe("IgnoreProcessor", () => {
         "cursor",
         "geminicli",
         "junie",
+        "kilo",
         "kiro",
         "qwencode",
         "roo",
