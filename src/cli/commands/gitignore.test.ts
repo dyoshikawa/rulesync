@@ -55,6 +55,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.opencode/agent/");
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
+      expect(content).toContain("**/.kilocode/skills/");
       expect(content).toContain("**/.kilocode/rules/");
       expect(content).toContain("**/.kilocode/workflows/");
       expect(content).toContain("**/.roo/skills/");
@@ -221,6 +222,7 @@ dist/`;
 **/.junie/guidelines.md
 **/.junie/mcp.json
 **/.kilocode/rules/
+**/.kilocode/skills/
 **/.kilocode/workflows/
 **/.kiro/steering/
 **/.aiignore
@@ -244,6 +246,9 @@ dist/`;
 
       vi.mocked(fileExists).mockResolvedValue(true);
       vi.mocked(readFileContent).mockResolvedValue(rulesyncBlock);
+      vi.mocked(writeFileContent).mockClear();
+      vi.mocked(logger.success).mockClear();
+      vi.mocked(logger.info).mockClear();
 
       await gitignoreCommand();
 
