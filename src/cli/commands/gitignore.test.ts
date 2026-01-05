@@ -213,6 +213,7 @@ dist/`;
 **/.gemini/subagents/
 **/.gemini/skills/
 **/.geminiignore
+**/.goosehints
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/

@@ -42,6 +42,8 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.gemini/subagents/",
   "**/.gemini/skills/",
   "**/.geminiignore",
+  // goose
+  "**/.goosehints",
   // GitHub Copilot
   "**/.github/copilot-instructions.md",
   "**/.github/instructions/",

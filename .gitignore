@@ -232,6 +232,7 @@ modular-mcp.json
 **/.gemini/subagents/
 **/.gemini/skills/
 **/.geminiignore
+**/.goosehints
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
@@ -241,6 +242,7 @@ modular-mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
 **/.kilocode/rules/
+**/.kilocode/skills/
 **/.kilocode/workflows/
 **/.kilocode/mcp.json
 **/.kilocodeignore
