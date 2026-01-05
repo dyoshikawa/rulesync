@@ -23,7 +23,14 @@ RUN apt update && apt install -y less \
     vim \
     bubblewrap \
     socat \
-    ripgrep
+    ripgrep \
+    locales
+
+# Generate locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
@@ -65,21 +72,11 @@ ENV PATH=$PATH:/usr/local/share/npm-global/bin
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
 
-# Default powerline10k theme
-RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
-    -p git \
-    -p fzf \
-    -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
-    -a "source /usr/share/doc/fzf/examples/completion.zsh" \
-    -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
-    -x
+# Install oh-my-bash and oh-my-zsh
+RUN bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
 ### Customize ###
-
-# Install Claude Code
-# Claude Code native ver is very slow and heavy to my env, so temporarily disabled.
-# RUN curl -fsSL https://claude.ai/install.sh | bash
-# RUN claude update
 
 # Install mise
 ENV PATH=$PATH:/home/node/.local/bin
@@ -109,17 +106,14 @@ ENV PATH=$PATH:$PNPM_HOME
 RUN mkdir -p "$PNPM_HOME" && \
     mise exec -- pnpm setup && \
     mise exec -- pnpm add -g \
-    @anthropic-ai/claude-code \
-    opencode-ai \
     @openai/codex \
-    @google/gemini-cli \
-    difit \
-    @musistudio/claude-code-router
+    @google/gemini-cli
 
+# Install Claude Code
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
-# Claude Code Router config
-COPY ccr.config.json /home/node/.claude-code-router/config.json
-RUN sudo chown -R node:node /home/node/.claude-code-router
+# Install OpenCode
+RUN curl -fsSL https://opencode.ai/install | bash
 
 # Aliases
 ENV CLAUDE_COMMAND="alias claude=\"claude --dangerously-skip-permissions\""
