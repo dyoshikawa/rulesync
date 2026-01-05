@@ -274,29 +274,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
 
-    const isClaude = this.toolTarget === "claudecode" || this.toolTarget === "claudecode-legacy";
-
-    // Collect all skill directories we should scan
-    const skillDirsToScan: string[] = [];
-
-    // 1 Normal behavior (global OR project, depending on mode)
-    skillDirsToScan.push(join(this.baseDir, paths.relativeDirPath));
-
-    // 2 Claude special-case:
-    // When importing in global mode, also scan project-level .claude/skills
-    if (this.global && isClaude) {
-      skillDirsToScan.push(join(process.cwd(), ".claude", "skills"));
-    }
-
-    // Load directories from all scan paths (ignore missing dirs)
-    const dirPaths = (
-      await Promise.all(
-        skillDirsToScan.map((dir) =>
-          findFilesByGlobs(join(dir, "*"), { type: "dir" }).catch(() => []),
-        ),
-      )
-    ).flat();
-
+    const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
+    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
     const toolSkills = await Promise.all(

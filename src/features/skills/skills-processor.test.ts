@@ -534,8 +534,8 @@ Global skill content`;
 
         const toolDirs = await globalProcessor.loadToolDirs();
 
-        expect(toolDirs.length).toBeGreaterThanOrEqual(1);
-        expect(toolDirs.every((dir) => dir instanceof ClaudecodeSkill)).toBe(true);
+        expect(toolDirs).toHaveLength(1);
+        expect(toolDirs[0]).toBeInstanceOf(ClaudecodeSkill);
         const claudecodeSkill = toolDirs[0] as ClaudecodeSkill;
         expect(claudecodeSkill.getFrontmatter().name).toBe("global-skill");
       });
