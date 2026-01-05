@@ -9,6 +9,7 @@ import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
+import { KiloCommand } from "./kilo-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
@@ -38,6 +39,11 @@ vi.mock("./claudecode-command.js", () => ({
 }));
 vi.mock("./geminicli-command.js", () => ({
   GeminiCliCommand: vi.fn().mockImplementation(function (config) {
+    return { ...config, isDeletable: () => true };
+  }),
+}));
+vi.mock("./kilo-command.js", () => ({
+  KiloCommand: vi.fn().mockImplementation(function (config) {
     return { ...config, isDeletable: () => true };
   }),
 }));
@@ -97,6 +103,19 @@ vi.mocked(GeminiCliCommand).getSettablePaths = vi
   .fn()
   .mockReturnValue({ relativeDirPath: join(".gemini", "commands") });
 vi.mocked(GeminiCliCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
+
+// Set up static methods after mocking
+vi.mocked(KiloCommand).fromFile = vi.fn();
+vi.mocked(KiloCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(KiloCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
+vi.mocked(KiloCommand).getSettablePaths = vi
+  .fn()
+  .mockReturnValue({ relativeDirPath: join(".kilocode", "workflows") });
+vi.mocked(KiloCommand).forDeletion = vi.fn().mockImplementation((params) => ({
   ...params,
   isDeletable: () => true,
   getRelativeFilePath: () => params.relativeFilePath,
@@ -797,6 +816,7 @@ describe("CommandsProcessor", () => {
           "copilot",
           "cursor",
           "geminicli",
+          "kilo",
           "opencode",
           "roo",
         ]),
@@ -815,6 +835,7 @@ describe("CommandsProcessor", () => {
           "copilot",
           "cursor",
           "geminicli",
+          "kilo",
           "opencode",
           "roo",
         ]),
@@ -833,6 +854,7 @@ describe("CommandsProcessor", () => {
           "cursor",
           "geminicli",
           "codexcli",
+          "kilo",
           "opencode",
         ]),
       );
@@ -866,6 +888,7 @@ describe("CommandsProcessor", () => {
         "claudecode-legacy",
         "cline",
         "geminicli",
+        "kilo",
         "roo",
       ];
 
