@@ -10,7 +10,6 @@ on:
 
 jobs:
     code-review:
-        if: ${{ contains(github.event.pull_request.title, ":review") }}
         runs-on: ubuntu-latest
         steps:
             - name: Display PR title
