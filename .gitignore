@@ -241,6 +241,7 @@ modular-mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
 **/.kilocode/rules/
+**/.kilocode/skills/
 **/.kilocode/workflows/
 **/.kilocode/mcp.json
 **/.kilocodeignore
@@ -260,5 +261,6 @@ modular-mcp.json
 **/.roo/subagents/
 **/.warp/
 **/WARP.md
+**/.zed/settings.json
 **/modular-mcp.json
 !.rulesync/.aiignore

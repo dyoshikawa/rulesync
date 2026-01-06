@@ -30,6 +30,7 @@ describe("tool targets", () => {
         "roo",
         "warp",
         "windsurf",
+        "zed",
       ];
 
       expect(ALL_TOOL_TARGETS).toEqual(expectedTargets);
