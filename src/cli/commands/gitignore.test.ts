@@ -242,7 +242,6 @@ dist/`;
 **/.roo/subagents/
 **/.warp/
 **/WARP.md
-**/.zed/settings.json
 **/modular-mcp.json
 !.rulesync/.aiignore
 `;

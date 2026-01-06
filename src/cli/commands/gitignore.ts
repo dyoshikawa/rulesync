@@ -80,8 +80,6 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Warp
   "**/.warp/",
   "**/WARP.md",
-  // Zed
-  "**/.zed/settings.json",
   // Others
   "**/modular-mcp.json",
   "!.rulesync/.aiignore",
