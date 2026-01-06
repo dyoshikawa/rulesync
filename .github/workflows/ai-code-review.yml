@@ -36,6 +36,6 @@ jobs:
               env:
                   OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
               with:
-                  model: openrouter/deepseek/deepseek-v3.2
+                  model: openrouter/z-ai/glm-4.7
                   prompt: |
                       Run the /review-pr command to review this pull request.
