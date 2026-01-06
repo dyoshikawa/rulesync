@@ -27,6 +27,12 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       license: z.optional(z.string()),
     }),
   ),
+  kiro: z.optional(
+    z.looseObject({
+      displayName: z.optional(z.string()),
+      keywords: z.optional(z.array(z.string())),
+    }),
+  ),
   roo: z.optional(z.looseObject({})),
 });
 
@@ -46,6 +52,10 @@ export type RulesyncSkillFrontmatterInput = {
   };
   copilot?: {
     license?: string;
+  };
+  kiro?: {
+    displayName?: string;
+    keywords?: string[];
   };
   roo?: Record<string, unknown>;
 };

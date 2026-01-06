@@ -21,7 +21,8 @@
     "no-new": "off",
     "typescript/no-explicit-any": "warn",
     "unicorn/prefer-node-protocol": "error",
-    "unicorn/no-array-reduce": "off"
+    "unicorn/no-array-reduce": "off",
+    "unicorn/no-thenable": "off"
   },
 
   "env": {

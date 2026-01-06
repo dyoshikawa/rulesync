@@ -227,6 +227,7 @@ dist/`;
 **/.kilocode/mcp.json
 **/.kilocodeignore
 **/.kiro/steering/
+**/.kiro/hooks/
 **/.aiignore
 **/.kiro/settings/
 **/.kiro/agents/

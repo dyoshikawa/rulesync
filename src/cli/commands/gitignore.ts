@@ -60,6 +60,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.kilocodeignore",
   // Kiro IDE
   "**/.kiro/steering/",
+  "**/.kiro/hooks/",
   "**/.aiignore",
   // Kiro CLI
   "**/.kiro/settings/",

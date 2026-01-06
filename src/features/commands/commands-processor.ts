@@ -16,6 +16,7 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { KiloCommand } from "./kilo-command.js";
+import { KiroCommand } from "./kiro-command.js";
 import { KiroCliCommand } from "./kirocli-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
@@ -42,7 +43,7 @@ type ToolCommandFactory = {
   };
   meta: {
     /** File extension for the command file */
-    extension: "md" | "toml" | "prompt.md";
+    extension: "md" | "toml" | "prompt.md" | "kiro.hook";
     /** Whether the tool supports project-level commands */
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) commands */
@@ -67,6 +68,7 @@ const commandsProcessorToolTargetTuple = [
   "cursor",
   "geminicli",
   "kilo",
+  "kiro",
   "kirocli",
   "opencode",
   "roo",
@@ -155,6 +157,18 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     {
       class: KiloCommand,
       meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroCommand,
+      meta: {
+        extension: "kiro.hook",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+      },
     },
   ],
   [

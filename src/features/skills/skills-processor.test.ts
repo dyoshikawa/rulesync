@@ -691,6 +691,7 @@ Content that would fail parsing`;
         "claudecode-legacy",
         "codexcli",
         "kilo",
+        "kiro",
         "opencode",
         "roo",
       ]);
@@ -706,6 +707,7 @@ Content that would fail parsing`;
         "claudecode-legacy",
         "codexcli",
         "kilo",
+        "kiro",
         "opencode",
         "roo",
       ]);

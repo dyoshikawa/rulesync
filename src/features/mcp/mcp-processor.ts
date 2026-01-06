@@ -40,6 +40,7 @@ const mcpProcessorToolTargetTuple = [
   "cursor",
   "geminicli",
   "kilo",
+  "kiro",
   "kirocli",
   "junie",
   "opencode",
@@ -132,6 +133,13 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "kilo",
     {
       class: KiloMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroCliMcp,
       meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
     },
   ],

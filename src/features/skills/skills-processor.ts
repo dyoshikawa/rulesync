@@ -13,6 +13,7 @@ import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -60,6 +61,7 @@ const skillsProcessorToolTargetTuple = [
   "cursor",
   "geminicli",
   "kilo",
+  "kiro",
   "opencode",
   "roo",
 ] as const;
@@ -128,6 +130,14 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     {
       class: KiloSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroSkill,
+      // Kiro powers are global-only (installed to ~/.kiro/powers/installed/)
+      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
@@ -249,16 +259,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
   /**
    * Implementation of abstract method from DirFeatureProcessor
    * Load and parse rulesync skill directories from .rulesync/skills/ directory
+   * Note: Rulesync files are always loaded from process.cwd(), not baseDir.
+   * This allows global mode to read from project directory and output to home directory.
    */
   async loadRulesyncDirs(): Promise<AiDir[]> {
     const paths = RulesyncSkill.getSettablePaths();
-    const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
+    // Always load rulesync files from current working directory
+    const rulesyncSkillsDirPath = join(process.cwd(), paths.relativeDirPath);
     const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
     const dirNames = dirPaths.map((path) => basename(path));
 
     const rulesyncSkills = await Promise.all(
       dirNames.map((dirName) =>
-        RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
+        RulesyncSkill.fromDir({ baseDir: process.cwd(), dirName, global: this.global }),
       ),
     );
 

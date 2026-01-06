@@ -858,6 +858,8 @@ describe("McpProcessor", () => {
       expect(targets).toContain("cline");
       expect(targets).toContain("copilot");
       expect(targets).toContain("cursor");
+      expect(targets).toContain("kiro");
+      expect(targets).toContain("kirocli");
       expect(targets).toContain("roo");
       expect(targets).not.toContain("codexcli"); // codexcli is global-only
     });
@@ -871,6 +873,7 @@ describe("McpProcessor", () => {
       expect(() => McpProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("codexcli")).not.toThrow();
+      expect(() => McpProcessorToolTargetSchema.parse("kiro")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("kirocli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("roo")).not.toThrow();
     });
