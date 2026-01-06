@@ -20,6 +20,7 @@ export const ALL_TOOL_TARGETS = [
   "roo",
   "warp",
   "windsurf",
+  "zed",
 ] as const;
 
 export const ALL_TOOL_TARGETS_WITH_WILDCARD = [...ALL_TOOL_TARGETS, "*"] as const;

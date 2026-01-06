@@ -462,6 +462,7 @@ describe("IgnoreProcessor", () => {
         "qwencode",
         "roo",
         "windsurf",
+        "zed",
       ];
 
       expect(toolTargets).toEqual(expectedTargets);
