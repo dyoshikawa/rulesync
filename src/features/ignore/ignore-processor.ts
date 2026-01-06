@@ -25,6 +25,7 @@ import {
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
+import { ZedIgnore } from "./zed-ignore.js";
 
 const ignoreProcessorToolTargets: ToolTarget[] = [
   "augmentcode",
@@ -39,6 +40,7 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "qwencode",
   "roo",
   "windsurf",
+  "zed",
 ];
 
 export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargets);
@@ -69,6 +71,7 @@ const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory
   ["qwencode", { class: QwencodeIgnore }],
   ["roo", { class: RooIgnore }],
   ["windsurf", { class: WindsurfIgnore }],
+  ["zed", { class: ZedIgnore }],
 ]);
 
 type GetFactory = (target: IgnoreProcessorToolTarget) => ToolIgnoreFactory;
