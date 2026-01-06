@@ -96,9 +96,9 @@ export class CodexcliMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
+  toRulesyncMcp({ outputBaseDir = process.cwd() }: { outputBaseDir?: string } = {}): RulesyncMcp {
     return new RulesyncMcp({
-      baseDir: this.baseDir,
+      baseDir: outputBaseDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: ".mcp.json",
       fileContent: JSON.stringify({ mcpServers: this.toml.mcp_servers ?? {} }, null, 2),

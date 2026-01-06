@@ -393,6 +393,36 @@ Invalid content`;
 
       await expect(processor.loadRulesyncDirs()).rejects.toThrow("SKILL.md not found in");
     });
+
+    it("should load rulesync dirs from process.cwd() in global mode", async () => {
+      // Create skill in testDir (process.cwd())
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      const skillDir = join(skillsDir, "global-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---
+name: global-skill
+description: Global skill
+targets: ["kiro"]
+---
+Global skill content`,
+      );
+
+      // Create processor with different baseDir (simulating global mode where baseDir is home)
+      const processor = new SkillsProcessor({
+        baseDir: "/different/base/dir",
+        toolTarget: "kiro",
+        global: true,
+      });
+
+      // loadRulesyncDirs should use process.cwd() (testDir), not baseDir
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      const rulesyncSkill = rulesyncDirs[0] as RulesyncSkill;
+      expect(rulesyncSkill.getFrontmatter().name).toBe("global-skill");
+    });
   });
 
   describe("loadToolDirs", () => {

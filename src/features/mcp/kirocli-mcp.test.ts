@@ -116,4 +116,78 @@ describe("KiroCliMcp", () => {
       expect(result.error).toBeNull();
     });
   });
+
+  describe("project mode vs global mode", () => {
+    it("should use same path structure for both project and global mode", () => {
+      const projectPaths = KiroCliMcp.getSettablePaths({ global: false });
+      const globalPaths = KiroCliMcp.getSettablePaths({ global: true });
+
+      // Kiro uses same relative path for both modes
+      expect(projectPaths).toEqual(globalPaths);
+      expect(projectPaths.relativeDirPath).toBe(join(".kiro", "settings"));
+      expect(projectPaths.relativeFilePath).toBe("mcp.json");
+    });
+
+    it("should output to project directory in project mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { server: { command: "node", args: ["s.js"] } },
+        }),
+        validate: true,
+      });
+
+      const kiroCliMcp = await KiroCliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect(kiroCliMcp.getFilePath()).toBe(join(testDir, ".kiro", "settings", "mcp.json"));
+    });
+
+    it("should output to home directory in global mode", async () => {
+      // Use a subdirectory of testDir to simulate home directory
+      const homeDir = join(testDir, "home", "user");
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { server: { command: "node", args: ["s.js"] } },
+        }),
+        validate: true,
+      });
+
+      const kiroCliMcp = await KiroCliMcp.fromRulesyncMcp({
+        baseDir: homeDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      expect(kiroCliMcp.getFilePath()).toBe(join(homeDir, ".kiro", "settings", "mcp.json"));
+    });
+
+    it("should use process.cwd() for rulesync output in toRulesyncMcp regardless of baseDir", () => {
+      // Simulate global mode: KiroCliMcp loaded from home directory
+      const homeDir = "/home/user";
+      const kiroCliMcp = new KiroCliMcp({
+        baseDir: homeDir,
+        relativeDirPath: join(".kiro", "settings"),
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { server: { command: "node", args: ["s.js"] } },
+        }),
+        validate: true,
+      });
+
+      const rulesyncMcp = kiroCliMcp.toRulesyncMcp();
+
+      // Import output should go to process.cwd() (testDir), not baseDir (homeDir)
+      expect(rulesyncMcp.getBaseDir()).toBe(testDir);
+      expect(rulesyncMcp.getFilePath()).toBe(join(testDir, ".rulesync", ".mcp.json"));
+    });
+  });
 });

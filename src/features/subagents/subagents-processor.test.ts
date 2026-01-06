@@ -517,6 +517,35 @@ Invalid content`;
       const validRulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
       expect(validRulesyncSubagent.getFrontmatter().name).toBe("valid-agent");
     });
+
+    it("should load rulesync files from process.cwd() in global mode", async () => {
+      // Create subagent in testDir (process.cwd())
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+      await writeFileContent(
+        join(subagentsDir, "global-agent.md"),
+        `---
+name: global-agent
+description: Global agent
+targets: ["kirocli"]
+---
+Global agent prompt`,
+      );
+
+      // Create processor with different baseDir (simulating global mode where baseDir is home)
+      const processor = new SubagentsProcessor({
+        baseDir: "/different/base/dir",
+        toolTarget: "kirocli",
+        global: true,
+      });
+
+      // loadRulesyncFiles should use process.cwd() (testDir), not baseDir
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("global-agent");
+    });
   });
 
   describe("loadToolFiles", () => {
@@ -864,11 +893,11 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode and opencode as global-supported targets", () => {
+    it("should return claudecode, kirocli and opencode as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
-      expect(toolTargets).toEqual(["claudecode", "claudecode-legacy", "opencode"]);
+      expect(toolTargets).toEqual(["claudecode", "claudecode-legacy", "kirocli", "opencode"]);
     });
 
     it("should not include simulated targets", () => {

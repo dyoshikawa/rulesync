@@ -391,7 +391,7 @@ describe("ClineMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const rulesyncMcp = clineMcp.toRulesyncMcp();
+      const rulesyncMcp = clineMcp.toRulesyncMcp({ outputBaseDir: "/test/dir" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);

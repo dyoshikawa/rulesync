@@ -15,18 +15,26 @@ import {
 
 /**
  * Kiro CLI Custom Agent JSON schema
- * Based on https://kiro.dev/docs/cli/custom-agents/configuration-reference/
+ * Based on https://github.com/aws/amazon-q-developer-cli/blob/main/crates/agent/src/agent/agent_config/definitions.rs
+ * All optional fields can be null or omitted in JSON.
  */
 export const KiroCliSubagentJsonSchema = z.looseObject({
+  // Required
   name: z.string(),
-  description: z.string(),
-  prompt: z.optional(z.string()),
-  tools: z.optional(z.array(z.string())),
-  allowedTools: z.optional(z.array(z.string())),
-  model: z.optional(z.string()),
-  mcpServers: z.optional(z.record(z.string(), z.unknown())),
-  resources: z.optional(z.array(z.string())),
-  includeMcpJson: z.optional(z.boolean()),
+  // Optional (can be null or omitted)
+  description: z.optional(z.nullable(z.string())),
+  prompt: z.optional(z.nullable(z.string())),
+  tools: z.optional(z.nullable(z.array(z.string()))),
+  toolAliases: z.optional(z.nullable(z.record(z.string(), z.string()))),
+  toolSettings: z.optional(z.nullable(z.unknown())),
+  toolSchema: z.optional(z.nullable(z.unknown())),
+  hooks: z.optional(z.nullable(z.record(z.string(), z.array(z.unknown())))),
+  model: z.optional(z.nullable(z.string())),
+  mcpServers: z.optional(z.nullable(z.record(z.string(), z.unknown()))),
+  useLegacyMcpJson: z.optional(z.nullable(z.boolean())),
+  resources: z.optional(z.nullable(z.array(z.string()))),
+  allowedTools: z.optional(z.nullable(z.array(z.string()))),
+  includeMcpJson: z.optional(z.nullable(z.boolean())),
 });
 
 export type KiroCliSubagentJson = z.infer<typeof KiroCliSubagentJsonSchema>;
@@ -85,7 +93,7 @@ export class KiroCliSubagent extends ToolSubagent {
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["kirocli"],
       name,
-      description,
+      description: description ?? "",
       kirocli: kirocliSection,
     };
 

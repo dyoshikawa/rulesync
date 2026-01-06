@@ -232,6 +232,31 @@ describe("KiroRule", () => {
     });
   });
 
+  describe("getSettablePaths", () => {
+    it("should return root path pointing to .kiro/steering/product.md", () => {
+      const paths = KiroRule.getSettablePaths();
+
+      expect(paths.root).toBeDefined();
+      expect(paths.root?.relativeDirPath).toBe(".kiro/steering");
+      expect(paths.root?.relativeFilePath).toBe("product.md");
+    });
+
+    it("should return nonRoot path pointing to .kiro/steering/", () => {
+      const paths = KiroRule.getSettablePaths();
+
+      expect(paths.nonRoot).toBeDefined();
+      expect(paths.nonRoot.relativeDirPath).toBe(".kiro/steering");
+    });
+
+    it("should not use AGENTS.md for root rules (Kiro uses .kiro/steering/product.md)", () => {
+      const paths = KiroRule.getSettablePaths();
+
+      // Kiro does not use AGENTS.md like some other tools
+      expect(paths.root?.relativeFilePath).not.toBe("AGENTS.md");
+      expect(paths.root?.relativeDirPath).not.toBe(".");
+    });
+  });
+
   describe("fromRulesyncRule", () => {
     it("should create instance from RulesyncRule for root rule", () => {
       const rulesyncRule = new RulesyncRule({
@@ -251,8 +276,8 @@ describe("KiroRule", () => {
       });
 
       expect(kiroRule).toBeInstanceOf(KiroRule);
-      expect(kiroRule.getRelativeDirPath()).toBe(".");
-      expect(kiroRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(kiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(kiroRule.getRelativeFilePath()).toBe("product.md");
       expect(kiroRule.getFileContent()).toContain("# Test RulesyncRule\n\nContent from rulesync.");
       expect(kiroRule.isRoot()).toBe(true);
     });
@@ -831,6 +856,110 @@ describe("KiroRule", () => {
         expect(kiroRule.getFileContent()).toBe(content);
         expect(kiroRule.validate().success).toBe(true);
       }
+    });
+  });
+
+  describe("project mode vs global mode", () => {
+    it("should output root rule to .kiro/steering/product.md in project mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["kiro"],
+        },
+        body: "# Project Overview",
+      });
+
+      const kiroRule = KiroRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      // In project mode, root rule goes to .kiro/steering/product.md
+      expect(kiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(kiroRule.getRelativeFilePath()).toBe("product.md");
+      expect(kiroRule.getFilePath()).toBe(join(testDir, ".kiro/steering/product.md"));
+    });
+
+    it("should output root rule to .kiro/steering/product.md in global mode (same as project)", () => {
+      // In global mode, baseDir would be home directory
+      const homeDir = "/home/user";
+
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir, // rulesync files are in cwd
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["kiro"],
+        },
+        body: "# Global Overview",
+      });
+
+      const kiroRule = KiroRule.fromRulesyncRule({
+        baseDir: homeDir, // tool files go to home
+        rulesyncRule,
+      });
+
+      // In global mode, root rule still goes to .kiro/steering/product.md but under home
+      expect(kiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(kiroRule.getRelativeFilePath()).toBe("product.md");
+      expect(kiroRule.getFilePath()).toBe(join(homeDir, ".kiro/steering/product.md"));
+    });
+
+    it("should output non-root rules to .kiro/steering/ in both modes", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "coding-guidelines.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+        },
+        body: "# Coding Guidelines",
+      });
+
+      // Project mode
+      const projectKiroRule = KiroRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+      expect(projectKiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(projectKiroRule.getRelativeFilePath()).toBe("coding-guidelines.md");
+
+      // Global mode (different baseDir)
+      const homeDir = "/home/user";
+      const globalKiroRule = KiroRule.fromRulesyncRule({
+        baseDir: homeDir,
+        rulesyncRule,
+      });
+      expect(globalKiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(globalKiroRule.getRelativeFilePath()).toBe("coding-guidelines.md");
+      expect(globalKiroRule.getFilePath()).toBe(
+        join(homeDir, ".kiro/steering/coding-guidelines.md"),
+      );
+    });
+
+    it("should use process.cwd() for rulesync output in toRulesyncRule regardless of baseDir", () => {
+      // Simulate global mode: KiroRule loaded from home directory
+      const homeDir = "/home/user";
+      const kiroRule = new KiroRule({
+        baseDir: homeDir,
+        relativeDirPath: ".kiro/steering",
+        relativeFilePath: "product.md",
+        fileContent: "# Global Rule",
+        root: true,
+      });
+
+      const rulesyncRule = kiroRule.toRulesyncRule();
+
+      // Import output should go to process.cwd() (testDir), not baseDir (homeDir)
+      expect(rulesyncRule.getBaseDir()).toBe(testDir);
+      expect(rulesyncRule.getFilePath()).toBe(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      );
     });
   });
 });

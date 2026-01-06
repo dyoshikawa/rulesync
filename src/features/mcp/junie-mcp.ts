@@ -65,8 +65,8 @@ export class JunieMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+  toRulesyncMcp({ outputBaseDir }: { outputBaseDir?: string } = {}): RulesyncMcp {
+    return this.toRulesyncMcpDefault({ outputBaseDir });
   }
 
   validate(): ValidationResult {

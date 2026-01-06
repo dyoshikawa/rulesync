@@ -163,6 +163,41 @@ describe("KiroCliSubagent", () => {
       expect(rulesyncSubagent.getBody()).toBe("Plan tasks");
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("planner.md");
     });
+
+    it("handles null description by converting to empty string", () => {
+      const subagent = new KiroCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: join(".kiro", "agents"),
+        relativeFilePath: "test.json",
+        json: {
+          name: "test",
+          description: null,
+        },
+        fileContent: JSON.stringify({ name: "test", description: null }),
+        validate: true,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("");
+    });
+
+    it("handles undefined description by converting to empty string", () => {
+      const subagent = new KiroCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: join(".kiro", "agents"),
+        relativeFilePath: "test.json",
+        json: {
+          name: "test",
+        },
+        fileContent: JSON.stringify({ name: "test" }),
+        validate: true,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("");
+    });
   });
 
   describe("fromFile", () => {

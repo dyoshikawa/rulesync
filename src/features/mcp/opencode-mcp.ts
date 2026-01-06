@@ -218,9 +218,10 @@ export class OpencodeMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
+  toRulesyncMcp({ outputBaseDir }: { outputBaseDir?: string } = {}): RulesyncMcp {
     const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {});
     return this.toRulesyncMcpDefault({
+      outputBaseDir,
       fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
     });
   }

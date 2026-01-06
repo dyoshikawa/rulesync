@@ -110,8 +110,9 @@ export class ClaudecodeMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
+  toRulesyncMcp({ outputBaseDir }: { outputBaseDir?: string } = {}): RulesyncMcp {
     return this.toRulesyncMcpDefault({
+      outputBaseDir,
       fileContent: JSON.stringify({ mcpServers: this.json.mcpServers }, null, 2),
     });
   }

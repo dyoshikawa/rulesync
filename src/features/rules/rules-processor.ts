@@ -297,14 +297,14 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "kiro",
     {
       class: KiroRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "toon" },
     },
   ],
   [
     "kirocli",
     {
       class: KiroCliRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "toon" },
     },
   ],
   [
@@ -609,15 +609,21 @@ export class RulesProcessor extends FeatureProcessor {
       throw new Error("Multiple root rulesync rules found");
     }
 
-    // If global is true, return only the root rule
+    // If global is true, check if the tool supports non-root rules in global mode
+    // Tools with ruleDiscoveryMode "toon" support non-root rules (e.g., kiro, kirocli)
     if (this.global) {
-      const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
-      if (nonRootRules.length > 0) {
-        logger.warn(
-          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them`,
-        );
+      const factory = this.getFactory(this.toolTarget);
+      const supportsNonRootInGlobal = factory.meta.ruleDiscoveryMode === "toon";
+
+      if (!supportsNonRootInGlobal) {
+        const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
+        if (nonRootRules.length > 0) {
+          logger.warn(
+            `${nonRootRules.length} non-root rulesync rules found, but ${this.toolTarget} doesn't support non-root rules in global mode, so ignoring them`,
+          );
+        }
+        return rootRules;
       }
-      return rootRules;
     }
 
     return rulesyncRules;

@@ -767,7 +767,7 @@ describe("OpencodeMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp({ outputBaseDir: "/test/dir" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({

@@ -863,6 +863,21 @@ describe("McpProcessor", () => {
       expect(targets).toContain("roo");
       expect(targets).not.toContain("codexcli"); // codexcli is global-only
     });
+
+    it("should return global-supported tool targets when global: true", () => {
+      const targets = McpProcessor.getToolTargets({ global: true });
+      expect(targets).toContain("claudecode");
+      expect(targets).toContain("claudecode-legacy");
+      expect(targets).toContain("codexcli");
+      expect(targets).toContain("geminicli");
+      expect(targets).toContain("kiro");
+      expect(targets).toContain("kirocli");
+      expect(targets).toContain("opencode");
+      // These should not be in global mode
+      expect(targets).not.toContain("cline");
+      expect(targets).not.toContain("copilot");
+      expect(targets).not.toContain("cursor");
+    });
   });
 
   describe("McpProcessorToolTargetSchema", () => {

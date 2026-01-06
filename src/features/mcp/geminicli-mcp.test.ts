@@ -689,7 +689,7 @@ describe("GeminiCliMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const rulesyncMcp = geminiCliMcp.toRulesyncMcp();
+      const rulesyncMcp = geminiCliMcp.toRulesyncMcp({ outputBaseDir: "/test/dir" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);

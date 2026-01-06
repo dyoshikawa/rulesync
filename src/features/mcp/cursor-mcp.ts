@@ -76,9 +76,9 @@ export class CursorMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
+  toRulesyncMcp({ outputBaseDir = process.cwd() }: { outputBaseDir?: string } = {}): RulesyncMcp {
     return new RulesyncMcp({
-      baseDir: this.baseDir,
+      baseDir: outputBaseDir,
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: "rulesync.mcp.json",
       fileContent: this.fileContent,

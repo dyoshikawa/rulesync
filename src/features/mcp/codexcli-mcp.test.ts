@@ -518,7 +518,8 @@ args = ["another-server.py"]
         fileContent: tomlContent,
       });
 
-      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      // Explicitly pass outputBaseDir to preserve the original baseDir
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp({ outputBaseDir: "/test/dir" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
 

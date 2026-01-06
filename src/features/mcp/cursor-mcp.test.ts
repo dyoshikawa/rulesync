@@ -769,7 +769,7 @@ describe("CursorMcp", () => {
         fileContent: JSON.stringify(cursorMcpData),
       });
 
-      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const rulesyncMcp = cursorMcp.toRulesyncMcp({ outputBaseDir: "/test/path" });
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
@@ -805,7 +805,7 @@ describe("CursorMcp", () => {
         fileContent: JSON.stringify(complexData),
       });
 
-      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const rulesyncMcp = cursorMcp.toRulesyncMcp({ outputBaseDir: "/custom" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/custom");
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(complexData));

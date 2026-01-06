@@ -140,14 +140,14 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "kiro",
     {
       class: KiroCliMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
     },
   ],
   [
     "kirocli",
     {
       class: KiroCliMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
     },
   ],
   [

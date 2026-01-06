@@ -13,18 +13,21 @@ import {
 
 export type KiroRuleParams = ToolRuleParams;
 
-export type KiroRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
+export type KiroRuleSettablePaths = ToolRuleSettablePaths;
 
 /**
  * Rule generator for Kiro AI-powered IDE
  *
  * Generates steering documents for Kiro's spec-driven development approach.
- * Supports both root file (.kiro/guidelines.md) and steering documents
- * in the .kiro/steering/ directory (product.md, structure.md, tech.md).
+ * All steering files (both root and non-root) are placed in .kiro/steering/ directory.
  */
 export class KiroRule extends ToolRule {
   static getSettablePaths(): KiroRuleSettablePaths {
     return {
+      root: {
+        relativeDirPath: join(".kiro", "steering"),
+        relativeFilePath: "product.md",
+      },
       nonRoot: {
         relativeDirPath: join(".kiro", "steering"),
       },
@@ -60,6 +63,7 @@ export class KiroRule extends ToolRule {
         baseDir,
         rulesyncRule,
         validate,
+        rootPath: this.getSettablePaths().root,
         nonRootPath: this.getSettablePaths().nonRoot,
       }),
     );

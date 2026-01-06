@@ -175,7 +175,7 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     "kirocli",
     {
       class: KiroCliCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
+      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
     },
   ],
   [

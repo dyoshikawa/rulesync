@@ -916,7 +916,7 @@ describe("ClaudecodeMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
-      const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
+      const rulesyncMcp = claudecodeMcp.toRulesyncMcp({ outputBaseDir: "/test/dir" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);

@@ -39,6 +39,8 @@ type ToolSubagentFactory = {
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
   };
   meta: {
+    /** File extension for subagent files (e.g., "md", "json") */
+    extension: "md" | "json";
     /** Whether the tool supports simulated subagents (embedded in rules) */
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) subagents */
@@ -75,38 +77,74 @@ export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolT
 const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagentFactory>([
   [
     "agentsmd",
-    { class: AgentsmdSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: AgentsmdSubagent,
+      meta: { extension: "md", supportsSimulated: true, supportsGlobal: false },
+    },
   ],
   [
     "claudecode",
-    { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: ClaudecodeSubagent,
+      meta: { extension: "md", supportsSimulated: false, supportsGlobal: true },
+    },
   ],
   [
     "claudecode-legacy",
-    { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: ClaudecodeSubagent,
+      meta: { extension: "md", supportsSimulated: false, supportsGlobal: true },
+    },
   ],
   [
     "codexcli",
-    { class: CodexCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: CodexCliSubagent,
+      meta: { extension: "md", supportsSimulated: true, supportsGlobal: false },
+    },
   ],
   [
     "copilot",
-    { class: CopilotSubagent, meta: { supportsSimulated: false, supportsGlobal: false } },
+    {
+      class: CopilotSubagent,
+      meta: { extension: "md", supportsSimulated: false, supportsGlobal: false },
+    },
   ],
-  ["cursor", { class: CursorSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "cursor",
+    {
+      class: CursorSubagent,
+      meta: { extension: "md", supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
   [
     "geminicli",
-    { class: GeminiCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: GeminiCliSubagent,
+      meta: { extension: "md", supportsSimulated: true, supportsGlobal: false },
+    },
   ],
   [
     "kirocli",
-    { class: KiroCliSubagent, meta: { supportsSimulated: false, supportsGlobal: false } },
+    {
+      class: KiroCliSubagent,
+      meta: { extension: "json", supportsSimulated: false, supportsGlobal: true },
+    },
   ],
   [
     "opencode",
-    { class: OpenCodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: OpenCodeSubagent,
+      meta: { extension: "md", supportsSimulated: false, supportsGlobal: true },
+    },
   ],
-  ["roo", { class: RooSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "roo",
+    {
+      class: RooSubagent,
+      meta: { extension: "md", supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
 ]);
 
 /**
@@ -219,9 +257,11 @@ export class SubagentsProcessor extends FeatureProcessor {
   /**
    * Implementation of abstract method from Processor
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
+   * Note: Rulesync files are always loaded from process.cwd(), not baseDir.
+   * This allows global mode to read from project directory and output to home directory.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const subagentsDir = join(this.baseDir, RulesyncSubagent.getSettablePaths().relativeDirPath);
+    const subagentsDir = join(process.cwd(), RulesyncSubagent.getSettablePaths().relativeDirPath);
 
     // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);
@@ -249,6 +289,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
       try {
         const rulesyncSubagent = await RulesyncSubagent.fromFile({
+          baseDir: process.cwd(),
           relativeFilePath: mdFile,
           validate: true,
         });
@@ -281,9 +322,10 @@ export class SubagentsProcessor extends FeatureProcessor {
   } = {}): Promise<ToolFile[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
+    const extension = factory.meta.extension;
 
     const subagentFilePaths = await findFilesByGlobs(
-      join(this.baseDir, paths.relativeDirPath, "*.md"),
+      join(this.baseDir, paths.relativeDirPath, `*.${extension}`),
     );
 
     if (forDeletion) {

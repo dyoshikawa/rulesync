@@ -50,15 +50,31 @@ export abstract class ToolMcp extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  abstract toRulesyncMcp(): RulesyncMcp;
+  /**
+   * Convert this tool MCP configuration to a RulesyncMcp for import.
+   * @param outputBaseDir - Base directory for the output rulesync file.
+   *   In global mode, this should be process.cwd() (the rulesync project directory),
+   *   not the home directory where tool files are located.
+   *   Defaults to process.cwd().
+   */
+  abstract toRulesyncMcp(options?: { outputBaseDir?: string }): RulesyncMcp;
 
+  /**
+   * Default implementation for toRulesyncMcp.
+   * @param outputBaseDir - Base directory for the output rulesync file.
+   *   Defaults to process.cwd() to support global mode where tool files
+   *   are in home directory but rulesync files should be in the project directory.
+   * @param fileContent - Optional file content override.
+   */
   protected toRulesyncMcpDefault({
+    outputBaseDir = process.cwd(),
     fileContent = undefined,
   }: {
+    outputBaseDir?: string;
     fileContent?: string;
   } = {}): RulesyncMcp {
     return new RulesyncMcp({
-      baseDir: this.baseDir,
+      baseDir: outputBaseDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: ".mcp.json",
       fileContent: fileContent ?? this.fileContent,

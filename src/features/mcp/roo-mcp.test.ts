@@ -414,7 +414,7 @@ describe("RooMcp", () => {
         fileContent: JSON.stringify(mcpContent),
       });
 
-      const rulesyncMcp = rooMcp.toRulesyncMcp();
+      const rulesyncMcp = rooMcp.toRulesyncMcp({ outputBaseDir: "/test/path" });
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");

@@ -31,8 +31,8 @@ class TestToolMcp extends ToolMcp {
     };
   }
 
-  toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+  toRulesyncMcp({ outputBaseDir }: { outputBaseDir?: string } = {}): RulesyncMcp {
+    return this.toRulesyncMcpDefault({ outputBaseDir });
   }
 
   static async fromFile(_params: ToolMcpFromFileParams): Promise<TestToolMcp> {
@@ -355,23 +355,51 @@ describe("ToolMcp", () => {
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
     });
 
-    it("should preserve baseDir when creating RulesyncMcp", () => {
+    it("should use process.cwd() by default for outputBaseDir", () => {
       const jsonData = {
         mcpServers: {},
       };
-      const customDir = join(testDir, "custom", "base", "dir");
+      // Simulate global mode: baseDir differs from process.cwd()
+      const differentBaseDir = join(testDir, "different", "base", "dir");
       const toolMcp = new TestToolMcp({
-        baseDir: customDir,
+        baseDir: differentBaseDir,
         relativeDirPath: "test",
         relativeFilePath: "test.json",
         fileContent: JSON.stringify(jsonData),
       });
 
+      // Call without outputBaseDir - should default to process.cwd()
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe(customDir);
+      // Import output should go to process.cwd() by default
+      // This is important for global mode where:
+      // - baseDir = home directory (tool files location)
+      // - process.cwd() = project directory (rulesync files location)
+      expect(rulesyncMcp.getBaseDir()).toBe(testDir); // process.cwd()
+      expect(rulesyncMcp.getBaseDir()).not.toBe(differentBaseDir);
       expect(rulesyncMcp.getFilePath()).toBe(
-        join(customDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json"),
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json"),
+      );
+    });
+
+    it("should use explicit outputBaseDir when provided", () => {
+      const jsonData = {
+        mcpServers: {},
+      };
+      const customOutputDir = join(testDir, "custom", "output");
+      const toolMcp = new TestToolMcp({
+        baseDir: testDir,
+        relativeDirPath: "test",
+        relativeFilePath: "test.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      // Call with explicit outputBaseDir
+      const rulesyncMcp = toolMcp.toRulesyncMcp({ outputBaseDir: customOutputDir });
+
+      expect(rulesyncMcp.getBaseDir()).toBe(customOutputDir);
+      expect(rulesyncMcp.getFilePath()).toBe(
+        join(customOutputDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json"),
       );
     });
 

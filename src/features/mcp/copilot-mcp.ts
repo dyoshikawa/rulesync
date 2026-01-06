@@ -80,9 +80,10 @@ export class CopilotMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
+  toRulesyncMcp({ outputBaseDir }: { outputBaseDir?: string } = {}): RulesyncMcp {
     const mcpServers = convertFromCopilotFormat(this.json);
     return this.toRulesyncMcpDefault({
+      outputBaseDir,
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
   }

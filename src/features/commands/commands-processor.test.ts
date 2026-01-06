@@ -859,6 +859,7 @@ describe("CommandsProcessor", () => {
           "geminicli",
           "codexcli",
           "kilo",
+          "kirocli",
           "opencode",
         ]),
       );

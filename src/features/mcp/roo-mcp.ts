@@ -122,12 +122,13 @@ export class RooMcp extends ToolMcp {
     });
   }
 
-  toRulesyncMcp(): RulesyncMcp {
+  toRulesyncMcp({ outputBaseDir }: { outputBaseDir?: string } = {}): RulesyncMcp {
     const rawMcpServers: RooMcpServers = isRooMcpServers(this.json.mcpServers)
       ? this.json.mcpServers
       : {};
     const convertedMcpServers = convertFromRooFormat(rawMcpServers);
     return this.toRulesyncMcpDefault({
+      outputBaseDir,
       fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
     });
   }

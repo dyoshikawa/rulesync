@@ -379,7 +379,7 @@ describe("CopilotMcp", () => {
         fileContent: JSON.stringify({ servers: inputServers }),
       });
 
-      const rulesyncMcp = copilotMcp.toRulesyncMcp();
+      const rulesyncMcp = copilotMcp.toRulesyncMcp({ outputBaseDir: "/test/dir" });
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
