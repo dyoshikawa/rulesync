@@ -1,17 +1,18 @@
 ---
-description: 'Release a new version of the project.'
+description: "Release a new version of the project."
 targets:
-  - '*'
+  - "*"
 ---
 
 First, let's work on the following steps.
 
 1. Confirm that you are currently on the main branch. If not on main branch, abort this operation.
 2. Compare code changes between the previous version tag and the latest commit to prepare the release description.
-  - Write in English.
-  - Do not include confidential information.
-  - Sections, `What's Changed`, `Contributors` and `Full Changelog` are needed.
-  - `./ai-tmp/release-notes.md` will be used as the release notes.
+
+- Write in English.
+- Do not include confidential information.
+- Sections, `What's Changed`, `Contributors` and `Full Changelog` are needed.
+- `./ai-tmp/release-notes.md` will be used as the release notes.
 
 Then, from $ARGUMENTS, get the new version without v prefix, and assign it to $new_version. For example, if $ARGUMENTS is "v1.0.0", the new version is "1.0.0".
 

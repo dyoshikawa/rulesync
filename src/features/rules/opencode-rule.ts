@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { type AiFileFromFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";

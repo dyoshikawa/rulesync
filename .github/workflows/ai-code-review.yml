@@ -1,41 +1,41 @@
 name: AI Code Review
 
 on:
-    pull_request:
-        types: [opened, synchronize, reopened, ready_for_review]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
-    code-review:
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        permissions:
-            id-token: write
-            contents: read
-            pull-requests: read
-            issues: read
-        steps:
-            - name: Checkout repository
-              # actions/checkout@v6 is not compatible with anomalyco/opencode@v1.1.2
-              uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-              with:
-                  fetch-depth: 1
+  code-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v6 is not compatible with anomalyco/opencode@v1.1.2
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
 
-            - name: Setup mise
-              uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3.5.1
-              with:
-                  experimental: true
+      - name: Setup mise
+        uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3.5.1
+        with:
+          experimental: true
 
-            - name: Install dependencies
-              run: pnpm install --ignore-scripts
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
 
-            - name: Generate AI files
-              run: pnpm run dev generate
+      - name: Generate AI files
+        run: pnpm run dev generate
 
-            - name: Run OpenCode Review
-              uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
-              env:
-                  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-              with:
-                  model: openrouter/deepseek/deepseek-v3.2
-                  prompt: |
-                      Run the /review-pr command to review this pull request.
+      - name: Run OpenCode Review
+        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        with:
+          model: openrouter/deepseek/deepseek-v3.2
+          prompt: |
+            Run the /review-pr command to review this pull request.

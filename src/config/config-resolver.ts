@@ -1,5 +1,6 @@
-import { resolve } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
+import { resolve } from "node:path";
+
 import { formatError } from "../utils/error.js";
 import {
   fileExists,

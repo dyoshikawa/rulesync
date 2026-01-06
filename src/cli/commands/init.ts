@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { ConfigParams } from "../../config/config.js";
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,

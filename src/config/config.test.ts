@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { Config, type ConfigParams } from "./config.js";
 

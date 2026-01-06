@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
+
 import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -143,7 +144,9 @@ export class RulesyncRule extends RulesyncFile {
       relativeFilePath,
     );
 
-    logger.warn(`⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`);
+    logger.warn(
+      `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
+    );
 
     // Read file content
     const fileContent = await readFileContent(legacyPath);

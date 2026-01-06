@@ -98,6 +98,7 @@ Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
   if ($actual -eq $expected) { "✓ Checksum verified" } else { "✗ Checksum mismatch" }
 }
 ```
+
 </details>
 
 ## Getting Started
@@ -126,53 +127,60 @@ npx rulesync generate --targets "*" --features "*"
 
 Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
-| Tool                  | rules | ignore | mcp   | commands | subagents | skills |
-|------------------------|:-----:|:------:|:-----:|:--------:|:---------:|:------:|
-| AGENTS.md            |  ✅   |      |       |     🎮     |      🎮     |    🎮   |
-| Claude Code            |  ✅ 🌏   |  ✅   |  ✅ 🌏 📦   |    ✅ 🌏     |    ✅ 🌏     |  ✅ 🌏   |
-| Codex CLI              |  ✅ 🌏   |      |   🌏   |     🌏    |    🎮      |    🌏   |
-| Gemini CLI             |  ✅ 🌏  |   ✅   |  ✅ 🌏  |     ✅ 🌏  |      🎮     |    🎮   |
-| GitHub Copilot         |  ✅    |       |  ✅    |     ✅     |    ✅      |    ✅   |
-| Cursor                 |  ✅   |   ✅  |   ✅   |     ✅ 🌏  |     🎮     |    ✅   |
-| OpenCode               |  ✅   |       |   ✅   |    ✅ 🌏    |   ✅ 🌏    |   ✅ 🌏  |
-| Cline                  |  ✅    |   ✅    |  ✅    |     ✅ 🌏  |          |        |
-| Kilo Code              |  ✅ 🌏   |   ✅   |  ✅   |    ✅ 🌏     |          |        |
-| Roo Code               |  ✅   |   ✅   |  ✅    |   ✅     |     🎮     |   ✅ 🌏  |
-| Qwen Code              |  ✅   |   ✅   |       |         |          |        |
-| Kiro IDE               |  ✅   |   ✅   |      |         |          |        |
-| Google Antigravity     |  ✅   |       |       |    ✅    |          |        |
-| JetBrains Junie        |  ✅   |   ✅   |  ✅   |         |          |        |
-| AugmentCode            |  ✅   |   ✅   |       |         |          |        |
-| Windsurf               |  ✅   |   ✅    |      |         |          |        |
-| Warp               |  ✅   |        |      |         |          |        |
-| Zed                    |       |   ✅   |       |         |          |        |
+| Tool               | rules | ignore |   mcp    | commands | subagents | skills |
+| ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: |
+| AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |
+| Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
+| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     |   🌏   |
+| Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |
+| GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |
+| Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    🎮     |   ✅   |
+| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
+| Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |
+| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           |        |
+| Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |
+| Qwen Code          |  ✅   |   ✅   |          |          |           |        |
+| Kiro IDE           |  ✅   |   ✅   |          |          |           |        |
+| Google Antigravity |  ✅   |        |          |    ✅    |           |        |
+| JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |
+| AugmentCode        |  ✅   |   ✅   |          |          |           |        |
+| Windsurf           |  ✅   |   ✅   |          |          |           |        |
+| Warp               |  ✅   |        |          |          |           |        |
+| Zed                |       |   ✅   |          |          |           |        |
 
-* ✅: Supports project mode
-* 🌏: Supports global mode
-* 🎮: Supports simulated commands/subagents/skills (Project mode only)
-* 📦: Supports modular MCP (Experimental)
+- ✅: Supports project mode
+- 🌏: Supports global mode
+- 🎮: Supports simulated commands/subagents/skills (Project mode only)
+- 📦: Supports modular MCP (Experimental)
 
 ## Why Rulesync?
 
 ### 🔧 **Tool Flexibility**
+
 Team members can freely choose their preferred AI coding tools. Whether it's GitHub Copilot, Cursor, Cline, or Claude Code, each developer can use the tool that maximizes their productivity.
 
 ### 📈 **Future-Proof Development**
+
 AI development tools evolve rapidly with new tools emerging frequently. With Rulesync, switching between tools doesn't require redefining your rules from scratch.
 
 ### 🎯 **Multi-Tool Workflow**
+
 Enable hybrid development workflows combining multiple AI tools.
 
 ### 🔓 **No Lock-in**
+
 Avoid lock-in completely. If you decide to stop using Rulesync, you can continue using the generated rule files as-is.
 
 ### 🎯 **Consistency Across Tools**
+
 Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
 
 ### 🌏 **Global Mode**
+
 You can use global mode via Rulesync by enabling `--global` option.
 
 ### 🎮 **Simulate Commands and Subagents**
+
 Simulated commands and subagents allow you to generate simulated commands and subagents for cursor and codexcli. This is useful for shortening your prompts.
 
 ## Case Studies
@@ -222,7 +230,7 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 {
   "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
   "targets": ["claudecode"],
-  "features": ["rules"]
+  "features": ["rules"],
 }
 ```
 
@@ -240,7 +248,7 @@ Example:
 
   // Features to generate. You can specify "*" to generate all features.
   "features": ["rules", "ignore", "mcp", "commands", "subagents"],
-  
+
   // Base directories for generation.
   // Basically, you can specify a `["."]` only.
   // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple base directories.
@@ -253,11 +261,11 @@ Example:
   "verbose": false,
 
   // Advanced options
-  "global": false,  // Generate for global(user scope) configuration files
-  "simulateCommands": false,  // Generate simulated commands
-  "simulateSubagents": false,  // Generate simulated subagents
-  "simulateSkills": false,  // Generate simulated skills
-  "modularMcp": false  // Enable modular-mcp for context compression (experimental, Claude Code only)
+  "global": false, // Generate for global(user scope) configuration files
+  "simulateCommands": false, // Generate simulated commands
+  "simulateSubagents": false, // Generate simulated subagents
+  "simulateSkills": false, // Generate simulated skills
+  "modularMcp": false, // Enable modular-mcp for context compression (experimental, Claude Code only)
 }
 ```
 
@@ -271,11 +279,12 @@ For example, both `agentsmd` and `opencode` generate `AGENTS.md`:
 {
   // opencode wins because it comes last
   "targets": ["agentsmd", "opencode"],
-  "features": ["rules"]
+  "features": ["rules"],
 }
 ```
 
 In this case:
+
 1. `agentsmd` generates `AGENTS.md` first
 2. `opencode` generates `AGENTS.md` second, overwriting the previous file
 
@@ -285,7 +294,7 @@ If you want `agentsmd`'s output instead, reverse the order:
 {
   // agentsmd wins because it comes last
   "targets": ["opencode", "agentsmd"],
-  "features": ["rules"]
+  "features": ["rules"],
 }
 ```
 
@@ -330,7 +339,7 @@ Example:
 
 ```md
 ---
-description: 'Review a pull request' # command description
+description: "Review a pull request" # command description
 targets: ["*"] # * = all, or specific tools
 copilot: # copilot specific parameters (optional)
   description: "Review a pull request"
@@ -405,6 +414,7 @@ This is the skill body content.
 You can provide instructions, context, or any information that helps the AI agent understand and execute this skill effectively.
 
 The skill can include:
+
 - Step-by-step instructions
 - Code examples
 - Best practices
@@ -442,10 +452,7 @@ Example:
       "description": "Library documentation search server",
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ],
+      "args": ["-y", "@upstash/context7-mcp"],
       "env": {}
     }
   }
@@ -466,6 +473,7 @@ Rules and behavior:
 - If neither file exists yet, Rulesync defaults to creating `.rulesync/.aiignore`.
 
 Notes:
+
 - Running `rulesync init` will create `.rulesync/.aiignore` if no ignore file is present.
 
 Example:
@@ -482,39 +490,44 @@ You can use global mode via Rulesync by enabling `--global` option. It can also 
 Currently, supports rules and commands generation for Claude Code. Import for global files is supported for rules and commands.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
-    ```bash
-    mkdir -p ~/.aiglobal
-    ```
+   ```bash
+   mkdir -p ~/.aiglobal
+   ```
 2. Initialize files for global files in the directory.
-    ```bash
-    cd ~/.aiglobal
-    npx rulesync init
-    ``` 
+   ```bash
+   cd ~/.aiglobal
+   npx rulesync init
+   ```
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
-    ```jsonc
-    {
-      "global": true
-    }
-    ```
+   ```jsonc
+   {
+     "global": true,
+   }
+   ```
 4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.
-    ```md
-    ---
-    root: true
-    ---
-    # The Project Overview
-    ...
-    ```
+
+   ```md
+   ---
+   root: true
+   ---
+
+   # The Project Overview
+
+   ...
+   ```
+
 5. Generate rules for global settings.
-    ```bash
-    # Run in the `~/.aiglobal` directory
-    npx rulesync generate
-    ```
+   ```bash
+   # Run in the `~/.aiglobal` directory
+   npx rulesync generate
+   ```
 
 > [!NOTE]
 > Currently, when in the directory enabled global mode:
-> * `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
-> * `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
-> * Only Claude Code is supported for global mode commands.
+>
+> - `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
+> - `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
+> - Only Claude Code is supported for global mode commands.
 
 ## Simulate Commands, Subagents and Skills
 
@@ -522,26 +535,27 @@ Simulated commands, subagents and skills allow you to generate simulated feature
 
 1. Prepare `.rulesync/commands/*.md`, `.rulesync/subagents/*.md` and `.rulesync/skills/*/SKILL.md` for your purposes.
 2. Generate simulated commands, subagents and skills for specific tools that are included in cursor, codexcli and etc.
-    ```bash
-    npx rulesync generate \
-      --targets copilot,cursor,codexcli \
-      --features commands,subagents,skills \
-      --simulate-commands \
-      --simulate-subagents \
-      --simulate-skills
-    ```
+   ```bash
+   npx rulesync generate \
+     --targets copilot,cursor,codexcli \
+     --features commands,subagents,skills \
+     --simulate-commands \
+     --simulate-subagents \
+     --simulate-skills
+   ```
 3. Use simulated commands, subagents and skills in your prompts.
-    - Prompt examples:
-      ```txt
-      # Execute simulated commands. By the way, `s/` stands for `simulate/`.
-      s/your-command
+   - Prompt examples:
 
-      # Execute simulated subagents
-      Call your-subagent to achieve something.
+     ```txt
+     # Execute simulated commands. By the way, `s/` stands for `simulate/`.
+     s/your-command
 
-      # Use simulated skills
-      Use the skill your-skill to achieve something.
-      ```
+     # Execute simulated subagents
+     Call your-subagent to achieve something.
+
+     # Use simulated skills
+     Use the skill your-skill to achieve something.
+     ```
 
 ## Modular MCP (Experimental)
 
@@ -631,19 +645,14 @@ When using following mcp servers:
       "description": "Up-to-date documentation and code examples for libraries",
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ],
+      "args": ["-y", "@upstash/context7-mcp"],
       "env": {}
     },
     "fetch": {
       "description": "This server enables LLMs to retrieve and process content from web pages, converting HTML to markdown for easier consumption.",
       "type": "stdio",
       "command": "uvx",
-      "args": [
-        "mcp-server-fetch"
-      ],
+      "args": ["mcp-server-fetch"],
       "env": {}
     }
   }
@@ -655,7 +664,7 @@ Once run `rulesync generate --targets claudecode --features mcp`, `/context` res
 ```
       Context Usage
      ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   claude-sonnet-4-5-20250929 · 82k/200k tokens (41%)
-     ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛀ ⛀ 
+     ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛀ ⛀
      ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System prompt: 2.5k tokens (1.3%)
      ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System tools: 13.9k tokens (6.9%)
      ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ MCP tools: 15.7k tokens (7.9%)
@@ -668,10 +677,10 @@ Once run `rulesync generate --targets claudecode --features mcp`, `/context` res
 
 On the other hand, once run `rulesync generate --targets claudecode --features mcp --modular-mcp`, `/context` result on Claude Code is as follows:
 
-``` 
+```
       Context Usage
      ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛀ ⛁   claude-sonnet-4-5-20250929 · 68k/200k tokens (34%)
-     ⛁ ⛀ ⛀ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ 
+     ⛁ ⛀ ⛀ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶
      ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System prompt: 2.5k tokens (1.3%)
      ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System tools: 13.5k tokens (6.8%)
      ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ MCP tools: 1.3k tokens (0.6%)
@@ -684,12 +693,13 @@ On the other hand, once run `rulesync generate --targets claudecode --features m
 
 Focus on the difference of MCP tools usage.
 
-| | Context Usage|
-|---|---|
-|Disabled Modular MCP| 15.7k tokens (7.9%) |
-|Enabled Modular MCP| 1.3k tokens (0.6%) |
+|                      | Context Usage       |
+| -------------------- | ------------------- |
+| Disabled Modular MCP | 15.7k tokens (7.9%) |
+| Enabled Modular MCP  | 1.3k tokens (0.6%)  |
 
 So, in this case, approximately 92% reduction in MCP tools consumption!
+
 </details>
 
 ## Rulesync MCP Server

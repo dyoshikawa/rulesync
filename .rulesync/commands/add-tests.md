@@ -1,7 +1,7 @@
 ---
-description: 'Add and update tests in line with the changes.'
+description: "Add and update tests in line with the changes."
 targets:
-  - '*'
+  - "*"
 ---
 
 1. call diff-analyzer subagent to get the summary of the changes.

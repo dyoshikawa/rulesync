@@ -9,10 +9,7 @@
       "Bash(pnpm publish:*)",
       "Bash(git commit --no-verify:*)"
     ],
-    "allow": [
-      "mcp__serena",
-      "mcp__modular-mcp"
-    ],
+    "allow": ["mcp__serena", "mcp__modular-mcp"],
     "defaultMode": "acceptEdits"
   },
   "statusLine": {
@@ -30,9 +27,7 @@
     "autoAllowBashIfSandboxed": true,
     "excludedCommands": ["docker", "git"],
     "network": {
-      "allowUnixSockets": [
-        "/var/run/docker.sock"
-      ],
+      "allowUnixSockets": ["/var/run/docker.sock"],
       "allowLocalBinding": true
     },
     "allowUnsandboxedCommands": false

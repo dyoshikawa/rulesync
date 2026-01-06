@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
+
 import { ConfigResolver } from "../config/config-resolver.js";
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";

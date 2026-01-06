@@ -1,6 +1,7 @@
 // oxlint-disable no-console
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
+
 import { readFileContent } from "../src/utils/file.js";
 
 const runClaudeCode = async (task: string) => {

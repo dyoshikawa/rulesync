@@ -1,7 +1,7 @@
 ---
-description: 'create and merge PR'
+description: "create and merge PR"
 targets:
-  - '*'
+  - "*"
 ---
 
 1. Call the pr-handler subagent to create or update a PR.

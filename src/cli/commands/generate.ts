@@ -1,6 +1,7 @@
 import { intersection } from "es-toolkit";
-import { Config } from "../../config/config.js";
+
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { Config } from "../../config/config.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";

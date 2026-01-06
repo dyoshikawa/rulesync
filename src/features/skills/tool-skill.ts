@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { fileExists, readFileContent } from "../../utils/file.js";

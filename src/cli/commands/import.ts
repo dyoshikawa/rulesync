@@ -1,12 +1,13 @@
-import { Config } from "../../config/config.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { Config } from "../../config/config.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
 import { logger } from "../../utils/logger.js";
 
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;

@@ -1,7 +1,7 @@
 ---
-description: 'Command: review-pr'
+description: "Command: review-pr"
 targets:
-  - '*'
+  - "*"
 ---
 
 target_pr = $ARGUMENTS

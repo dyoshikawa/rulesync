@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+
 import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { formatError } from "../utils/error.js";

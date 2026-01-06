@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { gitignoreCommand } from "./gitignore.js";

@@ -1,5 +1,8 @@
 import { intersection } from "es-toolkit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { GenerateOptions } from "./generate.js";
+
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
@@ -8,7 +11,6 @@ import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
-import type { GenerateOptions } from "./generate.js";
 import { generateCommand } from "./generate.js";
 
 // Mock all dependencies
@@ -575,7 +577,9 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.warn).toHaveBeenCalledWith("⚠️  No files generated for enabled features: rules");
+      expect(logger.warn).toHaveBeenCalledWith(
+        "⚠️  No files generated for enabled features: rules",
+      );
     });
 
     it("should show success message with correct totals", async () => {

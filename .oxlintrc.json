@@ -1,11 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
 
-  "plugins": [
-    "typescript",
-    "import",
-    "unicorn"
-  ],
+  "plugins": ["typescript", "import", "unicorn"],
 
   "categories": {
     "correctness": "error",
@@ -31,7 +27,7 @@
   },
 
   "ignorePatterns": ["dist/**", "coverage/**", "*.d.ts", "node_modules/**"],
-  
+
   "overrides": [
     {
       "files": ["**/*.test.ts"],

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
