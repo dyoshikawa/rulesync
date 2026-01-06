@@ -14,6 +14,7 @@ import { CursorMcp } from "./cursor-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
+import { KiroCliMcp } from "./kirocli-mcp.js";
 import { ModularMcp } from "./modular-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -39,6 +40,7 @@ const mcpProcessorToolTargetTuple = [
   "cursor",
   "geminicli",
   "kilo",
+  "kirocli",
   "junie",
   "opencode",
   "roo",
@@ -130,6 +132,13 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "kilo",
     {
       class: KiloMcp,
+      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "kirocli",
+    {
+      class: KiroCliMcp,
       meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
     },
   ],

@@ -871,6 +871,7 @@ describe("McpProcessor", () => {
       expect(() => McpProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("codexcli")).not.toThrow();
+      expect(() => McpProcessorToolTargetSchema.parse("kirocli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("roo")).not.toThrow();
     });
 

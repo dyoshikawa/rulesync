@@ -25,6 +25,7 @@ describe("tool targets", () => {
         "junie",
         "kilo",
         "kiro",
+        "kirocli",
         "opencode",
         "qwencode",
         "roo",

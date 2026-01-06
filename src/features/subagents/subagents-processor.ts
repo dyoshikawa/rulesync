@@ -13,6 +13,7 @@ import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
+import { KiroCliSubagent } from "./kirocli-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -57,6 +58,7 @@ const subagentsProcessorToolTargetTuple = [
   "copilot",
   "cursor",
   "geminicli",
+  "kirocli",
   "opencode",
   "roo",
 ] as const;
@@ -95,6 +97,10 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
   [
     "geminicli",
     { class: GeminiCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+  ],
+  [
+    "kirocli",
+    { class: KiroCliSubagent, meta: { supportsSimulated: false, supportsGlobal: false } },
   ],
   [
     "opencode",

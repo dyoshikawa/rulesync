@@ -228,6 +228,9 @@ dist/`;
 **/.kilocodeignore
 **/.kiro/steering/
 **/.aiignore
+**/.kiro/settings/
+**/.kiro/agents/
+**/.kiro/prompts/
 **/.opencode/memories/
 **/.opencode/command/
 **/.opencode/agent/

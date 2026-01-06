@@ -16,6 +16,7 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { KiloCommand } from "./kilo-command.js";
+import { KiroCliCommand } from "./kirocli-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
@@ -66,6 +67,7 @@ const commandsProcessorToolTargetTuple = [
   "cursor",
   "geminicli",
   "kilo",
+  "kirocli",
   "opencode",
   "roo",
 ] as const;
@@ -153,6 +155,13 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     {
       class: KiloCommand,
       meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+    },
+  ],
+  [
+    "kirocli",
+    {
+      class: KiroCliCommand,
+      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
     },
   ],
   [

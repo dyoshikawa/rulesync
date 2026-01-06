@@ -245,6 +245,9 @@ modular-mcp.json
 **/.kilocode/mcp.json
 **/.kilocodeignore
 **/.kiro/steering/
+**/.kiro/settings/
+**/.kiro/agents/
+**/.kiro/prompts/
 **/.aiignore
 **/.opencode/memories/
 **/.opencode/command/
