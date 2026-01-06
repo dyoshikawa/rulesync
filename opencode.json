@@ -60,6 +60,11 @@
       "enabled": true,
       "environment": {}
     },
+    "deepwiki": {
+      "type": "remote",
+      "url": "https://mcp.deepwiki.com/sse",
+      "enabled": true
+    },
     "rulesync": {
       "type": "local",
       "command": [
