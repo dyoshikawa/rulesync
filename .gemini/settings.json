@@ -20,7 +20,10 @@
     "context7": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"],
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
       "env": {}
     },
     "deepwiki": {
@@ -31,7 +34,10 @@
     "rulesync": {
       "type": "stdio",
       "command": "pnpm",
-      "args": ["dev", "mcp"],
+      "args": [
+        "dev",
+        "mcp"
+      ],
       "env": {}
     }
   }
