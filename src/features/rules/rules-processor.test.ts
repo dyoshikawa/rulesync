@@ -517,6 +517,7 @@ describe("RulesProcessor", () => {
         "geminicli",
         "junie",
         "kiro",
+        "kirocli",
         "opencode",
         "qwencode",
         "roo",
