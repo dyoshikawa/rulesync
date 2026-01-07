@@ -2,6 +2,10 @@
 
 Issues and Pull Requests are welcome!
 
+## Pull Request Guidelines
+
+- For external contributors, keep the number of changed lines in a PR under 400-500 whenever possible.
+
 ## Development Setup
 
 ```bash
