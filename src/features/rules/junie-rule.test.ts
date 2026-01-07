@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,

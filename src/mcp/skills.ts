@@ -1,5 +1,6 @@
 import { basename, dirname, join } from "node:path";
 import { z } from "zod/mini";
+
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import {
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,

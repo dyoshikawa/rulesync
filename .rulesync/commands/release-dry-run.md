@@ -1,7 +1,7 @@
 ---
-description: 'Dry run for release: summarize changes since last release and suggest version bump.'
+description: "Dry run for release: summarize changes since last release and suggest version bump."
 targets:
-  - '*'
+  - "*"
 ---
 
 This is a dry run command for release. It will summarize the changes since the last release and suggest the appropriate version bump based on semantic versioning.
@@ -36,7 +36,6 @@ This is a dry run command for release. It will summarize the changes since the l
    ```
 
 4. Based on the analysis, suggest the appropriate version bump following semantic versioning rules:
-
    - **MAJOR** (X.0.0): Breaking changes that are not backward compatible
      - Removed or renamed public APIs
      - Changed behavior of existing features

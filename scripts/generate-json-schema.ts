@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as z from "zod";
+
 // Import schema directly from source - zod and zod/mini schemas are compatible in Zod v4
 import { ConfigFileSchema } from "../src/config/config.js";
 

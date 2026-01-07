@@ -1,4 +1,5 @@
 import { FastMCP } from "fastmcp";
+
 import { rulesyncTool } from "../../mcp/tools.js";
 import { logger } from "../../utils/logger.js";
 

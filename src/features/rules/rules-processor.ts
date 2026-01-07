@@ -1,6 +1,7 @@
-import { basename, join } from "node:path";
 import { encode } from "@toon-format/toon";
+import { basename, join } from "node:path";
 import { z } from "zod/mini";
+
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,

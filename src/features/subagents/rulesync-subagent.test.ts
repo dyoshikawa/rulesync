@@ -1,9 +1,11 @@
 import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
+
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
-import type { RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatterSchema } from "./rulesync-subagent.js";
 
 describe("RulesyncSubagentFrontmatterSchema", () => {

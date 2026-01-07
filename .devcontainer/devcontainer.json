@@ -10,18 +10,15 @@
   "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
   "customizations": {
     "vscode": {
-      "extensions": [
-        "oxc.oxc-vscode",
-        "dbaeumer.vscode-eslint",
-        "eamodio.gitlens",
-        "biomejs.biome"
-      ],
+      "extensions": ["oxc.oxc-vscode", "dbaeumer.vscode-eslint", "eamodio.gitlens"],
       "settings": {
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "biomejs.biome",
+        "editor.defaultFormatter": "oxc.oxc-vscode",
         "editor.codeActionsOnSave": {
           "source.fixAll.eslint": "explicit"
         },
+        "oxc.enable": true,
+        "oxc.fmt.experimental": true,
         "terminal.integrated.defaultProfile.linux": "zsh",
         "terminal.integrated.profiles.linux": {
           "bash": {

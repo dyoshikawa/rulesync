@@ -1,7 +1,7 @@
 ---
-description: 'Judge PR'
+description: "Judge PR"
 targets:
-  - '*'
+  - "*"
 ---
 
 target_pr = $ARGUMENTS

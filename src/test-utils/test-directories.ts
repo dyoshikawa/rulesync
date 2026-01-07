@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { join } from "node:path";
+
 import { ensureDir, removeDirectory } from "../utils/file.js";
 
 // Store the original cwd at module load time, before any mocks are applied

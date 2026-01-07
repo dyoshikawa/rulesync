@@ -13,7 +13,7 @@ const config: KnipConfig = {
     "tsconfig.json",
     "vitest.config.ts",
     "eslint.config.js",
-    "biome.json",
+    ".oxfmtrc.json",
     ".rulesync/**",
   ],
   ignoreDependencies: [

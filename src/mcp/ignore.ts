@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod/mini";
+
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,

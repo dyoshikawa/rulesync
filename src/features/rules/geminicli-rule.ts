@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {

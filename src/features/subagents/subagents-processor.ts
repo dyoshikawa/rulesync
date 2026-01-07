@@ -1,9 +1,11 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
+
+import type { ToolTarget } from "../../types/tool-targets.js";
+
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";

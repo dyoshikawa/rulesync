@@ -1,4 +1,5 @@
 import { consola } from "consola";
+
 import { isEnvTest } from "./vitest.js";
 
 // Global logger instance with configurable verbosity

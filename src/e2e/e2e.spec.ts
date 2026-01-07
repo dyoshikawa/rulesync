@@ -3,6 +3,7 @@ import { join, resolve, sep } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import { RULESYNC_OVERVIEW_FILE_NAME } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";

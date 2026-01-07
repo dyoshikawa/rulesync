@@ -1,10 +1,10 @@
 import eslint from "@eslint/js";
-import { defineConfig } from "eslint/config";
 import importPlugin from "eslint-plugin-import";
 import noTypeAssertion from "eslint-plugin-no-type-assertion";
 import oxlint from "eslint-plugin-oxlint";
 import strictDependencies from "eslint-plugin-strict-dependencies";
 import zodImport from "eslint-plugin-zod-import";
+import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 /**
@@ -58,11 +58,7 @@ export default defineConfig([
         [
           {
             module: "node:fs",
-            allowReferenceFrom: [
-              "src/utils/file.ts",
-              "src/utils/file.test.ts",
-              "scripts/**/*.ts",
-            ],
+            allowReferenceFrom: ["src/utils/file.ts", "src/utils/file.test.ts", "scripts/**/*.ts"],
             allowSameModule: false,
           },
           {
