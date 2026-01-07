@@ -4,27 +4,31 @@ ARG TZ
 ENV TZ="$TZ"
 
 # Install basic development tools and iptables/ipset
-RUN apt update && apt install -y less \
-    git \
-    procps \
-    sudo \
-    fzf \
-    zsh \
-    man-db \
-    unzip \
-    gnupg2 \
-    gh \
-    iptables \
-    ipset \
-    iproute2 \
-    dnsutils \
-    aggregate \
-    jq \
-    vim \
-    bubblewrap \
-    socat \
-    ripgrep \
-    locales
+RUN apt update && \
+    apt install -y less \
+        git \
+        procps \
+        sudo \
+        fzf \
+        zsh \
+        man-db \
+        unzip \
+        gnupg2 \
+        gh \
+        iptables \
+        ipset \
+        iproute2 \
+        dnsutils \
+        aggregate \
+        jq \
+        vim \
+        bubblewrap \
+        socat \
+        ripgrep \
+        locales \
+        fzf \
+        bash-completion \
+        xz-utils
 
 # Generate locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
@@ -72,9 +76,26 @@ ENV PATH=$PATH:/usr/local/share/npm-global/bin
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
 
-# Install oh-my-bash and oh-my-zsh
+# Setup bash
 RUN bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
+# Install ble.sh (autosuggestions and syntax-highlighting for bash)
+RUN curl -L https://github.com/akinomyoga/ble.sh/releases/download/nightly/ble-nightly.tar.xz | tar xJf - && \
+    bash ble-nightly/ble.sh --install ~/.local/share && \
+    rm -rf ble-nightly && \
+    echo 'source ~/.local/share/blesh/ble.sh' >> ~/.bashrc
+RUN echo 'if [ -f /etc/bash_completion ]; then' >> ~/.bashrc && \
+    echo '  . /etc/bash_completion' >> ~/.bashrc && \
+    echo 'fi' >> ~/.bashrc
+
+# Setup zsh
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+RUN git clone https://github.com/zsh-users/zsh-autosuggestions \
+  ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+RUN git clone https://github.com/zsh-users/zsh-syntax-highlighting \
+  ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+RUN sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' ~/.zshrc && \
+    echo "zstyle ':completion:*' menu select" >> ~/.zshrc && \
+    echo "zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'" >> ~/.zshrc
 
 ### Customize ###
 
@@ -93,6 +114,10 @@ RUN mise trust /workspace && mise install
 # Install pinact using Go installed by mise
 RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
+
+# Install jj (Jujutsu VCS) using Rust installed by mise
+RUN mise exec -- cargo install --locked --bin jj jj-cli
+ENV PATH=$PATH:/home/node/.cargo/bin
 
 # Install goose
 RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
