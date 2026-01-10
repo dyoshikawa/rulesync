@@ -26,7 +26,6 @@ RUN apt update && \
         socat \
         ripgrep \
         locales \
-        fzf \
         bash-completion \
         xz-utils
 
