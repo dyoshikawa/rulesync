@@ -233,7 +233,6 @@ dist/`;
 **/.opencode/command/
 **/.opencode/agent/
 **/.opencode/skill/
-**/opencode.json
 **/QWEN.md
 **/.qwen/memories/
 **/.roo/rules/

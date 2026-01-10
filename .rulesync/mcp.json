@@ -17,12 +17,6 @@
       ],
       "env": {}
     },
-    "context7": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"],
-      "env": {}
-    },
     "deepwiki": {
       "type": "sse",
       "url": "https://mcp.deepwiki.com/sse",
