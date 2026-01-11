@@ -13,8 +13,15 @@ import {
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
+const AntigravityWorkflowFrontmatterSchema = z.object({
+  trigger: z.optional(z.string()),
+  turbo: z.optional(z.boolean()),
+});
+
 export const AntigravityCommandFrontmatterSchema = z.object({
   description: z.string(),
+  // Support for workflow-specific configuration
+  ...AntigravityWorkflowFrontmatterSchema.shape,
 });
 
 export type AntigravityCommandFrontmatter = z.infer<typeof AntigravityCommandFrontmatterSchema>;
@@ -98,12 +105,59 @@ export class AntigravityCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): AntigravityCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
+    // Strategy 1: Look for explicit antigravity config in frontmatter
+    const antigravityConfig = rulesyncFrontmatter.antigravity as
+      | Record<string, unknown>
+      | undefined;
+    
+    // Strategy 2: Look for root level trigger (fallback)
+    const rootTrigger = rulesyncFrontmatter.trigger as string | undefined;
+
+    // Strategy 3: Look for trigger in body regex (Legacy support)
+    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/\w+)/);
+    
+    const trigger = 
+      (antigravityConfig?.trigger as string) || 
+      rootTrigger || 
+      (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
+      // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
+      `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`;
+
+    // Default to true unless explicitly set to false
+    const turbo = antigravityConfig?.turbo !== false;
+
+    let relativeFilePath = rulesyncCommand.getRelativeFilePath();
+    
+    // Fix: Clean up body if it contains frontmatter (prevent double frontmatter)
+    // This handles cases where body incorrectly includes the original frontmatter block
+    let body = rulesyncCommand.getBody().replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+
+    let description = rulesyncFrontmatter.description;
+
+    // If trigger is found, transform into a Workflow
+    if (trigger) {
+      // 1. Rename file based on trigger (e.g. /my-workflow -> my-workflow.md)
+      // Security: Sanitize trigger to prevent path traversal (e.g. /../evil)
+      const sanitizedTrigger = trigger.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
+      const validFilename = sanitizedTrigger + ".md";
+      relativeFilePath = validFilename;
+
+      // 2. Wrap content with Workflow header and turbo directive
+      const turboDirective = turbo ? "\n\n// turbo" : "";
+      
+      // We don't need to duplicate the frontmatter in the body string for the file content
+      // because stringifyFrontmatter will handle it.
+      // But we DO need to update the body to included the specific workflow header.
+      body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
+    }
+
     const antigravityFrontmatter: AntigravityCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description,
+      trigger,
+      turbo,
     };
 
     // Generate proper file content with Antigravity specific frontmatter
-    const body = rulesyncCommand.getBody();
     const fileContent = stringifyFrontmatter(body, antigravityFrontmatter);
 
     return new AntigravityCommand({
@@ -111,7 +165,7 @@ export class AntigravityCommand extends ToolCommand {
       frontmatter: antigravityFrontmatter,
       body,
       relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      relativeFilePath,
       fileContent: fileContent,
       validate,
     });

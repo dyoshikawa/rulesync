@@ -343,6 +343,9 @@ description: "Review a pull request" # command description
 targets: ["*"] # * = all, or specific tools
 copilot: # copilot specific parameters (optional)
   description: "Review a pull request"
+antigravity: # antigravity specific parameters
+  trigger: "/review" # Specific trigger for workflow (renames file to review.md)
+  turbo: true # (Optional, default: true) Append // turbo for auto-execution
 ---
 
 target_pr = $ARGUMENTS
