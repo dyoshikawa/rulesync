@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
 
   // List of tools to generate configurations for
-  "targets": ["cursor", "claudecode-legacy", "geminicli", "codexcli", "copilot", "opencode"],
+  "targets": ["cursor", "claudecode-legacy", "geminicli", "codexcli", "copilot", "opencode", "antigravity"],
 
   "features": ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
 
