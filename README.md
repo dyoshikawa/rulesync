@@ -141,6 +141,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |
 | Qwen Code          |  ✅   |   ✅   |          |          |           |        |
 | Kiro IDE           |  ✅   |   ✅   |          |          |           |        |
+| Kiro CLI           |  ✅   |        |          |          |           |        |
 | Google Antigravity |  ✅   |        |          |    ✅    |           |        |
 | JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |
 | AugmentCode        |  ✅   |   ✅   |          |          |           |        |
