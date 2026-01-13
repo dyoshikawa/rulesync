@@ -100,8 +100,30 @@ export class ClaudecodeCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
-    // Merge claudecode-specific fields from rulesync frontmatter
-    const claudecodeFields = rulesyncFrontmatter.claudecode ?? {};
+    // Extract known Claude Code-specific fields from top-level frontmatter
+    // This allows users to write fields like allowed-tools at the top level
+    // We use Object.entries to avoid type assertions when accessing unknown keys
+    const knownClaudecodeFieldNames = new Set([
+      "allowed-tools",
+      "argument-hint",
+      "model",
+      "disable-model-invocation",
+    ]);
+    const topLevelClaudecodeFields: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rulesyncFrontmatter)) {
+      if (knownClaudecodeFieldNames.has(key)) {
+        topLevelClaudecodeFields[key] = value;
+      }
+    }
+
+    // Get nested claudecode section if it exists
+    const nestedClaudecodeFields = rulesyncFrontmatter.claudecode;
+
+    // Merge claudecode-specific fields: nested claudecode section takes precedence over top-level
+    const claudecodeFields = {
+      ...topLevelClaudecodeFields,
+      ...nestedClaudecodeFields,
+    };
 
     const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,

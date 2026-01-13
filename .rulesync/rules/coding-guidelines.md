@@ -1,8 +1,11 @@
 ---
+targets:
+  - "*"
 root: false
-targets: ["*"]
-description: "When you write any code, must follow these guidelines."
-globs: ["**/*.ts"]
+globs:
+  - "**/*.ts"
+claudecode:
+  paths: "**/*.ts"
 ---
 
 # Coding Guidelines

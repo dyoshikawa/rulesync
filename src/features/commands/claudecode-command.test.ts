@@ -863,6 +863,121 @@ Body`;
       // No extra fields should be added
       expect(Object.keys(frontmatter)).toEqual(["description"]);
     });
+
+    it("fromRulesyncCommand should preserve top-level claudecode fields", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "top-level-test.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Test command",
+          "allowed-tools": "Read, Write, Edit",
+          "argument-hint": "[plan-file]",
+          model: "claude-3-5-sonnet-latest",
+          "disable-model-invocation": false,
+        } as any,
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = claudecodeCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Test command");
+      expect(frontmatter["allowed-tools"]).toBe("Read, Write, Edit");
+      expect(frontmatter["argument-hint"]).toBe("[plan-file]");
+      expect(frontmatter.model).toBe("claude-3-5-sonnet-latest");
+      expect(frontmatter["disable-model-invocation"]).toBe(false);
+    });
+
+    it("fromRulesyncCommand should preserve array format for allowed-tools at top level", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "array-test.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Array test",
+          "allowed-tools": ["Read", "Write", "Edit"],
+        } as any,
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = claudecodeCommand.getFrontmatter();
+      expect(frontmatter["allowed-tools"]).toEqual(["Read", "Write", "Edit"]);
+    });
+
+    it("nested claudecode section should take precedence over top-level fields", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "precedence-test.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Precedence test",
+          "allowed-tools": "Read",
+          model: "top-level-model",
+          claudecode: {
+            "allowed-tools": ["Bash", "Write"],
+            "argument-hint": "[nested]",
+          },
+        } as any,
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = claudecodeCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Precedence test");
+      // Nested claudecode section takes precedence
+      expect(frontmatter["allowed-tools"]).toEqual(["Bash", "Write"]);
+      expect(frontmatter["argument-hint"]).toBe("[nested]");
+      // Top-level field preserved when not overridden
+      expect(frontmatter.model).toBe("top-level-model");
+    });
+
+    it("should ignore unknown top-level fields", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "unknown-test.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "Unknown field test",
+          "allowed-tools": "Read",
+          "unknown-field": "should be ignored",
+          "another-unknown": { nested: true },
+        } as any,
+        body: "Test body",
+        fileContent: "",
+      });
+
+      const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
+        baseDir: testDir,
+        rulesyncCommand,
+      });
+
+      const frontmatter = claudecodeCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Unknown field test");
+      expect(frontmatter["allowed-tools"]).toBe("Read");
+      // Unknown fields should not be passed through
+      expect(frontmatter["unknown-field"]).toBeUndefined();
+      expect(frontmatter["another-unknown"]).toBeUndefined();
+    });
   });
 
   describe("isTargetedByRulesyncCommand", () => {

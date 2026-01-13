@@ -1,7 +1,7 @@
 ---
-description: "Release a new version of the project."
 targets:
   - "*"
+description: Release a new version of the project.
 ---
 
 First, let's work on the following steps.
