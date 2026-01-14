@@ -114,13 +114,6 @@ RUN mise trust /workspace && mise install
 RUN mise exec -- go install github.com/suzuki-shunsuke/pinact/cmd/pinact@latest
 ENV PATH=$PATH:/home/node/go/bin
 
-# Install jj (Jujutsu VCS) using Rust installed by mise
-RUN mise exec -- cargo install --locked --bin jj jj-cli
-ENV PATH=$PATH:/home/node/.cargo/bin
-
-# Install goose
-RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-
 # Install Safe Chain
 RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh
 
