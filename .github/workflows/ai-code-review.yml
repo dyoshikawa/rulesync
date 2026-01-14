@@ -3,6 +3,9 @@ name: AI Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "images/**"
+      - "LICENSE"
 
 jobs:
   code-review:
