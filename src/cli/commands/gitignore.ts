@@ -31,7 +31,6 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.cline/mcp.json",
   // Codex
   "**/.codexignore",
-  "**/.codex/",
   "**/.codex/skills/",
   // Cursor
   "**/.cursor/",
