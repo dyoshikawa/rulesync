@@ -65,7 +65,6 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.github/agents/");
       expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
-      expect(content).toContain("**/.codex/AGENTS.md");
       expect(content).toContain("**/.codex/memories/");
       expect(content).toContain("**/.codex/skills/");
     });
@@ -206,7 +205,6 @@ dist/`;
 **/.clineignore
 **/.cline/mcp.json
 **/.codexignore
-**/.codex/AGENTS.md
 **/.codex/memories/
 **/.codex/skills/
 **/.cursor/
