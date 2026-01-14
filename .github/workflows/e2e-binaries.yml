@@ -3,11 +3,10 @@ name: E2E Tests on Cross-Platform
 on:
   push:
     branches: [main]
-    paths-ignore:
+    paths-ignore: &paths-ignore
       - "**/*.md"
       - "images/**"
       - ".devcontainer/**"
-      - ".github/**"
       - ".vscode/**"
       - ".zed/**"
       - "LICENSE"
@@ -16,17 +15,7 @@ on:
       - ".secretlintrc.json"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "images/**"
-      - ".devcontainer/**"
-      - ".github/**"
-      - ".vscode/**"
-      - ".zed/**"
-      - "LICENSE"
-      - "cspell.json"
-      - ".cspellcache"
-      - ".secretlintrc.json"
+    paths-ignore: *paths-ignore
 
 permissions:
   contents: read # Required for checking out code

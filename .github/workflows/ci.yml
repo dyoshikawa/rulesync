@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
+    paths-ignore: &paths-ignore
       - "images/**"
       - ".devcontainer/**"
       - "LICENSE"
@@ -11,12 +11,7 @@ on:
       - "SECURITY.md"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "images/**"
-      - ".devcontainer/**"
-      - "LICENSE"
-      - "CONTRIBUTING.md"
-      - "SECURITY.md"
+    paths-ignore: *paths-ignore
 
 permissions:
   contents: read # Required for checking out code
