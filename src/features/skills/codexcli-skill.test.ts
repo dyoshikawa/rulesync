@@ -25,10 +25,9 @@ describe("CodexCliSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should throw error in project mode", () => {
-      expect(() => CodexCliSkill.getSettablePaths()).toThrow(
-        "CodexCliSkill only supports global mode. Please pass { global: true }.",
-      );
+    it("should return .codex/skills as relativeDirPath in project mode", () => {
+      const paths = CodexCliSkill.getSettablePaths();
+      expect(paths.relativeDirPath).toBe(join(".codex", "skills"));
     });
 
     it("should return .codex/skills as relativeDirPath in global mode", () => {
@@ -38,7 +37,7 @@ describe("CodexCliSkill", () => {
   });
 
   describe("constructor", () => {
-    it("should create instance with valid content", () => {
+    it("should create instance with valid content in global mode", () => {
       const skill = new CodexCliSkill({
         baseDir: testDir,
         relativeDirPath: join(".codex", "skills"),
@@ -59,10 +58,59 @@ describe("CodexCliSkill", () => {
         description: "Test skill description",
       });
     });
+
+    it("should create instance with valid content in project mode", () => {
+      const skill = new CodexCliSkill({
+        baseDir: testDir,
+        relativeDirPath: join(".codex", "skills"),
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+        },
+        body: "This is the body of the codex cli skill.",
+        validate: true,
+        global: false,
+      });
+
+      expect(skill).toBeInstanceOf(CodexCliSkill);
+      expect(skill.getBody()).toBe("This is the body of the codex cli skill.");
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test skill description",
+      });
+    });
+
+    it("should create instance with metadata.short-description", () => {
+      const skill = new CodexCliSkill({
+        baseDir: testDir,
+        relativeDirPath: join(".codex", "skills"),
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "AI-facing description",
+          metadata: {
+            "short-description": "User-facing description",
+          },
+        },
+        body: "This is the body of the codex cli skill.",
+        validate: true,
+        global: false,
+      });
+
+      expect(skill).toBeInstanceOf(CodexCliSkill);
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "AI-facing description",
+        metadata: {
+          "short-description": "User-facing description",
+        },
+      });
+    });
   });
 
   describe("fromDir", () => {
-    it("should create instance from valid skill directory", async () => {
+    it("should create instance from valid skill directory in global mode", async () => {
       const skillDir = join(testDir, ".codex", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
@@ -87,6 +135,60 @@ This is the body of the codex cli skill.`;
       });
     });
 
+    it("should create instance from valid skill directory in project mode", async () => {
+      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Test Skill
+description: Test skill description
+---
+
+This is the body of the codex cli skill.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await CodexCliSkill.fromDir({
+        baseDir: testDir,
+        dirName: "test-skill",
+        global: false,
+      });
+
+      expect(skill).toBeInstanceOf(CodexCliSkill);
+      expect(skill.getBody()).toBe("This is the body of the codex cli skill.");
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test skill description",
+      });
+    });
+
+    it("should create instance with metadata.short-description from directory", async () => {
+      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Test Skill
+description: AI-facing description
+metadata:
+  short-description: User-facing description
+---
+
+This is the body of the codex cli skill.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await CodexCliSkill.fromDir({
+        baseDir: testDir,
+        dirName: "test-skill",
+        global: false,
+      });
+
+      expect(skill).toBeInstanceOf(CodexCliSkill);
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "AI-facing description",
+        metadata: {
+          "short-description": "User-facing description",
+        },
+      });
+    });
+
     it("should throw error when SKILL.md not found", async () => {
       const skillDir = join(testDir, ".codex", "skills", "empty-skill");
       await ensureDir(skillDir);
@@ -102,7 +204,7 @@ This is the body of the codex cli skill.`;
   });
 
   describe("fromRulesyncSkill", () => {
-    it("should create instance from RulesyncSkill", () => {
+    it("should create instance from RulesyncSkill in global mode", () => {
       const rulesyncSkill = new RulesyncSkill({
         baseDir: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -126,6 +228,65 @@ This is the body of the codex cli skill.`;
       expect(codexCliSkill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test skill description",
+      });
+    });
+
+    it("should create instance from RulesyncSkill in project mode", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const codexCliSkill = CodexCliSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        validate: true,
+        global: false,
+      });
+
+      expect(codexCliSkill).toBeInstanceOf(CodexCliSkill);
+      expect(codexCliSkill.getBody()).toBe("Test body content");
+      expect(codexCliSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test skill description",
+      });
+    });
+
+    it("should convert codexcli.short-description to metadata.short-description", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "AI-facing description",
+          codexcli: {
+            "short-description": "User-facing description",
+          },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const codexCliSkill = CodexCliSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        validate: true,
+        global: false,
+      });
+
+      expect(codexCliSkill).toBeInstanceOf(CodexCliSkill);
+      expect(codexCliSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "AI-facing description",
+        metadata: {
+          "short-description": "User-facing description",
+        },
       });
     });
   });
@@ -204,6 +365,36 @@ This is the body of the codex cli skill.`;
         name: "Test Skill",
         description: "Test description",
         targets: ["*"],
+      });
+      expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+
+    it("should convert metadata.short-description to codexcli.short-description", () => {
+      const skill = new CodexCliSkill({
+        baseDir: testDir,
+        relativeDirPath: join(".codex", "skills"),
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "AI-facing description",
+          metadata: {
+            "short-description": "User-facing description",
+          },
+        },
+        body: "Test body",
+        validate: true,
+        global: false,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "AI-facing description",
+        targets: ["*"],
+        codexcli: {
+          "short-description": "User-facing description",
+        },
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
     });
