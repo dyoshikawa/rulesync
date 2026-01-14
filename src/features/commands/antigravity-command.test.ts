@@ -180,7 +180,7 @@ describe("AntigravityCommand", () => {
       expect(antigravityCommand).toBeInstanceOf(AntigravityCommand);
       expect(antigravityCommand.getBody()).toContain(body);
       expect(antigravityCommand.getBody()).toContain("# Workflow:");
-      
+
       expect(antigravityCommand.getFrontmatter()).toEqual({
         description: rulesyncFrontmatter.description,
         trigger: "/from-rulesync",
@@ -227,7 +227,10 @@ describe("AntigravityCommand", () => {
         relativeFilePath: "validation.md",
         frontmatter: rulesyncFrontmatter as unknown as RulesyncCommandFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter as unknown as RulesyncCommandFrontmatter),
+        fileContent: stringifyFrontmatter(
+          body,
+          rulesyncFrontmatter as unknown as RulesyncCommandFrontmatter,
+        ),
       };
 
       const rulesyncCommand = new RulesyncCommand(invalidCommandParams);
@@ -286,10 +289,10 @@ describe("AntigravityCommand", () => {
       const content = antigravityCommand.getBody();
       expect(content).toContain("# Workflow: /test-workflow");
       expect(content).toContain("Step 1: Do something");
-      
+
       // 3. Check Turbo mode
       expect(content).toContain("// turbo");
-      
+
       // 4. Verify Frontmatter description
       expect(antigravityCommand.getFrontmatter()).toEqual({
         description: "Test Workflow",
@@ -345,11 +348,11 @@ describe("AntigravityCommand", () => {
 
       // Should use filename as trigger name (standard.md -> /standard)
       expect(antigravityCommand.getRelativeFilePath()).toBe("standard.md");
-      
+
       // Should HAVE workflow header with default trigger
       expect(antigravityCommand.getBody()).toContain("# Workflow: /standard");
       expect(antigravityCommand.getBody()).toContain("// turbo"); // Default is true
-      
+
       expect(antigravityCommand.getFrontmatter()).toEqual({
         description: "Standard Command",
         trigger: "/standard",
@@ -363,7 +366,7 @@ description: Old Description
 targets: ["*"]
 ---
 Actual command content`;
-      
+
       const rulesyncFrontmatter = {
         targets: ["antigravity" as const],
         description: "New Description",
@@ -377,7 +380,7 @@ Actual command content`;
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "dirty.md",
         frontmatter: rulesyncFrontmatter,
-        body: dirtyBody, 
+        body: dirtyBody,
         fileContent: stringifyFrontmatter(dirtyBody, rulesyncFrontmatter),
       });
 
@@ -386,11 +389,11 @@ Actual command content`;
       });
 
       const body = antigravityCommand.getBody();
-      
+
       // Should NOT contain the old frontmatter delimiters
       expect(body).not.toContain("description: Old Description");
-      expect(body).not.toContain("---"); 
-      
+      expect(body).not.toContain("---");
+
       expect(body).toContain("# Workflow: /clean-workflow");
       expect(body).toContain("Actual command content");
     });
@@ -403,7 +406,7 @@ Actual command content`;
           trigger: "/../evil-workflow", // Potentially malicious trigger
         },
       };
-      
+
       const rulesyncCommand = new RulesyncCommand({
         baseDir: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -419,7 +422,7 @@ Actual command content`;
 
       // Should be sanitized to safe characters only
       // /../evil-workflow -> -evil-workflow
-      expect(antigravityCommand.getRelativeFilePath()).not.toContain(".."); 
+      expect(antigravityCommand.getRelativeFilePath()).not.toContain("..");
       expect(antigravityCommand.getRelativeFilePath()).not.toContain("/");
       expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
     });

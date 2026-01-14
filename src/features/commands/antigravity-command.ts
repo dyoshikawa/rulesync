@@ -13,6 +13,10 @@ import {
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 const AntigravityWorkflowFrontmatterSchema = z.object({
   trigger: z.optional(z.string()),
   turbo: z.optional(z.boolean()),
@@ -106,19 +110,24 @@ export class AntigravityCommand extends ToolCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
     // Strategy 1: Look for explicit antigravity config in frontmatter
-    const antigravityConfig = rulesyncFrontmatter.antigravity as
-      | Record<string, unknown>
-      | undefined;
-    
+    const antigravity = rulesyncFrontmatter.antigravity;
+    const antigravityConfig = isRecord(antigravity) ? antigravity : undefined;
+
     // Strategy 2: Look for root level trigger (fallback)
-    const rootTrigger = rulesyncFrontmatter.trigger as string | undefined;
+    const rootTrigger =
+      typeof rulesyncFrontmatter.trigger === "string" ? rulesyncFrontmatter.trigger : undefined;
 
     // Strategy 3: Look for trigger in body regex (Legacy support)
     const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/\w+)/);
-    
-    const trigger = 
-      (antigravityConfig?.trigger as string) || 
-      rootTrigger || 
+
+    const antigravityTrigger =
+      antigravityConfig && typeof antigravityConfig.trigger === "string"
+        ? antigravityConfig.trigger
+        : undefined;
+
+    const trigger =
+      antigravityTrigger ||
+      rootTrigger ||
       (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
       // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
       `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`;
@@ -127,12 +136,15 @@ export class AntigravityCommand extends ToolCommand {
     const turbo = antigravityConfig?.turbo !== false;
 
     let relativeFilePath = rulesyncCommand.getRelativeFilePath();
-    
+
     // Fix: Clean up body if it contains frontmatter (prevent double frontmatter)
     // This handles cases where body incorrectly includes the original frontmatter block
-    let body = rulesyncCommand.getBody().replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+    let body = rulesyncCommand
+      .getBody()
+      .replace(/^---\n[\s\S]*?\n---\n/, "")
+      .trim();
 
-    let description = rulesyncFrontmatter.description;
+    const description = rulesyncFrontmatter.description;
 
     // If trigger is found, transform into a Workflow
     if (trigger) {
@@ -144,7 +156,7 @@ export class AntigravityCommand extends ToolCommand {
 
       // 2. Wrap content with Workflow header and turbo directive
       const turboDirective = turbo ? "\n\n// turbo" : "";
-      
+
       // We don't need to duplicate the frontmatter in the body string for the file content
       // because stringifyFrontmatter will handle it.
       // But we DO need to update the body to included the specific workflow header.
