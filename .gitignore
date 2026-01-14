@@ -224,6 +224,8 @@ modular-mcp.json
 **/.clineignore
 **/.cline/mcp.json
 **/.codexignore
+**/.codex/AGENTS.md
+**/.codex/memories/
 **/.codex/skills/
 **/.cursor/
 **/.cursorignore
