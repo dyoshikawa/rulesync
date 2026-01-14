@@ -1,0 +1,50 @@
+name: Trivy Security Scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".devcontainer/Dockerfile"
+      - ".github/workflows/**"
+      - ".trivyignore"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".devcontainer/Dockerfile"
+      - ".github/workflows/**"
+      - ".trivyignore"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-config-scan:
+    name: Trivy Config Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Run Trivy for Dockerfile
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: "config"
+          scan-ref: ".devcontainer"
+          scanners: "misconfig"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          format: "table"
+          trivyignores: ".trivyignore"
+
+      - name: Run Trivy for GitHub Actions workflows
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: "config"
+          scan-ref: ".github/workflows"
+          scanners: "misconfig"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          format: "table"
+          trivyignores: ".trivyignore"
