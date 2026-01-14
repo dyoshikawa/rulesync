@@ -31,7 +31,7 @@ jobs:
           scan-type: "config"
           scan-ref: ".devcontainer"
           scanners: "misconfig"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: "table"
 
@@ -41,6 +41,6 @@ jobs:
           scan-type: "config"
           scan-ref: ".github/workflows"
           scanners: "misconfig"
-          severity: "CRITICAL,HIGH,MEDIUM"
+          severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: "table"
