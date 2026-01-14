@@ -65,20 +65,20 @@
     "pre-commit": "pnpm exec lint-staged"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.25.1",
+    "@modelcontextprotocol/sdk": "1.25.2",
     "@toon-format/toon": "2.1.0",
     "@valibot/to-json-schema": "1.5.0",
     "commander": "14.0.2",
     "consola": "3.4.2",
     "effect": "3.19.14",
     "es-toolkit": "1.43.0",
-    "fastmcp": "3.26.7",
+    "fastmcp": "3.26.8",
     "gray-matter": "4.0.3",
     "js-yaml": "4.1.1",
     "jsonc-parser": "3.3.1",
     "smol-toml": "1.6.0",
     "sury": "11.0.0-alpha.4",
-    "zod": "4.3.4"
+    "zod": "4.3.5"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.4",
