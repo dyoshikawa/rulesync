@@ -6,11 +6,13 @@ on:
     paths:
       - ".devcontainer/Dockerfile"
       - ".github/workflows/**"
+      - ".trivyignore"
   pull_request:
     branches: [main]
     paths:
       - ".devcontainer/Dockerfile"
       - ".github/workflows/**"
+      - ".trivyignore"
 
 permissions:
   contents: read
@@ -34,6 +36,7 @@ jobs:
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: "table"
+          trivyignores: ".trivyignore"
 
       - name: Run Trivy for GitHub Actions workflows
         uses: aquasecurity/trivy-action@0.33.1
@@ -44,3 +47,4 @@ jobs:
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: "table"
+          trivyignores: ".trivyignore"

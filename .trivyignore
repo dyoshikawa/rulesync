@@ -1,0 +1,3 @@
+# Ignore sudo usage in devcontainer Dockerfile
+# The devcontainer runs as non-root user, so sudo is necessary
+AVD-DS-0010
