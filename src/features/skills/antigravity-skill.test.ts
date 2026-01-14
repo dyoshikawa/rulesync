@@ -13,9 +13,7 @@ describe("AntigravitySkill", () => {
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    const testSetup = await setupTestDirectory();
-    testDir = testSetup.testDir;
-    cleanup = testSetup.cleanup;
+    ({ testDir, cleanup } = await setupTestDirectory());
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
