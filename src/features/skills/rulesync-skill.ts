@@ -18,6 +18,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
     }),
   ),
+  codexcli: z.optional(
+    z.looseObject({
+      "short-description": z.optional(z.string()),
+    }),
+  ),
   opencode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -41,6 +46,9 @@ export type RulesyncSkillFrontmatterInput = {
   targets?: ("*" | string)[];
   claudecode?: {
     "allowed-tools"?: string[];
+  };
+  codexcli?: {
+    "short-description"?: string;
   };
   opencode?: {
     "allowed-tools"?: string[];

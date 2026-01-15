@@ -10,6 +10,9 @@ const RULESYNC_IGNORE_ENTRIES = [
   // AGENTS.md
   "**/AGENTS.md",
   "**/.agents/",
+  // Antigravity
+  "**/.agent/rules/",
+  "**/.agent/workflows/",
   // Augment
   "**/.augmentignore",
   "**/.augment/rules/",

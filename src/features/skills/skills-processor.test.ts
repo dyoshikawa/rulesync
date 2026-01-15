@@ -631,6 +631,7 @@ Content that would fail parsing`;
         new Set([
           "claudecode",
           "claudecode-legacy",
+          "codexcli",
           "copilot",
           "cursor",
           "kilo",
@@ -647,6 +648,7 @@ Content that would fail parsing`;
           "agentsmd",
           "claudecode",
           "claudecode-legacy",
+          "codexcli",
           "copilot",
           "cursor",
           "geminicli",
@@ -663,6 +665,7 @@ Content that would fail parsing`;
         new Set([
           "claudecode",
           "claudecode-legacy",
+          "codexcli",
           "copilot",
           "cursor",
           "kilo",

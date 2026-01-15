@@ -131,7 +131,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: |
 | AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |
 | Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     |   🌏   |
+| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     | ✅ 🌏  |
 | Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |
 | GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |
 | Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    🎮     |   ✅   |
@@ -407,6 +407,8 @@ claudecode: # for claudecode-specific parameters
     - "Read"
     - "Write"
     - "Grep"
+codexcli: # for codexcli-specific parameters
+  short-description: A brief user-facing description
 ---
 
 This is the skill body content.

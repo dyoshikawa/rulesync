@@ -17,6 +17,11 @@ import {
 export const CodexCliSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  metadata: z.optional(
+    z.looseObject({
+      "short-description": z.optional(z.string()),
+    }),
+  ),
 });
 
 export type CodexCliSkillFrontmatter = z.infer<typeof CodexCliSkillFrontmatterSchema>;
@@ -34,7 +39,8 @@ export type CodexCliSkillParams = {
 
 /**
  * Represents a Codex CLI skill directory.
- * Codex CLI currently supports skills only in global mode under ~/.codex/skills.
+ * Codex CLI supports skills in both project mode (under $CWD/.codex/skills)
+ * and global mode (under $CODEX_HOME/skills, typically ~/.codex/skills).
  */
 export class CodexCliSkill extends ToolSkill {
   constructor({
@@ -68,10 +74,13 @@ export class CodexCliSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
-    if (!global) {
-      throw new Error("CodexCliSkill only supports global mode. Please pass { global: true }.");
-    }
+  static getSettablePaths({
+    global: _global = false,
+  }: { global?: boolean } = {}): ToolSkillSettablePaths {
+    // Codex CLI skills use the same relative path for both project and global modes
+    // The actual location differs based on baseDir:
+    // - Project mode: {process.cwd()}/.codex/skills/
+    // - Global mode: {$CODEX_HOME}/skills/ (typically ~/.codex/skills/)
     return {
       relativeDirPath: join(".codex", "skills"),
     };
@@ -116,6 +125,11 @@ export class CodexCliSkill extends ToolSkill {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(frontmatter.metadata?.["short-description"] && {
+        codexcli: {
+          "short-description": frontmatter.metadata["short-description"],
+        },
+      }),
     };
 
     return new RulesyncSkill({
@@ -141,6 +155,11 @@ export class CodexCliSkill extends ToolSkill {
     const codexFrontmatter: CodexCliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(rulesyncFrontmatter.codexcli?.["short-description"] && {
+        metadata: {
+          "short-description": rulesyncFrontmatter.codexcli["short-description"],
+        },
+      }),
     };
 
     return new CodexCliSkill({

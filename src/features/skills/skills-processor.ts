@@ -100,7 +100,7 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "codexcli",
     {
       class: CodexCliSkill,
-      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
