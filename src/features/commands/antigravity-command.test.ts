@@ -398,6 +398,31 @@ Actual command content`;
       expect(body).toContain("Actual command content");
     });
 
+    it("should strip frontmatter with Windows line endings (CRLF)", () => {
+      const dirtyBody = "---\r\ndescription: Old\r\n---\r\nActual content";
+
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "CRLF Test",
+        antigravity: { trigger: "/crlf-test" },
+      };
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "crlf.md",
+        frontmatter: rulesyncFrontmatter,
+        body: dirtyBody,
+        fileContent: stringifyFrontmatter(dirtyBody, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({ rulesyncCommand });
+      const body = antigravityCommand.getBody();
+
+      expect(body).not.toContain("description: Old");
+      expect(body).toContain("Actual content");
+    });
+
     it("should sanitize trigger to prevent path traversal", () => {
       const rulesyncFrontmatter = {
         targets: ["antigravity" as const],
@@ -425,6 +450,30 @@ Actual command content`;
       expect(antigravityCommand.getRelativeFilePath()).not.toContain("..");
       expect(antigravityCommand.getRelativeFilePath()).not.toContain("/");
       expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
+      expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
+    });
+
+    it("should throw error when sanitization results in empty string", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "Empty Trigger Test",
+        antigravity: {
+          trigger: "/../../../", // All characters will be sanitized away
+        },
+      };
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "empty.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Test body",
+        fileContent: stringifyFrontmatter("Test body", rulesyncFrontmatter),
+      });
+
+      expect(() => {
+        AntigravityCommand.fromRulesyncCommand({ rulesyncCommand });
+      }).toThrow(/sanitization resulted in empty string/);
     });
   });
   describe("fromFile", () => {

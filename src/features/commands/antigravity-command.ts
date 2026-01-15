@@ -108,29 +108,10 @@ export class AntigravityCommand extends ToolCommand {
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): AntigravityCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    // Strategy 1: Look for explicit antigravity config in frontmatter
     const antigravity = rulesyncFrontmatter.antigravity;
     const antigravityConfig = isRecord(antigravity) ? antigravity : undefined;
 
-    // Strategy 2: Look for root level trigger (fallback)
-    const rootTrigger =
-      typeof rulesyncFrontmatter.trigger === "string" ? rulesyncFrontmatter.trigger : undefined;
-
-    // Strategy 3: Look for trigger in body regex (Legacy support)
-    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/\w+)/);
-
-    const antigravityTrigger =
-      antigravityConfig && typeof antigravityConfig.trigger === "string"
-        ? antigravityConfig.trigger
-        : undefined;
-
-    const trigger =
-      antigravityTrigger ||
-      rootTrigger ||
-      (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
-      // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
-      `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`;
+    const trigger = this.resolveTrigger(rulesyncCommand);
 
     // Default to true unless explicitly set to false
     const turbo = antigravityConfig?.turbo !== false;
@@ -141,16 +122,17 @@ export class AntigravityCommand extends ToolCommand {
     // This handles cases where body incorrectly includes the original frontmatter block
     let body = rulesyncCommand
       .getBody()
-      .replace(/^---\n[\s\S]*?\n---\n/, "")
+      .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
       .trim();
-
-    const description = rulesyncFrontmatter.description;
 
     // If trigger is found, transform into a Workflow
     if (trigger) {
       // 1. Rename file based on trigger (e.g. /my-workflow -> my-workflow.md)
       // Security: Sanitize trigger to prevent path traversal (e.g. /../evil)
       const sanitizedTrigger = trigger.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
+      if (!sanitizedTrigger) {
+        throw new Error(`Invalid trigger: sanitization resulted in empty string from "${trigger}"`);
+      }
       const validFilename = sanitizedTrigger + ".md";
       relativeFilePath = validFilename;
 
@@ -162,6 +144,8 @@ export class AntigravityCommand extends ToolCommand {
       // But we DO need to update the body to included the specific workflow header.
       body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
     }
+
+    const description = rulesyncFrontmatter.description;
 
     const antigravityFrontmatter: AntigravityCommandFrontmatter = {
       description,
@@ -181,6 +165,34 @@ export class AntigravityCommand extends ToolCommand {
       fileContent: fileContent,
       validate,
     });
+  }
+
+  private static resolveTrigger(rulesyncCommand: RulesyncCommand): string {
+    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
+
+    // Strategy 1: Look for explicit antigravity config in frontmatter
+    const antigravity = rulesyncFrontmatter.antigravity;
+    const antigravityConfig = isRecord(antigravity) ? antigravity : undefined;
+
+    // Strategy 2: Look for root level trigger (fallback)
+    const rootTrigger =
+      typeof rulesyncFrontmatter.trigger === "string" ? rulesyncFrontmatter.trigger : undefined;
+
+    // Strategy 3: Look for trigger in body regex (Legacy support)
+    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/\w+)/);
+
+    const antigravityTrigger =
+      antigravityConfig && typeof antigravityConfig.trigger === "string"
+        ? antigravityConfig.trigger
+        : undefined;
+
+    return (
+      antigravityTrigger ||
+      rootTrigger ||
+      (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
+      // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
+      `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`
+    );
   }
 
   validate(): ValidationResult {
