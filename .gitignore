@@ -224,8 +224,9 @@ modular-mcp.json
 **/.clineignore
 **/.cline/mcp.json
 **/.codexignore
-**/.codex/
+**/.codex/memories/
 **/.codex/skills/
+**/.codex/subagents/
 **/.cursor/
 **/.cursorignore
 **/GEMINI.md
