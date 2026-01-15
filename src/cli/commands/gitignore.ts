@@ -33,6 +33,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.codexignore",
   "**/.codex/memories/",
   "**/.codex/skills/",
+  "**/.codex/subagents/",
   // Cursor
   "**/.cursor/",
   "**/.cursorignore",

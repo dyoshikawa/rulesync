@@ -207,6 +207,7 @@ dist/`;
 **/.codexignore
 **/.codex/memories/
 **/.codex/skills/
+**/.codex/subagents/
 **/.cursor/
 **/.cursorignore
 **/GEMINI.md
