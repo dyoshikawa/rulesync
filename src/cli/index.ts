@@ -12,7 +12,7 @@ import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { mcpCommand } from "./commands/mcp.js";
 
-const getVersion = () => "5.2.2";
+const getVersion = () => "5.3.0";
 
 const main = async () => {
   const program = new Command();
