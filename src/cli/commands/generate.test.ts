@@ -40,6 +40,7 @@ describe("generateCommand", () => {
     // Setup default mock config
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
+      getSilent: vi.fn().mockReturnValue(false),
       getBaseDirs: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
@@ -56,6 +57,7 @@ describe("generateCommand", () => {
 
     // Setup logger mocks
     vi.mocked(logger.setVerbose).mockImplementation(() => {});
+    vi.mocked(logger.setSilent).mockImplementation(() => {});
     vi.mocked(logger.info).mockImplementation(() => {});
     vi.mocked(logger.error).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});

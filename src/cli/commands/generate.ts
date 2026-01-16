@@ -18,8 +18,9 @@ export type GenerateOptions = ConfigResolverResolveParams;
 export async function generateCommand(options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
 
-  // Set logger verbosity based on config
+  // Set logger verbosity and silent mode based on config
   logger.setVerbose(config.getVerbose());
+  logger.setSilent(config.getSilent());
 
   logger.info("Generating files...");
 
