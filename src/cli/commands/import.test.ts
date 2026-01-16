@@ -33,6 +33,7 @@ describe("importCommand", () => {
     // Setup default mock config
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
+      getSilent: vi.fn().mockReturnValue(false),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "subagents", "commands"]),
       getGlobal: vi.fn().mockReturnValue(false),
@@ -41,6 +42,7 @@ describe("importCommand", () => {
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
     vi.mocked(logger.setVerbose).mockImplementation(() => {});
+    vi.mocked(logger.setSilent).mockImplementation(() => {});
     vi.mocked(logger.error).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});
 

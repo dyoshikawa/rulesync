@@ -10,6 +10,7 @@ describe("Config", () => {
     features: ["rules"],
     verbose: false,
     delete: false,
+    silent: false,
   };
 
   const createConfig = (overrides: Partial<ConfigParams> = {}) => {
@@ -98,6 +99,23 @@ describe("Config", () => {
       const targets = config.getTargets();
 
       expect(targets).not.toContain("*");
+    });
+  });
+
+  describe("getSilent", () => {
+    it("should return true when silent is set to true", () => {
+      const config = createConfig({ silent: true });
+      expect(config.getSilent()).toBe(true);
+    });
+
+    it("should return false when silent is set to false", () => {
+      const config = createConfig({ silent: false });
+      expect(config.getSilent()).toBe(false);
+    });
+
+    it("should default to false when silent is not specified", () => {
+      const config = createConfig({});
+      expect(config.getSilent()).toBe(false);
     });
   });
 });

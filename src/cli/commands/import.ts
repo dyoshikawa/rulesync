@@ -25,8 +25,9 @@ export async function importCommand(options: ImportOptions): Promise<void> {
 
   const config = await ConfigResolver.resolve(options);
 
-  // Set logger verbosity based on options
+  // Set logger verbosity and silent mode based on config
   logger.setVerbose(config.getVerbose());
+  logger.setSilent(config.getSilent());
 
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   const tool = config.getTargets()[0]!;
