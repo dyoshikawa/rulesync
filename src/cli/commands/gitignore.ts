@@ -65,6 +65,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.kilocodeignore",
   // Kiro
   "**/.kiro/steering/",
+  "**/.kiro/settings/mcp.json",
   "**/.aiignore",
   // OpenCode
   "**/.opencode/memories/",

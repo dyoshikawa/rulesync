@@ -234,6 +234,7 @@ dist/`;
 **/.kilocode/mcp.json
 **/.kilocodeignore
 **/.kiro/steering/
+**/.kiro/settings/mcp.json
 **/.aiignore
 **/.opencode/memories/
 **/.opencode/command/
