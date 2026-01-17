@@ -1,8 +1,11 @@
 ---
+targets:
+  - "*"
 root: false
-targets: ["*"]
-description: "When you write tests, must follow these guidelines."
-globs: ["**/*.test.ts"]
+globs:
+  - "**/*.test.ts"
+claudecode:
+  paths: "**/*.test.ts"
 ---
 
 # Testing Guidelines

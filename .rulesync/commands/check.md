@@ -1,7 +1,7 @@
 ---
-description: "Execute `pnpm cicheck:code` and fix any failures if exists."
 targets:
   - "*"
+description: "Execute `pnpm cicheck:code` and fix any failures if exists."
 ---
 
 Do the following actions and fix any failures if exists. Until all pass successfully, do the following actions again.

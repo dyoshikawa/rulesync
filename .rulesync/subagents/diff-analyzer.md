@@ -1,6 +1,7 @@
 ---
+targets:
+  - claudecode
 name: diff-analyzer
-targets: ["*"]
 description: >-
   Use this agent when you need to analyze the differences between your current
   branch and origin/main, and get a summary of your current work progress.

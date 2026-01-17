@@ -1,6 +1,7 @@
 ---
+targets:
+  - claudecode
 name: pr-merger
-targets: ["*"]
 description: Use this agent when you need to merge GitHub pull requests.
 claudecode:
   model: inherit

@@ -1,7 +1,9 @@
 ---
-description: "Stabilize cicheck by running `pnpm cicheck:code` and updating code in line with the changes."
 targets:
   - "*"
+description: >-
+  Stabilize cicheck by running `pnpm cicheck:code` and updating code in line
+  with the changes.
 ---
 
 1. call diff-analyzer subagent to get the summary of the changes.
