@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { ConfigParams } from "../../config/config.js";
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
@@ -12,6 +13,7 @@ import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncIgnore } from "../../features/ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
+import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -26,7 +28,7 @@ export async function initCommand(): Promise<void> {
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
   logger.info(
-    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_MCP_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
   );
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }
@@ -42,13 +44,14 @@ async function createConfigFile(): Promise<void> {
     JSON.stringify(
       {
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
-        features: ["rules", "ignore", "mcp", "commands", "subagents"],
+        features: ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
         baseDirs: ["."],
         delete: true,
         verbose: false,
         global: false,
         simulateCommands: false,
         simulateSubagents: false,
+        simulateSkills: false,
         modularMcp: false,
       } satisfies ConfigParams,
       null,
@@ -178,6 +181,20 @@ Attention, again, you are just the planner, so though you can read any files and
 `,
   };
 
+  // Create skill sample file
+  const sampleSkillFile = {
+    dirName: "project-context",
+    content: `---
+name: project-context
+description: "Summarize the project context and key constraints"
+targets: ["*"]
+---
+
+Summarize the project goals, core constraints, and relevant dependencies.
+Call out any architecture decisions, shared conventions, and validation steps.
+Keep the summary concise and ready to reuse in future tasks.`,
+  };
+
   // Create ignore sample file
   const sampleIgnoreFile = {
     content: `credentials/
@@ -189,6 +206,7 @@ Attention, again, you are just the planner, so though you can read any files and
   const mcpPaths = RulesyncMcp.getSettablePaths();
   const commandPaths = RulesyncCommand.getSettablePaths();
   const subagentPaths = RulesyncSubagent.getSettablePaths();
+  const skillPaths = RulesyncSkill.getSettablePaths();
   const ignorePaths = RulesyncIgnore.getSettablePaths();
 
   // Ensure directories
@@ -196,6 +214,7 @@ Attention, again, you are just the planner, so though you can read any files and
   await ensureDir(mcpPaths.recommended.relativeDirPath);
   await ensureDir(commandPaths.relativeDirPath);
   await ensureDir(subagentPaths.relativeDirPath);
+  await ensureDir(skillPaths.relativeDirPath);
   await ensureDir(ignorePaths.recommended.relativeDirPath);
 
   // Create rule sample file
@@ -235,6 +254,17 @@ Attention, again, you are just the planner, so though you can read any files and
     logger.success(`Created ${subagentFilepath}`);
   } else {
     logger.info(`Skipped ${subagentFilepath} (already exists)`);
+  }
+
+  // Create skill sample file
+  const skillDirPath = join(skillPaths.relativeDirPath, sampleSkillFile.dirName);
+  await ensureDir(skillDirPath);
+  const skillFilepath = join(skillDirPath, SKILL_FILE_NAME);
+  if (!(await fileExists(skillFilepath))) {
+    await writeFileContent(skillFilepath, sampleSkillFile.content);
+    logger.success(`Created ${skillFilepath}`);
+  } else {
+    logger.info(`Skipped ${skillFilepath} (already exists)`);
   }
 
   // Create ignore sample file
