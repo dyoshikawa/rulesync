@@ -152,6 +152,60 @@ describe("AntigravityCommand", () => {
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
       expect(rulesyncCommand.getBaseDir()).toBe(".");
     });
+
+    it("should preserve trigger and turbo fields in antigravity section", () => {
+      const frontmatter: AntigravityCommandFrontmatter = {
+        description: "Workflow with trigger and turbo",
+        trigger: "/my-workflow",
+        turbo: true,
+      };
+      const body = "# Workflow: /my-workflow\n\nWorkflow content\n\n// turbo";
+
+      const antigravityCommand = new AntigravityCommand({
+        baseDir: "/test/base",
+        relativeDirPath: ".agent/workflows",
+        relativeFilePath: "my-workflow.md",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
+      });
+
+      const rulesyncCommand = antigravityCommand.toRulesyncCommand();
+
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["antigravity"],
+        description: frontmatter.description,
+        antigravity: {
+          trigger: "/my-workflow",
+          turbo: true,
+        },
+      });
+    });
+
+    it("should not include antigravity section when no extra fields exist", () => {
+      const frontmatter: AntigravityCommandFrontmatter = {
+        description: "Simple workflow without extra fields",
+      };
+      const body = "Simple workflow content";
+
+      const antigravityCommand = new AntigravityCommand({
+        baseDir: "/test/base",
+        relativeDirPath: ".agent/workflows",
+        relativeFilePath: "simple.md",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
+      });
+
+      const rulesyncCommand = antigravityCommand.toRulesyncCommand();
+
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["antigravity"],
+        description: frontmatter.description,
+      });
+      expect(rulesyncCommand.getFrontmatter()).not.toHaveProperty("antigravity");
+    });
   });
 
   describe("fromRulesyncCommand", () => {
@@ -449,7 +503,6 @@ Actual command content`;
       // /../evil-workflow -> -evil-workflow
       expect(antigravityCommand.getRelativeFilePath()).not.toContain("..");
       expect(antigravityCommand.getRelativeFilePath()).not.toContain("/");
-      expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
       expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
     });
 

@@ -17,12 +17,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const AntigravityWorkflowFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+const AntigravityWorkflowFrontmatterSchema = z.looseObject({
   trigger: z.optional(z.string()),
   turbo: z.optional(z.boolean()),
 });
 
-export const AntigravityCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const AntigravityCommandFrontmatterSchema = z.looseObject({
   description: z.string(),
   // Support for workflow-specific configuration
   ...AntigravityWorkflowFrontmatterSchema.shape,
@@ -83,9 +85,13 @@ export class AntigravityCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
+    const { description, ...restFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["antigravity"],
-      description: this.frontmatter.description,
+      description,
+      // Preserve extra fields in antigravity section
+      ...(Object.keys(restFields).length > 0 && { antigravity: restFields }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
