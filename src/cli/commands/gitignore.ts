@@ -76,6 +76,8 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Qwen
   "**/QWEN.md",
   "**/.qwen/memories/",
+  // Replit
+  "**/replit.md",
   // Roo
   "**/.roo/rules/",
   "**/.roo/skills/",
