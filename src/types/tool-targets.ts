@@ -17,6 +17,7 @@ export const ALL_TOOL_TARGETS = [
   "kiro",
   "opencode",
   "qwencode",
+  "replit",
   "roo",
   "warp",
   "windsurf",

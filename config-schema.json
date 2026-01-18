@@ -32,6 +32,7 @@
           "kiro",
           "opencode",
           "qwencode",
+          "replit",
           "roo",
           "warp",
           "windsurf",
@@ -44,7 +45,15 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "*"]
+        "enum": [
+          "rules",
+          "ignore",
+          "mcp",
+          "subagents",
+          "commands",
+          "skills",
+          "*"
+        ]
       }
     },
     "verbose": {

@@ -44,6 +44,7 @@ import { KiloRule } from "./kilo-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
+import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -74,6 +75,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "kiro",
   "opencode",
   "qwencode",
+  "replit",
   "roo",
   "warp",
   "windsurf",
@@ -311,6 +313,13 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     {
       class: QwencodeRule,
       meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+    },
+  ],
+  [
+    "replit",
+    {
+      class: ReplitRule,
+      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
     },
   ],
   [
