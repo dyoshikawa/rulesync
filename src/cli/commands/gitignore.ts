@@ -12,6 +12,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.agents/",
   // Antigravity
   "**/.agent/rules/",
+  "**/.agent/skills/",
   "**/.agent/workflows/",
   // Augment
   "**/.augmentignore",
@@ -34,8 +35,9 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.cline/mcp.json",
   // Codex
   "**/.codexignore",
-  "**/.codex/",
+  "**/.codex/memories/",
   "**/.codex/skills/",
+  "**/.codex/subagents/",
   // Cursor
   "**/.cursor/",
   "**/.cursorignore",
@@ -64,6 +66,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.kilocodeignore",
   // Kiro
   "**/.kiro/steering/",
+  "**/.kiro/settings/mcp.json",
   "**/.aiignore",
   // OpenCode
   "**/.opencode/memories/",

@@ -65,7 +65,8 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.github/agents/");
       expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
-      expect(content).toContain("**/.codex/");
+      expect(content).toContain("**/.codex/memories/");
+      expect(content).toContain("**/.codex/skills/");
       expect(content).toContain("**/.agent/rules/");
       expect(content).toContain("**/.agent/workflows/");
     });
@@ -190,6 +191,7 @@ dist/`;
 **/AGENTS.md
 **/.agents/
 **/.agent/rules/
+**/.agent/skills/
 **/.agent/workflows/
 **/.augmentignore
 **/.augment/rules/
@@ -208,8 +210,9 @@ dist/`;
 **/.clineignore
 **/.cline/mcp.json
 **/.codexignore
-**/.codex/
+**/.codex/memories/
 **/.codex/skills/
+**/.codex/subagents/
 **/.cursor/
 **/.cursorignore
 **/GEMINI.md
@@ -232,6 +235,7 @@ dist/`;
 **/.kilocode/mcp.json
 **/.kilocodeignore
 **/.kiro/steering/
+**/.kiro/settings/mcp.json
 **/.aiignore
 **/.opencode/memories/
 **/.opencode/command/

@@ -4,9 +4,17 @@ import { setTimeout } from "node:timers/promises";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { RULESYNC_OVERVIEW_FILE_NAME } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 
 // Save original working directory
 const originalCwd = process.cwd();
@@ -100,6 +108,27 @@ This is a test rule for E2E testing.
     const claudeMdPath = join(testDir, ".claude", "CLAUDE.md");
     const generatedContent = await readFileContent(claudeMdPath);
     expect(generatedContent).toContain("Test Rule");
+  });
+
+  it("should initialize rulesync without errors and create files", async () => {
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "init"]);
+
+    const expectedPaths = [
+      RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+      RULESYNC_MCP_RELATIVE_FILE_PATH,
+      RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+      join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+      join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    ];
+
+    const existenceChecks = await Promise.all(
+      expectedPaths.map(async (path) => fileExists(join(testDir, path))),
+    );
+
+    existenceChecks.forEach((exists) => {
+      expect(exists).toBe(true);
+    });
   });
 
   it("should import claudecode rules", async () => {
