@@ -5,6 +5,7 @@ Issues and Pull Requests are welcome!
 ## Pull Request Guidelines
 
 - For external contributors, keep the number of changed lines in a PR under 400-500 whenever possible.
+- Please note that the maintainer may add additional commits on top of your commits before merging at their discretion. In such cases, your original commits will still be preserved as your contribution.
 
 ## Development Setup
 
