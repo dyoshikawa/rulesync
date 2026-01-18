@@ -5,6 +5,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -12,10 +13,6 @@ import {
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 const AntigravityWorkflowFrontmatterSchema = z.looseObject({
@@ -108,19 +105,25 @@ export class AntigravityCommand extends ToolCommand {
     });
   }
 
+  private static extractAntigravityConfig(
+    rulesyncCommand: RulesyncCommand,
+  ): Record<string, unknown> | undefined {
+    const antigravity = rulesyncCommand.getFrontmatter().antigravity;
+    return isRecord(antigravity) ? antigravity : undefined;
+  }
+
   static fromRulesyncCommand({
     baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): AntigravityCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const antigravity = rulesyncFrontmatter.antigravity;
-    const antigravityConfig = isRecord(antigravity) ? antigravity : undefined;
+    const antigravityConfig = this.extractAntigravityConfig(rulesyncCommand);
 
     const trigger = this.resolveTrigger(rulesyncCommand);
 
     // Default to true unless explicitly set to false
-    const turbo = antigravityConfig?.turbo !== false;
+    const turbo = typeof antigravityConfig?.turbo === "boolean" ? antigravityConfig.turbo : true;
 
     let relativeFilePath = rulesyncCommand.getRelativeFilePath();
 
@@ -147,7 +150,7 @@ export class AntigravityCommand extends ToolCommand {
 
       // We don't need to duplicate the frontmatter in the body string for the file content
       // because stringifyFrontmatter will handle it.
-      // But we DO need to update the body to included the specific workflow header.
+      // But we DO need to update the body to include the specific workflow header.
       body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
     }
 
@@ -177,15 +180,15 @@ export class AntigravityCommand extends ToolCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
     // Strategy 1: Look for explicit antigravity config in frontmatter
-    const antigravity = rulesyncFrontmatter.antigravity;
-    const antigravityConfig = isRecord(antigravity) ? antigravity : undefined;
+    const antigravityConfig = this.extractAntigravityConfig(rulesyncCommand);
 
     // Strategy 2: Look for root level trigger (fallback)
     const rootTrigger =
       typeof rulesyncFrontmatter.trigger === "string" ? rulesyncFrontmatter.trigger : undefined;
 
     // Strategy 3: Look for trigger in body regex (Legacy support)
-    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/\w+)/);
+    // Support triggers with hyphens (e.g., /my-workflow)
+    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/[\w-]+)/);
 
     const antigravityTrigger =
       antigravityConfig && typeof antigravityConfig.trigger === "string"

@@ -414,6 +414,44 @@ describe("AntigravityCommand", () => {
       });
     });
 
+    it("should omit turbo directive when turbo is explicitly false", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "No Turbo Workflow",
+        antigravity: {
+          trigger: "/no-turbo",
+          turbo: false,
+        },
+      };
+      const body = "Workflow without auto-execution";
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-turbo.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      // Should have workflow header
+      expect(antigravityCommand.getBody()).toContain("# Workflow: /no-turbo");
+      expect(antigravityCommand.getBody()).toContain("Workflow without auto-execution");
+
+      // Should NOT contain turbo directive
+      expect(antigravityCommand.getBody()).not.toContain("// turbo");
+
+      expect(antigravityCommand.getFrontmatter()).toEqual({
+        description: "No Turbo Workflow",
+        trigger: "/no-turbo",
+        turbo: false,
+      });
+    });
+
     it("should strip existing frontmatter from body if present (Double Frontmatter Fix)", () => {
       const dirtyBody = `---
 description: Old Description
