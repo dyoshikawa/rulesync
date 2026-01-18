@@ -54,7 +54,7 @@ If the PR is not open or not mergeable, inform the user and stop.
 Execute the merge command:
 
 ```bash
-gh pr merge <pr_number> --admin
+gh pr merge <pr_number> --admin --merge
 ```
 
 **Important**: Only merge ONE PR at a time. If multiple PRs are somehow specified, ask the user which single PR to merge.
