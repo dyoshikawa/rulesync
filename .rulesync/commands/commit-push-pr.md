@@ -46,10 +46,11 @@ The PR description should include:
 
 ### If PR already exists:
 1. Compare the current PR title and description with the actual changes
-2. If updates are needed (e.g., scope of changes has expanded), update the PR:
+2. If updates are needed (e.g., scope of changes has expanded), update the PR using GitHub API:
 ```bash
-gh pr edit --title "<new-title>" --body "<new-description>"
+gh api repos/<owner>/<repo>/pulls/<pr-number> -X PATCH -f title="<new-title>" -f body="<new-description>"
 ```
+Note: Use `gh api` instead of `gh pr edit` to avoid GraphQL deprecation warnings.
 3. If no updates are needed, skip this step
 
 ## Step 5: Report Result
