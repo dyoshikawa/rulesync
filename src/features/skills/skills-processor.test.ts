@@ -629,6 +629,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
         new Set([
+          "antigravity",
           "claudecode",
           "claudecode-legacy",
           "codexcli",
@@ -646,6 +647,7 @@ Content that would fail parsing`;
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsmd",
+          "antigravity",
           "claudecode",
           "claudecode-legacy",
           "codexcli",
@@ -663,6 +665,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: false });
       expect(new Set(targets)).toEqual(
         new Set([
+          "antigravity",
           "claudecode",
           "claudecode-legacy",
           "codexcli",
@@ -691,6 +694,7 @@ Content that would fail parsing`;
     it("should return global targets in global mode", () => {
       const targets = SkillsProcessor.getToolTargetsGlobal();
       expect(targets).toEqual([
+        "antigravity",
         "claudecode",
         "claudecode-legacy",
         "codexcli",
@@ -706,6 +710,7 @@ Content that would fail parsing`;
     it("should return global targets when global option is true", () => {
       const targets = SkillsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "antigravity",
         "claudecode",
         "claudecode-legacy",
         "codexcli",

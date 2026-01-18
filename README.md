@@ -137,11 +137,11 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    🎮     |   ✅   |
 | OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
 | Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |
-| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           |        |
+| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |
 | Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |
 | Qwen Code          |  ✅   |   ✅   |          |          |           |        |
-| Kiro               |  ✅   |   ✅   |    ✅    |          |           |        |
-| Google Antigravity |  ✅   |        |          |    ✅    |           |        |
+| Kiro IDE           |  ✅   |   ✅   |    ✅    |          |           |        |
+| Google Antigravity |  ✅   |        |          |    ✅    |           | ✅ 🌏  |
 | JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |
 | AugmentCode        |  ✅   |   ✅   |          |          |           |        |
 | Windsurf           |  ✅   |   ✅   |          |          |           |        |
@@ -155,33 +155,29 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 
 ## Why Rulesync?
 
-### 🔧 **Tool Flexibility**
+### 🧭 **Single Source of Truth**
 
-Team members can freely choose their preferred AI coding tools. Whether it's GitHub Copilot, Cursor, Cline, or Claude Code, each developer can use the tool that maximizes their productivity.
+Author rules once, generate everywhere. Rulesync turns a unified ruleset into tool-native formats so teams stop duplicating instructions across multiple AI assistants.
 
-### 📈 **Future-Proof Development**
+### 🔧 **Tool Freedom Without Friction**
 
-AI development tools evolve rapidly with new tools emerging frequently. With Rulesync, switching between tools doesn't require redefining your rules from scratch.
+Let developers pick the assistant that fits their flow—Copilot, Cursor, Cline, Claude Code, and more—without rewriting team standards.
 
-### 🎯 **Multi-Tool Workflow**
+### 📦 **Clean, Auditable Outputs**
 
-Enable hybrid development workflows combining multiple AI tools.
+Rulesync emits plain configuration files you can commit, review, and ship. If you ever uninstall Rulesync, your generated files keep working.
 
-### 🔓 **No Lock-in**
+### 🚀 **Fast Onboarding & Consistency**
 
-Avoid lock-in completely. If you decide to stop using Rulesync, you can continue using the generated rule files as-is.
+New team members get the same conventions, context, and guardrails immediately, keeping code style and quality consistent across tools.
 
-### 🎯 **Consistency Across Tools**
+### 🧩 **Multi-Tool & Modular Workflows**
 
-Apply consistent rules across all AI tools, improving code quality and development experience for the entire team.
+Compose rules, MCP configs, commands, and subagents for different tools or scopes (project vs. global) without fragmenting your workflow.
 
-### 🌏 **Global Mode**
+### 🌍 **Ready for What’s Next**
 
-You can use global mode via Rulesync by enabling `--global` option.
-
-### 🎮 **Simulate Commands and Subagents**
-
-Simulated commands and subagents allow you to generate simulated commands and subagents for cursor and codexcli. This is useful for shortening your prompts.
+AI tool ecosystems evolve quickly. Rulesync helps you add, switch, or retire tools while keeping your rules intact.
 
 ## Case Studies
 
