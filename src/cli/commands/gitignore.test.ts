@@ -191,6 +191,7 @@ dist/`;
 **/AGENTS.md
 **/.agents/
 **/.agent/rules/
+**/.agent/skills/
 **/.agent/workflows/
 **/.augmentignore
 **/.augment/rules/

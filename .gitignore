@@ -206,6 +206,7 @@ modular-mcp.json
 **/AGENTS.md
 **/.agents/
 **/.agent/rules/
+**/.agent/skills/
 **/.agent/workflows/
 **/.augmentignore
 **/.augment/rules/
