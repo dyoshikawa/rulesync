@@ -21,6 +21,7 @@ export const ConfigParamsSchema = z.object({
   delete: z.boolean(),
   // New non-experimental options
   global: optional(z.boolean()),
+  silent: optional(z.boolean()),
   simulateCommands: optional(z.boolean()),
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
@@ -62,6 +63,7 @@ export class Config {
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
+  private readonly silent: boolean;
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
@@ -74,6 +76,7 @@ export class Config {
     verbose,
     delete: isDelete,
     global,
+    silent,
     simulateCommands,
     simulateSubagents,
     simulateSkills,
@@ -89,6 +92,7 @@ export class Config {
     this.delete = isDelete;
 
     this.global = global ?? false;
+    this.silent = silent ?? false;
     this.simulateCommands = simulateCommands ?? false;
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
@@ -147,6 +151,10 @@ export class Config {
 
   public getGlobal(): boolean {
     return this.global;
+  }
+
+  public getSilent(): boolean {
+    return this.silent;
   }
 
   public getSimulateCommands(): boolean {

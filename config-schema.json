@@ -56,6 +56,9 @@
     "global": {
       "type": "boolean"
     },
+    "silent": {
+      "type": "boolean"
+    },
     "simulateCommands": {
       "type": "boolean"
     },
