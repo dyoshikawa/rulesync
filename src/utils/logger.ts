@@ -10,6 +10,22 @@ class Logger {
     tag: "rulesync",
   });
 
+  /**
+   * Configure logger with verbose and silent mode settings.
+   * Handles conflicting flags where silent takes precedence.
+   * @param verbose - Enable verbose logging
+   * @param silent - Enable silent mode (suppresses all output except errors)
+   */
+  configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
+    if (verbose && silent) {
+      // Temporarily disable silent to show this warning
+      this._silent = false;
+      this.warn("Both --verbose and --silent specified; --silent takes precedence");
+    }
+    this._silent = silent;
+    this._verbose = verbose && !silent;
+  }
+
   setVerbose(verbose: boolean): void {
     this._verbose = verbose;
   }
@@ -43,9 +59,9 @@ class Logger {
     this.console.warn(message, ...args);
   }
 
-  // Error (always shown unless silent)
+  // Error (always shown, even in silent mode)
   error(message: string, ...args: unknown[]): void {
-    if (isEnvTest || this._silent) return;
+    if (isEnvTest) return;
     this.console.error(message, ...args);
   }
 

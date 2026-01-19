@@ -56,8 +56,7 @@ describe("generateCommand", () => {
     vi.mocked(fileExists).mockResolvedValue(true);
 
     // Setup logger mocks
-    vi.mocked(logger.setVerbose).mockImplementation(() => {});
-    vi.mocked(logger.setSilent).mockImplementation(() => {});
+    vi.mocked(logger.configure).mockImplementation(() => {});
     vi.mocked(logger.info).mockImplementation(() => {});
     vi.mocked(logger.error).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});
@@ -135,22 +134,22 @@ describe("generateCommand", () => {
   });
 
   describe("initial setup", () => {
-    it("should resolve config and set logger verbosity", async () => {
+    it("should resolve config and configure logger", async () => {
       const options: GenerateOptions = { verbose: true };
 
       await generateCommand(options);
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
-      expect(logger.setVerbose).toHaveBeenCalledWith(false);
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
     });
 
-    it("should set verbose logging when config has verbose enabled", async () => {
+    it("should configure verbose logging when config has verbose enabled", async () => {
       mockConfig.getVerbose.mockReturnValue(true);
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(logger.setVerbose).toHaveBeenCalledWith(true);
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
     });
 
     it("should log generating files message", async () => {

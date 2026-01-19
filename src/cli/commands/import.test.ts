@@ -41,8 +41,7 @@ describe("importCommand", () => {
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
-    vi.mocked(logger.setVerbose).mockImplementation(() => {});
-    vi.mocked(logger.setSilent).mockImplementation(() => {});
+    vi.mocked(logger.configure).mockImplementation(() => {});
     vi.mocked(logger.error).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});
 
@@ -356,7 +355,7 @@ describe("importCommand", () => {
 
       await importCommand(options);
 
-      expect(logger.setVerbose).toHaveBeenCalledWith(true);
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
       expect(logger.success).toHaveBeenCalledWith("Created 2 rule files");
       expect(logger.success).toHaveBeenCalledWith(
         "Created ignore files from 1 tool ignore configurations",
@@ -413,8 +412,8 @@ describe("importCommand", () => {
 
       await importCommand(options);
 
-      // Only the setVerbose call should have been made, no success messages
-      expect(logger.setVerbose).toHaveBeenCalledWith(true);
+      // Only the configure call should have been made, no success messages
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
       expect(logger.success).not.toHaveBeenCalled();
     });
   });
