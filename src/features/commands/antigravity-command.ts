@@ -134,25 +134,25 @@ export class AntigravityCommand extends ToolCommand {
       .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
       .trim();
 
-    // If trigger is found, transform into a Workflow
-    if (trigger) {
-      // 1. Rename file based on trigger (e.g. /my-workflow -> my-workflow.md)
-      // Security: Sanitize trigger to prevent path traversal (e.g. /../evil)
-      const sanitizedTrigger = trigger.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
-      if (!sanitizedTrigger) {
-        throw new Error(`Invalid trigger: sanitization resulted in empty string from "${trigger}"`);
-      }
-      const validFilename = sanitizedTrigger + ".md";
-      relativeFilePath = validFilename;
+    // Transform into a Workflow
+    // Note: resolveTrigger always returns a string (fallback to filename-based trigger)
 
-      // 2. Wrap content with Workflow header and turbo directive
-      const turboDirective = turbo ? "\n\n// turbo" : "";
-
-      // We don't need to duplicate the frontmatter in the body string for the file content
-      // because stringifyFrontmatter will handle it.
-      // But we DO need to update the body to include the specific workflow header.
-      body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
+    // 1. Rename file based on trigger (e.g. /my-workflow -> my-workflow.md)
+    // Security: Sanitize trigger to prevent path traversal (e.g. /../evil)
+    const sanitizedTrigger = trigger.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
+    if (!sanitizedTrigger) {
+      throw new Error(`Invalid trigger: sanitization resulted in empty string from "${trigger}"`);
     }
+    const validFilename = sanitizedTrigger + ".md";
+    relativeFilePath = validFilename;
+
+    // 2. Wrap content with Workflow header and turbo directive
+    const turboDirective = turbo ? "\n\n// turbo" : "";
+
+    // We don't need to duplicate the frontmatter in the body string for the file content
+    // because stringifyFrontmatter will handle it.
+    // But we DO need to update the body to include the specific workflow header.
+    body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
 
     const description = rulesyncFrontmatter.description;
 
@@ -183,6 +183,10 @@ export class AntigravityCommand extends ToolCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
     // Strategy 1: Look for explicit antigravity config in frontmatter (passed as parameter)
+    const antigravityTrigger =
+      antigravityConfig && typeof antigravityConfig.trigger === "string"
+        ? antigravityConfig.trigger
+        : undefined;
 
     // Strategy 2: Look for root level trigger (fallback)
     const rootTrigger =
@@ -192,17 +196,14 @@ export class AntigravityCommand extends ToolCommand {
     // Support triggers with hyphens (e.g., /my-workflow)
     const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/[\w-]+)/);
 
-    const antigravityTrigger =
-      antigravityConfig && typeof antigravityConfig.trigger === "string"
-        ? antigravityConfig.trigger
-        : undefined;
+    // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
+    const filenameTrigger = `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`;
 
     return (
       antigravityTrigger ||
       rootTrigger ||
       (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
-      // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
-      `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`
+      filenameTrigger
     );
   }
 
