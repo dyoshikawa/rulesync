@@ -28,6 +28,7 @@ describe("tool targets", () => {
         "kiro",
         "opencode",
         "qwencode",
+        "replit",
         "roo",
         "warp",
         "windsurf",

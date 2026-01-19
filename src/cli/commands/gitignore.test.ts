@@ -243,6 +243,7 @@ dist/`;
 **/.opencode/skill/
 **/QWEN.md
 **/.qwen/memories/
+**/replit.md
 **/.roo/rules/
 **/.roo/skills/
 **/.rooignore
