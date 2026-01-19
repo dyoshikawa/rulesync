@@ -120,7 +120,7 @@ export class AntigravityCommand extends ToolCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
     const antigravityConfig = this.extractAntigravityConfig(rulesyncCommand);
 
-    const trigger = this.resolveTrigger(rulesyncCommand);
+    const trigger = this.resolveTrigger(rulesyncCommand, antigravityConfig);
 
     // Default to true unless explicitly set to false
     const turbo = typeof antigravityConfig?.turbo === "boolean" ? antigravityConfig.turbo : true;
@@ -176,11 +176,13 @@ export class AntigravityCommand extends ToolCommand {
     });
   }
 
-  private static resolveTrigger(rulesyncCommand: RulesyncCommand): string {
+  private static resolveTrigger(
+    rulesyncCommand: RulesyncCommand,
+    antigravityConfig: Record<string, unknown> | undefined,
+  ): string {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
-    // Strategy 1: Look for explicit antigravity config in frontmatter
-    const antigravityConfig = this.extractAntigravityConfig(rulesyncCommand);
+    // Strategy 1: Look for explicit antigravity config in frontmatter (passed as parameter)
 
     // Strategy 2: Look for root level trigger (fallback)
     const rootTrigger =
