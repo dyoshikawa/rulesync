@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Checkout repository
         # actions/checkout@v6 is not compatible with anomalyco/opencode@v1.1.2
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
 
@@ -40,7 +40,7 @@ jobs:
         run: pnpm run dev generate
 
       - name: Run OpenCode Review
-        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        uses: anomalyco/opencode/github@968239bb76f953385e7c363806c143536f2e5139 # v1.1.25
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         with:
