@@ -5,6 +5,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -13,8 +14,17 @@ import {
   ToolCommandFromRulesyncCommandParams,
 } from "./tool-command.js";
 
-export const AntigravityCommandFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+const AntigravityWorkflowFrontmatterSchema = z.looseObject({
+  trigger: z.optional(z.string()),
+  turbo: z.optional(z.boolean()),
+});
+
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const AntigravityCommandFrontmatterSchema = z.looseObject({
   description: z.string(),
+  // Support for workflow-specific configuration
+  ...AntigravityWorkflowFrontmatterSchema.shape,
 });
 
 export type AntigravityCommandFrontmatter = z.infer<typeof AntigravityCommandFrontmatterSchema>;
@@ -72,9 +82,13 @@ export class AntigravityCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
+    const { description, ...restFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["antigravity"],
-      description: this.frontmatter.description,
+      description,
+      // Preserve extra fields in antigravity section
+      ...(Object.keys(restFields).length > 0 && { antigravity: restFields }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
@@ -91,19 +105,64 @@ export class AntigravityCommand extends ToolCommand {
     });
   }
 
+  private static extractAntigravityConfig(
+    rulesyncCommand: RulesyncCommand,
+  ): Record<string, unknown> | undefined {
+    const antigravity = rulesyncCommand.getFrontmatter().antigravity;
+    return isRecord(antigravity) ? antigravity : undefined;
+  }
+
   static fromRulesyncCommand({
     baseDir = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): AntigravityCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
+    const antigravityConfig = this.extractAntigravityConfig(rulesyncCommand);
+
+    const trigger = this.resolveTrigger(rulesyncCommand, antigravityConfig);
+
+    // Default to true unless explicitly set to false
+    const turbo = typeof antigravityConfig?.turbo === "boolean" ? antigravityConfig.turbo : true;
+
+    let relativeFilePath = rulesyncCommand.getRelativeFilePath();
+
+    // Fix: Clean up body if it contains frontmatter (prevent double frontmatter)
+    // This handles cases where body incorrectly includes the original frontmatter block
+    let body = rulesyncCommand
+      .getBody()
+      .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+      .trim();
+
+    // Transform into a Workflow
+    // Note: resolveTrigger always returns a string (fallback to filename-based trigger)
+
+    // 1. Rename file based on trigger (e.g. /my-workflow -> my-workflow.md)
+    // Security: Sanitize trigger to prevent path traversal (e.g. /../evil)
+    const sanitizedTrigger = trigger.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
+    if (!sanitizedTrigger) {
+      throw new Error(`Invalid trigger: sanitization resulted in empty string from "${trigger}"`);
+    }
+    const validFilename = sanitizedTrigger + ".md";
+    relativeFilePath = validFilename;
+
+    // 2. Wrap content with Workflow header and turbo directive
+    const turboDirective = turbo ? "\n\n// turbo" : "";
+
+    // We don't need to duplicate the frontmatter in the body string for the file content
+    // because stringifyFrontmatter will handle it.
+    // But we DO need to update the body to include the specific workflow header.
+    body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
+
+    const description = rulesyncFrontmatter.description;
 
     const antigravityFrontmatter: AntigravityCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description,
+      trigger,
+      turbo,
     };
 
     // Generate proper file content with Antigravity specific frontmatter
-    const body = rulesyncCommand.getBody();
     const fileContent = stringifyFrontmatter(body, antigravityFrontmatter);
 
     return new AntigravityCommand({
@@ -111,10 +170,41 @@ export class AntigravityCommand extends ToolCommand {
       frontmatter: antigravityFrontmatter,
       body,
       relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      relativeFilePath,
       fileContent: fileContent,
       validate,
     });
+  }
+
+  private static resolveTrigger(
+    rulesyncCommand: RulesyncCommand,
+    antigravityConfig: Record<string, unknown> | undefined,
+  ): string {
+    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
+
+    // Strategy 1: Look for explicit antigravity config in frontmatter (passed as parameter)
+    const antigravityTrigger =
+      antigravityConfig && typeof antigravityConfig.trigger === "string"
+        ? antigravityConfig.trigger
+        : undefined;
+
+    // Strategy 2: Look for root level trigger (fallback)
+    const rootTrigger =
+      typeof rulesyncFrontmatter.trigger === "string" ? rulesyncFrontmatter.trigger : undefined;
+
+    // Strategy 3: Look for trigger in body regex (Legacy support)
+    // Support triggers with hyphens (e.g., /my-workflow)
+    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/[\w-]+)/);
+
+    // Strategy 4: Fallback to filename as trigger (e.g. add-tests.md -> /add-tests)
+    const filenameTrigger = `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`;
+
+    return (
+      antigravityTrigger ||
+      rootTrigger ||
+      (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
+      filenameTrigger
+    );
   }
 
   validate(): ValidationResult {

@@ -6,7 +6,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { AntigravityCommand, AntigravityCommandFrontmatter } from "./antigravity-command.js";
-import { RulesyncCommand } from "./rulesync-command.js";
+import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 
 describe("AntigravityCommand", () => {
   describe("constructor", () => {
@@ -152,6 +152,60 @@ describe("AntigravityCommand", () => {
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
       expect(rulesyncCommand.getBaseDir()).toBe(".");
     });
+
+    it("should preserve trigger and turbo fields in antigravity section", () => {
+      const frontmatter: AntigravityCommandFrontmatter = {
+        description: "Workflow with trigger and turbo",
+        trigger: "/my-workflow",
+        turbo: true,
+      };
+      const body = "# Workflow: /my-workflow\n\nWorkflow content\n\n// turbo";
+
+      const antigravityCommand = new AntigravityCommand({
+        baseDir: "/test/base",
+        relativeDirPath: ".agent/workflows",
+        relativeFilePath: "my-workflow.md",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
+      });
+
+      const rulesyncCommand = antigravityCommand.toRulesyncCommand();
+
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["antigravity"],
+        description: frontmatter.description,
+        antigravity: {
+          trigger: "/my-workflow",
+          turbo: true,
+        },
+      });
+    });
+
+    it("should not include antigravity section when no extra fields exist", () => {
+      const frontmatter: AntigravityCommandFrontmatter = {
+        description: "Simple workflow without extra fields",
+      };
+      const body = "Simple workflow content";
+
+      const antigravityCommand = new AntigravityCommand({
+        baseDir: "/test/base",
+        relativeDirPath: ".agent/workflows",
+        relativeFilePath: "simple.md",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
+      });
+
+      const rulesyncCommand = antigravityCommand.toRulesyncCommand();
+
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["antigravity"],
+        description: frontmatter.description,
+      });
+      expect(rulesyncCommand.getFrontmatter()).not.toHaveProperty("antigravity");
+    });
   });
 
   describe("fromRulesyncCommand", () => {
@@ -178,9 +232,13 @@ describe("AntigravityCommand", () => {
       });
 
       expect(antigravityCommand).toBeInstanceOf(AntigravityCommand);
-      expect(antigravityCommand.getBody()).toBe(body);
+      expect(antigravityCommand.getBody()).toContain(body);
+      expect(antigravityCommand.getBody()).toContain("# Workflow:");
+
       expect(antigravityCommand.getFrontmatter()).toEqual({
         description: rulesyncFrontmatter.description,
+        trigger: "/from-rulesync",
+        turbo: true,
       });
       expect(antigravityCommand.getRelativeDirPath()).toBe(".agent/workflows");
       expect(antigravityCommand.getRelativeFilePath()).toBe("from-rulesync.md");
@@ -212,34 +270,303 @@ describe("AntigravityCommand", () => {
     it("should handle validation parameter", () => {
       const rulesyncFrontmatter = {
         targets: ["antigravity" as const],
-        description: "Validation test",
+        description: 123, // Invalid: should be string
       };
       const body = "Test workflow with validation";
 
-      const rulesyncCommand = new RulesyncCommand({
+      // Testing runtime validation: force invalid type through TS
+      const invalidCommandParams = {
         baseDir: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
-        frontmatter: rulesyncFrontmatter,
+        frontmatter: rulesyncFrontmatter as unknown as RulesyncCommandFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
-      });
+        fileContent: stringifyFrontmatter(
+          body,
+          rulesyncFrontmatter as unknown as RulesyncCommandFrontmatter,
+        ),
+      };
 
-      const withValidation = AntigravityCommand.fromRulesyncCommand({
-        rulesyncCommand,
-        validate: true,
-      });
+      const rulesyncCommand = new RulesyncCommand(invalidCommandParams);
+
+      // Should fail when validate is true (default)
+      expect(() => {
+        AntigravityCommand.fromRulesyncCommand({
+          rulesyncCommand,
+          validate: true,
+        });
+      }).toThrow();
 
       const withoutValidation = AntigravityCommand.fromRulesyncCommand({
         rulesyncCommand,
         validate: false,
       });
 
-      expect(withValidation.getBody()).toBe(body);
-      expect(withoutValidation.getBody()).toBe(body);
+      expect(withoutValidation.getBody()).toContain(body);
+      // Should succeed when validate is false
+      expect(() => {
+        AntigravityCommand.fromRulesyncCommand({
+          rulesyncCommand,
+          validate: false,
+        });
+      }).not.toThrow();
+    });
+
+    it("should transform RulesyncCommand into Workflow when trigger is present", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "Test Workflow",
+        antigravity: {
+          trigger: "/test-workflow",
+          turbo: true,
+        },
+      };
+      const body = "Step 1: Do something";
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "original-file.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      // 1. Check filename renaming (based on trigger)
+      expect(antigravityCommand.getRelativeFilePath()).toBe("test-workflow.md");
+
+      // 2. Check content wrapping
+      const content = antigravityCommand.getBody();
+      expect(content).toContain("# Workflow: /test-workflow");
+      expect(content).toContain("Step 1: Do something");
+
+      // 3. Check Turbo mode
+      expect(content).toContain("// turbo");
+
+      // 4. Verify Frontmatter description
+      expect(antigravityCommand.getFrontmatter()).toEqual({
+        description: "Test Workflow",
+        trigger: "/test-workflow",
+        turbo: true,
+      });
+    });
+
+    it("should support root level trigger as fallback", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "Root Trigger Workflow",
+        trigger: "/root-trigger",
+      };
+      const body = "Simple body";
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "root.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      expect(antigravityCommand.getRelativeFilePath()).toBe("root-trigger.md");
+      expect(antigravityCommand.getBody()).toContain("# Workflow: /root-trigger");
+    });
+
+    it("should use filename as default trigger if none provided", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "Standard Command",
+      };
+      const body = "Just a command";
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "standard.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      // Should use filename as trigger name (standard.md -> /standard)
+      expect(antigravityCommand.getRelativeFilePath()).toBe("standard.md");
+
+      // Should HAVE workflow header with default trigger
+      expect(antigravityCommand.getBody()).toContain("# Workflow: /standard");
+      expect(antigravityCommand.getBody()).toContain("// turbo"); // Default is true
+
+      expect(antigravityCommand.getFrontmatter()).toEqual({
+        description: "Standard Command",
+        trigger: "/standard",
+        turbo: true,
+      });
+    });
+
+    it("should omit turbo directive when turbo is explicitly false", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "No Turbo Workflow",
+        antigravity: {
+          trigger: "/no-turbo",
+          turbo: false,
+        },
+      };
+      const body = "Workflow without auto-execution";
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-turbo.md",
+        frontmatter: rulesyncFrontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      // Should have workflow header
+      expect(antigravityCommand.getBody()).toContain("# Workflow: /no-turbo");
+      expect(antigravityCommand.getBody()).toContain("Workflow without auto-execution");
+
+      // Should NOT contain turbo directive
+      expect(antigravityCommand.getBody()).not.toContain("// turbo");
+
+      expect(antigravityCommand.getFrontmatter()).toEqual({
+        description: "No Turbo Workflow",
+        trigger: "/no-turbo",
+        turbo: false,
+      });
+    });
+
+    it("should strip existing frontmatter from body if present (Double Frontmatter Fix)", () => {
+      const dirtyBody = `---
+description: Old Description
+targets: ["*"]
+---
+Actual command content`;
+
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "New Description",
+        antigravity: {
+          trigger: "/clean-workflow",
+        },
+      };
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "dirty.md",
+        frontmatter: rulesyncFrontmatter,
+        body: dirtyBody,
+        fileContent: stringifyFrontmatter(dirtyBody, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      const body = antigravityCommand.getBody();
+
+      // Should NOT contain the old frontmatter delimiters
+      expect(body).not.toContain("description: Old Description");
+      expect(body).not.toContain("---");
+
+      expect(body).toContain("# Workflow: /clean-workflow");
+      expect(body).toContain("Actual command content");
+    });
+
+    it("should strip frontmatter with Windows line endings (CRLF)", () => {
+      const dirtyBody = "---\r\ndescription: Old\r\n---\r\nActual content";
+
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "CRLF Test",
+        antigravity: { trigger: "/crlf-test" },
+      };
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "crlf.md",
+        frontmatter: rulesyncFrontmatter,
+        body: dirtyBody,
+        fileContent: stringifyFrontmatter(dirtyBody, rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({ rulesyncCommand });
+      const body = antigravityCommand.getBody();
+
+      expect(body).not.toContain("description: Old");
+      expect(body).toContain("Actual content");
+    });
+
+    it("should sanitize trigger to prevent path traversal", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "Security Test",
+        antigravity: {
+          trigger: "/../evil-workflow", // Potentially malicious trigger
+        },
+      };
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "evil.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Malicious payload",
+        fileContent: stringifyFrontmatter("Malicious payload", rulesyncFrontmatter),
+      });
+
+      const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
+        rulesyncCommand,
+      });
+
+      // Should be sanitized to safe characters only
+      // /../evil-workflow -> -evil-workflow
+      expect(antigravityCommand.getRelativeFilePath()).not.toContain("..");
+      expect(antigravityCommand.getRelativeFilePath()).not.toContain("/");
+      expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
+    });
+
+    it("should throw error when sanitization results in empty string", () => {
+      const rulesyncFrontmatter = {
+        targets: ["antigravity" as const],
+        description: "Empty Trigger Test",
+        antigravity: {
+          trigger: "/../../../", // All characters will be sanitized away
+        },
+      };
+
+      const rulesyncCommand = new RulesyncCommand({
+        baseDir: "/test/base",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "empty.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "Test body",
+        fileContent: stringifyFrontmatter("Test body", rulesyncFrontmatter),
+      });
+
+      expect(() => {
+        AntigravityCommand.fromRulesyncCommand({ rulesyncCommand });
+      }).toThrow(/sanitization resulted in empty string/);
     });
   });
-
   describe("fromFile", () => {
     it("should create AntigravityCommand from file", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
