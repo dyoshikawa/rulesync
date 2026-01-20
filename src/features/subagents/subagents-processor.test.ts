@@ -907,6 +907,7 @@ Second global content`;
           "copilot",
           "cursor",
           "geminicli",
+          "kiro",
           "opencode",
           "roo",
         ]),
