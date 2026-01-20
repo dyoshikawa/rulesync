@@ -71,7 +71,7 @@ export class OpenCodeSubagent extends ToolSubagent {
   toRulesyncSubagent(): RulesyncSubagent {
     const { description, mode, name, ...opencodeSection } = this.frontmatter;
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["opencode"],
+      targets: ["*"] as const,
       name: name ?? basename(this.getRelativeFilePath(), ".md"),
       description,
       opencode: { mode, ...opencodeSection },
