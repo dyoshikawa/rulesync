@@ -807,6 +807,9 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 
 Rulesync can be used programmatically in your Node.js projects. This is useful for integrating Rulesync into build scripts, CI/CD pipelines, or custom tooling.
 
+<details>
+<summary>Installation and Usage</summary>
+
 ### Installation
 
 ```bash
@@ -923,6 +926,8 @@ try {
   console.error("Generation failed:", error.message);
 }
 ```
+
+</details>
 
 ## FAQ
 
