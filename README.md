@@ -260,7 +260,7 @@ Example:
   // Verbose output
   "verbose": false,
 
-  // Silent mode - suppress all output
+  // Silent mode - suppress all output (except errors)
   "silent": false,
 
   // Advanced options

@@ -26,16 +26,8 @@ class Logger {
     this._verbose = verbose && !silent;
   }
 
-  setVerbose(verbose: boolean): void {
-    this._verbose = verbose;
-  }
-
   get verbose(): boolean {
     return this._verbose;
-  }
-
-  setSilent(silent: boolean): void {
-    this._silent = silent;
   }
 
   get silent(): boolean {
