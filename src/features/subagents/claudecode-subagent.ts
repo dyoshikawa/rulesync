@@ -79,7 +79,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     };
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["claudecode"] as const,
+      targets: ["*"] as const,
       name,
       description,
       // Only include claudecode section if there are fields

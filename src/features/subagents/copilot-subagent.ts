@@ -83,7 +83,7 @@ export class CopilotSubagent extends ToolSubagent {
     const { name, description, tools, ...rest } = this.frontmatter;
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["copilot"],
+      targets: ["*"] as const,
       name,
       description,
       copilot: {

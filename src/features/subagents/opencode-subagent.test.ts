@@ -50,7 +50,7 @@ describe("OpenCodeSubagent", () => {
 
     const rulesync = subagent.toRulesyncSubagent();
     expect(rulesync.getFrontmatter()).toEqual({
-      targets: ["opencode"],
+      targets: ["*"],
       name: "review",
       description: "Reviews code",
       opencode: {
