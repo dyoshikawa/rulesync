@@ -43,6 +43,7 @@ jobs:
           bun build --compile --minify --sourcemap --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-darwin-x64 --outfile=dist-bun/rulesync-darwin-x64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
 
       - name: Cache binaries
@@ -58,7 +59,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
 
     steps:
       - name: Checkout code
@@ -80,10 +81,14 @@ jobs:
           if [ "$MATRIX_OS" = "ubuntu-latest" ]; then
             chmod +x dist-bun/rulesync-linux-x64
             BINARY_PATH=dist-bun/rulesync-linux-x64
-          else
+          elif [ "$MATRIX_OS" = "macos-latest" ]; then
             # macos-latest is Apple Silicon (arm64)
             chmod +x dist-bun/rulesync-darwin-arm64
             BINARY_PATH=dist-bun/rulesync-darwin-arm64
+          else
+            # macos-15-intel is Intel (x64)
+            chmod +x dist-bun/rulesync-darwin-x64
+            BINARY_PATH=dist-bun/rulesync-darwin-x64
           fi
           echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
 
