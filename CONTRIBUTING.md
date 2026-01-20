@@ -38,8 +38,16 @@ pnpm dev generate
 
 ## How to add support for a new Tool/Feature
 
-To add support for a new Tool/Feature, you can follow these steps:
+To add support for a new Tool/Feature (e.g., rules), modify these files:
 
-1. Create `src/features/{feature}/{tool}-{feature}.ts` and implement with reference to existing files.
-2. Modify `src/features/{feature}/{feature}-processor.ts` to incorporate the `{tool}-{feature}.ts` implementation.
-3. With reference to [.rulesync/rules/feature-change-guidelines.md](.rulesync/rules/feature-change-guidelines.md), modify related files such as `README.md` and `src/cli/commands/gitignore.ts` especially.
+1. `src/features/{feature}/{tool}-{feature}.ts` - create implementation
+2. `src/features/{feature}/{tool}-{feature}.test.ts` - create tests
+3. `src/types/tool-targets.ts` - add to `ALL_TOOL_TARGETS`
+4. `src/types/tool-targets.test.ts` - add to expected targets
+5. `src/features/{feature}/{feature}-processor.ts` - register in factory
+6. `src/cli/commands/gitignore.ts` - add output file pattern
+7. `src/cli/commands/gitignore.test.ts` - update test
+8. `README.md` - add to Supported Tools table
+9. Run `pnpm dev gitignore` to update project `.gitignore`
+
+See [.rulesync/rules/feature-change-guidelines.md](.rulesync/rules/feature-change-guidelines.md) for additional guidance.
