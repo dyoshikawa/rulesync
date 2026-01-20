@@ -6,12 +6,12 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { init } from "../../core/init.js";
+import { init } from "../../lib/init.js";
 import { logger } from "../../utils/logger.js";
 import { initCommand } from "./init.js";
 
 // Mock dependencies
-vi.mock("../../core/init.js");
+vi.mock("../../lib/init.js");
 vi.mock("../../utils/logger.js");
 
 describe("initCommand", () => {

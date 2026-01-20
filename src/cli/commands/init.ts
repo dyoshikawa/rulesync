@@ -4,7 +4,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { init } from "../../core/init.js";
+import { init } from "../../lib/init.js";
 import { logger } from "../../utils/logger.js";
 
 export async function initCommand(): Promise<void> {

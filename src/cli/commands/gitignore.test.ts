@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { gitignore } from "../../core/gitignore.js";
+import { gitignore } from "../../lib/gitignore.js";
 import { logger } from "../../utils/logger.js";
 import { gitignoreCommand } from "./gitignore.js";
 
 // Mock dependencies
-vi.mock("../../core/gitignore.js");
+vi.mock("../../lib/gitignore.js");
 vi.mock("../../utils/logger.js");
 
 describe("gitignoreCommand", () => {

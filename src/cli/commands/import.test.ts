@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ImportOptions } from "./import.js";
 
-import { importFrom } from "../../core/import.js";
+import { importFrom } from "../../lib/import.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { importCommand } from "./import.js";
 
 // Mock dependencies
-vi.mock("../../core/import.js");
+vi.mock("../../lib/import.js");
 vi.mock("../../utils/error.js");
 vi.mock("../../utils/logger.js");
 

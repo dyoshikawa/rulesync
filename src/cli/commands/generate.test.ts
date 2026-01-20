@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GenerateOptions } from "./generate.js";
 
-import { generate } from "../../core/generate.js";
+import { generate } from "../../lib/generate.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { generateCommand } from "./generate.js";
 
 // Mock dependencies
-vi.mock("../../core/generate.js");
+vi.mock("../../lib/generate.js");
 vi.mock("../../utils/error.js");
 vi.mock("../../utils/logger.js");
 

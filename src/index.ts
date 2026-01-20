@@ -1,8 +1,8 @@
 // High-level functions
-export { generate, type GenerateParams } from "./core/generate.js";
-export { gitignore } from "./core/gitignore.js";
-export { importFrom, type ImportFromParams } from "./core/import.js";
-export { init } from "./core/init.js";
+export { generate, type GenerateParams } from "./lib/generate.js";
+export { gitignore } from "./lib/gitignore.js";
+export { importFrom, type ImportFromParams } from "./lib/import.js";
+export { init } from "./lib/init.js";
 
 // Configuration
 export { Config, type ConfigParams, type PartialConfigParams } from "./config/config.js";

@@ -1,6 +1,6 @@
 import type { ConfigResolverResolveParams } from "../../config/config-resolver.js";
 
-import { importFrom } from "../../core/import.js";
+import { importFrom } from "../../lib/import.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 

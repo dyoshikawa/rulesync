@@ -1,4 +1,4 @@
-import { gitignore } from "../../core/gitignore.js";
+import { gitignore } from "../../lib/gitignore.js";
 import { logger } from "../../utils/logger.js";
 
 export const gitignoreCommand = async (): Promise<void> => {
