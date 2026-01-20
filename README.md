@@ -260,6 +260,9 @@ Example:
   // Verbose output
   "verbose": false,
 
+  // Silent mode - suppress all output (except errors)
+  "silent": false,
+
   // Advanced options
   "global": false, // Generate for global(user scope) configuration files
   "simulateCommands": false, // Generate simulated commands

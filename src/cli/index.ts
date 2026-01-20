@@ -12,7 +12,7 @@ import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { mcpCommand } from "./commands/mcp.js";
 
-const getVersion = () => "5.6.0";
+const getVersion = () => "5.7.0";
 
 const main = async () => {
   const program = new Command();
@@ -58,6 +58,7 @@ const main = async () => {
       },
     )
     .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
     .option("-g, --global", "Import for global(user scope) configuration files")
     .action(async (options) => {
       try {
@@ -65,6 +66,7 @@ const main = async () => {
           targets: options.targets,
           features: options.features,
           verbose: options.verbose,
+          silent: options.silent,
           configPath: options.config,
           global: options.global,
         });
@@ -109,6 +111,7 @@ const main = async () => {
       "Base directories to generate files (comma-separated for multiple paths)",
     )
     .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
     .option("-c, --config <path>", "Path to configuration file")
     .option("-g, --global", "Generate for global(user scope) configuration files")
     .option(
@@ -133,6 +136,7 @@ const main = async () => {
           targets: options.targets,
           features: options.features,
           verbose: options.verbose,
+          silent: options.silent,
           delete: options.delete,
           baseDirs: options.baseDirs,
           configPath: options.config,
