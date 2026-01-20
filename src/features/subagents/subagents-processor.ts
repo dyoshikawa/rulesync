@@ -15,6 +15,7 @@ import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
+import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -44,6 +45,8 @@ type ToolSubagentFactory = {
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) subagents */
     supportsGlobal: boolean;
+    /** File pattern for import (e.g., "*.md", "*.json") */
+    filePattern: string;
   };
 };
 
@@ -59,6 +62,7 @@ const subagentsProcessorToolTargetTuple = [
   "copilot",
   "cursor",
   "geminicli",
+  "kiro",
   "opencode",
   "roo",
 ] as const;
@@ -75,34 +79,74 @@ export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolT
 const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagentFactory>([
   [
     "agentsmd",
-    { class: AgentsmdSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: AgentsmdSubagent,
+      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
   ],
   [
     "claudecode",
-    { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: ClaudecodeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
   ],
   [
     "claudecode-legacy",
-    { class: ClaudecodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: ClaudecodeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
   ],
   [
     "codexcli",
-    { class: CodexCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: CodexCliSubagent,
+      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
   ],
   [
     "copilot",
-    { class: CopilotSubagent, meta: { supportsSimulated: false, supportsGlobal: false } },
+    {
+      class: CopilotSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+    },
   ],
-  ["cursor", { class: CursorSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "cursor",
+    {
+      class: CursorSubagent,
+      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
+  ],
   [
     "geminicli",
-    { class: GeminiCliSubagent, meta: { supportsSimulated: true, supportsGlobal: false } },
+    {
+      class: GeminiCliSubagent,
+      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+    },
   ],
   [
     "opencode",
-    { class: OpenCodeSubagent, meta: { supportsSimulated: false, supportsGlobal: true } },
+    {
+      class: OpenCodeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
   ],
-  ["roo", { class: RooSubagent, meta: { supportsSimulated: true, supportsGlobal: false } }],
+  [
+    "roo",
+    {
+      class: RooSubagent,
+      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
+  ],
 ]);
 
 /**
@@ -279,7 +323,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     const paths = factory.class.getSettablePaths({ global: this.global });
 
     const subagentFilePaths = await findFilesByGlobs(
-      join(this.baseDir, paths.relativeDirPath, "*.md"),
+      join(this.baseDir, paths.relativeDirPath, factory.meta.filePattern),
     );
 
     if (forDeletion) {
