@@ -42,44 +42,39 @@ Download pre-built binaries from the [latest release](https://github.com/dyoshik
 #### Linux (x64)
 
 ```bash
-curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-x64 -o rulesync
-chmod +x rulesync
-# Place the binary wherever set PATH
-sudo mv rulesync /usr/local/bin/
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-x64 -o rulesync && \
+  chmod +x rulesync && \
+  sudo mv rulesync /usr/local/bin/
 ```
 
 #### Linux (ARM64)
 
 ```bash
-curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-arm64 -o rulesync
-chmod +x rulesync
-# Place the binary wherever set PATH
-sudo mv rulesync /usr/local/bin/
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-arm64 -o rulesync && \
+  chmod +x rulesync && \
+  sudo mv rulesync /usr/local/bin/
 ```
 
 #### macOS (Apple Silicon)
 
 ```bash
-curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-arm64 -o rulesync
-chmod +x rulesync
-# Place the binary wherever set PATH
-sudo mv rulesync /usr/local/bin/
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-arm64 -o rulesync && \
+  chmod +x rulesync && \
+  sudo mv rulesync /usr/local/bin/
 ```
 
 #### Windows (x64)
 
 ```powershell
-# PowerShell
-Invoke-WebRequest -Uri "https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe" -OutFile "rulesync.exe"
-# Add to PATH or place in a directory already in PATH
-Move-Item rulesync.exe C:\Windows\System32\
+Invoke-WebRequest -Uri "https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe" -OutFile "rulesync.exe"; `
+  Move-Item rulesync.exe C:\Windows\System32\
 ```
 
 Or using curl (if available):
 
 ```bash
-curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe -o rulesync.exe
-# Place the binary wherever set PATH
+curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe -o rulesync.exe && \
+  mv rulesync.exe /path/to/your/bin/
 ```
 
 #### Verify checksums
