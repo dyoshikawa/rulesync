@@ -803,6 +803,127 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 }
 ```
 
+## Programmatic API
+
+Rulesync can be used programmatically in your Node.js projects. This is useful for integrating Rulesync into build scripts, CI/CD pipelines, or custom tooling.
+
+### Installation
+
+```bash
+npm install rulesync
+```
+
+### High-Level Functions
+
+#### `generate(options)`
+
+Generate configuration files for AI tools.
+
+```typescript
+import { generate } from "rulesync";
+
+const totalGenerated = await generate({
+  targets: ["claudecode", "cursor"],
+  features: ["rules", "mcp"],
+});
+console.log(`Generated ${totalGenerated} files`);
+```
+
+**Options:**
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `targets` | `string[]` | `["agentsmd"]` | Target tools to generate for |
+| `features` | `string[]` | `["rules"]` | Features to generate |
+| `baseDirs` | `string[]` | `[process.cwd()]` | Base directories |
+| `delete` | `boolean` | `false` | Delete existing files before generating |
+| `global` | `boolean` | `false` | Use global mode |
+| `simulateCommands` | `boolean` | `false` | Generate simulated commands |
+| `simulateSubagents` | `boolean` | `false` | Generate simulated subagents |
+| `simulateSkills` | `boolean` | `false` | Generate simulated skills |
+| `modularMcp` | `boolean` | `false` | Enable modular MCP |
+| `configPath` | `string` | `"rulesync.jsonc"` | Path to config file |
+
+#### `importFrom(options)`
+
+Import configurations from AI tools to rulesync format.
+
+```typescript
+import { importFrom } from "rulesync";
+
+const totalImported = await importFrom({
+  targets: ["claudecode"],
+  features: ["rules", "commands"],
+});
+console.log(`Imported ${totalImported} files`);
+```
+
+> **Note:** Only one target can be imported at a time.
+
+#### `init()`
+
+Initialize rulesync in the current directory.
+
+```typescript
+import { init } from "rulesync";
+
+await init();
+```
+
+#### `gitignore()`
+
+Add generated files to .gitignore.
+
+```typescript
+import { gitignore } from "rulesync";
+
+await gitignore();
+```
+
+### Low-Level API
+
+For advanced use cases, you can use the low-level classes directly:
+
+```typescript
+import { ConfigResolver, RulesProcessor } from "rulesync";
+
+// Resolve configuration
+const config = await ConfigResolver.resolve({
+  targets: ["claudecode"],
+  features: ["rules"],
+});
+
+// Use a processor directly
+const processor = new RulesProcessor({
+  baseDir: ".",
+  toolTarget: "claudecode",
+});
+
+const rulesyncFiles = await processor.loadRulesyncFiles();
+const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+await processor.writeAiFiles(toolFiles);
+```
+
+**Available Exports:**
+
+- Configuration: `Config`, `ConfigResolver`
+- Processors: `RulesProcessor`, `CommandsProcessor`, `SubagentsProcessor`, `SkillsProcessor`, `McpProcessor`, `IgnoreProcessor`
+- Rulesync Files: `RulesyncRule`, `RulesyncCommand`, `RulesyncSubagent`, `RulesyncSkill`, `RulesyncMcp`, `RulesyncIgnore`
+- Types: `Feature`, `ToolTarget`, `ALL_FEATURES`, `ALL_TOOL_TARGETS`
+
+### Error Handling
+
+All functions throw standard JavaScript `Error` on failure:
+
+```typescript
+import { generate } from "rulesync";
+
+try {
+  await generate({ targets: ["claudecode"] });
+} catch (error) {
+  console.error("Generation failed:", error.message);
+}
+```
+
 ## FAQ
 
 ### Q. The generated `.mcp.json` doesn't work properly in Claude Code.
