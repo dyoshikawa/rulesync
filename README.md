@@ -34,7 +34,7 @@ rulesync --help
 
 ### Single Binary (Experimental)
 
-Download pre-built binaries from the [latest release](https://github.com/dyoshikawa/rulesync/releases/latest).
+Download pre-built binaries from the [latest release](https://github.com/dyoshikawa/rulesync/releases/latest). These binaries are built using [Bun's single-file executable bundler](https://bun.sh/docs/bundler/executables).
 
 <details>
 <summary>Commands to install a binary for your platform</summary>
@@ -143,7 +143,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |
 | Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |
 | Qwen Code          |  ✅   |   ✅   |          |          |           |        |
-| Kiro               |  ✅   |   ✅   |    ✅    |    ✅    |           |        |
+| Kiro IDE           |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |        |
 | Google Antigravity |  ✅   |        |          |    ✅    |           | ✅ 🌏  |
 | JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |
 | AugmentCode        |  ✅   |   ✅   |          |          |           |        |
