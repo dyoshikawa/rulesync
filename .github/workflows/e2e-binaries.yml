@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Setup mise
-        uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v2
+        uses: jdx/mise-action@c53b9236f0b3370f31520f8b142f141256d839c6 # v2
         with:
           experimental: true
 
@@ -40,7 +40,7 @@ jobs:
           deno task compile:all
 
       - name: Cache binaries
-        uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        uses: actions/cache/save@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: dist-deno
           key: rulesync-binaries-${{ github.sha }}
@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Restore cached binaries
-        uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        uses: actions/cache/restore@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: dist-deno
           key: rulesync-binaries-${{ github.sha }}
@@ -88,7 +88,7 @@ jobs:
           echo "BINARY_PATH=dist-deno/rulesync-windows-x64.exe" >> $GITHUB_ENV
 
       - name: Setup mise
-        uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v2
+        uses: jdx/mise-action@c53b9236f0b3370f31520f8b142f141256d839c6 # v2
         with:
           experimental: true
 
