@@ -180,7 +180,11 @@ export async function findFilesByGlobs(
       : type === "dir"
         ? { onlyFiles: false, onlyDirectories: true }
         : { onlyFiles: false, onlyDirectories: false };
-  const results = globbySync(globs, { absolute: true, ...globbyOptions });
+  // Normalize glob patterns to use forward slashes (required for globby on Windows)
+  const normalizedGlobs = Array.isArray(globs)
+    ? globs.map((g) => g.replaceAll("\\", "/"))
+    : globs.replaceAll("\\", "/");
+  const results = globbySync(normalizedGlobs, { absolute: true, ...globbyOptions });
   // Sort for consistent ordering across different glob implementations
   return results.toSorted();
 }
