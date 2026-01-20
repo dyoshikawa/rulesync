@@ -116,7 +116,7 @@ Plan tasks`;
       const rulesyncSubagent = subagent.toRulesyncSubagent();
 
       expect(rulesyncSubagent.getFrontmatter()).toMatchObject({
-        targets: ["copilot"],
+        targets: ["*"],
         name: "planner",
         description: "Plan things",
         copilot: { tools: ["agent/runSubagent", "web/fetch"] },

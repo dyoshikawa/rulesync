@@ -319,7 +319,7 @@ describe("ClaudecodeSubagent", () => {
       expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
 
       const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-      expect(rulesyncFrontmatter.targets).toEqual(["claudecode"]);
+      expect(rulesyncFrontmatter.targets).toEqual(["*"]);
       expect(rulesyncFrontmatter.name).toBe("test-agent");
       expect(rulesyncFrontmatter.description).toBe("A test agent");
       expect(rulesyncFrontmatter.claudecode).toBeUndefined();
@@ -349,7 +349,7 @@ describe("ClaudecodeSubagent", () => {
       const rulesyncSubagent = subagent.toRulesyncSubagent();
 
       const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-      expect(rulesyncFrontmatter.targets).toEqual(["claudecode"]);
+      expect(rulesyncFrontmatter.targets).toEqual(["*"]);
       expect(rulesyncFrontmatter.name).toBe("test-agent");
       expect(rulesyncFrontmatter.description).toBe("A test agent");
       expect(rulesyncFrontmatter.claudecode?.model).toBe("opus");
