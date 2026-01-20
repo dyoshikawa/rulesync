@@ -65,7 +65,13 @@ After merging:
 
 1. Confirm the PR was successfully merged
 2. Display the merged PR number and title
-3. Optionally suggest cleaning up the local branch:
-   ```bash
-   git checkout main && git pull && git branch -d <branch-name>
-   ```
+
+## Step 5: Clean Up Local Branch
+
+Ask the user if they want to clean up the local branch. If yes, execute:
+
+```bash
+git checkout main && git pull && git branch -d <branch-name>
+```
+
+Where `<branch-name>` is the head branch name from Step 2 (e.g., `fix/rulesync-import-targets`).
