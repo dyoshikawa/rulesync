@@ -1,5 +1,5 @@
 import { kebabCase } from "es-toolkit";
-import { globSync } from "node:fs";
+import { globbySync } from "globby";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -174,19 +174,15 @@ export async function findFilesByGlobs(
   options: { type?: "file" | "dir" | "all" } = {},
 ): Promise<string[]> {
   const { type = "all" } = options;
-  const items = globSync(globs, { withFileTypes: true });
-  switch (type) {
-    case "file":
-      return items.filter((item) => item.isFile()).map((item) => join(item.parentPath, item.name));
-    case "dir":
-      return items
-        .filter((item) => item.isDirectory())
-        .map((item) => join(item.parentPath, item.name));
-    case "all":
-      return items.map((item) => join(item.parentPath, item.name));
-    default:
-      throw new Error(`Invalid type: ${type}`);
-  }
+  const globbyOptions =
+    type === "file"
+      ? { onlyFiles: true, onlyDirectories: false }
+      : type === "dir"
+        ? { onlyFiles: false, onlyDirectories: true }
+        : { onlyFiles: false, onlyDirectories: false };
+  const results = globbySync(globs, { absolute: true, ...globbyOptions });
+  // Sort for consistent ordering across different glob implementations
+  return results.toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {
