@@ -13,6 +13,7 @@ import {
   ensureDir,
   fileExists,
   findFiles,
+  findFilesByGlobs,
   findRuleFiles,
   getHomeDirectory,
   listDirectoryFiles,
@@ -392,6 +393,144 @@ describe("file utilities", () => {
       it("should return empty array for non-existent directory", async () => {
         const files = await findFiles(join(testDir, "nonexistent"));
         expect(files).toEqual([]);
+      });
+    });
+
+    describe("findFilesByGlobs", () => {
+      beforeEach(async () => {
+        // Create test files
+        await writeFileContent(join(testDir, "file1.md"), "content1");
+        await writeFileContent(join(testDir, "file2.txt"), "content2");
+        await writeFileContent(join(testDir, "nested", "file3.md"), "content3");
+        // Create test directories
+        await ensureDir(join(testDir, "emptyDir"));
+        await ensureDir(join(testDir, "nested", "subdir"));
+      });
+
+      describe("type filtering", () => {
+        it("should find only files when type is 'file'", async () => {
+          const results = await findFilesByGlobs(join(testDir, "**/*"), { type: "file" });
+
+          expect(results.length).toBeGreaterThan(0);
+          expect(results).toContain(join(testDir, "file1.md"));
+          expect(results).toContain(join(testDir, "file2.txt"));
+          expect(results).toContain(join(testDir, "nested", "file3.md"));
+          // Should not contain directories
+          expect(results).not.toContain(join(testDir, "emptyDir"));
+          expect(results).not.toContain(join(testDir, "nested"));
+          expect(results).not.toContain(join(testDir, "nested", "subdir"));
+        });
+
+        it("should find only directories when type is 'dir'", async () => {
+          const results = await findFilesByGlobs(join(testDir, "**/*"), { type: "dir" });
+
+          expect(results.length).toBeGreaterThan(0);
+          expect(results).toContain(join(testDir, "emptyDir"));
+          expect(results).toContain(join(testDir, "nested"));
+          expect(results).toContain(join(testDir, "nested", "subdir"));
+          // Should not contain files
+          expect(results).not.toContain(join(testDir, "file1.md"));
+          expect(results).not.toContain(join(testDir, "file2.txt"));
+          expect(results).not.toContain(join(testDir, "nested", "file3.md"));
+        });
+
+        it("should find both files and directories when type is 'all'", async () => {
+          const results = await findFilesByGlobs(join(testDir, "**/*"), { type: "all" });
+
+          // Should contain files
+          expect(results).toContain(join(testDir, "file1.md"));
+          expect(results).toContain(join(testDir, "file2.txt"));
+          expect(results).toContain(join(testDir, "nested", "file3.md"));
+          // Should also contain directories
+          expect(results).toContain(join(testDir, "emptyDir"));
+          expect(results).toContain(join(testDir, "nested"));
+          expect(results).toContain(join(testDir, "nested", "subdir"));
+        });
+
+        it("should default to 'all' when type is not specified", async () => {
+          const results = await findFilesByGlobs(join(testDir, "**/*"));
+
+          // Should contain both files and directories
+          expect(results).toContain(join(testDir, "file1.md"));
+          expect(results).toContain(join(testDir, "emptyDir"));
+        });
+      });
+
+      describe("glob patterns", () => {
+        it("should accept a single glob pattern string", async () => {
+          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+
+          expect(results).toHaveLength(1);
+          expect(results).toContain(join(testDir, "file1.md"));
+        });
+
+        it("should accept an array of glob patterns", async () => {
+          const results = await findFilesByGlobs([join(testDir, "*.md"), join(testDir, "*.txt")], {
+            type: "file",
+          });
+
+          expect(results).toHaveLength(2);
+          expect(results).toContain(join(testDir, "file1.md"));
+          expect(results).toContain(join(testDir, "file2.txt"));
+        });
+
+        it("should find files in nested directories with ** pattern", async () => {
+          const results = await findFilesByGlobs(join(testDir, "**/*.md"), { type: "file" });
+
+          expect(results).toHaveLength(2);
+          expect(results).toContain(join(testDir, "file1.md"));
+          expect(results).toContain(join(testDir, "nested", "file3.md"));
+        });
+      });
+
+      describe("Windows path normalization", () => {
+        it("should normalize Windows-style backslashes to forward slashes for single pattern", async () => {
+          // Simulate Windows path with backslashes
+          const windowsPattern = testDir.replaceAll("/", "\\") + "\\*.md";
+          const results = await findFilesByGlobs(windowsPattern, { type: "file" });
+
+          expect(results).toHaveLength(1);
+          expect(results).toContain(join(testDir, "file1.md"));
+        });
+
+        it("should normalize Windows-style backslashes in array of patterns", async () => {
+          const windowsPatterns = [
+            testDir.replaceAll("/", "\\") + "\\*.md",
+            testDir.replaceAll("/", "\\") + "\\*.txt",
+          ];
+          const results = await findFilesByGlobs(windowsPatterns, { type: "file" });
+
+          expect(results).toHaveLength(2);
+          expect(results).toContain(join(testDir, "file1.md"));
+          expect(results).toContain(join(testDir, "file2.txt"));
+        });
+      });
+
+      describe("result ordering", () => {
+        it("should return sorted results for consistent ordering", async () => {
+          const results = await findFilesByGlobs(join(testDir, "**/*.md"), { type: "file" });
+
+          // Results should be sorted alphabetically
+          const sortedResults = [...results].toSorted();
+          expect(results).toEqual(sortedResults);
+        });
+      });
+
+      describe("edge cases", () => {
+        it("should return empty array when no matches found", async () => {
+          const results = await findFilesByGlobs(join(testDir, "*.nonexistent"), { type: "file" });
+
+          expect(results).toEqual([]);
+        });
+
+        it("should return absolute paths", async () => {
+          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+
+          expect(results.length).toBeGreaterThan(0);
+          for (const result of results) {
+            expect(result.startsWith("/") || /^[A-Za-z]:/.test(result)).toBe(true);
+          }
+        });
       });
     });
   });

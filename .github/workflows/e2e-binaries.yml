@@ -34,15 +34,21 @@ jobs:
         with:
           experimental: true
 
+      - name: Install dependencies
+        run: bun install
+
       - name: Build binaries
         run: |
-          mkdir -p dist-deno
-          deno task compile:all
+          mkdir -p dist-bun
+          bun build --compile --minify --sourcemap --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
 
       - name: Cache binaries
         uses: actions/cache/save@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
-          path: dist-deno
+          path: dist-bun
           key: rulesync-binaries-${{ github.sha }}
           enableCrossOsArchive: true
 
@@ -61,7 +67,7 @@ jobs:
       - name: Restore cached binaries
         uses: actions/cache/restore@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
-          path: dist-deno
+          path: dist-bun
           key: rulesync-binaries-${{ github.sha }}
           enableCrossOsArchive: true
           fail-on-cache-miss: true
@@ -72,12 +78,12 @@ jobs:
           MATRIX_OS: ${{ matrix.os }}
         run: |
           if [ "$MATRIX_OS" = "ubuntu-latest" ]; then
-            chmod +x dist-deno/rulesync-linux-x64
-            BINARY_PATH=dist-deno/rulesync-linux-x64
+            chmod +x dist-bun/rulesync-linux-x64
+            BINARY_PATH=dist-bun/rulesync-linux-x64
           else
             # macos-latest is Apple Silicon (arm64)
-            chmod +x dist-deno/rulesync-darwin-arm64
-            BINARY_PATH=dist-deno/rulesync-darwin-arm64
+            chmod +x dist-bun/rulesync-darwin-arm64
+            BINARY_PATH=dist-bun/rulesync-darwin-arm64
           fi
           echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
 
@@ -85,7 +91,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          echo "BINARY_PATH=dist-deno/rulesync-windows-x64.exe" >> $GITHUB_ENV
+          echo "BINARY_PATH=dist-bun/rulesync-windows-x64.exe" >> $GITHUB_ENV
 
       - name: Setup mise
         uses: jdx/mise-action@c53b9236f0b3370f31520f8b142f141256d839c6 # v2

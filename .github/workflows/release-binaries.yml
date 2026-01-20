@@ -23,14 +23,20 @@ jobs:
         with:
           experimental: true
 
+      - name: Install dependencies
+        run: bun install
+
       - name: Build binaries
         run: |
-          mkdir -p dist-deno
-          deno task compile:all
+          mkdir -p dist-bun
+          bun build --compile --minify --sourcemap --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
 
       - name: Generate checksums
         run: |
-          cd dist-deno
+          cd dist-bun
           sha256sum rulesync-* > SHA256SUMS
           cat SHA256SUMS
 
@@ -38,8 +44,8 @@ jobs:
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           files: |
-            dist-deno/rulesync-linux-x64
-            dist-deno/rulesync-linux-arm64
-            dist-deno/rulesync-darwin-arm64
-            dist-deno/rulesync-windows-x64.exe
-            dist-deno/SHA256SUMS
+            dist-bun/rulesync-linux-x64
+            dist-bun/rulesync-linux-arm64
+            dist-bun/rulesync-darwin-arm64
+            dist-bun/rulesync-windows-x64.exe
+            dist-bun/SHA256SUMS
