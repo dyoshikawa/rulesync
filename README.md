@@ -803,7 +803,7 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 }
 ```
 
-## Programmatic API
+## Programmatic API (Experimental)
 
 Rulesync can be used programmatically in your Node.js projects. This is useful for integrating Rulesync into build scripts, CI/CD pipelines, or custom tooling.
 
