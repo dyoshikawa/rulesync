@@ -681,6 +681,9 @@ export class RulesProcessor extends FeatureProcessor {
           ),
         );
       })();
+      if (rootToolRules.length === 0) {
+        logger.warn(`No root tool rule files found`);
+      }
       logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
       const nonRootToolRules = await (async () => {
