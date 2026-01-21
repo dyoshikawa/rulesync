@@ -67,6 +67,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Kiro
   "**/.kiro/steering/",
   "**/.kiro/prompts/",
+  "**/.kiro/skills/",
   "**/.kiro/agents/",
   "**/.kiro/settings/mcp.json",
   "**/.aiignore",
