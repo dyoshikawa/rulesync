@@ -7,7 +7,10 @@ import { logger } from "../../utils/logger.js";
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
 
 export async function importCommand(options: ImportOptions): Promise<void> {
-  logger.setVerbose(options.verbose ?? false);
+  logger.configure({
+    verbose: options.verbose ?? false,
+    silent: options.silent ?? false,
+  });
 
   try {
     const totalImported = await importFrom(options);

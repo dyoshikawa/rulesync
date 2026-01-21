@@ -22,7 +22,7 @@ describe("importCommand", () => {
     }) as unknown as (code?: string | number | null) => never);
 
     // Setup logger mocks
-    vi.mocked(logger.setVerbose).mockImplementation(() => {});
+    vi.mocked(logger.configure).mockImplementation(() => {});
     vi.mocked(logger.error).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});
 
@@ -38,20 +38,28 @@ describe("importCommand", () => {
   });
 
   describe("initial setup", () => {
-    it("should set verbose to false by default", async () => {
+    it("should configure logger with defaults when no options provided", async () => {
       const options: ImportOptions = { targets: ["claudecode"] };
 
       await importCommand(options);
 
-      expect(logger.setVerbose).toHaveBeenCalledWith(false);
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
     });
 
-    it("should set verbose to true when options.verbose is true", async () => {
+    it("should configure verbose logging when options.verbose is true", async () => {
       const options: ImportOptions = { targets: ["claudecode"], verbose: true };
 
       await importCommand(options);
 
-      expect(logger.setVerbose).toHaveBeenCalledWith(true);
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+    });
+
+    it("should configure silent mode when options.silent is true", async () => {
+      const options: ImportOptions = { targets: ["claudecode"], silent: true };
+
+      await importCommand(options);
+
+      expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: true });
     });
   });
 

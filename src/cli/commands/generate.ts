@@ -7,7 +7,10 @@ import { logger } from "../../utils/logger.js";
 export type GenerateOptions = ConfigResolverResolveParams;
 
 export async function generateCommand(options: GenerateOptions): Promise<void> {
-  logger.setVerbose(options.verbose ?? false);
+  logger.configure({
+    verbose: options.verbose ?? false,
+    silent: options.silent ?? false,
+  });
   logger.info("Generating files...");
 
   try {
