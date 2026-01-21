@@ -126,7 +126,7 @@ async function generateIgnore(config: Config): Promise<number> {
   for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
     for (const baseDir of config.getBaseDirs()) {
       const processor = new IgnoreProcessor({
-        baseDir: baseDir === process.cwd() ? "." : baseDir,
+        baseDir,
         toolTarget,
       });
 
