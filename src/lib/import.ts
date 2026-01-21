@@ -23,7 +23,7 @@ export type ImportFromParams = Omit<ConfigResolverResolveParams, "delete" | "bas
  * import { importFrom } from "rulesync";
  *
  * const totalImported = await importFrom({
- *   target: "claudecode",
+ *   targets: ["claudecode"],
  *   features: ["rules", "commands"],
  * });
  * console.log(`Imported ${totalImported} files`);
