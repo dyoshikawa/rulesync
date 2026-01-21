@@ -97,6 +97,64 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("silent configuration", () => {
+    it("should load silent: true from config file", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        silent: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSilent()).toBe(true);
+    });
+
+    it("should load silent: false from config file", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        silent: false,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSilent()).toBe(false);
+    });
+
+    it("should default silent to false when not specified", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getSilent()).toBe(false);
+    });
+
+    it("should allow CLI flag to override config file for silent", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        silent: false,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        silent: true,
+      });
+
+      expect(config.getSilent()).toBe(true);
+    });
+  });
+
   describe("base directory resolution", () => {
     it("should load configured baseDirs from file", async () => {
       const configContent = JSON.stringify({
