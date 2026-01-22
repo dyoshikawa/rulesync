@@ -41,6 +41,19 @@ describe("KiroSkill", () => {
       expect(skill.getRelativeDirPath()).toBe(join(".kiro", "skills"));
     });
 
+    it("should throw error when frontmatter name does not match directory name", () => {
+      expect(() => {
+        new KiroSkill({
+          dirName: "test-skill",
+          frontmatter: {
+            name: "wrong-name",
+            description: "Test skill description",
+          },
+          body: "This is a test skill body",
+        });
+      }).toThrow(/frontmatter name \(wrong-name\) must match directory name \(test-skill\)/);
+    });
+
     it("should throw error when global mode is requested", () => {
       expect(() => KiroSkill.getSettablePaths({ global: true })).toThrow(
         "KiroSkill does not support global mode.",
@@ -189,6 +202,27 @@ Missing description`;
           dirName: "invalid-skill",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
+    it("should throw error when frontmatter name does not match directory name", async () => {
+      const skillDir = join(testDir, ".kiro", "skills", "test-skill");
+      await ensureDir(skillDir);
+
+      const mismatchContent = `---
+name: wrong-name
+description: Test skill description
+---
+
+This is the skill body content.`;
+
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), mismatchContent);
+
+      await expect(
+        KiroSkill.fromDir({
+          baseDir: testDir,
+          dirName: "test-skill",
+        }),
+      ).rejects.toThrow(/Frontmatter name \(wrong-name\) must match directory name \(test-skill\)/);
     });
   });
 

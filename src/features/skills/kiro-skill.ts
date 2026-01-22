@@ -32,6 +32,10 @@ type KiroSkillParams = {
   global?: boolean;
 };
 
+/**
+ * Represents a Kiro skill directory.
+ * Skills are stored under .kiro/skills/ directories with SKILL.md files.
+ */
 export class KiroSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
@@ -103,6 +107,15 @@ export class KiroSkill extends ToolSkill {
       };
     }
 
+    if (result.data.name !== this.getDirName()) {
+      return {
+        success: false,
+        error: new Error(
+          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
+        ),
+      };
+    }
+
     return { success: true, error: null };
   }
 
@@ -167,6 +180,18 @@ export class KiroSkill extends ToolSkill {
       const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
+      );
+    }
+
+    if (result.data.name !== loaded.dirName) {
+      const skillFilePath = join(
+        loaded.baseDir,
+        loaded.relativeDirPath,
+        loaded.dirName,
+        SKILL_FILE_NAME,
+      );
+      throw new Error(
+        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
       );
     }
 
