@@ -37,6 +37,8 @@ updates:
       all-actions:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "actions/checkout"
     commit-message:
       prefix: "ci"
       include: "scope"
