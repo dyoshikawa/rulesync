@@ -31,7 +31,7 @@ export class CodexcliCommand extends ToolCommand {
     };
 
     return new RulesyncCommand({
-      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
+      baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,

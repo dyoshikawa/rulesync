@@ -75,7 +75,7 @@ export class KiroSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".",
+      baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: prompt ?? "",
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,

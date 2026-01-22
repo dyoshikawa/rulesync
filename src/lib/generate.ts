@@ -1,4 +1,5 @@
 import { intersection } from "es-toolkit";
+import { join } from "node:path";
 
 import { ConfigResolver, type ConfigResolverResolveParams } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
@@ -15,28 +16,54 @@ import { fileExists } from "../utils/file.js";
 export type GenerateParams = ConfigResolverResolveParams;
 
 /**
+ * Result of the generate function with detailed counts.
+ */
+export type GenerateResult = {
+  /** Total number of files generated */
+  total: number;
+  /** Number of rule files generated */
+  rules: number;
+  /** Number of ignore files generated */
+  ignore: number;
+  /** Number of MCP files generated */
+  mcp: number;
+  /** Number of command files generated */
+  commands: number;
+  /** Number of subagent files generated */
+  subagents: number;
+  /** Number of skill files generated */
+  skills: number;
+};
+
+/**
  * Generate configuration files for AI tools.
  *
  * @param params - Configuration parameters
- * @returns The total number of files generated
+ * @returns The result object with total and per-feature counts
  * @throws Error if .rulesync directory is not found
  *
  * @example
  * ```typescript
  * import { generate } from "rulesync";
  *
- * const totalGenerated = await generate({
+ * const result = await generate({
  *   targets: ["claudecode", "cursor"],
  *   features: ["rules", "mcp"],
  * });
- * console.log(`Generated ${totalGenerated} files`);
+ * console.log(`Generated ${result.total} files (${result.rules} rules, ${result.mcp} MCP)`);
  * ```
  */
-export async function generate(params: GenerateParams = {}): Promise<number> {
+export async function generate(params: GenerateParams = {}): Promise<GenerateResult> {
   const config = await ConfigResolver.resolve(params);
 
-  // Check if .rulesync directory exists
-  if (!(await fileExists(RULESYNC_RELATIVE_DIR_PATH))) {
+  // Check if .rulesync directory exists in the first baseDir
+  const baseDirs = config.getBaseDirs();
+  const firstBaseDir = baseDirs[0];
+  if (firstBaseDir === undefined) {
+    throw new Error("No base directories configured.");
+  }
+  const rulesyncPath = join(firstBaseDir, RULESYNC_RELATIVE_DIR_PATH);
+  if (!(await fileExists(rulesyncPath))) {
     throw new Error(".rulesync directory not found. Run 'rulesync init' first.");
   }
 
@@ -68,7 +95,15 @@ export async function generate(params: GenerateParams = {}): Promise<number> {
     totalSubagentOutputs +
     skillsResult.totalOutputs;
 
-  return totalGenerated;
+  return {
+    total: totalGenerated,
+    rules: totalRulesOutputs,
+    ignore: totalIgnoreOutputs,
+    mcp: totalMcpOutputs,
+    commands: totalCommandOutputs,
+    subagents: totalSubagentOutputs,
+    skills: skillsResult.totalOutputs,
+  };
 }
 
 async function generateRules(

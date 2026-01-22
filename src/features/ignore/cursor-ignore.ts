@@ -21,7 +21,7 @@ export class CursorIgnore extends ToolIgnore {
 
   toRulesyncIgnore(): RulesyncIgnore {
     return new RulesyncIgnore({
-      baseDir: ".",
+      baseDir: this.baseDir,
       relativeDirPath: ".",
       relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       fileContent: this.fileContent,

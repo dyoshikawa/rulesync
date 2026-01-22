@@ -372,8 +372,8 @@ describe("ClaudecodeSubagent", () => {
 
       const rulesyncSubagent = subagent.toRulesyncSubagent();
 
-      // RulesyncSubagent baseDir is always the project root directory
-      expect(rulesyncSubagent.getBaseDir()).toBe(".");
+      // RulesyncSubagent baseDir should be the same as the original subagent's baseDir
+      expect(rulesyncSubagent.getBaseDir()).toBe(testDir);
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("custom/test-agent.md");
     });
   });

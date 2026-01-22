@@ -150,7 +150,7 @@ describe("AntigravityCommand", () => {
       });
       expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
-      expect(rulesyncCommand.getBaseDir()).toBe(".");
+      expect(rulesyncCommand.getBaseDir()).toBe("/test/base");
     });
 
     it("should preserve trigger and turbo fields in antigravity section", () => {

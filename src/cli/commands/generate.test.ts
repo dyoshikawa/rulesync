@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GenerateOptions } from "./generate.js";
 
-import { generate } from "../../lib/generate.js";
+import { generate, type GenerateResult } from "../../lib/generate.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { generateCommand } from "./generate.js";
@@ -11,6 +11,17 @@ import { generateCommand } from "./generate.js";
 vi.mock("../../lib/generate.js");
 vi.mock("../../utils/error.js");
 vi.mock("../../utils/logger.js");
+
+const createMockResult = (overrides: Partial<GenerateResult> = {}): GenerateResult => ({
+  total: 5,
+  rules: 3,
+  ignore: 1,
+  mcp: 1,
+  commands: 0,
+  subagents: 0,
+  skills: 0,
+  ...overrides,
+});
 
 describe("generateCommand", () => {
   let mockExit: ReturnType<typeof vi.spyOn>;
@@ -29,7 +40,7 @@ describe("generateCommand", () => {
     vi.mocked(logger.warn).mockImplementation(() => {});
 
     // Setup default mocks
-    vi.mocked(generate).mockResolvedValue(5);
+    vi.mocked(generate).mockResolvedValue(createMockResult());
     vi.mocked(formatError).mockImplementation((error) =>
       error instanceof Error ? error.message : String(error),
     );
@@ -88,17 +99,31 @@ describe("generateCommand", () => {
   });
 
   describe("success handling", () => {
-    it("should log success message with total count", async () => {
-      vi.mocked(generate).mockResolvedValue(10);
+    it("should log success message with total count and breakdown", async () => {
+      vi.mocked(generate).mockResolvedValue(
+        createMockResult({ total: 10, rules: 5, ignore: 2, mcp: 3 }),
+      );
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Generated 10 file(s) total");
+      expect(logger.success).toHaveBeenCalledWith(
+        "🎉 All done! Generated 10 file(s) total (5 rules + 2 ignore files + 3 MCP files)",
+      );
     });
 
     it("should log warning when no files generated", async () => {
-      vi.mocked(generate).mockResolvedValue(0);
+      vi.mocked(generate).mockResolvedValue(
+        createMockResult({
+          total: 0,
+          rules: 0,
+          ignore: 0,
+          mcp: 0,
+          commands: 0,
+          subagents: 0,
+          skills: 0,
+        }),
+      );
       const options: GenerateOptions = {};
 
       await generateCommand(options);

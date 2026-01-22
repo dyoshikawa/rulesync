@@ -327,7 +327,7 @@ describe("ToolIgnore", () => {
       });
 
       const rulesyncIgnore = toolIgnore.toRulesyncIgnore();
-      expect(rulesyncIgnore.getBaseDir()).toBe(".");
+      expect(rulesyncIgnore.getBaseDir()).toBe("/custom/path");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);

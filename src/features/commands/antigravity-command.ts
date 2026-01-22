@@ -95,7 +95,7 @@ export class AntigravityCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
-      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
+      baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,

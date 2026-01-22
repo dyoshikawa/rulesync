@@ -9,7 +9,7 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 
-export type ImportFromParams = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
+export type ImportFromParams = Omit<ConfigResolverResolveParams, "delete">;
 
 /**
  * Import configurations from AI tools to rulesync format.

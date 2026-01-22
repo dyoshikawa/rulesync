@@ -1,26 +1,21 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { directoryExists, ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { importFrom } from "./import.js";
 
-// These tests use process.chdir() because lib functions use relative paths
-// that must resolve against the actual working directory for fs operations.
-// This is acceptable per testing guidelines as these are integration tests.
 describe("importFrom", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let originalCwd: string;
 
   beforeEach(async () => {
-    originalCwd = process.cwd();
     ({ testDir, cleanup } = await setupTestDirectory());
-    process.chdir(testDir);
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
+    vi.restoreAllMocks();
     await cleanup();
   });
 
@@ -52,6 +47,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["rules"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -64,6 +60,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["rules"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBe(0);
@@ -74,6 +71,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["cursor"],
         features: ["rules"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBe(0);
@@ -95,6 +93,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["ignore"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -105,6 +104,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["ignore"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBe(0);
@@ -130,6 +130,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["mcp"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -141,6 +142,7 @@ describe("importFrom", () => {
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["mcp"],
+        baseDirs: [testDir],
       });
 
       // MCP import may return 0 or 1 depending on whether a default template is created
@@ -162,6 +164,7 @@ Test command body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["commands"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -174,6 +177,7 @@ Test command body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["commands"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBe(0);
@@ -195,6 +199,7 @@ Test agent body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["subagents"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -205,6 +210,7 @@ Test agent body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["subagents"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBe(0);
@@ -226,6 +232,7 @@ Test skill body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["skills"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -238,6 +245,7 @@ Test skill body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["skills"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBe(0);
@@ -264,6 +272,7 @@ Test command body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["rules", "commands"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);
@@ -294,6 +303,7 @@ Test command body`,
       const count = await importFrom({
         targets: ["claudecode"],
         features: ["rules"],
+        baseDirs: [testDir],
       });
 
       expect(count).toBeGreaterThan(0);

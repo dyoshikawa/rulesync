@@ -93,7 +93,7 @@ export class CopilotSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
+      baseDir: this.baseDir,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,

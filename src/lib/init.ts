@@ -16,10 +16,19 @@ import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 
 /**
- * Initialize rulesync in the current directory.
+ * Parameters for init function.
+ */
+export type InitParams = {
+  /** Base directory for initialization. Defaults to process.cwd(). */
+  baseDir?: string;
+};
+
+/**
+ * Initialize rulesync in the specified directory.
  *
  * Creates the .rulesync directory structure with sample files and configuration.
  *
+ * @param params - Optional parameters including baseDir
  * @example
  * ```typescript
  * import { init } from "rulesync";
@@ -27,19 +36,21 @@ import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
  * await init();
  * ```
  */
-export async function init(): Promise<void> {
-  await ensureDir(RULESYNC_RELATIVE_DIR_PATH);
-  await createSampleFiles();
-  await createConfigFile();
+export async function init(params: InitParams = {}): Promise<void> {
+  const baseDir = params.baseDir ?? process.cwd();
+  await ensureDir(join(baseDir, RULESYNC_RELATIVE_DIR_PATH));
+  await createSampleFiles(baseDir);
+  await createConfigFile(baseDir);
 }
 
-async function createConfigFile(): Promise<void> {
-  if (await fileExists(RULESYNC_CONFIG_RELATIVE_FILE_PATH)) {
+async function createConfigFile(baseDir: string): Promise<void> {
+  const configPath = join(baseDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+  if (await fileExists(configPath)) {
     return;
   }
 
   await writeFileContent(
-    RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+    configPath,
     JSON.stringify(
       {
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
@@ -59,7 +70,7 @@ async function createConfigFile(): Promise<void> {
   );
 }
 
-async function createSampleFiles(): Promise<void> {
+async function createSampleFiles(baseDir: string): Promise<void> {
   // Create rule sample file
   const sampleRuleFile = {
     filename: RULESYNC_OVERVIEW_FILE_NAME,
@@ -207,21 +218,26 @@ Keep the summary concise and ready to reuse in future tasks.`,
   const ignorePaths = RulesyncIgnore.getSettablePaths();
 
   // Ensure directories
-  await ensureDir(rulePaths.recommended.relativeDirPath);
-  await ensureDir(mcpPaths.recommended.relativeDirPath);
-  await ensureDir(commandPaths.relativeDirPath);
-  await ensureDir(subagentPaths.relativeDirPath);
-  await ensureDir(skillPaths.relativeDirPath);
-  await ensureDir(ignorePaths.recommended.relativeDirPath);
+  await ensureDir(join(baseDir, rulePaths.recommended.relativeDirPath));
+  await ensureDir(join(baseDir, mcpPaths.recommended.relativeDirPath));
+  await ensureDir(join(baseDir, commandPaths.relativeDirPath));
+  await ensureDir(join(baseDir, subagentPaths.relativeDirPath));
+  await ensureDir(join(baseDir, skillPaths.relativeDirPath));
+  await ensureDir(join(baseDir, ignorePaths.recommended.relativeDirPath));
 
   // Create rule sample file
-  const ruleFilepath = join(rulePaths.recommended.relativeDirPath, sampleRuleFile.filename);
+  const ruleFilepath = join(
+    baseDir,
+    rulePaths.recommended.relativeDirPath,
+    sampleRuleFile.filename,
+  );
   if (!(await fileExists(ruleFilepath))) {
     await writeFileContent(ruleFilepath, sampleRuleFile.content);
   }
 
   // Create MCP sample file
   const mcpFilepath = join(
+    baseDir,
     mcpPaths.recommended.relativeDirPath,
     mcpPaths.recommended.relativeFilePath,
   );
@@ -230,19 +246,23 @@ Keep the summary concise and ready to reuse in future tasks.`,
   }
 
   // Create command sample file
-  const commandFilepath = join(commandPaths.relativeDirPath, sampleCommandFile.filename);
+  const commandFilepath = join(baseDir, commandPaths.relativeDirPath, sampleCommandFile.filename);
   if (!(await fileExists(commandFilepath))) {
     await writeFileContent(commandFilepath, sampleCommandFile.content);
   }
 
   // Create subagent sample file
-  const subagentFilepath = join(subagentPaths.relativeDirPath, sampleSubagentFile.filename);
+  const subagentFilepath = join(
+    baseDir,
+    subagentPaths.relativeDirPath,
+    sampleSubagentFile.filename,
+  );
   if (!(await fileExists(subagentFilepath))) {
     await writeFileContent(subagentFilepath, sampleSubagentFile.content);
   }
 
   // Create skill sample file
-  const skillDirPath = join(skillPaths.relativeDirPath, sampleSkillFile.dirName);
+  const skillDirPath = join(baseDir, skillPaths.relativeDirPath, sampleSkillFile.dirName);
   await ensureDir(skillDirPath);
   const skillFilepath = join(skillDirPath, SKILL_FILE_NAME);
   if (!(await fileExists(skillFilepath))) {
@@ -251,6 +271,7 @@ Keep the summary concise and ready to reuse in future tasks.`,
 
   // Create ignore sample file
   const ignoreFilepath = join(
+    baseDir,
     ignorePaths.recommended.relativeDirPath,
     ignorePaths.recommended.relativeFilePath,
   );

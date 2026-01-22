@@ -71,7 +71,7 @@ export abstract class ToolIgnore extends ToolFile {
 
   protected toRulesyncIgnoreDefault(): RulesyncIgnore {
     return new RulesyncIgnore({
-      baseDir: ".",
+      baseDir: this.baseDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
       fileContent: this.fileContent,

@@ -1,26 +1,21 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { gitignore } from "./gitignore.js";
 
-// These tests use process.chdir() because lib functions use relative paths
-// that must resolve against the actual working directory for fs operations.
-// This is acceptable per testing guidelines as these are integration tests.
 describe("gitignore", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let originalCwd: string;
 
   beforeEach(async () => {
-    originalCwd = process.cwd();
     ({ testDir, cleanup } = await setupTestDirectory());
-    process.chdir(testDir);
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
+    vi.restoreAllMocks();
     await cleanup();
   });
 

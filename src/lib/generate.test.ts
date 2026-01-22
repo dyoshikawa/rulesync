@@ -1,32 +1,28 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { directoryExists, ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { generate } from "./generate.js";
 
-// These tests use process.chdir() because lib functions use relative paths
-// that must resolve against the actual working directory for fs operations.
-// This is acceptable per testing guidelines as these are integration tests.
 describe("generate", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  let originalCwd: string;
 
   beforeEach(async () => {
-    originalCwd = process.cwd();
     ({ testDir, cleanup } = await setupTestDirectory());
-    process.chdir(testDir);
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
+    vi.restoreAllMocks();
     await cleanup();
   });
 
   describe("error handling", () => {
     it("should throw error when .rulesync directory does not exist", async () => {
-      await expect(generate()).rejects.toThrow(
+      // testDir doesn't have .rulesync directory, so it should throw
+      await expect(generate({ baseDirs: [testDir] })).rejects.toThrow(
         ".rulesync directory not found. Run 'rulesync init' first.",
       );
     });
@@ -44,12 +40,13 @@ targets: ["claudecode"]
 # Test Rule`,
       );
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["rules"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
       // claudecode generates to .claude/CLAUDE.md for project scope
       expect(await fileExists(join(testDir, ".claude", "CLAUDE.md"))).toBe(true);
     });
@@ -65,12 +62,13 @@ targets: ["cursor"]
 # Test Rule`,
       );
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["cursor"],
         features: ["rules"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
       expect(await directoryExists(join(testDir, ".cursor"))).toBe(true);
     });
 
@@ -87,13 +85,15 @@ targets: ["claudecode"]
       // Also create ignore file to have a valid feature to test
       await writeFileContent(join(testDir, ".rulesync", ".aiignore"), "credentials/\n");
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["ignore"],
       });
 
       // Ignore generates 1 file, but rules should not be generated
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.rules).toBe(0);
       expect(await fileExists(join(testDir, ".claude", "CLAUDE.md"))).toBe(false);
     });
   });
@@ -103,12 +103,14 @@ targets: ["claudecode"]
       await ensureDir(join(testDir, ".rulesync"));
       await writeFileContent(join(testDir, ".rulesync", ".aiignore"), "credentials/\n");
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["ignore"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.ignore).toBeGreaterThan(0);
       expect(await fileExists(join(testDir, ".claude", "settings.local.json"))).toBe(true);
     });
   });
@@ -130,12 +132,14 @@ targets: ["claudecode"]
         }),
       );
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["mcp"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.mcp).toBeGreaterThan(0);
       expect(await fileExists(join(testDir, ".mcp.json"))).toBe(true);
     });
   });
@@ -152,12 +156,14 @@ targets: ["claudecode"]
 Test command body`,
       );
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["commands"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.commands).toBeGreaterThan(0);
       expect(await fileExists(join(testDir, ".claude", "commands", "test-command.md"))).toBe(true);
     });
   });
@@ -175,12 +181,14 @@ description: "Test agent"
 Test agent body`,
       );
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["subagents"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.subagents).toBeGreaterThan(0);
       expect(await fileExists(join(testDir, ".claude", "agents", "test-agent.md"))).toBe(true);
     });
   });
@@ -198,12 +206,14 @@ description: "Test skill"
 Test skill body`,
       );
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["skills"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.skills).toBeGreaterThan(0);
       expect(await directoryExists(join(testDir, ".claude", "skills", "test-skill"))).toBe(true);
     });
   });
@@ -221,12 +231,15 @@ targets: ["claudecode"]
       );
       await writeFileContent(join(testDir, ".rulesync", ".aiignore"), "credentials/\n");
 
-      const count = await generate({
+      const result = await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["rules", "ignore"],
       });
 
-      expect(count).toBeGreaterThan(0);
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.rules).toBeGreaterThan(0);
+      expect(result.ignore).toBeGreaterThan(0);
       expect(await fileExists(join(testDir, ".claude", "CLAUDE.md"))).toBe(true);
       expect(await fileExists(join(testDir, ".claude", "settings.local.json"))).toBe(true);
     });
@@ -245,6 +258,7 @@ targets: ["claudecode"]
       );
 
       await generate({
+        baseDirs: [testDir],
         targets: ["claudecode"],
         features: ["rules"],
       });
@@ -261,6 +275,7 @@ targets: ["cursor"]
       );
 
       await generate({
+        baseDirs: [testDir],
         targets: ["cursor"],
         features: ["rules"],
         delete: true,
@@ -282,9 +297,9 @@ targets: ["*"]
 # Test Rule`,
       );
 
-      const count = await generate();
+      const result = await generate({ baseDirs: [testDir] });
 
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(result.total).toBeGreaterThanOrEqual(0);
     });
   });
 });
