@@ -612,7 +612,7 @@ export class RulesProcessor extends FeatureProcessor {
 
     if (rootRules.length === 0 && rulesyncRules.length > 0) {
       logger.warn(
-        `No root rulesync rule file found. Consider adding 'root: true' to one of your rule files in .rulesync/rules/.`
+        `No root rulesync rule file found. Consider adding 'root: true' to one of your rule files in .rulesync/rules/.`,
       );
     }
 
