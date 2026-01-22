@@ -15,6 +15,7 @@ import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -63,6 +64,7 @@ const skillsProcessorToolTargetTuple = [
   "cursor",
   "geminicli",
   "kilo",
+  "kiro",
   "opencode",
   "roo",
 ] as const;
@@ -138,6 +140,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     {
       class: KiloSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [
