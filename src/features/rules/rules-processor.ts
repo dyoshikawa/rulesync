@@ -610,6 +610,12 @@ export class RulesProcessor extends FeatureProcessor {
       throw new Error("Multiple root rulesync rules found");
     }
 
+    if (rootRules.length === 0 && rulesyncRules.length > 0) {
+      logger.warn(
+        `No root rulesync rule file found. Consider adding 'root: true' to one of your rule files in .rulesync/rules/.`
+      );
+    }
+
     // If global is true, return only the root rule
     if (this.global) {
       const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
@@ -681,9 +687,7 @@ export class RulesProcessor extends FeatureProcessor {
           ),
         );
       })();
-      if (rootToolRules.length === 0) {
-        logger.warn(`No root tool rule files found`);
-      }
+
       logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
       const nonRootToolRules = await (async () => {
