@@ -131,6 +131,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Install OpenCode
 RUN curl -fsSL https://opencode.ai/install | bash
+RUN echo 'PATH=/home/node/.opencode/bin:$PATH' >> "/home/node/.bashrc"
 
 # Aliases
 ENV CLAUDE_COMMAND="alias claude=\"ENABLE_TOOL_SEARCH=1 claude --dangerously-skip-permissions\""
