@@ -310,6 +310,7 @@ Example:
 ```md
 ---
 root: true # true that is less than or equal to one file for overview such as `AGENTS.md`, false for details such as `.agents/memories/*.md`
+localRoot: false # (optional, default: false) true for project-specific local rules. Claude Code: generates CLAUDE.local.md; Others: appends to root file
 targets: ["*"] # * = all, or specific tools
 description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
