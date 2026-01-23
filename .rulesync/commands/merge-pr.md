@@ -68,7 +68,7 @@ After merging:
 
 ## Step 5: Clean Up Local Branch
 
-Ask the user if they want to clean up the local branch. If yes, execute:
+If the local branch exists, please clean up the local branch. Execute:
 
 ```bash
 git checkout main && git pull && git branch -d <branch-name>
