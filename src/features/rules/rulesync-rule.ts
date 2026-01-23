@@ -18,8 +18,8 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { logger } from "../../utils/logger.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
-  root: z.optional(z.optional(z.boolean())),
-  localRoot: z.optional(z.optional(z.boolean())),
+  root: z.optional(z.boolean()),
+  localRoot: z.optional(z.boolean()),
   targets: z.optional(RulesyncTargetsSchema),
   description: z.optional(z.string()),
   globs: z.optional(z.array(z.string())),

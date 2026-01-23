@@ -10,7 +10,9 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 
 export type GenerateResult = {
   rulesCount: number;
@@ -130,8 +132,10 @@ async function generateIgnoreCore(params: { config: Config }): Promise<number> {
           const writtenCount = await processor.writeAiFiles(toolFiles);
           totalCount += writtenCount;
         }
-      } catch {
-        // Ignore errors and continue processing other targets/directories
+      } catch (error) {
+        logger.warn(
+          `Failed to generate ${toolTarget} ignore files for ${baseDir}: ${formatError(error)}`,
+        );
         continue;
       }
     }
