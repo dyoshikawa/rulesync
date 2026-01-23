@@ -11,10 +11,10 @@
       }
     }
   },
+  "model": "zhipuai-coding-plan/glm-4.7",
   "agent": {
     "build": {
       "mode": "primary",
-      "model": "openrouter/z-ai/glm-4.7",
       "tools": {
         "write": true,
         "edit": true,
@@ -23,7 +23,6 @@
     },
     "plan": {
       "mode": "primary",
-      "model": "openrouter/z-ai/glm-4.7",
       "tools": {
         "write": false,
         "edit": false,

@@ -100,6 +100,24 @@ describe("RulesyncRule", () => {
       expect(rule.getBody()).toBe("Minimal rule");
     });
 
+    it("should handle localRoot field", () => {
+      const frontmatter: RulesyncRuleFrontmatter = {
+        localRoot: true,
+        targets: ["claudecode"],
+        description: "Local root rule",
+      };
+
+      const rule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "local-root.md",
+        frontmatter,
+        body: "This is a local root rule",
+      });
+
+      expect(rule.getFrontmatter().localRoot).toBe(true);
+    });
+
     it("should handle cursor-specific configuration", () => {
       const frontmatter: RulesyncRuleFrontmatter = {
         root: false,
@@ -257,6 +275,7 @@ It can span multiple lines.`;
 
       expect(rule.getFrontmatter()).toEqual({
         root: true,
+        localRoot: false,
         targets: ["copilot", "cursor"],
         description: "Test rule from file",
         globs: ["*.ts", "*.tsx"],
@@ -284,6 +303,7 @@ Rule body`;
 
       expect(rule.getFrontmatter()).toEqual({
         root: false,
+        localRoot: false,
         targets: ["*"],
         description: "Minimal rule",
         globs: [],
@@ -370,6 +390,7 @@ Subproject-specific rule body`;
 
       expect(rule.getFrontmatter()).toEqual({
         root: false,
+        localRoot: false,
         targets: ["agentsmd", "codexcli"],
         description: "Subproject rule",
         globs: [],
@@ -379,6 +400,53 @@ Subproject-specific rule body`;
         },
       });
       expect(rule.getBody()).toBe("Subproject-specific rule body");
+    });
+
+    it("should load rule with localRoot field", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+
+      const ruleContent = `---
+localRoot: true
+targets:
+  - claudecode
+description: Local root rule
+---
+
+Local root rule body`;
+
+      const filePath = join(rulesDir, "local-root.md");
+      await writeFileContent(filePath, ruleContent);
+
+      const rule = await RulesyncRule.fromFile({
+        relativeFilePath: "local-root.md",
+      });
+
+      expect(rule.getFrontmatter().localRoot).toBe(true);
+      expect(rule.getBody()).toBe("Local root rule body");
+    });
+
+    it("should default localRoot to false when not specified", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+
+      const ruleContent = `---
+root: true
+targets:
+  - copilot
+description: Rule without localRoot
+---
+
+Rule body`;
+
+      const filePath = join(rulesDir, "no-local-root.md");
+      await writeFileContent(filePath, ruleContent);
+
+      const rule = await RulesyncRule.fromFile({
+        relativeFilePath: "no-local-root.md",
+      });
+
+      expect(rule.getFrontmatter().localRoot).toBe(false);
     });
 
     it("should trim whitespace from body content", async () => {
@@ -428,6 +496,7 @@ Legacy rule body`;
 
       expect(rule.getFrontmatter()).toEqual({
         root: true,
+        localRoot: false,
         targets: ["copilot"],
         description: "Legacy rule",
         globs: [],
@@ -454,6 +523,7 @@ Empty frontmatter legacy rule`;
 
       expect(rule.getFrontmatter()).toEqual({
         root: false,
+        localRoot: false,
         targets: ["*"],
         description: "",
         globs: [],
@@ -552,6 +622,25 @@ Invalid legacy rule`;
       if (result.success) {
         expect(result.data.agentsmd).toEqual({});
       }
+    });
+
+    it("should validate frontmatter with localRoot field", () => {
+      const frontmatter = {
+        localRoot: true,
+        targets: ["claudecode"],
+        description: "Local root rule",
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      expect(result.data?.localRoot).toBe(true);
+    });
+
+    it("should reject invalid localRoot field", () => {
+      const result = RulesyncRuleFrontmatterSchema.safeParse({
+        localRoot: "not-boolean",
+      });
+      expect(result.success).toBe(false);
     });
 
     it("should reject invalid root field", () => {

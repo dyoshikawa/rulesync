@@ -282,7 +282,6 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Skipping rule generation (not in --features)");
       expect(RulesProcessor).not.toHaveBeenCalled();
     });
   });
@@ -349,9 +348,6 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        "Skipping MCP configuration generation (not in --features)",
-      );
       expect(McpProcessor).not.toHaveBeenCalled();
     });
   });
@@ -392,9 +388,6 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        "Skipping command file generation (not in --features)",
-      );
       expect(CommandsProcessor).not.toHaveBeenCalled();
     });
   });
@@ -432,17 +425,18 @@ describe("generateCommand", () => {
       mockCwd.mockRestore();
     });
 
-    it("should handle errors in ignore processing", async () => {
+    it("should handle errors in ignore processing gracefully", async () => {
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Test error");
       });
       const options: GenerateOptions = {};
 
+      // Should not throw, errors are caught and processing continues
       await generateCommand(options);
 
+      // Should still complete without error
       expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
-        "Test error",
+        "⚠️  No files generated for enabled features: ignore",
       );
     });
 
@@ -671,7 +665,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 3 claudecode rule(s) in .");
+      expect(logger.success).toHaveBeenCalledWith("Generated 3 rule(s)");
     });
   });
 
@@ -831,14 +825,11 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should skip ignore generation in global mode with log message", async () => {
+    it("should skip ignore generation in global mode", async () => {
       const options: GenerateOptions = {};
 
       await generateCommand(options);
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        "Skipping ignore file generation (not supported in global mode)",
-      );
       expect(IgnoreProcessor).not.toHaveBeenCalled();
     });
 
@@ -966,7 +957,7 @@ describe("generateCommand", () => {
         return mockRulesProcessor as any;
       });
 
-      // Set up ignore processor to throw an error
+      // Set up ignore processor to throw an error (errors are caught and ignored in lib)
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Ignore error");
       });
@@ -975,11 +966,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 2 claudecode rule(s) in .");
-      expect(logger.warn).toHaveBeenCalledWith(
-        "Failed to generate claudecode ignore files for .:",
-        "Ignore error",
-      );
+      expect(logger.success).toHaveBeenCalledWith("Generated 2 rule(s)");
       expect(logger.success).toHaveBeenCalledWith(
         "🎉 All done! Generated 2 file(s) total (2 rules)",
       );
@@ -998,10 +985,11 @@ describe("generateCommand", () => {
 
       // Should create processors for each combination of base dir and target
       expect(RulesProcessor).toHaveBeenCalledTimes(4); // 2 dirs × 2 targets
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 claudecode rule(s) in dir1");
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 cursor rule(s) in dir1");
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 claudecode rule(s) in dir2");
-      expect(logger.success).toHaveBeenCalledWith("Generated 1 cursor rule(s) in dir2");
+      // Total count is 4 (1 per processor)
+      expect(logger.success).toHaveBeenCalledWith("Generated 4 rule(s)");
+      expect(logger.success).toHaveBeenCalledWith(
+        "🎉 All done! Generated 4 file(s) total (4 rules)",
+      );
     });
   });
 });

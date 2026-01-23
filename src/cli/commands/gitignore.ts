@@ -20,7 +20,9 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.augment-guidelines",
   // Claude Code
   "**/CLAUDE.md",
+  "**/CLAUDE.local.md",
   "**/.claude/CLAUDE.md",
+  "**/.claude/CLAUDE.local.md",
   "**/.claude/memories/",
   "**/.claude/rules/",
   "**/.claude/commands/",
@@ -67,6 +69,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Kiro
   "**/.kiro/steering/",
   "**/.kiro/prompts/",
+  "**/.kiro/skills/",
   "**/.kiro/agents/",
   "**/.kiro/settings/mcp.json",
   "**/.aiignore",

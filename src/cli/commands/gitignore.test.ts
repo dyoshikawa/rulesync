@@ -197,7 +197,9 @@ dist/`;
 **/.augment/rules/
 **/.augment-guidelines
 **/CLAUDE.md
+**/CLAUDE.local.md
 **/.claude/CLAUDE.md
+**/.claude/CLAUDE.local.md
 **/.claude/memories/
 **/.claude/rules/
 **/.claude/commands/
@@ -236,6 +238,7 @@ dist/`;
 **/.kilocodeignore
 **/.kiro/steering/
 **/.kiro/prompts/
+**/.kiro/skills/
 **/.kiro/agents/
 **/.kiro/settings/mcp.json
 **/.aiignore

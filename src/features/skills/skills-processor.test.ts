@@ -636,6 +636,7 @@ Content that would fail parsing`;
           "copilot",
           "cursor",
           "kilo",
+          "kiro",
           "opencode",
           "roo",
         ]),
@@ -655,6 +656,7 @@ Content that would fail parsing`;
           "cursor",
           "geminicli",
           "kilo",
+          "kiro",
           "opencode",
           "roo",
         ]),
@@ -672,6 +674,7 @@ Content that would fail parsing`;
           "copilot",
           "cursor",
           "kilo",
+          "kiro",
           "opencode",
           "roo",
         ]),
@@ -732,6 +735,7 @@ Content that would fail parsing`;
       expect(() => SkillsProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("kilo")).not.toThrow();
+      expect(() => SkillsProcessorToolTargetSchema.parse("kiro")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("opencode")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("roo")).not.toThrow();
       expect(() => SkillsProcessorToolTargetSchema.parse("invalid")).toThrow();

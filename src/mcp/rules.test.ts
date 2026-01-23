@@ -88,6 +88,7 @@ description: "Second rule"
       // RulesyncRule adds default values for missing frontmatter fields
       expect(parsed.rules[0].frontmatter).toEqual({
         root: false,
+        localRoot: false,
         targets: ["*"],
         description: "",
         globs: [],
