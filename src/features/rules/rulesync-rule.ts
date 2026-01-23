@@ -18,7 +18,8 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { logger } from "../../utils/logger.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
-  root: z.optional(z.optional(z.boolean())),
+  root: z.optional(z.boolean()),
+  localRoot: z.optional(z.boolean()),
   targets: z.optional(RulesyncTargetsSchema),
   description: z.optional(z.string()),
   globs: z.optional(z.array(z.string())),
@@ -160,6 +161,7 @@ export class RulesyncRule extends RulesyncFile {
 
     const validatedFrontmatter: RulesyncRuleFrontmatter = {
       root: result.data.root ?? false,
+      localRoot: result.data.localRoot ?? false,
       targets: result.data.targets ?? ["*"],
       description: result.data.description ?? "",
       globs: result.data.globs ?? [],
@@ -201,6 +203,7 @@ export class RulesyncRule extends RulesyncFile {
 
     const validatedFrontmatter: RulesyncRuleFrontmatter = {
       root: result.data.root ?? false,
+      localRoot: result.data.localRoot ?? false,
       targets: result.data.targets ?? ["*"],
       description: result.data.description ?? "",
       globs: result.data.globs ?? [],

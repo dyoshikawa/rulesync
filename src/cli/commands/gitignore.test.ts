@@ -197,7 +197,9 @@ dist/`;
 **/.augment/rules/
 **/.augment-guidelines
 **/CLAUDE.md
+**/CLAUDE.local.md
 **/.claude/CLAUDE.md
+**/.claude/CLAUDE.local.md
 **/.claude/memories/
 **/.claude/rules/
 **/.claude/commands/

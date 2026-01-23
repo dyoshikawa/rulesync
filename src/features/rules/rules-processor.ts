@@ -424,10 +424,14 @@ export class RulesProcessor extends FeatureProcessor {
       (file): file is RulesyncRule => file instanceof RulesyncRule,
     );
 
+    // Separate localRoot rules from normal rules
+    const localRootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().localRoot);
+    const nonLocalRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().localRoot);
+
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
 
-    const toolRules = rulesyncRules
+    const toolRules = nonLocalRootRules
       .map((rulesyncRule) => {
         if (!factory.class.isTargetedByRulesyncRule(rulesyncRule)) {
           return null;
@@ -440,6 +444,14 @@ export class RulesProcessor extends FeatureProcessor {
         });
       })
       .filter((rule): rule is ToolRule => rule !== null);
+
+    // Handle localRoot rules (only in non-global mode)
+    if (localRootRules.length > 0 && !this.global) {
+      const localRootRule = localRootRules[0];
+      if (localRootRule && factory.class.isTargetedByRulesyncRule(localRootRule)) {
+        this.handleLocalRootRule(toolRules, localRootRule, factory);
+      }
+    }
 
     const isSimulated = this.simulateCommands || this.simulateSubagents || this.simulateSkills;
 
@@ -522,6 +534,57 @@ export class RulesProcessor extends FeatureProcessor {
           path: relativePath,
         };
       });
+  }
+
+  /**
+   * Handle localRoot rule generation based on tool target.
+   * - Claude Code: generates `.claude/CLAUDE.local.md`
+   * - Claude Code Legacy: generates `./CLAUDE.local.md`
+   * - Other tools: appends content to the root file with one blank line separator
+   */
+  private handleLocalRootRule(
+    toolRules: ToolRule[],
+    localRootRule: RulesyncRule,
+    _factory: ToolRuleFactory,
+  ): void {
+    const localRootBody = localRootRule.getBody();
+
+    if (this.toolTarget === "claudecode") {
+      // Claude Code: generate separate CLAUDE.local.md file in .claude/
+      const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
+      toolRules.push(
+        new ClaudecodeRule({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.root.relativeDirPath,
+          relativeFilePath: "CLAUDE.local.md",
+          frontmatter: {},
+          body: localRootBody,
+          validate: true,
+          root: true, // Treat as root so it doesn't have frontmatter
+        }),
+      );
+    } else if (this.toolTarget === "claudecode-legacy") {
+      // Claude Code Legacy: generate separate CLAUDE.local.md file in ./
+      const paths = ClaudecodeLegacyRule.getSettablePaths({ global: this.global });
+      toolRules.push(
+        new ClaudecodeLegacyRule({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.root.relativeDirPath,
+          relativeFilePath: "CLAUDE.local.md",
+          fileContent: localRootBody,
+          validate: true,
+          root: true, // Treat as root so it doesn't have frontmatter
+        }),
+      );
+    } else {
+      // For other tools, append to root file with blank line separator
+      const rootRule = toolRules.find((rule) => rule.isRoot());
+      if (rootRule) {
+        const currentContent = rootRule.getFileContent();
+        const newContent = currentContent + "\n\n" + localRootBody;
+        rootRule.setFileContent(newContent);
+      }
+    }
   }
 
   /**
@@ -610,12 +673,28 @@ export class RulesProcessor extends FeatureProcessor {
       throw new Error("Multiple root rulesync rules found");
     }
 
+    // Validation for localRoot
+    const localRootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().localRoot);
+
+    if (localRootRules.length > 1) {
+      throw new Error("Multiple localRoot rules found. Only one rule can have localRoot: true");
+    }
+
+    if (localRootRules.length > 0 && rootRules.length === 0) {
+      throw new Error("localRoot: true requires a root: true rule to exist");
+    }
+
     // If global is true, return only the root rule
     if (this.global) {
       const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
       if (nonRootRules.length > 0) {
         logger.warn(
           `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them`,
+        );
+      }
+      if (localRootRules.length > 0) {
+        logger.warn(
+          `${localRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them`,
         );
       }
       return rootRules;
@@ -683,6 +762,37 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
+      // Load CLAUDE.local.md files for deletion (claudecode and claudecode-legacy only)
+      const localRootToolRules = await (async () => {
+        if (!forDeletion) {
+          return [];
+        }
+
+        if (this.toolTarget !== "claudecode" && this.toolTarget !== "claudecode-legacy") {
+          return [];
+        }
+
+        if (!settablePaths.root) {
+          return [];
+        }
+
+        const localRootFilePaths = await findFilesByGlobs(
+          join(this.baseDir, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+        );
+
+        return localRootFilePaths
+          .map((filePath) =>
+            factory.class.forDeletion({
+              baseDir: this.baseDir,
+              relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            }),
+          )
+          .filter((rule) => rule.isDeletable());
+      })();
+      logger.debug(`Found ${localRootToolRules.length} local root tool rule files for deletion`);
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -717,7 +827,7 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
-      return [...rootToolRules, ...nonRootToolRules];
+      return [...rootToolRules, ...localRootToolRules, ...nonRootToolRules];
     } catch (error) {
       logger.error(`Failed to load tool files: ${formatError(error)}`);
       return [];
