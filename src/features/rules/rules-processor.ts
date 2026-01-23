@@ -673,6 +673,12 @@ export class RulesProcessor extends FeatureProcessor {
       throw new Error("Multiple root rulesync rules found");
     }
 
+    if (rootRules.length === 0 && rulesyncRules.length > 0) {
+      logger.warn(
+        `No root rulesync rule file found. Consider adding 'root: true' to one of your rule files in ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+      );
+    }
+
     // Validation for localRoot
     const localRootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().localRoot);
 
