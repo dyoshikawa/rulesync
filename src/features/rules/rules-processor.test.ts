@@ -573,6 +573,39 @@ Content that would fail parsing`;
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
       expect(filePaths).toContain("CLAUDE.md");
     });
+
+    it("should include CLAUDE.local.md for deletion for claudecode", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.local.md"), "# Local");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("CLAUDE.md");
+      expect(filePaths).toContain("CLAUDE.local.md");
+    });
+
+    it("should include CLAUDE.local.md for deletion for claudecode-legacy", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Local");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode-legacy",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("CLAUDE.md");
+      expect(filePaths).toContain("CLAUDE.local.md");
+    });
   });
 
   describe("getToolTargets with global: true", () => {

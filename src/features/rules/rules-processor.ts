@@ -762,6 +762,37 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
+      // Load CLAUDE.local.md files for deletion (claudecode and claudecode-legacy only)
+      const localRootToolRules = await (async () => {
+        if (!forDeletion) {
+          return [];
+        }
+
+        if (this.toolTarget !== "claudecode" && this.toolTarget !== "claudecode-legacy") {
+          return [];
+        }
+
+        if (!settablePaths.root) {
+          return [];
+        }
+
+        const localRootFilePaths = await findFilesByGlobs(
+          join(this.baseDir, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+        );
+
+        return localRootFilePaths
+          .map((filePath) =>
+            factory.class.forDeletion({
+              baseDir: this.baseDir,
+              relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            }),
+          )
+          .filter((rule) => rule.isDeletable());
+      })();
+      logger.debug(`Found ${localRootToolRules.length} local root tool rule files for deletion`);
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -796,7 +827,7 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
-      return [...rootToolRules, ...nonRootToolRules];
+      return [...rootToolRules, ...localRootToolRules, ...nonRootToolRules];
     } catch (error) {
       logger.error(`Failed to load tool files: ${formatError(error)}`);
       return [];
