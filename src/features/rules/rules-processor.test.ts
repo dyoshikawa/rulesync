@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
+import { logger } from "../../utils/logger.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
@@ -824,6 +825,76 @@ targets: ["opencode", "agentsmd"]
       const finalContent = await readFileContent(join(testDir, "AGENTS.md"));
       expect(finalContent).toContain("# Reversed Order Content");
       expect(agentsMdToolFiles[0]).toBeInstanceOf(AgentsMdRule);
+    });
+  });
+
+  describe("loadRulesyncFiles warning for missing root rule", () => {
+    it("should warn when rulesync rules exist but no root rule is set", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "feature.md"),
+        `---
+root: false
+targets: ["*"]
+---
+# Feature rule`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("No root rulesync rule file found"),
+      );
+    });
+
+    it("should not warn when a root rule exists", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Root rule`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("No root rulesync rule file found"),
+      );
+    });
+
+    it("should not warn when no rulesync rules exist", async () => {
+      // Ensure the directory exists but is empty
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("No root rulesync rule file found"),
+      );
     });
   });
 });
