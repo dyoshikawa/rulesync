@@ -71,7 +71,7 @@ After merging:
 If the local branch exists, please clean up the local branch. Execute:
 
 ```bash
-git checkout main && git pull && git branch -d <branch-name>
+git checkout main && git pull --prune && git branch -d <branch-name>
 ```
 
 Where `<branch-name>` is the head branch name from Step 2 (e.g., `fix/rulesync-import-targets`).
