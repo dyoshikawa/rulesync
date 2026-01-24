@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { z } from "zod/mini";
 
 import type { RulesyncTargets } from "../../types/tool-targets.js";
@@ -233,7 +233,7 @@ export class CursorRule extends ToolRule {
     return new CursorRule({
       baseDir,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       validate,

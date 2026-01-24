@@ -160,12 +160,10 @@ export class RulesyncRule extends RulesyncFile {
       cursor: result.data.cursor,
     };
 
-    const filename = basename(filePath);
-
     return new RulesyncRule({
       baseDir: process.cwd(),
       relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: filename,
+      relativeFilePath,
       frontmatter: validatedFrontmatter,
       body: content.trim(),
       validate,
