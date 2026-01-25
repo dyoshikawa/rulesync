@@ -19,9 +19,9 @@ pnpm cicheck # Run code style check, type check, and tests
 pnpm dev generate -t claudecode -f "*"
 pnpm dev import -t claudecode -f "*"
 
-# Once you create .rulesync/rules/my-language.md and `pnpm dev generate`, you can use coding agents with your language.
+# Once you create .rulesync/rules/overview.local.md and `pnpm dev generate`, you can use coding agents with your language.
 # Japanese setting example:
-cat << 'EOF' > .rulesync/rules/my-language.md
+cat << 'EOF' > .rulesync/rules/overview.local.md
 ---
 root: false
 targets: ['*']

@@ -257,6 +257,7 @@ dist/`;
 **/.warp/
 **/WARP.md
 **/modular-mcp.json
+.rulesync/rules/*.local.md
 !.rulesync/.aiignore
 `;
 
