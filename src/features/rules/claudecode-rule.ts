@@ -51,7 +51,7 @@ export type ClaudecodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * Supports the Claude Code modular rules system.
  *
  * Modular rules format:
- * - {project}/.claude/CLAUDE.md (root: true)
+ * - {project}/CLAUDE.md (root: true)
  * - {project}/.claude/rules/*.md (root: false, with optional `paths` frontmatter)
  *
  * @see https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
@@ -75,7 +75,7 @@ export class ClaudecodeRule extends ToolRule {
     }
     return {
       root: {
-        relativeDirPath: ".claude",
+        relativeDirPath: ".",
         relativeFilePath: "CLAUDE.md",
       },
       nonRoot: {
