@@ -659,7 +659,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncBaseDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const rulesyncBaseDir = join(this.baseDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
     const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
     logger.debug(`Found ${files.length} rulesync files`);
     const rulesyncRules = await Promise.all(
