@@ -9,6 +9,159 @@ import { CursorMcp, type CursorMcpParams } from "./cursor-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("CursorMcp", () => {
+  describe("env variable format conversion", () => {
+    it("should convert Cursor env format to canonical when importing (toRulesyncMcp)", () => {
+      const cursorConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            env: {
+              API_KEY: "${env:MY_API_KEY}",
+              DEBUG: "true",
+            },
+          },
+        },
+      };
+
+      const cursorMcp = new CursorMcp({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(cursorConfig),
+      });
+
+      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["test-server"].env.API_KEY).toBe("${MY_API_KEY}");
+      expect(exported.mcpServers["test-server"].env.DEBUG).toBe("true");
+    });
+
+    it("should convert canonical env format to Cursor when exporting (fromRulesyncMcp)", () => {
+      const rulesyncConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            env: {
+              API_KEY: "${MY_API_KEY}",
+              DEBUG: "true",
+            },
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncConfig),
+      });
+
+      const cursorMcp = CursorMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        validate: false,
+      });
+      const exported = cursorMcp.getJson() as { mcpServers: Record<string, { env?: Record<string, string> }> };
+
+      expect(exported.mcpServers["test-server"].env?.API_KEY).toBe("${env:MY_API_KEY}");
+      expect(exported.mcpServers["test-server"].env?.DEBUG).toBe("true");
+    });
+
+    it("should handle multiple env variables with mixed formats", () => {
+      const cursorConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            env: {
+              HOST: "${env:HOST}",
+              PORT: "${env:PORT}",
+              LITERAL: "localhost",
+              URL: "https://${env:HOST}:${env:PORT}/api",
+            },
+          },
+        },
+      };
+
+      const cursorMcp = new CursorMcp({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(cursorConfig),
+      });
+
+      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["test-server"].env.HOST).toBe("${HOST}");
+      expect(exported.mcpServers["test-server"].env.PORT).toBe("${PORT}");
+      expect(exported.mcpServers["test-server"].env.LITERAL).toBe("localhost");
+      expect(exported.mcpServers["test-server"].env.URL).toBe("https://${HOST}:${PORT}/api");
+    });
+
+    it("should preserve env variable values through round-trip conversion", () => {
+      const originalConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            env: {
+              API_KEY: "${MY_API_KEY}",
+              HOST: "${HOST}",
+              LITERAL: "static-value",
+            },
+          },
+        },
+      };
+
+      // Start with canonical format in RulesyncMcp
+      const rulesyncMcp1 = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(originalConfig),
+      });
+
+      // Convert to Cursor format
+      const cursorMcp = CursorMcp.fromRulesyncMcp({
+        rulesyncMcp: rulesyncMcp1,
+        validate: false,
+      });
+
+      // Convert back to canonical format
+      const rulesyncMcp2 = cursorMcp.toRulesyncMcp();
+      const finalConfig = JSON.parse(rulesyncMcp2.getFileContent());
+
+      expect(finalConfig.mcpServers["test-server"].env).toEqual(
+        originalConfig.mcpServers["test-server"].env,
+      );
+    });
+
+    it("should handle server without env field", () => {
+      const rulesyncConfig = {
+        mcpServers: {
+          "no-env-server": {
+            command: "node",
+            args: ["server.js"],
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncConfig),
+      });
+
+      const cursorMcp = CursorMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        validate: false,
+      });
+      const exported = cursorMcp.getJson() as { mcpServers: Record<string, { env?: Record<string, string> }> };
+
+      expect(exported.mcpServers["no-env-server"].env).toBeUndefined();
+    });
+  });
+
+
   let testDir: string;
   let cleanup: () => Promise<void>;
 
