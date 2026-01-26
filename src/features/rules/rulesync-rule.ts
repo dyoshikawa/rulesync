@@ -15,7 +15,6 @@ import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { logger } from "../../utils/logger.js";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.boolean()),
@@ -129,56 +128,6 @@ export class RulesyncRule extends RulesyncFile {
         ),
       };
     }
-  }
-
-  static async fromFileLegacy({
-    relativeFilePath,
-    validate = true,
-  }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const legacyPath = join(
-      process.cwd(),
-      this.getSettablePaths().legacy.relativeDirPath,
-      relativeFilePath,
-    );
-    const recommendedPath = join(
-      this.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath,
-    );
-
-    logger.warn(
-      `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
-    );
-
-    // Read file content
-    const fileContent = await readFileContent(legacyPath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
-
-    // Validate frontmatter using RuleFrontmatterSchema
-    const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${legacyPath}: ${formatError(result.error)}`);
-    }
-
-    const validatedFrontmatter: RulesyncRuleFrontmatter = {
-      root: result.data.root ?? false,
-      localRoot: result.data.localRoot ?? false,
-      targets: result.data.targets ?? ["*"],
-      description: result.data.description ?? "",
-      globs: result.data.globs ?? [],
-      agentsmd: result.data.agentsmd,
-      cursor: result.data.cursor,
-    };
-
-    const filename = basename(legacyPath);
-
-    return new RulesyncRule({
-      baseDir: process.cwd(),
-      relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: filename,
-      frontmatter: validatedFrontmatter,
-      body: content.trim(),
-      validate,
-    });
   }
 
   static async fromFile({

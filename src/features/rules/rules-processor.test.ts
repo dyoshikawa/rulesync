@@ -576,9 +576,8 @@ Content that would fail parsing`;
     });
 
     it("should include CLAUDE.local.md for deletion for claudecode", async () => {
-      await ensureDir(join(testDir, ".claude"));
-      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
-      await writeFileContent(join(testDir, ".claude", "CLAUDE.local.md"), "# Local");
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Local");
 
       const processor = new RulesProcessor({
         baseDir: testDir,
@@ -768,8 +767,8 @@ Content that would fail parsing`;
 
         expect(result).toHaveLength(1);
         expect(result[0]).toBeInstanceOf(ClaudecodeRule);
-        // Modular rules use .claude directory for root file
-        expect(result[0]?.getRelativeDirPath()).toBe(".claude");
+        // Modular rules use project root directory for root file
+        expect(result[0]?.getRelativeDirPath()).toBe(".");
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
     });
@@ -910,7 +909,7 @@ targets: ["*"]
 
       expect(rootRule).toBeDefined();
       expect(localRule).toBeDefined();
-      expect(localRule?.getRelativeDirPath()).toBe(".claude");
+      expect(localRule?.getRelativeDirPath()).toBe(".");
       expect(localRule?.getFileContent()).toBe("# Local content");
     });
 

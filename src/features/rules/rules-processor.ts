@@ -5,7 +5,6 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-  RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -538,7 +537,7 @@ export class RulesProcessor extends FeatureProcessor {
 
   /**
    * Handle localRoot rule generation based on tool target.
-   * - Claude Code: generates `.claude/CLAUDE.local.md`
+   * - Claude Code: generates `./CLAUDE.local.md`
    * - Claude Code Legacy: generates `./CLAUDE.local.md`
    * - Other tools: appends content to the root file with one blank line separator
    */
@@ -550,7 +549,7 @@ export class RulesProcessor extends FeatureProcessor {
     const localRootBody = localRootRule.getBody();
 
     if (this.toolTarget === "claudecode") {
-      // Claude Code: generate separate CLAUDE.local.md file in .claude/
+      // Claude Code: generate separate CLAUDE.local.md file in project root
       const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
       toolRules.push(
         new ClaudecodeRule({
@@ -707,14 +706,6 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     return rulesyncRules;
-  }
-
-  async loadRulesyncFilesLegacy(): Promise<RulesyncFile[]> {
-    const legacyFiles = await findFilesByGlobs(join(RULESYNC_RELATIVE_DIR_PATH, "*.md"));
-    logger.debug(`Found ${legacyFiles.length} legacy rulesync files`);
-    return Promise.all(
-      legacyFiles.map((file) => RulesyncRule.fromFileLegacy({ relativeFilePath: basename(file) })),
-    );
   }
 
   /**

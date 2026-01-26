@@ -104,8 +104,8 @@ This is a test rule for E2E testing.
       "rules",
     ]);
 
-    // Verify that the CLAUDE.md file was generated (modular rules format: .claude/CLAUDE.md)
-    const claudeMdPath = join(testDir, ".claude", "CLAUDE.md");
+    // Verify that the CLAUDE.md file was generated (modular rules format: ./CLAUDE.md)
+    const claudeMdPath = join(testDir, "CLAUDE.md");
     const generatedContent = await readFileContent(claudeMdPath);
     expect(generatedContent).toContain("Test Rule");
   });
@@ -132,14 +132,12 @@ This is a test rule for E2E testing.
   });
 
   it("should import claudecode rules", async () => {
-    // Setup: Create a .claude/CLAUDE.md file to import (modular rules format)
-    const claudeDir = join(testDir, ".claude");
-    await ensureDir(claudeDir);
+    // Setup: Create a CLAUDE.md file to import (modular rules format: ./CLAUDE.md)
     const claudeMdContent = `# Project Overview
 
 This is a test project for E2E testing.
 `;
-    const claudeMdPath = join(claudeDir, "CLAUDE.md");
+    const claudeMdPath = join(testDir, "CLAUDE.md");
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
