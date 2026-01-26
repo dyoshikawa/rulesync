@@ -296,12 +296,6 @@ Example usage:
 }
 ```
 
-This is useful for:
-
-- Testing with different tool targets without modifying shared configuration
-- Enabling verbose output for local debugging
-- Overriding any configuration option for local development
-
 ### Target Order and File Conflicts
 
 When multiple targets write to the same output file, **the last target in the array wins**. This is the "last-wins" behavior.
