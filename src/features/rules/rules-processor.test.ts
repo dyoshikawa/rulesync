@@ -480,7 +480,58 @@ describe("RulesProcessor", () => {
     });
   });
 
+  describe("loadToolFiles", () => {
+    it("should load nested non-root tool rules for cursor and claudecode", async () => {
+      await ensureDir(join(testDir, ".cursor", "rules", "frontend"));
+      await writeFileContent(
+        join(testDir, ".cursor", "rules", "frontend", "react-rule.mdc"),
+        "# Frontend Rule",
+      );
+      await ensureDir(join(testDir, ".claude", "rules", "backend"));
+      await writeFileContent(
+        join(testDir, ".claude", "rules", "backend", "api-rule.md"),
+        "# Backend Rule",
+      );
+
+      const cursorProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+      const claudecodeProcessor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const cursorFiles = await cursorProcessor.loadToolFiles();
+      const claudecodeFiles = await claudecodeProcessor.loadToolFiles();
+
+      const cursorPaths = cursorFiles.map((file) => file.getRelativeFilePath());
+      const claudecodePaths = claudecodeFiles.map((file) => file.getRelativeFilePath());
+
+      expect(cursorPaths).toContain(join("frontend", "react-rule.mdc"));
+      expect(claudecodePaths).toContain(join("backend", "api-rule.md"));
+    });
+  });
+
   describe("loadToolFiles with forDeletion: true", () => {
+    it("should return nested non-root files for deletion", async () => {
+      await ensureDir(join(testDir, ".cursor", "rules", "frontend"));
+      await writeFileContent(
+        join(testDir, ".cursor", "rules", "frontend", "react-rule.mdc"),
+        "# Frontend Rule",
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filePaths = filesToDelete.map((file) => file.getRelativeFilePath());
+
+      expect(filePaths).toContain(join("frontend", "react-rule.mdc"));
+    });
+
     it("should return files with correct paths for deletion for claudecode-legacy", async () => {
       await writeFileContent(
         join(testDir, "CLAUDE.md"),
@@ -1162,6 +1213,28 @@ targets: ["opencode", "agentsmd"]
   });
 
   describe("loadRulesyncFiles warning for missing root rule", () => {
+    it("should load nested rulesync rule files", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "frontend"));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "frontend", "feature.md"),
+        `---
+root: false
+targets: ["*"]
+---
+# Feature rule`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const paths = rulesyncFiles.map((file) => file.getRelativeFilePath());
+
+      expect(paths).toContain(join("frontend", "feature.md"));
+    });
+
     it("should warn when rulesync rules exist but no root rule is set", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(

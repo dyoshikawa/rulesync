@@ -1,5 +1,5 @@
 import { encode } from "@toon-format/toon";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -659,10 +659,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const files = await findFilesByGlobs(join(RULESYNC_RULES_RELATIVE_DIR_PATH, "*.md"));
+    const rulesyncBaseDir = join(this.baseDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
     logger.debug(`Found ${files.length} rulesync files`);
     const rulesyncRules = await Promise.all(
-      files.map((file) => RulesyncRule.fromFile({ relativeFilePath: basename(file) })),
+      files.map((file) =>
+        RulesyncRule.fromFile({
+          relativeFilePath: relative(rulesyncBaseDir, file),
+        }),
+      ),
     );
 
     const rootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().root);
@@ -795,31 +800,34 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
 
+        const nonRootBaseDir = join(this.baseDir, settablePaths.nonRoot.relativeDirPath);
         const nonRootFilePaths = await findFilesByGlobs(
-          join(this.baseDir, settablePaths.nonRoot.relativeDirPath, `*.${factory.meta.extension}`),
+          join(nonRootBaseDir, "**", `*.${factory.meta.extension}`),
         );
 
         if (forDeletion) {
           return nonRootFilePaths
-            .map((filePath) =>
-              factory.class.forDeletion({
+            .map((filePath) => {
+              const relativeFilePath = relative(nonRootBaseDir, filePath);
+              return factory.class.forDeletion({
                 baseDir: this.baseDir,
                 relativeDirPath: settablePaths.nonRoot?.relativeDirPath ?? ".",
-                relativeFilePath: basename(filePath),
+                relativeFilePath,
                 global: this.global,
-              }),
-            )
+              });
+            })
             .filter((rule) => rule.isDeletable());
         }
 
         return await Promise.all(
-          nonRootFilePaths.map((filePath) =>
-            factory.class.fromFile({
+          nonRootFilePaths.map((filePath) => {
+            const relativeFilePath = relative(nonRootBaseDir, filePath);
+            return factory.class.fromFile({
               baseDir: this.baseDir,
-              relativeFilePath: basename(filePath),
+              relativeFilePath,
               global: this.global,
-            }),
-          ),
+            });
+          }),
         );
       })();
       logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
