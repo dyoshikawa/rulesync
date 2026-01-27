@@ -10,11 +10,11 @@ import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
-  SubagentsProcessor,
-  SubagentsProcessorToolTarget,
-  SubagentsProcessorToolTargetSchema,
-  subagentsProcessorToolTargets,
-  subagentsProcessorToolTargetsSimulated,
+    SubagentsProcessor,
+    SubagentsProcessorToolTarget,
+    SubagentsProcessorToolTargetSchema,
+    subagentsProcessorToolTargets,
+    subagentsProcessorToolTargetsSimulated,
 } from "./subagents-processor.js";
 
 /**
@@ -379,7 +379,7 @@ Claude content`,
 
       const cursorSubagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "cursor-agent.md",
         frontmatter: {
           name: "cursor-agent",
@@ -619,8 +619,8 @@ Copilot agent content`;
       expect(toolFiles).toEqual([]);
     });
 
-    it("should load cursor subagent files from .cursor/subagents", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+    it("should load cursor subagent files from .cursor/agents", async () => {
+      const subagentsDir = join(testDir, ".cursor", "agents");
       await ensureDir(subagentsDir);
 
       const subagentContent = `---
@@ -830,7 +830,7 @@ Second global content`;
       expect(toolTargets).toContain("claudecode-legacy");
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("opencode");
-      expect(toolTargets).not.toContain("cursor");
+      expect(toolTargets).toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
     });
 
@@ -842,7 +842,7 @@ Second global content`;
       expect(toolTargets).toContain("claudecode-legacy");
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("opencode");
-      expect(toolTargets).not.toContain("cursor");
+      expect(toolTargets).toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
     });
 
@@ -917,7 +917,7 @@ Second global content`;
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
       expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
-        new Set(["agentsmd", "codexcli", "cursor", "geminicli", "roo"]),
+        new Set(["agentsmd", "codexcli", "geminicli", "roo"]),
       );
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });

@@ -120,7 +120,7 @@ const main = async () => {
     )
     .option(
       "--simulate-subagents",
-      "Generate simulated subagents. This feature is only available for copilot, cursor and codexcli.",
+      "Generate simulated subagents. This feature is only available for copilot and codexcli.",
     )
     .option(
       "--simulate-skills",
