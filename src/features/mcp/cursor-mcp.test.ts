@@ -9,8 +9,21 @@ import { CursorMcp, type CursorMcpParams } from "./cursor-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("CursorMcp", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
   describe("env variable format conversion", () => {
-    it("should convert Cursor env format to canonical when importing (toRulesyncMcp)", () => {
+    it("should convert Cursor env format ${env:VAR} to canonical ${VAR} when importing (toRulesyncMcp)", () => {
       const cursorConfig = {
         mcpServers: {
           "test-server": {
@@ -37,7 +50,7 @@ describe("CursorMcp", () => {
       expect(exported.mcpServers["test-server"].env.DEBUG).toBe("true");
     });
 
-    it("should convert canonical env format to Cursor when exporting (fromRulesyncMcp)", () => {
+    it("should convert canonical env format ${VAR} to Cursor ${env:VAR} when exporting (fromRulesyncMcp)", () => {
       const rulesyncConfig = {
         mcpServers: {
           "test-server": {
@@ -61,23 +74,23 @@ describe("CursorMcp", () => {
         rulesyncMcp,
         validate: false,
       });
-      const exported = cursorMcp.getJson() as { mcpServers: Record<string, { env?: Record<string, string> }> };
+      const exported = cursorMcp.getJson() as {
+        mcpServers: Record<string, { env?: Record<string, string> }>;
+      };
 
       expect(exported.mcpServers["test-server"].env?.API_KEY).toBe("${env:MY_API_KEY}");
       expect(exported.mcpServers["test-server"].env?.DEBUG).toBe("true");
     });
 
-    it("should handle multiple env variables with mixed formats", () => {
+    it("should handle multiple env variables embedded in strings", () => {
       const cursorConfig = {
         mcpServers: {
           "test-server": {
             command: "node",
             args: ["server.js"],
             env: {
-              HOST: "${env:HOST}",
-              PORT: "${env:PORT}",
-              LITERAL: "localhost",
               URL: "https://${env:HOST}:${env:PORT}/api",
+              LITERAL: "localhost",
             },
           },
         },
@@ -92,10 +105,8 @@ describe("CursorMcp", () => {
       const rulesyncMcp = cursorMcp.toRulesyncMcp();
       const exported = JSON.parse(rulesyncMcp.getFileContent());
 
-      expect(exported.mcpServers["test-server"].env.HOST).toBe("${HOST}");
-      expect(exported.mcpServers["test-server"].env.PORT).toBe("${PORT}");
-      expect(exported.mcpServers["test-server"].env.LITERAL).toBe("localhost");
       expect(exported.mcpServers["test-server"].env.URL).toBe("https://${HOST}:${PORT}/api");
+      expect(exported.mcpServers["test-server"].env.LITERAL).toBe("localhost");
     });
 
     it("should preserve env variable values through round-trip conversion", () => {
@@ -155,24 +166,12 @@ describe("CursorMcp", () => {
         rulesyncMcp,
         validate: false,
       });
-      const exported = cursorMcp.getJson() as { mcpServers: Record<string, { env?: Record<string, string> }> };
+      const exported = cursorMcp.getJson() as {
+        mcpServers: Record<string, { env?: Record<string, string> }>;
+      };
 
       expect(exported.mcpServers["no-env-server"].env).toBeUndefined();
     });
-  });
-
-
-  let testDir: string;
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
-    vi.spyOn(process, "cwd").mockReturnValue(testDir);
-  });
-
-  afterEach(async () => {
-    await cleanup();
-    vi.restoreAllMocks();
   });
 
   describe("getSettablePaths", () => {
@@ -929,7 +928,10 @@ describe("CursorMcp", () => {
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
       expect(rulesyncMcp.getRelativeDirPath()).toBe(".cursor");
       expect(rulesyncMcp.getRelativeFilePath()).toBe("rulesync.mcp.json");
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(cursorMcpData));
+
+      // toRulesyncMcp only preserves mcpServers
+      const exportedContent = JSON.parse(rulesyncMcp.getFileContent());
+      expect(exportedContent).toEqual({ mcpServers: cursorMcpData.mcpServers });
     });
 
     it("should convert complex CursorMcp to RulesyncMcp", () => {
@@ -962,7 +964,10 @@ describe("CursorMcp", () => {
       const rulesyncMcp = cursorMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/custom");
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(complexData));
+
+      // toRulesyncMcp only preserves mcpServers, strips other properties like globalConfig
+      const exportedContent = JSON.parse(rulesyncMcp.getFileContent());
+      expect(exportedContent).toEqual({ mcpServers: complexData.mcpServers });
     });
   });
 
