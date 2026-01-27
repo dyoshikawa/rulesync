@@ -1,6 +1,10 @@
 import { parse as parseJsonc } from "jsonc-parser";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
+import {
+  RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
+} from "../constants/rulesync-paths.js";
 import { formatError } from "../utils/error.js";
 import {
   fileExists,
@@ -31,7 +35,7 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   verbose: false,
   delete: false,
   baseDirs: [process.cwd()],
-  configPath: "rulesync.jsonc",
+  configPath: RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   global: false,
   silent: false,
   simulateCommands: false,
@@ -39,6 +43,45 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateSkills: false,
   modularMcp: false,
 });
+
+const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams> => {
+  if (!(await fileExists(filePath))) {
+    return {};
+  }
+  try {
+    const fileContent = await readFileContent(filePath);
+    const jsonData = parseJsonc(fileContent);
+    // Parse with ConfigFileSchema to allow $schema property, then extract config params
+    const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
+    // Exclude $schema from config params
+    const { $schema: _schema, ...configParams } = parsed;
+    return configParams;
+  } catch (error) {
+    logger.error(`Failed to load config file "${filePath}": ${formatError(error)}`);
+    throw error;
+  }
+};
+
+const mergeConfigs = (
+  baseConfig: PartialConfigParams,
+  localConfig: PartialConfigParams,
+): PartialConfigParams => {
+  // Local config takes precedence over base config
+  // Only override if the value is explicitly set (not undefined)
+  return {
+    targets: localConfig.targets ?? baseConfig.targets,
+    features: localConfig.features ?? baseConfig.features,
+    verbose: localConfig.verbose ?? baseConfig.verbose,
+    delete: localConfig.delete ?? baseConfig.delete,
+    baseDirs: localConfig.baseDirs ?? baseConfig.baseDirs,
+    global: localConfig.global ?? baseConfig.global,
+    silent: localConfig.silent ?? baseConfig.silent,
+    simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
+    simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
+    simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
+    modularMcp: localConfig.modularMcp ?? baseConfig.modularMcp,
+  };
+};
 
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
@@ -59,21 +102,17 @@ export class ConfigResolver {
     // Validate configPath to prevent path traversal attacks
     const validatedConfigPath = resolvePath(configPath, process.cwd());
 
-    let configByFile: PartialConfigParams = {};
-    if (await fileExists(validatedConfigPath)) {
-      try {
-        const fileContent = await readFileContent(validatedConfigPath);
-        const jsonData = parseJsonc(fileContent);
-        // Parse with ConfigFileSchema to allow $schema property, then extract config params
-        const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
-        // Exclude $schema from config params
-        const { $schema: _schema, ...configParams } = parsed;
-        configByFile = configParams;
-      } catch (error) {
-        logger.error(`Failed to load config file: ${formatError(error)}`);
-        throw error;
-      }
-    }
+    // Load base config (rulesync.jsonc)
+    const baseConfig = await loadConfigFromFile(validatedConfigPath);
+
+    // Load local config (rulesync.local.jsonc) from the same directory as the base config
+    const configDir = dirname(validatedConfigPath);
+    const localConfigPath = join(configDir, RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH);
+    const localConfig = await loadConfigFromFile(localConfigPath);
+
+    // Merge configs: local config takes precedence over base config
+    // Priority: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
+    const configByFile = mergeConfigs(baseConfig, localConfig);
 
     const resolvedGlobal = global ?? configByFile.global ?? getDefaults().global;
     const resolvedSimulateCommands =

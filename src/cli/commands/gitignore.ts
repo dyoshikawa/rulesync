@@ -95,6 +95,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Others
   "**/modular-mcp.json",
   ".rulesync/rules/*.local.md",
+  "rulesync.local.jsonc",
   "!.rulesync/.aiignore",
 ];
 
