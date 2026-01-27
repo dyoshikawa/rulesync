@@ -10,11 +10,11 @@ import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
-    SubagentsProcessor,
-    SubagentsProcessorToolTarget,
-    SubagentsProcessorToolTargetSchema,
-    subagentsProcessorToolTargets,
-    subagentsProcessorToolTargetsSimulated,
+  SubagentsProcessor,
+  SubagentsProcessorToolTarget,
+  SubagentsProcessorToolTargetSchema,
+  subagentsProcessorToolTargets,
+  subagentsProcessorToolTargetsSimulated,
 } from "./subagents-processor.js";
 
 /**

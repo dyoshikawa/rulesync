@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
-    ToolSubagent,
-    ToolSubagentForDeletionParams,
-    ToolSubagentFromFileParams,
-    ToolSubagentFromRulesyncSubagentParams,
-    ToolSubagentSettablePaths,
+  ToolSubagent,
+  ToolSubagentForDeletionParams,
+  ToolSubagentFromFileParams,
+  ToolSubagentFromRulesyncSubagentParams,
+  ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
 export class CursorSubagent extends SimulatedSubagent {

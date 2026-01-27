@@ -299,7 +299,7 @@ Body content`;
     });
 
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".cursor", "agents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -324,7 +324,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".cursor", "agents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -339,7 +339,7 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".cursor", "agents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
