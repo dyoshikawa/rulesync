@@ -50,6 +50,8 @@ describe("generateCommand", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
+      getPlugins: vi.fn().mockReturnValue({}),
+      getPluginMergeStrategy: vi.fn().mockReturnValue("local-first"),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);

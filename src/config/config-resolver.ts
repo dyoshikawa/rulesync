@@ -38,6 +38,8 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateSubagents: false,
   simulateSkills: false,
   modularMcp: false,
+  plugins: {},
+  pluginMergeStrategy: "local-first",
 });
 
 // oxlint-disable-next-line no-extraneous-class
@@ -55,6 +57,8 @@ export class ConfigResolver {
     simulateSubagents,
     simulateSkills,
     modularMcp,
+    plugins,
+    pluginMergeStrategy,
   }: ConfigResolverResolveParams): Promise<Config> {
     // Validate configPath to prevent path traversal attacks
     const validatedConfigPath = resolvePath(configPath, process.cwd());
@@ -99,6 +103,11 @@ export class ConfigResolver {
       simulateSubagents: resolvedSimulateSubagents,
       simulateSkills: resolvedSimulateSkills,
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
+      plugins: plugins ?? configByFile.plugins ?? getDefaults().plugins,
+      pluginMergeStrategy:
+        pluginMergeStrategy ??
+        configByFile.pluginMergeStrategy ??
+        getDefaults().pluginMergeStrategy,
     };
     return new Config(configParams);
   }

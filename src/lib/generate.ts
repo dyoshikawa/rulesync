@@ -6,6 +6,12 @@ import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import {
+  hasEnabledPlugins,
+  mergedFilesToRulesyncRules,
+  MergedPluginContent,
+  processPlugins,
+} from "../features/plugins/plugin-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
@@ -38,12 +44,47 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
 export async function generate(params: { config: Config }): Promise<GenerateResult> {
   const { config } = params;
 
+  // Process plugins if any are enabled
+  let pluginContent: MergedPluginContent | null = null;
+  const plugins = config.getPlugins();
+
+  if (hasEnabledPlugins(plugins)) {
+    logger.info("Processing plugins...");
+    // Process plugins for each baseDir
+    for (const baseDir of config.getBaseDirs()) {
+      pluginContent = await processPlugins({
+        plugins,
+        baseDir,
+        mergeStrategy: config.getPluginMergeStrategy(),
+      });
+
+      // Log any plugin resolution errors
+      for (const error of pluginContent.resolutionErrors) {
+        logger.error(`Plugin error (${error.identifier}): ${error.error}`);
+      }
+
+      // Log merge errors
+      const allMergeErrors = [
+        ...pluginContent.rules.errors,
+        ...pluginContent.commands.errors,
+        ...pluginContent.subagents.errors,
+      ];
+      for (const error of allMergeErrors) {
+        logger.error(`Plugin merge error: ${error}`);
+      }
+    }
+  }
+
   const ignoreCount = await generateIgnoreCore({ config });
   const mcpCount = await generateMcpCore({ config });
-  const commandsCount = await generateCommandsCore({ config });
-  const subagentsCount = await generateSubagentsCore({ config });
+  const commandsCount = await generateCommandsCore({ config, pluginContent });
+  const subagentsCount = await generateSubagentsCore({ config, pluginContent });
   const skillsResult = await generateSkillsCore({ config });
-  const rulesCount = await generateRulesCore({ config, skills: skillsResult.skills });
+  const rulesCount = await generateRulesCore({
+    config,
+    skills: skillsResult.skills,
+    pluginContent,
+  });
 
   return {
     rulesCount,
@@ -59,8 +100,9 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
 async function generateRulesCore(params: {
   config: Config;
   skills?: RulesyncSkill[];
+  pluginContent?: MergedPluginContent | null;
 }): Promise<number> {
-  const { config, skills } = params;
+  const { config, skills, pluginContent } = params;
 
   if (!config.getFeatures().includes("rules")) {
     return 0;
@@ -90,7 +132,18 @@ async function generateRulesCore(params: {
         await processor.removeAiFiles(oldToolFiles);
       }
 
-      const rulesyncFiles = await processor.loadRulesyncFiles();
+      // Use merged plugin content if available, otherwise load from local .rulesync/
+      let rulesyncFiles;
+      if (pluginContent && pluginContent.rules.files.length > 0) {
+        rulesyncFiles = await mergedFilesToRulesyncRules({
+          mergeResult: pluginContent.rules,
+          baseDir,
+        });
+        logger.debug(`Using ${rulesyncFiles.length} rule files (merged from local and plugins)`);
+      } else {
+        rulesyncFiles = await processor.loadRulesyncFiles();
+      }
+
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
@@ -182,8 +235,11 @@ async function generateMcpCore(params: { config: Config }): Promise<number> {
   return totalCount;
 }
 
-async function generateCommandsCore(params: { config: Config }): Promise<number> {
-  const { config } = params;
+async function generateCommandsCore(params: {
+  config: Config;
+  pluginContent?: MergedPluginContent | null;
+}): Promise<number> {
+  const { config, pluginContent: _pluginContent } = params;
 
   if (!config.getFeatures().includes("commands")) {
     return 0;
@@ -212,6 +268,7 @@ async function generateCommandsCore(params: { config: Config }): Promise<number>
         await processor.removeAiFiles(oldToolFiles);
       }
 
+      // TODO: Integrate plugin commands in future
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
@@ -222,8 +279,11 @@ async function generateCommandsCore(params: { config: Config }): Promise<number>
   return totalCount;
 }
 
-async function generateSubagentsCore(params: { config: Config }): Promise<number> {
-  const { config } = params;
+async function generateSubagentsCore(params: {
+  config: Config;
+  pluginContent?: MergedPluginContent | null;
+}): Promise<number> {
+  const { config, pluginContent: _pluginContent } = params;
 
   if (!config.getFeatures().includes("subagents")) {
     return 0;
@@ -252,6 +312,7 @@ async function generateSubagentsCore(params: { config: Config }): Promise<number
         await processor.removeAiFiles(oldToolFiles);
       }
 
+      // TODO: Integrate plugin subagents in future
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);

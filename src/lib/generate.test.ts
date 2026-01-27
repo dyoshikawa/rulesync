@@ -59,6 +59,8 @@ describe("generate", () => {
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
     getModularMcp: ReturnType<typeof vi.fn>;
+    getPlugins: ReturnType<typeof vi.fn>;
+    getPluginMergeStrategy: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -74,6 +76,8 @@ describe("generate", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
+      getPlugins: vi.fn().mockReturnValue({}),
+      getPluginMergeStrategy: vi.fn().mockReturnValue("local-first"),
     };
 
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));

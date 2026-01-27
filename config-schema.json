@@ -71,6 +71,19 @@
     },
     "modularMcp": {
       "type": "boolean"
+    },
+    "plugins": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "description": "Plugin configurations. Keys are plugin identifiers in the format 'name@source:path' (e.g., 'my-rules@github:owner/repo', 'local-rules@local:../shared-rules'). Values are booleans indicating whether the plugin is enabled."
+    },
+    "pluginMergeStrategy": {
+      "type": "string",
+      "enum": ["local-first", "plugin-first", "error-on-conflict"],
+      "default": "local-first",
+      "description": "Strategy for merging plugin files with local .rulesync/ files. 'local-first': local files take precedence (default). 'plugin-first': plugin files take precedence. 'error-on-conflict': error on filename conflicts."
     }
   },
   "additionalProperties": false,

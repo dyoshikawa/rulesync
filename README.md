@@ -269,6 +269,15 @@ Example:
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
   "modularMcp": false, // Enable modular-mcp for context compression (experimental, Claude Code only)
+
+  // Plugin system (Phase 1: local plugins only)
+  "plugins": {
+    // Enable a local plugin
+    "my-rules@local:../shared-rulesync": true,
+    // Disable a plugin
+    "old-rules@local:./legacy-rules": false,
+  },
+  "pluginMergeStrategy": "local-first", // "local-first" | "plugin-first" | "error-on-conflict"
 }
 ```
 
@@ -565,6 +574,95 @@ Simulated commands, subagents and skills allow you to generate simulated feature
      # Use simulated skills
      Use the skill your-skill to achieve something.
      ```
+
+## Plugin System
+
+Rulesync supports a plugin system that allows you to share and reuse rule sets across projects. This is similar to Claude Code's `enabledPlugins` feature.
+
+### Phase 1: Local Plugins
+
+Currently, only local plugins are supported. GitHub and URL sources will be added in future phases.
+
+### Plugin Configuration
+
+Add plugins to your `rulesync.jsonc`:
+
+```jsonc
+{
+  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+
+  "plugins": {
+    // Local plugin (relative to project root)
+    "typescript-rules@local:../shared-rulesync": true,
+
+    // Disable a plugin
+    "deprecated-rules@local:./old-rules": false,
+  },
+
+  // Merge strategy when local files conflict with plugin files
+  // - "local-first": Local .rulesync/ files take precedence (default)
+  // - "plugin-first": Plugin files take precedence
+  // - "error-on-conflict": Error on filename conflicts
+  "pluginMergeStrategy": "local-first",
+
+  "targets": ["cursor", "claudecode"],
+  "features": ["rules"],
+}
+```
+
+### Plugin Structure
+
+Plugins follow the same structure as `.rulesync/` and must include a `plugin.json` manifest:
+
+```
+my-rulesync-plugin/
+├── plugin.json              # Required manifest file
+├── rules/                   # Rule files
+│   ├── coding-guidelines.md
+│   └── testing.md
+├── commands/                # Slash commands
+│   └── review-pr.md
+├── subagents/               # Subagent definitions
+│   └── code-reviewer.md
+├── skills/                  # Agent skills
+│   └── skill-creator/
+│       └── SKILL.md
+├── mcp.json                 # MCP server settings
+└── .rulesyncignore          # Ignore patterns
+```
+
+### plugin.json Manifest
+
+```json
+{
+  "name": "typescript-rules",
+  "description": "TypeScript best practices for AI coding agents",
+  "version": "1.0.0",
+  "author": {
+    "name": "rulesync-community"
+  },
+  "repository": "https://github.com/rulesync-community/typescript-rules"
+}
+```
+
+### Plugin Identifier Format
+
+| Source | Format                   | Example                                                  |
+| ------ | ------------------------ | -------------------------------------------------------- |
+| Local  | `name@local:path`        | `rules@local:../shared-rules`                            |
+| GitHub | `name@github:owner/repo` | `rules@github:myorg/preset` (coming soon)                |
+| URL    | `name@url:https://...`   | `rules@url:https://example.com/preset.zip` (coming soon) |
+
+### Merge Strategy
+
+When plugin files conflict with local `.rulesync/` files:
+
+- **`local-first`** (default): Local files take precedence. Plugin files with the same name are ignored.
+- **`plugin-first`**: Plugin files take precedence. Local files with the same name are overwritten.
+- **`error-on-conflict`**: An error is thrown when filename conflicts occur.
+
+> [!NOTE]
+> Plugin-to-plugin conflicts (two plugins providing the same file) always result in an error regardless of the merge strategy.
 
 ## Modular MCP (Experimental)
 

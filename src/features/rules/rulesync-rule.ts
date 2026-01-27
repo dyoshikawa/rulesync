@@ -170,6 +170,53 @@ export class RulesyncRule extends RulesyncFile {
     });
   }
 
+  /**
+   * Load a RulesyncRule from an absolute file path.
+   * Used for loading rules from plugins.
+   *
+   * @param absolutePath - Absolute path to the rule file
+   * @param relativeFilePath - Relative file path for display and identification
+   * @param validate - Whether to validate the frontmatter
+   * @returns RulesyncRule instance
+   */
+  static async fromAbsolutePath(params: {
+    absolutePath: string;
+    relativeFilePath: string;
+    baseDir?: string;
+    validate?: boolean;
+  }): Promise<RulesyncRule> {
+    const { absolutePath, relativeFilePath, baseDir = process.cwd(), validate = true } = params;
+
+    // Read file content
+    const fileContent = await readFileContent(absolutePath);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+
+    // Validate frontmatter using RuleFrontmatterSchema
+    const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${absolutePath}: ${formatError(result.error)}`);
+    }
+
+    const validatedFrontmatter: RulesyncRuleFrontmatter = {
+      root: result.data.root ?? false,
+      localRoot: result.data.localRoot ?? false,
+      targets: result.data.targets ?? ["*"],
+      description: result.data.description ?? "",
+      globs: result.data.globs ?? [],
+      agentsmd: result.data.agentsmd,
+      cursor: result.data.cursor,
+    };
+
+    return new RulesyncRule({
+      baseDir,
+      relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath,
+      frontmatter: validatedFrontmatter,
+      body: content.trim(),
+      validate,
+    });
+  }
+
   getBody(): string {
     return this.body;
   }

@@ -13,6 +13,27 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 
+/**
+ * Plugin merge strategy options.
+ * - `local-first`: Local `.rulesync/` files take precedence (default)
+ * - `plugin-first`: Plugin files take precedence
+ * - `error-on-conflict`: Error on filename conflicts
+ */
+export const PluginMergeStrategySchema = z.enum([
+  "local-first",
+  "plugin-first",
+  "error-on-conflict",
+]);
+export type PluginMergeStrategy = z.infer<typeof PluginMergeStrategySchema>;
+
+/**
+ * Plugin configuration schema.
+ * Keys are plugin identifiers in the format 'name@source:path'.
+ * Values are booleans indicating whether the plugin is enabled.
+ */
+export const PluginsSchema = z.record(z.string(), z.boolean());
+export type Plugins = z.infer<typeof PluginsSchema>;
+
 export const ConfigParamsSchema = z.object({
   baseDirs: z.array(z.string()),
   targets: RulesyncTargetsSchema,
@@ -26,6 +47,9 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   modularMcp: optional(z.boolean()),
+  // Plugin system
+  plugins: optional(PluginsSchema),
+  pluginMergeStrategy: optional(PluginMergeStrategySchema),
 });
 export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
 
@@ -68,6 +92,8 @@ export class Config {
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly modularMcp: boolean;
+  private readonly plugins: Plugins;
+  private readonly pluginMergeStrategy: PluginMergeStrategy;
 
   constructor({
     baseDirs,
@@ -81,6 +107,8 @@ export class Config {
     simulateSubagents,
     simulateSkills,
     modularMcp,
+    plugins,
+    pluginMergeStrategy,
   }: ConfigParams) {
     // Validate conflicting targets
     this.validateConflictingTargets(targets);
@@ -97,6 +125,8 @@ export class Config {
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
     this.modularMcp = modularMcp ?? false;
+    this.plugins = plugins ?? {};
+    this.pluginMergeStrategy = pluginMergeStrategy ?? "local-first";
   }
 
   private validateConflictingTargets(targets: RulesyncTargets): void {
@@ -171,5 +201,21 @@ export class Config {
 
   public getModularMcp(): boolean {
     return this.modularMcp;
+  }
+
+  public getPlugins(): Plugins {
+    return this.plugins;
+  }
+
+  /**
+   * Get enabled plugins only.
+   * Returns a record of plugin identifiers that are set to true.
+   */
+  public getEnabledPlugins(): Plugins {
+    return Object.fromEntries(Object.entries(this.plugins).filter(([_, enabled]) => enabled));
+  }
+
+  public getPluginMergeStrategy(): PluginMergeStrategy {
+    return this.pluginMergeStrategy;
   }
 }
