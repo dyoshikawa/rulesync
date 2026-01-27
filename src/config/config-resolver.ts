@@ -57,7 +57,7 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
     const { $schema: _schema, ...configParams } = parsed;
     return configParams;
   } catch (error) {
-    logger.error(`Failed to load config file: ${formatError(error)}`);
+    logger.error(`Failed to load config file "${filePath}": ${formatError(error)}`);
     throw error;
   }
 };
