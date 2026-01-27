@@ -78,8 +78,8 @@ describe("CursorMcp", () => {
         mcpServers: Record<string, { env?: Record<string, string> }>;
       };
 
-      expect(exported.mcpServers["test-server"].env?.API_KEY).toBe("${env:MY_API_KEY}");
-      expect(exported.mcpServers["test-server"].env?.DEBUG).toBe("true");
+      expect(exported.mcpServers["test-server"]?.env?.API_KEY).toBe("${env:MY_API_KEY}");
+      expect(exported.mcpServers["test-server"]?.env?.DEBUG).toBe("true");
     });
 
     it("should handle multiple env variables embedded in strings", () => {
@@ -170,7 +170,7 @@ describe("CursorMcp", () => {
         mcpServers: Record<string, { env?: Record<string, string> }>;
       };
 
-      expect(exported.mcpServers["no-env-server"].env).toBeUndefined();
+      expect(exported.mcpServers["no-env-server"]?.env).toBeUndefined();
     });
   });
 
@@ -928,10 +928,7 @@ describe("CursorMcp", () => {
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
       expect(rulesyncMcp.getRelativeDirPath()).toBe(".cursor");
       expect(rulesyncMcp.getRelativeFilePath()).toBe("rulesync.mcp.json");
-
-      // toRulesyncMcp only preserves mcpServers
-      const exportedContent = JSON.parse(rulesyncMcp.getFileContent());
-      expect(exportedContent).toEqual({ mcpServers: cursorMcpData.mcpServers });
+      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(cursorMcpData));
     });
 
     it("should convert complex CursorMcp to RulesyncMcp", () => {
@@ -964,10 +961,7 @@ describe("CursorMcp", () => {
       const rulesyncMcp = cursorMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/custom");
-
-      // toRulesyncMcp only preserves mcpServers, strips other properties like globalConfig
-      const exportedContent = JSON.parse(rulesyncMcp.getFileContent());
-      expect(exportedContent).toEqual({ mcpServers: complexData.mcpServers });
+      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(complexData));
     });
   });
 

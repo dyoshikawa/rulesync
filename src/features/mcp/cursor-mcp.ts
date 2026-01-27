@@ -16,6 +16,13 @@ import {
 const CURSOR_ENV_VAR_PATTERN = /\$\{env:([^}]+)\}/g;
 
 /**
+ * Type guard to check if a value is a valid McpServers object
+ */
+function isMcpServers(value: unknown): value is McpServers {
+  return value !== undefined && value !== null && typeof value === "object";
+}
+
+/**
  * Convert Cursor env format to canonical format
  * - ${env:VAR} -> ${VAR}
  */
@@ -111,7 +118,7 @@ export class CursorMcp extends ToolMcp {
     const json = rulesyncMcp.getJson();
 
     // Convert Rulesync MCP format to Cursor MCP format
-    const mcpServers = (json.mcpServers || {}) as McpServers;
+    const mcpServers = isMcpServers(json.mcpServers) ? json.mcpServers : {};
     const transformedServers = convertEnvToCursorFormat(mcpServers);
 
     const cursorConfig = {
@@ -130,14 +137,19 @@ export class CursorMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const mcpServers = (this.json.mcpServers || {}) as McpServers;
+    const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
     const transformedServers = convertEnvFromCursorFormat(mcpServers);
+
+    const transformedJson = {
+      ...this.json,
+      mcpServers: transformedServers,
+    };
 
     return new RulesyncMcp({
       baseDir: this.baseDir,
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: "rulesync.mcp.json",
-      fileContent: JSON.stringify({ mcpServers: transformedServers }, null, 2),
+      fileContent: JSON.stringify(transformedJson),
       validate: true,
     });
   }
