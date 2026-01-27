@@ -13,7 +13,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs } from "../../utils/file.js";
+import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
@@ -663,11 +663,13 @@ export class RulesProcessor extends FeatureProcessor {
     const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
     logger.debug(`Found ${files.length} rulesync files`);
     const rulesyncRules = await Promise.all(
-      files.map((file) =>
-        RulesyncRule.fromFile({
-          relativeFilePath: relative(rulesyncBaseDir, file),
-        }),
-      ),
+      files.map((file) => {
+        const relativeFilePath = relative(rulesyncBaseDir, file);
+        checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: rulesyncBaseDir });
+        return RulesyncRule.fromFile({
+          relativeFilePath,
+        });
+      }),
     );
 
     const rootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().root);
@@ -809,6 +811,10 @@ export class RulesProcessor extends FeatureProcessor {
           return nonRootFilePaths
             .map((filePath) => {
               const relativeFilePath = relative(nonRootBaseDir, filePath);
+              checkPathTraversal({
+                relativePath: relativeFilePath,
+                intendedRootDir: nonRootBaseDir,
+              });
               return factory.class.forDeletion({
                 baseDir: this.baseDir,
                 relativeDirPath: settablePaths.nonRoot?.relativeDirPath ?? ".",
@@ -822,6 +828,7 @@ export class RulesProcessor extends FeatureProcessor {
         return await Promise.all(
           nonRootFilePaths.map((filePath) => {
             const relativeFilePath = relative(nonRootBaseDir, filePath);
+            checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: nonRootBaseDir });
             return factory.class.fromFile({
               baseDir: this.baseDir,
               relativeFilePath,

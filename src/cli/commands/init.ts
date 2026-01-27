@@ -48,6 +48,7 @@ async function createConfigFile(): Promise<void> {
         baseDirs: ["."],
         delete: true,
         verbose: false,
+        silent: false,
         global: false,
         simulateCommands: false,
         simulateSubagents: false,

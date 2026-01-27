@@ -189,6 +189,121 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("local configuration (rulesync.local.jsonc)", () => {
+    it("should use rulesync.local.jsonc to override rulesync.jsonc", async () => {
+      const baseConfigContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: ["cursor"],
+        verbose: false,
+      });
+      const localConfigContent = JSON.stringify({
+        targets: ["claudecode"],
+        verbose: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode"]);
+      expect(config.getVerbose()).toBe(true);
+    });
+
+    it("should preserve rulesync.jsonc values not overridden by rulesync.local.jsonc", async () => {
+      const baseConfigContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: ["cursor"],
+        features: ["rules", "mcp"],
+        verbose: false,
+        delete: true,
+      });
+      const localConfigContent = JSON.stringify({
+        verbose: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getTargets()).toEqual(["cursor"]);
+      expect(config.getFeatures()).toEqual(["rules", "mcp"]);
+      expect(config.getVerbose()).toBe(true);
+      expect(config.getDelete()).toBe(true);
+    });
+
+    it("should allow CLI options to override rulesync.local.jsonc", async () => {
+      const baseConfigContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: ["cursor"],
+      });
+      const localConfigContent = JSON.stringify({
+        targets: ["claudecode"],
+        verbose: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        targets: ["copilot"],
+        verbose: false,
+      });
+
+      expect(config.getTargets()).toEqual(["copilot"]);
+      expect(config.getVerbose()).toBe(false);
+    });
+
+    it("should work without rulesync.local.jsonc", async () => {
+      const baseConfigContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: ["cursor"],
+        verbose: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getTargets()).toEqual(["cursor"]);
+      expect(config.getVerbose()).toBe(true);
+    });
+
+    it("should work with only rulesync.local.jsonc (no base config)", async () => {
+      const localConfigContent = JSON.stringify({
+        targets: ["claudecode"],
+        verbose: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode"]);
+      expect(config.getVerbose()).toBe(true);
+    });
+
+    it("should load rulesync.local.jsonc from the same directory as the base config", async () => {
+      const subDir = join(testDir, "subdir");
+      await writeFileContent(join(subDir, "rulesync.jsonc"), JSON.stringify({ baseDirs: ["./"] }));
+      await writeFileContent(
+        join(subDir, "rulesync.local.jsonc"),
+        JSON.stringify({ targets: ["cline"] }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(subDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getTargets()).toEqual(["cline"]);
+    });
+  });
+
   describe("configPath security", () => {
     it("should accept configPath within current directory", async () => {
       const configContent = JSON.stringify({
