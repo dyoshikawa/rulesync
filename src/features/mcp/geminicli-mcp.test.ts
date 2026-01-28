@@ -57,6 +57,16 @@ describe("GeminiCliMcp", () => {
 
       expect(globalMcp.isDeletable()).toBe(false);
     });
+
+    it("should return false when created via forDeletion with global: true", () => {
+      const geminiCliMcp = GeminiCliMcp.forDeletion({
+        relativeDirPath: ".gemini",
+        relativeFilePath: "settings.json",
+        global: true,
+      });
+
+      expect(geminiCliMcp.isDeletable()).toBe(false);
+    });
   });
 
   describe("constructor", () => {

@@ -47,6 +47,16 @@ describe("OpencodeMcp", () => {
 
       expect(opencodeMcp.isDeletable()).toBe(false);
     });
+
+    it("should return false when created via forDeletion with global: true", () => {
+      const opencodeMcp = OpencodeMcp.forDeletion({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        global: true,
+      });
+
+      expect(opencodeMcp.isDeletable()).toBe(false);
+    });
   });
 
   describe("constructor", () => {
