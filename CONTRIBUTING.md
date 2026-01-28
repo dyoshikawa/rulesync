@@ -2,10 +2,15 @@
 
 Issues and Pull Requests are welcome!
 
+## Understanding the Codebase
+
+If you're new to the project, you can ask [DeepWiki](https://deepwiki.com/dyoshikawa/rulesync) questions to quickly understand the overall architecture and codebase structure.
+
 ## Pull Request Guidelines
 
 - For external contributors, keep the number of changed lines in a PR under 400-500 whenever possible.
 - Please note that the maintainer may add additional commits on top of your commits before merging at their discretion. In such cases, your original commits will still be preserved as your contribution.
+- Before marking your PR as "Ready for Review", run the `/review-pr` command with an AI agent (e.g., Claude Code) in this repository to get automated feedback and address any issues.
 
 ## Development Setup
 
@@ -19,20 +24,6 @@ pnpm cicheck # Run code style check, type check, and tests
 pnpm dev generate -t claudecode -f "*"
 pnpm dev import -t claudecode -f "*"
 
-# Once you create .rulesync/rules/overview.local.md and `pnpm dev generate`, you can use coding agents with your language.
-# Japanese setting example:
-cat << 'EOF' > .rulesync/rules/overview.local.md
----
-root: false
-targets: ['*']
-description: "It's a rule about language. If the rule file exists, you must always follow this."
-globs: ["**/*"]
----
-
-I'm a Japanese developer. So you must always answer in Japanese. On the other hand, reasoning(thinking) should be in English to improve token efficiency.
-
-However, this project is for English speaking people. So when you write any code, comments, documentation, commit messages, PR title and PR descriptions, you must always use English.
-EOF
 pnpm dev generate
 ```
 
@@ -51,3 +42,24 @@ To add support for a new Tool/Feature (e.g., rules), modify these files:
 9. Run `pnpm dev gitignore` to update project `.gitignore`
 
 See [.rulesync/rules/feature-change-guidelines.md](.rulesync/rules/feature-change-guidelines.md) for additional guidance.
+
+## Local Configuration for Your Preferences
+
+You can create a `rulesync.local.jsonc` file to customize your Rulesync configuration for your personal preferences without affecting the shared project configuration. This file is automatically added to `.gitignore` by `rulesync gitignore` and should not be committed to the repository. See the [Local Configuration](README.md#local-configuration) section in the README for details.
+
+You can also create `.rulesync/rules/overview.local.md` to configure language preferences and other personal rules. For example, if you are a Japanese developer:
+
+```md
+---
+root: false
+targets: ['*']
+description: "It's a rule about language. If the rule file exists, you must always follow this."
+globs: ["**/*"]
+---
+
+I'm a Japanese developer. So you must always answer in Japanese. On the other hand, reasoning(thinking) should be in English to improve token efficiency.
+
+However, this project is for English speaking people. So when you write any code, comments, documentation, commit messages, PR title and PR descriptions, you must always use English.
+```
+
+After creating the file, run `pnpm dev generate` to apply your local rules.
