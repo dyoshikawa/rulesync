@@ -25,13 +25,13 @@ type CursorSubagentFrontmatter = z.infer<typeof CursorSubagentFrontmatterSchema>
 type CursorSubagentParams = {
   frontmatter: CursorSubagentFrontmatter;
   body: string;
-} & Omit<AiFileParams, "fileContent"> & { fileContent?: string };
+} & AiFileParams;
 
 export class CursorSubagent extends ToolSubagent {
   private readonly frontmatter: CursorSubagentFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, fileContent, ...rest }: CursorSubagentParams) {
+  constructor({ frontmatter, body, ...rest }: CursorSubagentParams) {
     if (rest.validate !== false) {
       const result = CursorSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
@@ -43,7 +43,6 @@ export class CursorSubagent extends ToolSubagent {
 
     super({
       ...rest,
-      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
