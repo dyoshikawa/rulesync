@@ -52,7 +52,7 @@ You can also create `.rulesync/rules/overview.local.md` to configure language pr
 ```md
 ---
 root: false
-targets: ['*']
+targets: ["*"]
 description: "It's a rule about language. If the rule file exists, you must always follow this."
 globs: ["**/*"]
 ---

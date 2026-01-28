@@ -48,7 +48,7 @@ Body content`;
     it("should return correct paths for cursor subagents", () => {
       const paths = CursorSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
       });
     });
   });
@@ -57,7 +57,7 @@ Body content`;
     it("should create instance with valid markdown content", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Cursor Agent",
@@ -80,7 +80,7 @@ Body content`;
     it("should create instance with empty name and description", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
@@ -100,7 +100,7 @@ Body content`;
     it("should create instance without validation when validate is false", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -118,7 +118,7 @@ Body content`;
         () =>
           new CursorSubagent({
             baseDir: testDir,
-            relativeDirPath: ".cursor/subagents",
+            relativeDirPath: ".cursor/agents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
@@ -134,7 +134,7 @@ Body content`;
     it("should return the body content", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -152,7 +152,7 @@ Body content`;
     it("should return frontmatter with name and description", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Cursor Agent",
@@ -171,22 +171,25 @@ Body content`;
   });
 
   describe("toRulesyncSubagent", () => {
-    it("should throw error as it is a simulated file", () => {
+    it("should convert CursorSubagent to RulesyncSubagent", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
           description: "Test description",
         },
         body: "Test body",
+        fileContent: "---\nname: Test Agent\ndescription: Test description\n---\n\nTest body",
         validate: true,
       });
 
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("Test Agent");
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("Test description");
+      expect(rulesyncSubagent.getBody()).toBe("Test body");
     });
   });
 
@@ -207,7 +210,7 @@ Body content`;
 
       const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         rulesyncSubagent,
         validate: true,
       }) as CursorSubagent;
@@ -219,7 +222,7 @@ Body content`;
         description: "Test description from rulesync",
       });
       expect(cursorSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(cursorSubagent.getRelativeDirPath()).toBe(".cursor/subagents");
+      expect(cursorSubagent.getRelativeDirPath()).toBe(".cursor/agents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -238,7 +241,7 @@ Body content`;
 
       const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         rulesyncSubagent,
         validate: true,
       }) as CursorSubagent;
@@ -262,7 +265,7 @@ Body content`;
 
       const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         rulesyncSubagent,
         validate: true,
       }) as CursorSubagent;
@@ -276,7 +279,7 @@ Body content`;
 
   describe("fromFile", () => {
     it("should load CursorSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".cursor", "agents");
       const filePath = join(subagentsDir, "test-file-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -299,7 +302,7 @@ Body content`;
     });
 
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".cursor", "agents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -310,7 +313,7 @@ Body content`;
         validate: true,
       });
 
-      expect(subagent.getRelativeFilePath()).toBe("nested-agent.md");
+      expect(subagent.getRelativeFilePath()).toBe("subdir/nested-agent.md");
     });
 
     it("should throw error when file does not exist", async () => {
@@ -324,7 +327,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".cursor", "agents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -339,7 +342,7 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".cursor", "subagents");
+      const subagentsDir = join(testDir, ".cursor", "agents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
@@ -358,7 +361,7 @@ Body content`;
     it("should return success for valid frontmatter", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
@@ -376,7 +379,7 @@ Body content`;
     it("should handle frontmatter with additional properties", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
@@ -435,7 +438,7 @@ Body content`;
     it("should handle empty body content", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -458,7 +461,7 @@ Body content`;
 
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -479,7 +482,7 @@ Body content`;
 
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -496,7 +499,7 @@ Body content`;
     it("should handle multi-line name and description", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -517,7 +520,7 @@ Body content`;
 
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
@@ -532,24 +535,24 @@ Body content`;
   });
 
   describe("inheritance", () => {
-    it("should inherit from SimulatedSubagent", () => {
+    it("should inherit from ToolSubagent", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
-        relativeDirPath: ".cursor/subagents",
+        relativeDirPath: ".cursor/agents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
           description: "Test",
         },
         body: "Test",
+        fileContent: "---\nname: Test\ndescription: Test\n---\n\nTest",
         validate: true,
       });
 
       expect(subagent).toBeInstanceOf(CursorSubagent);
-      // Test that it inherits methods from parent class
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      // Test that it can convert to RulesyncSubagent (native support)
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
     });
   });
 
