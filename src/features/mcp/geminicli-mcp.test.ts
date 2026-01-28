@@ -37,6 +37,38 @@ describe("GeminiCliMcp", () => {
     });
   });
 
+  describe("isDeletable", () => {
+    it("should always return false because settings.json may contain other settings", () => {
+      const localMcp = new GeminiCliMcp({
+        relativeDirPath: ".gemini",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+        global: false,
+      });
+
+      expect(localMcp.isDeletable()).toBe(false);
+
+      const globalMcp = new GeminiCliMcp({
+        relativeDirPath: ".gemini",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+        global: true,
+      });
+
+      expect(globalMcp.isDeletable()).toBe(false);
+    });
+
+    it("should return false when created via forDeletion with global: true", () => {
+      const geminiCliMcp = GeminiCliMcp.forDeletion({
+        relativeDirPath: ".gemini",
+        relativeFilePath: "settings.json",
+        global: true,
+      });
+
+      expect(geminiCliMcp.isDeletable()).toBe(false);
+    });
+  });
+
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const validJsonContent = JSON.stringify({

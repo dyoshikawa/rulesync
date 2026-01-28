@@ -32,6 +32,9 @@ describe("generateCommand", () => {
   let mockProcessorInstance: any;
 
   beforeEach(() => {
+    // Mock process.cwd to return a consistent value
+    vi.spyOn(process, "cwd").mockReturnValue("/test/project");
+
     // Mock process.exit
     mockExit = vi.spyOn(process, "exit").mockImplementation((() => {
       throw new Error("Process exit");
@@ -168,7 +171,7 @@ describe("generateCommand", () => {
 
       await expect(generateCommand(options)).rejects.toThrow("Process exit");
 
-      expect(fileExists).toHaveBeenCalledWith(".rulesync");
+      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
       expect(logger.error).toHaveBeenCalledWith(
         "❌ .rulesync directory not found. Run 'rulesync init' first.",
       );
@@ -181,7 +184,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(fileExists).toHaveBeenCalledWith(".rulesync");
+      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
       expect(mockExit).not.toHaveBeenCalled();
     });
   });
@@ -699,6 +702,19 @@ describe("generateCommand", () => {
     beforeEach(() => {
       mockConfig.getGlobal.mockReturnValue(true);
       mockConfig.getFeatures.mockReturnValue(["rules", "mcp", "commands", "ignore", "subagents"]);
+    });
+
+    it("should check .rulesync directory from process.cwd() not from baseDirs in global mode", async () => {
+      mockConfig.getBaseDirs.mockReturnValue(["/home/user"]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+      vi.mocked(intersection).mockReturnValue(["claudecode"]);
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      // Should check .rulesync in process.cwd(), not in baseDirs[0] (which is /home/user in global mode)
+      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
     });
 
     it("should use getToolTargets with global: true when global mode is enabled", async () => {

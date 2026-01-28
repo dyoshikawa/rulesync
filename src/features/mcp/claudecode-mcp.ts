@@ -125,6 +125,7 @@ export class ClaudecodeMcp extends ToolMcp {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolMcpForDeletionParams): ClaudecodeMcp {
     return new ClaudecodeMcp({
       baseDir,
@@ -132,6 +133,7 @@ export class ClaudecodeMcp extends ToolMcp {
       relativeFilePath,
       fileContent: "{}",
       validate: false,
+      global,
     });
   }
 }

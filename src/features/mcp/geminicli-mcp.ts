@@ -93,10 +93,18 @@ export class GeminiCliMcp extends ToolMcp {
     return { success: true, error: null };
   }
 
+  /**
+   * settings.json may contain other settings, so it should not be deleted.
+   */
+  override isDeletable(): boolean {
+    return false;
+  }
+
   static forDeletion({
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolMcpForDeletionParams): GeminiCliMcp {
     return new GeminiCliMcp({
       baseDir,
@@ -104,6 +112,7 @@ export class GeminiCliMcp extends ToolMcp {
       relativeFilePath,
       fileContent: "{}",
       validate: false,
+      global,
     });
   }
 }
