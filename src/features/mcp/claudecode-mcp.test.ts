@@ -59,6 +59,16 @@ describe("ClaudecodeMcp", () => {
 
       expect(claudecodeMcp.isDeletable()).toBe(false);
     });
+
+    it("should return false when created via forDeletion with global: true", () => {
+      const claudecodeMcp = ClaudecodeMcp.forDeletion({
+        relativeDirPath: ".claude",
+        relativeFilePath: ".claude.json",
+        global: true,
+      });
+
+      expect(claudecodeMcp.isDeletable()).toBe(false);
+    });
   });
 
   describe("constructor", () => {

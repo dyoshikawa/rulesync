@@ -241,6 +241,7 @@ export class OpencodeMcp extends ToolMcp {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolMcpForDeletionParams): OpencodeMcp {
     return new OpencodeMcp({
       baseDir,
@@ -248,6 +249,7 @@ export class OpencodeMcp extends ToolMcp {
       relativeFilePath,
       fileContent: "{}",
       validate: false,
+      global,
     });
   }
 }
