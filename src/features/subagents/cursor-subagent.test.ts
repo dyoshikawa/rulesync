@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -55,15 +56,18 @@ Body content`;
 
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
+      const frontmatter = {
+        name: "Test Cursor Agent",
+        description: "Test cursor agent description",
+      };
+      const body = "This is the body of the cursor agent.\nIt can be multiline.";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Cursor Agent",
-          description: "Test cursor agent description",
-        },
-        body: "This is the body of the cursor agent.\nIt can be multiline.",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
@@ -78,15 +82,18 @@ Body content`;
     });
 
     it("should create instance with empty name and description", () => {
+      const frontmatter = {
+        name: "",
+        description: "",
+      };
+      const body = "This is a cursor agent without name or description.";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "",
-          description: "",
-        },
-        body: "This is a cursor agent without name or description.",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
@@ -98,15 +105,18 @@ Body content`;
     });
 
     it("should create instance without validation when validate is false", () => {
+      const frontmatter = {
+        name: "Test Agent",
+        description: "Test description",
+      };
+      const body = "Test body";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test body",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: false,
       });
 
@@ -114,16 +124,19 @@ Body content`;
     });
 
     it("should throw error for invalid frontmatter when validation is enabled", () => {
+      const frontmatter = {
+        // Missing required fields
+      } as SimulatedSubagentFrontmatter;
+      const body = "Body content";
       expect(
         () =>
           new CursorSubagent({
             baseDir: testDir,
             relativeDirPath: ".cursor/agents",
             relativeFilePath: "invalid-agent.md",
-            frontmatter: {
-              // Missing required fields
-            } as SimulatedSubagentFrontmatter,
-            body: "Body content",
+            frontmatter,
+            body,
+            fileContent: stringifyFrontmatter(body, frontmatter),
             validate: true,
           }),
       ).toThrow();
@@ -132,15 +145,18 @@ Body content`;
 
   describe("getBody", () => {
     it("should return the body content", () => {
+      const frontmatter = {
+        name: "Test Agent",
+        description: "Test description",
+      };
+      const body = "This is the body content.\nWith multiple lines.";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "This is the body content.\nWith multiple lines.",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
@@ -150,20 +166,23 @@ Body content`;
 
   describe("getFrontmatter", () => {
     it("should return frontmatter with name and description", () => {
+      const frontmatter = {
+        name: "Test Cursor Agent",
+        description: "Test cursor agent",
+      };
+      const body = "Test body";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Cursor Agent",
-          description: "Test cursor agent",
-        },
-        body: "Test body",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
-      const frontmatter = subagent.getFrontmatter();
-      expect(frontmatter).toEqual({
+      const result = subagent.getFrontmatter();
+      expect(result).toEqual({
         name: "Test Cursor Agent",
         description: "Test cursor agent",
       });
@@ -359,15 +378,18 @@ Body content`;
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
+      const frontmatter = {
+        name: "Valid Agent",
+        description: "Valid description",
+      };
+      const body = "Valid body";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "valid-agent.md",
-        frontmatter: {
-          name: "Valid Agent",
-          description: "Valid description",
-        },
-        body: "Valid body",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: false, // Skip validation in constructor to test validate method
       });
 
@@ -377,17 +399,20 @@ Body content`;
     });
 
     it("should handle frontmatter with additional properties", () => {
+      const frontmatter = {
+        name: "Agent",
+        description: "Agent with extra properties",
+        // Additional properties should be allowed but not validated
+        extra: "property",
+      } as any;
+      const body = "Body content";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "agent-with-extras.md",
-        frontmatter: {
-          name: "Agent",
-          description: "Agent with extra properties",
-          // Additional properties should be allowed but not validated
-          extra: "property",
-        } as any,
-        body: "Body content",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: false,
       });
 
@@ -436,15 +461,18 @@ Body content`;
 
   describe("edge cases", () => {
     it("should handle empty body content", () => {
+      const frontmatter = {
+        name: "Empty Body Agent",
+        description: "Agent with empty body",
+      };
+      const body = "";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "empty-body.md",
-        frontmatter: {
-          name: "Empty Body Agent",
-          description: "Agent with empty body",
-        },
-        body: "",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
@@ -456,56 +484,60 @@ Body content`;
     });
 
     it("should handle special characters in content", () => {
-      const specialContent =
-        "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
-
+      const frontmatter = {
+        name: "Special Agent",
+        description: "Special characters test",
+      };
+      const body = "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "special-char.md",
-        frontmatter: {
-          name: "Special Agent",
-          description: "Special characters test",
-        },
-        body: specialContent,
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe(specialContent);
+      expect(subagent.getBody()).toBe(body);
       expect(subagent.getBody()).toContain("@#$%^&*()");
       expect(subagent.getBody()).toContain("你好世界 🌍");
       expect(subagent.getBody()).toContain("\"Hello 'World'\"");
     });
 
     it("should handle very long content", () => {
-      const longContent = "A".repeat(10000);
-
+      const frontmatter = {
+        name: "Long Agent",
+        description: "Long content test",
+      };
+      const body = "A".repeat(10000);
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "long-content.md",
-        frontmatter: {
-          name: "Long Agent",
-          description: "Long content test",
-        },
-        body: longContent,
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe(longContent);
+      expect(subagent.getBody()).toBe(body);
       expect(subagent.getBody().length).toBe(10000);
     });
 
     it("should handle multi-line name and description", () => {
+      const frontmatter = {
+        name: "Multi-line\nAgent Name",
+        description: "This is a multi-line\ndescription with\nmultiple lines",
+      };
+      const body = "Test body";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "multiline-fields.md",
-        frontmatter: {
-          name: "Multi-line\nAgent Name",
-          description: "This is a multi-line\ndescription with\nmultiple lines",
-        },
-        body: "Test body",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
@@ -516,21 +548,22 @@ Body content`;
     });
 
     it("should handle Windows-style line endings", () => {
-      const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
-
+      const frontmatter = {
+        name: "Windows Agent",
+        description: "Test with Windows line endings",
+      };
+      const body = "Line 1\r\nLine 2\r\nLine 3";
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "windows-lines.md",
-        frontmatter: {
-          name: "Windows Agent",
-          description: "Test with Windows line endings",
-        },
-        body: windowsContent,
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
         validate: true,
       });
 
-      expect(subagent.getBody()).toBe(windowsContent);
+      expect(subagent.getBody()).toBe(body);
     });
   });
 

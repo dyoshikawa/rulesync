@@ -386,6 +386,7 @@ Claude content`,
           description: "Cursor agent",
         },
         body: "Cursor content",
+        fileContent: "",
         validate: false,
       });
 
