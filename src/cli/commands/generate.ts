@@ -14,7 +14,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   logger.info("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ baseDir: config.getBaseDirs()[0] ?? process.cwd() }))) {
+  if (!(await checkRulesyncDirExists({ baseDir: process.cwd() }))) {
     logger.error("❌ .rulesync directory not found. Run 'rulesync init' first.");
     process.exit(1);
   }
