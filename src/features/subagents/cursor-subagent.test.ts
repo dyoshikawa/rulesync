@@ -171,7 +171,7 @@ Body content`;
   });
 
   describe("toRulesyncSubagent", () => {
-    it("should throw error as it is a simulated file", () => {
+    it("should convert CursorSubagent to RulesyncSubagent", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
@@ -181,12 +181,15 @@ Body content`;
           description: "Test description",
         },
         body: "Test body",
+        fileContent: "---\nname: Test Agent\ndescription: Test description\n---\n\nTest body",
         validate: true,
       });
 
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("Test Agent");
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("Test description");
+      expect(rulesyncSubagent.getBody()).toBe("Test body");
     });
   });
 
@@ -310,7 +313,7 @@ Body content`;
         validate: true,
       });
 
-      expect(subagent.getRelativeFilePath()).toBe("nested-agent.md");
+      expect(subagent.getRelativeFilePath()).toBe("subdir/nested-agent.md");
     });
 
     it("should throw error when file does not exist", async () => {
@@ -532,7 +535,7 @@ Body content`;
   });
 
   describe("inheritance", () => {
-    it("should inherit from SimulatedSubagent", () => {
+    it("should inherit from ToolSubagent", () => {
       const subagent = new CursorSubagent({
         baseDir: testDir,
         relativeDirPath: ".cursor/agents",
@@ -542,14 +545,14 @@ Body content`;
           description: "Test",
         },
         body: "Test",
+        fileContent: "---\nname: Test\ndescription: Test\n---\n\nTest",
         validate: true,
       });
 
       expect(subagent).toBeInstanceOf(CursorSubagent);
-      // Test that it inherits methods from parent class
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      // Test that it can convert to RulesyncSubagent (native support)
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
     });
   });
 

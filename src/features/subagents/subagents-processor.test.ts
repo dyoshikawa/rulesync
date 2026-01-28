@@ -405,8 +405,8 @@ Claude content`,
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
-      // Claudecode and Copilot subagents should be converted (non-simulated)
-      expect(rulesyncFiles).toHaveLength(2);
+      // Claudecode, Copilot, and Cursor subagents should be converted (non-simulated)
+      expect(rulesyncFiles).toHaveLength(3);
       expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
     });
   });
