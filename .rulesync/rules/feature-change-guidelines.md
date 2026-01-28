@@ -2,7 +2,6 @@
 root: false
 targets: ["*"]
 description: "When you add or change features, must follow these guidelines."
-globs: ["**/*"]
 ---
 
 # Guidelines for Adding or Modifying Features
