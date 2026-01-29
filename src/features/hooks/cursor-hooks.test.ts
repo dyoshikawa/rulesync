@@ -168,9 +168,9 @@ describe("CursorHooks", () => {
       const backToRulesync = loaded.toRulesyncHooks();
       const json = backToRulesync.getJson();
       expect(json.hooks.sessionStart).toHaveLength(1);
-      expect(json.hooks.sessionStart[0].command).toBe(".rulesync/hooks/session-start.sh");
+      expect(json.hooks.sessionStart?.[0]?.command).toBe(".rulesync/hooks/session-start.sh");
       expect(json.hooks.postToolUse).toHaveLength(1);
-      expect(json.hooks.postToolUse[0].matcher).toBe("Write|Edit");
+      expect(json.hooks.postToolUse?.[0]?.matcher).toBe("Write|Edit");
     });
   });
 

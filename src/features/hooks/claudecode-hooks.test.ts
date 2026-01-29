@@ -195,7 +195,7 @@ describe("ClaudecodeHooks", () => {
       const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart).toHaveLength(1);
-      expect(json.hooks.sessionStart[0].command).toContain("echo.sh");
+      expect(json.hooks.sessionStart?.[0]?.command).toContain("echo.sh");
       expect(json.hooks.stop).toHaveLength(1);
     });
   });
