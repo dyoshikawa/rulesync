@@ -2,6 +2,7 @@ import { intersection } from "es-toolkit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
@@ -16,6 +17,7 @@ vi.mock("../features/ignore/ignore-processor.js");
 vi.mock("../features/mcp/mcp-processor.js");
 vi.mock("../features/subagents/subagents-processor.js");
 vi.mock("../features/commands/commands-processor.js");
+vi.mock("../features/hooks/hooks-processor.js");
 vi.mock("../features/skills/skills-processor.js");
 vi.mock("../utils/file.js");
 vi.mock("es-toolkit", () => ({
@@ -83,6 +85,7 @@ describe("generate", () => {
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
     const createMockProcessor = () => ({
@@ -115,6 +118,9 @@ describe("generate", () => {
     });
     vi.mocked(CommandsProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as CommandsProcessor;
+    });
+    vi.mocked(HooksProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as HooksProcessor;
     });
     vi.mocked(SkillsProcessor).mockImplementation(function () {
       return createMockSkillsProcessor() as unknown as SkillsProcessor;
@@ -482,6 +488,7 @@ describe("generate", () => {
         "commands",
         "subagents",
         "skills",
+        "hooks",
       ]);
 
       const mockSkillsProcessor = {
@@ -503,6 +510,7 @@ describe("generate", () => {
       expect(result.commandsCount).toBe(1);
       expect(result.subagentsCount).toBe(1);
       expect(result.skillsCount).toBe(1);
+      expect(result.hooksCount).toBe(1);
     });
 
     it("should return empty result when no features are enabled", async () => {
@@ -516,6 +524,7 @@ describe("generate", () => {
       expect(result.commandsCount).toBe(0);
       expect(result.subagentsCount).toBe(0);
       expect(result.skillsCount).toBe(0);
+      expect(result.hooksCount).toBe(0);
       expect(result.skills).toEqual([]);
     });
   });

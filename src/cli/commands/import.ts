@@ -36,7 +36,8 @@ export async function importCommand(options: ImportOptions): Promise<void> {
     result.mcpCount +
     result.commandsCount +
     result.subagentsCount +
-    result.skillsCount;
+    result.skillsCount +
+    result.hooksCount;
 
   if (totalImported === 0) {
     const enabledFeatures = config.getFeatures().join(", ");
@@ -51,6 +52,7 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
+  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
 
   logger.success(`Imported ${totalImported} file(s) total (${parts.join(" + ")})`);
 }
