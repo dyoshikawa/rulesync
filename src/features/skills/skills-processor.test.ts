@@ -638,6 +638,7 @@ Content that would fail parsing`;
           "kilo",
           "kiro",
           "opencode",
+          "replit",
           "roo",
         ]),
       );
@@ -658,6 +659,7 @@ Content that would fail parsing`;
           "kilo",
           "kiro",
           "opencode",
+          "replit",
           "roo",
         ]),
       );
@@ -676,6 +678,7 @@ Content that would fail parsing`;
           "kilo",
           "kiro",
           "opencode",
+          "replit",
           "roo",
         ]),
       );
