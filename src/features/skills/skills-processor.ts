@@ -17,6 +17,7 @@ import { GeminiCliSkill } from "./geminicli-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
+import { ReplitSkill } from "./replit-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
@@ -66,6 +67,7 @@ const skillsProcessorToolTargetTuple = [
   "kilo",
   "kiro",
   "opencode",
+  "replit",
   "roo",
 ] as const;
 
@@ -154,6 +156,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     {
       class: OpenCodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "replit",
+    {
+      class: ReplitSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [

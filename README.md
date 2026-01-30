@@ -149,7 +149,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | AugmentCode        |  ✅   |   ✅   |          |          |           |        |
 | Windsurf           |  ✅   |   ✅   |          |          |           |        |
 | Warp               |  ✅   |        |          |          |           |        |
-| Replit             |  ✅   |        |          |          |           |        |
+| Replit             |  ✅   |        |          |          |           |   ✅   |
 | Zed                |       |   ✅   |          |          |           |        |
 
 - ✅: Supports project mode
