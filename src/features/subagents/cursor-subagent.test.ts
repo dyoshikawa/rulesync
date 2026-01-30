@@ -52,6 +52,13 @@ Body content`;
         relativeDirPath: ".cursor/agents",
       });
     });
+
+    it("should return correct paths for global mode", () => {
+      const paths = CursorSubagent.getSettablePaths({ global: true });
+      expect(paths).toEqual({
+        relativeDirPath: ".cursor/agents",
+      });
+    });
   });
 
   describe("constructor", () => {

@@ -30,10 +30,9 @@ describe("CursorSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".cursor", "skills"));
     });
 
-    it("should throw error when global is true", () => {
-      expect(() => CursorSkill.getSettablePaths({ global: true })).toThrow(
-        "CursorSkill does not support global mode.",
-      );
+    it("should return .cursor/skills as relativeDirPath for global mode", () => {
+      const paths = CursorSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".cursor", "skills"));
     });
   });
 
