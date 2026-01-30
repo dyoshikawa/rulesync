@@ -68,10 +68,11 @@ export class CursorSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    if (options?.global) {
-      throw new Error("CursorSkill does not support global mode.");
-    }
+  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+    // Cursor skills use the same relative path for both project and global modes
+    // The actual location differs based on baseDir:
+    // - Project mode: {process.cwd()}/.cursor/skills/
+    // - Global mode: {getHomeDirectory()}/.cursor/skills/
     return {
       relativeDirPath: join(".cursor", "skills"),
     };

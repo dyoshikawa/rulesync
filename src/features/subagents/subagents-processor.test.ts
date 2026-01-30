@@ -866,23 +866,21 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode and opencode as global-supported targets", () => {
+    it("should return claudecode, cursor, and opencode as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
-      expect(toolTargets).toEqual(["claudecode", "claudecode-legacy", "opencode"]);
+      expect(toolTargets).toEqual(["claudecode", "claudecode-legacy", "cursor", "opencode"]);
     });
 
     it("should not include simulated targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(toolTargets).not.toContain("copilot");
-      expect(toolTargets).not.toContain("cursor");
       expect(toolTargets).not.toContain("codexcli");
       expect(toolTargets).not.toContain("agentsmd");
       expect(toolTargets).not.toContain("geminicli");
       expect(toolTargets).not.toContain("roo");
-      expect(toolTargets).not.toContain("copilot");
     });
 
     it("should be callable without instance", () => {
