@@ -2,6 +2,7 @@ import type { ToolTarget } from "../types/tool-targets.js";
 
 import { Config } from "../config/config.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
@@ -16,6 +17,7 @@ export type ImportResult = {
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
+  hooksCount: number;
 };
 
 /**
@@ -33,6 +35,7 @@ export async function importFromTool(params: {
   const commandsCount = await importCommandsCore({ config, tool });
   const subagentsCount = await importSubagentsCore({ config, tool });
   const skillsCount = await importSkillsCore({ config, tool });
+  const hooksCount = await importHooksCore({ config, tool });
 
   return {
     rulesCount,
@@ -41,6 +44,7 @@ export async function importFromTool(params: {
     commandsCount,
     subagentsCount,
     skillsCount,
+    hooksCount,
   };
 }
 
@@ -258,6 +262,41 @@ async function importSkillsCore(params: { config: Config; tool: ToolTarget }): P
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} skill directories`);
+  }
+
+  return writtenCount;
+}
+
+async function importHooksCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
+  const { config, tool } = params;
+
+  if (!config.getFeatures().includes("hooks")) {
+    return 0;
+  }
+
+  const global = config.getGlobal();
+  const supportedTargets = HooksProcessor.getToolTargets({ global });
+
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const hooksProcessor = new HooksProcessor({
+    baseDir: config.getBaseDirs()[0] ?? ".",
+    toolTarget: tool,
+    global,
+  });
+
+  const toolFiles = await hooksProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return 0;
+  }
+
+  const rulesyncFiles = await hooksProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const writtenCount = await hooksProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} hooks file(s)`);
   }
 
   return writtenCount;
