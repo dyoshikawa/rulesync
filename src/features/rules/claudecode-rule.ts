@@ -22,7 +22,7 @@ import {
  * @see https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
  */
 export const ClaudecodeRuleFrontmatterSchema = z.object({
-  paths: z.optional(z.string()),
+  paths: z.optional(z.array(z.string())),
 });
 
 export type ClaudecodeRuleFrontmatter = z.infer<typeof ClaudecodeRuleFrontmatterSchema>;
@@ -199,7 +199,7 @@ export class ClaudecodeRule extends ToolRule {
     // claudecode.paths takes precedence over globs
     const claudecodePaths = rulesyncFrontmatter.claudecode?.paths;
     const globs = rulesyncFrontmatter.globs;
-    const pathsValue = claudecodePaths ?? (globs?.length ? globs.join(", ") : undefined);
+    const pathsValue = claudecodePaths ?? (globs?.length ? globs : undefined);
 
     const claudecodeFrontmatter: ClaudecodeRuleFrontmatter = {
       paths: root ? undefined : pathsValue,
