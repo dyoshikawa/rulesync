@@ -11,6 +11,7 @@ export const ALL_TOOL_TARGETS = [
   "codexcli",
   "copilot",
   "cursor",
+  "factory",
   "geminicli",
   "junie",
   "kilo",

@@ -12,6 +12,7 @@ import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { FactoryMcp } from "./factory-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
@@ -39,6 +40,7 @@ const mcpProcessorToolTargetTuple = [
   "codexcli",
   "copilot",
   "cursor",
+  "factory",
   "geminicli",
   "kilo",
   "kiro",
@@ -120,6 +122,13 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     {
       class: CursorMcp,
       meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+    },
+  ],
+  [
+    "factory",
+    {
+      class: FactoryMcp,
+      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
     },
   ],
   [
