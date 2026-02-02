@@ -53,6 +53,7 @@
           "subagents",
           "commands",
           "skills",
+          "hooks",
           "*"
         ]
       }
