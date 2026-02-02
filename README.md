@@ -130,27 +130,27 @@ npx rulesync generate --targets "*" --features "*"
 
 Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
-| Tool               | rules | ignore |   mcp    | commands | subagents | skills |
-| ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: |
-| AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |
-| Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     | ✅ 🌏  |
-| Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |
-| GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |
-| Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |
-| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |
-| Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |
-| Qwen Code          |  ✅   |   ✅   |          |          |           |        |
-| Kiro               |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |
-| Google Antigravity |  ✅   |        |          |    ✅    |           | ✅ 🌏  |
-| JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |
-| AugmentCode        |  ✅   |   ✅   |          |          |           |        |
-| Windsurf           |  ✅   |   ✅   |          |          |           |        |
-| Warp               |  ✅   |        |          |          |           |        |
-| Replit             |  ✅   |        |          |          |           |   ✅   |
-| Zed                |       |   ✅   |          |          |           |        |
+| Tool               | rules | ignore |   mcp    | commands | subagents | skills | hooks |
+| ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: |
+| AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |
+| Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     | ✅ 🌏  |       |
+| Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |       |
+| GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |       |
+| Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
+| Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |       |
+| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
+| Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |
+| Qwen Code          |  ✅   |   ✅   |          |          |           |        |       |
+| Kiro               |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |
+| Google Antigravity |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |
+| JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |       |
+| AugmentCode        |  ✅   |   ✅   |          |          |           |        |       |
+| Windsurf           |  ✅   |   ✅   |          |          |           |        |       |
+| Warp               |  ✅   |        |          |          |           |        |       |
+| Replit             |  ✅   |        |          |          |           |   ✅   |       |
+| Zed                |       |   ✅   |          |          |           |        |       |
 
 - ✅: Supports project mode
 - 🌏: Supports global mode
