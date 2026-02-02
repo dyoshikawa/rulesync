@@ -10,6 +10,7 @@ import {
   CLAUDE_TO_CURSOR_EVENT_NAMES,
   CURSOR_TO_CLAUDE_EVENT_NAMES,
 } from "../../types/hooks.js";
+import { formatError } from "../../utils/error.js";
 import { readOrInitializeFileContent } from "../../utils/file.js";
 import {
   ToolHooks,
@@ -76,7 +77,18 @@ type ClaudeMatcherEntry = {
 };
 
 function isClaudeMatcherEntry(x: unknown): x is ClaudeMatcherEntry {
-  return x !== null && typeof x === "object";
+  if (x === null || typeof x !== "object") {
+    return false;
+  }
+  // Validate optional 'matcher' property: must be string if present
+  if ("matcher" in x && typeof x.matcher !== "string") {
+    return false;
+  }
+  // Validate optional 'hooks' property: must be array if present
+  if ("hooks" in x && !Array.isArray(x.hooks)) {
+    return false;
+  }
+  return true;
 }
 
 function claudeHooksToCanonical(claudeHooks: unknown): HooksConfig["hooks"] {
@@ -119,16 +131,11 @@ function claudeHooksToCanonical(claudeHooks: unknown): HooksConfig["hooks"] {
   return canonical;
 }
 
-export type ClaudecodeHooksConstructorParams = AiFileParams & {
-  rulesyncHooks?: RulesyncHooks;
-};
-
 export class ClaudecodeHooks extends ToolHooks {
-  constructor(params: ClaudecodeHooksConstructorParams) {
-    const { rulesyncHooks: _r, ...rest } = params;
+  constructor(params: AiFileParams) {
     super({
-      ...rest,
-      fileContent: rest.fileContent ?? "{}",
+      ...params,
+      fileContent: params.fileContent ?? "{}",
     });
   }
 
@@ -136,10 +143,9 @@ export class ClaudecodeHooks extends ToolHooks {
     return false;
   }
 
-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolHooksSettablePaths {
-    if (global) {
-      return { relativeDirPath: ".claude", relativeFilePath: "settings.json" };
-    }
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+    // Currently, both global and project mode use the same paths.
+    // The parameter is kept for consistency with other ToolHooks implementations.
     return { relativeDirPath: ".claude", relativeFilePath: "settings.json" };
   }
 
@@ -175,7 +181,15 @@ export class ClaudecodeHooks extends ToolHooks {
       filePath,
       JSON.stringify({}, null, 2),
     );
-    const settings: Record<string, unknown> = JSON.parse(existingContent);
+    let settings: Record<string, unknown>;
+    try {
+      settings = JSON.parse(existingContent);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse existing Claude settings at ${filePath}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
     const config = rulesyncHooks.getJson();
     const claudeHooks = canonicalToClaudeHooks(config);
     const merged = { ...settings, hooks: claudeHooks };
@@ -186,7 +200,6 @@ export class ClaudecodeHooks extends ToolHooks {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
-      rulesyncHooks,
     });
   }
 
