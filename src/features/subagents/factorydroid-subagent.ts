@@ -10,31 +10,31 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export class FactorySubagent extends SimulatedSubagent {
+export class FactorydroidSubagent extends SimulatedSubagent {
   static getSettablePaths(_options?: { global?: boolean }): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".factory", "droids"),
+      relativeDirPath: join(".factorydroid", "droids"),
     };
   }
 
-  static async fromFile(params: ToolSubagentFromFileParams): Promise<FactorySubagent> {
+  static async fromFile(params: ToolSubagentFromFileParams): Promise<FactorydroidSubagent> {
     const baseParams = await this.fromFileDefault(params);
-    return new FactorySubagent(baseParams);
+    return new FactorydroidSubagent(baseParams);
   }
 
   static fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const baseParams = this.fromRulesyncSubagentDefault(params);
-    return new FactorySubagent(baseParams);
+    return new FactorydroidSubagent(baseParams);
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     return this.isTargetedByRulesyncSubagentDefault({
       rulesyncSubagent,
-      toolTarget: "factory",
+      toolTarget: "factorydroid",
     });
   }
 
-  static forDeletion(params: ToolSubagentForDeletionParams): FactorySubagent {
-    return new FactorySubagent(this.forDeletionDefault(params));
+  static forDeletion(params: ToolSubagentForDeletionParams): FactorydroidSubagent {
+    return new FactorydroidSubagent(this.forDeletionDefault(params));
   }
 }

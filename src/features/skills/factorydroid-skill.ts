@@ -12,37 +12,37 @@ import {
 /**
  * Represents a simulated skill for Factory Droid.
  * Since Factory Droid uses AGENTS.md format, this provides
- * a compatible skill directory format at .agents/skills/.
+ * a compatible skill directory format at .factorydroid/skills/.
  */
-export class FactorySkill extends SimulatedSkill {
+export class FactorydroidSkill extends SimulatedSkill {
   static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
     return {
-      relativeDirPath: join(".factory", "skills"),
+      relativeDirPath: join(".factorydroid", "skills"),
     };
   }
 
-  static async fromDir(params: ToolSkillFromDirParams): Promise<FactorySkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<FactorydroidSkill> {
     const baseParams = await this.fromDirDefault(params);
-    return new FactorySkill(baseParams);
+    return new FactorydroidSkill(baseParams);
   }
 
-  static fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): FactorySkill {
+  static fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): FactorydroidSkill {
     const baseParams: SimulatedSkillParams = {
       ...this.fromRulesyncSkillDefault(params),
       relativeDirPath: this.getSettablePaths().relativeDirPath,
     };
-    return new FactorySkill(baseParams);
+    return new FactorydroidSkill(baseParams);
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     return this.isTargetedByRulesyncSkillDefault({
       rulesyncSkill,
-      toolTarget: "factory",
+      toolTarget: "factorydroid",
     });
   }
 
-  static forDeletion(params: ToolSkillForDeletionParams): FactorySkill {
+  static forDeletion(params: ToolSkillForDeletionParams): FactorydroidSkill {
     const baseParams = this.forDeletionDefault(params);
-    return new FactorySkill(baseParams);
+    return new FactorydroidSkill(baseParams);
   }
 }

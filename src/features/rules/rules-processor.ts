@@ -17,15 +17,15 @@ import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
-import { FactoryCommand } from "../commands/factory-command.js";
+import { FactorydroidCommand } from "../commands/factorydroid-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
-import { FactorySkill } from "../skills/factory-skill.js";
+import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
 import { GeminiCliSkill } from "../skills/geminicli-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { CodexCliSubagent } from "../subagents/codexcli-subagent.js";
-import { FactorySubagent } from "../subagents/factory-subagent.js";
+import { FactorydroidSubagent } from "../subagents/factorydroid-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
@@ -39,7 +39,7 @@ import { ClineRule } from "./cline-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
-import { FactoryRule } from "./factory-rule.js";
+import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
@@ -71,7 +71,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "codexcli",
   "copilot",
   "cursor",
-  "factory",
+  "factorydroid",
   "geminicli",
   "junie",
   "kilo",
@@ -265,17 +265,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     },
   ],
   [
-    "factory",
+    "factorydroid",
     {
-      class: FactoryRule,
+      class: FactorydroidRule,
       meta: {
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         additionalConventions: {
-          commands: { commandClass: FactoryCommand },
-          subagents: { subagentClass: FactorySubagent },
-          skills: { skillClass: FactorySkill },
+          commands: { commandClass: FactorydroidCommand },
+          subagents: { subagentClass: FactorydroidSubagent },
+          skills: { skillClass: FactorydroidSkill },
         },
       },
     },

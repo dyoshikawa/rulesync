@@ -12,9 +12,9 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export type FactoryMcpParams = ToolMcpParams;
+export type FactorydroidMcpParams = ToolMcpParams;
 
-export class FactoryMcp extends ToolMcp {
+export class FactorydroidMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
@@ -28,7 +28,7 @@ export class FactoryMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".factory",
+      relativeDirPath: ".factorydroid",
       relativeFilePath: "mcp.json",
     };
   }
@@ -36,7 +36,7 @@ export class FactoryMcp extends ToolMcp {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
-  }: ToolMcpFromFileParams): Promise<FactoryMcp> {
+  }: ToolMcpFromFileParams): Promise<FactorydroidMcp> {
     const fileContent = await readFileContent(
       join(
         baseDir,
@@ -45,7 +45,7 @@ export class FactoryMcp extends ToolMcp {
       ),
     );
 
-    return new FactoryMcp({
+    return new FactorydroidMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -58,17 +58,17 @@ export class FactoryMcp extends ToolMcp {
     baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): FactoryMcp {
+  }: ToolMcpFromRulesyncMcpParams): FactorydroidMcp {
     const json = rulesyncMcp.getJson();
 
-    // Factory uses standard MCP format without transformations
-    const factoryConfig = {
+    // Factory Droid uses standard MCP format without transformations
+    const factorydroidConfig = {
       mcpServers: json.mcpServers || {},
     };
 
-    const fileContent = JSON.stringify(factoryConfig, null, 2);
+    const fileContent = JSON.stringify(factorydroidConfig, null, 2);
 
-    return new FactoryMcp({
+    return new FactorydroidMcp({
       baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -95,8 +95,8 @@ export class FactoryMcp extends ToolMcp {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolMcpForDeletionParams): FactoryMcp {
-    return new FactoryMcp({
+  }: ToolMcpForDeletionParams): FactorydroidMcp {
+    return new FactorydroidMcp({
       baseDir,
       relativeDirPath,
       relativeFilePath,

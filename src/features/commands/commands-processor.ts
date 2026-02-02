@@ -16,7 +16,7 @@ import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
-import { FactoryCommand } from "./factory-command.js";
+import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCommand } from "./kiro-command.js";
@@ -68,7 +68,7 @@ const commandsProcessorToolTargetTuple = [
   "codexcli",
   "copilot",
   "cursor",
-  "factory",
+  "factorydroid",
   "geminicli",
   "kilo",
   "kiro",
@@ -148,9 +148,9 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     },
   ],
   [
-    "factory",
+    "factorydroid",
     {
-      class: FactoryCommand,
+      class: FactorydroidCommand,
       meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: true },
     },
   ],

@@ -866,7 +866,7 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, cursor, factory, and opencode as global-supported targets", () => {
+    it("should return claudecode, cursor, factorydroid, and opencode as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
@@ -874,7 +874,7 @@ Second global content`;
         "claudecode",
         "claudecode-legacy",
         "cursor",
-        "factory",
+        "factorydroid",
         "opencode",
       ]);
     });
@@ -911,7 +911,7 @@ Second global content`;
           "codexcli",
           "copilot",
           "cursor",
-          "factory",
+          "factorydroid",
           "geminicli",
           "kiro",
           "opencode",
@@ -923,7 +923,7 @@ Second global content`;
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
       expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
-        new Set(["agentsmd", "codexcli", "factory", "geminicli", "roo"]),
+        new Set(["agentsmd", "codexcli", "factorydroid", "geminicli", "roo"]),
       );
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });

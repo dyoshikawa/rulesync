@@ -11,11 +11,11 @@ import {
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
 
-export type FactoryRuleParams = AiFileParams & {
+export type FactorydroidRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-export type FactoryRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+export type FactorydroidRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
@@ -25,8 +25,8 @@ export type FactoryRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   };
 };
 
-export class FactoryRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: FactoryRuleParams) {
+export class FactorydroidRule extends ToolRule {
+  constructor({ fileContent, root, ...rest }: FactorydroidRuleParams) {
     super({
       ...rest,
       fileContent,
@@ -34,25 +34,25 @@ export class FactoryRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(options?: { global?: boolean }): FactoryRuleSettablePaths {
+  static getSettablePaths(options?: { global?: boolean }): FactorydroidRuleSettablePaths {
     if (options?.global) {
       return {
         root: {
-          relativeDirPath: ".factory",
+          relativeDirPath: ".factorydroid",
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: join(".factory", "memories"),
+          relativeDirPath: join(".factorydroid", "memories"),
         },
       };
     }
     return {
       root: {
-        relativeDirPath: ".factory",
+        relativeDirPath: ".factorydroid",
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: join(".factory", "memories"),
+        relativeDirPath: join(".factorydroid", "memories"),
       },
     };
   }
@@ -62,15 +62,15 @@ export class FactoryRule extends ToolRule {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolRuleFromFileParams): Promise<FactoryRule> {
+  }: ToolRuleFromFileParams): Promise<FactorydroidRule> {
     const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === "AGENTS.md";
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
     const relativePath = isRoot
       ? join(paths.root.relativeDirPath, "AGENTS.md")
       : join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
-    return new FactoryRule({
+    return new FactorydroidRule({
       baseDir,
       relativeDirPath: isRoot
         ? this.getSettablePaths().root.relativeDirPath
@@ -87,12 +87,12 @@ export class FactoryRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
     global = false,
-  }: ToolRuleForDeletionParams): FactoryRule {
+  }: ToolRuleForDeletionParams): FactorydroidRule {
     const paths = this.getSettablePaths({ global });
     const isRoot =
       relativeFilePath === "AGENTS.md" && relativeDirPath === paths.root.relativeDirPath;
 
-    return new FactoryRule({
+    return new FactorydroidRule({
       baseDir,
       relativeDirPath,
       relativeFilePath,
@@ -107,9 +107,9 @@ export class FactoryRule extends ToolRule {
     rulesyncRule,
     validate = true,
     global = false,
-  }: ToolRuleFromRulesyncRuleParams): FactoryRule {
+  }: ToolRuleFromRulesyncRuleParams): FactorydroidRule {
     const paths = this.getSettablePaths({ global });
-    return new FactoryRule(
+    return new FactorydroidRule(
       this.buildToolRuleParamsAgentsmd({
         baseDir,
         rulesyncRule,
@@ -131,7 +131,7 @@ export class FactoryRule extends ToolRule {
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     return this.isTargetedByRulesyncRuleDefault({
       rulesyncRule,
-      toolTarget: "factory",
+      toolTarget: "factorydroid",
     });
   }
 }

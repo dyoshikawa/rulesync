@@ -667,7 +667,7 @@ Content that would fail parsing`;
         "claudecode",
         "claudecode-legacy",
         "codexcli",
-        "factory",
+        "factorydroid",
         "geminicli",
         "kilo",
       ]);

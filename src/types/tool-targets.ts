@@ -11,7 +11,7 @@ export const ALL_TOOL_TARGETS = [
   "codexcli",
   "copilot",
   "cursor",
-  "factory",
+  "factorydroid",
   "geminicli",
   "junie",
   "kilo",

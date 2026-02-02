@@ -12,10 +12,10 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-export class FactoryCommand extends SimulatedCommand {
+export class FactorydroidCommand extends SimulatedCommand {
   static getSettablePaths(_options?: { global?: boolean }): ToolCommandSettablePaths {
     return {
-      relativeDirPath: join(".factory", "commands"),
+      relativeDirPath: join(".factorydroid", "commands"),
     };
   }
 
@@ -24,8 +24,8 @@ export class FactoryCommand extends SimulatedCommand {
     rulesyncCommand,
     validate = true,
     global = false,
-  }: ToolCommandFromRulesyncCommandParams): FactoryCommand {
-    return new FactoryCommand(
+  }: ToolCommandFromRulesyncCommandParams): FactorydroidCommand {
+    return new FactorydroidCommand(
       this.fromRulesyncCommandDefault({ baseDir, rulesyncCommand, validate, global }),
     );
   }
@@ -35,8 +35,8 @@ export class FactoryCommand extends SimulatedCommand {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolCommandFromFileParams): Promise<FactoryCommand> {
-    const paths = FactoryCommand.getSettablePaths({ global });
+  }: ToolCommandFromFileParams): Promise<FactorydroidCommand> {
+    const paths = FactorydroidCommand.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent);
@@ -46,7 +46,7 @@ export class FactoryCommand extends SimulatedCommand {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new FactoryCommand({
+    return new FactorydroidCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
@@ -59,7 +59,7 @@ export class FactoryCommand extends SimulatedCommand {
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
-      toolTarget: "factory",
+      toolTarget: "factorydroid",
     });
   }
 
@@ -67,8 +67,8 @@ export class FactoryCommand extends SimulatedCommand {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolCommandForDeletionParams): FactoryCommand {
-    return new FactoryCommand(
+  }: ToolCommandForDeletionParams): FactorydroidCommand {
+    return new FactorydroidCommand(
       this.forDeletionDefault({ baseDir, relativeDirPath, relativeFilePath }),
     );
   }

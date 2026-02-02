@@ -22,7 +22,7 @@ describe("tool targets", () => {
         "codexcli",
         "copilot",
         "cursor",
-        "factory",
+        "factorydroid",
         "geminicli",
         "junie",
         "kilo",
