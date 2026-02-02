@@ -66,7 +66,7 @@ export class FactorydroidRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
     const relativePath = isRoot
-      ? join(paths.root.relativeDirPath, "AGENTS.md")
+      ? join(paths.root.relativeDirPath, paths.root.relativeFilePath)
       : join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
@@ -75,7 +75,7 @@ export class FactorydroidRule extends ToolRule {
       relativeDirPath: isRoot
         ? this.getSettablePaths().root.relativeDirPath
         : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
+      relativeFilePath: isRoot ? paths.root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
