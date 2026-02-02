@@ -204,7 +204,14 @@ export class ClaudecodeHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    const settings: { hooks?: unknown } = JSON.parse(this.getFileContent());
+    let settings: { hooks?: unknown };
+    try {
+      settings = JSON.parse(this.getFileContent());
+    } catch (error) {
+      throw new Error(`Failed to parse Claude hooks content: ${formatError(error)}`, {
+        cause: error,
+      });
+    }
     const hooks = claudeHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify({ version: 1, hooks }, null, 2),

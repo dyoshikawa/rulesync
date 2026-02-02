@@ -142,6 +142,28 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.Notification[0].matcher).toBe("permission_prompt");
     });
 
+    it("should throw error with descriptive message when existing settings.json contains invalid JSON", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), "invalid json {");
+
+      const config = { version: 1, hooks: {} };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      await expect(
+        ClaudecodeHooks.fromRulesyncHooks({
+          baseDir: testDir,
+          rulesyncHooks,
+          validate: false,
+        }),
+      ).rejects.toThrow(/Failed to parse existing Claude settings/);
+    });
+
     it("should merge rulesync hooks into existing .claude/settings.json content", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(
@@ -176,6 +198,20 @@ describe("ClaudecodeHooks", () => {
   });
 
   describe("toRulesyncHooks", () => {
+    it("should throw error with descriptive message when content contains invalid JSON", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: "invalid json {",
+        validate: false,
+      });
+
+      expect(() => claudecodeHooks.toRulesyncHooks()).toThrow(
+        /Failed to parse Claude hooks content/,
+      );
+    });
+
     it("should convert Claude PascalCase hooks to canonical camelCase", () => {
       const claudecodeHooks = new ClaudecodeHooks({
         baseDir: testDir,
