@@ -43,6 +43,13 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Cursor
   "**/.cursor/",
   "**/.cursorignore",
+  // Factory Droid
+  "**/.factorydroid/AGENTS.md",
+  "**/.factorydroid/memories/",
+  "**/.factorydroid/commands/",
+  "**/.factorydroid/droids/",
+  "**/.factorydroid/skills/",
+  "**/.factorydroid/mcp.json",
   // Gemini
   "**/GEMINI.md",
   "**/.gemini/memories/",

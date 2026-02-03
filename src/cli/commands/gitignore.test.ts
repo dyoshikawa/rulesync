@@ -217,6 +217,12 @@ dist/`;
 **/.codex/subagents/
 **/.cursor/
 **/.cursorignore
+**/.factorydroid/AGENTS.md
+**/.factorydroid/memories/
+**/.factorydroid/commands/
+**/.factorydroid/droids/
+**/.factorydroid/skills/
+**/.factorydroid/mcp.json
 **/GEMINI.md
 **/.gemini/memories/
 **/.gemini/commands/

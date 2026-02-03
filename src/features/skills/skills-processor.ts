@@ -13,6 +13,7 @@ import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
+import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
@@ -63,6 +64,7 @@ const skillsProcessorToolTargetTuple = [
   "codexcli",
   "copilot",
   "cursor",
+  "factorydroid",
   "geminicli",
   "kilo",
   "kiro",
@@ -128,6 +130,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     {
       class: CursorSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "factorydroid",
+    {
+      class: FactorydroidSkill,
+      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: true },
     },
   ],
   [
