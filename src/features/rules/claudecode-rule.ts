@@ -240,8 +240,8 @@ export class ClaudecodeRule extends ToolRule {
     if (this.isRoot()) {
       globs = ["**/*"];
     } else if (this.frontmatter.paths) {
-      // Split comma-separated glob patterns
-      globs = this.frontmatter.paths.split(",").map((g) => g.trim());
+      // paths is already an array
+      globs = this.frontmatter.paths;
     }
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
