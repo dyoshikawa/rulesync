@@ -31,8 +31,8 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   claudecode: z.optional(
     z.object({
       // Glob patterns for conditional rules (takes precedence over globs)
-      // @example "src/**/*.ts, tests/**/*.test.ts"
-      paths: z.optional(z.string()),
+      // @example ["src/**/*.ts", "tests/**/*.test.ts"]
+      paths: z.optional(z.array(z.string())),
     }),
   ),
   cursor: z.optional(

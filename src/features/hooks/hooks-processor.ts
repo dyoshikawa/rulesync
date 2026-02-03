@@ -1,0 +1,192 @@
+import { z } from "zod/mini";
+
+import type { RulesyncFile } from "../../types/rulesync-file.js";
+import type { ToolFile } from "../../types/tool-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import type { ToolHooksForDeletionParams, ToolHooksFromRulesyncHooksParams } from "./tool-hooks.js";
+
+import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import { FeatureProcessor } from "../../types/feature-processor.js";
+import { CLAUDE_HOOK_EVENTS, CURSOR_HOOK_EVENTS } from "../../types/hooks.js";
+import { formatError } from "../../utils/error.js";
+import { logger } from "../../utils/logger.js";
+import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CursorHooks } from "./cursor-hooks.js";
+import { RulesyncHooks } from "./rulesync-hooks.js";
+import { ToolHooks } from "./tool-hooks.js";
+
+const hooksProcessorToolTargetTuple = ["cursor", "claudecode"] as const;
+
+export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
+
+export const HooksProcessorToolTargetSchema = z.enum(hooksProcessorToolTargetTuple);
+
+type ToolHooksFactory = {
+  class: {
+    fromRulesyncHooks(
+      params: ToolHooksFromRulesyncHooksParams & { global?: boolean },
+    ): ToolHooks | Promise<ToolHooks>;
+    forDeletion(params: ToolHooksForDeletionParams): ToolHooks;
+    getSettablePaths(options?: { global?: boolean }): {
+      relativeDirPath: string;
+      relativeFilePath: string;
+    };
+    isDeletable?: (instance: ToolHooks) => boolean;
+  };
+  meta: { supportsProject: boolean; supportsGlobal: boolean };
+};
+
+const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
+  [
+    "cursor",
+    {
+      class: CursorHooks,
+      meta: { supportsProject: true, supportsGlobal: false },
+    },
+  ],
+  [
+    "claudecode",
+    {
+      class: ClaudecodeHooks,
+      meta: { supportsProject: true, supportsGlobal: true },
+    },
+  ],
+]);
+
+const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.keys()];
+const hooksProcessorToolTargetsGlobal: ToolTarget[] = [...toolHooksFactories.entries()]
+  .filter(([, f]) => f.meta.supportsGlobal)
+  .map(([t]) => t);
+
+export class HooksProcessor extends FeatureProcessor {
+  private readonly toolTarget: HooksProcessorToolTarget;
+  private readonly global: boolean;
+
+  constructor({
+    baseDir = process.cwd(),
+    toolTarget,
+    global = false,
+  }: {
+    baseDir?: string;
+    toolTarget: ToolTarget;
+    global?: boolean;
+  }) {
+    super({ baseDir });
+    const result = HooksProcessorToolTargetSchema.safeParse(toolTarget);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tool target for HooksProcessor: ${toolTarget}. ${formatError(result.error)}`,
+      );
+    }
+    this.toolTarget = result.data;
+    this.global = global;
+  }
+
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    try {
+      return [
+        await RulesyncHooks.fromFile({
+          baseDir: this.baseDir,
+          validate: true,
+        }),
+      ];
+    } catch (error) {
+      logger.error(`Failed to load Rulesync hooks file: ${formatError(error)}`);
+      return [];
+    }
+  }
+
+  async loadToolFiles({ forDeletion = false }: { forDeletion?: boolean } = {}): Promise<
+    ToolFile[]
+  > {
+    try {
+      const factory = toolHooksFactories.get(this.toolTarget);
+      if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+      const paths = factory.class.getSettablePaths({ global: this.global });
+
+      if (forDeletion) {
+        const toolHooks = factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: paths.relativeFilePath,
+          global: this.global,
+        });
+        const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
+        logger.info(
+          `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
+        );
+        return list;
+      }
+
+      const fromFile =
+        this.toolTarget === "cursor"
+          ? CursorHooks.fromFile({ baseDir: this.baseDir, validate: true })
+          : ClaudecodeHooks.fromFile({
+              baseDir: this.baseDir,
+              validate: true,
+              global: this.global,
+            });
+      const toolHooks = await fromFile;
+      logger.info(`Successfully loaded 1 ${this.toolTarget} hooks file`);
+      return [toolHooks];
+    } catch (error) {
+      const msg = `Failed to load hooks files for tool target: ${this.toolTarget}: ${formatError(error)}`;
+      if (error instanceof Error && error.message.includes("no such file or directory")) {
+        logger.debug(msg);
+      } else {
+        logger.error(msg);
+      }
+      return [];
+    }
+  }
+
+  async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncHooks = rulesyncFiles.find((f): f is RulesyncHooks => f instanceof RulesyncHooks);
+    if (!rulesyncHooks) {
+      throw new Error(`No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} found.`);
+    }
+
+    const config = rulesyncHooks.getJson();
+    const supportedSet = new Set(
+      this.toolTarget === "cursor" ? CURSOR_HOOK_EVENTS : CLAUDE_HOOK_EVENTS,
+    );
+    const configEventNames = new Set<string>([
+      ...Object.keys(config.hooks),
+      ...(this.toolTarget === "cursor"
+        ? Object.keys(config.cursor?.hooks ?? {})
+        : Object.keys(config.claudecode?.hooks ?? {})),
+    ]);
+    const skipped = [...configEventNames].filter((e) => !supportedSet.has(e));
+    if (skipped.length > 0) {
+      logger.warn(
+        `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
+      );
+    }
+
+    const factory = toolHooksFactories.get(this.toolTarget);
+    if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
+    const toolHooks =
+      this.toolTarget === "cursor"
+        ? CursorHooks.fromRulesyncHooks({
+            baseDir: this.baseDir,
+            rulesyncHooks,
+            validate: true,
+          })
+        : await ClaudecodeHooks.fromRulesyncHooks({
+            baseDir: this.baseDir,
+            rulesyncHooks,
+            validate: true,
+            global: this.global,
+          });
+    return [toolHooks];
+  }
+
+  async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
+    const hooks = toolFiles.filter((f): f is ToolHooks => f instanceof ToolHooks);
+    return hooks.map((h) => h.toRulesyncHooks());
+  }
+
+  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
+    return global ? hooksProcessorToolTargetsGlobal : hooksProcessorToolTargets;
+  }
+}

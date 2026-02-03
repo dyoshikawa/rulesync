@@ -130,27 +130,28 @@ npx rulesync generate --targets "*" --features "*"
 
 Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
-| Tool               | rules | ignore |   mcp    | commands | subagents | skills |
-| ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: |
-| AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |
-| Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     | ✅ 🌏  |
-| Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |
-| GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |
-| Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |
-| Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |
-| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |
-| Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |
-| Qwen Code          |  ✅   |   ✅   |          |          |           |        |
-| Kiro               |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |
-| Google Antigravity |  ✅   |        |          |    ✅    |           | ✅ 🌏  |
-| JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |
-| AugmentCode        |  ✅   |   ✅   |          |          |           |        |
-| Windsurf           |  ✅   |   ✅   |          |          |           |        |
-| Warp               |  ✅   |        |          |          |           |        |
-| Replit             |  ✅   |        |          |          |           |   ✅   |
-| Zed                |       |   ✅   |          |          |           |        |
+| Tool               | rules | ignore |   mcp    | commands | subagents | skills | hooks |
+| ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: |
+| AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |
+| Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     | ✅ 🌏  |       |
+| Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |       |
+| GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |       |
+| Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| Factory Droid      | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
+| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
+| Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |       |
+| Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
+| Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |
+| Qwen Code          |  ✅   |   ✅   |          |          |           |        |       |
+| Kiro               |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |
+| Google Antigravity |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |
+| JetBrains Junie    |  ✅   |   ✅   |    ✅    |          |           |        |       |
+| AugmentCode        |  ✅   |   ✅   |          |          |           |        |       |
+| Windsurf           |  ✅   |   ✅   |          |          |           |        |       |
+| Warp               |  ✅   |        |          |          |           |        |       |
+| Replit             |  ✅   |        |          |          |           |   ✅   |       |
+| Zed                |       |   ✅   |          |          |           |        |       |
 
 - ✅: Supports project mode
 - 🌏: Supports global mode
@@ -359,6 +360,43 @@ antigravity: # antigravity specific parameters
 This is Rulesync, a Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.
 
 ...
+```
+
+### `.rulesync/hooks.json`
+
+Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file; Cursor uses them as-is; Claude Code gets PascalCase in `.claude/settings.json`.
+
+**Event support:**
+
+- **Shared (Cursor and Claude):** `sessionStart`, `sessionEnd`, `preToolUse`, `postToolUse`, `beforeSubmitPrompt`, `stop`, `subagentStop`, `preCompact`
+- **Cursor-only:** `postToolUseFailure`, `subagentStart`, `beforeShellExecution`, `afterShellExecution`, `beforeMCPExecution`, `afterMCPExecution`, `beforeReadFile`, `afterFileEdit`, `afterAgentResponse`, `afterAgentThought`, `beforeTabFileRead`, `afterTabFileEdit`
+- **Claude-only:** `permissionRequest`, `notification`, `setup`
+
+Use optional **override keys** so tool-specific events and config live in one file without leaking to the other: `cursor.hooks` for Cursor-only events, `claudecode.hooks` for Claude-only. Events in shared `hooks` that a tool does not support are skipped for that tool (and a warning is logged at generate time).
+
+Example:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [{ "type": "command", "command": ".rulesync/hooks/session-start.sh" }],
+    "postToolUse": [{ "matcher": "Write|Edit", "command": ".rulesync/hooks/format.sh" }],
+    "stop": [{ "command": ".rulesync/hooks/audit.sh" }]
+  },
+  "cursor": {
+    "hooks": {
+      "afterFileEdit": [{ "command": ".cursor/hooks/format.sh" }]
+    }
+  },
+  "claudecode": {
+    "hooks": {
+      "notification": [
+        { "matcher": "permission_prompt", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh" }
+      ]
+    }
+  }
+}
 ```
 
 ### `rulesync/commands/*.md`

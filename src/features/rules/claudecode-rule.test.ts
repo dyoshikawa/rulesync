@@ -43,12 +43,13 @@ describe("ClaudecodeRule (Modular Rules)", () => {
       const claudecodeRule = new ClaudecodeRule({
         relativeDirPath: ".claude/rules",
         relativeFilePath: "typescript-rules.md",
-        frontmatter: { paths: "src/**/*.ts" },
+        frontmatter: { paths: ["src/**/*.ts"] },
         body: "# TypeScript Rules\n\nRules for TypeScript files.",
       });
 
-      expect(claudecodeRule.getFrontmatter().paths).toBe("src/**/*.ts");
-      expect(claudecodeRule.getFileContent()).toContain("paths: src/**/*.ts");
+      expect(claudecodeRule.getFrontmatter().paths).toEqual(["src/**/*.ts"]);
+      expect(claudecodeRule.getFileContent()).toContain("paths:");
+      expect(claudecodeRule.getFileContent()).toContain("- src/**/*.ts");
     });
 
     it("should create instance for root CLAUDE.md file", () => {
@@ -72,7 +73,7 @@ describe("ClaudecodeRule (Modular Rules)", () => {
       const claudecodeRule = new ClaudecodeRule({
         relativeDirPath: ".",
         relativeFilePath: "CLAUDE.md",
-        frontmatter: { paths: "**/*" }, // This should be ignored for root
+        frontmatter: { paths: ["**/*"] }, // This should be ignored for root
         body: "# Root Content",
         root: true,
       });
@@ -142,7 +143,8 @@ describe("ClaudecodeRule (Modular Rules)", () => {
       const rulesDir = join(testDir, ".claude/rules");
       await ensureDir(rulesDir);
       const testContent = `---
-paths: src/**/*.ts
+paths:
+  - src/**/*.ts
 ---
 
 # TypeScript Rules
@@ -157,7 +159,7 @@ Rules for TypeScript files.`;
 
       expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
       expect(claudecodeRule.getRelativeFilePath()).toBe("typescript.md");
-      expect(claudecodeRule.getFrontmatter().paths).toBe("src/**/*.ts");
+      expect(claudecodeRule.getFrontmatter().paths).toEqual(["src/**/*.ts"]);
       expect(claudecodeRule.getBody()).toBe("# TypeScript Rules\n\nRules for TypeScript files.");
       expect(claudecodeRule.isRoot()).toBe(false);
     });
@@ -232,7 +234,7 @@ Rules for TypeScript files.`;
       expect(claudecodeRule).toBeInstanceOf(ClaudecodeRule);
       expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
       expect(claudecodeRule.getRelativeFilePath()).toBe("typescript-rules.md");
-      expect(claudecodeRule.getFrontmatter().paths).toBe("src/**/*.ts, tests/**/*.ts");
+      expect(claudecodeRule.getFrontmatter().paths).toEqual(["src/**/*.ts", "tests/**/*.ts"]);
       expect(claudecodeRule.isRoot()).toBe(false);
     });
 
@@ -244,7 +246,7 @@ Rules for TypeScript files.`;
           root: false,
           targets: ["*"],
           globs: ["src/**/*.ts"],
-          claudecode: { paths: "custom/**/*.{ts,tsx}" },
+          claudecode: { paths: ["custom/**/*.{ts,tsx}"] },
         },
         body: "# Custom Paths Rule",
       });
@@ -253,7 +255,7 @@ Rules for TypeScript files.`;
         rulesyncRule,
       });
 
-      expect(claudecodeRule.getFrontmatter().paths).toBe("custom/**/*.{ts,tsx}");
+      expect(claudecodeRule.getFrontmatter().paths).toEqual(["custom/**/*.{ts,tsx}"]);
     });
 
     it("should not set paths for root rule", () => {
@@ -302,7 +304,7 @@ Rules for TypeScript files.`;
         baseDir: testDir,
         relativeDirPath: ".claude/rules",
         relativeFilePath: "typescript.md",
-        frontmatter: { paths: "src/**/*.ts, tests/**/*.ts" },
+        frontmatter: { paths: ["src/**/*.ts", "tests/**/*.ts"] },
         body: "# TypeScript Convert Test",
         root: false,
       });
@@ -314,7 +316,10 @@ Rules for TypeScript files.`;
       expect(rulesyncRule.getRelativeFilePath()).toBe("typescript.md");
       expect(rulesyncRule.getFrontmatter().root).toBe(false);
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts", "tests/**/*.ts"]);
-      expect(rulesyncRule.getFrontmatter().claudecode?.paths).toBe("src/**/*.ts, tests/**/*.ts");
+      expect(rulesyncRule.getFrontmatter().claudecode?.paths).toEqual([
+        "src/**/*.ts",
+        "tests/**/*.ts",
+      ]);
     });
   });
 
@@ -337,7 +342,7 @@ Rules for TypeScript files.`;
       const claudecodeRule = new ClaudecodeRule({
         relativeDirPath: ".claude/rules",
         relativeFilePath: "test.md",
-        frontmatter: { paths: "src/**/*.ts" },
+        frontmatter: { paths: ["src/**/*.ts"] },
         body: "# Test content",
       });
 
@@ -484,7 +489,7 @@ Rules for TypeScript files.`;
 
     it("should preserve paths through roundtrip conversion", () => {
       const originalBody = "# TypeScript Rules";
-      const originalPaths = "src/**/*.ts, tests/**/*.ts";
+      const originalPaths = ["src/**/*.ts", "tests/**/*.ts"];
 
       const originalRulesync = new RulesyncRule({
         baseDir: testDir,
@@ -506,16 +511,16 @@ Rules for TypeScript files.`;
       const finalRulesync = claudecodeRule.toRulesyncRule();
 
       expect(finalRulesync.getBody()).toBe(originalBody);
-      expect(finalRulesync.getFrontmatter().claudecode?.paths).toBe(originalPaths);
+      expect(finalRulesync.getFrontmatter().claudecode?.paths).toEqual(originalPaths);
     });
   });
 
   describe("edge cases", () => {
-    it("should handle multiple comma-separated paths", () => {
+    it("should handle multiple paths as array", () => {
       const claudecodeRule = new ClaudecodeRule({
         relativeDirPath: ".claude/rules",
         relativeFilePath: "multi-path.md",
-        frontmatter: { paths: "src/**/*.ts, tests/**/*.ts, scripts/**/*.js" },
+        frontmatter: { paths: ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.js"] },
         body: "# Multi-path Rule",
       });
 
@@ -532,7 +537,7 @@ Rules for TypeScript files.`;
       const claudecodeRule = new ClaudecodeRule({
         relativeDirPath: ".claude/rules",
         relativeFilePath: "brace.md",
-        frontmatter: { paths: "src/**/*.{ts,tsx}" },
+        frontmatter: { paths: ["src/**/*.{ts,tsx}"] },
         body: "# Brace Expansion Rule",
       });
 

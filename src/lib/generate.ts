@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Config } from "../config/config.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
@@ -21,6 +22,7 @@ export type GenerateResult = {
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
+  hooksCount: number;
   skills: RulesyncSkill[];
 };
 
@@ -43,6 +45,7 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
   const commandsCount = await generateCommandsCore({ config });
   const subagentsCount = await generateSubagentsCore({ config });
   const skillsResult = await generateSkillsCore({ config });
+  const hooksCount = await generateHooksCore({ config });
   const rulesCount = await generateRulesCore({ config, skills: skillsResult.skills });
 
   return {
@@ -52,6 +55,7 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
     commandsCount,
     subagentsCount,
     skillsCount: skillsResult.count,
+    hooksCount,
     skills: skillsResult.skills,
   };
 }
@@ -310,4 +314,45 @@ async function generateSkillsCore(params: {
   }
 
   return { count: totalCount, skills: allSkills };
+}
+
+async function generateHooksCore(params: { config: Config }): Promise<number> {
+  const { config } = params;
+
+  if (!config.getFeatures().includes("hooks")) {
+    return 0;
+  }
+
+  let totalCount = 0;
+
+  const toolTargets = intersection(
+    config.getTargets(),
+    HooksProcessor.getToolTargets({ global: config.getGlobal() }),
+  );
+
+  for (const baseDir of config.getBaseDirs()) {
+    for (const toolTarget of toolTargets) {
+      const processor = new HooksProcessor({
+        baseDir,
+        toolTarget,
+        global: config.getGlobal(),
+      });
+
+      if (config.getDelete()) {
+        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        await processor.removeAiFiles(oldToolFiles);
+      }
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      if (rulesyncFiles.length === 0) {
+        continue;
+      }
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      const writtenCount = await processor.writeAiFiles(toolFiles);
+      totalCount += writtenCount;
+    }
+  }
+
+  return totalCount;
 }

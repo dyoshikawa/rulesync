@@ -667,6 +667,7 @@ Content that would fail parsing`;
         "claudecode",
         "claudecode-legacy",
         "codexcli",
+        "factorydroid",
         "geminicli",
         "kilo",
       ]);
@@ -694,7 +695,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("kilo");
-      expect(globalTargets.length).toBe(5);
+      expect(globalTargets.length).toBe(6);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

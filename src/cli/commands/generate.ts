@@ -41,6 +41,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   if (features.includes("skills")) {
     logger.info("Generating skill files...");
   }
+  if (features.includes("hooks")) {
+    logger.info("Generating hooks...");
+  }
   if (features.includes("rules")) {
     logger.info("Generating rule files...");
   }
@@ -62,6 +65,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   if (result.skillsCount > 0) {
     logger.success(`Generated ${result.skillsCount} skill(s)`);
   }
+  if (result.hooksCount > 0) {
+    logger.success(`Generated ${result.hooksCount} hooks file(s)`);
+  }
   if (result.rulesCount > 0) {
     logger.success(`Generated ${result.rulesCount} rule(s)`);
   }
@@ -72,7 +78,8 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     result.mcpCount +
     result.commandsCount +
     result.subagentsCount +
-    result.skillsCount;
+    result.skillsCount +
+    result.hooksCount;
 
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");
@@ -87,6 +94,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
+  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
 
   logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
 }

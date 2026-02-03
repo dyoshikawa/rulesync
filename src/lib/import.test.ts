@@ -439,6 +439,7 @@ describe("importFromTool", () => {
       expect(result.commandsCount).toBe(1);
       expect(result.subagentsCount).toBe(1);
       expect(result.skillsCount).toBe(1);
+      expect(result.hooksCount).toBe(0);
     });
 
     it("should return empty result when no features are enabled", async () => {
@@ -452,6 +453,7 @@ describe("importFromTool", () => {
       expect(result.commandsCount).toBe(0);
       expect(result.subagentsCount).toBe(0);
       expect(result.skillsCount).toBe(0);
+      expect(result.hooksCount).toBe(0);
     });
   });
 

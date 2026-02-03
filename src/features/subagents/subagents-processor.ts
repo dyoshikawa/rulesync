@@ -14,6 +14,7 @@ import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
+import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
@@ -61,6 +62,7 @@ const subagentsProcessorToolTargetTuple = [
   "codexcli",
   "copilot",
   "cursor",
+  "factorydroid",
   "geminicli",
   "kiro",
   "opencode",
@@ -117,6 +119,13 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: CursorSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "factorydroid",
+    {
+      class: FactorydroidSubagent,
+      meta: { supportsSimulated: true, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [
