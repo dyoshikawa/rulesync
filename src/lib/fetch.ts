@@ -11,18 +11,16 @@ import type {
 } from "../types/fetch.js";
 
 import {
+  MAX_FILE_SIZE,
   RULESYNC_AIIGNORE_FILE_NAME,
+  RULESYNC_HOOKS_FILE_NAME,
+  RULESYNC_MCP_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { checkPathTraversal, fileExists, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
-
-/**
- * Maximum file size to download (10MB)
- */
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
  * Feature to path mapping for filtering
@@ -33,8 +31,8 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   subagents: ["subagents"],
   skills: ["skills"],
   ignore: [RULESYNC_AIIGNORE_FILE_NAME],
-  mcp: ["mcp.json"],
-  hooks: ["hooks.json"],
+  mcp: [RULESYNC_MCP_FILE_NAME],
+  hooks: [RULESYNC_HOOKS_FILE_NAME],
 };
 
 /**
@@ -190,6 +188,12 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
   const dryRun = options.dryRun ?? false;
   const enabledFeatures = resolveFeatures(options.features);
+
+  // Validate output directory to prevent path traversal attacks
+  checkPathTraversal({
+    relativePath: outputDir,
+    intendedRootDir: baseDir,
+  });
 
   // Initialize GitHub client
   const token = GitHubClient.resolveToken(options.token);

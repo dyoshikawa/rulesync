@@ -567,6 +567,18 @@ describe("fetchFromGitHub", () => {
     ).rejects.toThrow("Path traversal detected");
   });
 
+  it("should reject output directory path traversal attempts", async () => {
+    await expect(
+      fetchFromGitHub({
+        source: "owner/repo",
+        baseDir: testDir,
+        options: {
+          output: "../../outside",
+        },
+      }),
+    ).rejects.toThrow("Path traversal detected");
+  });
+
   it("should reject files exceeding size limit", async () => {
     mockClientInstance.listDirectory.mockImplementation(
       (owner: string, repo: string, path: string) => {

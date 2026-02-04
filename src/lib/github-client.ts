@@ -5,11 +5,11 @@ import type {
   GitHubRepoInfo,
 } from "../types/fetch.js";
 
+import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
 import { GitHubFileEntrySchema, GitHubRepoInfoSchema } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 
 const DEFAULT_BASE_URL = "https://api.github.com";
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
  * Error class for GitHub API errors
@@ -63,7 +63,7 @@ export class GitHubClient {
    * Get repository information
    */
   async getRepoInfo(owner: string, repo: string): Promise<GitHubRepoInfo> {
-    const url = `${this.baseUrl}/repos/${owner}/${repo}`;
+    const url = `${this.baseUrl}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
     const response = await this.fetch(url);
     const data: unknown = await response.json();
     const parsed = GitHubRepoInfoSchema.safeParse(data);
@@ -170,40 +170,6 @@ export class GitHubClient {
   }
 
   /**
-   * Validate that a ref (branch/tag/commit) exists
-   */
-  async validateRef(owner: string, repo: string, ref: string): Promise<boolean> {
-    // Try to get a file list at root with the ref to validate it exists
-    const url = `${this.baseUrl}/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(ref)}`;
-    try {
-      await this.fetch(url);
-      return true;
-    } catch (error) {
-      if (error instanceof GitHubClientError && error.statusCode === 404) {
-        // Try tags
-        const tagUrl = `${this.baseUrl}/repos/${owner}/${repo}/git/ref/tags/${encodeURIComponent(ref)}`;
-        try {
-          await this.fetch(tagUrl);
-          return true;
-        } catch (tagError) {
-          if (tagError instanceof GitHubClientError && tagError.statusCode === 404) {
-            // Try as commit SHA
-            const commitUrl = `${this.baseUrl}/repos/${owner}/${repo}/commits/${encodeURIComponent(ref)}`;
-            try {
-              await this.fetch(commitUrl);
-              return true;
-            } catch {
-              return false;
-            }
-          }
-          throw tagError;
-        }
-      }
-      throw error;
-    }
-  }
-
-  /**
    * Build a contents API URL with proper path encoding
    */
   private buildContentsUrl(owner: string, repo: string, path: string, ref?: string): string {
@@ -211,7 +177,7 @@ export class GitHubClient {
       .split("/")
       .map((segment) => encodeURIComponent(segment))
       .join("/");
-    let url = `${this.baseUrl}/repos/${owner}/${repo}/contents/${encodedPath}`;
+    let url = `${this.baseUrl}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`;
     if (ref) {
       url += `?ref=${encodeURIComponent(ref)}`;
     }
