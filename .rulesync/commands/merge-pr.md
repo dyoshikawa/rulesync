@@ -49,7 +49,26 @@ Check:
 
 If the PR is not open or not mergeable, inform the user and stop.
 
-## Step 3: Merge the PR
+## Step 3: Check GitHub Actions Workflow Status
+
+Verify that all CI checks have passed before merging:
+
+```bash
+gh pr checks <pr_number>
+```
+
+Check:
+
+1. All workflow checks show `pass` status
+2. No checks are `pending` or `fail`
+
+If any checks have failed or are still running, inform the user and ask whether to:
+
+- Wait for pending checks to complete
+- Investigate failed checks before merging
+- Proceed with merge anyway (using `--admin` will bypass required checks)
+
+## Step 4: Merge the PR
 
 Execute the merge command:
 
@@ -59,14 +78,14 @@ gh pr merge <pr_number> --admin --merge
 
 **Important**: Only merge ONE PR at a time. If multiple PRs are somehow specified, ask the user which single PR to merge.
 
-## Step 4: Report Result
+## Step 5: Report Result
 
 After merging:
 
 1. Confirm the PR was successfully merged
 2. Display the merged PR number and title
 
-## Step 5: Clean Up Local Branch
+## Step 6: Clean Up Local Branch
 
 If the local branch exists, please clean up the local branch. Execute:
 
