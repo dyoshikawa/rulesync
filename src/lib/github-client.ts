@@ -60,11 +60,23 @@ export class GitHubClient {
   }
 
   /**
+   * Build a repository API URL
+   */
+  private buildRepoUrl(owner: string, repo: string, ...pathSegments: string[]): URL {
+    const url = new URL(this.baseUrl);
+    url.pathname = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+    for (const segment of pathSegments) {
+      url.pathname += `/${encodeURIComponent(segment)}`;
+    }
+    return url;
+  }
+
+  /**
    * Get repository information
    */
   async getRepoInfo(owner: string, repo: string): Promise<GitHubRepoInfo> {
-    const url = `${this.baseUrl}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
-    const response = await this.fetch(url);
+    const url = this.buildRepoUrl(owner, repo);
+    const response = await this.fetch(url.toString());
     const data: unknown = await response.json();
     const parsed = GitHubRepoInfoSchema.safeParse(data);
     if (!parsed.success) {
@@ -173,15 +185,17 @@ export class GitHubClient {
    * Build a contents API URL with proper path encoding
    */
   private buildContentsUrl(owner: string, repo: string, path: string, ref?: string): string {
+    const url = this.buildRepoUrl(owner, repo, "contents");
+    // Append path segments with proper encoding
     const encodedPath = path
       .split("/")
       .map((segment) => encodeURIComponent(segment))
       .join("/");
-    let url = `${this.baseUrl}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`;
+    url.pathname += `/${encodedPath}`;
     if (ref) {
-      url += `?ref=${encodeURIComponent(ref)}`;
+      url.searchParams.set("ref", ref);
     }
-    return url;
+    return url.toString();
   }
 
   /**
