@@ -1,3 +1,6 @@
+import { RequestError } from "@octokit/request-error";
+import { Octokit } from "@octokit/rest";
+
 import type {
   GitHubApiError,
   GitHubClientConfig,
@@ -8,8 +11,6 @@ import type {
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
 import { GitHubFileEntrySchema, GitHubRepoInfoSchema } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
-
-const DEFAULT_BASE_URL = "https://api.github.com";
 
 /**
  * Error class for GitHub API errors
@@ -26,19 +27,23 @@ export class GitHubClientError extends Error {
 }
 
 /**
- * Client for interacting with GitHub API
+ * Client for interacting with GitHub API using Octokit SDK
  */
 export class GitHubClient {
-  private readonly token?: string;
-  private readonly baseUrl: string;
+  private readonly octokit: Octokit;
+  private readonly hasToken: boolean;
 
   constructor(config: GitHubClientConfig = {}) {
     // Validate custom baseUrl uses HTTPS to prevent token exposure
     if (config.baseUrl && !config.baseUrl.startsWith("https://")) {
       throw new GitHubClientError("GitHub API base URL must use HTTPS");
     }
-    this.token = config.token;
-    this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
+
+    this.hasToken = !!config.token;
+    this.octokit = new Octokit({
+      auth: config.token,
+      baseUrl: config.baseUrl,
+    });
   }
 
   /**
@@ -60,29 +65,21 @@ export class GitHubClient {
   }
 
   /**
-   * Build a repository API URL
-   */
-  private buildRepoUrl(owner: string, repo: string, ...pathSegments: string[]): URL {
-    const url = new URL(this.baseUrl);
-    url.pathname = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
-    for (const segment of pathSegments) {
-      url.pathname += `/${encodeURIComponent(segment)}`;
-    }
-    return url;
-  }
-
-  /**
    * Get repository information
    */
   async getRepoInfo(owner: string, repo: string): Promise<GitHubRepoInfo> {
-    const url = this.buildRepoUrl(owner, repo);
-    const response = await this.fetch(url.toString());
-    const data: unknown = await response.json();
-    const parsed = GitHubRepoInfoSchema.safeParse(data);
-    if (!parsed.success) {
-      throw new GitHubClientError(`Invalid repository info response: ${formatError(parsed.error)}`);
+    try {
+      const { data } = await this.octokit.repos.get({ owner, repo });
+      const parsed = GitHubRepoInfoSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new GitHubClientError(
+          `Invalid repository info response: ${formatError(parsed.error)}`,
+        );
+      }
+      return parsed.data;
+    } catch (error) {
+      throw this.handleError(error);
     }
-    return parsed.data;
   }
 
   /**
@@ -94,37 +91,61 @@ export class GitHubClient {
     path: string,
     ref?: string,
   ): Promise<GitHubFileEntry[]> {
-    const url = this.buildContentsUrl(owner, repo, path, ref);
-    const response = await this.fetch(url);
-    const data: unknown = await response.json();
+    try {
+      const { data } = await this.octokit.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref,
+      });
 
-    // API returns single object for files, array for directories
-    if (!Array.isArray(data)) {
-      throw new GitHubClientError(`Path "${path}" is not a directory`);
-    }
-
-    const entries: GitHubFileEntry[] = [];
-    for (const item of data) {
-      const parsed = GitHubFileEntrySchema.safeParse(item);
-      if (parsed.success) {
-        entries.push(parsed.data);
+      // API returns single object for files, array for directories
+      if (!Array.isArray(data)) {
+        throw new GitHubClientError(`Path "${path}" is not a directory`);
       }
+
+      const entries: GitHubFileEntry[] = [];
+      for (const item of data) {
+        const parsed = GitHubFileEntrySchema.safeParse(item);
+        if (parsed.success) {
+          entries.push(parsed.data);
+        }
+      }
+      return entries;
+    } catch (error) {
+      throw this.handleError(error);
     }
-    return entries;
   }
 
   /**
    * Get raw file content from a repository
    */
   async getFileContent(owner: string, repo: string, path: string, ref?: string): Promise<string> {
-    const url = this.buildContentsUrl(owner, repo, path, ref);
-    const response = await this.fetch(url, {
-      headers: {
-        Accept: "application/vnd.github.raw+json",
-      },
-    });
+    try {
+      const { data } = await this.octokit.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref,
+        mediaType: {
+          format: "raw",
+        },
+      });
 
-    return response.text();
+      // When using raw format, data is returned as a string
+      if (typeof data === "string") {
+        return data;
+      }
+
+      // Fallback: if data is an object with content (base64 encoded)
+      if (!Array.isArray(data) && "content" in data && data.content) {
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      }
+
+      throw new GitHubClientError(`Unexpected response format for file content`);
+    } catch (error) {
+      throw this.handleError(error);
+    }
   }
 
   /**
@@ -136,10 +157,13 @@ export class GitHubClient {
     path: string,
     ref?: string,
   ): Promise<GitHubFileEntry | null> {
-    const url = this.buildContentsUrl(owner, repo, path, ref);
     try {
-      const response = await this.fetch(url);
-      const data: unknown = await response.json();
+      const { data } = await this.octokit.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref,
+      });
 
       // Ensure it's a file, not a directory
       if (Array.isArray(data)) {
@@ -158,11 +182,14 @@ export class GitHubClient {
       }
 
       return parsed.data;
-    } catch (error) {
+    } catch (error: unknown) {
+      if (error instanceof RequestError && error.status === 404) {
+        return null;
+      }
       if (error instanceof GitHubClientError && error.statusCode === 404) {
         return null;
       }
-      throw error;
+      throw this.handleError(error);
     }
   }
 
@@ -182,63 +209,41 @@ export class GitHubClient {
   }
 
   /**
-   * Build a contents API URL with proper path encoding
+   * Handle errors from Octokit and convert to GitHubClientError
    */
-  private buildContentsUrl(owner: string, repo: string, path: string, ref?: string): string {
-    const url = this.buildRepoUrl(owner, repo, "contents");
-    // Append path segments with proper encoding
-    const encodedPath = path
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/");
-    url.pathname += `/${encodedPath}`;
-    if (ref) {
-      url.searchParams.set("ref", ref);
+  private handleError(error: unknown): GitHubClientError {
+    if (error instanceof GitHubClientError) {
+      return error;
     }
-    return url.toString();
+
+    if (error instanceof RequestError) {
+      const responseData = error.response?.data;
+      const message = this.extractErrorMessage(responseData, error.message);
+      const apiError: GitHubApiError | undefined = message ? { message } : undefined;
+      const errorMessage = this.getErrorMessage(error.status, apiError);
+      return new GitHubClientError(errorMessage, error.status, apiError);
+    }
+
+    if (error instanceof Error) {
+      return new GitHubClientError(error.message);
+    }
+
+    return new GitHubClientError("Unknown error occurred");
   }
 
   /**
-   * Internal fetch wrapper with authentication and error handling
+   * Extract error message from response data
    */
-  private async fetch(url: string, options: RequestInit = {}): Promise<Response> {
-    const headers: Record<string, string> = {
-      Accept:
-        options.headers && "Accept" in options.headers
-          ? String(options.headers.Accept)
-          : "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    };
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...headers,
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      let apiError: GitHubApiError | undefined;
-      try {
-        const errorData: unknown = await response.json();
-        if (typeof errorData === "object" && errorData !== null && "message" in errorData) {
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          apiError = errorData as GitHubApiError;
-        }
-      } catch {
-        // Ignore JSON parse errors
+  private extractErrorMessage(data: unknown, fallback: string): string {
+    if (typeof data === "object" && data !== null && "message" in data) {
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      const record = data as Record<string, unknown>;
+      const msg = record["message"];
+      if (typeof msg === "string") {
+        return msg;
       }
-
-      const errorMessage = this.getErrorMessage(response.status, apiError);
-      throw new GitHubClientError(errorMessage, response.status, apiError);
     }
-
-    return response;
+    return fallback;
   }
 
   /**
@@ -252,7 +257,7 @@ export class GitHubClient {
         return `Authentication failed: ${baseMessage}. Check your GitHub token.`;
       case 403:
         if (baseMessage.toLowerCase().includes("rate limit")) {
-          return `GitHub API rate limit exceeded. ${this.token ? "Try again later." : "Consider using a GitHub token."}`;
+          return `GitHub API rate limit exceeded. ${this.hasToken ? "Try again later." : "Consider using a GitHub token."}`;
         }
         return `Access forbidden: ${baseMessage}. Check repository permissions.`;
       case 404:
