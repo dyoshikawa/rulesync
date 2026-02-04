@@ -248,7 +248,7 @@ Example:
   "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
 
   // Features to generate. You can specify "*" to generate all features.
-  "features": ["rules", "ignore", "mcp", "commands", "subagents"],
+  "features": ["rules", "ignore", "mcp", "commands", "subagents", "hooks"],
 
   // Base directories for generation.
   // Basically, you can specify a `["."]` only.
