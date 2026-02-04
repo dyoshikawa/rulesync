@@ -33,6 +33,10 @@ export class GitHubClient {
   private readonly baseUrl: string;
 
   constructor(config: GitHubClientConfig = {}) {
+    // Validate custom baseUrl uses HTTPS to prevent token exposure
+    if (config.baseUrl && !config.baseUrl.startsWith("https://")) {
+      throw new GitHubClientError("GitHub API base URL must use HTTPS");
+    }
     this.token = config.token;
     this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
   }
@@ -78,15 +82,7 @@ export class GitHubClient {
     path: string,
     ref?: string,
   ): Promise<GitHubFileEntry[]> {
-    const encodedPath = path
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/");
-    let url = `${this.baseUrl}/repos/${owner}/${repo}/contents/${encodedPath}`;
-    if (ref) {
-      url += `?ref=${encodeURIComponent(ref)}`;
-    }
-
+    const url = this.buildContentsUrl(owner, repo, path, ref);
     const response = await this.fetch(url);
     const data: unknown = await response.json();
 
@@ -109,15 +105,7 @@ export class GitHubClient {
    * Get raw file content from a repository
    */
   async getFileContent(owner: string, repo: string, path: string, ref?: string): Promise<string> {
-    const encodedPath = path
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/");
-    let url = `${this.baseUrl}/repos/${owner}/${repo}/contents/${encodedPath}`;
-    if (ref) {
-      url += `?ref=${encodeURIComponent(ref)}`;
-    }
-
+    const url = this.buildContentsUrl(owner, repo, path, ref);
     const response = await this.fetch(url, {
       headers: {
         Accept: "application/vnd.github.raw+json",
@@ -136,15 +124,7 @@ export class GitHubClient {
     path: string,
     ref?: string,
   ): Promise<GitHubFileEntry | null> {
-    const encodedPath = path
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/");
-    let url = `${this.baseUrl}/repos/${owner}/${repo}/contents/${encodedPath}`;
-    if (ref) {
-      url += `?ref=${encodeURIComponent(ref)}`;
-    }
-
+    const url = this.buildContentsUrl(owner, repo, path, ref);
     try {
       const response = await this.fetch(url);
       const data: unknown = await response.json();
@@ -221,6 +201,21 @@ export class GitHubClient {
       }
       throw error;
     }
+  }
+
+  /**
+   * Build a contents API URL with proper path encoding
+   */
+  private buildContentsUrl(owner: string, repo: string, path: string, ref?: string): string {
+    const encodedPath = path
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    let url = `${this.baseUrl}/repos/${owner}/${repo}/contents/${encodedPath}`;
+    if (ref) {
+      url += `?ref=${encodeURIComponent(ref)}`;
+    }
+    return url;
   }
 
   /**

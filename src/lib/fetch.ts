@@ -15,9 +15,14 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ALL_FEATURES } from "../types/features.js";
-import { fileExists, writeFileContent } from "../utils/file.js";
+import { checkPathTraversal, fileExists, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
+
+/**
+ * Maximum file size to download (10MB)
+ */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
  * Feature to path mapping for filtering
@@ -66,20 +71,8 @@ function parseGitHubUrl(url: string): ParsedSource {
   const owner = segments[0];
   const repo = segments[1];
 
-  // Check for /tree/ref/path pattern
-  if (segments.length > 2 && segments[2] === "tree") {
-    const ref = segments[3];
-    const path = segments.length > 4 ? segments.slice(4).join("/") : undefined;
-    return {
-      owner: owner ?? "",
-      repo: repo ?? "",
-      ref,
-      path,
-    };
-  }
-
-  // Check for /blob/ref/path pattern (treat same as tree)
-  if (segments.length > 2 && segments[2] === "blob") {
+  // Check for /tree/ref/path or /blob/ref/path pattern
+  if (segments.length > 2 && (segments[2] === "tree" || segments[2] === "blob")) {
     const ref = segments[3];
     const path = segments.length > 4 ? segments.slice(4).join("/") : undefined;
     return {
@@ -106,6 +99,9 @@ function parseShorthand(source: string): ParsedSource {
   const colonIndex = remaining.indexOf(":");
   if (colonIndex !== -1) {
     path = remaining.substring(colonIndex + 1);
+    if (!path) {
+      throw new Error(`Invalid source: ${source}. Path cannot be empty after ":".`);
+    }
     remaining = remaining.substring(0, colonIndex);
   }
 
@@ -113,6 +109,9 @@ function parseShorthand(source: string): ParsedSource {
   const atIndex = remaining.indexOf("@");
   if (atIndex !== -1) {
     ref = remaining.substring(atIndex + 1);
+    if (!ref) {
+      throw new Error(`Invalid source: ${source}. Ref cannot be empty after "@".`);
+    }
     remaining = remaining.substring(0, atIndex);
   }
 
@@ -181,11 +180,6 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
   const { source, options = {}, baseDir = process.cwd() } = params;
 
   // Configure logger
-  logger.configure({
-    verbose: options.verbose ?? false,
-    silent: options.silent ?? false,
-  });
-
   // Parse source
   const parsed = parseSource(source);
 
@@ -237,7 +231,7 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
   }
 
   // Collect all files to fetch
-  const filesToFetch: Array<{ remotePath: string; relativePath: string }> = [];
+  const filesToFetch: Array<{ remotePath: string; relativePath: string; size: number }> = [];
 
   for (const entry of rulesyncEntries) {
     if (entry.type === "file") {
@@ -247,6 +241,7 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
         filesToFetch.push({
           remotePath: entry.path,
           relativePath,
+          size: entry.size,
         });
       }
     } else if (entry.type === "dir") {
@@ -270,6 +265,7 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
           filesToFetch.push({
             remotePath: file.path,
             relativePath,
+            size: file.size,
           });
         }
       }
@@ -292,7 +288,20 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
   const results: FetchFileResult[] = [];
   const outputBasePath = join(baseDir, outputDir);
 
-  for (const { remotePath, relativePath } of filesToFetch) {
+  for (const { remotePath, relativePath, size } of filesToFetch) {
+    // Validate path to prevent path traversal attacks
+    checkPathTraversal({
+      relativePath,
+      intendedRootDir: outputBasePath,
+    });
+
+    // Check file size limit
+    if (size > MAX_FILE_SIZE) {
+      throw new GitHubClientError(
+        `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+      );
+    }
+
     const localPath = join(outputBasePath, relativePath);
     const exists = await fileExists(localPath);
 
@@ -373,16 +382,14 @@ export function formatFetchSummary(summary: FetchSummary, dryRun: boolean): stri
     lines.push(`  ${icon} ${file.relativePath} ${statusText}`);
   }
 
-  const total = summary.created + summary.overwritten;
   const parts: string[] = [];
   if (summary.created > 0) parts.push(`${summary.created} created`);
   if (summary.overwritten > 0) parts.push(`${summary.overwritten} overwritten`);
   if (summary.skipped > 0) parts.push(`${summary.skipped} skipped`);
 
   lines.push("");
-  lines.push(
-    `Summary: ${total} file(s) ${dryRun ? "would be " : ""}written${summary.skipped > 0 ? `, ${summary.skipped} skipped` : ""}`,
-  );
+  const summaryText = parts.length > 0 ? parts.join(", ") : "no files";
+  lines.push(`Summary: ${dryRun ? "would " : ""}${summaryText}`);
 
   return lines.join("\n");
 }

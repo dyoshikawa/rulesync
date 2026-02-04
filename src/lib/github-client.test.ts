@@ -48,6 +48,26 @@ describe("GitHubClient", () => {
     });
   });
 
+  describe("constructor", () => {
+    it("should accept HTTPS base URL", () => {
+      expect(() => {
+        new GitHubClient({ baseUrl: "https://github.example.com/api" });
+      }).not.toThrow();
+    });
+
+    it("should reject HTTP base URL", () => {
+      expect(() => {
+        new GitHubClient({ baseUrl: "http://github.example.com/api" });
+      }).toThrow("GitHub API base URL must use HTTPS");
+    });
+
+    it("should use default HTTPS URL when not specified", () => {
+      expect(() => {
+        new GitHubClient({});
+      }).not.toThrow();
+    });
+  });
+
   describe("getDefaultBranch", () => {
     it("should return the default branch from repository info", async () => {
       const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce(
@@ -289,6 +309,178 @@ describe("GitHubClient", () => {
       const client = new GitHubClient();
 
       await expect(client.getDefaultBranch("owner", "repo")).rejects.toThrow(/Access forbidden/);
+    });
+  });
+
+  describe("validateRef", () => {
+    it("should return true for valid branch", async () => {
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ ref: "refs/heads/main" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const isValid = await client.validateRef("owner", "repo", "main");
+
+      expect(isValid).toBe(true);
+    });
+
+    it("should return true for valid tag", async () => {
+      // First call fails (branch check), second succeeds (tag check)
+      vi.spyOn(global, "fetch")
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ref: "refs/tags/v1.0.0" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+
+      const client = new GitHubClient();
+      const isValid = await client.validateRef("owner", "repo", "v1.0.0");
+
+      expect(isValid).toBe(true);
+    });
+
+    it("should return true for valid commit SHA", async () => {
+      // First two calls fail (branch and tag check), third succeeds (commit check)
+      vi.spyOn(global, "fetch")
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ sha: "abc123" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+
+      const client = new GitHubClient();
+      const isValid = await client.validateRef("owner", "repo", "abc123");
+
+      expect(isValid).toBe(true);
+    });
+
+    it("should return false for non-existent ref", async () => {
+      // All three calls fail
+      vi.spyOn(global, "fetch")
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+
+      const client = new GitHubClient();
+      const isValid = await client.validateRef("owner", "repo", "nonexistent");
+
+      expect(isValid).toBe(false);
+    });
+  });
+
+  describe("getFileInfo", () => {
+    it("should return file info for existing file", async () => {
+      const fileInfo = {
+        name: "test.md",
+        path: "rules/test.md",
+        sha: "abc123",
+        size: 100,
+        type: "file",
+        download_url: "https://example.com",
+      };
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(fileInfo), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const result = await client.getFileInfo("owner", "repo", "rules/test.md");
+
+      expect(result).toEqual(fileInfo);
+    });
+
+    it("should return null for directory path", async () => {
+      // Directory returns array, not object
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify([{ name: "file.md" }]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const result = await client.getFileInfo("owner", "repo", "rules");
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null for non-existent file", async () => {
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Not Found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const result = await client.getFileInfo("owner", "repo", "nonexistent.md");
+
+      expect(result).toBeNull();
+    });
+
+    it("should throw error for file exceeding size limit", async () => {
+      const fileInfo = {
+        name: "large.bin",
+        path: "large.bin",
+        sha: "abc123",
+        size: 11 * 1024 * 1024, // 11MB, exceeds 10MB limit
+        type: "file",
+        download_url: "https://example.com",
+      };
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(fileInfo), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+
+      await expect(client.getFileInfo("owner", "repo", "large.bin")).rejects.toThrow(
+        /exceeds maximum size limit/,
+      );
     });
   });
 });

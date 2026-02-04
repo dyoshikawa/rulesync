@@ -124,6 +124,14 @@ describe("parseSource", () => {
       expect(() => parseSource("/repo")).toThrow(/Invalid source/);
       expect(() => parseSource("owner/")).toThrow(/Invalid source/);
     });
+
+    it("should throw error for empty ref after @", () => {
+      expect(() => parseSource("owner/repo@")).toThrow(/Ref cannot be empty/);
+    });
+
+    it("should throw error for empty path after :", () => {
+      expect(() => parseSource("owner/repo:")).toThrow(/Path cannot be empty/);
+    });
   });
 });
 
@@ -516,6 +524,75 @@ describe("fetchFromGitHub", () => {
 
     expect(summary.created).toBe(1);
   });
+
+  it("should reject path traversal attempts", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === ".rulesync") {
+          return Promise.resolve([
+            {
+              name: "rules",
+              path: ".rulesync/rules",
+              type: "dir",
+              sha: "abc",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === ".rulesync/rules") {
+          return Promise.resolve([
+            {
+              // Malicious path attempting traversal
+              name: "malicious.md",
+              path: ".rulesync/rules/../../../etc/passwd",
+              type: "file",
+              sha: "def",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("malicious content");
+
+    await expect(
+      fetchFromGitHub({
+        source: "owner/repo",
+        baseDir: testDir,
+      }),
+    ).rejects.toThrow("Path traversal detected");
+  });
+
+  it("should reject files exceeding size limit", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === ".rulesync") {
+          return Promise.resolve([
+            {
+              name: "mcp.json",
+              path: ".rulesync/mcp.json",
+              type: "file",
+              sha: "abc",
+              size: 11 * 1024 * 1024, // 11MB, exceeds 10MB limit
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      },
+    );
+
+    await expect(
+      fetchFromGitHub({
+        source: "owner/repo",
+        baseDir: testDir,
+      }),
+    ).rejects.toThrow("exceeds maximum size limit");
+  });
 });
 
 describe("formatFetchSummary", () => {
@@ -539,7 +616,8 @@ describe("formatFetchSummary", () => {
     expect(output).toContain("rules/overview.md (created)");
     expect(output).toContain("mcp.json (overwritten)");
     expect(output).toContain("commands/test.md (skipped - already exists)");
-    expect(output).toContain("2 file(s) written");
+    expect(output).toContain("1 created");
+    expect(output).toContain("1 overwritten");
     expect(output).toContain("1 skipped");
   });
 
@@ -556,6 +634,6 @@ describe("formatFetchSummary", () => {
     const output = formatFetchSummary(summary, true);
 
     expect(output).toContain("[DRY RUN] Would fetch");
-    expect(output).toContain("would be written");
+    expect(output).toContain("would 1 created");
   });
 });

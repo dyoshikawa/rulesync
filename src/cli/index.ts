@@ -63,23 +63,18 @@ const main = async () => {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(async (source, options) => {
-      try {
-        await fetchCommand({
-          source,
-          features: options.features,
-          ref: options.ref,
-          path: options.path,
-          output: options.output,
-          conflict: options.conflict,
-          dryRun: options.dryRun,
-          token: options.token,
-          verbose: options.verbose,
-          silent: options.silent,
-        });
-      } catch (error) {
-        logger.error(formatError(error));
-        process.exit(1);
-      }
+      await fetchCommand({
+        source,
+        features: options.features,
+        ref: options.ref,
+        path: options.path,
+        output: options.output,
+        conflict: options.conflict,
+        dryRun: options.dryRun,
+        token: options.token,
+        verbose: options.verbose,
+        silent: options.silent,
+      });
     });
 
   program
