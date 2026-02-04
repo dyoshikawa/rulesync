@@ -34,13 +34,13 @@ export type ReplitSkillParams = {
 
 /**
  * Represents a Replit Agent skill directory.
- * Skills are stored under the .agent/skills directory with SKILL.md files.
+ * Skills are stored under the .agents/skills directory with SKILL.md files.
  * Follows the open Agent Skills standard with name and description frontmatter.
  */
 export class ReplitSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
-    relativeDirPath = join(".agent", "skills"),
+    relativeDirPath = join(".agents", "skills"),
     dirName,
     frontmatter,
     body,
@@ -74,7 +74,7 @@ export class ReplitSkill extends ToolSkill {
       throw new Error("ReplitSkill does not support global mode.");
     }
     return {
-      relativeDirPath: join(".agent", "skills"),
+      relativeDirPath: join(".agents", "skills"),
     };
   }
 

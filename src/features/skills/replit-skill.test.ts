@@ -25,9 +25,9 @@ describe("ReplitSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .agent/skills as relativeDirPath", () => {
+    it("should return .agents/skills as relativeDirPath", () => {
       const paths = ReplitSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".agent", "skills"));
+      expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
 
     it("should throw error when global is true", () => {
@@ -41,7 +41,7 @@ describe("ReplitSkill", () => {
     it("should create instance with valid content", () => {
       const skill = new ReplitSkill({
         baseDir: testDir,
-        relativeDirPath: join(".agent", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -62,7 +62,7 @@ describe("ReplitSkill", () => {
 
   describe("fromDir", () => {
     it("should create instance from valid skill directory", async () => {
-      const skillDir = join(testDir, ".agent", "skills", "test-skill");
+      const skillDir = join(testDir, ".agents", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
@@ -86,7 +86,7 @@ This is the body of the replit skill.`;
     });
 
     it("should throw error when SKILL.md not found", async () => {
-      const skillDir = join(testDir, ".agent", "skills", "empty-skill");
+      const skillDir = join(testDir, ".agents", "skills", "empty-skill");
       await ensureDir(skillDir);
 
       await expect(
@@ -183,7 +183,7 @@ This is the body of the replit skill.`;
     it("should convert to RulesyncSkill", () => {
       const skill = new ReplitSkill({
         baseDir: testDir,
-        relativeDirPath: join(".agent", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -209,18 +209,18 @@ This is the body of the replit skill.`;
     it("should create minimal instance for deletion", () => {
       const skill = ReplitSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: join(".agent", "skills"),
+        relativeDirPath: join(".agents", "skills"),
       });
 
       expect(skill.getDirName()).toBe("cleanup");
-      expect(skill.getRelativeDirPath()).toBe(join(".agent", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
       expect(skill.getGlobal()).toBe(false);
     });
 
     it("should use process.cwd() as default baseDir", () => {
       const skill = ReplitSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: join(".agent", "skills"),
+        relativeDirPath: join(".agents", "skills"),
       });
 
       expect(skill).toBeInstanceOf(ReplitSkill);
@@ -230,7 +230,7 @@ This is the body of the replit skill.`;
     it("should create instance with empty frontmatter for deletion", () => {
       const skill = ReplitSkill.forDeletion({
         dirName: "to-delete",
-        relativeDirPath: join(".agent", "skills"),
+        relativeDirPath: join(".agents", "skills"),
       });
 
       expect(skill.getFrontmatter()).toEqual({
