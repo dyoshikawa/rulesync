@@ -6,6 +6,7 @@ import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
+import { calculateTotalCount } from "../utils/result.js";
 
 /**
  * Schema for import options
@@ -98,14 +99,7 @@ function buildSuccessResponse(params: {
 }): McpImportResult {
   const { importResult, config, tool } = params;
 
-  const totalCount =
-    importResult.rulesCount +
-    importResult.ignoreCount +
-    importResult.mcpCount +
-    importResult.commandsCount +
-    importResult.subagentsCount +
-    importResult.skillsCount +
-    importResult.hooksCount;
+  const totalCount = calculateTotalCount(importResult);
 
   return {
     success: true,
