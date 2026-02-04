@@ -19,6 +19,7 @@ import {
 import { commandTools } from "./commands.js";
 import { generateOptionsSchema, generateTools } from "./generate.js";
 import { ignoreTools } from "./ignore.js";
+import { importOptionsSchema, importTools } from "./import.js";
 import { mcpTools } from "./mcp.js";
 import { ruleTools } from "./rules.js";
 import { skillTools } from "./skills.js";
@@ -32,6 +33,7 @@ const rulesyncFeatureSchema = z.enum([
   "ignore",
   "mcp",
   "generate",
+  "import",
 ]);
 
 const rulesyncOperationSchema = z.enum(["list", "get", "put", "delete", "run"]);
@@ -50,12 +52,16 @@ const rulesyncToolSchema = z.object({
   otherFiles: z.optional(z.array(skillFileSchema)),
   content: z.optional(z.string()),
   generateOptions: z.optional(generateOptionsSchema),
+  importOptions: z.optional(importOptionsSchema),
 });
 
 type RulesyncFeature = z.infer<typeof rulesyncFeatureSchema>;
 type RulesyncOperation = z.infer<typeof rulesyncOperationSchema>;
 type RulesyncToolArgs = z.infer<typeof rulesyncToolSchema>;
-type RulesyncFrontmatterFeature = Exclude<RulesyncFeature, "ignore" | "mcp" | "generate">;
+type RulesyncFrontmatterFeature = Exclude<
+  RulesyncFeature,
+  "ignore" | "mcp" | "generate" | "import"
+>;
 type RulesyncFrontmatterByFeature = {
   rule: RulesyncRuleFrontmatter;
   command: RulesyncCommandFrontmatter;
@@ -71,6 +77,7 @@ const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]>
   ignore: ["get", "put", "delete"],
   mcp: ["get", "put", "delete"],
   generate: ["run"],
+  import: ["run"],
 };
 
 function assertSupported({
@@ -168,7 +175,7 @@ function ensureBody({ body, feature, operation }: RulesyncToolArgs): string {
 export const rulesyncTool = {
   name: "rulesyncTool",
   description:
-    "Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill support list/get/put/delete; ignore/mcp support get/put/delete only; generate supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp); generate/run uses generateOptions to configure generation.",
+    "Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill support list/get/put/delete; ignore/mcp support get/put/delete only; generate supports run only; import supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp); generate/run uses generateOptions to configure generation; import/run uses importOptions to configure import.",
   parameters: rulesyncToolSchema,
   execute: async (args: RulesyncToolArgs) => {
     const parsed = rulesyncToolSchema.parse(args);
@@ -308,6 +315,13 @@ export const rulesyncTool = {
       case "generate": {
         // Only "run" operation is supported for generate feature
         return generateTools.executeGenerate.execute(parsed.generateOptions ?? {});
+      }
+      case "import": {
+        // Only "run" operation is supported for import feature
+        if (!parsed.importOptions) {
+          throw new Error("importOptions is required for import feature");
+        }
+        return importTools.executeImport.execute(parsed.importOptions);
       }
       default: {
         throw new Error(`Unknown feature: ${parsed.feature}`);

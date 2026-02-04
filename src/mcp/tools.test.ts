@@ -415,6 +415,87 @@ describe("rulesyncTool", () => {
     });
   });
 
+  describe("import feature", () => {
+    it("should execute import with run operation", async () => {
+      // Create CLAUDE.md file to import from
+      await writeFileContent(
+        join(testDir, "CLAUDE.md"),
+        `# Claude Code Rules
+
+This is a test rule file.
+`,
+      );
+
+      const result = await rulesyncTool.execute({
+        feature: "import",
+        operation: "run",
+        importOptions: {
+          target: "claudecode",
+          features: ["rules"],
+        },
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.result).toBeDefined();
+      expect(parsed.config).toBeDefined();
+      expect(parsed.config.target).toBe("claudecode");
+    });
+
+    it("should return error when importOptions is not provided", async () => {
+      await expect(
+        rulesyncTool.execute({
+          feature: "import",
+          operation: "run",
+        }),
+      ).rejects.toThrow("importOptions is required for import feature");
+    });
+
+    it("should return error when target is empty", async () => {
+      const result = await rulesyncTool.execute({
+        feature: "import",
+        operation: "run",
+        importOptions: {
+          target: "",
+        },
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain("target is required");
+    });
+
+    it("should reject unsupported operations for import feature", async () => {
+      await expect(
+        rulesyncTool.execute({
+          feature: "import",
+          operation: "list",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "import",
+          operation: "get",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "import",
+          operation: "put",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "import",
+          operation: "delete",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+    });
+  });
+
   describe("generate feature", () => {
     it("should execute generate with run operation", async () => {
       const rulesyncDir = join(testDir, ".rulesync");
