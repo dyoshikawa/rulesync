@@ -179,9 +179,9 @@ package-lock.json
 
 data
 
-repomix-output.xml
-repomix-output.json
-repomix-output.toon
+repomix-output*.xml
+repomix-output*.json
+repomix-output*.toon
 
 # Bun compiled binaries
 dist-bun/

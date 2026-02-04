@@ -41,8 +41,8 @@ jobs:
           sha256sum rulesync-* > SHA256SUMS
           cat SHA256SUMS
 
-      - name: Generate repomix-output.toon
-        run: bun scripts/convert-json-to-toon.ts repomix-output.json repomix-output.toon
+      - name: Generate repomix TOON variants
+        run: bun scripts/generate-repomix-toon.ts
 
       - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
@@ -55,3 +55,6 @@ jobs:
             dist-bun/rulesync-windows-x64.exe
             dist-bun/SHA256SUMS
             repomix-output.toon
+            repomix-output-src.toon
+            repomix-output-tests.toon
+            repomix-output-configs.toon

@@ -101,6 +101,7 @@
     "lint-staged": "16.2.7",
     "oxfmt": "0.27.0",
     "oxlint": "1.42.0",
+    "repomix": "1.11.1",
     "secretlint": "11.3.1",
     "simple-git-hooks": "2.13.1",
     "sort-package-json": "3.6.1",
