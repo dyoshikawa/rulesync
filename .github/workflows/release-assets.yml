@@ -1,4 +1,4 @@
-name: Release Binaries
+name: Release Assets
 
 on:
   release:
@@ -8,8 +8,8 @@ permissions:
   contents: write # Required for uploading release assets
 
 jobs:
-  build-binaries:
-    name: Build and upload binaries
+  build-assets:
+    name: Build and upload assets
     runs-on: ubuntu-latest
 
     steps:
@@ -44,7 +44,7 @@ jobs:
       - name: Generate repomix-output.toon
         run: bun scripts/convert-json-to-toon.ts repomix-output.json repomix-output.toon
 
-      - name: Upload binaries to release
+      - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           files: |
