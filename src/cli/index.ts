@@ -6,6 +6,7 @@ import { ANNOUNCEMENT } from "../constants/announcements.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { formatError } from "../utils/error.js";
 import { logger } from "../utils/logger.js";
+import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
@@ -39,6 +40,42 @@ const main = async () => {
     .command("gitignore")
     .description("Add generated files to .gitignore")
     .action(gitignoreCommand);
+
+  program
+    .command("fetch <source>")
+    .description("Fetch rulesync files from a GitHub repository")
+    .option(
+      "-f, --features <features>",
+      `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all`,
+      (value) => {
+        return value.split(",").map((f) => f.trim());
+      },
+    )
+    .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")
+    .option("-p, --path <path>", "Subdirectory path within the repository containing .rulesync")
+    .option("-o, --output <dir>", "Output directory (default: .rulesync)")
+    .option(
+      "-c, --conflict <strategy>",
+      "Conflict resolution strategy: skip, overwrite (default: overwrite)",
+    )
+    .option("-n, --dry-run", "Preview files without writing")
+    .option("--token <token>", "GitHub token for private repositories")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(async (source, options) => {
+      await fetchCommand({
+        source,
+        features: options.features,
+        ref: options.ref,
+        path: options.path,
+        output: options.output,
+        conflict: options.conflict,
+        dryRun: options.dryRun,
+        token: options.token,
+        verbose: options.verbose,
+        silent: options.silent,
+      });
+    });
 
   program
     .command("import")

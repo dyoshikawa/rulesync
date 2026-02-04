@@ -1,6 +1,7 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
 import { logger } from "../../utils/logger.js";
+import { calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
 
@@ -72,14 +73,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     logger.success(`Generated ${result.rulesCount} rule(s)`);
   }
 
-  const totalGenerated =
-    result.rulesCount +
-    result.ignoreCount +
-    result.mcpCount +
-    result.commandsCount +
-    result.subagentsCount +
-    result.skillsCount +
-    result.hooksCount;
+  const totalGenerated = calculateTotalCount(result);
 
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");

@@ -66,6 +66,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.25.3",
+    "@octokit/request-error": "7.1.0",
+    "@octokit/rest": "22.0.1",
     "@toon-format/toon": "2.1.0",
     "@valibot/to-json-schema": "1.5.0",
     "commander": "14.0.2",

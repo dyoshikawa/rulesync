@@ -202,6 +202,11 @@ npx rulesync init
 # Import existing configurations (to .rulesync/rules/ by default)
 npx rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
 
+# Fetch configurations from a GitHub repository
+npx rulesync fetch owner/repo
+npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
+npx rulesync fetch https://github.com/owner/repo --conflict skip --dry-run
+
 # Generate all features for all tools (new preferred syntax)
 npx rulesync generate --targets "*" --features "*"
 
@@ -217,6 +222,60 @@ npx rulesync generate --targets copilot,cursor,codexcli --features commands,suba
 
 # Add generated files to .gitignore
 npx rulesync gitignore
+```
+
+## Fetch Command
+
+The `fetch` command allows you to fetch rulesync configuration files directly from a GitHub repository.
+
+### Source Formats
+
+```bash
+# Full GitHub URL
+npx rulesync fetch https://github.com/owner/repo
+npx rulesync fetch https://github.com/owner/repo/tree/branch
+npx rulesync fetch https://github.com/owner/repo/tree/branch/path/to/subdir
+
+# Shorthand format
+npx rulesync fetch owner/repo
+npx rulesync fetch owner/repo@ref        # Specify branch/tag/commit
+npx rulesync fetch owner/repo:path       # Specify subdirectory
+npx rulesync fetch owner/repo@ref:path   # Both ref and path
+```
+
+### Options
+
+| Option                  | Description                                                                                | Default                          |
+| ----------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- |
+| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all)                        |
+| `--output <dir>`        | Output directory relative to project root                                                  | `.rulesync`                      |
+| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                 | `overwrite`                      |
+| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                  | Default branch                   |
+| `--path <path>`         | Subdirectory in the repository                                                             | `.` (root)                       |
+| `--token <token>`       | GitHub token for private repositories                                                      | `GITHUB_TOKEN` or `GH_TOKEN` env |
+| `--dry-run`             | Preview changes without writing files                                                      | `false`                          |
+
+### Examples
+
+```bash
+# Fetch all features from a public repository
+npx rulesync fetch dyoshikawa/rulesync
+
+# Fetch only rules and commands from a specific tag
+npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
+
+# Preview what would be fetched without making changes
+npx rulesync fetch owner/repo --dry-run
+
+# Fetch from a private repository (uses GITHUB_TOKEN env var)
+export GITHUB_TOKEN=ghp_xxxx
+npx rulesync fetch owner/private-repo
+
+# Preserve existing files (skip conflicts)
+npx rulesync fetch owner/repo --conflict skip
+
+# Fetch from a monorepo subdirectory
+npx rulesync fetch owner/repo:packages/my-package
 ```
 
 ## Configuration
@@ -840,6 +899,20 @@ The Rulesync MCP server provides the following tools:
 - `getMcpFile` - Get the MCP configuration file
 - `putMcpFile` - Create or update the MCP configuration file
 - `deleteMcpFile` - Delete the MCP configuration file
+
+</details>
+
+<details>
+<summary>Generate Operation</summary>
+
+- `run` - Execute `rulesync generate` with options: targets, features, delete, global, simulateCommands, simulateSubagents, simulateSkills, modularMcp
+
+</details>
+
+<details>
+<summary>Import Operation</summary>
+
+- `run` - Execute `rulesync import` with options: target (required), features, global
 
 </details>
 
