@@ -414,4 +414,99 @@ describe("rulesyncTool", () => {
       ).rejects.toThrow(/path traversal/i);
     });
   });
+
+  describe("generate feature", () => {
+    it("should execute generate with run operation", async () => {
+      const rulesyncDir = join(testDir, ".rulesync");
+      await ensureDir(rulesyncDir);
+      await ensureDir(join(rulesyncDir, "rules"));
+
+      await writeFileContent(
+        join(rulesyncDir, "rules/overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Overview`,
+      );
+
+      const result = await rulesyncTool.execute({
+        feature: "generate",
+        operation: "run",
+        generateOptions: {
+          targets: ["agentsmd"],
+          features: ["rules"],
+        },
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.result).toBeDefined();
+      expect(parsed.config).toBeDefined();
+    });
+
+    it("should execute generate with default options", async () => {
+      const rulesyncDir = join(testDir, ".rulesync");
+      await ensureDir(rulesyncDir);
+      await ensureDir(join(rulesyncDir, "rules"));
+
+      await writeFileContent(
+        join(rulesyncDir, "rules/overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Overview`,
+      );
+
+      const result = await rulesyncTool.execute({
+        feature: "generate",
+        operation: "run",
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+    });
+
+    it("should return error when .rulesync directory does not exist", async () => {
+      const result = await rulesyncTool.execute({
+        feature: "generate",
+        operation: "run",
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain(".rulesync directory does not exist");
+    });
+
+    it("should reject unsupported operations for generate feature", async () => {
+      await expect(
+        rulesyncTool.execute({
+          feature: "generate",
+          operation: "list",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "generate",
+          operation: "get",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "generate",
+          operation: "put",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "generate",
+          operation: "delete",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+    });
+  });
 });

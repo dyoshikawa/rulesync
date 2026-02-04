@@ -17,15 +17,24 @@ import {
   RulesyncSubagentFrontmatterSchema,
 } from "../features/subagents/rulesync-subagent.js";
 import { commandTools } from "./commands.js";
+import { generateOptionsSchema, generateTools } from "./generate.js";
 import { ignoreTools } from "./ignore.js";
 import { mcpTools } from "./mcp.js";
 import { ruleTools } from "./rules.js";
 import { skillTools } from "./skills.js";
 import { subagentTools } from "./subagents.js";
 
-const rulesyncFeatureSchema = z.enum(["rule", "command", "subagent", "skill", "ignore", "mcp"]);
+const rulesyncFeatureSchema = z.enum([
+  "rule",
+  "command",
+  "subagent",
+  "skill",
+  "ignore",
+  "mcp",
+  "generate",
+]);
 
-const rulesyncOperationSchema = z.enum(["list", "get", "put", "delete"]);
+const rulesyncOperationSchema = z.enum(["list", "get", "put", "delete", "run"]);
 
 const skillFileSchema = z.object({
   name: z.string(),
@@ -40,12 +49,13 @@ const rulesyncToolSchema = z.object({
   body: z.optional(z.string()),
   otherFiles: z.optional(z.array(skillFileSchema)),
   content: z.optional(z.string()),
+  generateOptions: z.optional(generateOptionsSchema),
 });
 
 type RulesyncFeature = z.infer<typeof rulesyncFeatureSchema>;
 type RulesyncOperation = z.infer<typeof rulesyncOperationSchema>;
 type RulesyncToolArgs = z.infer<typeof rulesyncToolSchema>;
-type RulesyncFrontmatterFeature = Exclude<RulesyncFeature, "ignore" | "mcp">;
+type RulesyncFrontmatterFeature = Exclude<RulesyncFeature, "ignore" | "mcp" | "generate">;
 type RulesyncFrontmatterByFeature = {
   rule: RulesyncRuleFrontmatter;
   command: RulesyncCommandFrontmatter;
@@ -60,6 +70,7 @@ const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]>
   skill: ["list", "get", "put", "delete"],
   ignore: ["get", "put", "delete"],
   mcp: ["get", "put", "delete"],
+  generate: ["run"],
 };
 
 function assertSupported({
@@ -157,7 +168,7 @@ function ensureBody({ body, feature, operation }: RulesyncToolArgs): string {
 export const rulesyncTool = {
   name: "rulesyncTool",
   description:
-    "Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill support list/get/put/delete; ignore/mcp support get/put/delete only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp).",
+    "Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill support list/get/put/delete; ignore/mcp support get/put/delete only; generate supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp); generate/run uses generateOptions to configure generation.",
   parameters: rulesyncToolSchema,
   execute: async (args: RulesyncToolArgs) => {
     const parsed = rulesyncToolSchema.parse(args);
@@ -293,6 +304,10 @@ export const rulesyncTool = {
         }
 
         return mcpTools.deleteMcpFile.execute();
+      }
+      case "generate": {
+        // Only "run" operation is supported for generate feature
+        return generateTools.executeGenerate.execute(parsed.generateOptions ?? {});
       }
       default: {
         throw new Error(`Unknown feature: ${parsed.feature}`);
