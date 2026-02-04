@@ -843,6 +843,20 @@ The Rulesync MCP server provides the following tools:
 
 </details>
 
+<details>
+<summary>Generate Operation</summary>
+
+- `run` - Execute `rulesync generate` with options: targets, features, delete, global, simulateCommands, simulateSubagents, simulateSkills, modularMcp
+
+</details>
+
+<details>
+<summary>Import Operation</summary>
+
+- `run` - Execute `rulesync import` with options: target (required), features, global
+
+</details>
+
 ### Usage
 
 #### Starting the MCP Server

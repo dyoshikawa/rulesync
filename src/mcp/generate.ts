@@ -6,6 +6,8 @@ import { checkRulesyncDirExists, generate, type GenerateResult } from "../lib/ge
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
+import { calculateTotalCount } from "../utils/result.js";
+import { type McpResultCounts } from "./types.js";
 
 /**
  * Schema for generate options
@@ -30,16 +32,7 @@ export type GenerateOptions = z.infer<typeof generateOptionsSchema>;
 
 export type McpGenerateResult = {
   success: boolean;
-  result?: {
-    rulesCount: number;
-    ignoreCount: number;
-    mcpCount: number;
-    commandsCount: number;
-    subagentsCount: number;
-    skillsCount: number;
-    hooksCount: number;
-    totalCount: number;
-  };
+  result?: McpResultCounts;
   config?: {
     targets: string[];
     features: string[];
@@ -106,14 +99,7 @@ function buildSuccessResponse(params: {
 }): McpGenerateResult {
   const { generateResult, config } = params;
 
-  const totalCount =
-    generateResult.rulesCount +
-    generateResult.ignoreCount +
-    generateResult.mcpCount +
-    generateResult.commandsCount +
-    generateResult.subagentsCount +
-    generateResult.skillsCount +
-    generateResult.hooksCount;
+  const totalCount = calculateTotalCount(generateResult);
 
   return {
     success: true,

@@ -1,6 +1,7 @@
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { importFromTool } from "../../lib/import.js";
 import { logger } from "../../utils/logger.js";
+import { calculateTotalCount } from "../../utils/result.js";
 
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
 
@@ -30,14 +31,7 @@ export async function importCommand(options: ImportOptions): Promise<void> {
 
   const result = await importFromTool({ config, tool });
 
-  const totalImported =
-    result.rulesCount +
-    result.ignoreCount +
-    result.mcpCount +
-    result.commandsCount +
-    result.subagentsCount +
-    result.skillsCount +
-    result.hooksCount;
+  const totalImported = calculateTotalCount(result);
 
   if (totalImported === 0) {
     const enabledFeatures = config.getFeatures().join(", ");
