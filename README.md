@@ -133,6 +133,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Tool               | rules | ignore |   mcp    | commands | subagents | skills | hooks |
 | ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: |
 | AGENTS.md          |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |
+| AgentsSkills       |       |        |          |          |           |   ✅   |       |
 | Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 📦 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Codex CLI          | ✅ 🌏 |        |    🌏    |    🌏    |    🎮     | ✅ 🌏  |       |
 | Gemini CLI         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     |   🎮   |       |

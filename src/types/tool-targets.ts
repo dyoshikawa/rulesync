@@ -2,6 +2,7 @@ import { z } from "zod/mini";
 
 export const ALL_TOOL_TARGETS = [
   "agentsmd",
+  "agentsskills",
   "antigravity",
   "augmentcode",
   "augmentcode-legacy",

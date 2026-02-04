@@ -629,6 +629,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
         new Set([
+          "agentsskills",
           "antigravity",
           "claudecode",
           "claudecode-legacy",
@@ -649,6 +650,7 @@ Content that would fail parsing`;
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsmd",
+          "agentsskills",
           "antigravity",
           "claudecode",
           "claudecode-legacy",
@@ -670,6 +672,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets({ includeSimulated: false });
       expect(new Set(targets)).toEqual(
         new Set([
+          "agentsskills",
           "antigravity",
           "claudecode",
           "claudecode-legacy",
