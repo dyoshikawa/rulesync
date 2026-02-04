@@ -8,6 +8,7 @@ import { formatError } from "../../utils/error.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
+import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
@@ -58,6 +59,7 @@ type ToolSkillFactory = {
  */
 const skillsProcessorToolTargetTuple = [
   "agentsmd",
+  "agentsskills",
   "antigravity",
   "claudecode",
   "claudecode-legacy",
@@ -88,6 +90,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     {
       class: AgentsmdSkill,
       meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+    },
+  ],
+  [
+    "agentsskills",
+    {
+      class: AgentsSkillsSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [

@@ -13,6 +13,7 @@ describe("tool targets", () => {
     it("should contain expected AI tool targets", () => {
       const expectedTargets = [
         "agentsmd",
+        "agentsskills",
         "antigravity",
         "augmentcode",
         "augmentcode-legacy",
