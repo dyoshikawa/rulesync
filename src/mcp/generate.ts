@@ -7,6 +7,7 @@ import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { calculateTotalCount } from "../utils/result.js";
+import { type McpResultCounts } from "./types.js";
 
 /**
  * Schema for generate options
@@ -31,16 +32,7 @@ export type GenerateOptions = z.infer<typeof generateOptionsSchema>;
 
 export type McpGenerateResult = {
   success: boolean;
-  result?: {
-    rulesCount: number;
-    ignoreCount: number;
-    mcpCount: number;
-    commandsCount: number;
-    subagentsCount: number;
-    skillsCount: number;
-    hooksCount: number;
-    totalCount: number;
-  };
+  result?: McpResultCounts;
   config?: {
     targets: string[];
     features: string[];

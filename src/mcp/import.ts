@@ -7,6 +7,7 @@ import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { calculateTotalCount } from "../utils/result.js";
+import { type McpResultCounts } from "./types.js";
 
 /**
  * Schema for import options
@@ -19,7 +20,6 @@ import { calculateTotalCount } from "../utils/result.js";
  * - delete: Not applicable to import
  * - simulateCommands/simulateSubagents/simulateSkills: Not applicable to import
  * - modularMcp: Not applicable to import
- * - global: Import uses tool's default locations
  */
 export const importOptionsSchema = z.object({
   target: z.string(),
@@ -31,16 +31,7 @@ export type ImportOptions = z.infer<typeof importOptionsSchema>;
 
 export type McpImportResult = {
   success: boolean;
-  result?: {
-    rulesCount: number;
-    ignoreCount: number;
-    mcpCount: number;
-    commandsCount: number;
-    subagentsCount: number;
-    skillsCount: number;
-    hooksCount: number;
-    totalCount: number;
-  };
+  result?: McpResultCounts;
   config?: {
     target: string;
     features: string[];

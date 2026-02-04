@@ -6,6 +6,20 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { executeImport, type McpImportResult } from "./import.js";
 
+const { getHomeDirectoryMock } = vi.hoisted(() => {
+  return {
+    getHomeDirectoryMock: vi.fn(),
+  };
+});
+
+vi.mock("../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  return {
+    ...actual,
+    getHomeDirectory: getHomeDirectoryMock,
+  };
+});
+
 describe("MCP Import Tools", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -18,6 +32,7 @@ describe("MCP Import Tools", () => {
   afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+    getHomeDirectoryMock.mockClear();
   });
 
   describe("executeImport", () => {
@@ -259,6 +274,67 @@ This is a test rule file.
       expect(result.success).toBe(true);
       // Wildcard should expand to multiple features
       expect(result.config?.features.length).toBeGreaterThan(1);
+    });
+  });
+
+  describe("executeImport with global mode", () => {
+    let homeDir: string;
+    let homeCleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      // Setup separate home directory for global mode tests
+      const homeSetup = await setupTestDirectory({ home: true });
+      homeDir = homeSetup.testDir;
+      homeCleanup = homeSetup.cleanup;
+      getHomeDirectoryMock.mockReturnValue(homeDir);
+    });
+
+    afterEach(async () => {
+      await homeCleanup();
+    });
+
+    it("should import with global mode enabled", async () => {
+      // Create global CLAUDE.md file at ~/.claude/CLAUDE.md
+      const claudeDir = join(homeDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(
+        join(claudeDir, "CLAUDE.md"),
+        `# Global Claude Rules
+
+This is a global rule file.
+`,
+      );
+
+      const result = await executeImport({
+        target: "claudecode",
+        features: ["rules"],
+        global: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.global).toBe(true);
+    });
+
+    it("should return global: true in config when global option is set", async () => {
+      const result = await executeImport({
+        target: "claudecode",
+        features: ["rules"],
+        global: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.global).toBe(true);
+    });
+
+    it("should return global: false in config when global option is not set", async () => {
+      const result = await executeImport({
+        target: "claudecode",
+        features: ["rules"],
+        global: false,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.global).toBe(false);
     });
   });
 });
