@@ -6,6 +6,7 @@ import {
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -13,6 +14,7 @@ import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
+import { RulesyncHooks } from "../../features/hooks/rulesync-hooks.js";
 import { RulesyncIgnore } from "../../features/ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
@@ -26,6 +28,7 @@ import { initCommand } from "./init.js";
 vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js");
 vi.mock("../../features/commands/rulesync-command.js");
+vi.mock("../../features/hooks/rulesync-hooks.js");
 vi.mock("../../features/ignore/rulesync-ignore.js");
 vi.mock("../../features/mcp/rulesync-mcp.js");
 vi.mock("../../features/rules/rulesync-rule.js");
@@ -76,6 +79,10 @@ describe("initCommand", () => {
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       },
     } as any);
+    vi.mocked(RulesyncHooks.getSettablePaths).mockReturnValue({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "hooks.json",
+    } as any);
   });
 
   afterEach(() => {
@@ -90,7 +97,7 @@ describe("initCommand", () => {
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -330,7 +337,7 @@ describe("initCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",

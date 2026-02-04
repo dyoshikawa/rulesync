@@ -5,11 +5,13 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
+import { RulesyncHooks } from "../../features/hooks/rulesync-hooks.js";
 import { RulesyncIgnore } from "../../features/ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
@@ -28,7 +30,7 @@ export async function initCommand(): Promise<void> {
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
   logger.info(
-    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH}, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
   );
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }
@@ -44,7 +46,7 @@ async function createConfigFile(): Promise<void> {
     JSON.stringify(
       {
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
-        features: ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
+        features: ["rules", "ignore", "mcp", "commands", "subagents", "skills", "hooks"],
         baseDirs: ["."],
         delete: true,
         verbose: false,
@@ -202,6 +204,22 @@ Keep the summary concise and ready to reuse in future tasks.`,
 `,
   };
 
+  // Create hooks sample file
+  const sampleHooksFile = {
+    content: `{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": ".rulesync/hooks/format.sh"
+      }
+    ]
+  }
+}
+`,
+  };
+
   // Get paths from settable paths
   const rulePaths = RulesyncRule.getSettablePaths();
   const mcpPaths = RulesyncMcp.getSettablePaths();
@@ -209,6 +227,7 @@ Keep the summary concise and ready to reuse in future tasks.`,
   const subagentPaths = RulesyncSubagent.getSettablePaths();
   const skillPaths = RulesyncSkill.getSettablePaths();
   const ignorePaths = RulesyncIgnore.getSettablePaths();
+  const hooksPaths = RulesyncHooks.getSettablePaths();
 
   // Ensure directories
   await ensureDir(rulePaths.recommended.relativeDirPath);
@@ -278,5 +297,14 @@ Keep the summary concise and ready to reuse in future tasks.`,
     logger.success(`Created ${ignoreFilepath}`);
   } else {
     logger.info(`Skipped ${ignoreFilepath} (already exists)`);
+  }
+
+  // Create hooks sample file
+  const hooksFilepath = join(hooksPaths.relativeDirPath, hooksPaths.relativeFilePath);
+  if (!(await fileExists(hooksFilepath))) {
+    await writeFileContent(hooksFilepath, sampleHooksFile.content);
+    logger.success(`Created ${hooksFilepath}`);
+  } else {
+    logger.info(`Skipped ${hooksFilepath} (already exists)`);
   }
 }
