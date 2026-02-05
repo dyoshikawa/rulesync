@@ -5,6 +5,25 @@ import { calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
 
+/**
+ * Log feature generation result with appropriate prefix based on preview mode.
+ */
+function logFeatureResult(params: {
+  count: number;
+  featureName: string;
+  isPreview: boolean;
+  modePrefix: string;
+}): void {
+  const { count, featureName, isPreview, modePrefix } = params;
+  if (count > 0) {
+    if (isPreview) {
+      logger.info(`${modePrefix} Would generate ${count} ${featureName}`);
+    } else {
+      logger.success(`Generated ${count} ${featureName}`);
+    }
+  }
+}
+
 export async function generateCommand(options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
 
@@ -23,7 +42,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   }
 
   const isPreview = config.isPreviewMode();
-  const modePrefix = dryRun ? "[DRY RUN]" : check ? "[CHECK]" : "";
+  const modePrefix = isPreview ? "[PREVIEW]" : "";
 
   logger.info("Generating files...");
 
@@ -63,55 +82,48 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   const result = await generate({ config });
 
-  if (result.ignoreCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.ignoreCount} ignore file(s)`);
-    } else {
-      logger.success(`Generated ${result.ignoreCount} ignore file(s)`);
-    }
-  }
-  if (result.mcpCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.mcpCount} MCP configuration(s)`);
-    } else {
-      logger.success(`Generated ${result.mcpCount} MCP configuration(s)`);
-    }
-  }
-  if (result.commandsCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.commandsCount} command(s)`);
-    } else {
-      logger.success(`Generated ${result.commandsCount} command(s)`);
-    }
-  }
-  if (result.subagentsCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.subagentsCount} subagent(s)`);
-    } else {
-      logger.success(`Generated ${result.subagentsCount} subagent(s)`);
-    }
-  }
-  if (result.skillsCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.skillsCount} skill(s)`);
-    } else {
-      logger.success(`Generated ${result.skillsCount} skill(s)`);
-    }
-  }
-  if (result.hooksCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.hooksCount} hooks file(s)`);
-    } else {
-      logger.success(`Generated ${result.hooksCount} hooks file(s)`);
-    }
-  }
-  if (result.rulesCount > 0) {
-    if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${result.rulesCount} rule(s)`);
-    } else {
-      logger.success(`Generated ${result.rulesCount} rule(s)`);
-    }
-  }
+  logFeatureResult({
+    count: result.ignoreCount,
+    featureName: "ignore file(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.mcpCount,
+    featureName: "MCP configuration(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.commandsCount,
+    featureName: "command(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.subagentsCount,
+    featureName: "subagent(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.skillsCount,
+    featureName: "skill(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.hooksCount,
+    featureName: "hooks file(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.rulesCount,
+    featureName: "rule(s)",
+    isPreview,
+    modePrefix,
+  });
 
   const totalGenerated = calculateTotalCount(result);
 

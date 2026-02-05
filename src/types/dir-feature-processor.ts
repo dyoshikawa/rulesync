@@ -43,13 +43,13 @@ export abstract class DirFeatureProcessor {
       const dirPath = aiDir.getDirPath();
 
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
+        logger.info(`[PREVIEW] Would create directory: ${dirPath}`);
         const mainFile = aiDir.getMainFile();
         if (mainFile) {
-          logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
+          logger.info(`[PREVIEW] Would write: ${join(dirPath, mainFile.name)}`);
         }
         for (const file of aiDir.getOtherFiles()) {
-          logger.info(`[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`);
+          logger.info(`[PREVIEW] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`);
         }
       } else {
         // Create directory
@@ -94,7 +94,7 @@ export abstract class DirFeatureProcessor {
     for (const aiDir of orphanDirs) {
       const dirPath = aiDir.getDirPath();
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
+        logger.info(`[PREVIEW] Would delete directory: ${dirPath}`);
       } else {
         await removeDirectory(dirPath);
       }

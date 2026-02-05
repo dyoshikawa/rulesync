@@ -39,7 +39,7 @@ export abstract class FeatureProcessor {
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would write: ${filePath}`);
+        logger.info(`[PREVIEW] Would write: ${filePath}`);
       } else {
         const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
         await writeFileContent(filePath, contentWithNewline);
@@ -66,7 +66,7 @@ export abstract class FeatureProcessor {
     for (const aiFile of orphanFiles) {
       const filePath = aiFile.getFilePath();
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would delete: ${filePath}`);
+        logger.info(`[PREVIEW] Would delete: ${filePath}`);
       } else {
         await removeFile(filePath);
       }
