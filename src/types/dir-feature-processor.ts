@@ -2,14 +2,17 @@ import { join } from "node:path";
 
 import { addTrailingNewline, ensureDir, removeDirectory, writeFileContent } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
+import { logger } from "../utils/logger.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class DirFeatureProcessor {
   protected readonly baseDir: string;
+  protected readonly dryRun: boolean;
 
-  constructor({ baseDir = process.cwd() }: { baseDir?: string }) {
+  constructor({ baseDir = process.cwd(), dryRun = false }: { baseDir?: string; dryRun?: boolean }) {
     this.baseDir = baseDir;
+    this.dryRun = dryRun;
   }
 
   abstract loadRulesyncDirs(): Promise<AiDir[]>;
@@ -39,24 +42,35 @@ export abstract class DirFeatureProcessor {
     for (const aiDir of aiDirs) {
       const dirPath = aiDir.getDirPath();
 
-      // Create directory
-      await ensureDir(dirPath);
+      if (this.dryRun) {
+        logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
+        const mainFile = aiDir.getMainFile();
+        if (mainFile) {
+          logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
+        }
+        for (const file of aiDir.getOtherFiles()) {
+          logger.info(`[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`);
+        }
+      } else {
+        // Create directory
+        await ensureDir(dirPath);
 
-      // Write main file if exists
-      const mainFile = aiDir.getMainFile();
-      if (mainFile) {
-        const mainFilePath = join(dirPath, mainFile.name);
-        const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
-        const contentWithNewline = addTrailingNewline(content);
-        await writeFileContent(mainFilePath, contentWithNewline);
-      }
+        // Write main file if exists
+        const mainFile = aiDir.getMainFile();
+        if (mainFile) {
+          const mainFilePath = join(dirPath, mainFile.name);
+          const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
+          const contentWithNewline = addTrailingNewline(content);
+          await writeFileContent(mainFilePath, contentWithNewline);
+        }
 
-      // Write other files
-      const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
-      for (const file of otherFiles) {
-        const filePath = join(dirPath, file.relativeFilePathToDirPath);
-        const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-        await writeFileContent(filePath, contentWithNewline);
+        // Write other files
+        const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
+        for (const file of otherFiles) {
+          const filePath = join(dirPath, file.relativeFilePathToDirPath);
+          const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
+          await writeFileContent(filePath, contentWithNewline);
+        }
       }
     }
 
@@ -78,7 +92,12 @@ export abstract class DirFeatureProcessor {
     const orphanDirs = existingDirs.filter((d) => !generatedPaths.has(d.getDirPath()));
 
     for (const aiDir of orphanDirs) {
-      await removeDirectory(aiDir.getDirPath());
+      const dirPath = aiDir.getDirPath();
+      if (this.dryRun) {
+        logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
+      } else {
+        await removeDirectory(dirPath);
+      }
     }
   }
 }

@@ -66,12 +66,14 @@ export class HooksProcessor extends FeatureProcessor {
     baseDir = process.cwd(),
     toolTarget,
     global = false,
+    dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
+    dryRun?: boolean;
   }) {
-    super({ baseDir });
+    super({ baseDir, dryRun });
     const result = HooksProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(

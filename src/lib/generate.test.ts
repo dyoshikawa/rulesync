@@ -61,6 +61,7 @@ describe("generate", () => {
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
     getModularMcp: ReturnType<typeof vi.fn>;
+    isPreviewMode: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -76,6 +77,7 @@ describe("generate", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
+      isPreviewMode: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));
@@ -146,6 +148,7 @@ describe("generate", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
     });
 
@@ -327,6 +330,7 @@ describe("generate", () => {
         toolTarget: "claudecode",
         global: false,
         modularMcp: false,
+        dryRun: false,
       });
     });
 
@@ -364,6 +368,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        dryRun: false,
       });
     });
 
@@ -400,6 +405,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        dryRun: false,
       });
     });
 
@@ -447,6 +453,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        dryRun: false,
       });
     });
 

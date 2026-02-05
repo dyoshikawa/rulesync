@@ -167,6 +167,8 @@ const main = async () => {
       "--modular-mcp",
       "Generate modular-mcp configuration for context compression (experimental)",
     )
+    .option("--dry-run", "Preview changes without writing files")
+    .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
     .action(async (options) => {
       try {
         await generateCommand({
@@ -182,6 +184,8 @@ const main = async () => {
           simulateSubagents: options.simulateSubagents,
           simulateSkills: options.simulateSkills,
           modularMcp: options.modularMcp,
+          dryRun: options.dryRun,
+          check: options.check,
         });
       } catch (error) {
         logger.error(formatError(error));

@@ -93,12 +93,14 @@ export class IgnoreProcessor extends FeatureProcessor {
     baseDir = process.cwd(),
     toolTarget,
     getFactory = defaultGetFactory,
+    dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
+    dryRun?: boolean;
   }) {
-    super({ baseDir });
+    super({ baseDir, dryRun });
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(

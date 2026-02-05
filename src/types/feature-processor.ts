@@ -1,4 +1,5 @@
 import { addTrailingNewline, removeFile, writeFileContent } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
@@ -6,9 +7,11 @@ import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor {
   protected readonly baseDir: string;
+  protected readonly dryRun: boolean;
 
-  constructor({ baseDir = process.cwd() }: { baseDir?: string }) {
+  constructor({ baseDir = process.cwd(), dryRun = false }: { baseDir?: string; dryRun?: boolean }) {
     this.baseDir = baseDir;
+    this.dryRun = dryRun;
   }
 
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
@@ -34,8 +37,13 @@ export abstract class FeatureProcessor {
    */
   async writeAiFiles(aiFiles: AiFile[]): Promise<number> {
     for (const aiFile of aiFiles) {
-      const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
-      await writeFileContent(aiFile.getFilePath(), contentWithNewline);
+      const filePath = aiFile.getFilePath();
+      if (this.dryRun) {
+        logger.info(`[DRY RUN] Would write: ${filePath}`);
+      } else {
+        const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
+        await writeFileContent(filePath, contentWithNewline);
+      }
     }
 
     return aiFiles.length;
@@ -56,7 +64,12 @@ export abstract class FeatureProcessor {
     const orphanFiles = existingFiles.filter((f) => !generatedPaths.has(f.getFilePath()));
 
     for (const aiFile of orphanFiles) {
-      await removeFile(aiFile.getFilePath());
+      const filePath = aiFile.getFilePath();
+      if (this.dryRun) {
+        logger.info(`[DRY RUN] Would delete: ${filePath}`);
+      } else {
+        await removeFile(filePath);
+      }
     }
   }
 }
