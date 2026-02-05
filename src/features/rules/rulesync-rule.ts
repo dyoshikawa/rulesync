@@ -19,7 +19,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.boolean()),
   localRoot: z.optional(z.boolean()),
-  targets: z.optional(RulesyncTargetsSchema),
+  targets: z._default(RulesyncTargetsSchema, ["*"]),
   description: z.optional(z.string()),
   globs: z.optional(z.array(z.string())),
   agentsmd: z.optional(
@@ -55,10 +55,13 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   ),
 });
 
+// Input type allows targets to be omitted (will use default value)
+export type RulesyncRuleFrontmatterInput = z.input<typeof RulesyncRuleFrontmatterSchema>;
+// Output type has targets always present after parsing
 export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSchema>;
 
 export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> & {
-  frontmatter: RulesyncRuleFrontmatter;
+  frontmatter: RulesyncRuleFrontmatterInput;
   body: string;
 };
 
@@ -76,22 +79,24 @@ export class RulesyncRule extends RulesyncFile {
   private readonly body: string;
 
   constructor({ frontmatter, body, ...rest }: RulesyncRuleParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate !== false) {
-      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
+    // Parse frontmatter to apply defaults and validate
+    const parseResult = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+    if (!parseResult.success && rest.validate !== false) {
+      throw new Error(
+        `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(parseResult.error)}`,
+      );
     }
+    // Apply defaults manually when validation is disabled but parsing failed
+    const parsedFrontmatter: RulesyncRuleFrontmatter = parseResult.success
+      ? parseResult.data
+      : { ...frontmatter, targets: frontmatter.targets ?? ["*"] };
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, parsedFrontmatter),
     });
 
-    this.frontmatter = frontmatter;
+    this.frontmatter = parsedFrontmatter;
     this.body = body;
   }
 

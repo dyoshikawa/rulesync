@@ -8,7 +8,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { ReplitRule } from "./replit-rule.js";
-import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import { RulesyncRule, type RulesyncRuleFrontmatterInput } from "./rulesync-rule.js";
 
 describe("ReplitRule", () => {
   let testDir: string;
@@ -63,7 +63,7 @@ describe("ReplitRule", () => {
 
   describe("fromRulesyncRule", () => {
     it("should create ReplitRule from root RulesyncRule", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Test replit rule",
         root: true,
       };

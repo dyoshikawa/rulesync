@@ -5,6 +5,7 @@ import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js
 import {
   RulesyncRule,
   type RulesyncRuleFrontmatter,
+  type RulesyncRuleFrontmatterInput,
   RulesyncRuleFrontmatterSchema,
 } from "../features/rules/rulesync-rule.js";
 import { formatError } from "../utils/error.js";
@@ -107,7 +108,7 @@ async function putRule({
   body,
 }: {
   relativePathFromCwd: string;
-  frontmatter: RulesyncRuleFrontmatter;
+  frontmatter: RulesyncRuleFrontmatterInput;
   body: string;
 }): Promise<{
   relativePathFromCwd: string;
@@ -245,7 +246,7 @@ export const ruleTools = {
     parameters: ruleToolSchemas.putRule,
     execute: async (args: {
       relativePathFromCwd: string;
-      frontmatter: RulesyncRuleFrontmatter;
+      frontmatter: RulesyncRuleFrontmatterInput;
       body: string;
     }) => {
       const result = await putRule({
