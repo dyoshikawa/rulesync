@@ -688,7 +688,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
      Use the skill your-skill to achieve something.
      ```
 
-## Modular MCP (Experimental)
+## Modular MCP (Deprecated)
 
 Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-mcp](https://github.com/d-kimuson/modular-mcp) for context saving. When enabled with `--modular-mcp`, it additionally generates `modular-mcp.json`.
 
