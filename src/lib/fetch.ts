@@ -9,6 +9,7 @@ import type {
   GitHubFileEntry,
   ParsedSource,
 } from "../types/fetch.js";
+import type { GitProvider } from "../types/git-provider.js";
 
 import {
   MAX_FILE_SIZE,
@@ -18,6 +19,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ALL_FEATURES } from "../types/features.js";
+import { ALL_GIT_PROVIDERS } from "../types/git-provider.js";
 import { checkPathTraversal, fileExists, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
@@ -38,42 +40,74 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
 /**
  * Parse source specification into components
  * Supports:
- * - https://github.com/owner/repo
- * - https://github.com/owner/repo/tree/branch
- * - owner/repo
- * - owner/repo@ref
- * - owner/repo:path
- * - owner/repo@ref:path
+ * - URL format: https://github.com/owner/repo, https://gitlab.com/owner/repo
+ * - Prefix format: github:owner/repo, gitlab:owner/repo
+ * - Shorthand format: owner/repo (defaults to GitHub)
+ * - With ref: owner/repo@ref
+ * - With path: owner/repo:path
+ * - Combined: owner/repo@ref:path
  */
 export function parseSource(source: string): ParsedSource {
-  // Handle full GitHub URL
-  if (source.startsWith("https://github.com/")) {
-    return parseGitHubUrl(source);
+  // Handle full URL format (https://...)
+  if (source.startsWith("http://") || source.startsWith("https://")) {
+    return parseUrl(source);
   }
 
-  // Handle shorthand: owner/repo[@ref][:path]
-  return parseShorthand(source);
+  // Handle prefix format (github:owner/repo, gitlab:owner/repo)
+  if (source.includes(":") && !source.includes("://")) {
+    const colonIndex = source.indexOf(":");
+    const prefix = source.substring(0, colonIndex);
+    const rest = source.substring(colonIndex + 1);
+
+    // Check if prefix is a known provider using type guard
+    const provider = ALL_GIT_PROVIDERS.find((p) => p === prefix);
+    if (provider) {
+      return { provider, ...parseShorthand(rest) };
+    }
+
+    // If prefix is not a known provider, treat the whole thing as shorthand
+    // This handles cases like owner/repo:path where "owner/repo" contains no provider prefix
+    return { provider: "github", ...parseShorthand(source) };
+  }
+
+  // Handle shorthand: owner/repo[@ref][:path] - defaults to GitHub
+  return { provider: "github", ...parseShorthand(source) };
 }
 
-function parseGitHubUrl(url: string): ParsedSource {
-  // Remove protocol and domain
-  const withoutProtocol = url.replace("https://github.com/", "");
+/**
+ * Parse URL format into components
+ */
+function parseUrl(url: string): ParsedSource {
+  const urlObj = new URL(url);
+  const host = urlObj.hostname.toLowerCase();
+
+  let provider: GitProvider;
+  if (host === "github.com" || host.endsWith(".github.com")) {
+    provider = "github";
+  } else if (host === "gitlab.com" || host.includes("gitlab")) {
+    provider = "gitlab";
+  } else {
+    throw new Error(
+      `Unknown Git provider for host: ${host}. Supported providers: ${ALL_GIT_PROVIDERS.join(", ")}`,
+    );
+  }
 
   // Split by path segments
-  const segments = withoutProtocol.split("/").filter(Boolean);
+  const segments = urlObj.pathname.split("/").filter(Boolean);
 
   if (segments.length < 2) {
-    throw new Error(`Invalid GitHub URL: ${url}. Expected format: https://github.com/owner/repo`);
+    throw new Error(`Invalid ${provider} URL: ${url}. Expected format: https://${host}/owner/repo`);
   }
 
   const owner = segments[0];
-  const repo = segments[1];
+  const repo = segments[1]?.replace(/\.git$/, "");
 
   // Check for /tree/ref/path or /blob/ref/path pattern
   if (segments.length > 2 && (segments[2] === "tree" || segments[2] === "blob")) {
     const ref = segments[3];
     const path = segments.length > 4 ? segments.slice(4).join("/") : undefined;
     return {
+      provider,
       owner: owner ?? "",
       repo: repo ?? "",
       ref,
@@ -82,12 +116,16 @@ function parseGitHubUrl(url: string): ParsedSource {
   }
 
   return {
+    provider,
     owner: owner ?? "",
     repo: repo ?? "",
   };
 }
 
-function parseShorthand(source: string): ParsedSource {
+/**
+ * Parse shorthand format (without provider prefix)
+ */
+function parseShorthand(source: string): Omit<ParsedSource, "provider"> {
   // Pattern: owner/repo[@ref][:path]
   let remaining = source;
   let path: string | undefined;
@@ -148,16 +186,26 @@ function resolveFeatures(features?: string[]): Feature[] {
 }
 
 /**
- * Check if a path should be included based on enabled features
+ * Type guard for error objects with statusCode
  */
-function shouldIncludePath(relativePath: string, enabledFeatures: Feature[]): boolean {
-  for (const feature of enabledFeatures) {
-    const featurePaths = FEATURE_PATHS[feature];
-    for (const featurePath of featurePaths) {
-      if (relativePath === featurePath || relativePath.startsWith(`${featurePath}/`)) {
-        return true;
-      }
-    }
+function hasStatusCode(error: unknown): error is { statusCode: number } {
+  if (typeof error !== "object" || error === null || !("statusCode" in error)) {
+    return false;
+  }
+  const maybeStatus = Object.getOwnPropertyDescriptor(error, "statusCode")?.value;
+  return typeof maybeStatus === "number";
+}
+
+/**
+ * Check if error is a 404 "not found" error
+ */
+function isNotFoundError(error: unknown): boolean {
+  if (error instanceof GitHubClientError && error.statusCode === 404) {
+    return true;
+  }
+  // Also handle plain objects with statusCode property (for test mocks)
+  if (hasStatusCode(error) && error.statusCode === 404) {
+    return true;
   }
   return false;
 }
@@ -172,21 +220,27 @@ export type FetchParams = {
 };
 
 /**
- * Fetch rulesync files from a GitHub repository
+ * Fetch files from a Git repository
+ * Searches for feature directories (rules/, commands/, skills/, etc.) directly at the specified path
  */
-export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary> {
+export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const { source, options = {}, baseDir = process.cwd() } = params;
 
-  // Configure logger
   // Parse source
   const parsed = parseSource(source);
+
+  // Check if provider is supported
+  if (parsed.provider === "gitlab") {
+    throw new Error(
+      "GitLab is not yet supported. Currently only GitHub repositories are supported.",
+    );
+  }
 
   // Resolve options
   const resolvedRef = options.ref ?? parsed.ref;
   const resolvedPath = options.path ?? parsed.path ?? ".";
   const outputDir = options.output ?? RULESYNC_RELATIVE_DIR_PATH;
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
-  const dryRun = options.dryRun ?? false;
   const enabledFeatures = resolveFeatures(options.features);
 
   // Validate output directory to prevent path traversal attacks
@@ -213,68 +267,15 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
   const ref = resolvedRef ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
   logger.debug(`Using ref: ${ref}`);
 
-  // Build the path to .rulesync directory
-  const rulesyncPath =
-    resolvedPath === "." || resolvedPath === ""
-      ? RULESYNC_RELATIVE_DIR_PATH
-      : join(resolvedPath, RULESYNC_RELATIVE_DIR_PATH);
-
-  // Check if .rulesync directory exists
-  logger.debug(`Looking for .rulesync at: ${rulesyncPath}`);
-  let rulesyncEntries: GitHubFileEntry[];
-  try {
-    rulesyncEntries = await client.listDirectory(parsed.owner, parsed.repo, rulesyncPath, ref);
-  } catch (error) {
-    if (error instanceof GitHubClientError && error.statusCode === 404) {
-      throw new GitHubClientError(
-        `No .rulesync directory found at "${rulesyncPath}" in ${parsed.owner}/${parsed.repo}@${ref}`,
-        404,
-      );
-    }
-    throw error;
-  }
-
-  // Collect all files to fetch
-  const filesToFetch: Array<{ remotePath: string; relativePath: string; size: number }> = [];
-
-  for (const entry of rulesyncEntries) {
-    if (entry.type === "file") {
-      // Handle top-level files like mcp.json, hooks.json, .aiignore
-      const relativePath = entry.name;
-      if (shouldIncludePath(relativePath, enabledFeatures)) {
-        filesToFetch.push({
-          remotePath: entry.path,
-          relativePath,
-          size: entry.size,
-        });
-      }
-    } else if (entry.type === "dir") {
-      // Handle directories like rules/, commands/, etc.
-      const dirName = entry.name;
-      if (
-        shouldIncludePath(dirName, enabledFeatures) ||
-        shouldIncludePath(`${dirName}/`, enabledFeatures)
-      ) {
-        // Recursively list directory contents
-        const dirFiles = await listDirectoryRecursive(
-          client,
-          parsed.owner,
-          parsed.repo,
-          entry.path,
-          ref,
-        );
-        for (const file of dirFiles) {
-          // Calculate relative path from .rulesync
-          const relativePath = file.path.substring(rulesyncPath.length + 1);
-          filesToFetch.push({
-            remotePath: file.path,
-            relativePath,
-            size: file.size,
-          });
-        }
-      }
-    }
-  }
+  // Collect all files to fetch from feature directories directly
+  const filesToFetch = await collectFeatureFiles({
+    client,
+    owner: parsed.owner,
+    repo: parsed.repo,
+    basePath: resolvedPath,
+    ref,
+    enabledFeatures,
+  });
 
   if (filesToFetch.length === 0) {
     logger.warn(`No files found matching enabled features: ${enabledFeatures.join(", ")}`);
@@ -315,14 +316,12 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
       status = "skipped";
       logger.debug(`Skipping existing file: ${relativePath}`);
     } else {
-      if (!dryRun) {
-        // Fetch and write file (writeFileContent handles directory creation)
-        const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
-        await writeFileContent(localPath, content);
-      }
+      // Fetch and write file (writeFileContent handles directory creation)
+      const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
+      await writeFileContent(localPath, content);
 
       status = exists ? "overwritten" : "created";
-      logger.debug(`${dryRun ? "[DRY RUN] Would write" : "Wrote"}: ${relativePath} (${status})`);
+      logger.debug(`Wrote: ${relativePath} (${status})`);
     }
 
     results.push({ relativePath, status });
@@ -339,6 +338,83 @@ export async function fetchFromGitHub(params: FetchParams): Promise<FetchSummary
   };
 
   return summary;
+}
+
+/**
+ * Collect files from feature directories
+ */
+async function collectFeatureFiles(params: {
+  client: GitHubClient;
+  owner: string;
+  repo: string;
+  basePath: string;
+  ref: string;
+  enabledFeatures: Feature[];
+}): Promise<Array<{ remotePath: string; relativePath: string; size: number }>> {
+  const { client, owner, repo, basePath, ref, enabledFeatures } = params;
+  const filesToFetch: Array<{ remotePath: string; relativePath: string; size: number }> = [];
+
+  for (const feature of enabledFeatures) {
+    const featurePaths = FEATURE_PATHS[feature];
+
+    for (const featurePath of featurePaths) {
+      const fullPath =
+        basePath === "." || basePath === "" ? featurePath : join(basePath, featurePath);
+
+      try {
+        // Check if it's a file (mcp.json, .aiignore, hooks.json)
+        if (featurePath.includes(".")) {
+          // Try to get the file directly
+          try {
+            const entries = await client.listDirectory(
+              owner,
+              repo,
+              basePath === "." || basePath === "" ? "." : basePath,
+              ref,
+            );
+            const fileEntry = entries.find((e) => e.name === featurePath && e.type === "file");
+            if (fileEntry) {
+              filesToFetch.push({
+                remotePath: fileEntry.path,
+                relativePath: featurePath,
+                size: fileEntry.size,
+              });
+            }
+          } catch {
+            // File not found, skip
+            logger.debug(`File not found: ${fullPath}`);
+          }
+        } else {
+          // It's a directory (rules/, commands/, skills/, subagents/)
+          const dirFiles = await listDirectoryRecursive(client, owner, repo, fullPath, ref);
+
+          for (const file of dirFiles) {
+            // Calculate relative path from base
+            const relativePath =
+              basePath === "." || basePath === ""
+                ? file.path
+                : file.path.substring(basePath.length + 1);
+
+            filesToFetch.push({
+              remotePath: file.path,
+              relativePath,
+              size: file.size,
+            });
+          }
+        }
+      } catch (error) {
+        // Check for 404 errors (feature not found)
+        if (isNotFoundError(error)) {
+          // Feature directory/file not found, skip silently
+          logger.debug(`Feature not found: ${fullPath}`);
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  return filesToFetch;
 }
 
 /**
@@ -369,11 +445,10 @@ async function listDirectoryRecursive(
 /**
  * Format fetch summary for display
  */
-export function formatFetchSummary(summary: FetchSummary, dryRun: boolean): string {
+export function formatFetchSummary(summary: FetchSummary): string {
   const lines: string[] = [];
 
-  const prefix = dryRun ? "[DRY RUN] Would fetch" : "Fetched";
-  lines.push(`${prefix} from ${summary.source}@${summary.ref}:`);
+  lines.push(`Fetched from ${summary.source}@${summary.ref}:`);
 
   for (const file of summary.files) {
     const icon = file.status === "skipped" ? "-" : "\u2713";
@@ -393,7 +468,10 @@ export function formatFetchSummary(summary: FetchSummary, dryRun: boolean): stri
 
   lines.push("");
   const summaryText = parts.length > 0 ? parts.join(", ") : "no files";
-  lines.push(`Summary: ${dryRun ? "would " : ""}${summaryText}`);
+  lines.push(`Summary: ${summaryText}`);
 
   return lines.join("\n");
 }
+
+// Legacy export for backward compatibility during migration
+export { fetchFiles as fetchFromGitHub };

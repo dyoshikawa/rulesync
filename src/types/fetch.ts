@@ -1,6 +1,9 @@
 import { z } from "zod/mini";
 
+import type { GitProvider } from "./git-provider.js";
+
 import { ALL_FEATURES_WITH_WILDCARD } from "./features.js";
+import { FetchTargetSchema } from "./fetch-targets.js";
 
 /**
  * Conflict resolution strategies for fetch command
@@ -31,6 +34,7 @@ export type GitHubFileEntry = z.infer<typeof GitHubFileEntrySchema>;
  * Parsed source specification for fetch command
  */
 export type ParsedSource = {
+  provider: GitProvider;
   owner: string;
   repo: string;
   ref?: string;
@@ -41,12 +45,12 @@ export type ParsedSource = {
  * Fetch command options
  */
 export const FetchOptionsSchema = z.looseObject({
+  target: z.optional(FetchTargetSchema),
   features: z.optional(z.array(z.enum(ALL_FEATURES_WITH_WILDCARD))),
   ref: z.optional(z.string()),
   path: z.optional(z.string()),
   output: z.optional(z.string()),
   conflict: z.optional(ConflictStrategySchema),
-  dryRun: z.optional(z.boolean()),
   token: z.optional(z.string()),
   verbose: z.optional(z.boolean()),
   silent: z.optional(z.boolean()),
