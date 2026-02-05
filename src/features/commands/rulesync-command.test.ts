@@ -245,14 +245,17 @@ describe("RulesyncCommand", () => {
       expect(result.success).toBe(false);
     });
 
-    it("should reject missing targets", () => {
-      const invalidData = {
+    it("should use default targets when omitted", () => {
+      const dataWithoutTargets = {
         description: "Valid description",
       };
 
-      const result = RulesyncCommandFrontmatterSchema.safeParse(invalidData);
+      const result = RulesyncCommandFrontmatterSchema.safeParse(dataWithoutTargets);
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.targets).toEqual(["*"]);
+      }
     });
   });
 

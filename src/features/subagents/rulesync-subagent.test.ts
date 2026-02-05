@@ -55,14 +55,22 @@ describe("RulesyncSubagentFrontmatterSchema", () => {
       name: "test-subagent",
     };
 
-    const missingTargets = {
+    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingName)).toThrow();
+    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
+  });
+
+  it("should use default targets when omitted", () => {
+    const dataWithoutTargets = {
       name: "test-subagent",
       description: "A test subagent",
     };
 
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingName)).toThrow();
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingTargets)).toThrow();
+    const result = RulesyncSubagentFrontmatterSchema.safeParse(dataWithoutTargets);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.targets).toEqual(["*"]);
+    }
   });
 
   it("should preserve claudecode section with any fields (model validation is tool-specific)", () => {
@@ -283,22 +291,6 @@ describe("RulesyncSubagent", () => {
         },
         body: "Valid body",
         validate: false, // Skip validation in constructor for testing
-      });
-
-      const result = subagent.validate();
-      expect(result.success).toBe(true);
-      expect(result.error).toBe(null);
-    });
-
-    it("should return success when frontmatter is undefined", () => {
-      // Create a subagent with invalid frontmatter but skip validation
-      const subagent = new RulesyncSubagent({
-        baseDir: ".",
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "undefined.md",
-        frontmatter: undefined as any,
-        body: "body",
-        validate: false,
       });
 
       const result = subagent.validate();

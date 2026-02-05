@@ -6,7 +6,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
   RulesyncRule,
-  type RulesyncRuleFrontmatter,
+  type RulesyncRuleFrontmatterInput,
   RulesyncRuleFrontmatterSchema,
 } from "./rulesync-rule.js";
 
@@ -26,7 +26,7 @@ describe("RulesyncRule", () => {
 
   describe("constructor", () => {
     it("should create a RulesyncRule with valid frontmatter and body", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         root: true,
         targets: ["copilot", "cursor"],
         description: "Test rule",
@@ -82,8 +82,8 @@ describe("RulesyncRule", () => {
       }).not.toThrow();
     });
 
-    it("should handle minimal frontmatter", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {};
+    it("should handle minimal frontmatter with default targets", () => {
+      const frontmatter: RulesyncRuleFrontmatterInput = {};
 
       const rule = new RulesyncRule({
         baseDir: testDir,
@@ -93,12 +93,13 @@ describe("RulesyncRule", () => {
         body: "Minimal rule",
       });
 
-      expect(rule.getFrontmatter()).toEqual(frontmatter);
+      // Default targets should be applied
+      expect(rule.getFrontmatter()).toEqual({ targets: ["*"] });
       expect(rule.getBody()).toBe("Minimal rule");
     });
 
     it("should handle localRoot field", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         localRoot: true,
         targets: ["claudecode"],
         description: "Local root rule",
@@ -116,7 +117,7 @@ describe("RulesyncRule", () => {
     });
 
     it("should handle cursor-specific configuration", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         root: false,
         targets: ["cursor"],
         description: "Cursor-specific rule",
@@ -146,7 +147,7 @@ describe("RulesyncRule", () => {
 
   describe("getFrontmatter", () => {
     it("should return the frontmatter object", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         root: true,
         targets: ["*"],
         description: "Test description",
@@ -183,7 +184,7 @@ describe("RulesyncRule", () => {
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         root: true,
         targets: ["copilot"],
         description: "Valid rule",
