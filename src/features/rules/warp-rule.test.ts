@@ -7,7 +7,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import { RulesyncRule, type RulesyncRuleFrontmatterInput } from "./rulesync-rule.js";
 import { WarpRule, type WarpRuleParams } from "./warp-rule.js";
 
 describe("WarpRule", () => {
@@ -185,7 +185,7 @@ describe("WarpRule", () => {
 
   describe("fromRulesyncRule", () => {
     it("should create WarpRule from RulesyncRule for root file", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Test warp rule",
         root: true,
       };
@@ -210,7 +210,7 @@ describe("WarpRule", () => {
     });
 
     it("should create WarpRule from RulesyncRule for memory file", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Test memory rule",
       };
 
@@ -234,7 +234,7 @@ describe("WarpRule", () => {
     });
 
     it("should use default baseDir (process.cwd()) when not provided", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Default test",
         root: true,
       };
@@ -254,7 +254,7 @@ describe("WarpRule", () => {
     });
 
     it("should handle validation parameter", () => {
-      const frontmatter: RulesyncRuleFrontmatter = {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Validation test",
         root: true,
       };

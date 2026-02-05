@@ -26,6 +26,8 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   modularMcp: optional(z.boolean()),
+  dryRun: optional(z.boolean()),
+  check: optional(z.boolean()),
 });
 export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
 
@@ -68,6 +70,8 @@ export class Config {
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly modularMcp: boolean;
+  private readonly dryRun: boolean;
+  private readonly check: boolean;
 
   constructor({
     baseDirs,
@@ -81,6 +85,8 @@ export class Config {
     simulateSubagents,
     simulateSkills,
     modularMcp,
+    dryRun,
+    check,
   }: ConfigParams) {
     // Validate conflicting targets
     this.validateConflictingTargets(targets);
@@ -97,6 +103,8 @@ export class Config {
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
     this.modularMcp = modularMcp ?? false;
+    this.dryRun = dryRun ?? false;
+    this.check = check ?? false;
   }
 
   private validateConflictingTargets(targets: RulesyncTargets): void {
@@ -171,5 +179,21 @@ export class Config {
 
   public getModularMcp(): boolean {
     return this.modularMcp;
+  }
+
+  public getDryRun(): boolean {
+    return this.dryRun;
+  }
+
+  public getCheck(): boolean {
+    return this.check;
+  }
+
+  /**
+   * Returns true if either dry-run or check mode is enabled.
+   * In both modes, no files should be written.
+   */
+  public isPreviewMode(): boolean {
+    return this.dryRun || this.check;
   }
 }

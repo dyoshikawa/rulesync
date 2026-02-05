@@ -408,6 +408,7 @@ export class RulesProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     skills,
+    dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
@@ -417,8 +418,9 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSkills?: boolean;
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
+    dryRun?: boolean;
   }) {
-    super({ baseDir });
+    super({ baseDir, dryRun });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(

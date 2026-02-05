@@ -42,6 +42,8 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateSubagents: false,
   simulateSkills: false,
   modularMcp: false,
+  dryRun: false,
+  check: false,
 });
 
 const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams> => {
@@ -80,6 +82,8 @@ const mergeConfigs = (
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
     modularMcp: localConfig.modularMcp ?? baseConfig.modularMcp,
+    dryRun: localConfig.dryRun ?? baseConfig.dryRun,
+    check: localConfig.check ?? baseConfig.check,
   };
 };
 
@@ -98,6 +102,8 @@ export class ConfigResolver {
     simulateSubagents,
     simulateSkills,
     modularMcp,
+    dryRun,
+    check,
   }: ConfigResolverResolveParams): Promise<Config> {
     // Validate configPath to prevent path traversal attacks
     const validatedConfigPath = resolvePath(configPath, process.cwd());
@@ -138,6 +144,8 @@ export class ConfigResolver {
       simulateSubagents: resolvedSimulateSubagents,
       simulateSkills: resolvedSimulateSkills,
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
+      dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
+      check: check ?? configByFile.check ?? getDefaults().check,
     };
     return new Config(configParams);
   }

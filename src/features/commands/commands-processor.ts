@@ -235,13 +235,15 @@ export class CommandsProcessor extends FeatureProcessor {
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
+    dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
+    dryRun?: boolean;
   }) {
-    super({ baseDir });
+    super({ baseDir, dryRun });
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(

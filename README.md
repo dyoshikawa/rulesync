@@ -220,9 +220,40 @@ npx rulesync generate --targets "*" --features rules
 # Generate simulated commands and subagents
 npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
+# Preview changes without writing files (dry-run mode)
+npx rulesync generate --dry-run --targets claudecode --features rules
+
+# Check if files are up to date (for CI/CD pipelines)
+npx rulesync generate --check --targets "*" --features "*"
+
 # Add generated files to .gitignore
 npx rulesync gitignore
 ```
+
+## Preview Modes
+
+Rulesync provides two preview modes for the `generate` command that allow you to see what changes would be made without actually writing files:
+
+### `--dry-run`
+
+Preview changes without writing any files. Shows what would be written or deleted with a `[PREVIEW]` prefix.
+
+```bash
+npx rulesync generate --dry-run --targets claudecode --features rules
+```
+
+### `--check`
+
+Same as `--dry-run`, but exits with code 1 if files are not up to date. This is useful for CI/CD pipelines to verify that generated files are committed.
+
+```bash
+# In your CI pipeline
+npx rulesync generate --check --targets "*" --features "*"
+echo $?  # 0 if up to date, 1 if changes needed
+```
+
+> [!NOTE]
+> `--dry-run` and `--check` cannot be used together.
 
 ## Fetch Command (Experimental)
 
@@ -699,7 +730,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
      Use the skill your-skill to achieve something.
      ```
 
-## Modular MCP (Experimental)
+## Modular MCP (Deprecated)
 
 Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-mcp](https://github.com/d-kimuson/modular-mcp) for context saving. When enabled with `--modular-mcp`, it additionally generates `modular-mcp.json`.
 
@@ -850,82 +881,6 @@ Rulesync provides an MCP (Model Context Protocol) server that enables AI agents 
 
 > [!NOTE]
 > The MCP server exposes the only one tool to minimize your agent's token usage. Approximately less than 1k tokens for the tool definition.
-
-### Available Tools
-
-The Rulesync MCP server provides the following tools:
-
-<details>
-<summary>Rules Management</summary>
-
-- `list` - List all rule files
-- `get` - Get a specific rule file
-- `put` - Create or update a rule file
-- `delete` - Delete a rule file
-
-</details>
-
-<details>
-<summary>Commands Management</summary>
-
-- `list` - List all command files
-- `get` - Get a specific command file
-- `put` - Create or update a command file
-- `delete` - Delete a command file
-
-</details>
-
-<details>
-<summary>Subagents Management</summary>
-
-- `list` - List all subagent files
-- `get` - Get a specific subagent file
-- `put` - Create or update a subagent file
-- `delete` - Delete a subagent file
-
-</details>
-
-<details>
-<summary>Skills Management</summary>
-
-- `list` - List all skill directories
-- `get` - Get a specific skill (SKILL.md and other files)
-- `put` - Create or update a skill directory
-- `delete` - Delete a skill directory
-
-</details>
-
-<details>
-<summary>Ignore Files Management</summary>
-
-- `getIgnoreFile` - Get the ignore file
-- `putIgnoreFile` - Create or update the ignore file
-- `deleteIgnoreFile` - Delete the ignore file
-
-</details>
-
-<details>
-<summary>MCP Configuration Management</summary>
-
-- `getMcpFile` - Get the MCP configuration file
-- `putMcpFile` - Create or update the MCP configuration file
-- `deleteMcpFile` - Delete the MCP configuration file
-
-</details>
-
-<details>
-<summary>Generate Operation</summary>
-
-- `run` - Execute `rulesync generate` with options: targets, features, delete, global, simulateCommands, simulateSubagents, simulateSkills, modularMcp
-
-</details>
-
-<details>
-<summary>Import Operation</summary>
-
-- `run` - Execute `rulesync import` with options: target (required), features, global
-
-</details>
 
 ### Usage
 

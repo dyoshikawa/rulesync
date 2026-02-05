@@ -16,16 +16,19 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 // Tool-specific sections (e.g., claudecode:, copilot:) are preserved as additional keys
 export const RulesyncCommandFrontmatterSchema = z.looseObject({
-  targets: RulesyncTargetsSchema,
+  targets: z._default(RulesyncTargetsSchema, ["*"]),
   description: z.string(),
 });
 
-// Tool-specific sections are typed as optional Record<string, unknown> per tool target
+// Input type allows targets to be omitted (will use default value)
+export type RulesyncCommandFrontmatterInput = z.input<typeof RulesyncCommandFrontmatterSchema> &
+  Partial<Record<ToolTarget, Record<string, unknown>>>;
+// Output type has targets always present after parsing
 export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatterSchema> &
   Partial<Record<ToolTarget, Record<string, unknown>>>;
 
 export type RulesyncCommandParams = {
-  frontmatter: RulesyncCommandFrontmatter;
+  frontmatter: RulesyncCommandFrontmatterInput;
   body: string;
 } & RulesyncFileParams;
 
@@ -38,21 +41,25 @@ export class RulesyncCommand extends RulesyncFile {
   private readonly body: string;
 
   constructor({ frontmatter, body, ...rest }: RulesyncCommandParams) {
-    if (rest.validate) {
-      const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.baseDir ?? process.cwd(), rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
+    // Parse frontmatter to apply defaults and validate
+    const parseResult = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
+    if (!parseResult.success && rest.validate) {
+      throw new Error(
+        `Invalid frontmatter in ${join(rest.baseDir ?? process.cwd(), rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(parseResult.error)}`,
+      );
     }
+    // Apply defaults manually when validation is disabled but parsing failed
+    // Merge with frontmatter to preserve tool-specific sections (looseObject passthrough)
+    const parsedFrontmatter: RulesyncCommandFrontmatter = parseResult.success
+      ? { ...frontmatter, ...parseResult.data }
+      : { ...frontmatter, targets: frontmatter.targets ?? ["*"] };
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, parsedFrontmatter),
     });
 
-    this.frontmatter = frontmatter;
+    this.frontmatter = parsedFrontmatter;
     this.body = body;
   }
 

@@ -47,7 +47,16 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
+        "enum": [
+          "rules",
+          "ignore",
+          "mcp",
+          "subagents",
+          "commands",
+          "skills",
+          "hooks",
+          "*"
+        ]
       }
     },
     "verbose": {
@@ -72,6 +81,12 @@
       "type": "boolean"
     },
     "modularMcp": {
+      "type": "boolean"
+    },
+    "dryRun": {
+      "type": "boolean"
+    },
+    "check": {
       "type": "boolean"
     }
   },
