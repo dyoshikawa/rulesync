@@ -688,7 +688,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
      Use the skill your-skill to achieve something.
      ```
 
-## Modular MCP (Experimental)
+## Modular MCP (Deprecated)
 
 Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-mcp](https://github.com/d-kimuson/modular-mcp) for context saving. When enabled with `--modular-mcp`, it additionally generates `modular-mcp.json`.
 
@@ -839,82 +839,6 @@ Rulesync provides an MCP (Model Context Protocol) server that enables AI agents 
 
 > [!NOTE]
 > The MCP server exposes the only one tool to minimize your agent's token usage. Approximately less than 1k tokens for the tool definition.
-
-### Available Tools
-
-The Rulesync MCP server provides the following tools:
-
-<details>
-<summary>Rules Management</summary>
-
-- `list` - List all rule files
-- `get` - Get a specific rule file
-- `put` - Create or update a rule file
-- `delete` - Delete a rule file
-
-</details>
-
-<details>
-<summary>Commands Management</summary>
-
-- `list` - List all command files
-- `get` - Get a specific command file
-- `put` - Create or update a command file
-- `delete` - Delete a command file
-
-</details>
-
-<details>
-<summary>Subagents Management</summary>
-
-- `list` - List all subagent files
-- `get` - Get a specific subagent file
-- `put` - Create or update a subagent file
-- `delete` - Delete a subagent file
-
-</details>
-
-<details>
-<summary>Skills Management</summary>
-
-- `list` - List all skill directories
-- `get` - Get a specific skill (SKILL.md and other files)
-- `put` - Create or update a skill directory
-- `delete` - Delete a skill directory
-
-</details>
-
-<details>
-<summary>Ignore Files Management</summary>
-
-- `getIgnoreFile` - Get the ignore file
-- `putIgnoreFile` - Create or update the ignore file
-- `deleteIgnoreFile` - Delete the ignore file
-
-</details>
-
-<details>
-<summary>MCP Configuration Management</summary>
-
-- `getMcpFile` - Get the MCP configuration file
-- `putMcpFile` - Create or update the MCP configuration file
-- `deleteMcpFile` - Delete the MCP configuration file
-
-</details>
-
-<details>
-<summary>Generate Operation</summary>
-
-- `run` - Execute `rulesync generate` with options: targets, features, delete, global, simulateCommands, simulateSubagents, simulateSkills, modularMcp
-
-</details>
-
-<details>
-<summary>Import Operation</summary>
-
-- `run` - Execute `rulesync import` with options: target (required), features, global
-
-</details>
 
 ### Usage
 
