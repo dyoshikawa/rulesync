@@ -62,13 +62,15 @@ export class ClaudecodeRule extends ToolRule {
 
   static getSettablePaths({
     global,
+    excludeToolDir,
   }: {
     global?: boolean;
+    excludeToolDir?: boolean;
   } = {}): ClaudecodeRuleSettablePaths | ClaudecodeRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: ".claude",
+          relativeDirPath: excludeToolDir ? "." : ".claude",
           relativeFilePath: "CLAUDE.md",
         },
       };
@@ -79,7 +81,7 @@ export class ClaudecodeRule extends ToolRule {
         relativeFilePath: "CLAUDE.md",
       },
       nonRoot: {
-        relativeDirPath: join(".claude", "rules"),
+        relativeDirPath: excludeToolDir ? "rules" : join(".claude", "rules"),
       },
     };
   }

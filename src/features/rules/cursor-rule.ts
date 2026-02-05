@@ -40,10 +40,15 @@ export class CursorRule extends ToolRule {
   private readonly frontmatter: CursorRuleFrontmatter;
   private readonly body: string;
 
-  static getSettablePaths(): CursorRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): CursorRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: join(".cursor", "rules"),
+        relativeDirPath: _options.excludeToolDir ? "rules" : join(".cursor", "rules"),
       },
     };
   }

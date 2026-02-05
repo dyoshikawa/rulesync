@@ -1,6 +1,6 @@
 import type { FetchOptions } from "../../types/fetch.js";
 
-import { fetchFromGitHub, formatFetchSummary } from "../../lib/fetch.js";
+import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
@@ -18,22 +18,17 @@ export async function fetchCommand(options: FetchCommandOptions): Promise<void> 
     silent: fetchOptions.silent ?? false,
   });
 
-  logger.info(`Fetching rulesync files from ${source}...`);
+  logger.info(`Fetching files from ${source}...`);
 
   try {
-    const summary = await fetchFromGitHub({
+    const summary = await fetchFiles({
       source,
       options: fetchOptions,
     });
 
-    const output = formatFetchSummary(summary, fetchOptions.dryRun ?? false);
+    const output = formatFetchSummary(summary);
 
-    // Output results
-    if (fetchOptions.dryRun) {
-      logger.info(output);
-    } else {
-      logger.success(output);
-    }
+    logger.success(output);
 
     // Exit with appropriate code
     if (summary.created + summary.overwritten === 0 && summary.skipped === 0) {
@@ -43,7 +38,9 @@ export async function fetchCommand(options: FetchCommandOptions): Promise<void> 
     if (error instanceof GitHubClientError) {
       logger.error(`GitHub API Error: ${error.message}`);
       if (error.statusCode === 401 || error.statusCode === 403) {
-        logger.info("Tip: Set GITHUB_TOKEN environment variable for private repositories.");
+        logger.info(
+          "Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable for private repositories.",
+        );
       }
     } else {
       logger.error(formatError(error));

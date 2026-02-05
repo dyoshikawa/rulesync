@@ -21,14 +21,19 @@ export type OpenCodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 };
 
 export class OpenCodeRule extends ToolRule {
-  static getSettablePaths(): OpenCodeRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): OpenCodeRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: join(".opencode", "memories"),
+        relativeDirPath: _options.excludeToolDir ? "memories" : join(".opencode", "memories"),
       },
     };
   }

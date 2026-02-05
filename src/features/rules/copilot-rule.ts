@@ -43,14 +43,19 @@ export class CopilotRule extends ToolRule {
   private readonly frontmatter: CopilotRuleFrontmatter;
   private readonly body: string;
 
-  static getSettablePaths(): CopilotRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): CopilotRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: ".github",
+        relativeDirPath: _options.excludeToolDir ? "." : ".github",
         relativeFilePath: "copilot-instructions.md",
       },
       nonRoot: {
-        relativeDirPath: join(".github", "instructions"),
+        relativeDirPath: _options.excludeToolDir ? "instructions" : join(".github", "instructions"),
       },
     };
   }

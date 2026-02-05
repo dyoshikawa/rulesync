@@ -27,7 +27,12 @@ export type ReplitRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * importing the root replit.md file.
  */
 export class ReplitRule extends ToolRule {
-  static getSettablePaths(): ReplitRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): ReplitRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",

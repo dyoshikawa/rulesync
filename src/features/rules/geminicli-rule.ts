@@ -30,13 +30,15 @@ export type GeminiCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 export class GeminiCliRule extends ToolRule {
   static getSettablePaths({
     global,
+    excludeToolDir,
   }: {
     global?: boolean;
+    excludeToolDir?: boolean;
   } = {}): GeminiCliRuleSettablePaths | GeminiCliRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: ".gemini",
+          relativeDirPath: excludeToolDir ? "." : ".gemini",
           relativeFilePath: "GEMINI.md",
         },
       };
@@ -47,7 +49,7 @@ export class GeminiCliRule extends ToolRule {
         relativeFilePath: "GEMINI.md",
       },
       nonRoot: {
-        relativeDirPath: join(".gemini", "memories"),
+        relativeDirPath: excludeToolDir ? "memories" : join(".gemini", "memories"),
       },
     };
   }

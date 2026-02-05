@@ -79,7 +79,7 @@ export abstract class ToolRule extends ToolFile {
   }
 
   static getSettablePaths(
-    _options: { global?: boolean } = {},
+    _options: { global?: boolean; excludeToolDir?: boolean } = {},
   ): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal {
     throw new Error("Please implement this method in the subclass.");
   }

@@ -875,6 +875,21 @@ export class RulesProcessor extends FeatureProcessor {
     return rulesProcessorToolTargets;
   }
 
+  /**
+   * Get the factory for a specific tool target.
+   * This is a static version of the internal getFactory for external use.
+   * @param target - The tool target. Must be a valid RulesProcessorToolTarget.
+   * @returns The factory for the target, or undefined if not found.
+   */
+  static getFactory(target: ToolTarget): ToolRuleFactory | undefined {
+    // Validate that target is supported
+    const result = RulesProcessorToolTargetSchema.safeParse(target);
+    if (!result.success) {
+      return undefined;
+    }
+    return toolRuleFactories.get(result.data);
+  }
+
   private generateToonReferencesSection(toolRules: ToolRule[]): string {
     const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
 

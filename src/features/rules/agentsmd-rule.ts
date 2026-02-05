@@ -34,14 +34,19 @@ export class AgentsMdRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(): AgentsMdRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): AgentsMdRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: join(".agents", "memories"),
+        relativeDirPath: _options.excludeToolDir ? "memories" : join(".agents", "memories"),
       },
     };
   }

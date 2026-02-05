@@ -23,6 +23,7 @@
   ],
   "words": [
     "agentic",
+    "anthropics",
     "agentrequested",
     "agentsignore",
     "agentsmd",
@@ -318,6 +319,7 @@
     "xsschema",
     "Classmethod",
     "Asoview",
-    "KAKEHASHI"
+    "KAKEHASHI",
+    "TOCTOU"
   ]
 }
