@@ -68,4 +68,17 @@ export abstract class DirFeatureProcessor {
       await removeDirectory(aiDir.getDirPath());
     }
   }
+
+  /**
+   * Remove orphan directories that exist in the tool directory but not in the generated directories.
+   * This only deletes directories that are no longer in the rulesync source, not directories that will be overwritten.
+   */
+  async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<void> {
+    const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
+    const orphanDirs = existingDirs.filter((d) => !generatedPaths.has(d.getDirPath()));
+
+    for (const aiDir of orphanDirs) {
+      await removeDirectory(aiDir.getDirPath());
+    }
+  }
 }

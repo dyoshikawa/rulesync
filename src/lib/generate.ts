@@ -89,15 +89,15 @@ async function generateRulesCore(params: {
         skills: skills,
       });
 
-      if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        await processor.removeAiFiles(oldToolFiles);
-      }
-
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+
+      if (config.getDelete()) {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+      }
     }
   }
 
@@ -125,16 +125,20 @@ async function generateIgnoreCore(params: { config: Config }): Promise<number> {
           toolTarget,
         });
 
-        if (config.getDelete()) {
-          const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
-          await processor.removeAiFiles(oldToolFiles);
-        }
-
         const rulesyncFiles = await processor.loadRulesyncFiles();
         if (rulesyncFiles.length > 0) {
           const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
           const writtenCount = await processor.writeAiFiles(toolFiles);
           totalCount += writtenCount;
+
+          if (config.getDelete()) {
+            const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+            await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+          }
+        } else if (config.getDelete()) {
+          // No rulesync files, so all existing tool files are orphans
+          const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+          await processor.removeOrphanAiFiles(existingToolFiles, []);
         }
       } catch (error) {
         logger.warn(
@@ -171,15 +175,15 @@ async function generateMcpCore(params: { config: Config }): Promise<number> {
         modularMcp: config.getModularMcp(),
       });
 
-      if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        await processor.removeAiFiles(oldToolFiles);
-      }
-
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+
+      if (config.getDelete()) {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+      }
     }
   }
 
@@ -211,15 +215,15 @@ async function generateCommandsCore(params: { config: Config }): Promise<number>
         global: config.getGlobal(),
       });
 
-      if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        await processor.removeAiFiles(oldToolFiles);
-      }
-
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+
+      if (config.getDelete()) {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+      }
     }
   }
 
@@ -251,15 +255,15 @@ async function generateSubagentsCore(params: { config: Config }): Promise<number
         global: config.getGlobal(),
       });
 
-      if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        await processor.removeAiFiles(oldToolFiles);
-      }
-
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+
+      if (config.getDelete()) {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+      }
     }
   }
 
@@ -294,11 +298,6 @@ async function generateSkillsCore(params: {
         global: config.getGlobal(),
       });
 
-      if (config.getDelete()) {
-        const oldToolDirs = await processor.loadToolDirsToDelete();
-        await processor.removeAiDirs(oldToolDirs);
-      }
-
       const rulesyncDirs = await processor.loadRulesyncDirs();
 
       for (const rulesyncDir of rulesyncDirs) {
@@ -310,6 +309,11 @@ async function generateSkillsCore(params: {
       const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
       const writtenCount = await processor.writeAiDirs(toolDirs);
       totalCount += writtenCount;
+
+      if (config.getDelete()) {
+        const existingToolDirs = await processor.loadToolDirsToDelete();
+        await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
+      }
     }
   }
 
@@ -338,19 +342,24 @@ async function generateHooksCore(params: { config: Config }): Promise<number> {
         global: config.getGlobal(),
       });
 
-      if (config.getDelete()) {
-        const oldToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        await processor.removeAiFiles(oldToolFiles);
-      }
-
       const rulesyncFiles = await processor.loadRulesyncFiles();
       if (rulesyncFiles.length === 0) {
+        if (config.getDelete()) {
+          // No rulesync files, so all existing tool files are orphans
+          const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+          await processor.removeOrphanAiFiles(existingToolFiles, []);
+        }
         continue;
       }
 
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+
+      if (config.getDelete()) {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+      }
     }
   }
 
