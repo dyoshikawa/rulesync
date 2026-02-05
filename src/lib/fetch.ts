@@ -125,103 +125,73 @@ async function convertFetchedFilesToRulesync(params: {
   const { tempDir, outputDir, target, features } = params;
   const convertedPaths: string[] = [];
 
-  // Convert rules
-  if (features.includes("rules")) {
-    const supportedTargets = RulesProcessor.getToolTargets({ global: false });
-    if (supportedTargets.includes(target)) {
-      const processor = new RulesProcessor({
-        baseDir: tempDir,
-        toolTarget: target,
-        global: false,
-      });
-      const result = await processFeatureConversion({ processor, outputDir });
-      convertedPaths.push(...result.paths);
+  // Feature conversion configurations
+  // Each config defines how to get supported targets and create a processor
+  const featureConfigs: Array<{
+    feature: Feature;
+    getTargets: () => ToolTarget[];
+    createProcessor: () => FeatureProcessor;
+  }> = [
+    {
+      feature: "rules",
+      getTargets: () => RulesProcessor.getToolTargets({ global: false }),
+      createProcessor: () =>
+        new RulesProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+    },
+    {
+      feature: "commands",
+      getTargets: () =>
+        CommandsProcessor.getToolTargets({ global: false, includeSimulated: false }),
+      createProcessor: () =>
+        new CommandsProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+    },
+    {
+      feature: "subagents",
+      getTargets: () =>
+        SubagentsProcessor.getToolTargets({ global: false, includeSimulated: false }),
+      createProcessor: () =>
+        new SubagentsProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+    },
+    {
+      feature: "ignore",
+      getTargets: () => IgnoreProcessor.getToolTargets(),
+      createProcessor: () => new IgnoreProcessor({ baseDir: tempDir, toolTarget: target }),
+    },
+    {
+      feature: "mcp",
+      getTargets: () => McpProcessor.getToolTargets({ global: false }),
+      createProcessor: () =>
+        new McpProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+    },
+    {
+      feature: "hooks",
+      getTargets: () => HooksProcessor.getToolTargets({ global: false }),
+      createProcessor: () =>
+        new HooksProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+    },
+  ];
+
+  // Process each feature using data-driven approach
+  for (const config of featureConfigs) {
+    if (!features.includes(config.feature)) {
+      continue;
     }
+    const supportedTargets = config.getTargets();
+    if (!supportedTargets.includes(target)) {
+      continue;
+    }
+    const processor = config.createProcessor();
+    const result = await processFeatureConversion({ processor, outputDir });
+    convertedPaths.push(...result.paths);
   }
 
-  // Convert commands
-  if (features.includes("commands")) {
-    const supportedTargets = CommandsProcessor.getToolTargets({
-      global: false,
-      includeSimulated: false,
-    });
-    if (supportedTargets.includes(target)) {
-      const processor = new CommandsProcessor({
-        baseDir: tempDir,
-        toolTarget: target,
-        global: false,
-      });
-      const result = await processFeatureConversion({ processor, outputDir });
-      convertedPaths.push(...result.paths);
-    }
-  }
-
-  // Convert subagents
-  if (features.includes("subagents")) {
-    const supportedTargets = SubagentsProcessor.getToolTargets({
-      global: false,
-      includeSimulated: false,
-    });
-    if (supportedTargets.includes(target)) {
-      const processor = new SubagentsProcessor({
-        baseDir: tempDir,
-        toolTarget: target,
-        global: false,
-      });
-      const result = await processFeatureConversion({ processor, outputDir });
-      convertedPaths.push(...result.paths);
-    }
-  }
-
-  // Convert skills (directory-based)
+  // Skills conversion is not yet supported in fetch command
   // Note: Skills are more complex as they are directory-based.
-  // For now, we skip skills conversion in fetch command.
   // Users can use the import command for skills conversion.
   if (features.includes("skills")) {
     logger.debug(
       "Skills conversion is not yet supported in fetch command. Use import command instead.",
     );
-  }
-
-  // Convert ignore
-  if (features.includes("ignore")) {
-    const supportedTargets = IgnoreProcessor.getToolTargets();
-    if (supportedTargets.includes(target)) {
-      const processor = new IgnoreProcessor({
-        baseDir: tempDir,
-        toolTarget: target,
-      });
-      const result = await processFeatureConversion({ processor, outputDir });
-      convertedPaths.push(...result.paths);
-    }
-  }
-
-  // Convert MCP
-  if (features.includes("mcp")) {
-    const supportedTargets = McpProcessor.getToolTargets({ global: false });
-    if (supportedTargets.includes(target)) {
-      const processor = new McpProcessor({
-        baseDir: tempDir,
-        toolTarget: target,
-        global: false,
-      });
-      const result = await processFeatureConversion({ processor, outputDir });
-      convertedPaths.push(...result.paths);
-    }
-  }
-
-  // Convert hooks
-  if (features.includes("hooks")) {
-    const supportedTargets = HooksProcessor.getToolTargets({ global: false });
-    if (supportedTargets.includes(target)) {
-      const processor = new HooksProcessor({
-        baseDir: tempDir,
-        toolTarget: target,
-        global: false,
-      });
-      const result = await processFeatureConversion({ processor, outputDir });
-      convertedPaths.push(...result.paths);
-    }
   }
 
   return { converted: convertedPaths.length, convertedPaths };
@@ -590,9 +560,13 @@ async function collectFeatureFiles(params: {
                 size: fileEntry.size,
               });
             }
-          } catch {
-            // File not found, skip
-            logger.debug(`File not found: ${fullPath}`);
+          } catch (error) {
+            // Only skip 404 errors (file not found), re-throw other errors
+            if (isNotFoundError(error)) {
+              logger.debug(`File not found: ${fullPath}`);
+            } else {
+              throw error;
+            }
           }
         } else {
           // It's a directory (rules/, commands/, skills/, subagents/)

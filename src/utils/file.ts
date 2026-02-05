@@ -1,6 +1,6 @@
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -267,29 +267,14 @@ export function toKebabCaseFilename(filename: string): string {
 }
 
 /**
- * Generate a unique temporary directory path for rulesync operations.
- * Uses the system temp directory with a unique prefix.
+ * Create a temporary directory atomically and return its path.
+ * Uses fs.mkdtemp() for secure atomic directory creation, preventing TOCTOU race conditions.
  *
- * @param prefix - Prefix for the temp directory name (default: "rulesync-fetch")
- * @returns The full path to a unique temporary directory
- */
-export function generateTempDirPath(prefix = "rulesync-fetch"): string {
-  // Use timestamp + random string for uniqueness
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-  return join(os.tmpdir(), `${prefix}-${timestamp}-${random}`);
-}
-
-/**
- * Create a temporary directory and return its path.
- *
- * @param prefix - Prefix for the temp directory name (default: "rulesync-fetch")
+ * @param prefix - Prefix for the temp directory name (default: "rulesync-fetch-")
  * @returns The full path to the created temporary directory
  */
-export async function createTempDirectory(prefix = "rulesync-fetch"): Promise<string> {
-  const tempDir = generateTempDirPath(prefix);
-  await mkdir(tempDir, { recursive: true });
-  return tempDir;
+export async function createTempDirectory(prefix = "rulesync-fetch-"): Promise<string> {
+  return mkdtemp(join(os.tmpdir(), prefix));
 }
 
 /**
