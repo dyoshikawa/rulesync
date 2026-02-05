@@ -60,21 +60,70 @@ function isToolTarget(target: FetchTarget): target is ToolTarget {
 }
 
 /**
+ * Result of feature conversion
+ */
+type FeatureConversionResult = {
+  converted: number;
+  convertedPaths: string[];
+};
+
+/**
+ * Processor type for feature conversion
+ */
+type FeatureProcessor = {
+  loadToolFiles(): Promise<unknown[]>;
+  convertToolFilesToRulesyncFiles(
+    toolFiles: unknown[],
+  ): Promise<
+    Array<{ getRelativeDirPath(): string; getRelativeFilePath(): string; getFileContent(): string }>
+  >;
+};
+
+/**
+ * Process feature conversion for a single feature type
+ * @param processor - The processor to use for loading and converting files
+ * @param outputDir - Output directory for converted files
+ * @returns The paths of converted files
+ */
+async function processFeatureConversion(params: {
+  processor: FeatureProcessor;
+  outputDir: string;
+}): Promise<{ paths: string[] }> {
+  const { processor, outputDir } = params;
+  const paths: string[] = [];
+
+  const toolFiles = await processor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    return { paths: [] };
+  }
+
+  const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+  for (const file of rulesyncFiles) {
+    const relativePath = join(file.getRelativeDirPath(), file.getRelativeFilePath());
+    const outputPath = join(outputDir, relativePath);
+    await writeFileContent(outputPath, file.getFileContent());
+    paths.push(relativePath);
+  }
+
+  return { paths };
+}
+
+/**
  * Convert fetched tool-specific files to rulesync format
  * @param tempDir - Temporary directory containing tool-specific files
  * @param outputDir - Output directory for rulesync files
  * @param target - Tool target to convert from
  * @param features - Features to convert
- * @returns Number of converted files
+ * @returns Number of converted files and their paths
  */
 async function convertFetchedFilesToRulesync(params: {
   tempDir: string;
   outputDir: string;
   target: ToolTarget;
   features: Feature[];
-}): Promise<{ converted: number }> {
+}): Promise<FeatureConversionResult> {
   const { tempDir, outputDir, target, features } = params;
-  let converted = 0;
+  const convertedPaths: string[] = [];
 
   // Convert rules
   if (features.includes("rules")) {
@@ -85,17 +134,8 @@ async function convertFetchedFilesToRulesync(params: {
         toolTarget: target,
         global: false,
       });
-
-      const toolFiles = await processor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-        // Write to output directory instead of default location
-        for (const file of rulesyncFiles) {
-          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
-          await writeFileContent(outputPath, file.getFileContent());
-          converted++;
-        }
-      }
+      const result = await processFeatureConversion({ processor, outputDir });
+      convertedPaths.push(...result.paths);
     }
   }
 
@@ -111,16 +151,8 @@ async function convertFetchedFilesToRulesync(params: {
         toolTarget: target,
         global: false,
       });
-
-      const toolFiles = await processor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-        for (const file of rulesyncFiles) {
-          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
-          await writeFileContent(outputPath, file.getFileContent());
-          converted++;
-        }
-      }
+      const result = await processFeatureConversion({ processor, outputDir });
+      convertedPaths.push(...result.paths);
     }
   }
 
@@ -136,16 +168,8 @@ async function convertFetchedFilesToRulesync(params: {
         toolTarget: target,
         global: false,
       });
-
-      const toolFiles = await processor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-        for (const file of rulesyncFiles) {
-          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
-          await writeFileContent(outputPath, file.getFileContent());
-          converted++;
-        }
-      }
+      const result = await processFeatureConversion({ processor, outputDir });
+      convertedPaths.push(...result.paths);
     }
   }
 
@@ -167,16 +191,8 @@ async function convertFetchedFilesToRulesync(params: {
         baseDir: tempDir,
         toolTarget: target,
       });
-
-      const toolFiles = await processor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-        for (const file of rulesyncFiles) {
-          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
-          await writeFileContent(outputPath, file.getFileContent());
-          converted++;
-        }
-      }
+      const result = await processFeatureConversion({ processor, outputDir });
+      convertedPaths.push(...result.paths);
     }
   }
 
@@ -189,16 +205,8 @@ async function convertFetchedFilesToRulesync(params: {
         toolTarget: target,
         global: false,
       });
-
-      const toolFiles = await processor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-        for (const file of rulesyncFiles) {
-          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
-          await writeFileContent(outputPath, file.getFileContent());
-          converted++;
-        }
-      }
+      const result = await processFeatureConversion({ processor, outputDir });
+      convertedPaths.push(...result.paths);
     }
   }
 
@@ -211,20 +219,12 @@ async function convertFetchedFilesToRulesync(params: {
         toolTarget: target,
         global: false,
       });
-
-      const toolFiles = await processor.loadToolFiles();
-      if (toolFiles.length > 0) {
-        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-        for (const file of rulesyncFiles) {
-          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
-          await writeFileContent(outputPath, file.getFileContent());
-          converted++;
-        }
-      }
+      const result = await processFeatureConversion({ processor, outputDir });
+      convertedPaths.push(...result.paths);
     }
   }
 
-  return { converted };
+  return { converted: convertedPaths.length, convertedPaths };
 }
 
 /**
@@ -274,7 +274,7 @@ function parseUrl(url: string): ParsedSource {
   let provider: GitProvider;
   if (host === "github.com" || host.endsWith(".github.com")) {
     provider = "github";
-  } else if (host === "gitlab.com" || host.includes("gitlab")) {
+  } else if (host === "gitlab.com" || host.endsWith(".gitlab.com")) {
     provider = "gitlab";
   } else {
     throw new Error(
@@ -675,7 +675,7 @@ async function fetchAndConvertToolFiles(params: {
     target,
     outputDir,
     baseDir,
-    conflictStrategy,
+    conflictStrategy: _conflictStrategy,
   } = params;
 
   // Create a unique temporary directory
@@ -721,6 +721,10 @@ async function fetchAndConvertToolFiles(params: {
 
       // Map the relative path to tool-specific structure
       const toolRelativePath = mapToToolPath(relativePath, toolPaths);
+      checkPathTraversal({
+        relativePath: toolRelativePath,
+        intendedRootDir: tempDir,
+      });
       const localPath = join(tempDir, toolRelativePath);
 
       // Fetch and write file
@@ -732,27 +736,18 @@ async function fetchAndConvertToolFiles(params: {
 
     // Convert fetched files to rulesync format
     const outputBasePath = join(baseDir, outputDir);
-    const { converted } = await convertFetchedFilesToRulesync({
+    const { converted, convertedPaths } = await convertFetchedFilesToRulesync({
       tempDir,
       outputDir: outputBasePath,
       target,
       features: enabledFeatures,
     });
 
-    // Build results based on conversion
-    // Note: We can't track individual file status with conversion,
-    // so we report all as "created" for simplicity
-    const results: FetchFileResult[] = [];
-    if (converted > 0) {
-      // Check output files and determine their status
-      // For simplicity, just report the count
-      for (let i = 0; i < converted; i++) {
-        results.push({
-          relativePath: `converted-file-${i + 1}`,
-          status: conflictStrategy === "skip" ? "skipped" : "created",
-        });
-      }
-    }
+    // Build results based on conversion with actual file paths
+    const results: FetchFileResult[] = convertedPaths.map((relativePath) => ({
+      relativePath,
+      status: "created" as const,
+    }));
 
     logger.info(`Converted ${converted} files from ${target} format to rulesync format`);
 
