@@ -53,6 +53,9 @@ describe("generateCommand", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
+      getDryRun: vi.fn().mockReturnValue(false),
+      getCheck: vi.fn().mockReturnValue(false),
+      isPreviewMode: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
@@ -208,6 +211,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
     });
 
@@ -226,6 +230,7 @@ describe("generateCommand", () => {
         simulateSubagents: true,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
     });
 
@@ -267,6 +272,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
@@ -276,6 +282,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
     });
 
@@ -305,6 +312,7 @@ describe("generateCommand", () => {
         toolTarget: "claudecode",
         global: false,
         modularMcp: false,
+        dryRun: false,
       });
     });
 
@@ -370,6 +378,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        dryRun: false,
       });
     });
 
@@ -410,6 +419,7 @@ describe("generateCommand", () => {
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        dryRun: false,
       });
     });
 
@@ -423,6 +433,7 @@ describe("generateCommand", () => {
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        dryRun: false,
       });
 
       mockCwd.mockRestore();
@@ -469,6 +480,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        dryRun: false,
       });
     });
 
@@ -510,6 +522,7 @@ describe("generateCommand", () => {
           baseDir: ".",
           toolTarget: "claudecode",
           global: true,
+          dryRun: false,
         });
       });
 
@@ -529,6 +542,7 @@ describe("generateCommand", () => {
           baseDir: ".",
           toolTarget: "claudecode",
           global: true,
+          dryRun: false,
         });
       });
 
@@ -550,6 +564,7 @@ describe("generateCommand", () => {
           baseDir: ".",
           toolTarget: "claudecode",
           global: true,
+          dryRun: false,
         });
       });
     });
@@ -746,6 +761,7 @@ describe("generateCommand", () => {
         simulateSubagents: true,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
     });
 
@@ -792,6 +808,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir2",
@@ -801,6 +818,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir3",
@@ -810,6 +828,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
     });
@@ -835,6 +854,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: true,
+        dryRun: false,
       });
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith(
         expect.objectContaining({ global: true }),
@@ -862,6 +882,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: true,
+        dryRun: false,
       });
     });
 

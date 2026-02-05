@@ -5,6 +5,25 @@ import { calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
 
+/**
+ * Log feature generation result with appropriate prefix based on preview mode.
+ */
+function logFeatureResult(params: {
+  count: number;
+  featureName: string;
+  isPreview: boolean;
+  modePrefix: string;
+}): void {
+  const { count, featureName, isPreview, modePrefix } = params;
+  if (count > 0) {
+    if (isPreview) {
+      logger.info(`${modePrefix} Would generate ${count} ${featureName}`);
+    } else {
+      logger.success(`Generated ${count} ${featureName}`);
+    }
+  }
+}
+
 export async function generateCommand(options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
 
@@ -12,6 +31,18 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     verbose: config.getVerbose(),
     silent: config.getSilent(),
   });
+
+  const dryRun = config.getDryRun();
+  const check = config.getCheck();
+
+  // Validate --dry-run and --check are mutually exclusive
+  if (dryRun && check) {
+    logger.error("❌ --dry-run and --check cannot be used together");
+    process.exit(1);
+  }
+
+  const isPreview = config.isPreviewMode();
+  const modePrefix = isPreview ? "[DRY RUN]" : "";
 
   logger.info("Generating files...");
 
@@ -51,27 +82,48 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   const result = await generate({ config });
 
-  if (result.ignoreCount > 0) {
-    logger.success(`Generated ${result.ignoreCount} ignore file(s)`);
-  }
-  if (result.mcpCount > 0) {
-    logger.success(`Generated ${result.mcpCount} MCP configuration(s)`);
-  }
-  if (result.commandsCount > 0) {
-    logger.success(`Generated ${result.commandsCount} command(s)`);
-  }
-  if (result.subagentsCount > 0) {
-    logger.success(`Generated ${result.subagentsCount} subagent(s)`);
-  }
-  if (result.skillsCount > 0) {
-    logger.success(`Generated ${result.skillsCount} skill(s)`);
-  }
-  if (result.hooksCount > 0) {
-    logger.success(`Generated ${result.hooksCount} hooks file(s)`);
-  }
-  if (result.rulesCount > 0) {
-    logger.success(`Generated ${result.rulesCount} rule(s)`);
-  }
+  logFeatureResult({
+    count: result.ignoreCount,
+    featureName: "ignore file(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.mcpCount,
+    featureName: "MCP configuration(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.commandsCount,
+    featureName: "command(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.subagentsCount,
+    featureName: "subagent(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.skillsCount,
+    featureName: "skill(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.hooksCount,
+    featureName: "hooks file(s)",
+    isPreview,
+    modePrefix,
+  });
+  logFeatureResult({
+    count: result.rulesCount,
+    featureName: "rule(s)",
+    isPreview,
+    modePrefix,
+  });
 
   const totalGenerated = calculateTotalCount(result);
 
@@ -90,5 +142,21 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
 
-  logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
+  if (isPreview) {
+    logger.info(
+      `${modePrefix} Would generate ${totalGenerated} file(s) total (${parts.join(" + ")})`,
+    );
+  } else {
+    logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
+  }
+
+  // Handle --check mode exit code
+  if (check) {
+    if (result.hasDiff) {
+      logger.error("❌ Files are not up to date. Run 'rulesync generate' to update.");
+      process.exit(1);
+    } else {
+      logger.success("✓ All files are up to date.");
+    }
+  }
 }

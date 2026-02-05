@@ -73,6 +73,12 @@
     },
     "modularMcp": {
       "type": "boolean"
+    },
+    "dryRun": {
+      "type": "boolean"
+    },
+    "check": {
+      "type": "boolean"
     }
   },
   "additionalProperties": false,

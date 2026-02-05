@@ -219,14 +219,16 @@ export class McpProcessor extends FeatureProcessor {
     global = false,
     modularMcp = false,
     getFactory = defaultGetFactory,
+    dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     modularMcp?: boolean;
     getFactory?: GetFactory;
+    dryRun?: boolean;
   }) {
-    super({ baseDir });
+    super({ baseDir, dryRun });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(

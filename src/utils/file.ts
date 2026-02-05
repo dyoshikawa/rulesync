@@ -112,6 +112,16 @@ export async function readFileContent(filepath: string): Promise<string> {
   return readFile(filepath, "utf-8");
 }
 
+/**
+ * Read file content if it exists, otherwise return null.
+ */
+export async function readFileContentOrNull(filepath: string): Promise<string | null> {
+  if (await fileExists(filepath)) {
+    return readFileContent(filepath);
+  }
+  return null;
+}
+
 export async function readFileBuffer(filepath: string): Promise<Buffer> {
   logger.debug(`Reading file buffer: ${filepath}`);
   return readFile(filepath);
