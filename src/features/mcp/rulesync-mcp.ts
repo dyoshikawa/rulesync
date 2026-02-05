@@ -15,6 +15,7 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
+// Note: targets defaults to ["*"] when omitted (applied during filtering, not at parse time)
 const RulesyncMcpServerSchema = z.union([
   z.extend(McpServerSchema, {
     targets: z.optional(RulesyncTargetsSchema),
