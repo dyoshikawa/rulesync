@@ -224,9 +224,12 @@ npx rulesync generate --targets copilot,cursor,codexcli --features commands,suba
 npx rulesync gitignore
 ```
 
-## Fetch Command
+## Fetch Command (Experimental)
 
 The `fetch` command allows you to fetch configuration files directly from a Git repository (GitHub/GitLab).
+
+> [!WARNING]
+> This feature is experimental and may change in future releases.
 
 **Note:** The fetch command searches for feature directories (`rules/`, `commands/`, `skills/`, `subagents/`, etc.) directly at the specified path, without requiring a `.rulesync/` directory structure. This allows fetching from external repositories like `vercel-labs/agent-skills` or `anthropics/skills`.
 
