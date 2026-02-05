@@ -42,7 +42,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   }
 
   const isPreview = config.isPreviewMode();
-  const modePrefix = isPreview ? "[PREVIEW]" : "";
+  const modePrefix = isPreview ? "[DRY RUN]" : "";
 
   logger.info("Generating files...");
 
