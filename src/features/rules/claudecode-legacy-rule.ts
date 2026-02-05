@@ -38,13 +38,15 @@ export type ClaudecodeLegacyRuleSettablePathsGlobal = ToolRuleSettablePathsGloba
 export class ClaudecodeLegacyRule extends ToolRule {
   static getSettablePaths({
     global,
+    excludeToolDir,
   }: {
     global?: boolean;
+    excludeToolDir?: boolean;
   } = {}): ClaudecodeLegacyRuleSettablePaths | ClaudecodeLegacyRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: ".claude",
+          relativeDirPath: excludeToolDir ? "." : ".claude",
           relativeFilePath: "CLAUDE.md",
         },
       };
@@ -55,7 +57,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
         relativeFilePath: "CLAUDE.md",
       },
       nonRoot: {
-        relativeDirPath: join(".claude", "memories"),
+        relativeDirPath: excludeToolDir ? "memories" : join(".claude", "memories"),
       },
     };
   }

@@ -378,4 +378,19 @@ export class CommandsProcessor extends FeatureProcessor {
   static getToolTargetsSimulated(): ToolTarget[] {
     return [...commandsProcessorToolTargetsSimulated];
   }
+
+  /**
+   * Get the factory for a specific tool target.
+   * This is a static version of the internal getFactory for external use.
+   * @param target - The tool target. Must be a valid CommandsProcessorToolTarget.
+   * @returns The factory for the target, or undefined if not found.
+   */
+  static getFactory(target: ToolTarget): ToolCommandFactory | undefined {
+    // Validate that target is supported
+    const result = CommandsProcessorToolTargetSchema.safeParse(target);
+    if (!result.success) {
+      return undefined;
+    }
+    return toolCommandFactories.get(result.data);
+  }
 }

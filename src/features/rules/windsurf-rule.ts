@@ -20,10 +20,15 @@ export type WindsurfRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   };
 };
 export class WindsurfRule extends ToolRule {
-  static getSettablePaths(): WindsurfRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): WindsurfRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: join(".windsurf", "rules"),
+        relativeDirPath: _options.excludeToolDir ? "rules" : join(".windsurf", "rules"),
       },
     };
   }

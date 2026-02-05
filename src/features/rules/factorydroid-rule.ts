@@ -34,25 +34,28 @@ export class FactorydroidRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(options?: { global?: boolean }): FactorydroidRuleSettablePaths {
+  static getSettablePaths(options?: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  }): FactorydroidRuleSettablePaths {
     if (options?.global) {
       return {
         root: {
-          relativeDirPath: ".factorydroid",
+          relativeDirPath: options.excludeToolDir ? "." : ".factorydroid",
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: join(".factorydroid", "memories"),
+          relativeDirPath: options.excludeToolDir ? "memories" : join(".factorydroid", "memories"),
         },
       };
     }
     return {
       root: {
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: options?.excludeToolDir ? "." : ".factorydroid",
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: join(".factorydroid", "memories"),
+        relativeDirPath: options?.excludeToolDir ? "memories" : join(".factorydroid", "memories"),
       },
     };
   }

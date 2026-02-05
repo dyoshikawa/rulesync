@@ -28,10 +28,15 @@ export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * and both directory-based and single-file configurations.
  */
 export class RooRule extends ToolRule {
-  static getSettablePaths(): RooRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): RooRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: join(".roo", "rules"),
+        relativeDirPath: _options.excludeToolDir ? "rules" : join(".roo", "rules"),
       },
     };
   }

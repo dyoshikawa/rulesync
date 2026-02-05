@@ -265,3 +265,44 @@ export function toKebabCaseFilename(filename: string): string {
 
   return kebabName + extension;
 }
+
+/**
+ * Generate a unique temporary directory path for rulesync operations.
+ * Uses the system temp directory with a unique prefix.
+ *
+ * @param prefix - Prefix for the temp directory name (default: "rulesync-fetch")
+ * @returns The full path to a unique temporary directory
+ */
+export function generateTempDirPath(prefix = "rulesync-fetch"): string {
+  // Use timestamp + random string for uniqueness
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return join(os.tmpdir(), `${prefix}-${timestamp}-${random}`);
+}
+
+/**
+ * Create a temporary directory and return its path.
+ *
+ * @param prefix - Prefix for the temp directory name (default: "rulesync-fetch")
+ * @returns The full path to the created temporary directory
+ */
+export async function createTempDirectory(prefix = "rulesync-fetch"): Promise<string> {
+  const tempDir = generateTempDirPath(prefix);
+  await mkdir(tempDir, { recursive: true });
+  return tempDir;
+}
+
+/**
+ * Remove a temporary directory and all its contents.
+ * Silently ignores errors (e.g., directory doesn't exist).
+ *
+ * @param tempDir - Path to the temporary directory to remove
+ */
+export async function removeTempDirectory(tempDir: string): Promise<void> {
+  try {
+    await rm(tempDir, { recursive: true, force: true });
+    logger.debug(`Removed temp directory: ${tempDir}`);
+  } catch {
+    logger.debug(`Failed to clean up temp directory: ${tempDir}`);
+  }
+}

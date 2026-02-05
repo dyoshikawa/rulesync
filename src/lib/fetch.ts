@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import type { Feature } from "../types/features.js";
+import type { FetchTarget } from "../types/fetch-targets.js";
 import type {
   ConflictStrategy,
   FetchFileResult,
@@ -10,6 +11,7 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { GitProvider } from "../types/git-provider.js";
+import type { ToolTarget } from "../types/tool-targets.js";
 
 import {
   MAX_FILE_SIZE,
@@ -18,14 +20,27 @@ import {
   RULESYNC_MCP_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { CommandsProcessor } from "../features/commands/commands-processor.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
+import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
+import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { SkillsProcessor } from "../features/skills/skills-processor.js";
+import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_GIT_PROVIDERS } from "../types/git-provider.js";
-import { checkPathTraversal, fileExists, writeFileContent } from "../utils/file.js";
+import {
+  checkPathTraversal,
+  createTempDirectory,
+  fileExists,
+  removeTempDirectory,
+  writeFileContent,
+} from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 
 /**
- * Feature to path mapping for filtering
+ * Feature to path mapping for filtering (rulesync format)
  */
 const FEATURE_PATHS: Record<Feature, string[]> = {
   rules: ["rules"],
@@ -36,6 +51,181 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   mcp: [RULESYNC_MCP_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME],
 };
+
+/**
+ * Check if target is a tool target (not rulesync)
+ */
+function isToolTarget(target: FetchTarget): target is ToolTarget {
+  return target !== "rulesync";
+}
+
+/**
+ * Convert fetched tool-specific files to rulesync format
+ * @param tempDir - Temporary directory containing tool-specific files
+ * @param outputDir - Output directory for rulesync files
+ * @param target - Tool target to convert from
+ * @param features - Features to convert
+ * @returns Number of converted files
+ */
+async function convertFetchedFilesToRulesync(params: {
+  tempDir: string;
+  outputDir: string;
+  target: ToolTarget;
+  features: Feature[];
+}): Promise<{ converted: number }> {
+  const { tempDir, outputDir, target, features } = params;
+  let converted = 0;
+
+  // Convert rules
+  if (features.includes("rules")) {
+    const supportedTargets = RulesProcessor.getToolTargets({ global: false });
+    if (supportedTargets.includes(target)) {
+      const processor = new RulesProcessor({
+        baseDir: tempDir,
+        toolTarget: target,
+        global: false,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+        // Write to output directory instead of default location
+        for (const file of rulesyncFiles) {
+          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
+          await writeFileContent(outputPath, file.getFileContent());
+          converted++;
+        }
+      }
+    }
+  }
+
+  // Convert commands
+  if (features.includes("commands")) {
+    const supportedTargets = CommandsProcessor.getToolTargets({
+      global: false,
+      includeSimulated: false,
+    });
+    if (supportedTargets.includes(target)) {
+      const processor = new CommandsProcessor({
+        baseDir: tempDir,
+        toolTarget: target,
+        global: false,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+        for (const file of rulesyncFiles) {
+          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
+          await writeFileContent(outputPath, file.getFileContent());
+          converted++;
+        }
+      }
+    }
+  }
+
+  // Convert subagents
+  if (features.includes("subagents")) {
+    const supportedTargets = SubagentsProcessor.getToolTargets({
+      global: false,
+      includeSimulated: false,
+    });
+    if (supportedTargets.includes(target)) {
+      const processor = new SubagentsProcessor({
+        baseDir: tempDir,
+        toolTarget: target,
+        global: false,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+        for (const file of rulesyncFiles) {
+          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
+          await writeFileContent(outputPath, file.getFileContent());
+          converted++;
+        }
+      }
+    }
+  }
+
+  // Convert skills (directory-based)
+  // Note: Skills are more complex as they are directory-based.
+  // For now, we skip skills conversion in fetch command.
+  // Users can use the import command for skills conversion.
+  if (features.includes("skills")) {
+    logger.debug(
+      "Skills conversion is not yet supported in fetch command. Use import command instead.",
+    );
+  }
+
+  // Convert ignore
+  if (features.includes("ignore")) {
+    const supportedTargets = IgnoreProcessor.getToolTargets();
+    if (supportedTargets.includes(target)) {
+      const processor = new IgnoreProcessor({
+        baseDir: tempDir,
+        toolTarget: target,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+        for (const file of rulesyncFiles) {
+          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
+          await writeFileContent(outputPath, file.getFileContent());
+          converted++;
+        }
+      }
+    }
+  }
+
+  // Convert MCP
+  if (features.includes("mcp")) {
+    const supportedTargets = McpProcessor.getToolTargets({ global: false });
+    if (supportedTargets.includes(target)) {
+      const processor = new McpProcessor({
+        baseDir: tempDir,
+        toolTarget: target,
+        global: false,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+        for (const file of rulesyncFiles) {
+          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
+          await writeFileContent(outputPath, file.getFileContent());
+          converted++;
+        }
+      }
+    }
+  }
+
+  // Convert hooks
+  if (features.includes("hooks")) {
+    const supportedTargets = HooksProcessor.getToolTargets({ global: false });
+    if (supportedTargets.includes(target)) {
+      const processor = new HooksProcessor({
+        baseDir: tempDir,
+        toolTarget: target,
+        global: false,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      if (toolFiles.length > 0) {
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+        for (const file of rulesyncFiles) {
+          const outputPath = join(outputDir, file.getRelativeDirPath(), file.getRelativeFilePath());
+          await writeFileContent(outputPath, file.getFileContent());
+          converted++;
+        }
+      }
+    }
+  }
+
+  return { converted };
+}
 
 /**
  * Parse source specification into components
@@ -222,6 +412,10 @@ export type FetchParams = {
 /**
  * Fetch files from a Git repository
  * Searches for feature directories (rules/, commands/, skills/, etc.) directly at the specified path
+ *
+ * When target is "rulesync" (default), files are fetched as-is.
+ * When target is a tool target (e.g., "claudecode"), files are fetched to a temp directory,
+ * converted to rulesync format, and written to the output directory.
  */
 export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const { source, options = {}, baseDir = process.cwd() } = params;
@@ -242,6 +436,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const outputDir = options.output ?? RULESYNC_RELATIVE_DIR_PATH;
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
   const enabledFeatures = resolveFeatures(options.features);
+  const target: FetchTarget = options.target ?? "rulesync";
 
   // Validate output directory to prevent path traversal attacks
   checkPathTraversal({
@@ -266,6 +461,21 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // Resolve ref to use
   const ref = resolvedRef ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
   logger.debug(`Using ref: ${ref}`);
+
+  // If target is a tool format, use conversion flow
+  if (isToolTarget(target)) {
+    return fetchAndConvertToolFiles({
+      client,
+      parsed,
+      ref,
+      resolvedPath,
+      enabledFeatures,
+      target,
+      outputDir,
+      baseDir,
+      conflictStrategy,
+    });
+  }
 
   // Collect all files to fetch from feature directories directly
   const filesToFetch = await collectFeatureFiles({
@@ -440,6 +650,242 @@ async function listDirectoryRecursive(
   }
 
   return files;
+}
+
+/**
+ * Fetch tool-specific files and convert them to rulesync format
+ */
+async function fetchAndConvertToolFiles(params: {
+  client: GitHubClient;
+  parsed: ParsedSource;
+  ref: string;
+  resolvedPath: string;
+  enabledFeatures: Feature[];
+  target: ToolTarget;
+  outputDir: string;
+  baseDir: string;
+  conflictStrategy: ConflictStrategy;
+}): Promise<FetchSummary> {
+  const {
+    client,
+    parsed,
+    ref,
+    resolvedPath,
+    enabledFeatures,
+    target,
+    outputDir,
+    baseDir,
+    conflictStrategy,
+  } = params;
+
+  // Create a unique temporary directory
+  const tempDir = await createTempDirectory();
+  logger.debug(`Created temp directory: ${tempDir}`);
+
+  try {
+    // Collect files using rulesync feature paths (rules/, commands/, etc.)
+    // External repos use these paths directly without tool-specific prefixes
+    const filesToFetch = await collectFeatureFiles({
+      client,
+      owner: parsed.owner,
+      repo: parsed.repo,
+      basePath: resolvedPath,
+      ref,
+      enabledFeatures,
+    });
+
+    if (filesToFetch.length === 0) {
+      logger.warn(`No files found matching enabled features: ${enabledFeatures.join(", ")}`);
+      return {
+        source: `${parsed.owner}/${parsed.repo}`,
+        ref,
+        files: [],
+        created: 0,
+        overwritten: 0,
+        skipped: 0,
+      };
+    }
+
+    // Fetch files to temp directory with tool-specific structure
+    // Map rulesync paths to tool-specific paths
+    const toolPaths = getToolPathMapping(target);
+    const fetchedFiles: string[] = [];
+
+    for (const { remotePath, relativePath, size } of filesToFetch) {
+      // Check file size limit
+      if (size > MAX_FILE_SIZE) {
+        throw new GitHubClientError(
+          `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+        );
+      }
+
+      // Map the relative path to tool-specific structure
+      const toolRelativePath = mapToToolPath(relativePath, toolPaths);
+      const localPath = join(tempDir, toolRelativePath);
+
+      // Fetch and write file
+      const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
+      await writeFileContent(localPath, content);
+      fetchedFiles.push(toolRelativePath);
+      logger.debug(`Fetched to temp: ${toolRelativePath}`);
+    }
+
+    // Convert fetched files to rulesync format
+    const outputBasePath = join(baseDir, outputDir);
+    const { converted } = await convertFetchedFilesToRulesync({
+      tempDir,
+      outputDir: outputBasePath,
+      target,
+      features: enabledFeatures,
+    });
+
+    // Build results based on conversion
+    // Note: We can't track individual file status with conversion,
+    // so we report all as "created" for simplicity
+    const results: FetchFileResult[] = [];
+    if (converted > 0) {
+      // Check output files and determine their status
+      // For simplicity, just report the count
+      for (let i = 0; i < converted; i++) {
+        results.push({
+          relativePath: `converted-file-${i + 1}`,
+          status: conflictStrategy === "skip" ? "skipped" : "created",
+        });
+      }
+    }
+
+    logger.info(`Converted ${converted} files from ${target} format to rulesync format`);
+
+    return {
+      source: `${parsed.owner}/${parsed.repo}`,
+      ref,
+      files: results,
+      created: results.filter((r) => r.status === "created").length,
+      overwritten: results.filter((r) => r.status === "overwritten").length,
+      skipped: results.filter((r) => r.status === "skipped").length,
+    };
+  } finally {
+    // Clean up temp directory
+    await removeTempDirectory(tempDir);
+  }
+}
+
+/**
+ * Get tool-specific path mapping for a target
+ * Returns a mapping from rulesync feature paths to tool-specific paths
+ */
+function getToolPathMapping(target: ToolTarget): {
+  rules?: { root?: string; nonRoot?: string };
+  commands?: string;
+  subagents?: string;
+  skills?: string;
+} {
+  // Get tool-specific paths from each processor class
+  const mapping: {
+    rules?: { root?: string; nonRoot?: string };
+    commands?: string;
+    subagents?: string;
+    skills?: string;
+  } = {};
+
+  // Rules paths
+  const supportedRulesTargets = RulesProcessor.getToolTargets({ global: false });
+  if (supportedRulesTargets.includes(target)) {
+    const factory = RulesProcessor.getFactory(target);
+    if (factory) {
+      const paths = factory.class.getSettablePaths({ global: false });
+      mapping.rules = {
+        root: paths.root?.relativeFilePath,
+        nonRoot: paths.nonRoot?.relativeDirPath,
+      };
+    }
+  }
+
+  // Commands paths
+  const supportedCommandsTargets = CommandsProcessor.getToolTargets({
+    global: false,
+    includeSimulated: false,
+  });
+  if (supportedCommandsTargets.includes(target)) {
+    const factory = CommandsProcessor.getFactory(target);
+    if (factory) {
+      const paths = factory.class.getSettablePaths({ global: false });
+      mapping.commands = paths.relativeDirPath;
+    }
+  }
+
+  // Subagents paths
+  const supportedSubagentsTargets = SubagentsProcessor.getToolTargets({
+    global: false,
+    includeSimulated: false,
+  });
+  if (supportedSubagentsTargets.includes(target)) {
+    const factory = SubagentsProcessor.getFactory(target);
+    if (factory) {
+      const paths = factory.class.getSettablePaths({ global: false });
+      mapping.subagents = paths.relativeDirPath;
+    }
+  }
+
+  // Skills paths
+  const supportedSkillsTargets = SkillsProcessor.getToolTargets({ global: false });
+  if (supportedSkillsTargets.includes(target)) {
+    const factory = SkillsProcessor.getFactory(target);
+    if (factory) {
+      const paths = factory.class.getSettablePaths({ global: false });
+      mapping.skills = paths.relativeDirPath;
+    }
+  }
+
+  return mapping;
+}
+
+/**
+ * Map a rulesync-style relative path to tool-specific path
+ */
+function mapToToolPath(
+  relativePath: string,
+  toolPaths: ReturnType<typeof getToolPathMapping>,
+): string {
+  // Check if this is a rules file
+  if (relativePath.startsWith("rules/")) {
+    const restPath = relativePath.substring("rules/".length);
+    if (toolPaths.rules?.nonRoot) {
+      return join(toolPaths.rules.nonRoot, restPath);
+    }
+  }
+
+  // Check if this is a root rule file (e.g., CLAUDE.md, AGENTS.md)
+  if (toolPaths.rules?.root && relativePath === toolPaths.rules.root) {
+    return relativePath;
+  }
+
+  // Check if this is a commands file
+  if (relativePath.startsWith("commands/")) {
+    const restPath = relativePath.substring("commands/".length);
+    if (toolPaths.commands) {
+      return join(toolPaths.commands, restPath);
+    }
+  }
+
+  // Check if this is a subagents file
+  if (relativePath.startsWith("subagents/")) {
+    const restPath = relativePath.substring("subagents/".length);
+    if (toolPaths.subagents) {
+      return join(toolPaths.subagents, restPath);
+    }
+  }
+
+  // Check if this is a skills file
+  if (relativePath.startsWith("skills/")) {
+    const restPath = relativePath.substring("skills/".length);
+    if (toolPaths.skills) {
+      return join(toolPaths.skills, restPath);
+    }
+  }
+
+  // Default: return as-is
+  return relativePath;
 }
 
 /**

@@ -397,4 +397,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
   static getToolTargetsGlobal(): ToolTarget[] {
     return skillsProcessorToolTargetsGlobal;
   }
+
+  /**
+   * Get the factory for a specific tool target.
+   * This is a static version of the internal getFactory for external use.
+   * @param target - The tool target. Must be a valid SkillsProcessorToolTarget.
+   * @returns The factory for the target, or undefined if not found.
+   */
+  static getFactory(target: ToolTarget): ToolSkillFactory | undefined {
+    // Validate that target is supported
+    const result = SkillsProcessorToolTargetSchema.safeParse(target);
+    if (!result.success) {
+      return undefined;
+    }
+    return toolSkillFactories.get(result.data);
+  }
 }

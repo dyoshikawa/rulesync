@@ -25,10 +25,15 @@ export class AugmentcodeRule extends ToolRule {
     return this.toRulesyncRuleDefault();
   }
 
-  static getSettablePaths(): AugmentcodeRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): AugmentcodeRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: join(".augment", "rules"),
+        relativeDirPath: _options.excludeToolDir ? "rules" : join(".augment", "rules"),
       },
     };
   }

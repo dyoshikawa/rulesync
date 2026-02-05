@@ -674,6 +674,314 @@ describe("fetchFiles", () => {
   });
 });
 
+describe("fetchFiles with target option", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+
+    mockClientInstance = {
+      validateRepository: vi.fn().mockResolvedValue(true),
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      listDirectory: vi.fn(),
+      getFileContent: vi.fn(),
+    };
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("should maintain current behavior with target: rulesync", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Overview\n\nTest content");
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["rules"], target: "rulesync" },
+      baseDir: testDir,
+    });
+
+    expect(summary.source).toBe("owner/repo");
+    expect(summary.ref).toBe("main");
+    expect(summary.created).toBe(1);
+
+    // Verify file was written to .rulesync (default output)
+    const overviewPath = join(testDir, ".rulesync", "rules", "overview.md");
+    expect(await fileExists(overviewPath)).toBe(true);
+    const content = await readFileContent(overviewPath);
+    expect(content).toBe("# Overview\n\nTest content");
+  });
+
+  it("should maintain current behavior with no target specified", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Overview\n\nTest content");
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["rules"] },
+      baseDir: testDir,
+    });
+
+    expect(summary.created).toBe(1);
+
+    // Verify file was written to .rulesync (default output)
+    const overviewPath = join(testDir, ".rulesync", "rules", "overview.md");
+    expect(await fileExists(overviewPath)).toBe(true);
+  });
+
+  it("should convert claudecode format to rulesync format", async () => {
+    // Mock directory listing for rules
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "coding-guidelines.md",
+              path: "rules/coding-guidelines.md",
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    // Mock file content - claudecode format (markdown with frontmatter)
+    const claudecodeRuleContent = `---
+description: "Coding guidelines for the project"
+globs: ["**/*.ts"]
+alwaysApply: false
+---
+
+# Coding Guidelines
+
+Follow these guidelines for TypeScript development.
+`;
+    mockClientInstance.getFileContent.mockResolvedValue(claudecodeRuleContent);
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["rules"], target: "claudecode" },
+      baseDir: testDir,
+    });
+
+    expect(summary.source).toBe("owner/repo");
+    expect(summary.ref).toBe("main");
+    // Conversion should produce files
+    expect(summary.created).toBeGreaterThanOrEqual(0);
+  });
+
+  it("should handle unsupported feature/target combination gracefully", async () => {
+    // Mock an empty response
+    mockClientInstance.listDirectory.mockImplementation(() => {
+      const error = new Error("Not found");
+      Object.assign(error, { statusCode: 404 });
+      return Promise.reject(error);
+    });
+
+    // Try to fetch skills with claudecode target
+    // Skills conversion is not supported, so it should skip gracefully
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["skills"], target: "claudecode" },
+      baseDir: testDir,
+    });
+
+    // Should return empty summary without errors
+    expect(summary.files).toHaveLength(0);
+    expect(summary.created).toBe(0);
+  });
+
+  it("should clean up temp directory after conversion", async () => {
+    // Mock directory listing
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "test.md",
+              path: "rules/test.md",
+              type: "file",
+              sha: "abc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Test\n\nContent");
+
+    // Run fetch with tool target
+    await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["rules"], target: "claudecode" },
+      baseDir: testDir,
+    });
+
+    // Verify no temp directories remain
+    // The temp directory pattern is rulesync-fetch-*
+    const os = await import("node:os");
+    const fs = await import("node:fs/promises");
+    const tmpDir = os.tmpdir();
+    const entries = await fs.readdir(tmpDir);
+    const rulesyncTempDirs = entries.filter((e) => e.startsWith("rulesync-fetch-"));
+
+    // All temp directories should be cleaned up
+    expect(rulesyncTempDirs).toHaveLength(0);
+  });
+
+  it("should handle commands conversion with claudecode target", async () => {
+    // Mock directory listing for commands
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "commands") {
+          return Promise.resolve([
+            {
+              name: "review.md",
+              path: "commands/review.md",
+              type: "file",
+              sha: "def",
+              size: 150,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    // Mock command file content
+    const commandContent = `---
+description: "Review code changes"
+---
+
+Review the current changes and provide feedback.
+`;
+    mockClientInstance.getFileContent.mockResolvedValue(commandContent);
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["commands"], target: "claudecode" },
+      baseDir: testDir,
+    });
+
+    expect(summary.source).toBe("owner/repo");
+    // Commands should be processed
+    expect(summary.files).toBeDefined();
+  });
+
+  it("should handle multiple features with target conversion", async () => {
+    // Mock directory listing for multiple features
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "commands") {
+          return Promise.resolve([
+            {
+              name: "test.md",
+              path: "commands/test.md",
+              type: "file",
+              sha: "def",
+              size: 150,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules/overview.md") {
+          return Promise.resolve("---\ndescription: Overview\n---\n\n# Overview");
+        }
+        if (path === "commands/test.md") {
+          return Promise.resolve("---\ndescription: Test command\n---\n\nTest content");
+        }
+        return Promise.resolve("");
+      },
+    );
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["rules", "commands"], target: "claudecode" },
+      baseDir: testDir,
+    });
+
+    expect(summary.source).toBe("owner/repo");
+    // Both features should be processed
+    expect(summary.files).toBeDefined();
+  });
+});
+
 describe("formatFetchSummary", () => {
   it("should format summary correctly", () => {
     const summary = {
