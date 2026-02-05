@@ -188,16 +188,17 @@ describe("generate", () => {
       );
     });
 
-    it("should remove old files when delete option is enabled", async () => {
+    it("should remove orphan files when delete option is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getDelete.mockReturnValue(true);
 
-      const oldFiles = [{ file: "old" }];
+      const existingFiles = [{ file: "existing", getFilePath: () => "/path/to/existing" }];
+      const generatedFiles = [{ tool: "converted", getFilePath: () => "/path/to/converted" }];
       const mockProcessor = {
-        loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
-        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
-        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
         writeAiFiles: vi.fn().mockResolvedValue(1),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
@@ -207,7 +208,36 @@ describe("generate", () => {
       await generate({ config: mockConfig as never });
 
       expect(mockProcessor.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
-      expect(mockProcessor.removeAiFiles).toHaveBeenCalledWith(oldFiles);
+      expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith(existingFiles, generatedFiles);
+    });
+
+    it("should not delete files that are regenerated (only orphans)", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getDelete.mockReturnValue(true);
+
+      // Same file path for both existing and generated - should not be deleted
+      const samePath = "/path/to/file";
+      const existingFiles = [{ file: "existing", getFilePath: () => samePath }];
+      const generatedFiles = [{ tool: "converted", getFilePath: () => samePath }];
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
+        writeAiFiles: vi.fn().mockResolvedValue(1),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as RulesProcessor;
+      });
+
+      await generate({ config: mockConfig as never });
+
+      // removeOrphanAiFiles is called with both lists, the actual filtering happens inside
+      expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith(existingFiles, generatedFiles);
+      // Verify writeAiFiles was called first (files are generated before orphan removal)
+      const writeCall = mockProcessor.writeAiFiles.mock.invocationCallOrder[0] ?? 0;
+      const removeCall = mockProcessor.removeOrphanAiFiles.mock.invocationCallOrder[0] ?? 0;
+      expect(writeCall).toBeLessThan(removeCall);
     });
 
     it("should process multiple base directories", async () => {
@@ -456,17 +486,18 @@ describe("generate", () => {
       expect(result.skills).toContain(mockSkill);
     });
 
-    it("should remove old skill dirs when delete option is enabled", async () => {
+    it("should remove orphan skill dirs when delete option is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
       mockConfig.getDelete.mockReturnValue(true);
 
-      const oldDirs = [{ dir: "old-skill" }];
+      const existingDirs = [{ dir: "existing-skill", getDirPath: () => "/path/to/existing" }];
+      const generatedDirs = [{ dir: "generated-skill", getDirPath: () => "/path/to/generated" }];
       const mockSkillsProcessor = {
-        loadToolDirsToDelete: vi.fn().mockResolvedValue(oldDirs),
-        removeAiDirs: vi.fn().mockResolvedValue(undefined),
+        loadToolDirsToDelete: vi.fn().mockResolvedValue(existingDirs),
+        removeOrphanAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
-        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
-        writeAiDirs: vi.fn().mockResolvedValue(0),
+        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue(generatedDirs),
+        writeAiDirs: vi.fn().mockResolvedValue(1),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return mockSkillsProcessor as unknown as SkillsProcessor;
@@ -475,7 +506,14 @@ describe("generate", () => {
       await generate({ config: mockConfig as never });
 
       expect(mockSkillsProcessor.loadToolDirsToDelete).toHaveBeenCalled();
-      expect(mockSkillsProcessor.removeAiDirs).toHaveBeenCalledWith(oldDirs);
+      expect(mockSkillsProcessor.removeOrphanAiDirs).toHaveBeenCalledWith(
+        existingDirs,
+        generatedDirs,
+      );
+      // Verify writeAiDirs was called first (dirs are generated before orphan removal)
+      const writeCall = mockSkillsProcessor.writeAiDirs.mock.invocationCallOrder[0] ?? 0;
+      const removeCall = mockSkillsProcessor.removeOrphanAiDirs.mock.invocationCallOrder[0] ?? 0;
+      expect(writeCall).toBeLessThan(removeCall);
     });
   });
 

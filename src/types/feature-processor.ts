@@ -46,4 +46,17 @@ export abstract class FeatureProcessor {
       await removeFile(aiFile.getFilePath());
     }
   }
+
+  /**
+   * Remove orphan files that exist in the tool directory but not in the generated files.
+   * This only deletes files that are no longer in the rulesync source, not files that will be overwritten.
+   */
+  async removeOrphanAiFiles(existingFiles: AiFile[], generatedFiles: AiFile[]): Promise<void> {
+    const generatedPaths = new Set(generatedFiles.map((f) => f.getFilePath()));
+    const orphanFiles = existingFiles.filter((f) => !generatedPaths.has(f.getFilePath()));
+
+    for (const aiFile of orphanFiles) {
+      await removeFile(aiFile.getFilePath());
+    }
+  }
 }
