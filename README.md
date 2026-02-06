@@ -228,6 +228,15 @@ npx rulesync generate --check --targets "*" --features "*"
 
 # Add generated files to .gitignore
 npx rulesync gitignore
+
+# Update rulesync to the latest version (single-binary installs)
+npx rulesync update
+
+# Check for updates without installing
+npx rulesync update --check
+
+# Force update even if already at latest version
+npx rulesync update --force
 ```
 
 ## Preview Modes

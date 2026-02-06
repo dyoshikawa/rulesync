@@ -107,3 +107,25 @@ export const GitHubRepoInfoSchema = z.looseObject({
   private: z.boolean(),
 });
 export type GitHubRepoInfo = z.infer<typeof GitHubRepoInfoSchema>;
+
+/**
+ * GitHub release asset from releases API
+ */
+export const GitHubReleaseAssetSchema = z.looseObject({
+  name: z.string(),
+  browser_download_url: z.string(),
+  size: z.number(),
+});
+export type GitHubReleaseAsset = z.infer<typeof GitHubReleaseAssetSchema>;
+
+/**
+ * GitHub release from releases API
+ */
+export const GitHubReleaseSchema = z.looseObject({
+  tag_name: z.string(),
+  name: z.nullable(z.string()),
+  prerelease: z.boolean(),
+  draft: z.boolean(),
+  assets: z.array(GitHubReleaseAssetSchema),
+});
+export type GitHubRelease = z.infer<typeof GitHubReleaseSchema>;

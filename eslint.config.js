@@ -58,12 +58,22 @@ export default defineConfig([
         [
           {
             module: "node:fs",
-            allowReferenceFrom: ["src/utils/file.ts", "src/utils/file.test.ts", "scripts/**/*.ts"],
+            allowReferenceFrom: [
+              "src/utils/file.ts",
+              "src/utils/file.test.ts",
+              "src/lib/update.ts",
+              "src/lib/update.test.ts",
+              "scripts/**/*.ts",
+            ],
             allowSameModule: false,
           },
           {
             module: "node:os",
-            allowReferenceFrom: ["src/utils/file.ts", "src/utils/file.test.ts"],
+            allowReferenceFrom: [
+              "src/utils/file.ts",
+              "src/utils/file.test.ts",
+              "src/lib/update.ts",
+            ],
             allowSameModule: false,
           },
           {

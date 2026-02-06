@@ -12,6 +12,7 @@ import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { updateCommand } from "./commands/update.js";
 
 const getVersion = () => "6.5.0";
 
@@ -194,6 +195,24 @@ const main = async () => {
         logger.error(formatError(error));
         process.exit(1);
       }
+    });
+
+  program
+    .command("update")
+    .description("Update rulesync to the latest version")
+    .option("--check", "Check for updates without installing")
+    .option("--force", "Force update even if already at latest version")
+    .option("--token <token>", "GitHub token for API access")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(async (options) => {
+      await updateCommand(version, {
+        check: options.check,
+        force: options.force,
+        token: options.token,
+        verbose: options.verbose,
+        silent: options.silent,
+      });
     });
 
   program.parse();

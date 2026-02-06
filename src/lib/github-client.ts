@@ -5,11 +5,16 @@ import type {
   GitHubApiError,
   GitHubClientConfig,
   GitHubFileEntry,
+  GitHubRelease,
   GitHubRepoInfo,
 } from "../types/fetch.js";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
-import { GitHubFileEntrySchema, GitHubRepoInfoSchema } from "../types/fetch.js";
+import {
+  GitHubFileEntrySchema,
+  GitHubReleaseSchema,
+  GitHubRepoInfoSchema,
+} from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 
 /**
@@ -205,6 +210,22 @@ export class GitHubClient {
         return false;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Get the latest release from a repository
+   */
+  async getLatestRelease(owner: string, repo: string): Promise<GitHubRelease> {
+    try {
+      const { data } = await this.octokit.repos.getLatestRelease({ owner, repo });
+      const parsed = GitHubReleaseSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new GitHubClientError(`Invalid release info response: ${formatError(parsed.error)}`);
+      }
+      return parsed.data;
+    } catch (error) {
+      throw this.handleError(error);
     }
   }
 
