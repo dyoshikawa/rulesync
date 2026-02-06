@@ -67,7 +67,8 @@ export async function runGenerate({
  */
 export function useTestDirectory(): { getTestDir: () => string } {
   let testDir = "";
-  let cleanup: () => Promise<void>;
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
+  let cleanup: () => Promise<void> = async () => {};
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());

@@ -53,10 +53,12 @@ describe("E2E: mcp", () => {
     });
 
     let hasError = false;
+    let stderrOutput = "";
 
     // Collect stderr output and check for actual errors
     mcpProcess.stderr?.on("data", (data) => {
       const output = data.toString();
+      stderrOutput += output;
       // Check if the output contains actual error messages (not just warnings)
       if (output.toLowerCase().includes("error") && !output.includes("warning")) {
         hasError = true;
@@ -75,6 +77,6 @@ describe("E2E: mcp", () => {
     });
 
     // Verify that there were no actual errors (warnings are acceptable)
-    expect(hasError).toBe(false);
+    expect(hasError, `MCP daemon produced errors: ${stderrOutput}`).toBe(false);
   });
 });
