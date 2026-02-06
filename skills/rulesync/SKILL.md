@@ -210,10 +210,10 @@ npx rulesync init
 # Import existing configurations (to .rulesync/rules/ by default)
 npx rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
 
-# Fetch configurations from a GitHub repository
+# Fetch configurations from a Git repository
 npx rulesync fetch owner/repo
 npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
-npx rulesync fetch https://github.com/owner/repo --conflict skip --dry-run
+npx rulesync fetch https://github.com/owner/repo --conflict skip
 
 # Generate all features for all tools (new preferred syntax)
 npx rulesync generate --targets "*" --features "*"
@@ -228,23 +228,73 @@ npx rulesync generate --targets "*" --features rules
 # Generate simulated commands and subagents
 npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
+# Preview changes without writing files (dry-run mode)
+npx rulesync generate --dry-run --targets claudecode --features rules
+
+# Check if files are up to date (for CI/CD pipelines)
+npx rulesync generate --check --targets "*" --features "*"
+
 # Add generated files to .gitignore
 npx rulesync gitignore
+
+# Update rulesync to the latest version (single-binary installs)
+npx rulesync update
+
+# Check for updates without installing
+npx rulesync update --check
+
+# Force update even if already at latest version
+npx rulesync update --force
 ```
 
-## Fetch Command
+## Preview Modes
 
-The `fetch` command allows you to fetch rulesync configuration files directly from a GitHub repository.
+Rulesync provides two preview modes for the `generate` command that allow you to see what changes would be made without actually writing files:
+
+### `--dry-run`
+
+Preview changes without writing any files. Shows what would be written or deleted with a `[PREVIEW]` prefix.
+
+```bash
+npx rulesync generate --dry-run --targets claudecode --features rules
+```
+
+### `--check`
+
+Same as `--dry-run`, but exits with code 1 if files are not up to date. This is useful for CI/CD pipelines to verify that generated files are committed.
+
+```bash
+# In your CI pipeline
+npx rulesync generate --check --targets "*" --features "*"
+echo $?  # 0 if up to date, 1 if changes needed
+```
+
+> [!NOTE]
+> `--dry-run` and `--check` cannot be used together.
+
+## Fetch Command (In Development)
+
+The `fetch` command allows you to fetch configuration files directly from a Git repository (GitHub/GitLab).
+
+> [!NOTE]
+> This feature is in development and may change in future releases.
+
+**Note:** The fetch command searches for feature directories (`rules/`, `commands/`, `skills/`, `subagents/`, etc.) directly at the specified path, without requiring a `.rulesync/` directory structure. This allows fetching from external repositories like `vercel-labs/agent-skills` or `anthropics/skills`.
 
 ### Source Formats
 
 ```bash
-# Full GitHub URL
+# Full URL format
 npx rulesync fetch https://github.com/owner/repo
 npx rulesync fetch https://github.com/owner/repo/tree/branch
 npx rulesync fetch https://github.com/owner/repo/tree/branch/path/to/subdir
+npx rulesync fetch https://gitlab.com/owner/repo  # GitLab (planned)
 
-# Shorthand format
+# Prefix format
+npx rulesync fetch github:owner/repo
+npx rulesync fetch gitlab:owner/repo              # GitLab (planned)
+
+# Shorthand format (defaults to GitHub)
 npx rulesync fetch owner/repo
 npx rulesync fetch owner/repo@ref        # Specify branch/tag/commit
 npx rulesync fetch owner/repo:path       # Specify subdirectory
@@ -255,25 +305,26 @@ npx rulesync fetch owner/repo@ref:path   # Both ref and path
 
 | Option                  | Description                                                                                | Default                          |
 | ----------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- |
+| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                       | `rulesync`                       |
 | `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all)                        |
 | `--output <dir>`        | Output directory relative to project root                                                  | `.rulesync`                      |
 | `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                 | `overwrite`                      |
 | `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                  | Default branch                   |
 | `--path <path>`         | Subdirectory in the repository                                                             | `.` (root)                       |
-| `--token <token>`       | GitHub token for private repositories                                                      | `GITHUB_TOKEN` or `GH_TOKEN` env |
-| `--dry-run`             | Preview changes without writing files                                                      | `false`                          |
+| `--token <token>`       | Git provider token for private repositories                                                | `GITHUB_TOKEN` or `GH_TOKEN` env |
 
 ### Examples
 
 ```bash
+# Fetch skills from external repositories
+npx rulesync fetch vercel-labs/agent-skills --features skills
+npx rulesync fetch anthropics/skills --features skills
+
 # Fetch all features from a public repository
-npx rulesync fetch dyoshikawa/rulesync
+npx rulesync fetch dyoshikawa/rulesync --path .rulesync
 
 # Fetch only rules and commands from a specific tag
 npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
-
-# Preview what would be fetched without making changes
-npx rulesync fetch owner/repo --dry-run
 
 # Fetch from a private repository (uses GITHUB_TOKEN env var)
 export GITHUB_TOKEN=ghp_xxxx
