@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import { runGenerate, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: ignore", () => {
   const { getTestDir } = useTestDirectory();
@@ -26,14 +26,7 @@ credentials/
     await writeFileContent(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), ignoreContent);
 
     // Execute: Generate ignore for the target
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "generate",
-      "--targets",
-      target,
-      "--features",
-      "ignore",
-    ]);
+    await runGenerate({ target, features: "ignore" });
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));

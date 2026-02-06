@@ -29,12 +29,9 @@ describe("E2E: init", () => {
       join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     ];
 
-    const existenceChecks = await Promise.all(
-      expectedPaths.map(async (path) => fileExists(join(testDir, path))),
-    );
-
-    existenceChecks.forEach((exists) => {
-      expect(exists).toBe(true);
-    });
+    for (const path of expectedPaths) {
+      const exists = await fileExists(join(testDir, path));
+      expect(exists, `Expected ${path} to exist`).toBe(true);
+    }
   });
 });

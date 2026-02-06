@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import { runGenerate, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -29,14 +29,7 @@ describe("E2E: hooks", () => {
     await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
     // Execute: Generate hooks for the target
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "generate",
-      "--targets",
-      target,
-      "--features",
-      "hooks",
-    ]);
+    await runGenerate({ target, features: "hooks" });
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));

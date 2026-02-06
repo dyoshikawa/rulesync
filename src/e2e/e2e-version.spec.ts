@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import { execFileAsync, rulesyncArgs, rulesyncCmd } from "./e2e-helper.js";
 
 describe("E2E: version", () => {
-  useTestDirectory();
-
   it("should display version with --version", async () => {
     const { stdout } = await execFileAsync(rulesyncCmd, [...rulesyncArgs, "--version"]);
 

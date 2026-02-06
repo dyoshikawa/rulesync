@@ -37,9 +37,33 @@ export const rulesyncCmd = process.env.RULESYNC_CMD
 export const rulesyncArgs = process.env.RULESYNC_CMD ? [] : [cliPath];
 
 /**
+ * Runs the `rulesync generate` command with the given target and feature.
+ */
+export async function runGenerate({
+  target,
+  features,
+}: {
+  target: string;
+  features: string;
+}): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync(rulesyncCmd, [
+    ...rulesyncArgs,
+    "generate",
+    "--targets",
+    target,
+    "--features",
+    features,
+  ]);
+}
+
+/**
  * Sets up a temporary test directory and provides lifecycle hooks for e2e tests.
  * Call within a describe block to register beforeEach/afterEach automatically.
  * Returns a getter for the testDir path (available after beforeEach runs).
+ *
+ * NOTE: `process.chdir()` is a global operation that affects the entire Node.js process.
+ * E2e tests must run serially (maxWorkers: 1, fileParallelism: false in vitest.e2e.config.ts)
+ * to avoid race conditions between concurrent test files.
  */
 export function useTestDirectory(): { getTestDir: () => string } {
   let testDir = "";

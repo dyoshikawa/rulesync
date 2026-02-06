@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import { runGenerate, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: mcp", () => {
   const { getTestDir } = useTestDirectory();
@@ -36,14 +36,7 @@ describe("E2E: mcp", () => {
     await writeFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
 
     // Execute: Generate mcp for the target
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "generate",
-      "--targets",
-      target,
-      "--features",
-      "mcp",
-    ]);
+    await runGenerate({ target, features: "mcp" });
 
     // Verify that the expected output file was generated and contains the server
     const generatedContent = await readFileContent(join(testDir, outputPath));

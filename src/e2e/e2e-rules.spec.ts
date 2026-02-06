@@ -5,8 +5,8 @@ import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import { readFileContent, writeFileContent } from "../utils/file.js";
+import { runGenerate, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: rules", () => {
   const { getTestDir } = useTestDirectory();
@@ -22,8 +22,6 @@ describe("E2E: rules", () => {
     const testDir = getTestDir();
 
     // Setup: Create necessary directories and a sample rule file
-    await ensureDir(RULESYNC_RULES_RELATIVE_DIR_PATH);
-
     const ruleContent = `---
 root: true
 targets: ["*"]
@@ -41,14 +39,7 @@ This is a test rule for E2E testing.
     );
 
     // Execute: Generate rules for the target
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "generate",
-      "--targets",
-      target,
-      "--features",
-      "rules",
-    ]);
+    await runGenerate({ target, features: "rules" });
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));

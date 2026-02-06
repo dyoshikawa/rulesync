@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
-import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
-import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import { readFileContent, writeFileContent } from "../utils/file.js";
+import { runGenerate, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: subagents", () => {
   const { getTestDir } = useTestDirectory();
@@ -15,8 +15,6 @@ describe("E2E: subagents", () => {
     const testDir = getTestDir();
 
     // Setup: Create .rulesync/subagents/planner.md
-    await ensureDir(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-
     const subagentContent = `---
 name: planner
 targets: ["*"]
@@ -30,14 +28,7 @@ You are the planner. Analyze files and create a plan.
     );
 
     // Execute: Generate subagents for the target
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "generate",
-      "--targets",
-      target,
-      "--features",
-      "subagents",
-    ]);
+    await runGenerate({ target, features: "subagents" });
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
