@@ -242,6 +242,19 @@ const MAX_RECURSION_DEPTH = 15;
 const FETCH_CONCURRENCY_LIMIT = 10;
 
 /**
+ * Execute an async function with semaphore-controlled concurrency.
+ * Ensures the semaphore permit is always released, even if the function throws.
+ */
+async function withSemaphore<T>(semaphore: Semaphore, fn: () => Promise<T>): Promise<T> {
+  await semaphore.acquire();
+  try {
+    return await fn();
+  } finally {
+    semaphore.release();
+  }
+}
+
+/**
  * Parse URL format into components
  */
 function parseUrl(url: string): ParsedSource {
@@ -507,13 +520,10 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
         return { relativePath, status: "skipped" as const };
       }
 
-      await semaphore.acquire();
-      try {
-        const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
-        await writeFileContent(localPath, content);
-      } finally {
-        semaphore.release();
-      }
+      const content = await withSemaphore(semaphore, () =>
+        client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
+      );
+      await writeFileContent(localPath, content);
 
       const status = exists ? ("overwritten" as const) : ("created" as const);
       logger.debug(`Wrote: ${relativePath} (${status})`);
@@ -563,18 +573,14 @@ async function collectFeatureFiles(params: {
         if (featurePath.includes(".")) {
           // Try to get the file directly
           try {
-            await semaphore.acquire();
-            let entries: GitHubFileEntry[];
-            try {
-              entries = await client.listDirectory(
+            const entries = await withSemaphore(semaphore, () =>
+              client.listDirectory(
                 owner,
                 repo,
                 basePath === "." || basePath === "" ? "." : basePath,
                 ref,
-              );
-            } finally {
-              semaphore.release();
-            }
+              ),
+            );
             const fileEntry = entries.find((e) => e.name === featurePath && e.type === "file");
             if (fileEntry) {
               collected.push({
@@ -593,15 +599,14 @@ async function collectFeatureFiles(params: {
           }
         } else {
           // It's a directory (rules/, commands/, skills/, subagents/)
-          const dirFiles = await listDirectoryRecursive(
+          const dirFiles = await listDirectoryRecursive({
             client,
             owner,
             repo,
-            fullPath,
+            path: fullPath,
             ref,
-            0,
             semaphore,
-          );
+          });
 
           for (const file of dirFiles) {
             // Calculate relative path from base
@@ -635,34 +640,33 @@ async function collectFeatureFiles(params: {
 }
 
 /**
- * Recursively list all files in a directory
+ * Recursively list all files in a directory.
+ *
+ * NOTE: The semaphore is released before spawning recursive calls via Promise.all.
+ * This acquire-release-then-recurse ordering is critical to avoid deadlock when the
+ * same semaphore is shared across collectFeatureFiles and this function.
  */
-async function listDirectoryRecursive(
-  client: GitHubClient,
-  owner: string,
-  repo: string,
-  path: string,
-  ref?: string,
-  depth = 0,
-  semaphore?: Semaphore,
-): Promise<GitHubFileEntry[]> {
+async function listDirectoryRecursive(params: {
+  client: GitHubClient;
+  owner: string;
+  repo: string;
+  path: string;
+  ref?: string;
+  depth?: number;
+  semaphore: Semaphore;
+}): Promise<GitHubFileEntry[]> {
+  const { client, owner, repo, path, ref, depth = 0, semaphore } = params;
+
   if (depth > MAX_RECURSION_DEPTH) {
     throw new Error(
       `Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded while listing directory: ${path}`,
     );
   }
 
-  let entries: GitHubFileEntry[];
-  if (semaphore) {
-    await semaphore.acquire();
-    try {
-      entries = await client.listDirectory(owner, repo, path, ref);
-    } finally {
-      semaphore.release();
-    }
-  } else {
-    entries = await client.listDirectory(owner, repo, path, ref);
-  }
+  // Semaphore is released here before recursive Promise.all below to avoid deadlock
+  const entries = await withSemaphore(semaphore, () =>
+    client.listDirectory(owner, repo, path, ref),
+  );
 
   const files: GitHubFileEntry[] = [];
   const directories: GitHubFileEntry[] = [];
@@ -677,7 +681,15 @@ async function listDirectoryRecursive(
 
   const subResults = await Promise.all(
     directories.map((dir) =>
-      listDirectoryRecursive(client, owner, repo, dir.path, ref, depth + 1, semaphore),
+      listDirectoryRecursive({
+        client,
+        owner,
+        repo,
+        path: dir.path,
+        ref,
+        depth: depth + 1,
+        semaphore,
+      }),
     ),
   );
 
@@ -765,14 +777,11 @@ async function fetchAndConvertToolFiles(params: {
         });
         const localPath = join(tempDir, toolRelativePath);
 
-        // Fetch and write file
-        await semaphore.acquire();
-        try {
-          const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
-          await writeFileContent(localPath, content);
-        } finally {
-          semaphore.release();
-        }
+        // Fetch file content with concurrency control, then write locally
+        const content = await withSemaphore(semaphore, () =>
+          client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
+        );
+        await writeFileContent(localPath, content);
         logger.debug(`Fetched to temp: ${toolRelativePath}`);
         return toolRelativePath;
       }),

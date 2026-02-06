@@ -741,6 +741,196 @@ describe("fetchFiles", () => {
       }),
     ).rejects.toThrow(/Maximum recursion depth.*exceeded/);
   });
+
+  describe("parallel fetching behavior", () => {
+    it("should fetch multiple files concurrently", async () => {
+      const callOrder: string[] = [];
+
+      mockClientInstance.listDirectory.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          if (path === "rules") {
+            return Promise.resolve([
+              {
+                name: "a.md",
+                path: "rules/a.md",
+                type: "file",
+                sha: "a",
+                size: 10,
+                download_url: "https://example.com",
+              },
+              {
+                name: "b.md",
+                path: "rules/b.md",
+                type: "file",
+                sha: "b",
+                size: 10,
+                download_url: "https://example.com",
+              },
+              {
+                name: "c.md",
+                path: "rules/c.md",
+                type: "file",
+                sha: "c",
+                size: 10,
+                download_url: "https://example.com",
+              },
+            ]);
+          }
+          const error = new Error("Not found");
+          Object.assign(error, { statusCode: 404 });
+          return Promise.reject(error);
+        },
+      );
+
+      mockClientInstance.getFileContent.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          callOrder.push(`start:${path}`);
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              callOrder.push(`end:${path}`);
+              resolve(`content of ${path}`);
+            }, 10);
+          });
+        },
+      );
+
+      const result = await fetchFiles({
+        source: "owner/repo",
+        options: { features: ["rules"] },
+        baseDir: testDir,
+      });
+
+      expect(result.files).toHaveLength(3);
+      expect(result.created).toBe(3);
+
+      // All fetches should start before any finishes (concurrent execution)
+      const starts = callOrder.filter((e) => e.startsWith("start:"));
+      const firstEnd = callOrder.findIndex((e) => e.startsWith("end:"));
+      expect(starts.length).toBeGreaterThanOrEqual(2);
+      expect(firstEnd).toBeGreaterThanOrEqual(2);
+    });
+
+    it("should propagate errors from parallel fetches correctly", async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          if (path === "rules") {
+            return Promise.resolve([
+              {
+                name: "a.md",
+                path: "rules/a.md",
+                type: "file",
+                sha: "a",
+                size: 10,
+                download_url: "https://example.com",
+              },
+              {
+                name: "b.md",
+                path: "rules/b.md",
+                type: "file",
+                sha: "b",
+                size: 10,
+                download_url: "https://example.com",
+              },
+            ]);
+          }
+          const error = new Error("Not found");
+          Object.assign(error, { statusCode: 404 });
+          return Promise.reject(error);
+        },
+      );
+
+      mockClientInstance.getFileContent.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          if (path === "rules/b.md") {
+            return Promise.reject(new Error("API rate limit exceeded"));
+          }
+          return Promise.resolve(`content of ${path}`);
+        },
+      );
+
+      await expect(
+        fetchFiles({
+          source: "owner/repo",
+          options: { features: ["rules"] },
+          baseDir: testDir,
+        }),
+      ).rejects.toThrow("API rate limit exceeded");
+    });
+
+    it("should fetch recursive directories concurrently", async () => {
+      const apiCallTimestamps: Array<{ path: string; time: number }> = [];
+      const startTime = Date.now();
+
+      mockClientInstance.listDirectory.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          apiCallTimestamps.push({ path, time: Date.now() - startTime });
+          if (path === "rules") {
+            return Promise.resolve([
+              {
+                name: "dir1",
+                path: "rules/dir1",
+                type: "dir",
+                sha: "d1",
+                size: 0,
+                download_url: null,
+              },
+              {
+                name: "dir2",
+                path: "rules/dir2",
+                type: "dir",
+                sha: "d2",
+                size: 0,
+                download_url: null,
+              },
+            ]);
+          }
+          if (path === "rules/dir1") {
+            return Promise.resolve([
+              {
+                name: "a.md",
+                path: "rules/dir1/a.md",
+                type: "file",
+                sha: "a",
+                size: 10,
+                download_url: "https://example.com",
+              },
+            ]);
+          }
+          if (path === "rules/dir2") {
+            return Promise.resolve([
+              {
+                name: "b.md",
+                path: "rules/dir2/b.md",
+                type: "file",
+                sha: "b",
+                size: 10,
+                download_url: "https://example.com",
+              },
+            ]);
+          }
+          const error = new Error("Not found");
+          Object.assign(error, { statusCode: 404 });
+          return Promise.reject(error);
+        },
+      );
+
+      mockClientInstance.getFileContent.mockResolvedValue("content");
+
+      const result = await fetchFiles({
+        source: "owner/repo",
+        options: { features: ["rules"] },
+        baseDir: testDir,
+      });
+
+      expect(result.files).toHaveLength(2);
+      expect(result.created).toBe(2);
+
+      // dir1 and dir2 should be listed (indicating recursive traversal)
+      const dirPaths = apiCallTimestamps.map((c) => c.path);
+      expect(dirPaths).toContain("rules/dir1");
+      expect(dirPaths).toContain("rules/dir2");
+    });
+  });
 });
 
 describe("fetchFiles with target option", () => {
