@@ -44,8 +44,8 @@ curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/insta
 
 Options:
 
-- Install specific version: `curl -fsSL ... | bash -s -- v6.4.0`
-- Custom directory: `RULESYNC_INSTALL=~/.local curl -fsSL ... | bash`
+- Install specific version: `curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash -s -- v6.4.0`
+- Custom directory: `RULESYNC_HOME=~/.local curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash`
 
 <details>
 <summary>Manual installation (requires sudo)</summary>
