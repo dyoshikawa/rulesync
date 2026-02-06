@@ -231,7 +231,7 @@ npx rulesync generate --targets "*" --features rules
 # Generate simulated commands and subagents
 npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
-# Preview changes without writing files (dry-run mode)
+# Dry run: show changes without writing files
 npx rulesync generate --dry-run --targets claudecode --features rules
 
 # Check if files are up to date (for CI/CD pipelines)
@@ -256,7 +256,7 @@ Rulesync provides two dry run options for the `generate` command that allow you 
 
 ### `--dry-run`
 
-Preview changes without writing any files. Shows what would be written or deleted with a `[PREVIEW]` prefix.
+Show what would be written or deleted without actually writing any files. Changes are displayed with a `[DRY RUN]` prefix.
 
 ```bash
 npx rulesync generate --dry-run --targets claudecode --features rules

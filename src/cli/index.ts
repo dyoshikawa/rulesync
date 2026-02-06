@@ -171,7 +171,7 @@ const main = async () => {
       "--modular-mcp",
       "Generate modular-mcp configuration for context compression (experimental)",
     )
-    .option("--dry-run", "Preview changes without writing files")
+    .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
     .action(async (options) => {
       try {
