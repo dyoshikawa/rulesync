@@ -275,12 +275,12 @@ echo $?  # 0 if up to date, 1 if changes needed
 > [!NOTE]
 > `--dry-run` and `--check` cannot be used together.
 
-## Fetch Command (Experimental)
+## Fetch Command (In Development)
 
 The `fetch` command allows you to fetch configuration files directly from a Git repository (GitHub/GitLab).
 
-> [!WARNING]
-> This feature is experimental and may change in future releases.
+> [!NOTE]
+> This feature is in development and may change in future releases.
 
 **Note:** The fetch command searches for feature directories (`rules/`, `commands/`, `skills/`, `subagents/`, etc.) directly at the specified path, without requiring a `.rulesync/` directory structure. This allows fetching from external repositories like `vercel-labs/agent-skills` or `anthropics/skills`.
 
