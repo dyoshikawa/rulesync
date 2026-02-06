@@ -36,8 +36,19 @@ rulesync --help
 
 Download pre-built binaries from the [latest release](https://github.com/dyoshikawa/rulesync/releases/latest). These binaries are built using [Bun's single-file executable bundler](https://bun.sh/docs/bundler/executables).
 
+**Quick Install (Linux/macOS - No sudo required):**
+
+```bash
+curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash
+```
+
+Options:
+
+- Install specific version: `curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash -s -- v6.4.0`
+- Custom directory: `RULESYNC_HOME=~/.local curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash`
+
 <details>
-<summary>Commands to install a binary for your platform</summary>
+<summary>Manual installation (requires sudo)</summary>
 
 #### Linux (x64)
 

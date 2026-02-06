@@ -320,6 +320,7 @@
     "Classmethod",
     "Asoview",
     "KAKEHASHI",
+    "redirs",
     "TOCTOU"
   ]
 }
