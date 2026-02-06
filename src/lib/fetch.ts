@@ -593,13 +593,15 @@ async function collectFeatureFiles(params: {
           }
         } else {
           // It's a directory (rules/, commands/, skills/, subagents/)
-          await semaphore.acquire();
-          let dirFiles: GitHubFileEntry[];
-          try {
-            dirFiles = await listDirectoryRecursive(client, owner, repo, fullPath, ref);
-          } finally {
-            semaphore.release();
-          }
+          const dirFiles = await listDirectoryRecursive(
+            client,
+            owner,
+            repo,
+            fullPath,
+            ref,
+            0,
+            semaphore,
+          );
 
           for (const file of dirFiles) {
             // Calculate relative path from base
@@ -642,6 +644,7 @@ async function listDirectoryRecursive(
   path: string,
   ref?: string,
   depth = 0,
+  semaphore?: Semaphore,
 ): Promise<GitHubFileEntry[]> {
   if (depth > MAX_RECURSION_DEPTH) {
     throw new Error(
@@ -649,7 +652,18 @@ async function listDirectoryRecursive(
     );
   }
 
-  const entries = await client.listDirectory(owner, repo, path, ref);
+  let entries: GitHubFileEntry[];
+  if (semaphore) {
+    await semaphore.acquire();
+    try {
+      entries = await client.listDirectory(owner, repo, path, ref);
+    } finally {
+      semaphore.release();
+    }
+  } else {
+    entries = await client.listDirectory(owner, repo, path, ref);
+  }
+
   const files: GitHubFileEntry[] = [];
   const directories: GitHubFileEntry[] = [];
 
@@ -662,7 +676,9 @@ async function listDirectoryRecursive(
   }
 
   const subResults = await Promise.all(
-    directories.map((dir) => listDirectoryRecursive(client, owner, repo, dir.path, ref, depth + 1)),
+    directories.map((dir) =>
+      listDirectoryRecursive(client, owner, repo, dir.path, ref, depth + 1, semaphore),
+    ),
   );
 
   return [...files, ...subResults.flat()];
