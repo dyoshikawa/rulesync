@@ -236,6 +236,9 @@ print_path_instructions() {
 print_uninstall_instructions() {
     echo ""
     info "To uninstall rulesync:"
+    printf '%b\n' "  ${YELLOW}rm -f $BIN_DIR/rulesync${NC}"
+    echo ""
+    echo "  If you no longer need the installation directory:"
     printf '%b\n' "  ${YELLOW}rm -rf $INSTALL_DIR${NC}"
     echo ""
     echo "  And remove the PATH entry from your shell configuration file."
@@ -265,6 +268,7 @@ main() {
     if [ "$version" = "latest" ]; then
         info "Fetching latest version..."
         version="$(get_latest_version)"
+        validate_version "$version"
     fi
 
     info "Installing rulesync $version"
