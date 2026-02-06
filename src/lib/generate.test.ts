@@ -109,7 +109,7 @@ describe("generate", () => {
     const createMockProcessor = () => ({
       loadToolFiles: vi.fn().mockResolvedValue([]),
       removeAiFiles: vi.fn().mockResolvedValue(undefined),
-      removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
+      removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
       convertRulesyncFilesToToolFiles: vi
         .fn()
@@ -218,7 +218,7 @@ describe("generate", () => {
       const generatedFiles = [{ tool: "converted", getFilePath: () => "/path/to/converted" }];
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
-        removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
         writeAiFiles: vi.fn().mockResolvedValue(1),
@@ -243,7 +243,7 @@ describe("generate", () => {
       const generatedFiles = [{ tool: "converted", getFilePath: () => samePath }];
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
-        removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
         writeAiFiles: vi.fn().mockResolvedValue(1),
@@ -520,7 +520,7 @@ describe("generate", () => {
       const generatedDirs = [{ dir: "generated-skill", getDirPath: () => "/path/to/generated" }];
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue(existingDirs),
-        removeOrphanAiDirs: vi.fn().mockResolvedValue(undefined),
+        removeOrphanAiDirs: vi.fn().mockResolvedValue(0),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue(generatedDirs),
         writeAiDirs: vi.fn().mockResolvedValue(1),

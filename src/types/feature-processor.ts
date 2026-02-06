@@ -1,4 +1,9 @@
-import { addTrailingNewline, removeFile, writeFileContent } from "../utils/file.js";
+import {
+  addTrailingNewline,
+  readFileContentOrNull,
+  removeFile,
+  writeFileContent,
+} from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
@@ -36,17 +41,25 @@ export abstract class FeatureProcessor {
    * Returns the number of files written.
    */
   async writeAiFiles(aiFiles: AiFile[]): Promise<number> {
+    let changedCount = 0;
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
+      const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
+      const existingContent = await readFileContentOrNull(filePath);
+
+      if (existingContent === contentWithNewline) {
+        continue;
+      }
+
       if (this.dryRun) {
         logger.info(`[DRY RUN] Would write: ${filePath}`);
       } else {
-        const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
         await writeFileContent(filePath, contentWithNewline);
       }
+      changedCount++;
     }
 
-    return aiFiles.length;
+    return changedCount;
   }
 
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {
@@ -59,7 +72,7 @@ export abstract class FeatureProcessor {
    * Remove orphan files that exist in the tool directory but not in the generated files.
    * This only deletes files that are no longer in the rulesync source, not files that will be overwritten.
    */
-  async removeOrphanAiFiles(existingFiles: AiFile[], generatedFiles: AiFile[]): Promise<void> {
+  async removeOrphanAiFiles(existingFiles: AiFile[], generatedFiles: AiFile[]): Promise<number> {
     const generatedPaths = new Set(generatedFiles.map((f) => f.getFilePath()));
     const orphanFiles = existingFiles.filter((f) => !generatedPaths.has(f.getFilePath()));
 
@@ -71,5 +84,7 @@ export abstract class FeatureProcessor {
         await removeFile(filePath);
       }
     }
+
+    return orphanFiles.length;
   }
 }

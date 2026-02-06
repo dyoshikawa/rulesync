@@ -11,11 +11,8 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { AiDir } from "../types/ai-dir.js";
-import { AiFile } from "../types/ai-file.js";
 import { formatError } from "../utils/error.js";
-import { addTrailingNewline, fileExists, readFileContentOrNull } from "../utils/file.js";
-import { stringifyFrontmatter } from "../utils/frontmatter.js";
+import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 
 export type GenerateResult = {
@@ -109,23 +106,14 @@ async function generateRulesCore(params: {
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      if (isPreviewMode) {
-        const fileDiff = await detectFileDiff(toolFiles);
-        if (fileDiff) hasDiff = true;
-      }
-
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+      if (writtenCount > 0) hasDiff = true;
 
       if (config.getDelete()) {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-        if (isPreviewMode) {
-          const orphanDiff = await detectOrphanFileDiff(existingToolFiles, toolFiles);
-          if (orphanDiff) hasDiff = true;
-        }
-
-        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        if (orphanCount > 0) hasDiff = true;
       }
     }
   }
@@ -163,33 +151,20 @@ async function generateIgnoreCore(params: {
         if (rulesyncFiles.length > 0) {
           const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-          if (isPreviewMode) {
-            const fileDiff = await detectFileDiff(toolFiles);
-            if (fileDiff) hasDiff = true;
-          }
-
           const writtenCount = await processor.writeAiFiles(toolFiles);
           totalCount += writtenCount;
+          if (writtenCount > 0) hasDiff = true;
 
           if (config.getDelete()) {
             const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-            if (isPreviewMode) {
-              const orphanDiff = await detectOrphanFileDiff(existingToolFiles, toolFiles);
-              if (orphanDiff) hasDiff = true;
-            }
-
-            await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+            const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+            if (orphanCount > 0) hasDiff = true;
           }
         } else if (config.getDelete()) {
           // No rulesync files, so all existing tool files are orphans
           const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-          if (isPreviewMode && existingToolFiles.length > 0) {
-            hasDiff = true;
-          }
-
-          await processor.removeOrphanAiFiles(existingToolFiles, []);
+          const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
+          if (orphanCount > 0) hasDiff = true;
         }
       } catch (error) {
         logger.warn(
@@ -234,23 +209,14 @@ async function generateMcpCore(params: {
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      if (isPreviewMode) {
-        const fileDiff = await detectFileDiff(toolFiles);
-        if (fileDiff) hasDiff = true;
-      }
-
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+      if (writtenCount > 0) hasDiff = true;
 
       if (config.getDelete()) {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-        if (isPreviewMode) {
-          const orphanDiff = await detectOrphanFileDiff(existingToolFiles, toolFiles);
-          if (orphanDiff) hasDiff = true;
-        }
-
-        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        if (orphanCount > 0) hasDiff = true;
       }
     }
   }
@@ -291,23 +257,14 @@ async function generateCommandsCore(params: {
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      if (isPreviewMode) {
-        const fileDiff = await detectFileDiff(toolFiles);
-        if (fileDiff) hasDiff = true;
-      }
-
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+      if (writtenCount > 0) hasDiff = true;
 
       if (config.getDelete()) {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-        if (isPreviewMode) {
-          const orphanDiff = await detectOrphanFileDiff(existingToolFiles, toolFiles);
-          if (orphanDiff) hasDiff = true;
-        }
-
-        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        if (orphanCount > 0) hasDiff = true;
       }
     }
   }
@@ -348,23 +305,14 @@ async function generateSubagentsCore(params: {
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      if (isPreviewMode) {
-        const fileDiff = await detectFileDiff(toolFiles);
-        if (fileDiff) hasDiff = true;
-      }
-
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+      if (writtenCount > 0) hasDiff = true;
 
       if (config.getDelete()) {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-        if (isPreviewMode) {
-          const orphanDiff = await detectOrphanFileDiff(existingToolFiles, toolFiles);
-          if (orphanDiff) hasDiff = true;
-        }
-
-        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        if (orphanCount > 0) hasDiff = true;
       }
     }
   }
@@ -413,23 +361,14 @@ async function generateSkillsCore(params: {
 
       const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
 
-      if (isPreviewMode) {
-        const dirDiff = await detectDirDiff(toolDirs);
-        if (dirDiff) hasDiff = true;
-      }
-
       const writtenCount = await processor.writeAiDirs(toolDirs);
       totalCount += writtenCount;
+      if (writtenCount > 0) hasDiff = true;
 
       if (config.getDelete()) {
         const existingToolDirs = await processor.loadToolDirsToDelete();
-
-        if (isPreviewMode) {
-          const orphanDiff = await detectOrphanDirDiff(existingToolDirs, toolDirs);
-          if (orphanDiff) hasDiff = true;
-        }
-
-        await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
+        const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
+        if (orphanCount > 0) hasDiff = true;
       }
     }
   }
@@ -469,106 +408,25 @@ async function generateHooksCore(params: {
         if (config.getDelete()) {
           // No rulesync files, so all existing tool files are orphans
           const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-          if (isPreviewMode && existingToolFiles.length > 0) {
-            hasDiff = true;
-          }
-
-          await processor.removeOrphanAiFiles(existingToolFiles, []);
+          const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
+          if (orphanCount > 0) hasDiff = true;
         }
         continue;
       }
 
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      if (isPreviewMode) {
-        const fileDiff = await detectFileDiff(toolFiles);
-        if (fileDiff) hasDiff = true;
-      }
-
       const writtenCount = await processor.writeAiFiles(toolFiles);
       totalCount += writtenCount;
+      if (writtenCount > 0) hasDiff = true;
 
       if (config.getDelete()) {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-        if (isPreviewMode) {
-          const orphanDiff = await detectOrphanFileDiff(existingToolFiles, toolFiles);
-          if (orphanDiff) hasDiff = true;
-        }
-
-        await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+        if (orphanCount > 0) hasDiff = true;
       }
     }
   }
 
   return { count: totalCount, hasDiff };
-}
-
-/**
- * Detect if any files would have different content than existing files.
- */
-async function detectFileDiff(aiFiles: AiFile[]): Promise<boolean> {
-  for (const aiFile of aiFiles) {
-    const filePath = aiFile.getFilePath();
-    const newContent = addTrailingNewline(aiFile.getFileContent());
-    const existingContent = await readFileContentOrNull(filePath);
-    if (existingContent !== newContent) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Detect if there are orphan files that would be deleted.
- */
-async function detectOrphanFileDiff(
-  existingFiles: AiFile[],
-  generatedFiles: AiFile[],
-): Promise<boolean> {
-  const generatedPaths = new Set(generatedFiles.map((f) => f.getFilePath()));
-  const orphanFiles = existingFiles.filter((f) => !generatedPaths.has(f.getFilePath()));
-  return orphanFiles.length > 0;
-}
-
-/**
- * Detect if any directories would have different content than existing directories.
- */
-async function detectDirDiff(aiDirs: AiDir[]): Promise<boolean> {
-  for (const aiDir of aiDirs) {
-    const mainFile = aiDir.getMainFile();
-    if (mainFile) {
-      const mainFilePath = join(aiDir.getDirPath(), mainFile.name);
-      const newContent = addTrailingNewline(
-        stringifyFrontmatter(mainFile.body, mainFile.frontmatter),
-      );
-      const existingContent = await readFileContentOrNull(mainFilePath);
-      if (existingContent !== newContent) {
-        return true;
-      }
-    }
-
-    for (const file of aiDir.getOtherFiles()) {
-      const filePath = join(aiDir.getDirPath(), file.relativeFilePathToDirPath);
-      const newContent = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-      const existingContent = await readFileContentOrNull(filePath);
-      if (existingContent !== newContent) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/**
- * Detect if there are orphan directories that would be deleted.
- */
-async function detectOrphanDirDiff(
-  existingDirs: AiDir[],
-  generatedDirs: AiDir[],
-): Promise<boolean> {
-  const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
-  const orphanDirs = existingDirs.filter((d) => !generatedPaths.has(d.getDirPath()));
-  return orphanDirs.length > 0;
 }

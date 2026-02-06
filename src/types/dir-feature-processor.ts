@@ -1,6 +1,12 @@
 import { join } from "node:path";
 
-import { addTrailingNewline, ensureDir, removeDirectory, writeFileContent } from "../utils/file.js";
+import {
+  addTrailingNewline,
+  ensureDir,
+  readFileContentOrNull,
+  removeDirectory,
+  writeFileContent,
+} from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { logger } from "../utils/logger.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
@@ -39,16 +45,44 @@ export abstract class DirFeatureProcessor {
    * Returns the number of directories written.
    */
   async writeAiDirs(aiDirs: AiDir[]): Promise<number> {
+    let changedCount = 0;
     for (const aiDir of aiDirs) {
       const dirPath = aiDir.getDirPath();
+      let dirHasChanges = false;
+
+      // Check main file for diff
+      const mainFile = aiDir.getMainFile();
+      if (mainFile) {
+        const mainFilePath = join(dirPath, mainFile.name);
+        const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
+        const contentWithNewline = addTrailingNewline(content);
+        const existingContent = await readFileContentOrNull(mainFilePath);
+        if (existingContent !== contentWithNewline) {
+          dirHasChanges = true;
+        }
+      }
+
+      // Check other files for diff
+      const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
+      for (const file of otherFiles) {
+        const filePath = join(dirPath, file.relativeFilePathToDirPath);
+        const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
+        const existingContent = await readFileContentOrNull(filePath);
+        if (existingContent !== contentWithNewline) {
+          dirHasChanges = true;
+        }
+      }
+
+      if (!dirHasChanges) {
+        continue;
+      }
 
       if (this.dryRun) {
         logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
-        const mainFile = aiDir.getMainFile();
         if (mainFile) {
           logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
         }
-        for (const file of aiDir.getOtherFiles()) {
+        for (const file of otherFiles) {
           logger.info(`[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`);
         }
       } else {
@@ -56,7 +90,6 @@ export abstract class DirFeatureProcessor {
         await ensureDir(dirPath);
 
         // Write main file if exists
-        const mainFile = aiDir.getMainFile();
         if (mainFile) {
           const mainFilePath = join(dirPath, mainFile.name);
           const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
@@ -65,16 +98,16 @@ export abstract class DirFeatureProcessor {
         }
 
         // Write other files
-        const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
         for (const file of otherFiles) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
           const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
           await writeFileContent(filePath, contentWithNewline);
         }
       }
+      changedCount++;
     }
 
-    return aiDirs.length;
+    return changedCount;
   }
 
   async removeAiDirs(aiDirs: AiDir[]): Promise<void> {
@@ -87,7 +120,7 @@ export abstract class DirFeatureProcessor {
    * Remove orphan directories that exist in the tool directory but not in the generated directories.
    * This only deletes directories that are no longer in the rulesync source, not directories that will be overwritten.
    */
-  async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<void> {
+  async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
     const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
     const orphanDirs = existingDirs.filter((d) => !generatedPaths.has(d.getDirPath()));
 
@@ -99,5 +132,7 @@ export abstract class DirFeatureProcessor {
         await removeDirectory(dirPath);
       }
     }
+
+    return orphanDirs.length;
   }
 }
