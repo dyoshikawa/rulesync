@@ -235,16 +235,12 @@ export class GitHubClient {
    */
   async resolveRefToSha(owner: string, repo: string, ref: string): Promise<string> {
     try {
-      const { data } = await this.octokit.repos.listCommits({
+      const { data } = await this.octokit.repos.getCommit({
         owner,
         repo,
-        sha: ref,
-        per_page: 1,
+        ref,
       });
-      if (data.length === 0) {
-        throw new GitHubClientError(`Could not resolve ref: ${ref}`);
-      }
-      return data[0].sha;
+      return data.sha;
     } catch (error) {
       throw this.handleError(error);
     }

@@ -248,6 +248,18 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should re-resolve refs when updateSources is true", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+
+    // Pre-existing lock has a different SHA for the same source
+    vi.mocked(readLockFile).mockResolvedValue({
+      sources: {
+        "https://github.com/org/repo": {
+          resolvedRef: "old-locked-sha-should-be-ignored",
+          skills: ["my-skill"],
+        },
+      },
+    });
+
     // Set up mock: remote has one skill
     mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
       if (path === "skills") {
@@ -267,6 +279,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     // updateSources: true creates empty lock, so resolveRefToSha must be called
+    // (proving the pre-existing lock entry "old-locked-sha-should-be-ignored" was ignored)
     expect(mockClientInstance.resolveRefToSha).toHaveBeenCalled();
     expect(result.fetchedSkillCount).toBe(1);
   });
@@ -343,5 +356,33 @@ describe("resolveAndFetchSources", () => {
     expect(writeCalls.length).toBeGreaterThan(0);
     const writtenLock = writeCalls[0]![0].lock;
     expect(writtenLock.sources["https://github.com/org/old-removed-repo"]).toBeUndefined();
+  });
+
+  it("should skip skill directories with path traversal characters in name", async () => {
+    // Remote has skills with suspicious names
+    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
+      if (path === "skills") {
+        return [
+          { name: "../../evil", path: "skills/../../evil", type: "dir" },
+          { name: "good-skill", path: "skills/good-skill", type: "dir" },
+        ];
+      }
+      if (path === "skills/good-skill") {
+        return [{ name: "SKILL.md", path: "skills/good-skill/SKILL.md", type: "file", size: 50 }];
+      }
+      return [];
+    });
+    mockClientInstance.getFileContent.mockResolvedValue("content");
+
+    const result = await resolveAndFetchSources({
+      sources: [{ source: "https://github.com/org/repo" }],
+      baseDir: "/project",
+    });
+
+    // Only the good skill should be fetched; the traversal one is skipped
+    expect(result.fetchedSkillCount).toBe(1);
+    const writeArgs = vi.mocked(writeFileContent).mock.calls.map((call) => call[0]);
+    expect(writeArgs.some((p) => p.includes("evil"))).toBe(false);
+    expect(writeArgs.some((p) => p.includes("good-skill"))).toBe(true);
   });
 });

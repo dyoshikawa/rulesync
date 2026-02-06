@@ -45,6 +45,12 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     process.exit(1);
   }
 
+  // Validate --skip-sources and --update-sources are mutually exclusive
+  if (options.skipSources && options.updateSources) {
+    logger.error("❌ --skip-sources and --update-sources cannot be used together");
+    process.exit(1);
+  }
+
   const isPreview = config.isPreviewMode();
   const modePrefix = isPreview ? "[DRY RUN]" : "";
 

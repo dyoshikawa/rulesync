@@ -106,15 +106,17 @@ export async function resolveAndFetchSources(params: {
     }
   }
 
-  // Prune stale lockfile entries whose keys are not in the current sources
+  // Prune stale lockfile entries whose keys are not in the current sources (immutable)
   const sourceKeys = new Set(sources.map((s) => s.source));
-  for (const key of Object.keys(lock.sources)) {
-    if (!sourceKeys.has(key)) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete lock.sources[key];
+  const prunedSources: typeof lock.sources = {};
+  for (const [key, value] of Object.entries(lock.sources)) {
+    if (sourceKeys.has(key)) {
+      prunedSources[key] = value;
+    } else {
       logger.debug(`Pruned stale lockfile entry: ${key}`);
     }
   }
+  lock = { sources: prunedSources };
 
   // Only write lockfile if it has changed
   if (JSON.stringify(lock) !== originalLockJson) {
@@ -234,6 +236,18 @@ async function fetchSource(params: {
   const curatedDir = join(baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
   for (const skillDir of filteredDirs) {
+    // Validate skill directory name to prevent path traversal
+    if (
+      skillDir.name.includes("..") ||
+      skillDir.name.includes("/") ||
+      skillDir.name.includes("\\")
+    ) {
+      logger.warn(
+        `Skipping skill with invalid name "${skillDir.name}" from ${sourceKey}: contains path traversal characters.`,
+      );
+      continue;
+    }
+
     // Skip skills that exist locally (local takes precedence)
     if (localSkillNames.has(skillDir.name)) {
       logger.debug(

@@ -21,11 +21,13 @@ import {
   ConfigParams,
   PartialConfigParams,
   RequiredConfigParams,
-  SourceEntry,
 } from "./config.js";
 
+/**
+ * CLI-resolvable params exclude `sources` — sources are config-file-only.
+ */
 export type ConfigResolverResolveParams = Partial<
-  ConfigParams & {
+  Omit<ConfigParams, "sources"> & {
     configPath: string;
   }
 >;

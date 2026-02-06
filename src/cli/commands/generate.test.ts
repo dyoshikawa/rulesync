@@ -1014,6 +1014,17 @@ describe("generateCommand", () => {
       expect(logger.info).toHaveBeenCalledWith("Skipping remote source fetching.");
     });
 
+    it("should exit with error when both --skip-sources and --update-sources are set", async () => {
+      const options: GenerateOptions = { skipSources: true, updateSources: true };
+
+      await expect(generateCommand(options)).rejects.toThrow("Process exit");
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "❌ --skip-sources and --update-sources cannot be used together",
+      );
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
     it("should auto-skip sources in preview mode (dry-run/check)", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
       mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
