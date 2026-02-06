@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type KiloRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
@@ -28,7 +29,7 @@ export class KiloRule extends ToolRule {
   ): KiloRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".kilocode", "rules"),
+        relativeDirPath: buildToolPath(".kilocode", "rules", _options.excludeToolDir),
       },
     };
   }

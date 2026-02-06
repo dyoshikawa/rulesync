@@ -234,6 +234,11 @@ export function parseSource(source: string): ParsedSource {
   return { provider: "github", ...parseShorthand(source) };
 }
 
+const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);
+const GITLAB_HOSTS = new Set(["gitlab.com", "www.gitlab.com"]);
+
+const MAX_RECURSION_DEPTH = 15;
+
 /**
  * Parse URL format into components
  */
@@ -242,9 +247,9 @@ function parseUrl(url: string): ParsedSource {
   const host = urlObj.hostname.toLowerCase();
 
   let provider: GitProvider;
-  if (host === "github.com" || host.endsWith(".github.com")) {
+  if (GITHUB_HOSTS.has(host)) {
     provider = "github";
-  } else if (host === "gitlab.com" || host.endsWith(".gitlab.com")) {
+  } else if (GITLAB_HOSTS.has(host)) {
     provider = "gitlab";
   } else {
     throw new Error(
@@ -610,7 +615,14 @@ async function listDirectoryRecursive(
   repo: string,
   path: string,
   ref?: string,
+  depth = 0,
 ): Promise<GitHubFileEntry[]> {
+  if (depth > MAX_RECURSION_DEPTH) {
+    throw new Error(
+      `Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded while listing directory: ${path}`,
+    );
+  }
+
   const entries = await client.listDirectory(owner, repo, path, ref);
   const files: GitHubFileEntry[] = [];
 
@@ -618,7 +630,14 @@ async function listDirectoryRecursive(
     if (entry.type === "file") {
       files.push(entry);
     } else if (entry.type === "dir") {
-      const subFiles = await listDirectoryRecursive(client, owner, repo, entry.path, ref);
+      const subFiles = await listDirectoryRecursive(
+        client,
+        owner,
+        repo,
+        entry.path,
+        ref,
+        depth + 1,
+      );
       files.push(...subFiles);
     }
   }

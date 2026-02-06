@@ -10,6 +10,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type RooRuleParams = ToolRuleParams;
@@ -36,7 +37,7 @@ export class RooRule extends ToolRule {
   ): RooRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".roo", "rules"),
+        relativeDirPath: buildToolPath(".roo", "rules", _options.excludeToolDir),
       },
     };
   }

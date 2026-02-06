@@ -10,6 +10,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type CodexcliRuleSettablePaths = ToolRuleSettablePaths & {
@@ -39,7 +40,7 @@ export class CodexcliRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: excludeToolDir ? "." : ".codex",
+          relativeDirPath: buildToolPath(".codex", ".", excludeToolDir),
           relativeFilePath: "AGENTS.md",
         },
       };
@@ -50,7 +51,7 @@ export class CodexcliRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: excludeToolDir ? "memories" : join(".codex", "memories"),
+        relativeDirPath: buildToolPath(".codex", "memories", excludeToolDir),
       },
     };
   }

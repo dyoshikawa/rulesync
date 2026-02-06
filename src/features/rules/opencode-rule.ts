@@ -9,6 +9,7 @@ import {
   type ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type OpenCodeRuleParams = ToolRuleParams;
@@ -33,7 +34,7 @@ export class OpenCodeRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "memories" : join(".opencode", "memories"),
+        relativeDirPath: buildToolPath(".opencode", "memories", _options.excludeToolDir),
       },
     };
   }

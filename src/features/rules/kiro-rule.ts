@@ -10,6 +10,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type KiroRuleParams = ToolRuleParams;
@@ -32,7 +33,7 @@ export class KiroRule extends ToolRule {
   ): KiroRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "steering" : join(".kiro", "steering"),
+        relativeDirPath: buildToolPath(".kiro", "steering", _options.excludeToolDir),
       },
     };
   }

@@ -14,6 +14,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export const CopilotRuleFrontmatterSchema = z.object({
@@ -51,11 +52,11 @@ export class CopilotRule extends ToolRule {
   ): CopilotRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: _options.excludeToolDir ? "." : ".github",
+        relativeDirPath: buildToolPath(".github", ".", _options.excludeToolDir),
         relativeFilePath: "copilot-instructions.md",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "instructions" : join(".github", "instructions"),
+        relativeDirPath: buildToolPath(".github", "instructions", _options.excludeToolDir),
       },
     };
   }

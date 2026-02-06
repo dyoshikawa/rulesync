@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type JunieRuleParams = AiFileParams;
@@ -38,11 +39,11 @@ export class JunieRule extends ToolRule {
   ): JunieRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: _options.excludeToolDir ? "." : ".junie",
+        relativeDirPath: buildToolPath(".junie", ".", _options.excludeToolDir),
         relativeFilePath: "guidelines.md",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "memories" : join(".junie", "memories"),
+        relativeDirPath: buildToolPath(".junie", "memories", _options.excludeToolDir),
       },
     };
   }

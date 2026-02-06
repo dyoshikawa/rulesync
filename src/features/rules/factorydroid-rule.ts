@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type FactorydroidRuleParams = AiFileParams & {
@@ -41,21 +42,21 @@ export class FactorydroidRule extends ToolRule {
     if (options?.global) {
       return {
         root: {
-          relativeDirPath: options.excludeToolDir ? "." : ".factorydroid",
+          relativeDirPath: buildToolPath(".factorydroid", ".", options.excludeToolDir),
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: options.excludeToolDir ? "memories" : join(".factorydroid", "memories"),
+          relativeDirPath: buildToolPath(".factorydroid", "memories", options.excludeToolDir),
         },
       };
     }
     return {
       root: {
-        relativeDirPath: options?.excludeToolDir ? "." : ".factorydroid",
+        relativeDirPath: buildToolPath(".factorydroid", ".", options?.excludeToolDir),
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: options?.excludeToolDir ? "memories" : join(".factorydroid", "memories"),
+        relativeDirPath: buildToolPath(".factorydroid", "memories", options?.excludeToolDir),
       },
     };
   }

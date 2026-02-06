@@ -10,6 +10,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type QwencodeRuleParams = ToolRuleParams;
@@ -43,7 +44,7 @@ export class QwencodeRule extends ToolRule {
         relativeFilePath: "QWEN.md",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "memories" : join(".qwen", "memories"),
+        relativeDirPath: buildToolPath(".qwen", "memories", _options.excludeToolDir),
       },
     };
   }

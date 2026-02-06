@@ -15,6 +15,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export const CursorRuleFrontmatterSchema = z.object({
@@ -48,7 +49,7 @@ export class CursorRule extends ToolRule {
   ): CursorRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".cursor", "rules"),
+        relativeDirPath: buildToolPath(".cursor", "rules", _options.excludeToolDir),
       },
     };
   }

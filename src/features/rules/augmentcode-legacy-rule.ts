@@ -11,6 +11,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type AugmentcodeLegacyRuleParams = ToolRuleParams;
@@ -56,7 +57,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
         relativeFilePath: ".augment-guidelines",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".augment", "rules"),
+        relativeDirPath: buildToolPath(".augment", "rules", _options.excludeToolDir),
       },
     };
   }

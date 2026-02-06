@@ -10,6 +10,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type ClaudecodeLegacyRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -46,7 +47,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: excludeToolDir ? "." : ".claude",
+          relativeDirPath: buildToolPath(".claude", ".", excludeToolDir),
           relativeFilePath: "CLAUDE.md",
         },
       };
@@ -57,7 +58,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
         relativeFilePath: "CLAUDE.md",
       },
       nonRoot: {
-        relativeDirPath: excludeToolDir ? "memories" : join(".claude", "memories"),
+        relativeDirPath: buildToolPath(".claude", "memories", excludeToolDir),
       },
     };
   }
