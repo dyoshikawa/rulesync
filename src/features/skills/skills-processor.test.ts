@@ -636,6 +636,7 @@ Content that would fail parsing`;
           "codexcli",
           "copilot",
           "cursor",
+          "geminicli",
           "kilo",
           "kiro",
           "opencode",
@@ -679,6 +680,7 @@ Content that would fail parsing`;
           "codexcli",
           "copilot",
           "cursor",
+          "geminicli",
           "kilo",
           "kiro",
           "opencode",
@@ -696,7 +698,7 @@ Content that would fail parsing`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(new Set(targets)).toEqual(new Set(["agentsmd", "factorydroid", "geminicli"]));
+      expect(new Set(targets)).toEqual(new Set(["agentsmd", "factorydroid"]));
     });
   });
 
@@ -710,6 +712,7 @@ Content that would fail parsing`;
         "codexcli",
         "cursor",
         "factorydroid",
+        "geminicli",
         "kilo",
         "opencode",
         "roo",
@@ -728,6 +731,7 @@ Content that would fail parsing`;
         "codexcli",
         "cursor",
         "factorydroid",
+        "geminicli",
         "kilo",
         "opencode",
         "roo",
