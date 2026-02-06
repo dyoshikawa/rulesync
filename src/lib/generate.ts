@@ -14,10 +14,7 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import {
-  type ResolveAndFetchSourcesOptions,
-  resolveAndFetchSources,
-} from "./sources.js";
+import { type ResolveAndFetchSourcesOptions, resolveAndFetchSources } from "./sources.js";
 
 export type GenerateResult = {
   rulesCount: number;

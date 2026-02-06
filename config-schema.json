@@ -47,16 +47,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "rules",
-          "ignore",
-          "mcp",
-          "subagents",
-          "commands",
-          "skills",
-          "hooks",
-          "*"
-        ]
+        "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
       }
     },
     "verbose": {
@@ -105,9 +96,7 @@
             }
           }
         },
-        "required": [
-          "source"
-        ],
+        "required": ["source"],
         "additionalProperties": false
       }
     }

@@ -937,8 +937,8 @@ Add a `sources` array to your `rulesync.jsonc`:
     { "source": "anthropics/skills", "skills": ["skill-creator"] },
 
     // With ref pinning and subdirectory path (same syntax as fetch command)
-    { "source": "owner/repo@v1.0.0:path/to/skills" }
-  ]
+    { "source": "owner/repo@v1.0.0:path/to/skills" },
+  ],
 }
 ```
 
@@ -965,9 +965,9 @@ When `generate` runs and `sources` is configured (with the `skills` feature enab
 
 Two flags on the `generate` command control source behavior:
 
-| Flag               | Description                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| `--skip-sources`   | Skip source fetching entirely (use whatever is already on disk).                     |
+| Flag               | Description                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `--skip-sources`   | Skip source fetching entirely (use whatever is already on disk).                      |
 | `--update-sources` | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates). |
 
 ```bash
@@ -1016,9 +1016,9 @@ GITHUB_TOKEN=$(gh auth token) npx rulesync generate
 
 ### Curated vs Local Skills
 
-| Location                         | Type    | Precedence | Committed to Git |
-| -------------------------------- | ------- | ---------- | ---------------- |
-| `.rulesync/skills/<name>/`       | Local   | Highest    | Yes              |
+| Location                            | Type    | Precedence | Committed to Git |
+| ----------------------------------- | ------- | ---------- | ---------------- |
+| `.rulesync/skills/<name>/`          | Local   | Highest    | Yes              |
 | `.rulesync/skills/.curated/<name>/` | Curated | Lower      | No (gitignored)  |
 
 When both a local and a curated skill share the same name, the local skill is used and the remote one is not fetched.

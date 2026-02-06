@@ -59,10 +59,7 @@ export async function readLockFile(params: { baseDir: string }): Promise<Sources
 /**
  * Write the lockfile to disk.
  */
-export async function writeLockFile(params: {
-  baseDir: string;
-  lock: SourcesLock;
-}): Promise<void> {
+export async function writeLockFile(params: { baseDir: string; lock: SourcesLock }): Promise<void> {
   const lockPath = join(params.baseDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
   const content = JSON.stringify(params.lock, null, 2) + "\n";
   await writeFileContent(lockPath, content);

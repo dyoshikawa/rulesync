@@ -2,7 +2,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
-import { directoryExists, findFilesByGlobs, removeDirectory, writeFileContent } from "../utils/file.js";
+import {
+  directoryExists,
+  findFilesByGlobs,
+  removeDirectory,
+  writeFileContent,
+} from "../utils/file.js";
 import { resolveAndFetchSources } from "./sources.js";
 
 let mockClientInstance: any;
@@ -125,15 +130,17 @@ describe("resolveAndFetchSources", () => {
 
   it("should fetch skills from a remote source", async () => {
     // Mock: remote has one skill directory with one file
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
-      }
-      if (path === "skills/my-skill") {
-        return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
     mockClientInstance.getFileContent.mockResolvedValue("# My Skill\nContent here.");
 
     const result = await resolveAndFetchSources({
@@ -162,12 +169,14 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(findFilesByGlobs).mockResolvedValue(["/project/.rulesync/skills/my-skill"]);
 
     // Remote has same skill name
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        return [];
+      },
+    );
 
     const result = await resolveAndFetchSources({
       sources: [{ source: "https://github.com/org/repo" }],
@@ -180,18 +189,20 @@ describe("resolveAndFetchSources", () => {
 
   it("should respect skill filter", async () => {
     // Remote has two skills
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [
-          { name: "skill-a", path: "skills/skill-a", type: "dir" },
-          { name: "skill-b", path: "skills/skill-b", type: "dir" },
-        ];
-      }
-      if (path === "skills/skill-a") {
-        return [{ name: "SKILL.md", path: "skills/skill-a/SKILL.md", type: "file", size: 50 }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [
+            { name: "skill-a", path: "skills/skill-a", type: "dir" },
+            { name: "skill-b", path: "skills/skill-b", type: "dir" },
+          ];
+        }
+        if (path === "skills/skill-a") {
+          return [{ name: "SKILL.md", path: "skills/skill-a/SKILL.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
@@ -208,15 +219,19 @@ describe("resolveAndFetchSources", () => {
 
   it("should skip duplicate skills from later sources", async () => {
     // Both sources have "shared-skill"
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [{ name: "shared-skill", path: "skills/shared-skill", type: "dir" }];
-      }
-      if (path === "skills/shared-skill") {
-        return [{ name: "SKILL.md", path: "skills/shared-skill/SKILL.md", type: "file", size: 50 }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "shared-skill", path: "skills/shared-skill", type: "dir" }];
+        }
+        if (path === "skills/shared-skill") {
+          return [
+            { name: "SKILL.md", path: "skills/shared-skill/SKILL.md", type: "file", size: 50 },
+          ];
+        }
+        return [];
+      },
+    );
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
@@ -233,9 +248,7 @@ describe("resolveAndFetchSources", () => {
 
   it("should handle 404 for skills directory gracefully", async () => {
     const { GitHubClientError } = await import("./github-client.js");
-    mockClientInstance.listDirectory.mockRejectedValue(
-      new GitHubClientError("Not Found", 404),
-    );
+    mockClientInstance.listDirectory.mockRejectedValue(new GitHubClientError("Not Found", 404));
 
     const result = await resolveAndFetchSources({
       sources: [{ source: "https://github.com/org/repo" }],
@@ -261,15 +274,17 @@ describe("resolveAndFetchSources", () => {
     });
 
     // Set up mock: remote has one skill
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
-      }
-      if (path === "skills/my-skill") {
-        return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
@@ -295,15 +310,17 @@ describe("resolveAndFetchSources", () => {
     });
 
     // Second source has a skill (first source will fail before listing)
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [{ name: "good-skill", path: "skills/good-skill", type: "dir" }];
-      }
-      if (path === "skills/good-skill") {
-        return [{ name: "SKILL.md", path: "skills/good-skill/SKILL.md", type: "file", size: 50 }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "good-skill", path: "skills/good-skill", type: "dir" }];
+        }
+        if (path === "skills/good-skill") {
+          return [{ name: "SKILL.md", path: "skills/good-skill/SKILL.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
@@ -360,18 +377,20 @@ describe("resolveAndFetchSources", () => {
 
   it("should skip skill directories with path traversal characters in name", async () => {
     // Remote has skills with suspicious names
-    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
-      if (path === "skills") {
-        return [
-          { name: "../../evil", path: "skills/../../evil", type: "dir" },
-          { name: "good-skill", path: "skills/good-skill", type: "dir" },
-        ];
-      }
-      if (path === "skills/good-skill") {
-        return [{ name: "SKILL.md", path: "skills/good-skill/SKILL.md", type: "file", size: 50 }];
-      }
-      return [];
-    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [
+            { name: "../../evil", path: "skills/../../evil", type: "dir" },
+            { name: "good-skill", path: "skills/good-skill", type: "dir" },
+          ];
+        }
+        if (path === "skills/good-skill") {
+          return [{ name: "SKILL.md", path: "skills/good-skill/SKILL.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({

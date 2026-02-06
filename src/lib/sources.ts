@@ -8,7 +8,13 @@ import {
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { checkPathTraversal, directoryExists, findFilesByGlobs, removeDirectory, writeFileContent } from "../utils/file.js";
+import {
+  checkPathTraversal,
+  directoryExists,
+  findFilesByGlobs,
+  removeDirectory,
+  writeFileContent,
+} from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { listDirectoryRecursive, parseSource, withSemaphore } from "./fetch.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
@@ -166,14 +172,8 @@ async function fetchSource(params: {
   fetchedSkillNames: string[];
   updatedLock: SourcesLock;
 }> {
-  const {
-    sourceEntry,
-    client,
-    baseDir,
-    localSkillNames,
-    alreadyFetchedSkillNames,
-    updateSources,
-  } = params;
+  const { sourceEntry, client, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources } =
+    params;
   let { lock } = params;
 
   const parsed = parseSource(sourceEntry.source);
@@ -196,8 +196,7 @@ async function fetchSource(params: {
     logger.debug(`Using locked ref for ${sourceKey}: ${resolvedSha}`);
   } else {
     // Resolve the ref (or default branch) to a SHA
-    const requestedRef =
-      parsed.ref ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
+    const requestedRef = parsed.ref ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
     resolvedSha = await client.resolveRefToSha(parsed.owner, parsed.repo, requestedRef);
     ref = resolvedSha;
     logger.debug(`Resolved ${sourceKey} ref "${requestedRef}" to SHA: ${resolvedSha}`);
@@ -322,4 +321,3 @@ async function fetchSource(params: {
     updatedLock: lock,
   };
 }
-

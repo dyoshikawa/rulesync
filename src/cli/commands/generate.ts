@@ -1,5 +1,6 @@
-import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { ResolveAndFetchSourcesOptions } from "../../lib/sources.js";
+
+import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
 import { logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";

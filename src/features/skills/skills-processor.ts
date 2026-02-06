@@ -329,9 +329,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       // Filter out curated skills that conflict with local skills (local wins)
       const nonConflicting = curatedDirNames.filter((name) => {
         if (localSkillNames.has(name)) {
-          logger.debug(
-            `Skipping curated skill "${name}": local skill takes precedence.`,
-          );
+          logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
           return false;
         }
         return true;
