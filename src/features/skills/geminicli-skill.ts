@@ -145,7 +145,7 @@ export class GeminiCliSkill extends ToolSkill {
     const settablePaths = GeminiCliSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
-    const geminiciFrontmatter: GeminiCliSkillFrontmatter = {
+    const geminiCliFrontmatter: GeminiCliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };
@@ -154,7 +154,7 @@ export class GeminiCliSkill extends ToolSkill {
       baseDir: rulesyncSkill.getBaseDir(),
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
-      frontmatter: geminiciFrontmatter,
+      frontmatter: geminiCliFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
