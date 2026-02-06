@@ -162,7 +162,7 @@ export class OpencodeMcp extends ToolMcp {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
-        relativeDirPath: ".",
+        relativeDirPath: join(".config", "opencode"),
         relativeFilePath: "opencode.json",
       };
     }
