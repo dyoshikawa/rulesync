@@ -29,6 +29,7 @@ const ALLOWED_DOWNLOAD_DOMAINS = [
   "github.com",
   "objects.githubusercontent.com",
   "github-releases.githubusercontent.com",
+  "release-assets.githubusercontent.com",
 ];
 
 /**
