@@ -44,6 +44,9 @@ jobs:
       - name: Generate repomix TOON variants
         run: bun scripts/generate-repomix-toon.ts
 
+      - name: Bundle TOON files into zip
+        run: zip repomix-toon.zip repomix-output-*.toon
+
       - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
@@ -55,7 +58,4 @@ jobs:
             dist-bun/rulesync-darwin-x64
             dist-bun/rulesync-windows-x64.exe
             dist-bun/SHA256SUMS
-            repomix-output.toon
-            repomix-output-src.toon
-            repomix-output-tests.toon
-            repomix-output-configs.toon
+            repomix-toon.zip

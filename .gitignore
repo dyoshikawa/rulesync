@@ -182,6 +182,7 @@ data
 repomix-output*.xml
 repomix-output*.json
 repomix-output*.toon
+repomix-toon.zip
 
 # Bun compiled binaries
 dist-bun/

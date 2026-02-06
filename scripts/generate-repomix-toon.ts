@@ -1,5 +1,5 @@
 import { encode } from "@toon-format/toon";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runCli } from "repomix";
 
@@ -9,28 +9,52 @@ type Variant = {
   ignore?: string[];
 };
 
-const variants: Variant[] = [
-  {
-    name: "repomix-output",
-  },
-  {
-    name: "repomix-output-src",
-    include: ["src/**/*.ts"],
-    ignore: ["src/**/*.test.ts", "src/**/*.spec.ts"],
-  },
-  {
-    name: "repomix-output-tests",
-    include: ["src/**/*.test.ts", "src/**/*.spec.ts"],
-  },
-  {
-    name: "repomix-output-configs",
-    ignore: ["src/**/*", "repomix-output*"],
-  },
-];
+function getSubdirectories(dirPath: string): string[] {
+  return readdirSync(dirPath)
+    .filter((entry) => statSync(join(dirPath, entry)).isDirectory())
+    .toSorted();
+}
 
 const baseDir = process.cwd();
 
+function buildVariants(): Variant[] {
+  const srcDirs = getSubdirectories(join(baseDir, "src"));
+  const featureDirs = getSubdirectories(join(baseDir, "src", "features"));
+
+  const variants: Variant[] = [
+    {
+      name: "repomix-output-full",
+    },
+  ];
+
+  for (const dir of srcDirs) {
+    if (dir === "features") {
+      continue;
+    }
+    variants.push({
+      name: `repomix-output-${dir}`,
+      include: [`src/${dir}/**/*.ts`],
+    });
+  }
+
+  for (const dir of featureDirs) {
+    variants.push({
+      name: `repomix-output-features-${dir}`,
+      include: [`src/features/${dir}/**/*.ts`],
+    });
+  }
+
+  variants.push({
+    name: "repomix-output-configs",
+    ignore: ["src/**/*", "repomix-output*"],
+  });
+
+  return variants;
+}
+
 async function generateVariants(): Promise<void> {
+  const variants = buildVariants();
+
   for (const variant of variants) {
     const jsonPath = join(baseDir, `${variant.name}.json`);
     const toonPath = join(baseDir, `${variant.name}.toon`);
