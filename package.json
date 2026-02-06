@@ -101,6 +101,7 @@
     "eslint-plugin-zod-import": "0.3.0",
     "knip": "5.82.1",
     "lint-staged": "16.2.7",
+    "marked": "17.0.1",
     "oxfmt": "0.27.0",
     "oxlint": "1.42.0",
     "repomix": "1.11.1",
