@@ -21,6 +21,7 @@ import {
   ConfigParams,
   PartialConfigParams,
   RequiredConfigParams,
+  SourceEntry,
 } from "./config.js";
 
 export type ConfigResolverResolveParams = Partial<
@@ -44,6 +45,7 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   modularMcp: false,
   dryRun: false,
   check: false,
+  sources: [],
 });
 
 const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams> => {
@@ -84,6 +86,7 @@ const mergeConfigs = (
     modularMcp: localConfig.modularMcp ?? baseConfig.modularMcp,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
     check: localConfig.check ?? baseConfig.check,
+    sources: localConfig.sources ?? baseConfig.sources,
   };
 };
 
@@ -146,6 +149,7 @@ export class ConfigResolver {
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
+      sources: configByFile.sources,
     };
     return new Config(configParams);
   }

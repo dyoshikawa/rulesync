@@ -31,6 +31,9 @@ vi.mock("../utils/file.js", async (importOriginal) => {
 vi.mock("es-toolkit", () => ({
   intersection: vi.fn(),
 }));
+vi.mock("./sources.js", () => ({
+  resolveAndFetchSources: vi.fn().mockResolvedValue({ fetchedSkillCount: 0, sourcesProcessed: 0 }),
+}));
 
 describe("checkRulesyncDirExists", () => {
   afterEach(() => {
@@ -75,6 +78,7 @@ describe("generate", () => {
     getSimulateSkills: ReturnType<typeof vi.fn>;
     getModularMcp: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
+    getSources: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -91,6 +95,7 @@ describe("generate", () => {
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getSources: vi.fn().mockReturnValue([]),
     };
 
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));

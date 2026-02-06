@@ -173,6 +173,8 @@ const main = async () => {
     )
     .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
+    .option("--skip-sources", "Skip fetching remote skill sources")
+    .option("--update-sources", "Force re-resolve all remote skill source refs (ignore lockfile)")
     .action(async (options) => {
       try {
         await generateCommand({
@@ -190,6 +192,8 @@ const main = async () => {
           modularMcp: options.modularMcp,
           dryRun: options.dryRun,
           check: options.check,
+          skipSources: options.skipSources,
+          updateSources: options.updateSources,
         });
       } catch (error) {
         logger.error(formatError(error));

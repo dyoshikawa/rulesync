@@ -14,6 +14,10 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import {
+  type ResolveAndFetchSourcesOptions,
+  resolveAndFetchSources,
+} from "./sources.js";
 
 export type GenerateResult = {
   rulesCount: number;
@@ -25,6 +29,10 @@ export type GenerateResult = {
   hooksCount: number;
   skills: RulesyncSkill[];
   hasDiff: boolean;
+  sourcesResult?: {
+    fetchedSkillCount: number;
+    sourcesProcessed: number;
+  };
 };
 
 /**
@@ -38,8 +46,28 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
  * Generate configuration files for AI tools.
  * @throws Error if generation fails
  */
-export async function generate(params: { config: Config }): Promise<GenerateResult> {
-  const { config } = params;
+export async function generate(params: {
+  config: Config;
+  sourceOptions?: ResolveAndFetchSourcesOptions;
+}): Promise<GenerateResult> {
+  const { config, sourceOptions } = params;
+
+  // Fetch remote skill sources before generating, if sources are declared
+  let sourcesResult: GenerateResult["sourcesResult"];
+  const sources = config.getSources();
+  if (sources.length > 0 && config.getFeatures().includes("skills")) {
+    logger.info("Fetching remote skill sources...");
+    sourcesResult = await resolveAndFetchSources({
+      sources,
+      baseDir: config.getBaseDirs()[0] ?? process.cwd(),
+      options: sourceOptions,
+    });
+    if (sourcesResult.fetchedSkillCount > 0) {
+      logger.success(
+        `Fetched ${sourcesResult.fetchedSkillCount} skill(s) from ${sourcesResult.sourcesProcessed} source(s)`,
+      );
+    }
+  }
 
   const ignoreResult = await generateIgnoreCore({ config });
   const mcpResult = await generateMcpCore({ config });
@@ -68,6 +96,7 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
     hooksCount: hooksResult.count,
     skills: skillsResult.skills,
     hasDiff,
+    sourcesResult,
   };
 }
 

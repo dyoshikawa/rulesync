@@ -1,9 +1,13 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import type { ResolveAndFetchSourcesOptions } from "../../lib/sources.js";
 import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
 import { logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-export type GenerateOptions = ConfigResolverResolveParams;
+export type GenerateOptions = ConfigResolverResolveParams & {
+  skipSources?: boolean;
+  updateSources?: boolean;
+};
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
@@ -55,6 +59,20 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   const features = config.getFeatures();
 
+  // Build source options from CLI flags
+  const sourceOptions: ResolveAndFetchSourcesOptions = {
+    skipSources: options.skipSources ?? isPreview,
+    updateSources: options.updateSources,
+  };
+
+  if (features.includes("skills") && config.getSources().length > 0) {
+    if (sourceOptions.skipSources) {
+      logger.info("Skipping remote source fetching.");
+    } else {
+      logger.info("Fetching remote skill sources...");
+    }
+  }
+
   if (features.includes("ignore")) {
     logger.info("Generating ignore files...");
   }
@@ -80,7 +98,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     logger.info("Generating rule files...");
   }
 
-  const result = await generate({ config });
+  const result = await generate({ config, sourceOptions });
 
   logFeatureResult({
     count: result.ignoreCount,

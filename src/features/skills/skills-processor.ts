@@ -5,7 +5,7 @@ import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs } from "../../utils/file.js";
+import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -297,21 +297,64 @@ export class SkillsProcessor extends DirFeatureProcessor {
   /**
    * Implementation of abstract method from DirFeatureProcessor
    * Load and parse rulesync skill directories from .rulesync/skills/ directory
+   * and also from .rulesync/skills/.curated/ for remote skills.
+   * Local skills take precedence over curated skills with the same name.
    */
   async loadRulesyncDirs(): Promise<AiDir[]> {
     const paths = RulesyncSkill.getSettablePaths();
     const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
-    const dirNames = dirPaths.map((path) => basename(path));
 
-    const rulesyncSkills = await Promise.all(
-      dirNames.map((dirName) =>
+    // Load local skills (directly under .rulesync/skills/)
+    const localDirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
+    const localDirNames = localDirPaths
+      .map((path) => basename(path))
+      .filter((name) => name !== ".curated");
+
+    const localSkills = await Promise.all(
+      localDirNames.map((dirName) =>
         RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
       ),
     );
 
-    logger.info(`Successfully loaded ${rulesyncSkills.length} rulesync skills`);
-    return rulesyncSkills;
+    const localSkillNames = new Set(localDirNames);
+
+    // Load curated (remote) skills from .curated/ subdirectory
+    const curatedDirPath = join(rulesyncSkillsDirPath, ".curated");
+    let curatedSkills: RulesyncSkill[] = [];
+
+    if (await directoryExists(curatedDirPath)) {
+      const curatedDirPaths = await findFilesByGlobs(join(curatedDirPath, "*"), { type: "dir" });
+      const curatedDirNames = curatedDirPaths.map((path) => basename(path));
+
+      // Filter out curated skills that conflict with local skills (local wins)
+      const nonConflicting = curatedDirNames.filter((name) => {
+        if (localSkillNames.has(name)) {
+          logger.debug(
+            `Skipping curated skill "${name}": local skill takes precedence.`,
+          );
+          return false;
+        }
+        return true;
+      });
+
+      const curatedRelativeDirPath = join(paths.relativeDirPath, ".curated");
+      curatedSkills = await Promise.all(
+        nonConflicting.map((dirName) =>
+          RulesyncSkill.fromDir({
+            baseDir: this.baseDir,
+            relativeDirPath: curatedRelativeDirPath,
+            dirName,
+            global: this.global,
+          }),
+        ),
+      );
+    }
+
+    const allSkills = [...localSkills, ...curatedSkills];
+    logger.info(
+      `Successfully loaded ${allSkills.length} rulesync skills (${localSkills.length} local, ${curatedSkills.length} curated)`,
+    );
+    return allSkills;
   }
 
   /**

@@ -56,6 +56,7 @@ describe("generateCommand", () => {
       getDryRun: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getSources: vi.fn().mockReturnValue([]),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);

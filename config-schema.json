@@ -47,7 +47,16 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
+        "enum": [
+          "rules",
+          "ignore",
+          "mcp",
+          "subagents",
+          "commands",
+          "skills",
+          "hooks",
+          "*"
+        ]
       }
     },
     "verbose": {
@@ -79,6 +88,27 @@
     },
     "check": {
       "type": "boolean"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false,
