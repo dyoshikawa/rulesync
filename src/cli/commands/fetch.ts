@@ -1,7 +1,7 @@
 import type { FetchOptions } from "../../types/fetch.js";
 
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
-import { GitHubClientError } from "../../lib/github-client.js";
+import { GitHubClientError, logGitHubAuthHints } from "../../lib/github-client.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 
@@ -36,15 +36,7 @@ export async function fetchCommand(options: FetchCommandOptions): Promise<void> 
     }
   } catch (error) {
     if (error instanceof GitHubClientError) {
-      logger.error(`GitHub API Error: ${error.message}`);
-      if (error.statusCode === 401 || error.statusCode === 403) {
-        logger.info(
-          "Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable for private repositories.",
-        );
-        logger.info(
-          "Tip: If you use GitHub CLI, you can use `GITHUB_TOKEN=$(gh auth token) rulesync fetch ...`",
-        );
-      }
+      logGitHubAuthHints(error);
     } else {
       logger.error(formatError(error));
     }

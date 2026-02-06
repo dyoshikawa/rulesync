@@ -153,6 +153,7 @@ describe("updateCommand", () => {
 
       expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Rate limit exceeded");
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN"));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
       expect(mockExit).toHaveBeenCalledWith(1);
     });
 

@@ -16,6 +16,7 @@ import {
   GitHubRepoInfoSchema,
 } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Error class for GitHub API errors
@@ -28,6 +29,21 @@ export class GitHubClientError extends Error {
   ) {
     super(message);
     this.name = "GitHubClientError";
+  }
+}
+
+/**
+ * Log GitHub auth error hints for 401/403 responses.
+ */
+export function logGitHubAuthHints(error: GitHubClientError): void {
+  logger.error(`GitHub API Error: ${error.message}`);
+  if (error.statusCode === 401 || error.statusCode === 403) {
+    logger.info(
+      "Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable for private repositories or better rate limits.",
+    );
+    logger.info(
+      "Tip: If you use GitHub CLI, you can use `GITHUB_TOKEN=$(gh auth token) rulesync fetch ...`",
+    );
   }
 }
 
