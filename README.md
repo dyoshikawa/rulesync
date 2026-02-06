@@ -250,9 +250,9 @@ npx rulesync update --check
 npx rulesync update --force
 ```
 
-## Preview Modes
+## Dry Run
 
-Rulesync provides two preview modes for the `generate` command that allow you to see what changes would be made without actually writing files:
+Rulesync provides two dry run options for the `generate` command that allow you to see what changes would be made without actually writing files:
 
 ### `--dry-run`
 

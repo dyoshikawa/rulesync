@@ -6,7 +6,7 @@ import { calculateTotalCount } from "../../utils/result.js";
 export type GenerateOptions = ConfigResolverResolveParams;
 
 /**
- * Log feature generation result with appropriate prefix based on preview mode.
+ * Log feature generation result with appropriate prefix based on dry run mode.
  */
 function logFeatureResult(params: {
   count: number;
