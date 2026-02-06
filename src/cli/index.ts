@@ -12,8 +12,9 @@ import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { updateCommand } from "./commands/update.js";
 
-const getVersion = () => "6.4.0";
+const getVersion = () => "6.5.0";
 
 const main = async () => {
   const program = new Command();
@@ -43,7 +44,11 @@ const main = async () => {
 
   program
     .command("fetch <source>")
-    .description("Fetch rulesync files from a GitHub repository")
+    .description("Fetch files from a Git repository (GitHub/GitLab)")
+    .option(
+      "-t, --target <target>",
+      "Target format to interpret files as (e.g., 'rulesync', 'claudecode'). Default: rulesync",
+    )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all`,
@@ -52,25 +57,24 @@ const main = async () => {
       },
     )
     .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")
-    .option("-p, --path <path>", "Subdirectory path within the repository containing .rulesync")
+    .option("-p, --path <path>", "Subdirectory path within the repository")
     .option("-o, --output <dir>", "Output directory (default: .rulesync)")
     .option(
       "-c, --conflict <strategy>",
       "Conflict resolution strategy: skip, overwrite (default: overwrite)",
     )
-    .option("-n, --dry-run", "Preview files without writing")
-    .option("--token <token>", "GitHub token for private repositories")
+    .option("--token <token>", "Git provider token for private repositories")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(async (source, options) => {
       await fetchCommand({
         source,
+        target: options.target,
         features: options.features,
         ref: options.ref,
         path: options.path,
         output: options.output,
         conflict: options.conflict,
-        dryRun: options.dryRun,
         token: options.token,
         verbose: options.verbose,
         silent: options.silent,
@@ -191,6 +195,24 @@ const main = async () => {
         logger.error(formatError(error));
         process.exit(1);
       }
+    });
+
+  program
+    .command("update")
+    .description("Update rulesync to the latest version")
+    .option("--check", "Check for updates without installing")
+    .option("--force", "Force update even if already at latest version")
+    .option("--token <token>", "GitHub token for API access")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(async (options) => {
+      await updateCommand(version, {
+        check: options.check,
+        force: options.force,
+        token: options.token,
+        verbose: options.verbose,
+        silent: options.silent,
+      });
     });
 
   program.parse();

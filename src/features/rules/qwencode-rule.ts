@@ -31,14 +31,19 @@ export type QwencodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * Supports the Qwen Code context management system with hierarchical discovery.
  */
 export class QwencodeRule extends ToolRule {
-  static getSettablePaths(): QwencodeRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): QwencodeRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: "QWEN.md",
       },
       nonRoot: {
-        relativeDirPath: join(".qwen", "memories"),
+        relativeDirPath: _options.excludeToolDir ? "memories" : join(".qwen", "memories"),
       },
     };
   }

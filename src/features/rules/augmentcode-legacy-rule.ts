@@ -44,14 +44,19 @@ export class AugmentcodeLegacyRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(): AugmentcodeLegacyRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): AugmentcodeLegacyRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: ".augment-guidelines",
       },
       nonRoot: {
-        relativeDirPath: join(".augment", "rules"),
+        relativeDirPath: _options.excludeToolDir ? "rules" : join(".augment", "rules"),
       },
     };
   }

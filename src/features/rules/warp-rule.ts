@@ -34,14 +34,19 @@ export class WarpRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(): WarpRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): WarpRuleSettablePaths {
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: "WARP.md",
       },
       nonRoot: {
-        relativeDirPath: join(".warp", "memories"),
+        relativeDirPath: _options.excludeToolDir ? "memories" : join(".warp", "memories"),
       },
     };
   }

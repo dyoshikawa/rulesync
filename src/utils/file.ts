@@ -1,6 +1,6 @@
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -274,4 +274,30 @@ export function toKebabCaseFilename(filename: string): string {
   const kebabName = kebabCase(nameWithoutExt);
 
   return kebabName + extension;
+}
+
+/**
+ * Create a temporary directory atomically and return its path.
+ * Uses fs.mkdtemp() for secure atomic directory creation, preventing TOCTOU race conditions.
+ *
+ * @param prefix - Prefix for the temp directory name (default: "rulesync-fetch-")
+ * @returns The full path to the created temporary directory
+ */
+export async function createTempDirectory(prefix = "rulesync-fetch-"): Promise<string> {
+  return mkdtemp(join(os.tmpdir(), prefix));
+}
+
+/**
+ * Remove a temporary directory and all its contents.
+ * Silently ignores errors (e.g., directory doesn't exist).
+ *
+ * @param tempDir - Path to the temporary directory to remove
+ */
+export async function removeTempDirectory(tempDir: string): Promise<void> {
+  try {
+    await rm(tempDir, { recursive: true, force: true });
+    logger.debug(`Removed temp directory: ${tempDir}`);
+  } catch {
+    logger.debug(`Failed to clean up temp directory: ${tempDir}`);
+  }
 }

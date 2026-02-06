@@ -30,14 +30,19 @@ export type JunieRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * Junie uses plain markdown format without frontmatter requirements.
  */
 export class JunieRule extends ToolRule {
-  static getSettablePaths(): JunieRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): JunieRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: ".junie",
+        relativeDirPath: _options.excludeToolDir ? "." : ".junie",
         relativeFilePath: "guidelines.md",
       },
       nonRoot: {
-        relativeDirPath: join(".junie", "memories"),
+        relativeDirPath: _options.excludeToolDir ? "memories" : join(".junie", "memories"),
       },
     };
   }

@@ -21,9 +21,15 @@ export type ClineRuleFrontmatter = z.infer<typeof ClineRuleFrontmatterSchema>;
 export type ClineRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
 
 export class ClineRule extends ToolRule {
-  static getSettablePaths(): ClineRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): ClineRuleSettablePaths {
     return {
       nonRoot: {
+        // .clinerules is a flat directory, so excludeToolDir has no effect
         relativeDirPath: ".clinerules",
       },
     };

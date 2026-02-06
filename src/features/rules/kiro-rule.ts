@@ -24,10 +24,15 @@ export type KiroRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
  * in the .kiro/steering/ directory (product.md, structure.md, tech.md).
  */
 export class KiroRule extends ToolRule {
-  static getSettablePaths(): KiroRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): KiroRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: join(".kiro", "steering"),
+        relativeDirPath: _options.excludeToolDir ? "steering" : join(".kiro", "steering"),
       },
     };
   }

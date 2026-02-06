@@ -392,4 +392,19 @@ export class SubagentsProcessor extends FeatureProcessor {
   static getToolTargetsSimulated(): ToolTarget[] {
     return [...subagentsProcessorToolTargetsSimulated];
   }
+
+  /**
+   * Get the factory for a specific tool target.
+   * This is a static version of the internal getFactory for external use.
+   * @param target - The tool target. Must be a valid SubagentsProcessorToolTarget.
+   * @returns The factory for the target, or undefined if not found.
+   */
+  static getFactory(target: ToolTarget): ToolSubagentFactory | undefined {
+    // Validate that target is supported
+    const result = SubagentsProcessorToolTargetSchema.safeParse(target);
+    if (!result.success) {
+      return undefined;
+    }
+    return toolSubagentFactories.get(result.data);
+  }
 }

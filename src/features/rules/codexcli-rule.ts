@@ -31,13 +31,15 @@ export type CodexcliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 export class CodexcliRule extends ToolRule {
   static getSettablePaths({
     global,
+    excludeToolDir,
   }: {
     global?: boolean;
+    excludeToolDir?: boolean;
   } = {}): CodexcliRuleSettablePaths | CodexcliRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: ".codex",
+          relativeDirPath: excludeToolDir ? "." : ".codex",
           relativeFilePath: "AGENTS.md",
         },
       };
@@ -48,7 +50,7 @@ export class CodexcliRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: join(".codex", "memories"),
+        relativeDirPath: excludeToolDir ? "memories" : join(".codex", "memories"),
       },
     };
   }

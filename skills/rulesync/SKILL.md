@@ -1,3 +1,11 @@
+---
+name: rulesync
+description: >-
+  Rulesync CLI tool documentation - unified AI rule file management
+  for various AI coding tools
+targets: ["*"]
+---
+
 <p align="center">
   <img src="images/logo.jpg" alt="Rulesync Logo" width="600">
 </p>

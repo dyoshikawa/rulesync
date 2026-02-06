@@ -316,10 +316,15 @@ export class AntigravityRule extends ToolRule {
     this.body = body;
   }
 
-  static getSettablePaths(): AntigravityRuleSettablePaths {
+  static getSettablePaths(
+    _options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): AntigravityRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: join(".agent", "rules"),
+        relativeDirPath: _options.excludeToolDir ? "rules" : join(".agent", "rules"),
       },
     };
   }
