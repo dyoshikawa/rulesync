@@ -1,6 +1,6 @@
 {
   "name": "rulesync",
-  "version": "6.6.0",
+  "version": "6.6.1",
   "description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
   "keywords": [
     "ai",
@@ -101,6 +101,7 @@
     "eslint-plugin-zod-import": "0.3.0",
     "knip": "5.82.1",
     "lint-staged": "16.2.7",
+    "marked": "17.0.1",
     "oxfmt": "0.27.0",
     "oxlint": "1.42.0",
     "repomix": "1.11.1",
