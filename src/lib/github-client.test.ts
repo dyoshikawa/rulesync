@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GitHubClient, GitHubClientError } from "./github-client.js";
+import { logger } from "../utils/logger.js";
+import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
+
+vi.mock("../utils/logger.js");
 
 describe("GitHubClient", () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -377,5 +380,43 @@ describe("GitHubClient", () => {
         /exceeds maximum size limit/,
       );
     });
+  });
+});
+
+describe("logGitHubAuthHints", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(logger.error).mockImplementation(() => {});
+    vi.mocked(logger.info).mockImplementation(() => {});
+  });
+
+  it("should log error message and auth tips for 401", () => {
+    logGitHubAuthHints(new GitHubClientError("Authentication failed", 401));
+
+    expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Authentication failed");
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN or GH_TOKEN"));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
+  });
+
+  it("should log error message and auth tips for 403", () => {
+    logGitHubAuthHints(new GitHubClientError("Rate limit exceeded", 403));
+
+    expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Rate limit exceeded");
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN or GH_TOKEN"));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
+  });
+
+  it("should log only error message for non-auth errors", () => {
+    logGitHubAuthHints(new GitHubClientError("Not found", 404));
+
+    expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Not found");
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+
+  it("should log only error message when statusCode is undefined", () => {
+    logGitHubAuthHints(new GitHubClientError("Unknown error"));
+
+    expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Unknown error");
+    expect(logger.info).not.toHaveBeenCalled();
   });
 });

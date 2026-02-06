@@ -150,6 +150,7 @@ describe("fetchCommand", () => {
         expect.stringContaining("GitHub API Error: Authentication failed"),
       );
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN or GH_TOKEN"));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
       expect(mockExit).toHaveBeenCalledWith(1);
     });
 
@@ -162,6 +163,7 @@ describe("fetchCommand", () => {
         expect.stringContaining("GitHub API Error: Access forbidden"),
       );
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN or GH_TOKEN"));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
       expect(mockExit).toHaveBeenCalledWith(1);
     });
 

@@ -1,4 +1,4 @@
-import { GitHubClientError } from "../../lib/github-client.js";
+import { GitHubClientError, logGitHubAuthHints } from "../../lib/github-client.js";
 import {
   UpdatePermissionError,
   checkForUpdate,
@@ -68,12 +68,7 @@ export async function updateCommand(
     logger.success(message);
   } catch (error) {
     if (error instanceof GitHubClientError) {
-      logger.error(`GitHub API Error: ${error.message}`);
-      if (error.statusCode === 401 || error.statusCode === 403) {
-        logger.info(
-          "Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable for better rate limits.",
-        );
-      }
+      logGitHubAuthHints(error);
     } else if (error instanceof UpdatePermissionError) {
       logger.error(error.message);
       logger.info("Tip: Run with elevated privileges (e.g., sudo rulesync update)");
