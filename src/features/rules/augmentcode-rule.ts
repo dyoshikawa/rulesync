@@ -10,6 +10,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type AugmentcodeRuleParams = AiFileParams;
@@ -33,7 +34,7 @@ export class AugmentcodeRule extends ToolRule {
   ): AugmentcodeRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".augment", "rules"),
+        relativeDirPath: buildToolPath(".augment", "rules", _options.excludeToolDir),
       },
     };
   }

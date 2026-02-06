@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type WarpRuleParams = AiFileParams & {
@@ -46,7 +47,7 @@ export class WarpRule extends ToolRule {
         relativeFilePath: "WARP.md",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "memories" : join(".warp", "memories"),
+        relativeDirPath: buildToolPath(".warp", "memories", _options.excludeToolDir),
       },
     };
   }

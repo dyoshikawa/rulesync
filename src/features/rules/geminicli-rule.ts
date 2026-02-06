@@ -10,6 +10,7 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type GeminiCliRuleParams = ToolRuleParams;
@@ -38,7 +39,7 @@ export class GeminiCliRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: excludeToolDir ? "." : ".gemini",
+          relativeDirPath: buildToolPath(".gemini", ".", excludeToolDir),
           relativeFilePath: "GEMINI.md",
         },
       };
@@ -49,7 +50,7 @@ export class GeminiCliRule extends ToolRule {
         relativeFilePath: "GEMINI.md",
       },
       nonRoot: {
-        relativeDirPath: excludeToolDir ? "memories" : join(".gemini", "memories"),
+        relativeDirPath: buildToolPath(".gemini", "memories", excludeToolDir),
       },
     };
   }

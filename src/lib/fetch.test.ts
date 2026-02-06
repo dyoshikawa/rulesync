@@ -86,6 +86,15 @@ describe("parseSource", () => {
       });
     });
 
+    it("should parse www.github.com URL", () => {
+      const result = parseSource("https://www.github.com/owner/repo");
+      expect(result).toEqual({
+        provider: "github",
+        owner: "owner",
+        repo: "repo",
+      });
+    });
+
     it("should throw error for invalid GitHub URL", () => {
       expect(() => parseSource("https://github.com/owner")).toThrow(/Invalid github URL/);
     });
@@ -109,6 +118,15 @@ describe("parseSource", () => {
         repo: "repo",
         ref: "main",
         path: undefined,
+      });
+    });
+
+    it("should parse www.gitlab.com URL", () => {
+      const result = parseSource("https://www.gitlab.com/owner/repo");
+      expect(result).toEqual({
+        provider: "gitlab",
+        owner: "owner",
+        repo: "repo",
       });
     });
   });
@@ -226,6 +244,33 @@ describe("parseSource", () => {
   describe("unknown provider handling", () => {
     it("should throw error for unknown URL host", () => {
       expect(() => parseSource("https://bitbucket.org/owner/repo")).toThrow(
+        /Unknown Git provider for host/,
+      );
+    });
+
+    it("should reject subdomain spoofing attempts for GitHub", () => {
+      expect(() => parseSource("https://phishing.github.com/owner/repo")).toThrow(
+        /Unknown Git provider for host/,
+      );
+      expect(() => parseSource("https://evil.github.com/owner/repo")).toThrow(
+        /Unknown Git provider for host/,
+      );
+    });
+
+    it("should reject subdomain spoofing attempts for GitLab", () => {
+      expect(() => parseSource("https://phishing.gitlab.com/owner/repo")).toThrow(
+        /Unknown Git provider for host/,
+      );
+      expect(() => parseSource("https://evil.gitlab.com/owner/repo")).toThrow(
+        /Unknown Git provider for host/,
+      );
+    });
+
+    it("should reject suffix spoofing attempts", () => {
+      expect(() => parseSource("https://notgithub.com/owner/repo")).toThrow(
+        /Unknown Git provider for host/,
+      );
+      expect(() => parseSource("https://notgitlab.com/owner/repo")).toThrow(
         /Unknown Git provider for host/,
       );
     });
@@ -671,6 +716,30 @@ describe("fetchFiles", () => {
         baseDir: testDir,
       }),
     ).rejects.toThrow("exceeds maximum size limit");
+  });
+
+  it("should throw error when directory recursion exceeds maximum depth", async () => {
+    // Create a mock that returns a nested directory at every level
+    let callCount = 0;
+    mockClientInstance.listDirectory.mockImplementation(() => {
+      callCount++;
+      return Promise.resolve([
+        {
+          name: `level-${callCount}`,
+          path: `${"nested/".repeat(callCount)}level-${callCount}`,
+          type: "dir",
+          size: 0,
+        },
+      ]);
+    });
+
+    await expect(
+      fetchFiles({
+        source: "owner/repo",
+        options: { features: ["rules"] },
+        baseDir: testDir,
+      }),
+    ).rejects.toThrow(/Maximum recursion depth.*exceeded/);
   });
 });
 

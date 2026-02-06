@@ -10,6 +10,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type WindsurfRuleParams = ToolRuleParams;
@@ -28,7 +29,7 @@ export class WindsurfRule extends ToolRule {
   ): WindsurfRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".windsurf", "rules"),
+        relativeDirPath: buildToolPath(".windsurf", "rules", _options.excludeToolDir),
       },
     };
   }

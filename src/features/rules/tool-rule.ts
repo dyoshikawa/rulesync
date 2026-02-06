@@ -220,3 +220,7 @@ export abstract class ToolRule extends ToolFile {
     return false;
   }
 }
+
+export function buildToolPath(toolDir: string, subDir: string, excludeToolDir?: boolean): string {
+  return excludeToolDir ? subDir : join(toolDir, subDir);
+}

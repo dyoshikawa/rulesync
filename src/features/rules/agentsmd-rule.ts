@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export type AgentsMdRuleParams = AiFileParams & {
@@ -46,7 +47,7 @@ export class AgentsMdRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "memories" : join(".agents", "memories"),
+        relativeDirPath: buildToolPath(".agents", "memories", _options.excludeToolDir),
       },
     };
   }

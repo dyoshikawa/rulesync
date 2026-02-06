@@ -13,6 +13,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  buildToolPath,
 } from "./tool-rule.js";
 
 export const AntigravityRuleFrontmatterSchema = z.looseObject({
@@ -324,7 +325,7 @@ export class AntigravityRule extends ToolRule {
   ): AntigravityRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: _options.excludeToolDir ? "rules" : join(".agent", "rules"),
+        relativeDirPath: buildToolPath(".agent", "rules", _options.excludeToolDir),
       },
     };
   }
