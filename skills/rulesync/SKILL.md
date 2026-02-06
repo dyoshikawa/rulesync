@@ -18,7 +18,7 @@ A Node.js CLI tool that automatically generates configuration files for various 
 - [Why Rulesync?](./why-rulesync.md)
 - [Case Studies](./case-studies.md)
 - [Quick Commands](./quick-commands.md)
-- [Preview Modes](./preview-modes.md)
+- [Dry Run](./preview-modes.md)
 - [Fetch Command (In Development)](./fetch-command-in-development.md)
 - [Configuration](./configuration.md)
 - [Each File Format](./each-file-format.md)

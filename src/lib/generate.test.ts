@@ -619,7 +619,7 @@ describe("generate", () => {
     });
   });
 
-  describe("preview mode (dry-run/check)", () => {
+  describe("dry run mode (dry-run/check)", () => {
     it("should pass dryRun: true to RulesProcessor when isPreviewMode returns true", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
@@ -720,7 +720,7 @@ describe("generate", () => {
       expect(result.hasDiff).toBe(false);
     });
 
-    it("should return hasDiff: false when files match existing content in preview mode", async () => {
+    it("should return hasDiff: false when files match existing content in dry run mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 

@@ -25,7 +25,7 @@ npx rulesync generate --targets "*" --features rules
 # Generate simulated commands and subagents
 npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
-# Preview changes without writing files (dry-run mode)
+# Dry run: show changes without writing files
 npx rulesync generate --dry-run --targets claudecode --features rules
 
 # Check if files are up to date (for CI/CD pipelines)

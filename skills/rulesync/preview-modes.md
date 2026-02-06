@@ -1,10 +1,10 @@
-## Preview Modes
+## Dry Run
 
-Rulesync provides two preview modes for the `generate` command that allow you to see what changes would be made without actually writing files:
+Rulesync provides two dry run options for the `generate` command that allow you to see what changes would be made without actually writing files:
 
 ### `--dry-run`
 
-Preview changes without writing any files. Shows what would be written or deleted with a `[PREVIEW]` prefix.
+Show what would be written or deleted without actually writing any files. Changes are displayed with a `[DRY RUN]` prefix.
 
 ```bash
 npx rulesync generate --dry-run --targets claudecode --features rules
