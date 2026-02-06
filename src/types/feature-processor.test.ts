@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { removeFile, writeFileContent } from "../utils/file.js";
+import { readFileContentOrNull, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
 import { FeatureProcessor } from "./feature-processor.js";
 import { RulesyncFile } from "./rulesync-file.js";
@@ -11,6 +11,7 @@ vi.mock("../utils/file.js", async () => {
   const actual = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
   return {
     ...actual,
+    readFileContentOrNull: vi.fn().mockResolvedValue(null),
     removeFile: vi.fn(),
     writeFileContent: vi.fn(),
   };
@@ -67,8 +68,9 @@ describe("FeatureProcessor", () => {
 
       const generatedFiles = [createMockFile("/path/to/kept.md")];
 
-      await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
+      const count = await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
 
+      expect(count).toBe(2);
       expect(removeFile).toHaveBeenCalledTimes(2);
       expect(removeFile).toHaveBeenCalledWith("/path/to/orphan1.md");
       expect(removeFile).toHaveBeenCalledWith("/path/to/orphan2.md");
@@ -87,8 +89,9 @@ describe("FeatureProcessor", () => {
         createMockFile("/path/to/file2.md"),
       ];
 
-      await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
+      const count = await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
 
+      expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
     });
 
@@ -122,7 +125,8 @@ describe("FeatureProcessor", () => {
   });
 
   describe("writeAiFiles", () => {
-    it("should write all files and return count", async () => {
+    it("should write all files and return count when files are new", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const processor = new TestProcessor({ baseDir: testDir });
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
@@ -131,6 +135,32 @@ describe("FeatureProcessor", () => {
 
       expect(count).toBe(2);
       expect(writeFileContent).toHaveBeenCalledTimes(2);
+    });
+
+    it("should skip unchanged files and return 0", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue("content\n");
+      const processor = new TestProcessor({ baseDir: testDir });
+
+      const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
+
+      const count = await processor.writeAiFiles(files);
+
+      expect(count).toBe(0);
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should only write changed files and return changed count", async () => {
+      vi.mocked(readFileContentOrNull)
+        .mockResolvedValueOnce("content\n") // file1: unchanged
+        .mockResolvedValueOnce(null); // file2: new
+      const processor = new TestProcessor({ baseDir: testDir });
+
+      const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
+
+      const count = await processor.writeAiFiles(files);
+
+      expect(count).toBe(1);
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
   });
 

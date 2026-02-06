@@ -50,26 +50,31 @@ export abstract class DirFeatureProcessor {
       const dirPath = aiDir.getDirPath();
       let dirHasChanges = false;
 
-      // Check main file for diff
+      // Compute content for main file
       const mainFile = aiDir.getMainFile();
+      let mainFileContent: string | undefined;
       if (mainFile) {
         const mainFilePath = join(dirPath, mainFile.name);
         const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
-        const contentWithNewline = addTrailingNewline(content);
+        mainFileContent = addTrailingNewline(content);
         const existingContent = await readFileContentOrNull(mainFilePath);
-        if (existingContent !== contentWithNewline) {
+        if (existingContent !== mainFileContent) {
           dirHasChanges = true;
         }
       }
 
-      // Check other files for diff
+      // Compute content for other files
       const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
+      const otherFileContents: string[] = [];
       for (const file of otherFiles) {
-        const filePath = join(dirPath, file.relativeFilePathToDirPath);
         const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-        const existingContent = await readFileContentOrNull(filePath);
-        if (existingContent !== contentWithNewline) {
-          dirHasChanges = true;
+        otherFileContents.push(contentWithNewline);
+        if (!dirHasChanges) {
+          const filePath = join(dirPath, file.relativeFilePathToDirPath);
+          const existingContent = await readFileContentOrNull(filePath);
+          if (existingContent !== contentWithNewline) {
+            dirHasChanges = true;
+          }
         }
       }
 
@@ -90,18 +95,16 @@ export abstract class DirFeatureProcessor {
         await ensureDir(dirPath);
 
         // Write main file if exists
-        if (mainFile) {
+        if (mainFile && mainFileContent) {
           const mainFilePath = join(dirPath, mainFile.name);
-          const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
-          const contentWithNewline = addTrailingNewline(content);
-          await writeFileContent(mainFilePath, contentWithNewline);
+          await writeFileContent(mainFilePath, mainFileContent);
         }
 
         // Write other files
-        for (const file of otherFiles) {
+        for (const [i, file] of otherFiles.entries()) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
-          const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-          await writeFileContent(filePath, contentWithNewline);
+          const content = otherFileContents[i] ?? "";
+          await writeFileContent(filePath, content);
         }
       }
       changedCount++;

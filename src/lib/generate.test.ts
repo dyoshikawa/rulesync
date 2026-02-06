@@ -725,9 +725,9 @@ describe("generate", () => {
       mockConfig.isPreviewMode.mockReturnValue(true);
 
       // In this test, the mocked processor doesn't actually check file content,
-      // so hasDiff is determined by the detectFileDiff function which uses readFileContentOrNull.
-      // Since readFileContentOrNull is mocked via file.js mock, and detectFileDiff compares
-      // the generated content with existing content, we need to ensure they match.
+      // so hasDiff is determined by the writeAiFiles/writeAiDirs return count (changed files).
+      // Since readFileContentOrNull is mocked via file.js mock, the comparison between
+      // generated content and existing content determines the count.
       // However, since this is a heavily mocked unit test, the actual file diff detection
       // is tested in integration tests.
       const result = await generate({ config: mockConfig as never });
