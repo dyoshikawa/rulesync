@@ -51,7 +51,7 @@
     "oxlint": "oxlint . --max-warnings 0",
     "oxlint:fix": "oxlint . --fix --max-warnings 0",
     "prepack": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
-    "prepare": "simple-git-hooks 2>/dev/null || true",
+    "prepare": "if [ -d node_modules/tsup ]; then tsup src/cli/index.ts --format cjs,esm --dts --clean; fi; simple-git-hooks 2>/dev/null || true",
     "prepublishOnly": "pnpm build",
     "secretlint": "secretlint --secretlintignore .gitignore \"**/*\"",
     "sort": "sort-package-json",
