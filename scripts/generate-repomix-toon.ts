@@ -15,8 +15,9 @@ function getSubdirectories(dirPath: string): string[] {
     .toSorted();
 }
 
+const baseDir = process.cwd();
+
 function buildVariants(): Variant[] {
-  const baseDir = process.cwd();
   const srcDirs = getSubdirectories(join(baseDir, "src"));
   const featureDirs = getSubdirectories(join(baseDir, "src", "features"));
 
@@ -50,8 +51,6 @@ function buildVariants(): Variant[] {
 
   return variants;
 }
-
-const baseDir = process.cwd();
 
 async function generateVariants(): Promise<void> {
   const variants = buildVariants();
