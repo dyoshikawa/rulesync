@@ -41,6 +41,9 @@ export async function fetchCommand(options: FetchCommandOptions): Promise<void> 
         logger.info(
           "Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable for private repositories.",
         );
+        logger.info(
+          "Tip: If you use GitHub CLI, you can use `GITHUB_TOKEN=$(gh auth token) rulesync fetch ...`",
+        );
       }
     } else {
       logger.error(formatError(error));

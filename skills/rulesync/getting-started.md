@@ -3,6 +3,9 @@
 ```bash
 # Create necessary directories, sample rule files, and configuration file
 npx rulesync init
+
+# Install official skills (recommended)
+npx rulesync fetch dyoshikawa/rulesync --features skills
 ```
 
 On the other hand, if you already have AI tool configurations:

@@ -120,6 +120,9 @@ Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
 ```bash
 # Create necessary directories, sample rule files, and configuration file
 npx rulesync init
+
+# Install official skills (recommended)
+npx rulesync fetch dyoshikawa/rulesync --features skills
 ```
 
 On the other hand, if you already have AI tool configurations:
@@ -332,6 +335,9 @@ npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
 # Fetch from a private repository (uses GITHUB_TOKEN env var)
 export GITHUB_TOKEN=ghp_xxxx
 npx rulesync fetch owner/private-repo
+
+# Or use GitHub CLI to get the token
+GITHUB_TOKEN=$(gh auth token) npx rulesync fetch owner/private-repo
 
 # Preserve existing files (skip conflicts)
 npx rulesync fetch owner/repo --conflict skip

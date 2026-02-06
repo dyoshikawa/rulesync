@@ -56,6 +56,9 @@ npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
 export GITHUB_TOKEN=ghp_xxxx
 npx rulesync fetch owner/private-repo
 
+# Or use GitHub CLI to get the token
+GITHUB_TOKEN=$(gh auth token) npx rulesync fetch owner/private-repo
+
 # Preserve existing files (skip conflicts)
 npx rulesync fetch owner/repo --conflict skip
 
