@@ -32,21 +32,21 @@ export async function updateCommand(
 
   logger.configure({ verbose, silent });
 
-  const environment = detectExecutionEnvironment();
-  logger.debug(`Detected environment: ${environment}`);
-
-  if (environment === "npm") {
-    logger.info(getNpmUpgradeInstructions());
-    return;
-  }
-
-  if (environment === "homebrew") {
-    logger.info(getHomebrewUpgradeInstructions());
-    return;
-  }
-
-  // Single-binary mode
   try {
+    const environment = detectExecutionEnvironment();
+    logger.debug(`Detected environment: ${environment}`);
+
+    if (environment === "npm") {
+      logger.info(getNpmUpgradeInstructions());
+      return;
+    }
+
+    if (environment === "homebrew") {
+      logger.info(getHomebrewUpgradeInstructions());
+      return;
+    }
+
+    // Single-binary mode
     if (check) {
       // Check-only mode
       logger.info("Checking for updates...");

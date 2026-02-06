@@ -62,6 +62,7 @@ export default defineConfig([
               "src/utils/file.ts",
               "src/utils/file.test.ts",
               "src/lib/update.ts",
+              "src/lib/update.test.ts",
               "scripts/**/*.ts",
             ],
             allowSameModule: false,

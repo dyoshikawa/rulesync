@@ -2,6 +2,8 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 import type { GitHubRelease, GitHubReleaseAsset } from "../types/fetch.js";
 
@@ -9,6 +11,11 @@ import { GitHubClient } from "./github-client.js";
 
 const RULESYNC_REPO_OWNER = "dyoshikawa";
 const RULESYNC_REPO_NAME = "rulesync";
+
+/**
+ * GitHub releases URL for manual download instructions
+ */
+const RELEASES_URL = `https://github.com/${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}/releases`;
 
 /**
  * Maximum download size (500MB) to prevent memory exhaustion
@@ -50,21 +57,31 @@ export class UpdatePermissionError extends Error {
 }
 
 /**
- * Detect the execution environment of rulesync
+ * Detect the execution environment of rulesync.
+ *
+ * Uses process.execPath (the Node.js/Bun binary) and process.argv[1] (the script being executed)
+ * to determine how rulesync was installed.
  */
 export function detectExecutionEnvironment(): ExecutionEnvironment {
   const execPath = process.execPath;
+  const scriptPath = process.argv[1] ?? "";
 
-  // Homebrew detection: /opt/homebrew/ or /usr/local/Cellar/
-  if (execPath.includes("/homebrew/") || execPath.includes("/Cellar/")) {
-    return "homebrew";
+  // Single binary detection: the executable itself is named rulesync
+  const isRulesyncBinary = /rulesync(-[a-z0-9]+(-[a-z0-9]+)?)?(\.exe)?$/i.test(execPath);
+  if (isRulesyncBinary) {
+    // Check if the rulesync binary itself is in a Homebrew path
+    if (execPath.includes("/homebrew/") || execPath.includes("/Cellar/")) {
+      return "homebrew";
+    }
+    return "single-binary";
   }
 
-  // Single binary detection: no node_modules & rulesync binary name
-  const noNodeModules = !execPath.includes("node_modules");
-  const isRulesyncBinary = /rulesync(-[a-z0-9]+(-[a-z0-9]+)?)?(\.exe)?$/i.test(execPath);
-  if (noNodeModules && isRulesyncBinary) {
-    return "single-binary";
+  // Homebrew detection via script path: e.g. /opt/homebrew/lib/node_modules/rulesync/...
+  if (
+    (scriptPath.includes("/homebrew/") || scriptPath.includes("/Cellar/")) &&
+    scriptPath.includes("rulesync")
+  ) {
+    return "homebrew";
   }
 
   return "npm";
@@ -129,7 +146,7 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Validate that a download URL is safe (HTTPS + allowed GitHub domain)
+ * Validate that a download URL is safe (HTTPS + allowed GitHub domain + repo path for github.com)
  */
 export function validateDownloadUrl(url: string): void {
   let parsed: URL;
@@ -148,6 +165,16 @@ export function validateDownloadUrl(url: string): void {
     throw new Error(
       `Download URL domain "${parsed.hostname}" is not in the allowed list: ${ALLOWED_DOWNLOAD_DOMAINS.join(", ")}`,
     );
+  }
+
+  // For github.com URLs, validate the path starts with the expected repo
+  if (parsed.hostname === "github.com") {
+    const expectedPrefix = `/${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}/`;
+    if (!parsed.pathname.startsWith(expectedPrefix)) {
+      throw new Error(
+        `Download URL path must belong to ${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}: ${url}`,
+      );
+    }
   }
 }
 
@@ -182,7 +209,8 @@ function findAsset(release: GitHubRelease, assetName: string): GitHubReleaseAsse
 }
 
 /**
- * Download a file from URL to a destination path
+ * Download a file from URL to a destination path using streaming to limit memory usage.
+ * Validates both the initial URL and the final URL after redirects.
  */
 async function downloadFile(url: string, destPath: string): Promise<void> {
   validateDownloadUrl(url);
@@ -195,6 +223,11 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
     throw new Error(`Failed to download: HTTP ${response.status}`);
   }
 
+  // Validate the final URL after redirects to prevent redirect-based bypass
+  if (response.url) {
+    validateDownloadUrl(response.url);
+  }
+
   const contentLength = response.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_DOWNLOAD_SIZE) {
     throw new Error(
@@ -202,15 +235,36 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
     );
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-
-  if (buffer.length > MAX_DOWNLOAD_SIZE) {
-    throw new Error(
-      `Download too large: ${buffer.length} bytes exceeds limit of ${MAX_DOWNLOAD_SIZE} bytes`,
-    );
+  if (!response.body) {
+    throw new Error("Response body is empty");
   }
 
-  await fs.promises.writeFile(destPath, buffer);
+  // Stream the response to file with a size limit check
+  const fileStream = fs.createWriteStream(destPath);
+  let downloadedBytes = 0;
+
+  const bodyReader = Readable.fromWeb(
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    response.body as import("node:stream/web").ReadableStream,
+  );
+
+  const sizeChecker = new (await import("node:stream")).Transform({
+    transform(chunk, _encoding, callback) {
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      downloadedBytes += (chunk as Buffer).length;
+      if (downloadedBytes > MAX_DOWNLOAD_SIZE) {
+        callback(
+          new Error(
+            `Download too large: exceeded limit of ${MAX_DOWNLOAD_SIZE} bytes during streaming`,
+          ),
+        );
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+
+  await pipeline(bodyReader, sizeChecker, fileStream);
 }
 
 /**
@@ -232,7 +286,7 @@ export function parseSha256Sums(content: string): Map<string, string> {
     // Format: "hash  filename" (two spaces between hash and filename)
     const match = /^([a-f0-9]{64})\s+(.+)$/.exec(trimmed);
     if (match && match[1] && match[2]) {
-      result.set(match[2], match[1]);
+      result.set(match[2].trim(), match[1]);
     }
   }
   return result;
@@ -266,7 +320,7 @@ export async function performBinaryUpdate(
   const assetName = getPlatformAssetName();
   if (!assetName) {
     throw new Error(
-      `Unsupported platform: ${os.platform()} ${os.arch()}. Please download manually from https://github.com/${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}/releases`,
+      `Unsupported platform: ${os.platform()} ${os.arch()}. Please download manually from ${RELEASES_URL}`,
     );
   }
 
@@ -274,7 +328,7 @@ export async function performBinaryUpdate(
   const binaryAsset = findAsset(updateCheck.release, assetName);
   if (!binaryAsset) {
     throw new Error(
-      `Binary for ${assetName} not found in release. Please download manually from https://github.com/${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}/releases`,
+      `Binary for ${assetName} not found in release. Please download manually from ${RELEASES_URL}`,
     );
   }
 
@@ -282,13 +336,13 @@ export async function performBinaryUpdate(
   const checksumAsset = findAsset(updateCheck.release, "SHA256SUMS");
   if (!checksumAsset) {
     throw new Error(
-      "SHA256SUMS not found in release. Cannot verify download integrity. Please download manually from " +
-        `https://github.com/${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}/releases`,
+      `SHA256SUMS not found in release. Cannot verify download integrity. Please download manually from ${RELEASES_URL}`,
     );
   }
 
   // Create temporary directory for download
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "rulesync-update-"));
+  let restoreFailed = false;
 
   try {
     // Set restrictive permissions on temp directory (Unix only)
@@ -324,6 +378,7 @@ export async function performBinaryUpdate(
 
     // Resolve symlinks to get the real executable path
     const currentExePath = await fs.promises.realpath(process.execPath);
+    const currentDir = path.dirname(currentExePath);
 
     // Backup current binary to temp directory (not predictable path)
     const backupPath = path.join(tempDir, "rulesync.backup");
@@ -339,12 +394,26 @@ export async function performBinaryUpdate(
     }
 
     try {
-      // Replace with new binary
-      await fs.promises.copyFile(tempBinaryPath, currentExePath);
-
-      // Set executable permissions (Unix only)
-      if (os.platform() !== "win32") {
-        await fs.promises.chmod(currentExePath, 0o755);
+      // Attempt atomic replacement via rename (works when on the same filesystem)
+      const tempInPlace = path.join(currentDir, `.rulesync-update-${Date.now()}`);
+      try {
+        await fs.promises.copyFile(tempBinaryPath, tempInPlace);
+        if (os.platform() !== "win32") {
+          await fs.promises.chmod(tempInPlace, 0o755);
+        }
+        await fs.promises.rename(tempInPlace, currentExePath);
+      } catch {
+        // Cleanup temp-in-place file on failure, then fall back to direct copy
+        try {
+          await fs.promises.unlink(tempInPlace);
+        } catch {
+          // Ignore cleanup errors
+        }
+        // Fallback: direct copy (non-atomic but works across filesystems)
+        await fs.promises.copyFile(tempBinaryPath, currentExePath);
+        if (os.platform() !== "win32") {
+          await fs.promises.chmod(currentExePath, 0o755);
+        }
       }
 
       return `Successfully updated from ${currentVersion} to ${updateCheck.latestVersion}`;
@@ -353,7 +422,12 @@ export async function performBinaryUpdate(
       try {
         await fs.promises.copyFile(backupPath, currentExePath);
       } catch {
-        // Ignore restore errors
+        restoreFailed = true;
+        throw new Error(
+          `Failed to replace binary and restore failed. Backup is preserved at: ${backupPath} (in ${tempDir}). ` +
+            `Please manually copy it to ${currentExePath}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        );
       }
       if (isPermissionError(error)) {
         throw new UpdatePermissionError(
@@ -363,11 +437,13 @@ export async function performBinaryUpdate(
       throw error;
     }
   } finally {
-    // Cleanup temp directory
-    try {
-      await fs.promises.rm(tempDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
+    // Skip cleanup if restore failed, so the backup is preserved for manual recovery
+    if (!restoreFailed) {
+      try {
+        await fs.promises.rm(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
     }
   }
 }
