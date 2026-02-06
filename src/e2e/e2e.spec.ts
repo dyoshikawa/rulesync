@@ -73,13 +73,17 @@ describe("E2E Tests", () => {
     expect(versionMatch?.[1]).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("should generate claudecode rules", async () => {
-    // Setup: Create necessary directories and files
-    const rulesyncDir = ".rulesync";
-    const rulesDir = join(rulesyncDir, "rules");
-    await ensureDir(rulesDir);
+  // Both codexcli and opencode generate AGENTS.md as their root rule output
+  it.each([
+    { target: "claudecode", outputPath: "CLAUDE.md" },
+    { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
+    { target: "codexcli", outputPath: "AGENTS.md" },
+    { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
+    { target: "opencode", outputPath: "AGENTS.md" },
+  ])("should generate $target rules", async ({ target, outputPath }) => {
+    // Setup: Create necessary directories and a sample rule file
+    await ensureDir(RULESYNC_RULES_RELATIVE_DIR_PATH);
 
-    // Create a sample rule file
     const ruleContent = `---
 root: true
 targets: ["*"]
@@ -91,22 +95,23 @@ globs: ["**/*"]
 
 This is a test rule for E2E testing.
 `;
-    const ruleFilePath = join(testDir, rulesDir, RULESYNC_OVERVIEW_FILE_NAME);
-    await writeFileContent(ruleFilePath, ruleContent);
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      ruleContent,
+    );
 
-    // Execute: Generate claudecode rules
+    // Execute: Generate rules for the target
     await execFileAsync(rulesyncCmd, [
       ...rulesyncArgs,
       "generate",
       "--targets",
-      "claudecode",
+      target,
       "--features",
       "rules",
     ]);
 
-    // Verify that the CLAUDE.md file was generated (modular rules format: ./CLAUDE.md)
-    const claudeMdPath = join(testDir, "CLAUDE.md");
-    const generatedContent = await readFileContent(claudeMdPath);
+    // Verify that the expected output file was generated
+    const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("Test Rule");
   });
 
