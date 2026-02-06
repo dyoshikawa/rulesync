@@ -248,7 +248,7 @@ print_uninstall_instructions() {
 main() {
     echo ""
     printf '%b\n' "${BLUE}╔════════════════════════════════════════╗${NC}"
-    printf '%b\n' "${BLUE}║      Rulesync Binary Installer        ║${NC}"
+    printf '%b\n' "${BLUE}║      Rulesync Binary Installer         ║${NC}"
     printf '%b\n' "${BLUE}╚════════════════════════════════════════╝${NC}"
     echo ""
 
