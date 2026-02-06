@@ -1,9 +1,10 @@
+import { GitHubClientError } from "../../lib/github-client.js";
 import {
+  UpdatePermissionError,
   checkForUpdate,
   detectExecutionEnvironment,
   getHomebrewUpgradeInstructions,
   getNpmUpgradeInstructions,
-  GitHubClientError,
   performBinaryUpdate,
 } from "../../lib/update.js";
 import { formatError } from "../../utils/error.js";
@@ -16,6 +17,8 @@ export type UpdateCommandOptions = {
   check?: boolean;
   force?: boolean;
   verbose?: boolean;
+  silent?: boolean;
+  token?: string;
 };
 
 /**
@@ -25,9 +28,9 @@ export async function updateCommand(
   currentVersion: string,
   options: UpdateCommandOptions,
 ): Promise<void> {
-  const { check = false, force = false, verbose = false } = options;
+  const { check = false, force = false, verbose = false, silent = false, token } = options;
 
-  logger.configure({ verbose, silent: false });
+  logger.configure({ verbose, silent });
 
   const environment = detectExecutionEnvironment();
   logger.debug(`Detected environment: ${environment}`);
@@ -47,7 +50,7 @@ export async function updateCommand(
     if (check) {
       // Check-only mode
       logger.info("Checking for updates...");
-      const updateCheck = await checkForUpdate(currentVersion);
+      const updateCheck = await checkForUpdate(currentVersion, token);
 
       if (updateCheck.hasUpdate) {
         logger.success(
@@ -61,14 +64,8 @@ export async function updateCommand(
 
     // Perform update
     logger.info("Checking for updates...");
-    const result = await performBinaryUpdate(currentVersion, { force, verbose });
-
-    if (result.success) {
-      logger.success(result.message);
-    } else {
-      logger.error(result.message);
-      process.exit(1);
-    }
+    const message = await performBinaryUpdate(currentVersion, { force, token });
+    logger.success(message);
   } catch (error) {
     if (error instanceof GitHubClientError) {
       logger.error(`GitHub API Error: ${error.message}`);
@@ -77,7 +74,7 @@ export async function updateCommand(
           "Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable for better rate limits.",
         );
       }
-    } else if (error instanceof Error && error.message.includes("Permission denied")) {
+    } else if (error instanceof UpdatePermissionError) {
       logger.error(error.message);
       logger.info("Tip: Run with elevated privileges (e.g., sudo rulesync update)");
     } else {

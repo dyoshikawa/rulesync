@@ -5,10 +5,24 @@ import * as path from "node:path";
 
 import type { GitHubRelease, GitHubReleaseAsset } from "../types/fetch.js";
 
-import { GitHubClient, GitHubClientError } from "./github-client.js";
+import { GitHubClient } from "./github-client.js";
 
 const RULESYNC_REPO_OWNER = "dyoshikawa";
 const RULESYNC_REPO_NAME = "rulesync";
+
+/**
+ * Maximum download size (500MB) to prevent memory exhaustion
+ */
+const MAX_DOWNLOAD_SIZE = 500 * 1024 * 1024;
+
+/**
+ * Allowed domains for downloading release assets
+ */
+const ALLOWED_DOWNLOAD_DOMAINS = [
+  "github.com",
+  "objects.githubusercontent.com",
+  "github-releases.githubusercontent.com",
+];
 
 /**
  * Execution environment types for rulesync
@@ -24,6 +38,16 @@ export type UpdateCheckResult = {
   hasUpdate: boolean;
   release: GitHubRelease;
 };
+
+/**
+ * Custom error for permission issues during update
+ */
+export class UpdatePermissionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UpdatePermissionError";
+  }
+}
 
 /**
  * Detect the execution environment of rulesync
@@ -77,10 +101,11 @@ export function getPlatformAssetName(): string | null {
 }
 
 /**
- * Normalize version string by removing leading 'v'
+ * Normalize version string by removing leading 'v' and stripping pre-release suffix
  */
-function normalizeVersion(v: string): string {
-  return v.replace(/^v/, "");
+export function normalizeVersion(v: string): string {
+  // Remove leading 'v' and strip pre-release suffix (e.g., "1.2.3-beta.1" -> "1.2.3")
+  return v.replace(/^v/, "").replace(/-.*$/, "");
 }
 
 /**
@@ -94,10 +119,36 @@ export function compareVersions(a: string, b: string): number {
   for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
     const aNum = aParts[i] ?? 0;
     const bNum = bParts[i] ?? 0;
+    if (!Number.isFinite(aNum) || !Number.isFinite(bNum)) {
+      throw new Error(`Invalid version format: cannot compare "${a}" and "${b}"`);
+    }
     if (aNum > bNum) return 1;
     if (aNum < bNum) return -1;
   }
   return 0;
+}
+
+/**
+ * Validate that a download URL is safe (HTTPS + allowed GitHub domain)
+ */
+export function validateDownloadUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid download URL: ${url}`);
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new Error(`Download URL must use HTTPS: ${url}`);
+  }
+
+  const isAllowed = ALLOWED_DOWNLOAD_DOMAINS.some((domain) => parsed.hostname === domain);
+  if (!isAllowed) {
+    throw new Error(
+      `Download URL domain "${parsed.hostname}" is not in the allowed list: ${ALLOWED_DOWNLOAD_DOMAINS.join(", ")}`,
+    );
+  }
 }
 
 /**
@@ -112,8 +163,8 @@ export async function checkForUpdate(
   });
 
   const release = await client.getLatestRelease(RULESYNC_REPO_OWNER, RULESYNC_REPO_NAME);
-  const latestVersion = release.tag_name.replace(/^v/, "");
-  const normalizedCurrentVersion = currentVersion.replace(/^v/, "");
+  const latestVersion = normalizeVersion(release.tag_name);
+  const normalizedCurrentVersion = normalizeVersion(currentVersion);
 
   return {
     currentVersion: normalizedCurrentVersion,
@@ -134,6 +185,8 @@ function findAsset(release: GitHubRelease, assetName: string): GitHubReleaseAsse
  * Download a file from URL to a destination path
  */
 async function downloadFile(url: string, destPath: string): Promise<void> {
+  validateDownloadUrl(url);
+
   const response = await fetch(url, {
     redirect: "follow",
   });
@@ -142,7 +195,21 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
     throw new Error(`Failed to download: HTTP ${response.status}`);
   }
 
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && Number(contentLength) > MAX_DOWNLOAD_SIZE) {
+    throw new Error(
+      `Download too large: ${contentLength} bytes exceeds limit of ${MAX_DOWNLOAD_SIZE} bytes`,
+    );
+  }
+
   const buffer = Buffer.from(await response.arrayBuffer());
+
+  if (buffer.length > MAX_DOWNLOAD_SIZE) {
+    throw new Error(
+      `Download too large: ${buffer.length} bytes exceeds limit of ${MAX_DOWNLOAD_SIZE} bytes`,
+    );
+  }
+
   await fs.promises.writeFile(destPath, buffer);
 }
 
@@ -157,7 +224,7 @@ async function calculateSha256(filePath: string): Promise<string> {
 /**
  * Parse SHA256SUMS file content
  */
-function parseSha256Sums(content: string): Map<string, string> {
+export function parseSha256Sums(content: string): Map<string, string> {
   const result = new Map<string, string>();
   for (const line of content.split("\n")) {
     const trimmed = line.trim();
@@ -176,18 +243,7 @@ function parseSha256Sums(content: string): Map<string, string> {
  */
 export type UpdateOptions = {
   force?: boolean;
-  verbose?: boolean;
   token?: string;
-};
-
-/**
- * Update result
- */
-export type UpdateResult = {
-  success: boolean;
-  previousVersion: string;
-  newVersion: string;
-  message: string;
 };
 
 /**
@@ -196,19 +252,14 @@ export type UpdateResult = {
 export async function performBinaryUpdate(
   currentVersion: string,
   options: UpdateOptions = {},
-): Promise<UpdateResult> {
+): Promise<string> {
   const { force = false, token } = options;
 
   // Check for updates
   const updateCheck = await checkForUpdate(currentVersion, token);
 
   if (!updateCheck.hasUpdate && !force) {
-    return {
-      success: true,
-      previousVersion: currentVersion,
-      newVersion: currentVersion,
-      message: `Already at the latest version (${currentVersion})`,
-    };
+    return `Already at the latest version (${currentVersion})`;
   }
 
   // Get platform-specific asset name
@@ -227,51 +278,65 @@ export async function performBinaryUpdate(
     );
   }
 
-  // Find the SHA256SUMS asset for verification
+  // Find the SHA256SUMS asset for verification (mandatory)
   const checksumAsset = findAsset(updateCheck.release, "SHA256SUMS");
+  if (!checksumAsset) {
+    throw new Error(
+      "SHA256SUMS not found in release. Cannot verify download integrity. Please download manually from " +
+        `https://github.com/${RULESYNC_REPO_OWNER}/${RULESYNC_REPO_NAME}/releases`,
+    );
+  }
 
   // Create temporary directory for download
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "rulesync-update-"));
-  const tempBinaryPath = path.join(tempDir, assetName);
 
   try {
+    // Set restrictive permissions on temp directory (Unix only)
+    if (os.platform() !== "win32") {
+      await fs.promises.chmod(tempDir, 0o700);
+    }
+
+    const tempBinaryPath = path.join(tempDir, assetName);
+
     // Download the binary
     await downloadFile(binaryAsset.browser_download_url, tempBinaryPath);
 
-    // Verify checksum if SHA256SUMS is available
-    if (checksumAsset) {
-      const checksumsPath = path.join(tempDir, "SHA256SUMS");
-      await downloadFile(checksumAsset.browser_download_url, checksumsPath);
+    // Verify checksum (mandatory)
+    const checksumsPath = path.join(tempDir, "SHA256SUMS");
+    await downloadFile(checksumAsset.browser_download_url, checksumsPath);
 
-      const checksumsContent = await fs.promises.readFile(checksumsPath, "utf-8");
-      const checksums = parseSha256Sums(checksumsContent);
-      const expectedChecksum = checksums.get(assetName);
+    const checksumsContent = await fs.promises.readFile(checksumsPath, "utf-8");
+    const checksums = parseSha256Sums(checksumsContent);
+    const expectedChecksum = checksums.get(assetName);
 
-      if (expectedChecksum) {
-        const actualChecksum = await calculateSha256(tempBinaryPath);
-        if (actualChecksum !== expectedChecksum) {
-          throw new Error(
-            `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}. The download may be corrupted.`,
-          );
-        }
-      }
-    }
-
-    // Get the current executable path
-    const currentExePath = process.execPath;
-    const backupPath = `${currentExePath}.backup`;
-
-    // Check write permissions
-    try {
-      await fs.promises.access(path.dirname(currentExePath), fs.constants.W_OK);
-    } catch {
+    if (!expectedChecksum) {
       throw new Error(
-        `Permission denied: Cannot write to ${path.dirname(currentExePath)}. Try running with sudo.`,
+        `Checksum entry for "${assetName}" not found in SHA256SUMS. Cannot verify download integrity.`,
       );
     }
 
-    // Backup current binary
-    await fs.promises.copyFile(currentExePath, backupPath);
+    const actualChecksum = await calculateSha256(tempBinaryPath);
+    if (actualChecksum !== expectedChecksum) {
+      throw new Error(
+        `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}. The download may be corrupted.`,
+      );
+    }
+
+    // Resolve symlinks to get the real executable path
+    const currentExePath = await fs.promises.realpath(process.execPath);
+
+    // Backup current binary to temp directory (not predictable path)
+    const backupPath = path.join(tempDir, "rulesync.backup");
+    try {
+      await fs.promises.copyFile(currentExePath, backupPath);
+    } catch (error) {
+      if (isPermissionError(error)) {
+        throw new UpdatePermissionError(
+          `Permission denied: Cannot read ${currentExePath}. Try running with sudo.`,
+        );
+      }
+      throw error;
+    }
 
     try {
       // Replace with new binary
@@ -282,22 +347,18 @@ export async function performBinaryUpdate(
         await fs.promises.chmod(currentExePath, 0o755);
       }
 
-      // Remove backup on success
-      await fs.promises.unlink(backupPath);
-
-      return {
-        success: true,
-        previousVersion: currentVersion,
-        newVersion: updateCheck.latestVersion,
-        message: `Successfully updated from ${currentVersion} to ${updateCheck.latestVersion}`,
-      };
+      return `Successfully updated from ${currentVersion} to ${updateCheck.latestVersion}`;
     } catch (error) {
       // Restore from backup on failure
       try {
         await fs.promises.copyFile(backupPath, currentExePath);
-        await fs.promises.unlink(backupPath);
       } catch {
         // Ignore restore errors
+      }
+      if (isPermissionError(error)) {
+        throw new UpdatePermissionError(
+          `Permission denied: Cannot write to ${path.dirname(currentExePath)}. Try running with sudo.`,
+        );
       }
       throw error;
     }
@@ -309,6 +370,18 @@ export async function performBinaryUpdate(
       // Ignore cleanup errors
     }
   }
+}
+
+/**
+ * Check if an error is a permission error
+ */
+function isPermissionError(error: unknown): boolean {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    const record = error as Record<string, unknown>;
+    return record["code"] === "EACCES" || record["code"] === "EPERM";
+  }
+  return false;
 }
 
 /**
@@ -338,8 +411,3 @@ export function getHomebrewUpgradeInstructions(): string {
 To upgrade, run:
   brew upgrade rulesync`;
 }
-
-/**
- * Re-export GitHubClientError for use in command handler
- */
-export { GitHubClientError };

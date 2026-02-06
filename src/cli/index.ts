@@ -202,12 +202,16 @@ const main = async () => {
     .description("Update rulesync to the latest version")
     .option("--check", "Check for updates without installing")
     .option("--force", "Force update even if already at latest version")
+    .option("--token <token>", "GitHub token for API access")
     .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
     .action(async (options) => {
       await updateCommand(version, {
         check: options.check,
         force: options.force,
+        token: options.token,
         verbose: options.verbose,
+        silent: options.silent,
       });
     });
 
