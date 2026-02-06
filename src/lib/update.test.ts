@@ -348,6 +348,12 @@ describe("update", () => {
       ).not.toThrow();
     });
 
+    it("should accept release-assets.githubusercontent.com URLs", () => {
+      expect(() =>
+        validateDownloadUrl("https://release-assets.githubusercontent.com/some/path/to/asset"),
+      ).not.toThrow();
+    });
+
     it("should reject HTTP URLs", () => {
       expect(() =>
         validateDownloadUrl("http://github.com/dyoshikawa/rulesync/releases/download/v1.0.0/file"),
