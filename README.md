@@ -998,6 +998,22 @@ The lockfile at `.rulesync/sources-lock.json` records the resolved commit SHA fo
 
 To update locked refs, run `npx rulesync generate --update-sources`.
 
+### Authentication
+
+Source fetching uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits.
+
+```bash
+# Using environment variable
+export GITHUB_TOKEN=ghp_xxxx
+npx rulesync generate
+
+# Or using GitHub CLI
+GITHUB_TOKEN=$(gh auth token) npx rulesync generate
+```
+
+> [!NOTE]
+> Unlike the `fetch` command, the `generate` command does not accept a `--token` flag. Authentication for declarative sources relies on environment variables.
+
 ### Curated vs Local Skills
 
 | Location                         | Type    | Precedence | Committed to Git |

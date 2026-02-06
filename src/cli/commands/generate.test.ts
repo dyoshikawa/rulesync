@@ -8,6 +8,7 @@ import { CommandsProcessor } from "../../features/commands/commands-processor.js
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
+import { SkillsProcessor } from "../../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -20,6 +21,10 @@ vi.mock("../../features/ignore/ignore-processor.js");
 vi.mock("../../features/mcp/mcp-processor.js");
 vi.mock("../../features/subagents/subagents-processor.js");
 vi.mock("../../features/commands/commands-processor.js");
+vi.mock("../../features/skills/skills-processor.js");
+vi.mock("../../lib/sources.js", () => ({
+  resolveAndFetchSources: vi.fn().mockResolvedValue({ fetchedSkillCount: 0, sourcesProcessed: 0 }),
+}));
 vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js");
 vi.mock("es-toolkit", () => ({
@@ -132,6 +137,16 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue(1),
+      } as any;
+    });
+    vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(SkillsProcessor).mockImplementation(function () {
+      return {
+        loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+        removeAiDirs: vi.fn().mockResolvedValue(undefined),
+        loadRulesyncDirs: vi.fn().mockResolvedValue([]),
+        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
+        writeAiDirs: vi.fn().mockResolvedValue(0),
       } as any;
     });
   });
@@ -976,6 +991,48 @@ describe("generateCommand", () => {
       expect(logger.success).toHaveBeenCalledWith(
         "🎉 All done! Generated 15 file(s) total (6 rules + 3 MCP files + 3 commands + 3 subagents)",
       );
+    });
+  });
+
+  describe("source options", () => {
+    it("should pass skipSources and updateSources options through to generate", async () => {
+      const options: GenerateOptions = { skipSources: true, updateSources: false };
+
+      await generateCommand(options);
+
+      // ConfigResolver.resolve should receive the options
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
+    });
+
+    it("should log skipping message when sources configured and skipSources is true", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      const options: GenerateOptions = { skipSources: true };
+
+      await generateCommand(options);
+
+      expect(logger.info).toHaveBeenCalledWith("Skipping remote source fetching.");
+    });
+
+    it("should auto-skip sources in preview mode (dry-run/check)", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      expect(logger.info).toHaveBeenCalledWith("Skipping remote source fetching.");
+    });
+
+    it("should log fetching message when sources configured and not skipped", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      const options: GenerateOptions = {};
+
+      await generateCommand(options);
+
+      expect(logger.info).toHaveBeenCalledWith("Fetching remote skill sources...");
     });
   });
 

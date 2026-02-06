@@ -149,7 +149,7 @@ export class ConfigResolver {
       modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
-      sources: configByFile.sources,
+      sources: configByFile.sources ?? getDefaults().sources,
     };
     return new Config(configParams);
   }

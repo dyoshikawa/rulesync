@@ -742,4 +742,57 @@ describe("generate", () => {
       expect(typeof result.hasDiff).toBe("boolean");
     });
   });
+
+  describe("sources integration", () => {
+    it("should call resolveAndFetchSources when sources are configured and skills feature is enabled", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+
+      await generate({ config: mockConfig as never, sourceOptions: { updateSources: true } });
+
+      expect(resolveAndFetchSources).toHaveBeenCalledWith({
+        sources: [{ source: "org/repo" }],
+        baseDir: ".",
+        options: { updateSources: true },
+      });
+    });
+
+    it("should not call resolveAndFetchSources when no sources are configured", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([]);
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+    });
+
+    it("should not call resolveAndFetchSources when skills feature is not enabled", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+    });
+
+    it("should pass sourceOptions through to resolveAndFetchSources", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+
+      await generate({
+        config: mockConfig as never,
+        sourceOptions: { skipSources: false, updateSources: true },
+      });
+
+      expect(resolveAndFetchSources).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: { skipSources: false, updateSources: true },
+        }),
+      );
+    });
+  });
 });

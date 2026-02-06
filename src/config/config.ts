@@ -1,4 +1,4 @@
-import { optional, z } from "zod/mini";
+import { minLength, optional, z } from "zod/mini";
 
 import {
   ALL_FEATURES,
@@ -18,7 +18,7 @@ import {
  * Declares an external repository from which skills can be fetched.
  */
 export const SourceEntrySchema = z.object({
-  source: z.string(),
+  source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;

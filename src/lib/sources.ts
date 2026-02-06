@@ -4,12 +4,13 @@ import { basename, join } from "node:path";
 import type { SourceEntry } from "../config/config.js";
 
 import {
+  MAX_FILE_SIZE,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { directoryExists, findFilesByGlobs, removeDirectory, writeFileContent } from "../utils/file.js";
+import { checkPathTraversal, directoryExists, findFilesByGlobs, removeDirectory, writeFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { parseSource } from "./fetch.js";
+import { listDirectoryRecursive, parseSource, withSemaphore } from "./fetch.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import {
   type SourcesLock,
@@ -21,7 +22,6 @@ import {
 } from "./sources-lock.js";
 
 const FETCH_CONCURRENCY_LIMIT = 10;
-const MAX_RECURSION_DEPTH = 15;
 
 export type ResolveAndFetchSourcesOptions = {
   /** Force re-resolve all refs, ignoring the lockfile. */
@@ -61,6 +61,8 @@ export async function resolveAndFetchSources(params: {
   let lock: SourcesLock = options.updateSources
     ? createEmptyLock()
     : await readLockFile({ baseDir });
+
+  const originalLockJson = JSON.stringify(lock);
 
   // Resolve GitHub token
   const token = GitHubClient.resolveToken(options.token);
@@ -104,8 +106,22 @@ export async function resolveAndFetchSources(params: {
     }
   }
 
-  // Write updated lockfile
-  await writeLockFile({ baseDir, lock });
+  // Prune stale lockfile entries whose keys are not in the current sources
+  const sourceKeys = new Set(sources.map((s) => s.source));
+  for (const key of Object.keys(lock.sources)) {
+    if (!sourceKeys.has(key)) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete lock.sources[key];
+      logger.debug(`Pruned stale lockfile entry: ${key}`);
+    }
+  }
+
+  // Only write lockfile if it has changed
+  if (JSON.stringify(lock) !== originalLockJson) {
+    await writeLockFile({ baseDir, lock });
+  } else {
+    logger.debug("Lockfile unchanged, skipping write.");
+  }
 
   return { fetchedSkillCount: totalSkillCount, sourcesProcessed: sources.length };
 }
@@ -235,7 +251,7 @@ async function fetchSource(params: {
     }
 
     // Recursively fetch all files in this skill directory
-    const files = await listRemoteDirectoryRecursive({
+    const allFiles = await listDirectoryRecursive({
       client,
       owner: parsed.owner,
       repo: parsed.repo,
@@ -244,23 +260,32 @@ async function fetchSource(params: {
       semaphore,
     });
 
+    // Filter out files exceeding MAX_FILE_SIZE
+    const files = allFiles.filter((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        logger.warn(
+          `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+        );
+        return false;
+      }
+      return true;
+    });
+
     for (const file of files) {
       // Calculate relative path within the skill directory
       const relativeToSkill = file.path.substring(skillDir.path.length + 1);
       const localFilePath = join(curatedDir, skillDir.name, relativeToSkill);
 
-      await semaphore.acquire();
-      try {
-        const content = await client.getFileContent(
-          parsed.owner,
-          parsed.repo,
-          file.path,
-          ref,
-        );
-        await writeFileContent(localFilePath, content);
-      } finally {
-        semaphore.release();
-      }
+      // Validate path to prevent traversal attacks
+      checkPathTraversal({
+        relativePath: relativeToSkill,
+        intendedRootDir: join(curatedDir, skillDir.name),
+      });
+
+      const content = await withSemaphore(semaphore, () =>
+        client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
+      );
+      await writeFileContent(localFilePath, content);
     }
 
     fetchedNames.push(skillDir.name);
@@ -284,58 +309,3 @@ async function fetchSource(params: {
   };
 }
 
-/**
- * Recursively list all files in a remote directory.
- */
-async function listRemoteDirectoryRecursive(params: {
-  client: GitHubClient;
-  owner: string;
-  repo: string;
-  path: string;
-  ref: string;
-  semaphore: Semaphore;
-  depth?: number;
-}): Promise<Array<{ path: string; size: number }>> {
-  const { client, owner, repo, path, ref, semaphore, depth = 0 } = params;
-
-  if (depth > MAX_RECURSION_DEPTH) {
-    throw new Error(
-      `Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded while listing: ${path}`,
-    );
-  }
-
-  await semaphore.acquire();
-  let entries;
-  try {
-    entries = await client.listDirectory(owner, repo, path, ref);
-  } finally {
-    semaphore.release();
-  }
-
-  const files: Array<{ path: string; size: number }> = [];
-  const subdirs: Array<{ path: string }> = [];
-
-  for (const entry of entries) {
-    if (entry.type === "file") {
-      files.push({ path: entry.path, size: entry.size });
-    } else if (entry.type === "dir") {
-      subdirs.push({ path: entry.path });
-    }
-  }
-
-  const subResults = await Promise.all(
-    subdirs.map((dir) =>
-      listRemoteDirectoryRecursive({
-        client,
-        owner,
-        repo,
-        path: dir.path,
-        ref,
-        semaphore,
-        depth: depth + 1,
-      }),
-    ),
-  );
-
-  return [...files, ...subResults.flat()];
-}

@@ -246,4 +246,102 @@ describe("resolveAndFetchSources", () => {
     expect(result.fetchedSkillCount).toBe(0);
     expect(result.sourcesProcessed).toBe(1);
   });
+
+  it("should re-resolve refs when updateSources is true", async () => {
+    // Set up mock: remote has one skill
+    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
+      if (path === "skills") {
+        return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+      }
+      if (path === "skills/my-skill") {
+        return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+      }
+      return [];
+    });
+    mockClientInstance.getFileContent.mockResolvedValue("content");
+
+    const result = await resolveAndFetchSources({
+      sources: [{ source: "https://github.com/org/repo" }],
+      baseDir: "/project",
+      options: { updateSources: true },
+    });
+
+    // updateSources: true creates empty lock, so resolveRefToSha must be called
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalled();
+    expect(result.fetchedSkillCount).toBe(1);
+  });
+
+  it("should continue processing other sources when one source fails", async () => {
+    let resolveCallCount = 0;
+    mockClientInstance.resolveRefToSha.mockImplementation(async () => {
+      resolveCallCount++;
+      if (resolveCallCount === 1) {
+        throw new Error("Network error");
+      }
+      return "abc123def456";
+    });
+
+    // Second source has a skill (first source will fail before listing)
+    mockClientInstance.listDirectory.mockImplementation(async (_owner: string, _repo: string, path: string) => {
+      if (path === "skills") {
+        return [{ name: "good-skill", path: "skills/good-skill", type: "dir" }];
+      }
+      if (path === "skills/good-skill") {
+        return [{ name: "SKILL.md", path: "skills/good-skill/SKILL.md", type: "file", size: 50 }];
+      }
+      return [];
+    });
+    mockClientInstance.getFileContent.mockResolvedValue("content");
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        { source: "https://github.com/org/failing-repo" },
+        { source: "https://github.com/org/good-repo" },
+      ],
+      baseDir: "/project",
+    });
+
+    // Second source should succeed despite first failing
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(result.sourcesProcessed).toBe(2);
+  });
+
+  it("should handle GitLab source gracefully", async () => {
+    const result = await resolveAndFetchSources({
+      sources: [{ source: "gitlab:org/repo" }],
+      baseDir: "/project",
+    });
+
+    // Should not throw, but log error and skip
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(result.sourcesProcessed).toBe(1);
+  });
+
+  it("should prune stale lockfile entries for removed sources", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+
+    // Pre-existing lock has an entry for a source that's no longer in config
+    vi.mocked(readLockFile).mockResolvedValue({
+      sources: {
+        "https://github.com/org/old-removed-repo": {
+          resolvedRef: "old-sha",
+          skills: ["old-skill"],
+        },
+      },
+    });
+
+    // No remote skills for new source
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+
+    await resolveAndFetchSources({
+      sources: [{ source: "https://github.com/org/new-repo" }],
+      baseDir: "/project",
+    });
+
+    // The written lock should NOT contain the old-removed-repo entry
+    const writeCalls = vi.mocked(writeLockFile).mock.calls;
+    expect(writeCalls.length).toBeGreaterThan(0);
+    const writtenLock = writeCalls[0]![0].lock;
+    expect(writtenLock.sources["https://github.com/org/old-removed-repo"]).toBeUndefined();
+  });
 });

@@ -57,6 +57,8 @@ export async function generate(params: {
   const sources = config.getSources();
   if (sources.length > 0 && config.getFeatures().includes("skills")) {
     logger.info("Fetching remote skill sources...");
+    // Sources are project-level: fetch curated skills once into the first baseDir.
+    // All baseDirs share the same .rulesync/skills/.curated/ from the project root.
     sourcesResult = await resolveAndFetchSources({
       sources,
       baseDir: config.getBaseDirs()[0] ?? process.cwd(),
