@@ -5,4 +5,5 @@ export default {
   "src/config/config.ts": ["pnpm generate:schema", "git add config-schema.json"],
   "src/types/features.ts": ["pnpm generate:schema", "git add config-schema.json"],
   "src/types/tool-targets.ts": ["pnpm generate:schema", "git add config-schema.json"],
+  "README.md": ["./scripts/sync-skill-readme.sh", "git add skills/rulesync/SKILL.md"],
 };
