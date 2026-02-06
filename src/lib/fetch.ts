@@ -1,3 +1,4 @@
+import { Semaphore } from "es-toolkit/promise";
 import { join } from "node:path";
 
 import type { Feature } from "../types/features.js";
@@ -238,6 +239,7 @@ const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);
 const GITLAB_HOSTS = new Set(["gitlab.com", "www.gitlab.com"]);
 
 const MAX_RECURSION_DEPTH = 15;
+const FETCH_CONCURRENCY_LIMIT = 10;
 
 /**
  * Parse URL format into components
@@ -452,6 +454,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     });
   }
 
+  // Create semaphore for concurrency control
+  const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
+
   // Collect all files to fetch from feature directories directly
   const filesToFetch = await collectFeatureFiles({
     client,
@@ -460,6 +465,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     basePath: resolvedPath,
     ref,
     enabledFeatures,
+    semaphore,
   });
 
   if (filesToFetch.length === 0) {
@@ -474,43 +480,46 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     };
   }
 
-  // Process files
-  const results: FetchFileResult[] = [];
+  // Process files in parallel with concurrency control
   const outputBasePath = join(baseDir, outputDir);
 
-  for (const { remotePath, relativePath, size } of filesToFetch) {
-    // Validate path to prevent path traversal attacks
+  // Validate paths and check file sizes first (synchronous checks)
+  for (const { relativePath, size } of filesToFetch) {
     checkPathTraversal({
       relativePath,
       intendedRootDir: outputBasePath,
     });
 
-    // Check file size limit
     if (size > MAX_FILE_SIZE) {
       throw new GitHubClientError(
         `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
       );
     }
-
-    const localPath = join(outputBasePath, relativePath);
-    const exists = await fileExists(localPath);
-
-    let status: FetchFileResult["status"];
-
-    if (exists && conflictStrategy === "skip") {
-      status = "skipped";
-      logger.debug(`Skipping existing file: ${relativePath}`);
-    } else {
-      // Fetch and write file (writeFileContent handles directory creation)
-      const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
-      await writeFileContent(localPath, content);
-
-      status = exists ? "overwritten" : "created";
-      logger.debug(`Wrote: ${relativePath} (${status})`);
-    }
-
-    results.push({ relativePath, status });
   }
+
+  const results = await Promise.all(
+    filesToFetch.map(async ({ remotePath, relativePath }) => {
+      const localPath = join(outputBasePath, relativePath);
+      const exists = await fileExists(localPath);
+
+      if (exists && conflictStrategy === "skip") {
+        logger.debug(`Skipping existing file: ${relativePath}`);
+        return { relativePath, status: "skipped" as const };
+      }
+
+      await semaphore.acquire();
+      try {
+        const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
+        await writeFileContent(localPath, content);
+      } finally {
+        semaphore.release();
+      }
+
+      const status = exists ? ("overwritten" as const) : ("created" as const);
+      logger.debug(`Wrote: ${relativePath} (${status})`);
+      return { relativePath, status };
+    }),
+  );
 
   // Calculate summary
   const summary: FetchSummary = {
@@ -535,31 +544,40 @@ async function collectFeatureFiles(params: {
   basePath: string;
   ref: string;
   enabledFeatures: Feature[];
+  semaphore: Semaphore;
 }): Promise<Array<{ remotePath: string; relativePath: string; size: number }>> {
-  const { client, owner, repo, basePath, ref, enabledFeatures } = params;
-  const filesToFetch: Array<{ remotePath: string; relativePath: string; size: number }> = [];
+  const { client, owner, repo, basePath, ref, enabledFeatures, semaphore } = params;
 
-  for (const feature of enabledFeatures) {
-    const featurePaths = FEATURE_PATHS[feature];
+  const tasks = enabledFeatures.flatMap((feature) =>
+    FEATURE_PATHS[feature].map((featurePath) => ({ feature, featurePath })),
+  );
 
-    for (const featurePath of featurePaths) {
+  const results = await Promise.all(
+    tasks.map(async ({ featurePath }) => {
       const fullPath =
         basePath === "." || basePath === "" ? featurePath : join(basePath, featurePath);
+      const collected: Array<{ remotePath: string; relativePath: string; size: number }> = [];
 
       try {
         // Check if it's a file (mcp.json, .aiignore, hooks.json)
         if (featurePath.includes(".")) {
           // Try to get the file directly
           try {
-            const entries = await client.listDirectory(
-              owner,
-              repo,
-              basePath === "." || basePath === "" ? "." : basePath,
-              ref,
-            );
+            await semaphore.acquire();
+            let entries: GitHubFileEntry[];
+            try {
+              entries = await client.listDirectory(
+                owner,
+                repo,
+                basePath === "." || basePath === "" ? "." : basePath,
+                ref,
+              );
+            } finally {
+              semaphore.release();
+            }
             const fileEntry = entries.find((e) => e.name === featurePath && e.type === "file");
             if (fileEntry) {
-              filesToFetch.push({
+              collected.push({
                 remotePath: fileEntry.path,
                 relativePath: featurePath,
                 size: fileEntry.size,
@@ -575,7 +593,13 @@ async function collectFeatureFiles(params: {
           }
         } else {
           // It's a directory (rules/, commands/, skills/, subagents/)
-          const dirFiles = await listDirectoryRecursive(client, owner, repo, fullPath, ref);
+          await semaphore.acquire();
+          let dirFiles: GitHubFileEntry[];
+          try {
+            dirFiles = await listDirectoryRecursive(client, owner, repo, fullPath, ref);
+          } finally {
+            semaphore.release();
+          }
 
           for (const file of dirFiles) {
             // Calculate relative path from base
@@ -584,7 +608,7 @@ async function collectFeatureFiles(params: {
                 ? file.path
                 : file.path.substring(basePath.length + 1);
 
-            filesToFetch.push({
+            collected.push({
               remotePath: file.path,
               relativePath,
               size: file.size,
@@ -596,14 +620,16 @@ async function collectFeatureFiles(params: {
         if (isNotFoundError(error)) {
           // Feature directory/file not found, skip silently
           logger.debug(`Feature not found: ${fullPath}`);
-          continue;
+          return collected;
         }
         throw error;
       }
-    }
-  }
 
-  return filesToFetch;
+      return collected;
+    }),
+  );
+
+  return results.flat();
 }
 
 /**
@@ -625,24 +651,21 @@ async function listDirectoryRecursive(
 
   const entries = await client.listDirectory(owner, repo, path, ref);
   const files: GitHubFileEntry[] = [];
+  const directories: GitHubFileEntry[] = [];
 
   for (const entry of entries) {
     if (entry.type === "file") {
       files.push(entry);
     } else if (entry.type === "dir") {
-      const subFiles = await listDirectoryRecursive(
-        client,
-        owner,
-        repo,
-        entry.path,
-        ref,
-        depth + 1,
-      );
-      files.push(...subFiles);
+      directories.push(entry);
     }
   }
 
-  return files;
+  const subResults = await Promise.all(
+    directories.map((dir) => listDirectoryRecursive(client, owner, repo, dir.path, ref, depth + 1)),
+  );
+
+  return [...files, ...subResults.flat()];
 }
 
 /**
@@ -675,6 +698,9 @@ async function fetchAndConvertToolFiles(params: {
   const tempDir = await createTempDirectory();
   logger.debug(`Created temp directory: ${tempDir}`);
 
+  // Create semaphore for concurrency control
+  const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
+
   try {
     // Collect files using rulesync feature paths (rules/, commands/, etc.)
     // External repos use these paths directly without tool-specific prefixes
@@ -685,6 +711,7 @@ async function fetchAndConvertToolFiles(params: {
       basePath: resolvedPath,
       ref,
       enabledFeatures,
+      semaphore,
     });
 
     if (filesToFetch.length === 0) {
@@ -699,33 +726,41 @@ async function fetchAndConvertToolFiles(params: {
       };
     }
 
-    // Fetch files to temp directory with tool-specific structure
-    // Map rulesync paths to tool-specific paths
-    const toolPaths = getToolPathMapping(target);
-    const fetchedFiles: string[] = [];
-
-    for (const { remotePath, relativePath, size } of filesToFetch) {
-      // Check file size limit
+    // Validate file sizes first
+    for (const { relativePath, size } of filesToFetch) {
       if (size > MAX_FILE_SIZE) {
         throw new GitHubClientError(
           `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
         );
       }
-
-      // Map the relative path to tool-specific structure
-      const toolRelativePath = mapToToolPath(relativePath, toolPaths);
-      checkPathTraversal({
-        relativePath: toolRelativePath,
-        intendedRootDir: tempDir,
-      });
-      const localPath = join(tempDir, toolRelativePath);
-
-      // Fetch and write file
-      const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
-      await writeFileContent(localPath, content);
-      fetchedFiles.push(toolRelativePath);
-      logger.debug(`Fetched to temp: ${toolRelativePath}`);
     }
+
+    // Fetch files to temp directory with tool-specific structure in parallel
+    // Map rulesync paths to tool-specific paths
+    const toolPaths = getToolPathMapping(target);
+
+    await Promise.all(
+      filesToFetch.map(async ({ remotePath, relativePath }) => {
+        // Map the relative path to tool-specific structure
+        const toolRelativePath = mapToToolPath(relativePath, toolPaths);
+        checkPathTraversal({
+          relativePath: toolRelativePath,
+          intendedRootDir: tempDir,
+        });
+        const localPath = join(tempDir, toolRelativePath);
+
+        // Fetch and write file
+        await semaphore.acquire();
+        try {
+          const content = await client.getFileContent(parsed.owner, parsed.repo, remotePath, ref);
+          await writeFileContent(localPath, content);
+        } finally {
+          semaphore.release();
+        }
+        logger.debug(`Fetched to temp: ${toolRelativePath}`);
+        return toolRelativePath;
+      }),
+    );
 
     // Convert fetched files to rulesync format
     const outputBasePath = join(baseDir, outputDir);
