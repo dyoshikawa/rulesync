@@ -21,7 +21,8 @@
   "env": {
     "BASH_DEFAULT_TIMEOUT_MS": "300000",
     "BASH_MAX_TIMEOUT_MS": "1200000",
-    "DISABLE_AUTOUPDATER": "0"
+    "DISABLE_AUTOUPDATER": "0",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "sandbox": {
     "enabled": true,
