@@ -3,8 +3,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GitHubRelease } from "../types/fetch.js";
+
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
+  checkForUpdate,
   compareVersions,
   detectExecutionEnvironment,
   getHomebrewUpgradeInstructions,
@@ -15,6 +18,79 @@ import {
   performBinaryUpdate,
   validateDownloadUrl,
 } from "./update.js";
+
+/**
+ * Create a mock GitHub release object
+ */
+function createMockRelease(options: {
+  tagName: string;
+  assets?: GitHubRelease["assets"];
+}): GitHubRelease {
+  return {
+    tag_name: options.tagName,
+    name: options.tagName,
+    prerelease: false,
+    draft: false,
+    assets: options.assets ?? [],
+  };
+}
+
+/**
+ * Create mock release assets including both binary and SHA256SUMS
+ */
+function createMockAssets(options: {
+  assetName: string;
+  tagName: string;
+  binarySize?: number;
+  checksumsSize?: number;
+}): GitHubRelease["assets"] {
+  return [
+    {
+      name: options.assetName,
+      browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/${options.tagName}/${options.assetName}`,
+      size: options.binarySize ?? 100,
+    },
+    {
+      name: "SHA256SUMS",
+      browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/${options.tagName}/SHA256SUMS`,
+      size: options.checksumsSize ?? 100,
+    },
+  ];
+}
+
+/**
+ * Create a mock fetch function that returns streaming responses
+ */
+function createMockFetch(options: {
+  binaryContent: Buffer;
+  sha256sumsContent: string;
+}): typeof globalThis.fetch {
+  return vi.fn().mockImplementation((url: string) => {
+    const body = url.includes("SHA256SUMS")
+      ? Buffer.from(options.sha256sumsContent)
+      : options.binaryContent;
+    const readableStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(body));
+        controller.close();
+      },
+    });
+    return Promise.resolve(
+      new Response(readableStream, {
+        status: 200,
+        headers: { "content-length": String(body.length) },
+      }),
+    );
+  });
+}
+
+/**
+ * Mock getLatestRelease on GitHubClient prototype
+ */
+async function mockGetLatestRelease(release: GitHubRelease) {
+  const { GitHubClient } = await import("./github-client.js");
+  return vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue(release);
+}
 
 describe("update", () => {
   afterEach(() => {
@@ -319,6 +395,43 @@ describe("update", () => {
     });
   });
 
+  describe("checkForUpdate", () => {
+    it("should detect when an update is available", async () => {
+      await mockGetLatestRelease(createMockRelease({ tagName: "v2.0.0", assets: [] }));
+
+      const result = await checkForUpdate("1.0.0");
+      expect(result.hasUpdate).toBe(true);
+      expect(result.currentVersion).toBe("1.0.0");
+      expect(result.latestVersion).toBe("2.0.0");
+    });
+
+    it("should detect when already at latest version", async () => {
+      await mockGetLatestRelease(createMockRelease({ tagName: "v1.0.0", assets: [] }));
+
+      const result = await checkForUpdate("1.0.0");
+      expect(result.hasUpdate).toBe(false);
+    });
+
+    it("should normalize versions with leading v and pre-release suffixes", async () => {
+      await mockGetLatestRelease(createMockRelease({ tagName: "v1.5.0", assets: [] }));
+
+      const result = await checkForUpdate("v1.5.0-beta.1");
+      expect(result.hasUpdate).toBe(false);
+      expect(result.currentVersion).toBe("1.5.0");
+      expect(result.latestVersion).toBe("1.5.0");
+    });
+
+    it("should pass token to GitHubClient", async () => {
+      const { GitHubClient } = await import("./github-client.js");
+      const spy = vi
+        .spyOn(GitHubClient.prototype, "getLatestRelease")
+        .mockResolvedValue(createMockRelease({ tagName: "v1.0.0", assets: [] }));
+
+      await checkForUpdate("1.0.0", "my-token");
+      expect(spy).toHaveBeenCalledWith("dyoshikawa", "rulesync");
+    });
+  });
+
   describe("performBinaryUpdate", () => {
     let testDir: string;
     let cleanup: () => Promise<void>;
@@ -335,28 +448,14 @@ describe("update", () => {
     });
 
     it("should return already-at-latest message when no update available", async () => {
-      const { GitHubClient } = await import("./github-client.js");
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v1.0.0",
-        name: "v1.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [],
-      });
+      await mockGetLatestRelease(createMockRelease({ tagName: "v1.0.0" }));
 
       const result = await performBinaryUpdate("1.0.0");
       expect(result).toContain("Already at the latest version");
     });
 
     it("should throw when platform is unsupported", async () => {
-      const { GitHubClient } = await import("./github-client.js");
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v2.0.0",
-        name: "v2.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [],
-      });
+      await mockGetLatestRelease(createMockRelease({ tagName: "v2.0.0" }));
       vi.spyOn(process, "platform", "get").mockReturnValue("freebsd");
       vi.spyOn(process, "arch", "get").mockReturnValue("x64");
 
@@ -364,99 +463,68 @@ describe("update", () => {
     });
 
     it("should throw when binary asset is not found in release", async () => {
-      const { GitHubClient } = await import("./github-client.js");
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v2.0.0",
-        name: "v2.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: "other-file",
-            browser_download_url:
-              "https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/other-file",
-            size: 100,
-          },
-        ],
-      });
+      await mockGetLatestRelease(
+        createMockRelease({
+          tagName: "v2.0.0",
+          assets: [
+            {
+              name: "other-file",
+              browser_download_url:
+                "https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/other-file",
+              size: 100,
+            },
+          ],
+        }),
+      );
 
       await expect(performBinaryUpdate("1.0.0")).rejects.toThrow("not found in release");
     });
 
     it("should throw when SHA256SUMS asset is not found in release", async () => {
-      const { GitHubClient } = await import("./github-client.js");
-      const assetName = getPlatformAssetName();
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v2.0.0",
-        name: "v2.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: assetName!,
-            browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/${assetName}`,
-            size: 100,
-          },
-        ],
-      });
+      const assetName = getPlatformAssetName()!;
+      await mockGetLatestRelease(
+        createMockRelease({
+          tagName: "v2.0.0",
+          assets: [
+            {
+              name: assetName,
+              browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/${assetName}`,
+              size: 100,
+            },
+          ],
+        }),
+      );
 
       await expect(performBinaryUpdate("1.0.0")).rejects.toThrow("SHA256SUMS not found");
     });
 
     it("should throw when checksum verification fails", async () => {
-      const { GitHubClient } = await import("./github-client.js");
       const assetName = getPlatformAssetName()!;
-
-      // Create fake binary content
       const fakeBinaryContent = Buffer.from("fake-binary-content");
       const wrongChecksum = "0".repeat(64);
-
       const sha256sumsContent = `${wrongChecksum}  ${assetName}\n`;
 
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v2.0.0",
-        name: "v2.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: assetName,
-            browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/${assetName}`,
-            size: fakeBinaryContent.length,
-          },
-          {
-            name: "SHA256SUMS",
-            browser_download_url:
-              "https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/SHA256SUMS",
-            size: sha256sumsContent.length,
-          },
-        ],
-      });
-
-      // Mock fetch to return our fake content
-      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-        const body = url.includes("SHA256SUMS")
-          ? Buffer.from(sha256sumsContent)
-          : fakeBinaryContent;
-        const readableStream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(new Uint8Array(body));
-            controller.close();
-          },
-        });
-        return Promise.resolve(
-          new Response(readableStream, {
-            status: 200,
-            headers: { "content-length": String(body.length) },
+      await mockGetLatestRelease(
+        createMockRelease({
+          tagName: "v2.0.0",
+          assets: createMockAssets({
+            assetName,
+            tagName: "v2.0.0",
+            binarySize: fakeBinaryContent.length,
+            checksumsSize: sha256sumsContent.length,
           }),
-        );
+        }),
+      );
+
+      globalThis.fetch = createMockFetch({
+        binaryContent: fakeBinaryContent,
+        sha256sumsContent,
       });
 
       await expect(performBinaryUpdate("1.0.0")).rejects.toThrow("Checksum verification failed");
     });
 
     it("should successfully update binary when checksum matches", async () => {
-      const { GitHubClient } = await import("./github-client.js");
       const assetName = getPlatformAssetName()!;
 
       // Create a fake executable in testDir to act as current binary
@@ -476,40 +544,21 @@ describe("update", () => {
       const checksum = crypto.createHash("sha256").update(newBinaryContent).digest("hex");
       const sha256sumsContent = `${checksum}  ${assetName}\n`;
 
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v2.0.0",
-        name: "v2.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: assetName,
-            browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/${assetName}`,
-            size: newBinaryContent.length,
-          },
-          {
-            name: "SHA256SUMS",
-            browser_download_url:
-              "https://github.com/dyoshikawa/rulesync/releases/download/v2.0.0/SHA256SUMS",
-            size: sha256sumsContent.length,
-          },
-        ],
-      });
-
-      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-        const body = url.includes("SHA256SUMS") ? Buffer.from(sha256sumsContent) : newBinaryContent;
-        const readableStream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(new Uint8Array(body));
-            controller.close();
-          },
-        });
-        return Promise.resolve(
-          new Response(readableStream, {
-            status: 200,
-            headers: { "content-length": String(body.length) },
+      await mockGetLatestRelease(
+        createMockRelease({
+          tagName: "v2.0.0",
+          assets: createMockAssets({
+            assetName,
+            tagName: "v2.0.0",
+            binarySize: newBinaryContent.length,
+            checksumsSize: sha256sumsContent.length,
           }),
-        );
+        }),
+      );
+
+      globalThis.fetch = createMockFetch({
+        binaryContent: newBinaryContent,
+        sha256sumsContent,
       });
 
       const result = await performBinaryUpdate("1.0.0");
@@ -521,7 +570,6 @@ describe("update", () => {
     });
 
     it("should perform update when force is true even at latest version", async () => {
-      const { GitHubClient } = await import("./github-client.js");
       const assetName = getPlatformAssetName()!;
 
       const fakeExePath = path.join(testDir, "rulesync");
@@ -538,44 +586,51 @@ describe("update", () => {
       const checksum = crypto.createHash("sha256").update(newBinaryContent).digest("hex");
       const sha256sumsContent = `${checksum}  ${assetName}\n`;
 
-      vi.spyOn(GitHubClient.prototype, "getLatestRelease").mockResolvedValue({
-        tag_name: "v1.0.0",
-        name: "v1.0.0",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: assetName,
-            browser_download_url: `https://github.com/dyoshikawa/rulesync/releases/download/v1.0.0/${assetName}`,
-            size: newBinaryContent.length,
-          },
-          {
-            name: "SHA256SUMS",
-            browser_download_url:
-              "https://github.com/dyoshikawa/rulesync/releases/download/v1.0.0/SHA256SUMS",
-            size: sha256sumsContent.length,
-          },
-        ],
-      });
-
-      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-        const body = url.includes("SHA256SUMS") ? Buffer.from(sha256sumsContent) : newBinaryContent;
-        const readableStream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(new Uint8Array(body));
-            controller.close();
-          },
-        });
-        return Promise.resolve(
-          new Response(readableStream, {
-            status: 200,
-            headers: { "content-length": String(body.length) },
+      await mockGetLatestRelease(
+        createMockRelease({
+          tagName: "v1.0.0",
+          assets: createMockAssets({
+            assetName,
+            tagName: "v1.0.0",
+            binarySize: newBinaryContent.length,
+            checksumsSize: sha256sumsContent.length,
           }),
-        );
+        }),
+      );
+
+      globalThis.fetch = createMockFetch({
+        binaryContent: newBinaryContent,
+        sha256sumsContent,
       });
 
       const result = await performBinaryUpdate("1.0.0", { force: true });
       expect(result).toContain("Successfully updated");
+    });
+
+    it("should throw when checksum entry is missing for asset in SHA256SUMS", async () => {
+      const assetName = getPlatformAssetName()!;
+      const fakeBinaryContent = Buffer.from("fake-binary-content");
+      // SHA256SUMS has entry for a different file, not for our asset
+      const sha256sumsContent = `${"a".repeat(64)}  some-other-file\n`;
+
+      await mockGetLatestRelease(
+        createMockRelease({
+          tagName: "v2.0.0",
+          assets: createMockAssets({
+            assetName,
+            tagName: "v2.0.0",
+            binarySize: fakeBinaryContent.length,
+            checksumsSize: sha256sumsContent.length,
+          }),
+        }),
+      );
+
+      globalThis.fetch = createMockFetch({
+        binaryContent: fakeBinaryContent,
+        sha256sumsContent,
+      });
+
+      await expect(performBinaryUpdate("1.0.0")).rejects.toThrow("Checksum entry for");
     });
   });
 });

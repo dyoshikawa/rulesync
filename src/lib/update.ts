@@ -2,7 +2,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 import type { GitHubRelease, GitHubReleaseAsset } from "../types/fetch.js";
@@ -248,7 +248,7 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
     response.body as import("node:stream/web").ReadableStream,
   );
 
-  const sizeChecker = new (await import("node:stream")).Transform({
+  const sizeChecker = new Transform({
     transform(chunk, _encoding, callback) {
       // eslint-disable-next-line no-type-assertion/no-type-assertion
       downloadedBytes += (chunk as Buffer).length;
@@ -395,7 +395,7 @@ export async function performBinaryUpdate(
 
     try {
       // Attempt atomic replacement via rename (works when on the same filesystem)
-      const tempInPlace = path.join(currentDir, `.rulesync-update-${Date.now()}`);
+      const tempInPlace = path.join(currentDir, `.rulesync-update-${crypto.randomUUID()}`);
       try {
         await fs.promises.copyFile(tempBinaryPath, tempInPlace);
         if (os.platform() !== "win32") {
