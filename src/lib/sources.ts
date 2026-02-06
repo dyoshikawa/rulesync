@@ -189,8 +189,10 @@ async function fetchSource(params: {
   const skillFilter = sourceEntry.skills ?? ["*"];
   const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
 
-  // List the skills/ directory in the remote repo
-  const skillsBasePath = parsed.path ? `${parsed.path}/skills` : "skills";
+  // List the skills/ directory in the remote repo.
+  // If a path is given in the source URL, it points directly to the skills directory.
+  // Otherwise, look for "skills/" at the repo root.
+  const skillsBasePath = parsed.path ?? "skills";
   let remoteSkillDirs: Array<{ name: string; path: string }>;
 
   try {
