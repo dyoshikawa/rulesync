@@ -14,6 +14,7 @@ import {
   ToolRule,
   type ToolRuleFromFileParams,
   type ToolRuleFromRulesyncRuleParams,
+  buildToolPath,
 } from "./tool-rule.js";
 
 // Create a concrete implementation of ToolRule for testing
@@ -1090,5 +1091,24 @@ describe("ToolRule", () => {
 
       expect(TestToolRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
     });
+  });
+});
+
+describe("buildToolPath", () => {
+  it("should join toolDir and subDir when excludeToolDir is undefined", () => {
+    expect(buildToolPath(".claude", "rules")).toBe(join(".claude", "rules"));
+  });
+
+  it("should join toolDir and subDir when excludeToolDir is false", () => {
+    expect(buildToolPath(".claude", "rules", false)).toBe(join(".claude", "rules"));
+  });
+
+  it("should return only subDir when excludeToolDir is true", () => {
+    expect(buildToolPath(".claude", "rules", true)).toBe("rules");
+  });
+
+  it("should handle subDir of '.' correctly", () => {
+    expect(buildToolPath(".claude", ".", true)).toBe(".");
+    expect(buildToolPath(".claude", ".", false)).toBe(join(".claude", "."));
   });
 });
