@@ -1,0 +1,64 @@
+name: Issue Comment to AI
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  handle-issue:
+    if: >-
+      !github.event.issue.pull_request &&
+      contains(github.event.comment.body, '[ai]') &&
+      (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run OpenCode to handle issue
+        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # openrouter/z-ai/glm-4.7 or openrouter/moonshotai/kimi-k2.5
+          model: openrouter/moonshotai/kimi-k2.5
+          use_github_token: "true"
+          prompt: |
+            You are working on GitHub Issue #${{ github.event.issue.number }}.
+
+            Issue title: ${{ github.event.issue.title }}
+            Issue body: ${{ github.event.issue.body }}
+
+            The comment that triggered this workflow: ${{ github.event.comment.body }}
+
+            Follow these steps:
+            1. Understand the requirements of the issue.
+            2. Use `gh pr list --search "issue:#${{ github.event.issue.number }}"` to check if a PR for this issue already exists.
+            3. Implement the changes needed to resolve the issue.
+            4. Run `pnpm -C server cicheck` to verify code quality.
+            5. If a PR already exists:
+               - Check out the existing PR branch and run /commit-push-pr.
+            6. If no PR exists:
+               - Run /commit-push-pr to create a new pull request.
+               - Reference the issue in the PR description (e.g., "Closes #${{ github.event.issue.number }}").

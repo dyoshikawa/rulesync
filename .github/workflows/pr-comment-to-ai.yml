@@ -1,0 +1,58 @@
+name: PR Comment to AI
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  handle-pr-comment:
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '[ai]') &&
+      (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run OpenCode to handle PR comment
+        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IS_UPSTREAM: ${{ github.repository == 'dyoshikawa/rulesync' }}
+        with:
+          # openrouter/z-ai/glm-4.7 or openrouter/moonshotai/kimi-k2.5
+          model: openrouter/moonshotai/kimi-k2.5
+          use_github_token: "true"
+          prompt: |
+            You are working on GitHub pull request #${{ github.event.issue.number }}.
+
+            The comment that triggered this workflow: ${{ github.event.comment.body }}
+
+            Follow these instructions:
+            If the triggering comment is a review request, perform step 1. If it is a fix request, perform step 2. If you cannot determine which, post a comment on this PR stating so and exit immediately.
+              1. Review the changes in this PR using /review-pr and post the results as a comment.
+              2. Fix the code. Run `pnpm -C server cicheck` to verify code quality. If the environment variable IS_UPSTREAM is true, perform 2-1. If false (fork repository), perform 2-2.
+                2-1. Commit and push the fix to this branch.
+                2-2. Carry over the commits from this PR, then commit and push the fix to a new branch. Create a new PR.
