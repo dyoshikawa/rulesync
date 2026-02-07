@@ -43,6 +43,10 @@ export abstract class DirFeatureProcessor {
   /**
    * Once converted to rulesync/tool dirs, write them to the filesystem.
    * Returns the number of directories written.
+   *
+   * Note: This method uses directory-level change detection. If any file within
+   * a directory has changed, ALL files in that directory are rewritten. This is
+   * an intentional design decision to ensure consistency within directory units.
    */
   async writeAiDirs(aiDirs: AiDir[]): Promise<number> {
     let changedCount = 0;
@@ -103,7 +107,13 @@ export abstract class DirFeatureProcessor {
         // Write other files
         for (const [i, file] of otherFiles.entries()) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
-          const content = otherFileContents[i] ?? "";
+          const content = otherFileContents[i];
+          if (content === undefined) {
+            throw new Error(
+              `Internal error: content for file ${file.relativeFilePathToDirPath} is undefined. ` +
+                "This indicates a synchronization issue between otherFiles and otherFileContents arrays.",
+            );
+          }
           await writeFileContent(filePath, content);
         }
       }
