@@ -27,5 +27,15 @@ Let's resume the release process.
 7. Since `package.json` will be modified, execute `git commit` and `git push`.
 8. Run `gh pr create` and `gh pr merge --admin` to merge the release branch into the main branch.
 9. As a precaution, verify that `getVersion()` in `src/cli/index.ts` is updated to the ${new_version}.
-10. Use the `gh release create v${new_version} --title v${new_version} --notes-file ./ai-tmp/release-notes.md ...` command to create a Release on the `github.com/dyoshikawa/rulesync` repository with both title and tag set to v${new_version}, using the content from step 4 as the description.
-11. Clean up the brances. Run `git checkout main`, `git branch -D release/v${new_version}` and `git pull --prune`.
+10. Create tag: `git tag v${new_version} && git push origin v${new_version}`.
+
+11. Run GitHub Actions workflow to create draft release:
+    `gh workflow run create-release.yml -f tag_version=v${new_version} -f release_name="Release v${new_version}" -f release_notes="$(cat ./ai-tmp/release-notes.md)"`
+
+12. Wait for the workflow to complete. Verify that all assets are uploaded to the draft release.
+
+13. Go to https://github.com/dyoshikawa/rulesync/releases and publish the draft release.
+
+14. Once published, the publish-npm.yml workflow will be triggered automatically to publish to NPM.
+
+15. Clean up the branches. Run `git checkout main`, `git branch -D release/v${new_version}` and `git pull --prune`.

@@ -1,8 +1,8 @@
-name: Release
+name: Publish to NPM
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 permissions:
   id-token: write # Required for OIDC
@@ -20,7 +20,7 @@ jobs:
           ref: main
 
       - name: Setup mise
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2
+        uses: jdx/mise-action@6d1e696aa24b1aa1bcc1adea0212707c71ab78a8 # v2
         with:
           experimental: true
 

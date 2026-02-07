@@ -1,15 +1,29 @@
-name: Release Assets
+name: Create Release
 
 on:
-  release:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag_version:
+        description: "Release tag version (e.g., v6.7.1)"
+        required: true
+        type: string
+      release_name:
+        description: "Release name (e.g., Release v6.7.1)"
+        required: false
+        type: string
+        default: ""
+      release_notes:
+        description: "Release notes"
+        required: false
+        type: string
+        default: ""
 
 permissions:
-  contents: write # Required for uploading release assets
+  contents: write
 
 jobs:
-  build-assets:
-    name: Build and upload assets
+  create-release:
+    name: Create draft release and upload assets
     runs-on: ubuntu-latest
 
     steps:
@@ -19,11 +33,14 @@ jobs:
           ref: main
 
       - name: Setup mise
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2
+        uses: jdx/mise-action@6d1e696aa24b1aa1bcc1adea0212707c71ab78a8 # v2
         with:
           experimental: true
 
-      - name: Install dependencies
+      - name: Install dependencies (pnpm)
+        run: pnpm install --ignore-scripts
+
+      - name: Install dependencies (bun)
         run: bun install
 
       - name: Build binaries
@@ -47,9 +64,20 @@ jobs:
       - name: Bundle TOON files into zip
         run: zip repomix-toon.zip repomix-output-*.toon
 
-      - name: Upload assets to release
+      - name: Create draft release
+        run: |
+          gh release create ${{ inputs.tag_version }} \
+            --title "${{ inputs.release_name || inputs.tag_version }}" \
+            --notes "${{ inputs.release_notes || 'Release notes' }}" \
+            --draft \
+            || true  # Ignore if release already exists
+
+      - name: Upload assets to draft release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
+          tag_name: ${{ inputs.tag_version }}
+          draft: true
+          fail_on_unmatched_files: false
           files: |
             install.sh
             dist-bun/rulesync-linux-x64
