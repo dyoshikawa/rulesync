@@ -105,8 +105,9 @@ describe("FeatureProcessor", () => {
 
       const generatedFiles: AiFile[] = [];
 
-      await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
+      const count = await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
 
+      expect(count).toBe(2);
       expect(removeFile).toHaveBeenCalledTimes(2);
       expect(removeFile).toHaveBeenCalledWith("/path/to/file1.md");
       expect(removeFile).toHaveBeenCalledWith("/path/to/file2.md");
@@ -120,6 +121,23 @@ describe("FeatureProcessor", () => {
 
       await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
 
+      expect(removeFile).not.toHaveBeenCalled();
+    });
+
+    it("should return correct count and NOT call removeFile in dry-run mode", async () => {
+      const processor = new TestProcessor({ baseDir: testDir, dryRun: true });
+
+      const existingFiles = [
+        createMockFile("/path/to/orphan1.md"),
+        createMockFile("/path/to/orphan2.md"),
+        createMockFile("/path/to/kept.md"),
+      ];
+
+      const generatedFiles = [createMockFile("/path/to/kept.md")];
+
+      const count = await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
+
+      expect(count).toBe(2);
       expect(removeFile).not.toHaveBeenCalled();
     });
   });
@@ -161,6 +179,18 @@ describe("FeatureProcessor", () => {
 
       expect(count).toBe(1);
       expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return changedCount > 0 and NOT call writeFileContent in dry-run mode with changes", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ baseDir: testDir, dryRun: true });
+
+      const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
+
+      const count = await processor.writeAiFiles(files);
+
+      expect(count).toBe(2);
+      expect(writeFileContent).not.toHaveBeenCalled();
     });
   });
 

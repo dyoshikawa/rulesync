@@ -7,6 +7,7 @@ export type GenerateOptions = ConfigResolverResolveParams;
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
+ * Note: count represents changed/written files, not total files.
  */
 function logFeatureResult(params: {
   count: number;
@@ -17,9 +18,9 @@ function logFeatureResult(params: {
   const { count, featureName, isPreview, modePrefix } = params;
   if (count > 0) {
     if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${count} ${featureName}`);
+      logger.info(`${modePrefix} Would write ${count} ${featureName}`);
     } else {
-      logger.success(`Generated ${count} ${featureName}`);
+      logger.success(`Wrote ${count} ${featureName}`);
     }
   }
 }
@@ -129,7 +130,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");
-    logger.warn(`⚠️  No files generated for enabled features: ${enabledFeatures}`);
+    logger.success(`✓ All files up to date for features: ${enabledFeatures}`);
     return;
   }
 
@@ -143,11 +144,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
 
   if (isPreview) {
-    logger.info(
-      `${modePrefix} Would generate ${totalGenerated} file(s) total (${parts.join(" + ")})`,
-    );
+    logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   } else {
-    logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
+    logger.success(`🎉 All done! Wrote ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   }
 
   // Handle --check mode exit code

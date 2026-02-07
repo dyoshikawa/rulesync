@@ -720,21 +720,38 @@ describe("generate", () => {
       expect(result.hasDiff).toBe(false);
     });
 
-    it("should return hasDiff: false when files match existing content in dry run mode", async () => {
+    it("should return hasDiff: true when files have changes in dry run mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      // In this test, the mocked processor doesn't actually check file content,
-      // so hasDiff is determined by the writeAiFiles/writeAiDirs return count (changed files).
-      // Since readFileContentOrNull is mocked via file.js mock, the comparison between
-      // generated content and existing content determines the count.
-      // However, since this is a heavily mocked unit test, the actual file diff detection
-      // is tested in integration tests.
+      // The mocked processor returns writeAiFiles count of 1, indicating changes
+      // This should result in hasDiff: true
       const result = await generate({ config: mockConfig as never });
 
-      // The default mock doesn't set up file content matching, so hasDiff will be true
-      // when there are files to generate (since readFileContentOrNull returns null for non-existent files)
-      expect(typeof result.hasDiff).toBe("boolean");
+      expect(result.hasDiff).toBe(true);
+    });
+
+    it("should return hasDiff: false when no changes in dry run mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      // Mock the processor to return 0 changed files (no diff)
+      const mockProcessorNoChanges = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
+        writeAiFiles: vi.fn().mockResolvedValue(0), // No changes
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessorNoChanges as unknown as RulesProcessor;
+      });
+
+      const result = await generate({ config: mockConfig as never });
+
+      expect(result.hasDiff).toBe(false);
     });
   });
 });

@@ -105,8 +105,9 @@ describe("DirFeatureProcessor", () => {
 
       const generatedDirs: AiDir[] = [];
 
-      await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
+      const count = await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
+      expect(count).toBe(2);
       expect(removeDirectory).toHaveBeenCalledTimes(2);
       expect(removeDirectory).toHaveBeenCalledWith("/path/to/dir1");
       expect(removeDirectory).toHaveBeenCalledWith("/path/to/dir2");
@@ -120,6 +121,23 @@ describe("DirFeatureProcessor", () => {
 
       await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
+      expect(removeDirectory).not.toHaveBeenCalled();
+    });
+
+    it("should return correct count and NOT call removeDirectory in dry-run mode", async () => {
+      const processor = new TestDirProcessor({ baseDir: testDir, dryRun: true });
+
+      const existingDirs = [
+        createMockDir("/path/to/orphan1"),
+        createMockDir("/path/to/orphan2"),
+        createMockDir("/path/to/kept"),
+      ];
+
+      const generatedDirs = [createMockDir("/path/to/kept")];
+
+      const count = await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
+
+      expect(count).toBe(2);
       expect(removeDirectory).not.toHaveBeenCalled();
     });
   });
@@ -188,6 +206,22 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(1);
       expect(ensureDir).toHaveBeenCalledTimes(1);
       expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return changedCount > 0 and NOT call writeFileContent or ensureDir in dry-run mode with changes", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestDirProcessor({ baseDir: testDir, dryRun: true });
+
+      const dirs = [
+        createMockDirWithFiles({ dirPath: "/path/to/dir1", mainFileBody: "body1" }),
+        createMockDirWithFiles({ dirPath: "/path/to/dir2", mainFileBody: "body2" }),
+      ];
+
+      const count = await processor.writeAiDirs(dirs);
+
+      expect(count).toBe(2);
+      expect(ensureDir).not.toHaveBeenCalled();
+      expect(writeFileContent).not.toHaveBeenCalled();
     });
   });
 

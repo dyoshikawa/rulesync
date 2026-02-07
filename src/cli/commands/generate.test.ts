@@ -449,9 +449,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       // Should still complete without error
-      expect(logger.warn).toHaveBeenCalledWith(
-        "⚠️  No files generated for enabled features: ignore",
-      );
+      expect(logger.success).toHaveBeenCalledWith("✓ All files up to date for features: ignore");
     });
 
     it("should skip ignore files when no rulesync files found", async () => {
@@ -590,9 +588,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        "⚠️  No files generated for enabled features: rules",
-      );
+      expect(logger.success).toHaveBeenCalledWith("✓ All files up to date for features: rules");
     });
 
     it("should show success message with correct totals", async () => {
@@ -636,7 +632,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 6 file(s) total (2 rules + 3 MCP files + 1 commands)",
+        "🎉 All done! Wrote 6 file(s) total (2 rules + 3 MCP files + 1 commands)",
       );
     });
 
@@ -651,7 +647,7 @@ describe("generateCommand", () => {
       await generateCommand(options);
 
       expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 5 file(s) total (1 rules + 1 ignore files + 1 MCP files + 1 commands + 1 subagents)",
+        "🎉 All done! Wrote 5 file(s) total (1 rules + 1 ignore files + 1 MCP files + 1 commands + 1 subagents)",
       );
     });
 
@@ -683,7 +679,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 3 rule(s)");
+      expect(logger.success).toHaveBeenCalledWith("Wrote 3 rule(s)");
     });
   });
 
@@ -907,9 +903,7 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 5 file(s) total (5 rules)",
-      );
+      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Wrote 5 file(s) total (5 rules)");
     });
 
     it("should only process rules, commands, mcp, and subagents when global mode is enabled with multiple features", async () => {
@@ -973,7 +967,7 @@ describe("generateCommand", () => {
       expect(SubagentsProcessor).toHaveBeenCalledTimes(1); // Once for claudecode
       expect(IgnoreProcessor).not.toHaveBeenCalled();
       expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 15 file(s) total (6 rules + 3 MCP files + 3 commands + 3 subagents)",
+        "🎉 All done! Wrote 15 file(s) total (6 rules + 3 MCP files + 3 commands + 3 subagents)",
       );
     });
   });
@@ -1003,10 +997,8 @@ describe("generateCommand", () => {
 
       await generateCommand(options);
 
-      expect(logger.success).toHaveBeenCalledWith("Generated 2 rule(s)");
-      expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 2 file(s) total (2 rules)",
-      );
+      expect(logger.success).toHaveBeenCalledWith("Wrote 2 rule(s)");
+      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Wrote 2 file(s) total (2 rules)");
     });
 
     it("should handle multiple targets and base directories", async () => {
@@ -1023,10 +1015,8 @@ describe("generateCommand", () => {
       // Should create processors for each combination of base dir and target
       expect(RulesProcessor).toHaveBeenCalledTimes(4); // 2 dirs × 2 targets
       // Total count is 4 (1 per processor)
-      expect(logger.success).toHaveBeenCalledWith("Generated 4 rule(s)");
-      expect(logger.success).toHaveBeenCalledWith(
-        "🎉 All done! Generated 4 file(s) total (4 rules)",
-      );
+      expect(logger.success).toHaveBeenCalledWith("Wrote 4 rule(s)");
+      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Wrote 4 file(s) total (4 rules)");
     });
   });
 });
