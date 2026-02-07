@@ -30,6 +30,7 @@ Let's resume the release process.
 10. Create tag: `git tag v${new_version} && git push origin v${new_version}`.
 
 11. Run GitHub Actions workflow to create draft release:
+
     ```
     RELEASE_NOTES="$(< ./ai-tmp/release-notes.md)"
     gh workflow run create-release.yml -f tag_version=v${new_version} -f release_name="Release v${new_version}" -f release_notes="$RELEASE_NOTES"
