@@ -32,7 +32,7 @@ describe("OpencodeMcp", () => {
     it("should return correct paths for global mode", () => {
       const paths = OpencodeMcp.getSettablePaths({ global: true });
 
-      expect(paths.relativeDirPath).toBe(".");
+      expect(paths.relativeDirPath).toBe(join(".config", "opencode"));
       expect(paths.relativeFilePath).toBe("opencode.json");
     });
   });
@@ -50,7 +50,7 @@ describe("OpencodeMcp", () => {
 
     it("should return false when created via forDeletion with global: true", () => {
       const opencodeMcp = OpencodeMcp.forDeletion({
-        relativeDirPath: ".",
+        relativeDirPath: join(".config", "opencode"),
         relativeFilePath: "opencode.json",
         global: true,
       });
@@ -288,6 +288,8 @@ describe("OpencodeMcp", () => {
     });
 
     it("should create instance from file in global mode", async () => {
+      const globalPath = join(testDir, ".config", "opencode", "opencode.json");
+
       const jsonData = {
         mcp: {
           filesystem: {
@@ -298,7 +300,7 @@ describe("OpencodeMcp", () => {
           },
         },
       };
-      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData, null, 2));
+      await writeFileContent(globalPath, JSON.stringify(jsonData, null, 2));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
         baseDir: testDir,
@@ -307,7 +309,7 @@ describe("OpencodeMcp", () => {
 
       expect(opencodeMcp).toBeInstanceOf(OpencodeMcp);
       expect(opencodeMcp.getJson()).toEqual(jsonData);
-      expect(opencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
+      expect(opencodeMcp.getFilePath()).toBe(globalPath);
     });
 
     it("should create instance from file in local mode (default)", async () => {
@@ -340,7 +342,7 @@ describe("OpencodeMcp", () => {
 
       expect(opencodeMcp).toBeInstanceOf(OpencodeMcp);
       expect(opencodeMcp.getJson()).toEqual({ mcp: {} });
-      expect(opencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
+      expect(opencodeMcp.getFilePath()).toBe(join(testDir, ".config", "opencode", "opencode.json"));
     });
 
     it("should preserve non-mcp properties in global mode", async () => {
@@ -360,7 +362,7 @@ describe("OpencodeMcp", () => {
         version: "1.0.0",
       };
       await writeFileContent(
-        join(testDir, "opencode.json"),
+        join(testDir, ".config", "opencode", "opencode.json"),
         JSON.stringify(existingGlobalConfig, null, 2),
       );
 
@@ -566,7 +568,7 @@ describe("OpencodeMcp", () => {
           },
         },
       });
-      expect(opencodeMcp.getRelativeDirPath()).toBe(".");
+      expect(opencodeMcp.getRelativeDirPath()).toBe(join(".config", "opencode"));
       expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.json");
     });
 
@@ -622,7 +624,7 @@ describe("OpencodeMcp", () => {
         version: "1.0.0",
       };
       await writeFileContent(
-        join(testDir, "opencode.json"),
+        join(testDir, ".config", "opencode", "opencode.json"),
         JSON.stringify(existingGlobalConfig, null, 2),
       );
 
@@ -674,7 +676,7 @@ describe("OpencodeMcp", () => {
         customProperty: "value",
       };
       await writeFileContent(
-        join(testDir, "opencode.json"),
+        join(testDir, ".config", "opencode", "opencode.json"),
         JSON.stringify(existingGlobalConfig, null, 2),
       );
 
@@ -1173,7 +1175,7 @@ describe("OpencodeMcp", () => {
         },
       };
       await writeFileContent(
-        join(testDir, "opencode.json"),
+        join(testDir, ".config", "opencode", "opencode.json"),
         JSON.stringify(originalJsonData, null, 2),
       );
 
@@ -1213,7 +1215,9 @@ describe("OpencodeMcp", () => {
           },
         },
       });
-      expect(newOpencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
+      expect(newOpencodeMcp.getFilePath()).toBe(
+        join(testDir, ".config", "opencode", "opencode.json"),
+      );
     });
   });
 
@@ -1229,7 +1233,10 @@ describe("OpencodeMcp", () => {
     });
 
     it("should handle malformed JSON in global config gracefully", async () => {
-      await writeFileContent(join(testDir, "opencode.json"), "{ invalid: json }");
+      await writeFileContent(
+        join(testDir, ".config", "opencode", "opencode.json"),
+        "{ invalid: json }",
+      );
 
       await expect(
         OpencodeMcp.fromFile({
