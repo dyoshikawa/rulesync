@@ -30,7 +30,10 @@ Let's resume the release process.
 10. Create tag: `git tag v${new_version} && git push origin v${new_version}`.
 
 11. Run GitHub Actions workflow to create draft release:
-    `gh workflow run create-release.yml -f tag_version=v${new_version} -f release_name="Release v${new_version}" -f release_notes="$(cat ./ai-tmp/release-notes.md)"`
+    ```
+    RELEASE_NOTES="$(< ./ai-tmp/release-notes.md)"
+    gh workflow run create-release.yml -f tag_version=v${new_version} -f release_name="Release v${new_version}" -f release_notes="$RELEASE_NOTES"
+    ```
 
 12. Wait for the workflow to complete. Verify that all assets are uploaded to the draft release.
 
