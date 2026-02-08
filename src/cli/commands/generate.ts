@@ -17,9 +17,9 @@ function logFeatureResult(params: {
   const { count, featureName, isPreview, modePrefix } = params;
   if (count > 0) {
     if (isPreview) {
-      logger.info(`${modePrefix} Would generate ${count} ${featureName}`);
+      logger.info(`${modePrefix} Would write ${count} ${featureName}`);
     } else {
-      logger.success(`Generated ${count} ${featureName}`);
+      logger.success(`Written ${count} ${featureName}`);
     }
   }
 }
@@ -129,7 +129,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");
-    logger.warn(`⚠️  No files generated for enabled features: ${enabledFeatures}`);
+    logger.info(`✓ All files are up to date (${enabledFeatures})`);
     return;
   }
 
@@ -143,11 +143,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
 
   if (isPreview) {
-    logger.info(
-      `${modePrefix} Would generate ${totalGenerated} file(s) total (${parts.join(" + ")})`,
-    );
+    logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   } else {
-    logger.success(`🎉 All done! Generated ${totalGenerated} file(s) total (${parts.join(" + ")})`);
+    logger.success(`🎉 All done! Written ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   }
 
   // Handle --check mode exit code
