@@ -44,11 +44,28 @@
       }
     },
     "features": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
-      }
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
+            }
+          }
+        }
+      ]
     },
     "verbose": {
       "type": "boolean"

@@ -118,4 +118,111 @@ describe("Config", () => {
       expect(config.getSilent()).toBe(false);
     });
   });
+
+  describe("per-target features configuration", () => {
+    it("should return all features when using array format with wildcard", () => {
+      const config = createConfig({ features: ["*"] });
+      const features = config.getFeatures();
+
+      expect(features).toContain("rules");
+      expect(features).toContain("ignore");
+      expect(features).toContain("mcp");
+      expect(features).toContain("commands");
+      expect(features).toContain("subagents");
+      expect(features).toContain("skills");
+      expect(features).toContain("hooks");
+    });
+
+    it("should return target-specific features when using object format", () => {
+      const config = createConfig({
+        targets: ["copilot", "agentsmd"],
+        features: {
+          copilot: ["commands"],
+          agentsmd: ["rules", "mcp"],
+        },
+      });
+
+      expect(config.getFeatures("copilot")).toEqual(["commands"]);
+      expect(config.getFeatures("agentsmd")).toEqual(["rules", "mcp"]);
+    });
+
+    it("should return empty array for target not in per-target features", () => {
+      const config = createConfig({
+        targets: ["copilot", "cursor"],
+        features: {
+          copilot: ["commands"],
+        },
+      });
+
+      expect(config.getFeatures("cursor")).toEqual([]);
+    });
+
+    it("should handle wildcard in per-target features", () => {
+      const config = createConfig({
+        targets: ["copilot", "agentsmd"],
+        features: {
+          copilot: ["*"],
+          agentsmd: ["rules"],
+        },
+      });
+
+      const copilotFeatures = config.getFeatures("copilot");
+      expect(copilotFeatures).toContain("rules");
+      expect(copilotFeatures).toContain("ignore");
+      expect(copilotFeatures).toContain("mcp");
+      expect(copilotFeatures).toContain("commands");
+      expect(copilotFeatures).toContain("subagents");
+      expect(copilotFeatures).toContain("skills");
+      expect(copilotFeatures).toContain("hooks");
+
+      expect(config.getFeatures("agentsmd")).toEqual(["rules"]);
+    });
+
+    it("should collect all unique features when calling getFeatures() without target in object mode", () => {
+      const config = createConfig({
+        targets: ["copilot", "agentsmd"],
+        features: {
+          copilot: ["commands", "rules"],
+          agentsmd: ["rules", "mcp"],
+        },
+      });
+
+      const features = config.getFeatures();
+      expect(features).toContain("commands");
+      expect(features).toContain("rules");
+      expect(features).toContain("mcp");
+      expect(features).not.toContain("*");
+    });
+
+    it("should return all features when per-target has wildcard and getFeatures() is called without target", () => {
+      const config = createConfig({
+        targets: ["copilot", "agentsmd"],
+        features: {
+          copilot: ["commands"],
+          agentsmd: ["*"],
+        },
+      });
+
+      const features = config.getFeatures();
+      expect(features).toContain("rules");
+      expect(features).toContain("ignore");
+      expect(features).toContain("mcp");
+      expect(features).toContain("commands");
+      expect(features).toContain("subagents");
+      expect(features).toContain("skills");
+      expect(features).toContain("hooks");
+    });
+
+    it("should correctly identify per-target features configuration", () => {
+      const arrayConfig = createConfig({ features: ["rules", "commands"] });
+      expect(arrayConfig.hasPerTargetFeatures()).toBe(false);
+
+      const objectConfig = createConfig({
+        features: {
+          copilot: ["commands"],
+        },
+      });
+      expect(objectConfig.hasPerTargetFeatures()).toBe(true);
+    });
+  });
 });
