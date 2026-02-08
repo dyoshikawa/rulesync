@@ -27,5 +27,7 @@ Let's resume the release process.
 7. Since `package.json` will be modified, execute `git commit` and `git push`.
 8. Run `gh pr create` and `gh pr merge --admin` to merge the release branch into the main branch.
 9. As a precaution, verify that `getVersion()` in `src/cli/index.ts` is updated to the ${new_version}.
-10. Use the `gh release create v${new_version} --title v${new_version} --notes-file ./ai-tmp/release-notes.md ...` command to create a Release on the `github.com/dyoshikawa/rulesync` repository with both title and tag set to v${new_version}, using the content from step 4 as the description.
-11. Clean up the brances. Run `git checkout main`, `git branch -D release/v${new_version}` and `git pull --prune`.
+10. Create a **draft** release using `gh release create v${new_version} --draft --title v${new_version} --notes-file ./ai-tmp/release-notes.md` command on the `github.com/dyoshikawa/rulesync` repository. This creates a draft release so that the release-assets workflow can upload assets.
+11. Wait for the release-assets workflow to complete successfully. Use `gh run list --workflow="Release Assets" --branch v${new_version} --limit 1 --json status,conclusion,databaseId` to check the status. Poll until the workflow completes (status is "completed"). If it fails, abort the release process and report the failure.
+12. Once the release-assets workflow succeeds, publish the release by running `gh release edit v${new_version} --draft=false`.
+13. Clean up the branches. Run `git checkout main`, `git branch -D release/v${new_version}` and `git pull --prune`.
