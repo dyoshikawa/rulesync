@@ -53,17 +53,13 @@ Any relevant links, screenshots, or references (if applicable).
 
 ## Step 4: Assign Labels
 
-Choose appropriate labels from the existing repository labels based on the issue content:
+First, get the available labels from the repository:
 
-- `bug` — Something isn't working
-- `enhancement` — New feature or request
-- `documentation` — Improvements or additions to documentation
-- `refactoring` — Code refactoring
-- `improvement` — General improvement
-- `security` — Security-related issue
-- `high priority` — Urgent issues
+```bash
+gh label list
+```
 
-Additionally, evaluate whether the issue is suitable for newcomers. If the contribution is straightforward (e.g., small scope, well-defined, minimal domain knowledge required), also assign the `good first issue` label.
+Then choose appropriate labels from the existing repository labels based on the issue content. Also evaluate whether the issue is suitable for newcomers. If the contribution is straightforward (e.g., small scope, well-defined, minimal domain knowledge required), also assign the `good first issue` label if it exists in the repository.
 
 ## Step 5: Create the Issue
 
