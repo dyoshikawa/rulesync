@@ -2,7 +2,7 @@
 
 ```bash
 # Install rulesync globally
-npm i -g rulesync
+npm install -g rulesync
 
 # Create necessary directories, sample rule files, and configuration file
 rulesync init
