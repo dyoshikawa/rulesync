@@ -11,20 +11,20 @@ The `fetch` command allows you to fetch configuration files directly from a Git 
 
 ```bash
 # Full URL format
-npx rulesync fetch https://github.com/owner/repo
-npx rulesync fetch https://github.com/owner/repo/tree/branch
-npx rulesync fetch https://github.com/owner/repo/tree/branch/path/to/subdir
-npx rulesync fetch https://gitlab.com/owner/repo  # GitLab (planned)
+rulesync fetch https://github.com/owner/repo
+rulesync fetch https://github.com/owner/repo/tree/branch
+rulesync fetch https://github.com/owner/repo/tree/branch/path/to/subdir
+rulesync fetch https://gitlab.com/owner/repo  # GitLab (planned)
 
 # Prefix format
-npx rulesync fetch github:owner/repo
-npx rulesync fetch gitlab:owner/repo              # GitLab (planned)
+rulesync fetch github:owner/repo
+rulesync fetch gitlab:owner/repo              # GitLab (planned)
 
 # Shorthand format (defaults to GitHub)
-npx rulesync fetch owner/repo
-npx rulesync fetch owner/repo@ref        # Specify branch/tag/commit
-npx rulesync fetch owner/repo:path       # Specify subdirectory
-npx rulesync fetch owner/repo@ref:path   # Both ref and path
+rulesync fetch owner/repo
+rulesync fetch owner/repo@ref        # Specify branch/tag/commit
+rulesync fetch owner/repo:path       # Specify subdirectory
+rulesync fetch owner/repo@ref:path   # Both ref and path
 ```
 
 ### Options
@@ -43,25 +43,25 @@ npx rulesync fetch owner/repo@ref:path   # Both ref and path
 
 ```bash
 # Fetch skills from external repositories
-npx rulesync fetch vercel-labs/agent-skills --features skills
-npx rulesync fetch anthropics/skills --features skills
+rulesync fetch vercel-labs/agent-skills --features skills
+rulesync fetch anthropics/skills --features skills
 
 # Fetch all features from a public repository
-npx rulesync fetch dyoshikawa/rulesync --path .rulesync
+rulesync fetch dyoshikawa/rulesync --path .rulesync
 
 # Fetch only rules and commands from a specific tag
-npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
+rulesync fetch owner/repo@v1.0.0 --features rules,commands
 
 # Fetch from a private repository (uses GITHUB_TOKEN env var)
 export GITHUB_TOKEN=ghp_xxxx
-npx rulesync fetch owner/private-repo
+rulesync fetch owner/private-repo
 
 # Or use GitHub CLI to get the token
-GITHUB_TOKEN=$(gh auth token) npx rulesync fetch owner/private-repo
+GITHUB_TOKEN=$(gh auth token) rulesync fetch owner/private-repo
 
 # Preserve existing files (skip conflicts)
-npx rulesync fetch owner/repo --conflict skip
+rulesync fetch owner/repo --conflict skip
 
 # Fetch from a monorepo subdirectory
-npx rulesync fetch owner/repo:packages/my-package
+rulesync fetch owner/repo:packages/my-package
 ```

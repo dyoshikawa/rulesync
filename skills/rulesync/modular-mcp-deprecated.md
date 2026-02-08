@@ -4,7 +4,7 @@ Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-
 
 ```bash
 # Enable modular-mcp via CLI
-npx rulesync generate --targets claudecode --features mcp --modular-mcp
+rulesync generate --targets claudecode --features mcp --modular-mcp
 
 # Or via configuration file
 {

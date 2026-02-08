@@ -11,7 +11,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 2. Initialize files for global files in the directory.
    ```bash
    cd ~/.aiglobal
-   npx rulesync init
+   rulesync init
    ```
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
    ```jsonc
@@ -34,7 +34,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 5. Generate rules for global settings.
    ```bash
    # Run in the `~/.aiglobal` directory
-   npx rulesync generate
+   rulesync generate
    ```
 
 > [!NOTE]

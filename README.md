@@ -118,26 +118,29 @@ Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
 ## Getting Started
 
 ```bash
+# Install rulesync globally
+npm install -g rulesync
+
 # Create necessary directories, sample rule files, and configuration file
-npx rulesync init
+rulesync init
 
 # Install official skills (recommended)
-npx rulesync fetch dyoshikawa/rulesync --features skills
+rulesync fetch dyoshikawa/rulesync --features skills
 ```
 
 On the other hand, if you already have AI tool configurations:
 
 ```bash
 # Import existing files (to .rulesync/**/*)
-npx rulesync import --targets claudecode    # From CLAUDE.md
-npx rulesync import --targets cursor        # From .cursorrules
-npx rulesync import --targets copilot       # From .github/copilot-instructions.md
-npx rulesync import --targets claudecode --features rules,mcp,commands,subagents
+rulesync import --targets claudecode    # From CLAUDE.md
+rulesync import --targets cursor        # From .cursorrules
+rulesync import --targets copilot       # From .github/copilot-instructions.md
+rulesync import --targets claudecode --features rules,mcp,commands,subagents
 
 # And more tool supports
 
 # Generate unified configurations with all features
-npx rulesync generate --targets "*" --features "*"
+rulesync generate --targets "*" --features "*"
 ```
 
 ## Supported Tools and Features
@@ -211,46 +214,46 @@ Rulesync is trusted by leading companies and recognized by the industry:
 
 ```bash
 # Initialize new project (recommended: organized rules structure)
-npx rulesync init
+rulesync init
 
 # Import existing configurations (to .rulesync/rules/ by default)
-npx rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
+rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
 
 # Fetch configurations from a Git repository
-npx rulesync fetch owner/repo
-npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
-npx rulesync fetch https://github.com/owner/repo --conflict skip
+rulesync fetch owner/repo
+rulesync fetch owner/repo@v1.0.0 --features rules,commands
+rulesync fetch https://github.com/owner/repo --conflict skip
 
 # Generate all features for all tools (new preferred syntax)
-npx rulesync generate --targets "*" --features "*"
+rulesync generate --targets "*" --features "*"
 
 # Generate specific features for specific tools
-npx rulesync generate --targets copilot,cursor,cline --features rules,mcp
-npx rulesync generate --targets claudecode --features rules,subagents
+rulesync generate --targets copilot,cursor,cline --features rules,mcp
+rulesync generate --targets claudecode --features rules,subagents
 
 # Generate only rules (no MCP, ignore files, commands, or subagents)
-npx rulesync generate --targets "*" --features rules
+rulesync generate --targets "*" --features rules
 
 # Generate simulated commands and subagents
-npx rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
+rulesync generate --targets copilot,cursor,codexcli --features commands,subagents --simulate-commands --simulate-subagents
 
 # Dry run: show changes without writing files
-npx rulesync generate --dry-run --targets claudecode --features rules
+rulesync generate --dry-run --targets claudecode --features rules
 
 # Check if files are up to date (for CI/CD pipelines)
-npx rulesync generate --check --targets "*" --features "*"
+rulesync generate --check --targets "*" --features "*"
 
 # Add generated files to .gitignore
-npx rulesync gitignore
+rulesync gitignore
 
 # Update rulesync to the latest version (single-binary installs)
-npx rulesync update
+rulesync update
 
 # Check for updates without installing
-npx rulesync update --check
+rulesync update --check
 
 # Force update even if already at latest version
-npx rulesync update --force
+rulesync update --force
 ```
 
 ## Dry Run
@@ -262,7 +265,7 @@ Rulesync provides two dry run options for the `generate` command that allow you 
 Show what would be written or deleted without actually writing any files. Changes are displayed with a `[DRY RUN]` prefix.
 
 ```bash
-npx rulesync generate --dry-run --targets claudecode --features rules
+rulesync generate --dry-run --targets claudecode --features rules
 ```
 
 ### `--check`
@@ -271,7 +274,7 @@ Same as `--dry-run`, but exits with code 1 if files are not up to date. This is 
 
 ```bash
 # In your CI pipeline
-npx rulesync generate --check --targets "*" --features "*"
+rulesync generate --check --targets "*" --features "*"
 echo $?  # 0 if up to date, 1 if changes needed
 ```
 
@@ -291,20 +294,20 @@ The `fetch` command allows you to fetch configuration files directly from a Git 
 
 ```bash
 # Full URL format
-npx rulesync fetch https://github.com/owner/repo
-npx rulesync fetch https://github.com/owner/repo/tree/branch
-npx rulesync fetch https://github.com/owner/repo/tree/branch/path/to/subdir
-npx rulesync fetch https://gitlab.com/owner/repo  # GitLab (planned)
+rulesync fetch https://github.com/owner/repo
+rulesync fetch https://github.com/owner/repo/tree/branch
+rulesync fetch https://github.com/owner/repo/tree/branch/path/to/subdir
+rulesync fetch https://gitlab.com/owner/repo  # GitLab (planned)
 
 # Prefix format
-npx rulesync fetch github:owner/repo
-npx rulesync fetch gitlab:owner/repo              # GitLab (planned)
+rulesync fetch github:owner/repo
+rulesync fetch gitlab:owner/repo              # GitLab (planned)
 
 # Shorthand format (defaults to GitHub)
-npx rulesync fetch owner/repo
-npx rulesync fetch owner/repo@ref        # Specify branch/tag/commit
-npx rulesync fetch owner/repo:path       # Specify subdirectory
-npx rulesync fetch owner/repo@ref:path   # Both ref and path
+rulesync fetch owner/repo
+rulesync fetch owner/repo@ref        # Specify branch/tag/commit
+rulesync fetch owner/repo:path       # Specify subdirectory
+rulesync fetch owner/repo@ref:path   # Both ref and path
 ```
 
 ### Options
@@ -323,27 +326,27 @@ npx rulesync fetch owner/repo@ref:path   # Both ref and path
 
 ```bash
 # Fetch skills from external repositories
-npx rulesync fetch vercel-labs/agent-skills --features skills
-npx rulesync fetch anthropics/skills --features skills
+rulesync fetch vercel-labs/agent-skills --features skills
+rulesync fetch anthropics/skills --features skills
 
 # Fetch all features from a public repository
-npx rulesync fetch dyoshikawa/rulesync --path .rulesync
+rulesync fetch dyoshikawa/rulesync --path .rulesync
 
 # Fetch only rules and commands from a specific tag
-npx rulesync fetch owner/repo@v1.0.0 --features rules,commands
+rulesync fetch owner/repo@v1.0.0 --features rules,commands
 
 # Fetch from a private repository (uses GITHUB_TOKEN env var)
 export GITHUB_TOKEN=ghp_xxxx
-npx rulesync fetch owner/private-repo
+rulesync fetch owner/private-repo
 
 # Or use GitHub CLI to get the token
-GITHUB_TOKEN=$(gh auth token) npx rulesync fetch owner/private-repo
+GITHUB_TOKEN=$(gh auth token) rulesync fetch owner/private-repo
 
 # Preserve existing files (skip conflicts)
-npx rulesync fetch owner/repo --conflict skip
+rulesync fetch owner/repo --conflict skip
 
 # Fetch from a monorepo subdirectory
-npx rulesync fetch owner/repo:packages/my-package
+rulesync fetch owner/repo:packages/my-package
 ```
 
 ## Configuration
@@ -695,7 +698,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 2. Initialize files for global files in the directory.
    ```bash
    cd ~/.aiglobal
-   npx rulesync init
+   rulesync init
    ```
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
    ```jsonc
@@ -718,7 +721,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 5. Generate rules for global settings.
    ```bash
    # Run in the `~/.aiglobal` directory
-   npx rulesync generate
+   rulesync generate
    ```
 
 > [!NOTE]
@@ -735,7 +738,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
 1. Prepare `.rulesync/commands/*.md`, `.rulesync/subagents/*.md` and `.rulesync/skills/*/SKILL.md` for your purposes.
 2. Generate simulated commands, subagents and skills for specific tools that are included in cursor, codexcli and etc.
    ```bash
-   npx rulesync generate \
+   rulesync generate \
      --targets copilot,cursor,codexcli \
      --features commands,subagents,skills \
      --simulate-commands \
@@ -762,7 +765,7 @@ Rulesync supports compressing tokens consumed by MCP servers [d-kimuson/modular-
 
 ```bash
 # Enable modular-mcp via CLI
-npx rulesync generate --targets claudecode --features mcp --modular-mcp
+rulesync generate --targets claudecode --features mcp --modular-mcp
 
 # Or via configuration file
 {
@@ -906,7 +909,7 @@ So, in this case, approximately 92% reduction in MCP tools consumption!
 Rulesync provides official skills that you can install using the fetch command:
 
 ```bash
-npx rulesync fetch dyoshikawa/rulesync --features skills
+rulesync fetch dyoshikawa/rulesync --features skills
 ```
 
 This will install the Rulesync documentation skill to your project.
