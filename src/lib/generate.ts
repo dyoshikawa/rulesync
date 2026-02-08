@@ -77,10 +77,6 @@ async function generateRulesCore(params: {
 }): Promise<{ count: number; hasDiff: boolean }> {
   const { config, skills } = params;
 
-  if (!config.getFeatures().includes("rules")) {
-    return { count: 0, hasDiff: false };
-  }
-
   let totalCount = 0;
   let hasDiff = false;
   const isPreviewMode = config.isPreviewMode();
@@ -92,6 +88,11 @@ async function generateRulesCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      // Check if rules feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("rules")) {
+        continue;
+      }
+
       const processor = new RulesProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
@@ -126,10 +127,6 @@ async function generateIgnoreCore(params: {
 }): Promise<{ count: number; hasDiff: boolean }> {
   const { config } = params;
 
-  if (!config.getFeatures().includes("ignore")) {
-    return { count: 0, hasDiff: false };
-  }
-
   if (config.getGlobal()) {
     return { count: 0, hasDiff: false };
   }
@@ -139,6 +136,11 @@ async function generateIgnoreCore(params: {
   const isPreviewMode = config.isPreviewMode();
 
   for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
+    // Check if ignore feature is enabled for this specific target
+    if (!config.getFeatures(toolTarget).includes("ignore")) {
+      continue;
+    }
+
     for (const baseDir of config.getBaseDirs()) {
       try {
         const processor = new IgnoreProcessor({
@@ -183,10 +185,6 @@ async function generateMcpCore(params: {
 }): Promise<{ count: number; hasDiff: boolean }> {
   const { config } = params;
 
-  if (!config.getFeatures().includes("mcp")) {
-    return { count: 0, hasDiff: false };
-  }
-
   let totalCount = 0;
   let hasDiff = false;
   const isPreviewMode = config.isPreviewMode();
@@ -198,6 +196,11 @@ async function generateMcpCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      // Check if mcp feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("mcp")) {
+        continue;
+      }
+
       const processor = new McpProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
@@ -229,10 +232,6 @@ async function generateCommandsCore(params: {
 }): Promise<{ count: number; hasDiff: boolean }> {
   const { config } = params;
 
-  if (!config.getFeatures().includes("commands")) {
-    return { count: 0, hasDiff: false };
-  }
-
   let totalCount = 0;
   let hasDiff = false;
   const isPreviewMode = config.isPreviewMode();
@@ -247,6 +246,11 @@ async function generateCommandsCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      // Check if commands feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("commands")) {
+        continue;
+      }
+
       const processor = new CommandsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
@@ -277,10 +281,6 @@ async function generateSubagentsCore(params: {
 }): Promise<{ count: number; hasDiff: boolean }> {
   const { config } = params;
 
-  if (!config.getFeatures().includes("subagents")) {
-    return { count: 0, hasDiff: false };
-  }
-
   let totalCount = 0;
   let hasDiff = false;
   const isPreviewMode = config.isPreviewMode();
@@ -295,6 +295,11 @@ async function generateSubagentsCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      // Check if subagents feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("subagents")) {
+        continue;
+      }
+
       const processor = new SubagentsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
@@ -325,10 +330,6 @@ async function generateSkillsCore(params: {
 }): Promise<{ count: number; skills: RulesyncSkill[]; hasDiff: boolean }> {
   const { config } = params;
 
-  if (!config.getFeatures().includes("skills")) {
-    return { count: 0, skills: [], hasDiff: false };
-  }
-
   let totalCount = 0;
   let hasDiff = false;
   const allSkills: RulesyncSkill[] = [];
@@ -344,6 +345,11 @@ async function generateSkillsCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      // Check if skills feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("skills")) {
+        continue;
+      }
+
       const processor = new SkillsProcessor({
         baseDir: baseDir,
         toolTarget: toolTarget,
@@ -381,10 +387,6 @@ async function generateHooksCore(params: {
 }): Promise<{ count: number; hasDiff: boolean }> {
   const { config } = params;
 
-  if (!config.getFeatures().includes("hooks")) {
-    return { count: 0, hasDiff: false };
-  }
-
   let totalCount = 0;
   let hasDiff = false;
   const isPreviewMode = config.isPreviewMode();
@@ -396,6 +398,11 @@ async function generateHooksCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      // Check if hooks feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("hooks")) {
+        continue;
+      }
+
       const processor = new HooksProcessor({
         baseDir,
         toolTarget,

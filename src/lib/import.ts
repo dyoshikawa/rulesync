@@ -51,7 +51,7 @@ export async function importFromTool(params: {
 async function importRulesCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("rules")) {
+  if (!config.getFeatures(tool).includes("rules")) {
     return 0;
   }
 
@@ -87,7 +87,7 @@ async function importRulesCore(params: { config: Config; tool: ToolTarget }): Pr
 async function importIgnoreCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("ignore")) {
+  if (!config.getFeatures(tool).includes("ignore")) {
     return 0;
   }
 
@@ -127,7 +127,7 @@ async function importIgnoreCore(params: { config: Config; tool: ToolTarget }): P
 async function importMcpCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("mcp")) {
+  if (!config.getFeatures(tool).includes("mcp")) {
     return 0;
   }
 
@@ -163,7 +163,7 @@ async function importMcpCore(params: { config: Config; tool: ToolTarget }): Prom
 async function importCommandsCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("commands")) {
+  if (!config.getFeatures(tool).includes("commands")) {
     return 0;
   }
 
@@ -199,7 +199,7 @@ async function importCommandsCore(params: { config: Config; tool: ToolTarget }):
 async function importSubagentsCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("subagents")) {
+  if (!config.getFeatures(tool).includes("subagents")) {
     return 0;
   }
 
@@ -234,7 +234,7 @@ async function importSubagentsCore(params: { config: Config; tool: ToolTarget })
 async function importSkillsCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("skills")) {
+  if (!config.getFeatures(tool).includes("skills")) {
     return 0;
   }
 
@@ -270,7 +270,7 @@ async function importSkillsCore(params: { config: Config; tool: ToolTarget }): P
 async function importHooksCore(params: { config: Config; tool: ToolTarget }): Promise<number> {
   const { config, tool } = params;
 
-  if (!config.getFeatures().includes("hooks")) {
+  if (!config.getFeatures(tool).includes("hooks")) {
     return 0;
   }
 

@@ -2,7 +2,9 @@ import { optional, z } from "zod/mini";
 
 import {
   ALL_FEATURES,
+  Feature,
   Features,
+  PerTargetFeatures,
   RulesyncFeatures,
   RulesyncFeaturesSchema,
 } from "../types/features.js";
@@ -10,6 +12,7 @@ import {
   ALL_TOOL_TARGETS,
   RulesyncTargets,
   RulesyncTargetsSchema,
+  ToolTarget,
   ToolTargets,
 } from "../types/tool-targets.js";
 
@@ -141,12 +144,55 @@ export class Config {
     return this.targets.filter((target) => target !== "*");
   }
 
-  public getFeatures(): Features {
+  public getFeatures(): Features;
+  public getFeatures(target: ToolTarget): Features;
+  public getFeatures(target?: ToolTarget): Features {
+    // Check if features is in object format (per-target configuration)
+    if (!Array.isArray(this.features)) {
+      // Safe: we've verified it's not an array, so it must be PerTargetFeatures
+      const perTargetFeatures: PerTargetFeatures = this.features;
+      if (target) {
+        // Return features for specific target, defaulting to empty array if not specified
+        const targetFeatures = perTargetFeatures[target];
+        if (!targetFeatures || targetFeatures.length === 0) {
+          // If no features specified for this target, return empty array
+          return [];
+        }
+        if (targetFeatures.includes("*")) {
+          return [...ALL_FEATURES];
+        }
+        return targetFeatures.filter((feature): feature is Feature => feature !== "*");
+      }
+      // When no target specified but features is an object, collect all unique features
+      const allFeatures: Feature[] = [];
+      for (const features of Object.values(perTargetFeatures)) {
+        if (features && features.length > 0) {
+          if (features.includes("*")) {
+            return [...ALL_FEATURES];
+          }
+          for (const feature of features) {
+            if (feature !== "*" && !allFeatures.includes(feature)) {
+              allFeatures.push(feature);
+            }
+          }
+        }
+      }
+      return allFeatures;
+    }
+
+    // Array format - traditional behavior
     if (this.features.includes("*")) {
       return [...ALL_FEATURES];
     }
 
-    return this.features.filter((feature) => feature !== "*");
+    return this.features.filter((feature): feature is Feature => feature !== "*");
+  }
+
+  /**
+   * Check if per-target features configuration is being used.
+   */
+  public hasPerTargetFeatures(): boolean {
+    return !Array.isArray(this.features);
   }
 
   public getVerbose(): boolean {
