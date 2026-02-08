@@ -42,7 +42,7 @@ export type GeminiCliSkillParams = {
 export class GeminiCliSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
-    relativeDirPath = join(".gemini", "skills"),
+    relativeDirPath = GeminiCliSkill.getSettablePaths().relativeDirPath,
     dirName,
     frontmatter,
     body,

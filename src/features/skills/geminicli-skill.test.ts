@@ -95,6 +95,46 @@ This is the body of the gemini cli skill.`;
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
     });
+
+    it("should throw error when frontmatter is invalid", async () => {
+      const skillDir = join(testDir, ".gemini", "skills", "bad-frontmatter");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: 123
+---
+
+Body content`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      await expect(
+        GeminiCliSkill.fromDir({
+          baseDir: testDir,
+          dirName: "bad-frontmatter",
+        }),
+      ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
+    it("should create instance from directory in global mode", async () => {
+      const skillDir = join(testDir, ".gemini", "skills", "global-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Global Skill
+description: A global skill
+---
+
+Global body content`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await GeminiCliSkill.fromDir({
+        baseDir: testDir,
+        dirName: "global-skill",
+        global: true,
+      });
+
+      expect(skill).toBeInstanceOf(GeminiCliSkill);
+      expect(skill.getGlobal()).toBe(true);
+      expect(skill.getBody()).toBe("Global body content");
+    });
   });
 
   describe("fromRulesyncSkill", () => {
@@ -244,7 +284,7 @@ This is the body of the gemini cli skill.`;
     it("should support global deletion", () => {
       const skill = GeminiCliSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: ".gemini/skills",
+        relativeDirPath: join(".gemini", "skills"),
         global: true,
       });
 
@@ -273,11 +313,11 @@ This is the body of the gemini cli skill.`;
     it("should create minimal instance for deletion", () => {
       const skill = GeminiCliSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: ".gemini/skills",
+        relativeDirPath: join(".gemini", "skills"),
       });
 
       expect(skill.getDirName()).toBe("cleanup");
-      expect(skill.getRelativeDirPath()).toBe(".gemini/skills");
+      expect(skill.getRelativeDirPath()).toBe(join(".gemini", "skills"));
       expect(skill.getGlobal()).toBe(false);
     });
   });
