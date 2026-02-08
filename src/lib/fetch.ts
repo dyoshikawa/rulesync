@@ -61,6 +61,18 @@ function isToolTarget(target: FetchTarget): target is ToolTarget {
 }
 
 /**
+ * Validate file size against maximum limit
+ * @throws {GitHubClientError} If file size exceeds limit
+ */
+function validateFileSize(relativePath: string, size: number): void {
+  if (size > MAX_FILE_SIZE) {
+    throw new GitHubClientError(
+      `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+    );
+  }
+}
+
+/**
  * Result of feature conversion
  */
 type FeatureConversionResult = {
@@ -503,13 +515,13 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       intendedRootDir: outputBasePath,
     });
 
-    if (size > MAX_FILE_SIZE) {
-      throw new GitHubClientError(
-        `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
-      );
-    }
+    validateFileSize(relativePath, size);
   }
 
+  // Process files in parallel with concurrency control
+  // Note: Promise.all fails fast - if any promise rejects, others continue running but
+  // may have already written files. This behavior is consistent with sequential execution,
+  // but the window for partial writes is larger with parallel execution.
   const results = await Promise.all(
     filesToFetch.map(async ({ remotePath, relativePath }) => {
       const localPath = join(outputBasePath, relativePath);
@@ -558,6 +570,19 @@ async function collectFeatureFiles(params: {
 }): Promise<Array<{ remotePath: string; relativePath: string; size: number }>> {
   const { client, owner, repo, basePath, ref, enabledFeatures, semaphore } = params;
 
+  // Cache directory listing results to avoid duplicate API calls
+  // File-based features (ignore, mcp, hooks) all list the same basePath directory
+  const dirCache = new Map<string, Promise<GitHubFileEntry[]>>();
+
+  async function getCachedDirectory(path: string): Promise<GitHubFileEntry[]> {
+    let promise = dirCache.get(path);
+    if (promise === undefined) {
+      promise = withSemaphore(semaphore, () => client.listDirectory(owner, repo, path, ref));
+      dirCache.set(path, promise);
+    }
+    return promise;
+  }
+
   const tasks = enabledFeatures.flatMap((feature) =>
     FEATURE_PATHS[feature].map((featurePath) => ({ feature, featurePath })),
   );
@@ -573,13 +598,8 @@ async function collectFeatureFiles(params: {
         if (featurePath.includes(".")) {
           // Try to get the file directly
           try {
-            const entries = await withSemaphore(semaphore, () =>
-              client.listDirectory(
-                owner,
-                repo,
-                basePath === "." || basePath === "" ? "." : basePath,
-                ref,
-              ),
+            const entries = await getCachedDirectory(
+              basePath === "." || basePath === "" ? "." : basePath,
             );
             const fileEntry = entries.find((e) => e.name === featurePath && e.type === "file");
             if (fileEntry) {
@@ -756,11 +776,7 @@ async function fetchAndConvertToolFiles(params: {
 
     // Validate file sizes first
     for (const { relativePath, size } of filesToFetch) {
-      if (size > MAX_FILE_SIZE) {
-        throw new GitHubClientError(
-          `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
-        );
-      }
+      validateFileSize(relativePath, size);
     }
 
     // Fetch files to temp directory with tool-specific structure in parallel
@@ -783,7 +799,6 @@ async function fetchAndConvertToolFiles(params: {
         );
         await writeFileContent(localPath, content);
         logger.debug(`Fetched to temp: ${toolRelativePath}`);
-        return toolRelativePath;
       }),
     );
 

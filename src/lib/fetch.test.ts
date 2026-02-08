@@ -745,6 +745,8 @@ describe("fetchFiles", () => {
   describe("parallel fetching behavior", () => {
     it("should fetch multiple files concurrently", async () => {
       const callOrder: string[] = [];
+      const resolvers = new Map<string, () => void>();
+      let getFileContentCallCount = 0;
 
       mockClientInstance.listDirectory.mockImplementation(
         (_owner: string, _repo: string, path: string) => {
@@ -784,30 +786,42 @@ describe("fetchFiles", () => {
 
       mockClientInstance.getFileContent.mockImplementation(
         (_owner: string, _repo: string, path: string) => {
+          getFileContentCallCount++;
           callOrder.push(`start:${path}`);
           return new Promise((resolve) => {
-            setTimeout(() => {
+            resolvers.set(path, () => {
               callOrder.push(`end:${path}`);
               resolve(`content of ${path}`);
-            }, 10);
+            });
           });
         },
       );
 
-      const result = await fetchFiles({
+      const resultPromise = fetchFiles({
         source: "owner/repo",
         options: { features: ["rules"] },
         baseDir: testDir,
       });
 
+      // Wait for all 3 getFileContent calls to be made
+      await vi.waitFor(() => {
+        expect(getFileContentCallCount).toBe(3);
+      });
+
+      // At this point, all 3 fetches should have started
+      const starts = callOrder.filter((e) => e.startsWith("start:"));
+      expect(starts.length).toBe(3);
+
+      // Verify no fetches have completed yet
+      const firstEnd = callOrder.findIndex((e) => e.startsWith("end:"));
+      expect(firstEnd).toBe(-1);
+
+      // Now resolve all the promises
+      resolvers.forEach((resolve) => resolve());
+
+      const result = await resultPromise;
       expect(result.files).toHaveLength(3);
       expect(result.created).toBe(3);
-
-      // All fetches should start before any finishes (concurrent execution)
-      const starts = callOrder.filter((e) => e.startsWith("start:"));
-      const firstEnd = callOrder.findIndex((e) => e.startsWith("end:"));
-      expect(starts.length).toBeGreaterThanOrEqual(2);
-      expect(firstEnd).toBeGreaterThanOrEqual(2);
     });
 
     it("should propagate errors from parallel fetches correctly", async () => {
