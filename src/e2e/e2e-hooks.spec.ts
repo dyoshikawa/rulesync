@@ -11,6 +11,7 @@ describe("E2E: hooks", () => {
   it.each([
     { target: "claudecode", outputPath: join(".claude", "settings.json") },
     { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+    { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   ])("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -33,19 +34,29 @@ describe("E2E: hooks", () => {
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
-    const parsed = JSON.parse(generatedContent);
 
-    if (target === "claudecode") {
-      // Claude Code uses PascalCase event names and $CLAUDE_PROJECT_DIR prefix
-      expect(parsed.hooks).toBeDefined();
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain("$CLAUDE_PROJECT_DIR/");
+    if (target === "opencode") {
+      // OpenCode generates a JavaScript plugin file, not JSON
+      expect(generatedContent).toContain("export const RulesyncHooksPlugin");
+      expect(generatedContent).toContain('"session.created"');
+      expect(generatedContent).toContain('"session.idle"');
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
-      // Cursor uses camelCase event names
-      expect(parsed.hooks).toBeDefined();
-      expect(parsed.hooks.sessionStart).toBeDefined();
-      expect(parsed.hooks.stop).toBeDefined();
+      const parsed = JSON.parse(generatedContent);
+
+      if (target === "claudecode") {
+        // Claude Code uses PascalCase event names and $CLAUDE_PROJECT_DIR prefix
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain("$CLAUDE_PROJECT_DIR/");
+      } else {
+        // Cursor uses camelCase event names
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.sessionStart).toBeDefined();
+        expect(parsed.hooks.stop).toBeDefined();
+      }
     }
   });
 });

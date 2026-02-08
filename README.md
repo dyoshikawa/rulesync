@@ -157,7 +157,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot     |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |       |
 | Cursor             |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
-| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
+| OpenCode           |  ✅   |        |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
 | Cline              |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |       |
 | Kilo Code          | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Roo Code           |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |
@@ -495,15 +495,17 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ### `.rulesync/hooks.json`
 
-Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file; Cursor uses them as-is; Claude Code gets PascalCase in `.claude/settings.json`.
+Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file; Cursor uses them as-is; Claude Code gets PascalCase in `.claude/settings.json`; OpenCode hooks are generated as a JavaScript plugin at `.opencode/plugins/rulesync-hooks.js`.
 
 **Event support:**
 
-- **Shared (Cursor and Claude):** `sessionStart`, `sessionEnd`, `preToolUse`, `postToolUse`, `beforeSubmitPrompt`, `stop`, `subagentStop`, `preCompact`
-- **Cursor-only:** `postToolUseFailure`, `subagentStart`, `beforeShellExecution`, `afterShellExecution`, `beforeMCPExecution`, `afterMCPExecution`, `beforeReadFile`, `afterFileEdit`, `afterAgentResponse`, `afterAgentThought`, `beforeTabFileRead`, `afterTabFileEdit`
-- **Claude-only:** `permissionRequest`, `notification`, `setup`
+- **Cursor:** `sessionStart`, `preToolUse`, `postToolUse`, `stop`, `sessionEnd`, `beforeSubmitPrompt`, `subagentStop`, `preCompact`, `afterFileEdit`, `afterShellExecution`, `postToolUseFailure`, `subagentStart`, `beforeShellExecution`, `beforeMCPExecution`, `afterMCPExecution`, `beforeReadFile`, `afterAgentResponse`, `afterAgentThought`, `beforeTabFileRead`, `afterTabFileEdit`
+- **Claude Code:** `sessionStart`, `preToolUse`, `postToolUse`, `stop`, `sessionEnd`, `beforeSubmitPrompt`, `subagentStop`, `preCompact`, `permissionRequest`, `notification`, `setup`
+- **OpenCode:** `sessionStart`, `preToolUse`, `postToolUse`, `stop`, `afterFileEdit`, `afterShellExecution`, `permissionRequest`
 
-Use optional **override keys** so tool-specific events and config live in one file without leaking to the other: `cursor.hooks` for Cursor-only events, `claudecode.hooks` for Claude-only. Events in shared `hooks` that a tool does not support are skipped for that tool (and a warning is logged at generate time).
+> **Note:** Rulesync implements OpenCode hooks as a plugin, so importing from OpenCode to rulesync is not supported. OpenCode only supports command-type hooks (not prompt-type).
+
+Use optional **override keys** so tool-specific events and config live in one file without leaking to others: `cursor.hooks` for Cursor-only events, `claudecode.hooks` for Claude-only, `opencode.hooks` for OpenCode-only. Events in shared `hooks` that a tool does not support are skipped for that tool (and a warning is logged at generate time).
 
 Example:
 
@@ -525,6 +527,11 @@ Example:
       "notification": [
         { "matcher": "permission_prompt", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh" }
       ]
+    }
+  },
+  "opencode": {
+    "hooks": {
+      "afterShellExecution": [{ "command": ".rulesync/hooks/post-shell.sh" }]
     }
   }
 }

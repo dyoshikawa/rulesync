@@ -248,6 +248,59 @@ describe("HooksProcessor", () => {
         expect.stringContaining("Skipped hook event(s) for cursor (not supported): notification"),
       );
     });
+
+    it("should log warning when prompt-type hooks exist and target does not support them", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [
+            { type: "command", command: "echo start" },
+            { type: "prompt", prompt: "Remember to use TypeScript" },
+          ],
+          preToolUse: [{ type: "prompt", prompt: "Check lint" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "opencode" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped prompt-type hook(s) for opencode (not supported)"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("sessionStart"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("preToolUse"));
+    });
+
+    it("should not log prompt-type warning for targets that support prompt hooks", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "prompt", prompt: "Remember to use TypeScript" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "claudecode" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("prompt-type"));
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
@@ -283,11 +336,21 @@ describe("HooksProcessor", () => {
   describe("getToolTargets", () => {
     it("should return cursor and claudecode for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
+      expect(targets).toEqual(["cursor", "claudecode", "opencode"]);
+    });
+
+    it("should return only claudecode and opencode for global mode", () => {
+      const targets = HooksProcessor.getToolTargets({ global: true });
+      expect(targets).toEqual(["claudecode", "opencode"]);
+    });
+
+    it("should exclude opencode when importOnly is true", () => {
+      const targets = HooksProcessor.getToolTargets({ global: false, importOnly: true });
       expect(targets).toEqual(["cursor", "claudecode"]);
     });
 
-    it("should return only claudecode for global mode", () => {
-      const targets = HooksProcessor.getToolTargets({ global: true });
+    it("should exclude opencode when importOnly is true in global mode", () => {
+      const targets = HooksProcessor.getToolTargets({ global: true, importOnly: true });
       expect(targets).toEqual(["claudecode"]);
     });
   });

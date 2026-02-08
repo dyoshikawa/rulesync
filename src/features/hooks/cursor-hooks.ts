@@ -58,7 +58,7 @@ export class CursorHooks extends ToolHooks {
     validate = true,
   }: ToolHooksFromRulesyncHooksParams): CursorHooks {
     const config = rulesyncHooks.getJson();
-    const cursorSupported = new Set(CURSOR_HOOK_EVENTS);
+    const cursorSupported: Set<string> = new Set(CURSOR_HOOK_EVENTS);
     const sharedHooks: HooksConfig["hooks"] = {};
     for (const [event, defs] of Object.entries(config.hooks)) {
       if (cursorSupported.has(event)) {
