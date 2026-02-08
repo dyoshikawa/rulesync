@@ -31,6 +31,12 @@ npx rulesync generate --dry-run --targets claudecode --features rules
 # Check if files are up to date (for CI/CD pipelines)
 npx rulesync generate --check --targets "*" --features "*"
 
+# Generate while skipping remote skill sources
+npx rulesync generate --skip-sources
+
+# Force update all remote skill source refs (ignore lockfile)
+npx rulesync generate --update-sources
+
 # Add generated files to .gitignore
 npx rulesync gitignore
 

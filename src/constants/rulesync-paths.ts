@@ -13,6 +13,14 @@ export const RULESYNC_AIIGNORE_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_P
 export const RULESYNC_IGNORE_RELATIVE_FILE_PATH = ".rulesyncignore";
 export const RULESYNC_OVERVIEW_FILE_NAME = "overview.md";
 export const RULESYNC_SKILLS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "skills");
+export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+  ".curated",
+);
+export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  "sources-lock.json",
+);
 
 // File names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";

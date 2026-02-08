@@ -31,6 +31,9 @@ vi.mock("../utils/file.js", async (importOriginal) => {
 vi.mock("es-toolkit", () => ({
   intersection: vi.fn(),
 }));
+vi.mock("./sources.js", () => ({
+  resolveAndFetchSources: vi.fn().mockResolvedValue({ fetchedSkillCount: 0, sourcesProcessed: 0 }),
+}));
 
 describe("checkRulesyncDirExists", () => {
   afterEach(() => {
@@ -75,6 +78,7 @@ describe("generate", () => {
     getSimulateSkills: ReturnType<typeof vi.fn>;
     getModularMcp: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
+    getSources: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -91,6 +95,7 @@ describe("generate", () => {
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getModularMcp: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getSources: vi.fn().mockReturnValue([]),
     };
 
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));
@@ -735,6 +740,59 @@ describe("generate", () => {
       // The default mock doesn't set up file content matching, so hasDiff will be true
       // when there are files to generate (since readFileContentOrNull returns null for non-existent files)
       expect(typeof result.hasDiff).toBe("boolean");
+    });
+  });
+
+  describe("sources integration", () => {
+    it("should call resolveAndFetchSources when sources are configured and skills feature is enabled", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+
+      await generate({ config: mockConfig as never, sourceOptions: { updateSources: true } });
+
+      expect(resolveAndFetchSources).toHaveBeenCalledWith({
+        sources: [{ source: "org/repo" }],
+        baseDir: ".",
+        options: { updateSources: true },
+      });
+    });
+
+    it("should not call resolveAndFetchSources when no sources are configured", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([]);
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+    });
+
+    it("should not call resolveAndFetchSources when skills feature is not enabled", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+    });
+
+    it("should pass sourceOptions through to resolveAndFetchSources", async () => {
+      const { resolveAndFetchSources } = await import("./sources.js");
+      mockConfig.getSources.mockReturnValue([{ source: "org/repo" }]);
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+
+      await generate({
+        config: mockConfig as never,
+        sourceOptions: { skipSources: false, updateSources: true },
+      });
+
+      expect(resolveAndFetchSources).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: { skipSources: false, updateSources: true },
+        }),
+      );
     });
   });
 });

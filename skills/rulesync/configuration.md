@@ -50,6 +50,13 @@ Example:
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
   "modularMcp": false, // Enable modular-mcp for context compression (experimental, Claude Code only)
+
+  // Declarative skill sources — fetched automatically during generate
+  // See the "Declarative Skill Sources" section for details.
+  "sources": [
+    { "source": "owner/repo" },
+    { "source": "anthropics/skills", "skills": ["skill-creator"] },
+  ],
 }
 ```
 

@@ -4,8 +4,10 @@
 # Create necessary directories, sample rule files, and configuration file
 npx rulesync init
 
-# Install official skills (recommended)
+# Install official skills (recommended — one-time fetch)
 npx rulesync fetch dyoshikawa/rulesync --features skills
+
+# Or add skill sources to rulesync.jsonc for automatic fetching (see "Declarative Skill Sources")
 ```
 
 On the other hand, if you already have AI tool configurations:

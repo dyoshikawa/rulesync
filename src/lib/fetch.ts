@@ -245,7 +245,7 @@ const FETCH_CONCURRENCY_LIMIT = 10;
  * Execute an async function with semaphore-controlled concurrency.
  * Ensures the semaphore permit is always released, even if the function throws.
  */
-async function withSemaphore<T>(semaphore: Semaphore, fn: () => Promise<T>): Promise<T> {
+export async function withSemaphore<T>(semaphore: Semaphore, fn: () => Promise<T>): Promise<T> {
   await semaphore.acquire();
   try {
     return await fn();
@@ -646,7 +646,7 @@ async function collectFeatureFiles(params: {
  * This acquire-release-then-recurse ordering is critical to avoid deadlock when the
  * same semaphore is shared across collectFeatureFiles and this function.
  */
-async function listDirectoryRecursive(params: {
+export async function listDirectoryRecursive(params: {
   client: GitHubClient;
   owner: string;
   repo: string;
