@@ -1253,6 +1253,144 @@ Review the current changes and provide feedback.
     // Both features should be processed
     expect(summary.files).toBeDefined();
   });
+
+  it("should cache directory listing API calls for file-based features with same basePath", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === ".") {
+          return Promise.resolve([
+            {
+              name: ".aiignore",
+              path: ".aiignore",
+              type: "file",
+              sha: "abc",
+              size: 50,
+              download_url: "https://example.com",
+            },
+            {
+              name: "mcp.json",
+              path: "mcp.json",
+              type: "file",
+              sha: "def",
+              size: 100,
+              download_url: "https://example.com",
+            },
+            {
+              name: "hooks.json",
+              path: "hooks.json",
+              type: "file",
+              sha: "ghi",
+              size: 75,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        switch (path) {
+          case ".aiignore":
+            return Promise.resolve("node_modules/\ndist/");
+          case "mcp.json":
+            return Promise.resolve('{"mcpServers": {}}');
+          case "hooks.json":
+            return Promise.resolve('{"pre-commit": []}');
+          default:
+            return Promise.resolve("");
+        }
+      },
+    );
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["ignore", "mcp", "hooks"] },
+      baseDir: testDir,
+    });
+
+    // Verify all files were fetched
+    expect(summary.created).toBe(3);
+    expect(summary.files).toHaveLength(3);
+
+    // Verify listDirectory was called only once for the shared basePath
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledTimes(1);
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith("owner", "repo", ".", "main");
+  });
+
+  it("should make separate API calls for features with different base paths", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === ".") {
+          return Promise.resolve([
+            {
+              name: "mcp.json",
+              path: "mcp.json",
+              type: "file",
+              sha: "abc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "subdir") {
+          return Promise.resolve([
+            {
+              name: ".aiignore",
+              path: "subdir/.aiignore",
+              type: "file",
+              sha: "def",
+              size: 50,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        switch (path) {
+          case "mcp.json":
+            return Promise.resolve('{"mcpServers": {}}');
+          case "subdir/.aiignore":
+            return Promise.resolve("node_modules/");
+          default:
+            return Promise.resolve("");
+        }
+      },
+    );
+
+    // First fetch from root
+    await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["mcp"] },
+      baseDir: testDir,
+    });
+
+    // Second fetch from subdir
+    await fetchFiles({
+      source: "owner/repo:subdir",
+      options: { features: ["ignore"] },
+      baseDir: testDir,
+    });
+
+    // Verify separate API calls were made for different base paths
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith("owner", "repo", ".", "main");
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      "subdir",
+      "main",
+    );
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("formatFetchSummary", () => {
