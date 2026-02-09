@@ -39,7 +39,7 @@ This is a test factorydroid rule.`;
       const paths = FactorydroidRule.getSettablePaths();
       expect(paths).toEqual({
         root: {
-          relativeDirPath: ".factory",
+          relativeDirPath: ".",
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
@@ -48,15 +48,12 @@ This is a test factorydroid rule.`;
       });
     });
 
-    it("should return same paths for global mode", () => {
+    it("should return global paths for global mode", () => {
       const paths = FactorydroidRule.getSettablePaths({ global: true });
       expect(paths).toEqual({
         root: {
           relativeDirPath: ".factory",
           relativeFilePath: "AGENTS.md",
-        },
-        nonRoot: {
-          relativeDirPath: ".factory/memories",
         },
       });
     });
@@ -66,7 +63,7 @@ This is a test factorydroid rule.`;
     it("should create root rule instance", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factory",
+        relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: validRuleContent,
         validate: true,
@@ -148,7 +145,7 @@ This is a test factorydroid rule.`;
 
   describe("fromFile", () => {
     it("should load root rule from file", async () => {
-      const rootFile = join(testDir, ".factory", "AGENTS.md");
+      const rootFile = join(testDir, "AGENTS.md");
 
       await writeFileContent(rootFile, validRuleContent);
 
@@ -194,7 +191,7 @@ This is a test factorydroid rule.`;
     it("should convert to RulesyncRule", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factory",
+        relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: validRuleContent,
         validate: true,
@@ -213,7 +210,7 @@ This is a test factorydroid rule.`;
     it("should return success for any content", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factory",
+        relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "Any content",
         validate: false,
@@ -274,7 +271,7 @@ This is a test factorydroid rule.`;
     it("should create deletion marker for root rule", () => {
       const rule = FactorydroidRule.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factory",
+        relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       });
 

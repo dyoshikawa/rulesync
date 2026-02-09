@@ -217,12 +217,12 @@ dist/`;
 **/.codex/subagents/
 **/.cursor/
 **/.cursorignore
-**/.factory/AGENTS.md
 **/.factory/memories/
 **/.factory/commands/
 **/.factory/droids/
 **/.factory/skills/
 **/.factory/mcp.json
+**/.factory/settings.json
 **/GEMINI.md
 **/.gemini/memories/
 **/.gemini/commands/

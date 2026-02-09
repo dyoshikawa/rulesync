@@ -281,14 +281,14 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor and claudecode for project mode", () => {
+    it("should return cursor, claudecode, and factorydroid for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
-      expect(targets).toEqual(["cursor", "claudecode"]);
+      expect(targets).toEqual(["cursor", "claudecode", "factorydroid"]);
     });
 
-    it("should return only claudecode for global mode", () => {
+    it("should return claudecode and factorydroid for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "factorydroid"]);
     });
   });
 });
