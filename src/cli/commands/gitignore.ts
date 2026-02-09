@@ -11,9 +11,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/AGENTS.md",
   "**/.agents/",
   // Antigravity
-  "**/.agent/rules/",
   "**/.agent/skills/",
-  "**/.agent/workflows/",
   // Augment
   "**/.augmentignore",
   "**/.augment/rules/",
@@ -196,4 +194,13 @@ export const gitignoreCommand = async (): Promise<void> => {
   for (const entry of RULESYNC_IGNORE_ENTRIES) {
     logger.info(`  ${entry}`);
   }
+
+  logger.info("");
+  logger.info(
+    "💡 If you're using Google Antigravity, note that rules and workflows won't load if they're gitignored.",
+  );
+  logger.info("   You can add the following to .git/info/exclude instead:");
+  logger.info("   **/.agent/rules/");
+  logger.info("   **/.agent/workflows/");
+  logger.info("   For more details: https://github.com/dyoshikawa/rulesync/issues/981");
 };
