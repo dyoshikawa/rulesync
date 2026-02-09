@@ -42,21 +42,21 @@ export class FactorydroidRule extends ToolRule {
     if (options?.global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".factorydroid", ".", options.excludeToolDir),
+          relativeDirPath: buildToolPath(".factory", ".", options.excludeToolDir),
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: buildToolPath(".factorydroid", "memories", options.excludeToolDir),
+          relativeDirPath: buildToolPath(".factory", "memories", options.excludeToolDir),
         },
       };
     }
     return {
       root: {
-        relativeDirPath: buildToolPath(".factorydroid", ".", options?.excludeToolDir),
+        relativeDirPath: buildToolPath(".factory", ".", options?.excludeToolDir),
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".factorydroid", "memories", options?.excludeToolDir),
+        relativeDirPath: buildToolPath(".factory", "memories", options?.excludeToolDir),
       },
     };
   }

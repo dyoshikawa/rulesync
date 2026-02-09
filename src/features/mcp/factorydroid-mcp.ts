@@ -28,7 +28,7 @@ export class FactorydroidMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".factorydroid",
+      relativeDirPath: ".factory",
       relativeFilePath: "mcp.json",
     };
   }

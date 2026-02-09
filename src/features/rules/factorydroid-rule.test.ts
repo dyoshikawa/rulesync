@@ -39,11 +39,11 @@ This is a test factorydroid rule.`;
       const paths = FactorydroidRule.getSettablePaths();
       expect(paths).toEqual({
         root: {
-          relativeDirPath: ".factorydroid",
+          relativeDirPath: ".factory",
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: ".factorydroid/memories",
+          relativeDirPath: ".factory/memories",
         },
       });
     });
@@ -52,11 +52,11 @@ This is a test factorydroid rule.`;
       const paths = FactorydroidRule.getSettablePaths({ global: true });
       expect(paths).toEqual({
         root: {
-          relativeDirPath: ".factorydroid",
+          relativeDirPath: ".factory",
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: ".factorydroid/memories",
+          relativeDirPath: ".factory/memories",
         },
       });
     });
@@ -66,7 +66,7 @@ This is a test factorydroid rule.`;
     it("should create root rule instance", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "AGENTS.md",
         fileContent: validRuleContent,
         validate: true,
@@ -80,7 +80,7 @@ This is a test factorydroid rule.`;
     it("should create non-root rule instance", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/memories",
+        relativeDirPath: ".factory/memories",
         relativeFilePath: "memory-1.md",
         fileContent: validRuleContent,
         validate: true,
@@ -148,7 +148,7 @@ This is a test factorydroid rule.`;
 
   describe("fromFile", () => {
     it("should load root rule from file", async () => {
-      const rootFile = join(testDir, ".factorydroid", "AGENTS.md");
+      const rootFile = join(testDir, ".factory", "AGENTS.md");
 
       await writeFileContent(rootFile, validRuleContent);
 
@@ -164,7 +164,7 @@ This is a test factorydroid rule.`;
     });
 
     it("should load non-root rule from file", async () => {
-      const memoryFile = join(testDir, ".factorydroid", "memories", "memory-1.md");
+      const memoryFile = join(testDir, ".factory", "memories", "memory-1.md");
 
       await writeFileContent(memoryFile, validRuleContent);
 
@@ -194,7 +194,7 @@ This is a test factorydroid rule.`;
     it("should convert to RulesyncRule", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "AGENTS.md",
         fileContent: validRuleContent,
         validate: true,
@@ -213,7 +213,7 @@ This is a test factorydroid rule.`;
     it("should return success for any content", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "AGENTS.md",
         fileContent: "Any content",
         validate: false,
@@ -274,7 +274,7 @@ This is a test factorydroid rule.`;
     it("should create deletion marker for root rule", () => {
       const rule = FactorydroidRule.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "AGENTS.md",
       });
 
@@ -285,7 +285,7 @@ This is a test factorydroid rule.`;
     it("should create deletion marker for non-root rule", () => {
       const rule = FactorydroidRule.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/memories",
+        relativeDirPath: ".factory/memories",
         relativeFilePath: "memory-1.md",
       });
 
