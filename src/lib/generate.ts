@@ -11,6 +11,10 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import { AiDir } from "../types/ai-dir.js";
+import { AiFile } from "../types/ai-file.js";
+import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
+import { FeatureProcessor } from "../types/feature-processor.js";
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -26,6 +30,71 @@ export type GenerateResult = {
   skills: RulesyncSkill[];
   hasDiff: boolean;
 };
+
+async function processFeatureGeneration<T extends AiFile>(params: {
+  config: Config;
+  processor: FeatureProcessor;
+  toolFiles: T[];
+}): Promise<{ count: number; hasDiff: boolean }> {
+  const { config, processor, toolFiles } = params;
+
+  let totalCount = 0;
+  let hasDiff = false;
+
+  const writtenCount = await processor.writeAiFiles(toolFiles);
+  totalCount += writtenCount;
+  if (writtenCount > 0) hasDiff = true;
+
+  if (config.getDelete()) {
+    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+    const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
+    if (orphanCount > 0) hasDiff = true;
+  }
+
+  return { count: totalCount, hasDiff };
+}
+
+async function processDirFeatureGeneration(params: {
+  config: Config;
+  processor: DirFeatureProcessor;
+  toolDirs: AiDir[];
+}): Promise<{ count: number; hasDiff: boolean }> {
+  const { config, processor, toolDirs } = params;
+
+  let totalCount = 0;
+  let hasDiff = false;
+
+  const writtenCount = await processor.writeAiDirs(toolDirs);
+  totalCount += writtenCount;
+  if (writtenCount > 0) hasDiff = true;
+
+  if (config.getDelete()) {
+    const existingToolDirs = await processor.loadToolDirsToDelete();
+    const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
+    if (orphanCount > 0) hasDiff = true;
+  }
+
+  return { count: totalCount, hasDiff };
+}
+
+// Handle special case for empty rulesync files
+async function processEmptyFeatureGeneration(params: {
+  config: Config;
+  processor: FeatureProcessor;
+}): Promise<{ count: number; hasDiff: boolean }> {
+  const { config, processor } = params;
+
+  const totalCount = 0;
+  let hasDiff = false;
+
+  if (config.getDelete()) {
+    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+    const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
+    if (orphanCount > 0) hasDiff = true;
+  }
+
+  return { count: totalCount, hasDiff };
+}
 
 /**
  * Check if .rulesync directory exists.
@@ -79,7 +148,6 @@ async function generateRulesCore(params: {
 
   let totalCount = 0;
   let hasDiff = false;
-  const isPreviewMode = config.isPreviewMode();
 
   const toolTargets = intersection(
     config.getTargets(),
@@ -101,21 +169,20 @@ async function generateRulesCore(params: {
         simulateSubagents: config.getSimulateSubagents(),
         simulateSkills: config.getSimulateSkills(),
         skills: skills,
-        dryRun: isPreviewMode,
+        dryRun: config.isPreviewMode(),
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      const writtenCount = await processor.writeAiFiles(toolFiles);
-      totalCount += writtenCount;
-      if (writtenCount > 0) hasDiff = true;
+      const result = await processFeatureGeneration({
+        config,
+        processor,
+        toolFiles,
+      });
 
-      if (config.getDelete()) {
-        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-        if (orphanCount > 0) hasDiff = true;
-      }
+      totalCount += result.count;
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
@@ -133,7 +200,6 @@ async function generateIgnoreCore(params: {
 
   let totalCount = 0;
   let hasDiff = false;
-  const isPreviewMode = config.isPreviewMode();
 
   for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
     // Check if ignore feature is enabled for this specific target
@@ -146,28 +212,28 @@ async function generateIgnoreCore(params: {
         const processor = new IgnoreProcessor({
           baseDir: baseDir === process.cwd() ? "." : baseDir,
           toolTarget,
-          dryRun: isPreviewMode,
+          dryRun: config.isPreviewMode(),
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
+        let result;
+
         if (rulesyncFiles.length > 0) {
           const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-
-          const writtenCount = await processor.writeAiFiles(toolFiles);
-          totalCount += writtenCount;
-          if (writtenCount > 0) hasDiff = true;
-
-          if (config.getDelete()) {
-            const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-            const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-            if (orphanCount > 0) hasDiff = true;
-          }
-        } else if (config.getDelete()) {
-          // No rulesync files, so all existing tool files are orphans
-          const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-          const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
-          if (orphanCount > 0) hasDiff = true;
+          result = await processFeatureGeneration({
+            config,
+            processor,
+            toolFiles,
+          });
+        } else {
+          result = await processEmptyFeatureGeneration({
+            config,
+            processor,
+          });
         }
+
+        totalCount += result.count;
+        if (result.hasDiff) hasDiff = true;
       } catch (error) {
         logger.warn(
           `Failed to generate ${toolTarget} ignore files for ${baseDir}: ${formatError(error)}`,
@@ -187,7 +253,6 @@ async function generateMcpCore(params: {
 
   let totalCount = 0;
   let hasDiff = false;
-  const isPreviewMode = config.isPreviewMode();
 
   const toolTargets = intersection(
     config.getTargets(),
@@ -206,21 +271,20 @@ async function generateMcpCore(params: {
         toolTarget: toolTarget,
         global: config.getGlobal(),
         modularMcp: config.getModularMcp(),
-        dryRun: isPreviewMode,
+        dryRun: config.isPreviewMode(),
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      const writtenCount = await processor.writeAiFiles(toolFiles);
-      totalCount += writtenCount;
-      if (writtenCount > 0) hasDiff = true;
+      const result = await processFeatureGeneration({
+        config,
+        processor,
+        toolFiles,
+      });
 
-      if (config.getDelete()) {
-        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-        if (orphanCount > 0) hasDiff = true;
-      }
+      totalCount += result.count;
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
@@ -234,7 +298,6 @@ async function generateCommandsCore(params: {
 
   let totalCount = 0;
   let hasDiff = false;
-  const isPreviewMode = config.isPreviewMode();
 
   const toolTargets = intersection(
     config.getTargets(),
@@ -255,21 +318,20 @@ async function generateCommandsCore(params: {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
-        dryRun: isPreviewMode,
+        dryRun: config.isPreviewMode(),
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      const writtenCount = await processor.writeAiFiles(toolFiles);
-      totalCount += writtenCount;
-      if (writtenCount > 0) hasDiff = true;
+      const result = await processFeatureGeneration({
+        config,
+        processor,
+        toolFiles,
+      });
 
-      if (config.getDelete()) {
-        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-        if (orphanCount > 0) hasDiff = true;
-      }
+      totalCount += result.count;
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
@@ -283,7 +345,6 @@ async function generateSubagentsCore(params: {
 
   let totalCount = 0;
   let hasDiff = false;
-  const isPreviewMode = config.isPreviewMode();
 
   const toolTargets = intersection(
     config.getTargets(),
@@ -304,21 +365,20 @@ async function generateSubagentsCore(params: {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
-        dryRun: isPreviewMode,
+        dryRun: config.isPreviewMode(),
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
 
-      const writtenCount = await processor.writeAiFiles(toolFiles);
-      totalCount += writtenCount;
-      if (writtenCount > 0) hasDiff = true;
+      const result = await processFeatureGeneration({
+        config,
+        processor,
+        toolFiles,
+      });
 
-      if (config.getDelete()) {
-        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-        if (orphanCount > 0) hasDiff = true;
-      }
+      totalCount += result.count;
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
@@ -333,7 +393,6 @@ async function generateSkillsCore(params: {
   let totalCount = 0;
   let hasDiff = false;
   const allSkills: RulesyncSkill[] = [];
-  const isPreviewMode = config.isPreviewMode();
 
   const toolTargets = intersection(
     config.getTargets(),
@@ -354,7 +413,7 @@ async function generateSkillsCore(params: {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
-        dryRun: isPreviewMode,
+        dryRun: config.isPreviewMode(),
       });
 
       const rulesyncDirs = await processor.loadRulesyncDirs();
@@ -367,15 +426,14 @@ async function generateSkillsCore(params: {
 
       const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
 
-      const writtenCount = await processor.writeAiDirs(toolDirs);
-      totalCount += writtenCount;
-      if (writtenCount > 0) hasDiff = true;
+      const result = await processDirFeatureGeneration({
+        config,
+        processor,
+        toolDirs,
+      });
 
-      if (config.getDelete()) {
-        const existingToolDirs = await processor.loadToolDirsToDelete();
-        const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
-        if (orphanCount > 0) hasDiff = true;
-      }
+      totalCount += result.count;
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
@@ -389,7 +447,6 @@ async function generateHooksCore(params: {
 
   let totalCount = 0;
   let hasDiff = false;
-  const isPreviewMode = config.isPreviewMode();
 
   const toolTargets = intersection(
     config.getTargets(),
@@ -407,31 +464,28 @@ async function generateHooksCore(params: {
         baseDir,
         toolTarget,
         global: config.getGlobal(),
-        dryRun: isPreviewMode,
+        dryRun: config.isPreviewMode(),
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
+      let result;
+
       if (rulesyncFiles.length === 0) {
-        if (config.getDelete()) {
-          // No rulesync files, so all existing tool files are orphans
-          const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-          const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
-          if (orphanCount > 0) hasDiff = true;
-        }
-        continue;
+        result = await processEmptyFeatureGeneration({
+          config,
+          processor,
+        });
+      } else {
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+        result = await processFeatureGeneration({
+          config,
+          processor,
+          toolFiles,
+        });
       }
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-
-      const writtenCount = await processor.writeAiFiles(toolFiles);
-      totalCount += writtenCount;
-      if (writtenCount > 0) hasDiff = true;
-
-      if (config.getDelete()) {
-        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-        const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-        if (orphanCount > 0) hasDiff = true;
-      }
+      totalCount += result.count;
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
