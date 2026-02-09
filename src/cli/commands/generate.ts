@@ -32,7 +32,6 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     silent: config.getSilent(),
   });
 
-  const dryRun = config.getDryRun();
   const check = config.getCheck();
 
   const isPreview = config.isPreviewMode();
