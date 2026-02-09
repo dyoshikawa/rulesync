@@ -51,6 +51,7 @@ jobs:
       - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
+          draft: true
           files: |
             install.sh
             dist-bun/rulesync-linux-x64
