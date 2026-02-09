@@ -767,5 +767,74 @@ describe("generate", () => {
       expect(result.hasDiff).toBe(true);
       expect(result.rulesCount).toBe(1);
     });
+
+    it("should return hasDiff: true when generated content differs from existing file", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      // Mock processor to return 1 changed file (content differs)
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([createMockAiFile("/path/to/file", "new content")]),
+        writeAiFiles: vi.fn().mockResolvedValue(1), // Has changes (content differs)
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as RulesProcessor;
+      });
+
+      const result = await generate({ config: mockConfig as never });
+
+      expect(result.hasDiff).toBe(true);
+    });
+
+    it("should return hasDiff: false when generated content matches existing file", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      // Mock processor to return 0 changed files (content matches)
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
+        writeAiFiles: vi.fn().mockResolvedValue(0), // No changes (content matches)
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as RulesProcessor;
+      });
+
+      const result = await generate({ config: mockConfig as never });
+
+      expect(result.hasDiff).toBe(false);
+    });
+
+    it("should return hasDiff: true when file does not exist yet", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      // Mock processor to return 1 changed file (file doesn't exist)
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
+        writeAiFiles: vi.fn().mockResolvedValue(1), // Has changes (file doesn't exist)
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as RulesProcessor;
+      });
+
+      const result = await generate({ config: mockConfig as never });
+
+      expect(result.hasDiff).toBe(true);
+    });
   });
 });
