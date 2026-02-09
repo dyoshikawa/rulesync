@@ -1368,14 +1368,14 @@ Review the current changes and provide feedback.
     );
 
     // First fetch from root
-    const summary1 = await fetchFiles({
+    await fetchFiles({
       source: "owner/repo",
       options: { features: ["mcp"] },
       baseDir: testDir,
     });
 
     // Second fetch from subdir
-    const summary2 = await fetchFiles({
+    await fetchFiles({
       source: "owner/repo:subdir",
       options: { features: ["ignore"] },
       baseDir: testDir,
