@@ -43,7 +43,7 @@ This is a test factorydroid rule.`;
           relativeFilePath: "AGENTS.md",
         },
         nonRoot: {
-          relativeDirPath: ".factory/memories",
+          relativeDirPath: ".factory/rules",
         },
       });
     });
@@ -77,7 +77,7 @@ This is a test factorydroid rule.`;
     it("should create non-root rule instance", () => {
       const rule = new FactorydroidRule({
         baseDir: testDir,
-        relativeDirPath: ".factory/memories",
+        relativeDirPath: ".factory/rules",
         relativeFilePath: "memory-1.md",
         fileContent: validRuleContent,
         validate: true,
@@ -161,7 +161,7 @@ This is a test factorydroid rule.`;
     });
 
     it("should load non-root rule from file", async () => {
-      const memoryFile = join(testDir, ".factory", "memories", "memory-1.md");
+      const memoryFile = join(testDir, ".factory", "rules", "memory-1.md");
 
       await writeFileContent(memoryFile, validRuleContent);
 
@@ -282,7 +282,7 @@ This is a test factorydroid rule.`;
     it("should create deletion marker for non-root rule", () => {
       const rule = FactorydroidRule.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factory/memories",
+        relativeDirPath: ".factory/rules",
         relativeFilePath: "memory-1.md",
       });
 

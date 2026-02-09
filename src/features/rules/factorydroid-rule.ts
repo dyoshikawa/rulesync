@@ -56,7 +56,7 @@ export class FactorydroidRule extends ToolRule {
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".factory", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(".factory", "rules", excludeToolDir),
       },
     };
   }

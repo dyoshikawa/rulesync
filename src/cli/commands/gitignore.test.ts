@@ -217,7 +217,7 @@ dist/`;
 **/.codex/subagents/
 **/.cursor/
 **/.cursorignore
-**/.factory/memories/
+**/.factory/rules/
 **/.factory/commands/
 **/.factory/droids/
 **/.factory/skills/

@@ -44,7 +44,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.cursor/",
   "**/.cursorignore",
   // Factory Droid
-  "**/.factory/memories/",
+  "**/.factory/rules/",
   "**/.factory/commands/",
   "**/.factory/droids/",
   "**/.factory/skills/",
