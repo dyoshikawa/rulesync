@@ -20,7 +20,6 @@ import { CommandsProcessor } from "../commands/commands-processor.js";
 import { FactorydroidCommand } from "../commands/factorydroid-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
-import { GeminiCliSkill } from "../skills/geminicli-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
@@ -290,7 +289,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         ruleDiscoveryMode: "toon",
         additionalConventions: {
           subagents: { subagentClass: GeminiCliSubagent },
-          skills: { skillClass: GeminiCliSkill },
         },
       },
     },
