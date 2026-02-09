@@ -43,8 +43,9 @@ jobs:
       - name: Determine model based on comment
         id: select-model
         shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          COMMENT_BODY="${{ github.event.comment.body }}"
           if [[ "$COMMENT_BODY" == *"glm"* ]]; then
             echo "model=openrouter/z-ai/glm-4.7" >> $GITHUB_OUTPUT
           elif [[ "$COMMENT_BODY" == *"kimi"* ]]; then

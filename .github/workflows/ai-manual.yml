@@ -39,8 +39,9 @@ jobs:
       - name: Determine model based on prompt
         id: select-model
         shell: bash
+        env:
+          PROMPT: ${{ inputs.prompt }}
         run: |
-          PROMPT="${{ inputs.prompt }}"
           if [[ "$PROMPT" == *"glm"* ]]; then
             echo "model=openrouter/z-ai/glm-4.7" >> $GITHUB_OUTPUT
           elif [[ "$PROMPT" == *"kimi"* ]]; then
