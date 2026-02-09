@@ -1383,7 +1383,12 @@ Review the current changes and provide feedback.
 
     // Verify separate API calls were made for different base paths
     expect(mockClientInstance.listDirectory).toHaveBeenCalledWith("owner", "repo", ".", "main");
-    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith("owner", "repo", "subdir", "main");
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      "subdir",
+      "main",
+    );
     expect(mockClientInstance.listDirectory).toHaveBeenCalledTimes(2);
   });
 });
