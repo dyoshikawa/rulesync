@@ -56,11 +56,7 @@ export class KiloMcp extends ToolMcp {
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): KiloMcp {
     const paths = this.getSettablePaths();
-    const fileContent = JSON.stringify(
-      { mcpServers: rulesyncMcp.getMcpServers({ type: "exposed" }) },
-      null,
-      2,
-    );
+    const fileContent = JSON.stringify({ mcpServers: rulesyncMcp.getMcpServers() }, null, 2);
 
     return new KiloMcp({
       baseDir,

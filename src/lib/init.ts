@@ -60,7 +60,6 @@ async function createConfigFile(): Promise<InitFileResult> {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
-        modularMcp: false,
       } satisfies ConfigParams,
       null,
       2,

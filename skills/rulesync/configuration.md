@@ -49,7 +49,6 @@ Example:
   "simulateCommands": false, // Generate simulated commands
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
-  "modularMcp": false, // Enable modular-mcp for context compression (experimental, Claude Code only)
 }
 ```
 

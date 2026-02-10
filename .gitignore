@@ -196,7 +196,6 @@ rulesync-deno
 
 # MCP configuration files
 .mcp.json
-modular-mcp.json
 
 # User-specific rule files
 .rulesync/rules/overview.local.md
@@ -275,7 +274,6 @@ bun.lock
 **/.roo/subagents/
 **/.warp/
 **/WARP.md
-**/modular-mcp.json
 .rulesync/rules/*.local.md
 rulesync.local.jsonc
 !.rulesync/.aiignore

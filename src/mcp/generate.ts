@@ -25,7 +25,6 @@ export const generateOptionsSchema = z.object({
   simulateCommands: z.optional(z.boolean()),
   simulateSubagents: z.optional(z.boolean()),
   simulateSkills: z.optional(z.boolean()),
-  modularMcp: z.optional(z.boolean()),
 });
 
 export type GenerateOptions = z.infer<typeof generateOptionsSchema>;
@@ -41,7 +40,6 @@ export type McpGenerateResult = {
     simulateCommands: boolean;
     simulateSubagents: boolean;
     simulateSkills: boolean;
-    modularMcp: boolean;
   };
   error?: string;
 };
@@ -75,7 +73,6 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       simulateCommands: options.simulateCommands,
       simulateSubagents: options.simulateSubagents,
       simulateSkills: options.simulateSkills,
-      modularMcp: options.modularMcp,
       // Always use default baseDirs (process.cwd()) and configPath
       // verbose and silent are meaningless in MCP context
       verbose: false,
@@ -121,7 +118,6 @@ function buildSuccessResponse(params: {
       simulateCommands: config.getSimulateCommands(),
       simulateSubagents: config.getSimulateSubagents(),
       simulateSkills: config.getSimulateSkills(),
-      modularMcp: config.getModularMcp(),
     },
   };
 }

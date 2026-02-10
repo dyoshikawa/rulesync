@@ -41,7 +41,6 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateCommands: false,
   simulateSubagents: false,
   simulateSkills: false,
-  modularMcp: false,
   dryRun: false,
   check: false,
 });
@@ -81,7 +80,6 @@ const mergeConfigs = (
     simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
-    modularMcp: localConfig.modularMcp ?? baseConfig.modularMcp,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
     check: localConfig.check ?? baseConfig.check,
   };
@@ -101,7 +99,6 @@ export class ConfigResolver {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
-    modularMcp,
     dryRun,
     check,
   }: ConfigResolverResolveParams): Promise<Config> {
@@ -143,7 +140,6 @@ export class ConfigResolver {
       simulateCommands: resolvedSimulateCommands,
       simulateSubagents: resolvedSimulateSubagents,
       simulateSkills: resolvedSimulateSkills,
-      modularMcp: modularMcp ?? configByFile.modularMcp ?? getDefaults().modularMcp,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
     };

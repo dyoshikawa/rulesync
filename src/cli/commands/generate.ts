@@ -53,9 +53,6 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   }
   if (features.includes("mcp")) {
     logger.info("Generating MCP files...");
-    if (config.getModularMcp()) {
-      logger.info("ℹ️  Modular MCP support is experimental.");
-    }
   }
   if (features.includes("commands")) {
     logger.info("Generating command files...");

@@ -270,7 +270,6 @@ async function generateMcpCore(params: {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
-        modularMcp: config.getModularMcp(),
         dryRun: config.isPreviewMode(),
       });
 

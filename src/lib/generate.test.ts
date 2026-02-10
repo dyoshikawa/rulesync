@@ -73,7 +73,6 @@ describe("generate", () => {
     getSimulateCommands: ReturnType<typeof vi.fn>;
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
-    getModularMcp: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
   };
 
@@ -89,7 +88,6 @@ describe("generate", () => {
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
-      getModularMcp: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
     };
 
@@ -348,7 +346,6 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
-        modularMcp: false,
         dryRun: false,
       });
     });
@@ -360,19 +357,6 @@ describe("generate", () => {
 
       expect(result.mcpCount).toBe(0);
       expect(McpProcessor).not.toHaveBeenCalled();
-    });
-
-    it("should pass modularMcp option to processor", async () => {
-      mockConfig.getFeatures.mockReturnValue(["mcp"]);
-      mockConfig.getModularMcp.mockReturnValue(true);
-
-      await generate({ config: mockConfig as never });
-
-      expect(McpProcessor).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modularMcp: true,
-        }),
-      );
     });
   });
 

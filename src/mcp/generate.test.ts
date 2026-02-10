@@ -231,7 +231,6 @@ targets: ["*"]
         simulateCommands: true,
         simulateSubagents: expect.any(Boolean),
         simulateSkills: expect.any(Boolean),
-        modularMcp: expect.any(Boolean),
       });
     });
 
@@ -298,31 +297,6 @@ targets: ["*"]
       // Should be valid JSON
       const parsed: McpGenerateResult = JSON.parse(jsonResult);
       expect(parsed.success).toBe(true);
-    });
-
-    it("should handle modularMcp option", async () => {
-      const rulesyncDir = join(testDir, ".rulesync");
-      await ensureDir(rulesyncDir);
-      await ensureDir(join(rulesyncDir, "rules"));
-
-      await writeFileContent(
-        join(rulesyncDir, "rules/overview.md"),
-        `---
-root: true
-targets: ["*"]
----
-# Overview`,
-      );
-
-      // Use rules feature instead of mcp since mcp requires mcp.json file
-      const result = await executeGenerate({
-        targets: ["claudecode"],
-        features: ["rules"],
-        modularMcp: true,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.config?.modularMcp).toBe(true);
     });
 
     it("should handle delete option", async () => {

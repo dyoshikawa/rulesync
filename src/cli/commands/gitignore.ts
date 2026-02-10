@@ -100,7 +100,6 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.warp/",
   "**/WARP.md",
   // Others
-  "**/modular-mcp.json",
   ".rulesync/rules/*.local.md",
   "rulesync.local.jsonc",
   "!.rulesync/.aiignore",

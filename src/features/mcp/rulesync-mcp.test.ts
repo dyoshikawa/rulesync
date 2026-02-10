@@ -327,65 +327,7 @@ describe("RulesyncMcp", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should pass validation when modularMcp is true and description is present", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node", description: "Test server" },
-          },
-        }),
-        validate: false,
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
-    it("should pass validation when modularMcp is true and all servers have descriptions", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node", description: "Test server" },
-            "another-server": { command: "python", description: "Another server" },
-          },
-        }),
-        validate: false,
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
-    it("should pass validation when modularMcp is false and description is missing", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node" },
-          },
-        }),
-        validate: false,
-        modularMcp: false,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
-    it("should pass validation when modularMcp is false (default) and description is missing", () => {
+    it("should pass validation when description is missing", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
@@ -423,7 +365,6 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.getJson();
 
       expect(result).toEqual(jsonData);
-      // Note: With modularMcp=false (default), description fields are omitted, so reference may differ
       expect(result).toEqual(rulesyncMcp.getJson());
     });
 
@@ -493,61 +434,7 @@ describe("RulesyncMcp", () => {
       expect(result).toBeNull();
     });
 
-    it("should omit description fields when modularMcp is false", () => {
-      const jsonData = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["server.js"],
-            description: "Test server description",
-          },
-          "another-server": {
-            command: "python",
-            args: ["server.py"],
-            description: "Another server description",
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const result = rulesyncMcp.getJson();
-
-      expect(result).toEqual(jsonData);
-    });
-
-    it("should keep description fields when modularMcp is true", () => {
-      const jsonData = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["server.js"],
-            description: "Test server description",
-          },
-          "another-server": {
-            command: "python",
-            args: ["server.py"],
-            description: "Another server description",
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const result = rulesyncMcp.getJson();
-
-      expect(result).toEqual(jsonData);
-    });
-
-    it("should handle servers without description fields", () => {
+    it("should handle servers with and without description fields", () => {
       const jsonData = {
         mcpServers: {
           "server-with-desc": {
@@ -569,105 +456,6 @@ describe("RulesyncMcp", () => {
       const result = rulesyncMcp.getJson();
 
       expect(result).toEqual(jsonData);
-    });
-
-    it("should filter out exposed servers when modularMcp is true", () => {
-      const jsonData = {
-        mcpServers: {
-          "exposed-server": {
-            command: "node",
-            args: ["server.js"],
-            description: "Exposed server",
-            exposed: true,
-          },
-          "hidden-server": {
-            command: "python",
-            args: ["server.py"],
-            description: "Hidden server",
-            exposed: false,
-          },
-          "default-server": {
-            command: "go",
-            args: ["server"],
-            description: "Default server",
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const result = rulesyncMcp.getJson();
-
-      // getJson() returns the raw JSON without filtering
-      expect(result).toEqual(jsonData);
-    });
-  });
-
-  describe("getMcpServers with type: exposed", () => {
-    it("should return only servers with exposed: true", () => {
-      const jsonData = {
-        mcpServers: {
-          "exposed-server-1": {
-            command: "node",
-            args: ["server1.js"],
-            description: "Exposed server 1",
-            exposed: true,
-          },
-          "exposed-server-2": {
-            command: "python",
-            args: ["server2.py"],
-            description: "Exposed server 2",
-            exposed: true,
-          },
-          "hidden-server": {
-            command: "go",
-            args: ["server"],
-            description: "Hidden server",
-            exposed: false,
-          },
-          "default-server": {
-            command: "rust",
-            args: ["server"],
-            description: "Default server",
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-        modularMcp: true,
-      });
-
-      const result = rulesyncMcp.getMcpServers({ type: "exposed" });
-
-      // Only exposed servers should be returned
-      expect(Object.keys(result)).toHaveLength(2);
-      expect(result).toHaveProperty("exposed-server-1");
-      expect(result).toHaveProperty("exposed-server-2");
-      expect(result).not.toHaveProperty("hidden-server");
-      expect(result).not.toHaveProperty("default-server");
-
-      // Description and exposed fields should be omitted
-      expect(result["exposed-server-1"]).not.toHaveProperty("description");
-      expect(result["exposed-server-1"]).not.toHaveProperty("exposed");
-      expect(result["exposed-server-2"]).not.toHaveProperty("description");
-      expect(result["exposed-server-2"]).not.toHaveProperty("exposed");
-
-      // Other fields should remain
-      expect(result["exposed-server-1"]).toEqual({
-        command: "node",
-        args: ["server1.js"],
-      });
-      expect(result["exposed-server-2"]).toEqual({
-        command: "python",
-        args: ["server2.py"],
-      });
     });
   });
 
