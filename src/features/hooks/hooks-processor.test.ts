@@ -53,6 +53,14 @@ describe("HooksProcessor", () => {
       expect(processor).toBeInstanceOf(HooksProcessor);
     });
 
+    it("should create instance with opencode target", () => {
+      const processor = new HooksProcessor({
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+      expect(processor).toBeInstanceOf(HooksProcessor);
+    });
+
     it("should throw for invalid tool target", () => {
       expect(() => {
         const _p = new HooksProcessor({

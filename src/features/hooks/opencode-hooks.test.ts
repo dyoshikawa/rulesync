@@ -116,7 +116,7 @@ describe("OpencodeHooks", () => {
       const content = opencodeHooks.getFileContent();
       expect(content).toContain('"tool.execute.before"');
       expect(content).toContain("input.tool");
-      expect(content).toContain("/Write|Edit/");
+      expect(content).toContain('new RegExp("Write|Edit")');
       expect(content).toContain(".rulesync/hooks/lint.sh");
     });
 
@@ -240,6 +240,144 @@ describe("OpencodeHooks", () => {
           "",
         ].join("\n"),
       );
+    });
+
+    it("should escape ${} interpolation in commands", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "echo ${HOME}" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      // ${} should be escaped in the template literal
+      expect(content).toContain("echo \\${HOME}");
+      expect(content).not.toContain("echo ${HOME}");
+    });
+
+    it("should handle multiple handlers for the same event", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", command: "lint.sh", matcher: "Write" },
+            { type: "command", command: "format.sh", matcher: "Edit" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      expect(content).toContain("lint.sh");
+      expect(content).toContain("format.sh");
+      expect(content).toContain('new RegExp("Write")');
+      expect(content).toContain('new RegExp("Edit")');
+    });
+
+    it("should throw on invalid regex in matcher", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: "[invalid" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      expect(() =>
+        OpencodeHooks.fromRulesyncHooks({
+          baseDir: testDir,
+          rulesyncHooks,
+          validate: false,
+        }),
+      ).toThrow("Invalid regex pattern in hook matcher");
+    });
+
+    it("should strip newline characters from matcher", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: "Write\n|Edit\r" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      expect(content).toContain('new RegExp("Write|Edit")');
+      // The matcher itself should not contain newline/CR (they were stripped)
+      expect(content).not.toMatch(/\/Write\n/);
+      expect(content).not.toMatch(/Edit\r/);
+    });
+
+    it("should escape double quotes in matcher", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: 'Write"||true||"' }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      // Double quotes should be escaped in the RegExp string
+      expect(content).toContain('new RegExp("Write\\"||true||\\"")');
+      // Should not contain unescaped double quotes that would break the JS string
+      expect(content).not.toContain('new RegExp("Write"');
     });
 
     it("should escape backticks in commands", () => {

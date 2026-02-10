@@ -1,14 +1,28 @@
 import { z } from "zod/mini";
 
 /**
+ * A string that must not contain newline (\n), carriage return (\r), or NUL (\0) characters.
+ * Used for command and matcher fields that are embedded in generated code.
+ */
+const hasControlChars = (val: string): boolean =>
+  val.includes("\n") || val.includes("\r") || val.includes("\0");
+const safeString = z.pipe(
+  z.string(),
+  z.custom<string>(
+    (val) => typeof val === "string" && !hasControlChars(val),
+    "must not contain newline, carriage return, or NUL characters",
+  ),
+);
+
+/**
  * Canonical hook definition (Cursor-style).
  * Used in .rulesync/hooks.json and mapped to tool-specific formats.
  */
-export const HookDefinitionSchema = z.object({
-  command: z.optional(z.string()),
+export const HookDefinitionSchema = z.looseObject({
+  command: z.optional(safeString),
   type: z.optional(z.enum(["command", "prompt"])),
   timeout: z.optional(z.number()),
-  matcher: z.optional(z.string()),
+  matcher: z.optional(safeString),
   prompt: z.optional(z.string()),
   loop_limit: z.optional(z.nullable(z.number())),
 });
@@ -102,13 +116,13 @@ const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 /**
  * Canonical hooks config (Cursor-style event names in camelCase).
  */
-export const HooksConfigSchema = z.object({
+export const HooksConfigSchema = z.looseObject({
   version: z.optional(z.number()),
   hooks: hooksRecordSchema,
-  cursor: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
-  claudecode: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
-  opencode: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
-  factorydroid: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
+  cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
