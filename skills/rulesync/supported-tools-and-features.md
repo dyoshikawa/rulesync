@@ -12,7 +12,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot     |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
 | Cursor             |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
-| OpenCode           |  ✅   |        |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
+| OpenCode           |  ✅   |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
 | Cline              |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |           |        |       |
 | Kilo Code          | ✅ 🌏 |   ✅   |  ✅   |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Roo Code           |  ✅   |   ✅   |  ✅   |    ✅    |    🎮     | ✅ 🌏  |       |
@@ -29,3 +29,4 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 - ✅: Supports project mode
 - 🌏: Supports global mode
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
+- 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)

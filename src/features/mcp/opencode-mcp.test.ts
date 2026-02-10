@@ -721,6 +721,317 @@ describe("OpencodeMcp", () => {
       });
       expect((json as any).customProperty).toBe("value");
     });
+
+    it("should convert enabledTools to top-level tools map with server prefix", async () => {
+      const jsonData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search", "list"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": true,
+        },
+      });
+    });
+
+    it("should convert disabledTools to top-level tools map with server prefix", async () => {
+      const jsonData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            disabledTools: ["search", "list"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": false,
+          "my-server_list": false,
+        },
+      });
+    });
+
+    it("should convert both enabledTools and disabledTools to top-level tools map", async () => {
+      const jsonData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search"],
+            disabledTools: ["list"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": false,
+        },
+      });
+    });
+
+    it("should convert enabledTools/disabledTools for multiple servers", async () => {
+      const jsonData = {
+        mcpServers: {
+          "server-a": {
+            command: "node",
+            args: ["a.js"],
+            disabledTools: ["search"],
+          },
+          "server-b": {
+            command: "node",
+            args: ["b.js"],
+            enabledTools: ["list"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "server-a": {
+            type: "local",
+            command: ["node", "a.js"],
+            enabled: true,
+          },
+          "server-b": {
+            type: "local",
+            command: ["node", "b.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "server-a_search": false,
+          "server-b_list": true,
+        },
+      });
+    });
+
+    it("should convert enabledTools/disabledTools for remote servers", async () => {
+      const jsonData = {
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/mcp",
+            enabledTools: ["fetch"],
+            disabledTools: ["search"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+          },
+        },
+        tools: {
+          "remote-server_fetch": true,
+          "remote-server_search": false,
+        },
+      });
+    });
+
+    it("should not include tools key when no enabledTools/disabledTools are specified", async () => {
+      const jsonData = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      expect(opencodeMcp.getJson()).toEqual({
+        mcp: {
+          "test-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+      });
+      expect(opencodeMcp.getJson().tools).toBeUndefined();
+    });
+
+    it("should fully override tools and not preserve existing tools from file", async () => {
+      const existingConfig = {
+        mcp: {
+          "old-server": {
+            type: "local",
+            command: ["node", "old.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "old-server_search": false,
+          unrelated_tool: true,
+        },
+      };
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify(existingConfig, null, 2),
+      );
+
+      const jsonData = {
+        mcpServers: {
+          "new-server": {
+            command: "node",
+            args: ["new.js"],
+            disabledTools: ["list"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      // Should fully override: only new server tools, no preserved unrelated tools
+      expect(opencodeMcp.getJson().tools).toEqual({
+        "new-server_list": false,
+      });
+    });
+
+    it("should remove stale tools key when new config has no enabledTools/disabledTools", async () => {
+      const existingConfig = {
+        mcp: {
+          "old-server": {
+            type: "local",
+            command: ["node", "old.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "old-server_search": false,
+          unrelated_tool: true,
+        },
+      };
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify(existingConfig, null, 2),
+      );
+
+      const jsonData = {
+        mcpServers: {
+          "new-server": {
+            command: "node",
+            args: ["new.js"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      // tools key should be removed entirely when no enabledTools/disabledTools
+      expect(opencodeMcp.getJson().tools).toBeUndefined();
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -967,6 +1278,249 @@ describe("OpencodeMcp", () => {
         'Server "empty-command-server" has an empty command array',
       );
     });
+
+    it("should convert tools map to enabledTools per server (strip prefix)", () => {
+      const jsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": true,
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "my-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search", "list"],
+          },
+        },
+      });
+    });
+
+    it("should convert tools map to disabledTools per server (strip prefix)", () => {
+      const jsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": false,
+          "my-server_list": false,
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "my-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            disabledTools: ["search", "list"],
+          },
+        },
+      });
+    });
+
+    it("should convert tools map to both enabledTools and disabledTools per server", () => {
+      const jsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": false,
+          "my-server_read": true,
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "my-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search", "read"],
+            disabledTools: ["list"],
+          },
+        },
+      });
+    });
+
+    it("should only assign tools to the correct server by prefix", () => {
+      const jsonData = {
+        mcp: {
+          "server-a": {
+            type: "local",
+            command: ["node", "a.js"],
+            enabled: true,
+          },
+          "server-b": {
+            type: "local",
+            command: ["node", "b.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "server-a_search": false,
+          "server-b_list": true,
+          unrelated_tool: false,
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "server-a": {
+            type: "stdio",
+            command: "node",
+            args: ["a.js"],
+            disabledTools: ["search"],
+          },
+          "server-b": {
+            type: "stdio",
+            command: "node",
+            args: ["b.js"],
+            enabledTools: ["list"],
+          },
+        },
+      });
+    });
+
+    it("should handle tools on remote servers", () => {
+      const jsonData = {
+        mcp: {
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+          },
+        },
+        tools: {
+          "remote-server_search": false,
+          "remote-server_fetch": true,
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/mcp",
+            enabledTools: ["fetch"],
+            disabledTools: ["search"],
+          },
+        },
+      });
+    });
+
+    it("should not include enabledTools/disabledTools when tools map is empty", () => {
+      const jsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {},
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "my-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+          },
+        },
+      });
+    });
+
+    it("should not include enabledTools/disabledTools when no tools key exists", () => {
+      const jsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        mcpServers: {
+          "my-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+          },
+        },
+      });
+    });
   });
 
   describe("validate", () => {
@@ -1041,6 +1595,33 @@ describe("OpencodeMcp", () => {
         globalSettings: {
           timeout: 30000,
           retries: 3,
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+        validate: false,
+      });
+
+      const result = opencodeMcp.validate();
+
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
+
+    it("should return success for configuration with tools map", () => {
+      const jsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": false,
         },
       };
       const opencodeMcp = new OpencodeMcp({
@@ -1218,6 +1799,112 @@ describe("OpencodeMcp", () => {
       expect(newOpencodeMcp.getFilePath()).toBe(
         join(testDir, ".config", "opencode", "opencode.json"),
       );
+    });
+
+    it("should round-trip enabledTools/disabledTools through OpenCode format", async () => {
+      // Start with OpenCode format: mcp + tools map
+      const originalJsonData = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": false,
+        },
+      };
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify(originalJsonData, null, 2),
+      );
+
+      // Step 1: Load from file
+      const originalOpencodeMcp = await OpencodeMcp.fromFile({
+        baseDir: testDir,
+      });
+
+      // Step 2: Convert to RulesyncMcp
+      const rulesyncMcp = originalOpencodeMcp.toRulesyncMcp();
+
+      // Verify RulesyncMcp has enabledTools/disabledTools
+      const rulesyncJson = JSON.parse(rulesyncMcp.getFileContent());
+      expect(rulesyncJson.mcpServers["my-server"]).toEqual({
+        type: "stdio",
+        command: "node",
+        args: ["server.js"],
+        enabledTools: ["search"],
+        disabledTools: ["list"],
+      });
+
+      // Step 3: Convert back to OpenCode format
+      const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      // After round-trip, should be back to OpenCode format with tools map
+      expect(newOpencodeMcp.getJson()).toEqual({
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+          "my-server_list": false,
+        },
+      });
+    });
+
+    it("should round-trip enabledTools/disabledTools from rulesync format", async () => {
+      // Start with rulesync format
+      const rulesyncData = {
+        mcpServers: {
+          "server-a": {
+            command: "node",
+            args: ["a.js"],
+            enabledTools: ["search", "read"],
+            disabledTools: ["write"],
+          },
+          "server-b": {
+            type: "sse",
+            url: "https://example.com/mcp",
+            disabledTools: ["delete"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncData),
+      });
+
+      // Step 1: Convert to OpenCode
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      // Verify OpenCode format has tools map
+      expect(opencodeMcp.getJson().tools).toEqual({
+        "server-a_search": true,
+        "server-a_read": true,
+        "server-a_write": false,
+        "server-b_delete": false,
+      });
+
+      // Step 2: Convert back to rulesync
+      const backToRulesync = opencodeMcp.toRulesyncMcp();
+      const backJson = JSON.parse(backToRulesync.getFileContent());
+
+      expect(backJson.mcpServers["server-a"].enabledTools).toEqual(["search", "read"]);
+      expect(backJson.mcpServers["server-a"].disabledTools).toEqual(["write"]);
+      expect(backJson.mcpServers["server-b"].disabledTools).toEqual(["delete"]);
     });
   });
 

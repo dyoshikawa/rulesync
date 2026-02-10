@@ -18,6 +18,8 @@ export const McpServerSchema = z.object({
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
+  enabledTools: z.optional(z.array(z.string())),
+  disabledTools: z.optional(z.array(z.string())),
 });
 
 export const McpServersSchema = z.record(z.string(), McpServerSchema);

@@ -45,6 +45,7 @@ const OpencodeMcpServerSchema = z.union([
 const OpencodeConfigSchema = z.looseObject({
   $schema: z.optional(z.string()),
   mcp: z.optional(z.record(z.string(), OpencodeMcpServerSchema)),
+  tools: z.optional(z.record(z.string(), z.boolean())),
 });
 
 type OpencodeConfig = z.infer<typeof OpencodeConfigSchema>;
@@ -56,10 +57,32 @@ type OpencodeMcpServer = z.infer<typeof OpencodeMcpServerSchema>;
  * - command (array) -> command (first element) + args (rest)
  * - environment -> env
  * - enabled -> disabled (inverted)
+ * - top-level tools map -> per-server enabledTools/disabledTools (strip server prefix)
  */
-function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer>): McpServers {
+function convertFromOpencodeFormat(
+  opencodeMcp: Record<string, OpencodeMcpServer>,
+  tools?: Record<string, boolean>,
+): McpServers {
   return Object.fromEntries(
     Object.entries(opencodeMcp).map(([serverName, serverConfig]) => {
+      // Extract enabledTools and disabledTools from top-level tools map
+      const enabledTools: string[] = [];
+      const disabledTools: string[] = [];
+      const prefix = `${serverName}_`;
+
+      if (tools) {
+        for (const [toolName, enabled] of Object.entries(tools)) {
+          if (toolName.startsWith(prefix)) {
+            const toolSuffix = toolName.slice(prefix.length);
+            if (enabled) {
+              enabledTools.push(toolSuffix);
+            } else {
+              disabledTools.push(toolSuffix);
+            }
+          }
+        }
+      }
+
       if (serverConfig.type === "remote") {
         return [
           serverName,
@@ -68,6 +91,8 @@ function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer
             url: serverConfig.url,
             ...(serverConfig.enabled === false && { disabled: true }),
             ...(serverConfig.headers && { headers: serverConfig.headers }),
+            ...(enabledTools.length > 0 && { enabledTools }),
+            ...(disabledTools.length > 0 && { disabledTools }),
           },
         ];
       }
@@ -86,6 +111,8 @@ function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer
           ...(serverConfig.enabled === false && { disabled: true }),
           ...(serverConfig.environment && { env: serverConfig.environment }),
           ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
+          ...(enabledTools.length > 0 && { enabledTools }),
+          ...(disabledTools.length > 0 && { disabledTools }),
         },
       ];
     }),
@@ -98,12 +125,30 @@ function convertFromOpencodeFormat(opencodeMcp: Record<string, OpencodeMcpServer
  * - command + args -> command (merged array)
  * - env -> environment
  * - disabled -> enabled (inverted)
+ * - enabledTools/disabledTools -> top-level tools map (with server name prefix)
  */
-function convertToOpencodeFormat(mcpServers: McpServers): Record<string, OpencodeMcpServer> {
-  return Object.fromEntries(
+function convertToOpencodeFormat(mcpServers: McpServers): {
+  mcp: Record<string, OpencodeMcpServer>;
+  tools: Record<string, boolean>;
+} {
+  const tools: Record<string, boolean> = {};
+
+  const mcp = Object.fromEntries(
     Object.entries(mcpServers).map(([serverName, serverConfig]) => {
       const isRemote =
         serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
+
+      // Collect enabledTools/disabledTools into the top-level tools map
+      if (serverConfig.enabledTools) {
+        for (const tool of serverConfig.enabledTools) {
+          tools[`${serverName}_${tool}`] = true;
+        }
+      }
+      if (serverConfig.disabledTools) {
+        for (const tool of serverConfig.disabledTools) {
+          tools[`${serverName}_${tool}`] = false;
+        }
+      }
 
       if (isRemote) {
         const remoteServer: OpencodeMcpServer = {
@@ -138,6 +183,8 @@ function convertToOpencodeFormat(mcpServers: McpServers): Record<string, Opencod
       return [serverName, localServer];
     }),
   );
+
+  return { mcp, tools };
 }
 
 export class OpencodeMcp extends ToolMcp {
@@ -206,8 +253,16 @@ export class OpencodeMcp extends ToolMcp {
       JSON.stringify({ mcp: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
-    const convertedMcp = convertToOpencodeFormat(rulesyncMcp.getMcpServers());
-    const newJson = { ...json, mcp: convertedMcp };
+    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
+      rulesyncMcp.getMcpServers(),
+    );
+
+    const { tools: _existingTools, ...jsonWithoutTools } = json;
+    const newJson = {
+      ...jsonWithoutTools,
+      mcp: convertedMcp,
+      ...(Object.keys(mcpTools).length > 0 && { tools: mcpTools }),
+    };
 
     return new OpencodeMcp({
       baseDir,
@@ -219,7 +274,7 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {});
+    const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
     });

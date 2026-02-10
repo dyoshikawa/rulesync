@@ -66,7 +66,10 @@ Example:
   "claudecode": {
     "hooks": {
       "notification": [
-        { "matcher": "permission_prompt", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh" }
+        {
+          "matcher": "permission_prompt",
+          "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh"
+        }
       ]
     }
   },
@@ -208,6 +211,27 @@ Example:
   }
 }
 ```
+
+#### MCP Tool Config (`enabledTools` / `disabledTools`)
+
+You can control which individual tools from an MCP server are enabled or disabled using `enabledTools` and `disabledTools` arrays per server.
+
+```json
+{
+  "mcpServers": {
+    "serena": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+      "enabledTools": ["search_symbols", "find_references"],
+      "disabledTools": ["rename_symbol"]
+    }
+  }
+}
+```
+
+- `enabledTools`: An array of tool names that should be explicitly enabled for this server.
+- `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
 ### `.rulesync/.aiignore` or `.rulesyncignore`
 
