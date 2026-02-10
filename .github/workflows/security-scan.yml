@@ -12,6 +12,7 @@ jobs:
   security-scan:
     name: Security Scan with OpenRouter
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -32,6 +33,7 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SECURITY_SCAN_MODEL: ${{ secrets.SECURITY_SCAN_MODEL }}
+          SECURITY_SCAN_PROMPT: ${{ secrets.SECURITY_SCAN_PROMPT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
           SECURITY_SCAN_RECIPIENT: ${{ secrets.SECURITY_SCAN_RECIPIENT }}

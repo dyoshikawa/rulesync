@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Resend } from "resend";
 import { z } from "zod";
@@ -18,9 +18,37 @@ export const SecurityScanResultSchema = z.object({
 
 export type SecurityScanResult = z.infer<typeof SecurityScanResultSchema>;
 
+// JSON Schema for OpenRouter API response format (mirrors SecurityScanResultSchema above)
+export const SECURITY_SCAN_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    vulnerabilities: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          severity: {
+            type: "string",
+            enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+          },
+          title: { type: "string" },
+          description: { type: "string" },
+          location: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["severity", "title", "description"],
+      },
+    },
+    summary: { type: "string" },
+  },
+  required: ["vulnerabilities", "summary"],
+  additionalProperties: false,
+} as const;
+
 export type ValidatedEnv = {
   openrouterApiKey: string;
   model: string;
+  securityScanPrompt: string;
   resendApiKey: string;
   resendFromEmail: string;
   securityScanRecipient: string;
@@ -35,6 +63,10 @@ export const validateEnv = (): ValidatedEnv => {
   if (!model) {
     throw new Error("SECURITY_SCAN_MODEL is not set");
   }
+  const securityScanPrompt = process.env.SECURITY_SCAN_PROMPT;
+  if (!securityScanPrompt) {
+    throw new Error("SECURITY_SCAN_PROMPT is not set");
+  }
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     throw new Error("RESEND_API_KEY is not set");
@@ -48,17 +80,20 @@ export const validateEnv = (): ValidatedEnv => {
     throw new Error("SECURITY_SCAN_RECIPIENT is not set");
   }
 
-  return { openrouterApiKey, model, resendApiKey, resendFromEmail, securityScanRecipient };
+  return {
+    openrouterApiKey,
+    model,
+    securityScanPrompt,
+    resendApiKey,
+    resendFromEmail,
+    securityScanRecipient,
+  };
 };
 
 export const getToonFiles = ({ dir }: { dir: string }): string[] => {
   return readdirSync(dir)
     .filter((file) => file.endsWith(".toon"))
     .map((file) => join(dir, file));
-};
-
-export const loadPrompt = ({ promptPath }: { promptPath: string }): string => {
-  return readFileSync(promptPath, "utf-8");
 };
 
 // oxlint-disable-next-line no-explicit-any -- duck-type to decouple from private SDK internals
@@ -84,31 +119,7 @@ export const runSecurityScan = async ({
         jsonSchema: {
           name: "security_scan",
           strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              vulnerabilities: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    severity: {
-                      type: "string",
-                      enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
-                    },
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    location: { type: "string" },
-                    recommendation: { type: "string" },
-                  },
-                  required: ["severity", "title", "description"],
-                },
-              },
-              summary: { type: "string" },
-            },
-            required: ["vulnerabilities", "summary"],
-            additionalProperties: false,
-          },
+          schema: SECURITY_SCAN_JSON_SCHEMA,
         },
       },
       stream: false as const,
@@ -136,7 +147,9 @@ export const formatEmailBody = ({
   for (const [filename, result] of results.entries()) {
     body += `## ${filename}\n\n`;
     body += `${result.summary}\n`;
-    body += `### Found ${result.vulnerabilities.length} vulnerabilities\n\n`;
+    const vulnCount = result.vulnerabilities.length;
+    const vulnLabel = vulnCount === 1 ? "vulnerability" : "vulnerabilities";
+    body += `### Found ${vulnCount} ${vulnLabel}\n\n`;
 
     for (const vuln of result.vulnerabilities) {
       body += `**[${vuln.severity}] ${vuln.title}**\n`;
@@ -160,18 +173,23 @@ export const sendEmail = async ({
   apiKey,
   from,
   to,
+  subject,
   body,
 }: {
   apiKey: string;
   from: string;
   to: string;
+  subject: string;
   body: string;
 }): Promise<void> => {
   const resend = new Resend(apiKey);
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from,
     to,
-    subject: "Security Scan Report",
+    subject,
     text: body,
   });
+  if (error) {
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
 };
