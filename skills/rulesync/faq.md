@@ -16,7 +16,7 @@ According to [the documentation](https://code.claude.com/docs/en/settings), this
 
 ### Q. Google Antigravity doesn't load rules when `.agent` directories are in `.gitignore`
 
-Google Antigravity has a known limitation where it won't load rules and workflows if the `.agent/rules/` and `.agent/workflows/` directories are listed in `.gitignore`, even with "Agent Gitignore Access" enabled.
+Google Antigravity has a known limitation where it won't load rules, workflows, and skills if the `.agent/rules/`, `.agent/workflows/`, and `.agent/skills/` directories are listed in `.gitignore`, even with "Agent Gitignore Access" enabled.
 
 **Workaround:** Instead of adding these directories to `.gitignore`, add them to `.git/info/exclude`:
 
@@ -24,10 +24,12 @@ Google Antigravity has a known limitation where it won't load rules and workflow
 # Remove from .gitignore (if present)
 # **/.agent/rules/
 # **/.agent/workflows/
+# **/.agent/skills/
 
 # Add to .git/info/exclude
 echo "**/.agent/rules/" >> .git/info/exclude
 echo "**/.agent/workflows/" >> .git/info/exclude
+echo "**/.agent/skills/" >> .git/info/exclude
 ```
 
 `.git/info/exclude` works like `.gitignore` but is local-only, so it won't affect Antigravity's ability to load the rules while still excluding these directories from Git.
