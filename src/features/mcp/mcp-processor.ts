@@ -17,7 +17,6 @@ import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
-import { ModularMcp } from "./modular-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -61,7 +60,7 @@ export const McpProcessorToolTargetSchema = z.enum(mcpProcessorToolTargetTuple);
 type ToolMcpFactory = {
   class: {
     fromRulesyncMcp(
-      params: ToolMcpFromRulesyncMcpParams & { global?: boolean; modularMcp?: boolean },
+      params: ToolMcpFromRulesyncMcpParams & { global?: boolean },
     ): ToolMcp | Promise<ToolMcp>;
     fromFile(params: ToolMcpFromFileParams): Promise<ToolMcp>;
     forDeletion(params: ToolMcpForDeletionParams): ToolMcp;
@@ -72,8 +71,6 @@ type ToolMcpFactory = {
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) MCP configuration */
     supportsGlobal: boolean;
-    /** Whether the tool supports modular-mcp for context compression */
-    supportsModular: boolean;
   };
 };
 
@@ -86,91 +83,91 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "claudecode",
     {
       class: ClaudecodeMcp,
-      meta: { supportsProject: true, supportsGlobal: true, supportsModular: true },
+      meta: { supportsProject: true, supportsGlobal: true },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeMcp,
-      meta: { supportsProject: true, supportsGlobal: true, supportsModular: true },
+      meta: { supportsProject: true, supportsGlobal: true },
     },
   ],
   [
     "cline",
     {
       class: ClineMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
   [
     "codexcli",
     {
       class: CodexcliMcp,
-      meta: { supportsProject: false, supportsGlobal: true, supportsModular: false },
+      meta: { supportsProject: false, supportsGlobal: true },
     },
   ],
   [
     "copilot",
     {
       class: CopilotMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
   [
     "cursor",
     {
       class: CursorMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
   [
     "factorydroid",
     {
       class: FactorydroidMcp,
-      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: true },
     },
   ],
   [
     "geminicli",
     {
       class: GeminiCliMcp,
-      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: true },
     },
   ],
   [
     "kilo",
     {
       class: KiloMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
   [
     "kiro",
     {
       class: KiroMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
   [
     "junie",
     {
       class: JunieMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
   [
     "opencode",
     {
       class: OpencodeMcp,
-      meta: { supportsProject: true, supportsGlobal: true, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: true },
     },
   ],
   [
     "roo",
     {
       class: RooMcp,
-      meta: { supportsProject: true, supportsGlobal: false, supportsModular: false },
+      meta: { supportsProject: true, supportsGlobal: false },
     },
   ],
 ]);
@@ -186,11 +183,6 @@ export const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((t
 export const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolMcpFactories.get(target);
   return factory?.meta.supportsGlobal ?? false;
-});
-
-export const mcpProcessorToolTargetsModular: ToolTarget[] = allToolTargetKeys.filter((target) => {
-  const factory = toolMcpFactories.get(target);
-  return factory?.meta.supportsModular ?? false;
 });
 
 /**
@@ -210,21 +202,18 @@ const defaultGetFactory: GetFactory = (target) => {
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
-  private readonly modularMcp: boolean;
   private readonly getFactory: GetFactory;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
-    modularMcp = false,
     getFactory = defaultGetFactory,
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
-    modularMcp?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
   }) {
@@ -237,7 +226,6 @@ export class McpProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
-    this.modularMcp = modularMcp;
     this.getFactory = getFactory;
   }
 
@@ -247,7 +235,7 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncMcp.fromFile({ modularMcp: this.modularMcp })];
+      return [await RulesyncMcp.fromFile({})];
     } catch (error) {
       logger.error(`Failed to load a Rulesync MCP file: ${formatError(error)}`);
       return [];
@@ -320,32 +308,11 @@ export class McpProcessor extends FeatureProcessor {
           baseDir: this.baseDir,
           rulesyncMcp,
           global: this.global,
-          modularMcp: this.modularMcp,
         });
       }),
     );
 
-    const toolFiles: ToolFile[] = toolMcps;
-
-    // Add modular-mcp.json if modularMcp is enabled and target supports modular-mcp
-    if (this.modularMcp && mcpProcessorToolTargetsModular.includes(this.toolTarget)) {
-      // Map tool target to relative directory path
-      const relativeDirPath = factory.class.getSettablePaths({
-        global: this.global,
-      }).relativeDirPath;
-
-      toolFiles.push(
-        ModularMcp.fromRulesyncMcp({
-          baseDir: this.baseDir,
-          rulesyncMcp,
-          ...(this.global && relativeDirPath
-            ? { global: true, relativeDirPath }
-            : { global: false }),
-        }),
-      );
-    }
-
-    return toolFiles;
+    return toolMcps;
   }
 
   /**

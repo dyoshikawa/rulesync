@@ -16,31 +16,20 @@ import { logger } from "../../utils/logger.js";
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
 // Note: targets defaults to ["*"] when omitted (applied during filtering, not at parse time)
-const RulesyncMcpServerSchema = z.union([
-  z.extend(McpServerSchema, {
-    targets: z.optional(RulesyncTargetsSchema),
-    description: z.optional(z.string()),
-    exposed: z.optional(z.literal(false)),
-  }),
-  z.extend(McpServerSchema, {
-    targets: z.optional(RulesyncTargetsSchema),
-    description: z.undefined(),
-    exposed: z.literal(true),
-  }),
-]);
+const RulesyncMcpServerSchema = z.extend(McpServerSchema, {
+  targets: z.optional(RulesyncTargetsSchema),
+  description: z.optional(z.string()),
+  exposed: z.optional(z.boolean()),
+});
 
 const RulesyncMcpConfigSchema = z.object({
   mcpServers: z.record(z.string(), RulesyncMcpServerSchema),
 });
 type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
-export type RulesyncMcpParams = RulesyncFileParams & {
-  modularMcp?: boolean;
-};
+export type RulesyncMcpParams = RulesyncFileParams;
 
-export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate"> & {
-  modularMcp?: boolean;
-};
+export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
 
 export type RulesyncMcpSettablePaths = {
   recommended: {
@@ -55,15 +44,13 @@ export type RulesyncMcpSettablePaths = {
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: RulesyncMcpConfig;
-  private readonly modularMcp: boolean;
 
-  constructor({ modularMcp = false, ...rest }: RulesyncMcpParams) {
-    super({ ...rest });
+  constructor(params: RulesyncMcpParams) {
+    super(params);
 
     this.json = JSON.parse(this.fileContent);
-    this.modularMcp = modularMcp;
 
-    if (rest.validate) {
+    if (params.validate) {
       const result = this.validate();
       if (!result.success) {
         throw result.error;
@@ -92,10 +79,7 @@ export class RulesyncMcp extends RulesyncFile {
     return { success: true, error: null };
   }
 
-  static async fromFile({
-    validate = true,
-    modularMcp = false,
-  }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
+  static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
     const baseDir = process.cwd();
     const paths = this.getSettablePaths();
     const recommendedPath = join(
@@ -114,7 +98,6 @@ export class RulesyncMcp extends RulesyncFile {
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
         validate,
-        modularMcp,
       });
     }
 
@@ -130,7 +113,6 @@ export class RulesyncMcp extends RulesyncFile {
         relativeFilePath: paths.legacy.relativeFilePath,
         fileContent,
         validate,
-        modularMcp,
       });
     }
 
@@ -142,32 +124,15 @@ export class RulesyncMcp extends RulesyncFile {
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
       validate,
-      modularMcp,
     });
   }
 
-  getMcpServers({ type = "all" }: { type?: "all" | "exposed" | "modularized" } = {}): McpServers {
+  getMcpServers(): McpServers {
     const entries = Object.entries(this.json.mcpServers);
 
-    const filteredEntries = entries.filter(([, serverConfig]) => {
-      switch (type) {
-        case "all":
-          return true;
-        case "exposed":
-          return !this.modularMcp || serverConfig.exposed;
-        case "modularized":
-          return this.modularMcp && !serverConfig.exposed;
-      }
-    });
-
     return Object.fromEntries(
-      filteredEntries.map(([serverName, serverConfig]) => {
-        // description is required for modular-mcp servers, so keep it
-        const fieldsToOmit =
-          type === "modularized"
-            ? (["targets", "exposed"] as const)
-            : (["targets", "description", "exposed"] as const);
-        return [serverName, omit(serverConfig, fieldsToOmit)];
+      entries.map(([serverName, serverConfig]) => {
+        return [serverName, omit(serverConfig, ["targets", "description", "exposed"])];
       }),
     );
   }

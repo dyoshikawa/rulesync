@@ -24,7 +24,6 @@ A Node.js CLI tool that automatically generates configuration files for various 
 - [Each File Format](./each-file-format.md)
 - [Global Mode](./global-mode.md)
 - [Simulate Commands, Subagents and Skills](./simulate-commands-subagents-and-skills.md)
-- [Modular MCP (Deprecated)](./modular-mcp-deprecated.md)
 - [Official Skills](./official-skills.md)
 - [Rulesync MCP Server](./rulesync-mcp-server.md)
 - [FAQ](./faq.md)

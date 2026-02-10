@@ -10,7 +10,7 @@
       "Bash(pnpm publish:*)",
       "Bash(git commit --no-verify:*)"
     ],
-    "allow": ["mcp__serena", "mcp__modular-mcp"],
+    "allow": ["mcp__serena"],
     "defaultMode": "acceptEdits"
   },
   "statusLine": {

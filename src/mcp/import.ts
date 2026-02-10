@@ -19,7 +19,6 @@ import { type McpResultCounts } from "./types.js";
  * - configPath: Always use default path from process.cwd()
  * - delete: Not applicable to import
  * - simulateCommands/simulateSubagents/simulateSkills: Not applicable to import
- * - modularMcp: Not applicable to import
  */
 export const importOptionsSchema = z.object({
   target: z.string(),

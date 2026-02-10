@@ -88,9 +88,6 @@
     "simulateSkills": {
       "type": "boolean"
     },
-    "modularMcp": {
-      "type": "boolean"
-    },
     "dryRun": {
       "type": "boolean"
     },

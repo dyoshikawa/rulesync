@@ -28,7 +28,6 @@ export const ConfigParamsSchema = z.object({
   simulateCommands: optional(z.boolean()),
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
-  modularMcp: optional(z.boolean()),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
 });
@@ -72,7 +71,6 @@ export class Config {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
-  private readonly modularMcp: boolean;
   private readonly dryRun: boolean;
   private readonly check: boolean;
 
@@ -87,7 +85,6 @@ export class Config {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
-    modularMcp,
     dryRun,
     check,
   }: ConfigParams) {
@@ -110,7 +107,6 @@ export class Config {
     this.simulateCommands = simulateCommands ?? false;
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
-    this.modularMcp = modularMcp ?? false;
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
   }
@@ -226,10 +222,6 @@ export class Config {
 
   public getSimulateSkills(): boolean {
     return this.simulateSkills;
-  }
-
-  public getModularMcp(): boolean {
-    return this.modularMcp;
   }
 
   public getDryRun(): boolean {

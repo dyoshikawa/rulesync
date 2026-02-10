@@ -52,7 +52,6 @@ describe("generateCommand", () => {
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
-      getModularMcp: vi.fn().mockReturnValue(false),
       getDryRun: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
@@ -311,7 +310,6 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
-        modularMcp: false,
         dryRun: false,
       });
     });

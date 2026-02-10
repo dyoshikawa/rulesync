@@ -167,10 +167,6 @@ const main = async () => {
       "--simulate-skills",
       "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
     )
-    .option(
-      "--modular-mcp",
-      "Generate modular-mcp configuration for context compression (experimental)",
-    )
     .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
     .action(async (options) => {
@@ -187,7 +183,6 @@ const main = async () => {
           simulateCommands: options.simulateCommands,
           simulateSubagents: options.simulateSubagents,
           simulateSkills: options.simulateSkills,
-          modularMcp: options.modularMcp,
           dryRun: options.dryRun,
           check: options.check,
         });
