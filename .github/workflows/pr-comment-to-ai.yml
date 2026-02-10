@@ -41,7 +41,7 @@ jobs:
 
           gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments \
             -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent") | .url' | \
+            --jq '.[] | select(.user.login == "opencode-agent" || .user.login == "github-actions") | .url' | \
           while read -r COMMENT_URL; do
             if [ "$COMMENT_URL" != "$LATEST_URL" ]; then
               gh api --method PATCH "$COMMENT_URL" \
