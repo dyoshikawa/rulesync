@@ -3,20 +3,31 @@ import { z } from "zod/mini";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import type { ToolHooksForDeletionParams, ToolHooksFromRulesyncHooksParams } from "./tool-hooks.js";
+import type {
+  ToolHooksForDeletionParams,
+  ToolHooksFromFileParams,
+  ToolHooksFromRulesyncHooksParams,
+} from "./tool-hooks.js";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
-import { CLAUDE_HOOK_EVENTS, CURSOR_HOOK_EVENTS } from "../../types/hooks.js";
+import {
+  CLAUDE_HOOK_EVENTS,
+  CURSOR_HOOK_EVENTS,
+  OPENCODE_HOOK_EVENTS,
+  type HookEvent,
+  type HookType,
+} from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
-const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "factorydroid"] as const;
+const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "opencode", "factorydroid"] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -27,6 +38,7 @@ type ToolHooksFactory = {
     fromRulesyncHooks(
       params: ToolHooksFromRulesyncHooksParams & { global?: boolean },
     ): ToolHooks | Promise<ToolHooks>;
+    fromFile(params: ToolHooksFromFileParams): Promise<ToolHooks>;
     forDeletion(params: ToolHooksForDeletionParams): ToolHooks;
     getSettablePaths(options?: { global?: boolean }): {
       relativeDirPath: string;
@@ -34,7 +46,9 @@ type ToolHooksFactory = {
     };
     isDeletable?: (instance: ToolHooks) => boolean;
   };
-  meta: { supportsProject: boolean; supportsGlobal: boolean };
+  meta: { supportsProject: boolean; supportsGlobal: boolean; supportsImport: boolean };
+  supportedEvents: readonly HookEvent[];
+  supportedHookTypes: readonly HookType[];
 };
 
 const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
@@ -42,21 +56,36 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
     "cursor",
     {
       class: CursorHooks,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+      supportedEvents: CURSOR_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeHooks,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: CLAUDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
+    },
+  ],
+  [
+    "opencode",
+    {
+      class: OpencodeHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+      supportedEvents: OPENCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
     },
   ],
   [
     "factorydroid",
     {
       class: FactorydroidHooks,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: CLAUDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
     },
   ],
 ]);
@@ -64,6 +93,12 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
 const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.keys()];
 const hooksProcessorToolTargetsGlobal: ToolTarget[] = [...toolHooksFactories.entries()]
   .filter(([, f]) => f.meta.supportsGlobal)
+  .map(([t]) => t);
+const hooksProcessorToolTargetsImportable: ToolTarget[] = [...toolHooksFactories.entries()]
+  .filter(([, f]) => f.meta.supportsImport)
+  .map(([t]) => t);
+const hooksProcessorToolTargetsGlobalImportable: ToolTarget[] = [...toolHooksFactories.entries()]
+  .filter(([, f]) => f.meta.supportsGlobal && f.meta.supportsImport)
   .map(([t]) => t);
 
 export class HooksProcessor extends FeatureProcessor {
@@ -128,21 +163,11 @@ export class HooksProcessor extends FeatureProcessor {
         return list;
       }
 
-      const fromFile =
-        this.toolTarget === "cursor"
-          ? CursorHooks.fromFile({ baseDir: this.baseDir, validate: true })
-          : this.toolTarget === "factorydroid"
-            ? FactorydroidHooks.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-                global: this.global,
-              })
-            : ClaudecodeHooks.fromFile({
-                baseDir: this.baseDir,
-                validate: true,
-                global: this.global,
-              });
-      const toolHooks = await fromFile;
+      const toolHooks = await factory.class.fromFile({
+        baseDir: this.baseDir,
+        validate: true,
+        global: this.global,
+      });
       logger.info(`Successfully loaded 1 ${this.toolTarget} hooks file`);
       return [toolHooks];
     } catch (error) {
@@ -162,45 +187,54 @@ export class HooksProcessor extends FeatureProcessor {
       throw new Error(`No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} found.`);
     }
 
-    const config = rulesyncHooks.getJson();
-    const supportedSet = new Set(
-      this.toolTarget === "cursor" ? CURSOR_HOOK_EVENTS : CLAUDE_HOOK_EVENTS,
-    );
-    const configEventNames = new Set<string>([
-      ...Object.keys(config.hooks),
-      ...(this.toolTarget === "cursor"
-        ? Object.keys(config.cursor?.hooks ?? {})
-        : Object.keys(config.claudecode?.hooks ?? {})),
-    ]);
-    const skipped = [...configEventNames].filter((e) => !supportedSet.has(e));
-    if (skipped.length > 0) {
-      logger.warn(
-        `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
-      );
-    }
-
     const factory = toolHooksFactories.get(this.toolTarget);
     if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-    const toolHooks =
-      this.toolTarget === "cursor"
-        ? CursorHooks.fromRulesyncHooks({
-            baseDir: this.baseDir,
-            rulesyncHooks,
-            validate: true,
-          })
-        : this.toolTarget === "factorydroid"
-          ? await FactorydroidHooks.fromRulesyncHooks({
-              baseDir: this.baseDir,
-              rulesyncHooks,
-              validate: true,
-              global: this.global,
-            })
-          : await ClaudecodeHooks.fromRulesyncHooks({
-              baseDir: this.baseDir,
-              rulesyncHooks,
-              validate: true,
-              global: this.global,
-            });
+
+    const config = rulesyncHooks.getJson();
+    const sharedHooks = config.hooks;
+    const overrideHooks = config[this.toolTarget]?.hooks ?? {};
+    const effectiveHooks = { ...sharedHooks, ...overrideHooks };
+
+    // Warn about unsupported events
+    {
+      const supportedEvents: Set<string> = new Set(factory.supportedEvents);
+      const configEventNames = new Set<string>(Object.keys(effectiveHooks));
+      const skipped = [...configEventNames].filter((e) => !supportedEvents.has(e));
+      if (skipped.length > 0) {
+        logger.warn(
+          `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
+        );
+      }
+    }
+
+    // Warn about unsupported hook types
+    {
+      const supportedHookTypes: Set<string> = new Set(factory.supportedHookTypes);
+      const unsupportedTypeToEvents = new Map<string, Set<string>>();
+      for (const [event, defs] of Object.entries(effectiveHooks)) {
+        for (const def of defs) {
+          const hookType = def.type ?? "command";
+          if (!supportedHookTypes.has(hookType)) {
+            const events = unsupportedTypeToEvents.get(hookType) ?? new Set<string>();
+            events.add(event);
+            unsupportedTypeToEvents.set(hookType, events);
+          }
+        }
+      }
+
+      for (const [hookType, events] of unsupportedTypeToEvents) {
+        logger.warn(
+          `Skipped ${hookType}-type hook(s) for ${this.toolTarget} (not supported): ${Array.from(events).join(", ")}`,
+        );
+      }
+    }
+
+    const toolHooks = await factory.class.fromRulesyncHooks({
+      baseDir: this.baseDir,
+      rulesyncHooks,
+      validate: true,
+      global: this.global,
+    });
     return [toolHooks];
   }
 
@@ -209,7 +243,15 @@ export class HooksProcessor extends FeatureProcessor {
     return hooks.map((h) => h.toRulesyncHooks());
   }
 
-  static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
-    return global ? hooksProcessorToolTargetsGlobal : hooksProcessorToolTargets;
+  static getToolTargets({
+    global = false,
+    importOnly = false,
+  }: { global?: boolean; importOnly?: boolean } = {}): ToolTarget[] {
+    if (global) {
+      return importOnly
+        ? hooksProcessorToolTargetsGlobalImportable
+        : hooksProcessorToolTargetsGlobal;
+    }
+    return importOnly ? hooksProcessorToolTargetsImportable : hooksProcessorToolTargets;
   }
 }

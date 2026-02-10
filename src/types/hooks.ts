@@ -15,8 +15,40 @@ export const HookDefinitionSchema = z.object({
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
 
-/** Shared hook events supported by both Cursor and Claude. */
-export const COMMON_HOOK_EVENTS = [
+/** All canonical hook types. */
+export type HookType = "command" | "prompt";
+
+/**
+ * All canonical hook event names.
+ * Each tool supports a subset of these events.
+ */
+export type HookEvent =
+  | "sessionStart"
+  | "sessionEnd"
+  | "preToolUse"
+  | "postToolUse"
+  | "beforeSubmitPrompt"
+  | "stop"
+  | "subagentStop"
+  | "preCompact"
+  | "postToolUseFailure"
+  | "subagentStart"
+  | "beforeShellExecution"
+  | "afterShellExecution"
+  | "beforeMCPExecution"
+  | "afterMCPExecution"
+  | "beforeReadFile"
+  | "afterFileEdit"
+  | "afterAgentResponse"
+  | "afterAgentThought"
+  | "beforeTabFileRead"
+  | "afterTabFileEdit"
+  | "permissionRequest"
+  | "notification"
+  | "setup";
+
+/** Hook events supported by Cursor. */
+export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
   "preToolUse",
@@ -25,10 +57,6 @@ export const COMMON_HOOK_EVENTS = [
   "stop",
   "subagentStop",
   "preCompact",
-] as const;
-
-/** Cursor-only hook events (not supported by Claude). */
-export const CURSOR_ONLY_HOOK_EVENTS = [
   "postToolUseFailure",
   "subagentStart",
   "beforeShellExecution",
@@ -41,21 +69,32 @@ export const CURSOR_ONLY_HOOK_EVENTS = [
   "afterAgentThought",
   "beforeTabFileRead",
   "afterTabFileEdit",
-] as const;
-
-/** Claude-only hook events (not supported by Cursor). */
-export const CLAUDE_ONLY_HOOK_EVENTS = ["permissionRequest", "notification", "setup"] as const;
-
-/** All hook events supported by Cursor (common + cursor-only). */
-export const CURSOR_HOOK_EVENTS: readonly string[] = [
-  ...COMMON_HOOK_EVENTS,
-  ...CURSOR_ONLY_HOOK_EVENTS,
 ];
 
-/** All hook events supported by Claude (common + claude-only). */
-export const CLAUDE_HOOK_EVENTS: readonly string[] = [
-  ...COMMON_HOOK_EVENTS,
-  ...CLAUDE_ONLY_HOOK_EVENTS,
+/** Hook events supported by Claude Code. */
+export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+  "subagentStop",
+  "preCompact",
+  "permissionRequest",
+  "notification",
+  "setup",
+];
+
+/** Hook events supported by OpenCode. */
+export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+  "afterFileEdit",
+  "afterShellExecution",
+  "permissionRequest",
 ];
 
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
@@ -68,6 +107,8 @@ export const HooksConfigSchema = z.object({
   hooks: hooksRecordSchema,
   cursor: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
+  opencode: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
+  factorydroid: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -96,3 +137,17 @@ export const CURSOR_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
 export const CLAUDE_TO_CURSOR_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CURSOR_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
+
+/**
+ * Map canonical (Cursor) camelCase event names to OpenCode dot-notation.
+ * Only includes events that have a meaningful OpenCode plugin equivalent.
+ */
+export const CURSOR_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session.created",
+  preToolUse: "tool.execute.before",
+  postToolUse: "tool.execute.after",
+  stop: "session.idle",
+  afterFileEdit: "file.edited",
+  afterShellExecution: "command.executed",
+  permissionRequest: "permission.asked",
+};

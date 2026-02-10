@@ -26,7 +26,7 @@ import {
  * then converts to PascalCase and Claude matcher/hooks structure.
  */
 function canonicalToClaudeHooks(config: HooksConfig): Record<string, unknown[]> {
-  const claudeSupported = new Set(CLAUDE_HOOK_EVENTS);
+  const claudeSupported: Set<string> = new Set(CLAUDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
     if (claudeSupported.has(event)) {

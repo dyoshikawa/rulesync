@@ -27,7 +27,7 @@ import {
  * $CLAUDE_PROJECT_DIR.
  */
 function canonicalToFactorydroidHooks(config: HooksConfig): Record<string, unknown[]> {
-  const supported = new Set(CLAUDE_HOOK_EVENTS);
+  const supported: Set<string> = new Set(CLAUDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
     if (supported.has(event)) {

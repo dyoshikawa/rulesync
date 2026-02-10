@@ -275,9 +275,15 @@ async function importHooksCore(params: { config: Config; tool: ToolTarget }): Pr
   }
 
   const global = config.getGlobal();
-  const supportedTargets = HooksProcessor.getToolTargets({ global });
+  const allTargets = HooksProcessor.getToolTargets({ global });
+  const importableTargets = HooksProcessor.getToolTargets({ global, importOnly: true });
 
-  if (!supportedTargets.includes(tool)) {
+  if (!allTargets.includes(tool)) {
+    return 0;
+  }
+
+  if (!importableTargets.includes(tool)) {
+    logger.warn(`Import is not supported for ${tool} hooks. Skipping.`);
     return 0;
   }
 
