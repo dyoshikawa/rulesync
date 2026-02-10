@@ -27,6 +27,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Hide outdated opencode-agent comments
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          COMMENTS=$(gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[].url' | grep '/comments/')
+
+          LATEST_URL=$(echo "$COMMENTS" | tail -n 1)
+
+          gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[] | select(.user.login == "opencode-agent") | .url' | \
+          while read -r COMMENT_URL; do
+            if [ "$COMMENT_URL" != "$LATEST_URL" ]; then
+              gh api --method PATCH "$COMMENT_URL" \
+                -H "Accept: application/vnd.github+json" \
+                -f state='OUTDATED'
+            fi
+          done
+
       - name: Configure git
         run: |
           git config user.name dyoshikawa

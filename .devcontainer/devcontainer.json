@@ -47,7 +47,8 @@
     "OPENAI_API_KEY": "${localEnv:DEVCONTAINER_OPENAI_API_KEY}",
     "GEMINI_API_KEY": "${localEnv:DEVCONTAINER_GEMINI_API_KEY}",
     "OPENROUTER_API_KEY": "${localEnv:DEVCONTAINER_OPENROUTER_API_KEY}",
-    "ZHIPU_API_KEY": "${localEnv:DEVCONTAINER_ZAI_API_KEY}"
+    "ZHIPU_API_KEY": "${localEnv:DEVCONTAINER_ZAI_API_KEY}",
+    "OPENCODE_API_KEY": "${localEnv:DEVCONTAINER_OPENCODE_API_KEY}"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
