@@ -31,15 +31,14 @@ function escapeForTemplateLiteral(command: string): string {
 
 /**
  * Validate and sanitize a matcher string for use in generated JS code.
- * - Strips newline, carriage-return, and NUL bytes
+ * - Strips newline, carriage-return, and NUL bytes (defense-in-depth:
+ *   the Zod `safeString` schema rejects these at input validation time,
+ *   but this function provides a runtime safety net for `validate: false` paths)
  * - Validates the result is a legal RegExp
  * - Escapes for embedding inside a JS double-quoted string (`new RegExp("...")`)
  */
 function validateAndSanitizeMatcher(matcher: string): string {
-  const sanitized = matcher
-    .split("")
-    .filter((c) => c !== "\n" && c !== "\r" && c !== "\0")
-    .join("");
+  const sanitized = matcher.replaceAll("\n", "").replaceAll("\r", "").replaceAll("\0", "");
   try {
     new RegExp(sanitized);
   } catch {

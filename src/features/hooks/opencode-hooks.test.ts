@@ -352,6 +352,34 @@ describe("OpencodeHooks", () => {
       expect(content).not.toMatch(/Edit\r/);
     });
 
+    it("should escape double quotes in matcher", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: 'Write"||true||"' }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      // Double quotes should be escaped in the RegExp string
+      expect(content).toContain('new RegExp("Write\\"||true||\\"")');
+      // Should not contain unescaped double quotes that would break the JS string
+      expect(content).not.toContain('new RegExp("Write"');
+    });
+
     it("should escape backticks in commands", () => {
       const config = {
         version: 1,
