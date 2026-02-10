@@ -236,6 +236,12 @@ bun.lock
 **/.codex/subagents/
 **/.cursor/
 **/.cursorignore
+**/.factory/rules/
+**/.factory/commands/
+**/.factory/droids/
+**/.factory/skills/
+**/.factory/mcp.json
+**/.factory/settings.json
 **/GEMINI.md
 **/.gemini/memories/
 **/.gemini/commands/
@@ -265,6 +271,7 @@ bun.lock
 **/.opencode/command/
 **/.opencode/agent/
 **/.opencode/skill/
+**/.opencode/plugins/
 **/QWEN.md
 **/.qwen/memories/
 **/replit.md

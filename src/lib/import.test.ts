@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import { logger } from "../utils/logger.js";
 import { importFromTool } from "./import.js";
 
 vi.mock("../features/rules/rules-processor.js");
@@ -14,6 +16,16 @@ vi.mock("../features/mcp/mcp-processor.js");
 vi.mock("../features/subagents/subagents-processor.js");
 vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/skills/skills-processor.js");
+vi.mock("../features/hooks/hooks-processor.js");
+vi.mock("../utils/logger.js", () => ({
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    success: vi.fn(),
+  },
+}));
 
 describe("importFromTool", () => {
   let mockConfig: {
@@ -39,6 +51,7 @@ describe("importFromTool", () => {
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
     const createMockProcessor = () => ({
       loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
@@ -69,6 +82,9 @@ describe("importFromTool", () => {
     });
     vi.mocked(SkillsProcessor).mockImplementation(function () {
       return createMockSkillsProcessor() as unknown as SkillsProcessor;
+    });
+    vi.mocked(HooksProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as HooksProcessor;
     });
   });
 
@@ -417,6 +433,48 @@ describe("importFromTool", () => {
 
       expect(result.skillsCount).toBe(0);
       expect(mockProcessor.convertToolDirsToRulesyncDirs).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("hooks feature", () => {
+    it("should warn and return 0 when tool is not importable (e.g. opencode)", async () => {
+      mockConfig.getFeatures.mockReturnValue(["hooks"]);
+      // opencode is in allTargets but not in importableTargets
+      vi.mocked(HooksProcessor.getToolTargets).mockImplementation((opts) => {
+        if (opts && "importOnly" in opts && opts.importOnly) {
+          return ["cursor", "claudecode"];
+        }
+        return ["cursor", "claudecode", "opencode"];
+      });
+
+      const result = await importFromTool({ config: mockConfig as never, tool: "opencode" });
+
+      expect(result.hooksCount).toBe(0);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Import is not supported for opencode hooks"),
+      );
+    });
+
+    it("should import hooks when feature is enabled and tool is importable", async () => {
+      mockConfig.getFeatures.mockReturnValue(["hooks"]);
+      vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+
+      expect(result.hooksCount).toBe(1);
+      expect(HooksProcessor).toHaveBeenCalledWith({
+        baseDir: ".",
+        toolTarget: "claudecode",
+        global: false,
+      });
+    });
+
+    it("should return 0 hooks when feature is not enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue([]);
+
+      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+
+      expect(result.hooksCount).toBe(0);
     });
   });
 

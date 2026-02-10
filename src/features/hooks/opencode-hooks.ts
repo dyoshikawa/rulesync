@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
-import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -28,6 +27,25 @@ const NAMED_HOOKS = new Set(["tool.execute.before", "tool.execute.after"]);
  */
 function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+}
+
+/**
+ * Validate and sanitize a matcher string for use in a generated JS regex literal.
+ * - Strips newline, carriage-return, and NUL bytes
+ * - Validates the result is a legal RegExp
+ * - Escapes forward slashes for embedding in `/.../`
+ */
+function validateAndSanitizeMatcher(matcher: string): string {
+  const sanitized = matcher
+    .split("")
+    .filter((c) => c !== "\n" && c !== "\r" && c !== "\0")
+    .join("");
+  try {
+    new RegExp(sanitized);
+  } catch {
+    throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
+  }
+  return sanitized.replace(/\//g, "\\/");
 }
 
 type OpencodeHandler = {
@@ -123,7 +141,7 @@ function generatePluginCode(config: HooksConfig): string {
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
       if (handler.matcher) {
-        const safeMatcher = handler.matcher.replace(/\//g, "\\/");
+        const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
         lines.push(`      if (/${safeMatcher}/.test(input.tool)) {`);
         lines.push(`        await $\`${escapedCommand}\``);
         lines.push("      }");

@@ -252,6 +252,7 @@ dist/`;
 **/.opencode/command/
 **/.opencode/agent/
 **/.opencode/skill/
+**/.opencode/plugins/
 **/QWEN.md
 **/.qwen/memories/
 **/replit.md

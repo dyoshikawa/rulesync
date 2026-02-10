@@ -85,6 +85,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.opencode/command/",
   "**/.opencode/agent/",
   "**/.opencode/skill/",
+  "**/.opencode/plugins/",
   // Qwen
   "**/QWEN.md",
   "**/.qwen/memories/",
