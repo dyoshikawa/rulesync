@@ -745,6 +745,8 @@ describe("fetchFiles", () => {
   describe("parallel fetching behavior", () => {
     it("should fetch multiple files concurrently", async () => {
       const callOrder: string[] = [];
+      const resolvers = new Map<string, () => void>();
+      let getFileContentCallCount = 0;
 
       mockClientInstance.listDirectory.mockImplementation(
         (_owner: string, _repo: string, path: string) => {
@@ -784,30 +786,42 @@ describe("fetchFiles", () => {
 
       mockClientInstance.getFileContent.mockImplementation(
         (_owner: string, _repo: string, path: string) => {
+          getFileContentCallCount++;
           callOrder.push(`start:${path}`);
           return new Promise((resolve) => {
-            setTimeout(() => {
+            resolvers.set(path, () => {
               callOrder.push(`end:${path}`);
               resolve(`content of ${path}`);
-            }, 10);
+            });
           });
         },
       );
 
-      const result = await fetchFiles({
+      const resultPromise = fetchFiles({
         source: "owner/repo",
         options: { features: ["rules"] },
         baseDir: testDir,
       });
 
+      // Wait for all 3 getFileContent calls to be made
+      await vi.waitFor(() => {
+        expect(getFileContentCallCount).toBe(3);
+      });
+
+      // At this point, all 3 fetches should have started
+      const starts = callOrder.filter((e) => e.startsWith("start:"));
+      expect(starts.length).toBe(3);
+
+      // Verify no fetches have completed yet
+      const firstEnd = callOrder.findIndex((e) => e.startsWith("end:"));
+      expect(firstEnd).toBe(-1);
+
+      // Now resolve all the promises
+      resolvers.forEach((resolve) => resolve());
+
+      const result = await resultPromise;
       expect(result.files).toHaveLength(3);
       expect(result.created).toBe(3);
-
-      // All fetches should start before any finishes (concurrent execution)
-      const starts = callOrder.filter((e) => e.startsWith("start:"));
-      const firstEnd = callOrder.findIndex((e) => e.startsWith("end:"));
-      expect(starts.length).toBeGreaterThanOrEqual(2);
-      expect(firstEnd).toBeGreaterThanOrEqual(2);
     });
 
     it("should propagate errors from parallel fetches correctly", async () => {
@@ -1238,6 +1252,144 @@ Review the current changes and provide feedback.
     expect(summary.source).toBe("owner/repo");
     // Both features should be processed
     expect(summary.files).toBeDefined();
+  });
+
+  it("should cache directory listing API calls for file-based features with same basePath", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === ".") {
+          return Promise.resolve([
+            {
+              name: ".aiignore",
+              path: ".aiignore",
+              type: "file",
+              sha: "abc",
+              size: 50,
+              download_url: "https://example.com",
+            },
+            {
+              name: "mcp.json",
+              path: "mcp.json",
+              type: "file",
+              sha: "def",
+              size: 100,
+              download_url: "https://example.com",
+            },
+            {
+              name: "hooks.json",
+              path: "hooks.json",
+              type: "file",
+              sha: "ghi",
+              size: 75,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        switch (path) {
+          case ".aiignore":
+            return Promise.resolve("node_modules/\ndist/");
+          case "mcp.json":
+            return Promise.resolve('{"mcpServers": {}}');
+          case "hooks.json":
+            return Promise.resolve('{"pre-commit": []}');
+          default:
+            return Promise.resolve("");
+        }
+      },
+    );
+
+    const summary = await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["ignore", "mcp", "hooks"] },
+      baseDir: testDir,
+    });
+
+    // Verify all files were fetched
+    expect(summary.created).toBe(3);
+    expect(summary.files).toHaveLength(3);
+
+    // Verify listDirectory was called only once for the shared basePath
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledTimes(1);
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith("owner", "repo", ".", "main");
+  });
+
+  it("should make separate API calls for features with different base paths", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === ".") {
+          return Promise.resolve([
+            {
+              name: "mcp.json",
+              path: "mcp.json",
+              type: "file",
+              sha: "abc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "subdir") {
+          return Promise.resolve([
+            {
+              name: ".aiignore",
+              path: "subdir/.aiignore",
+              type: "file",
+              sha: "def",
+              size: 50,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        switch (path) {
+          case "mcp.json":
+            return Promise.resolve('{"mcpServers": {}}');
+          case "subdir/.aiignore":
+            return Promise.resolve("node_modules/");
+          default:
+            return Promise.resolve("");
+        }
+      },
+    );
+
+    // First fetch from root
+    await fetchFiles({
+      source: "owner/repo",
+      options: { features: ["mcp"] },
+      baseDir: testDir,
+    });
+
+    // Second fetch from subdir
+    await fetchFiles({
+      source: "owner/repo:subdir",
+      options: { features: ["ignore"] },
+      baseDir: testDir,
+    });
+
+    // Verify separate API calls were made for different base paths
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith("owner", "repo", ".", "main");
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      "subdir",
+      "main",
+    );
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledTimes(2);
   });
 });
 

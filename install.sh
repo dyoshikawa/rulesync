@@ -129,7 +129,8 @@ get_latest_version() {
     if [ "$HTTP_CLIENT" = "curl" ]; then
         redirect_url=$(curl -fsSL --max-redirs 5 -o /dev/null -w "%{url_effective}" "https://github.com/$GITHUB_REPO/releases/latest")
     else
-        redirect_url=$(wget --max-redirect=5 -qO /dev/null --server-response "https://github.com/$GITHUB_REPO/releases/latest" 2>&1 | grep -i "Location:" | tail -1 | awk '{print $2}' | tr -d '\r')
+        # Use wget --spider to detect redirect without downloading content
+        redirect_url=$(wget --max-redirect=5 --spider --server-response "https://github.com/$GITHUB_REPO/releases/latest" 2>&1 | grep -i "Location:" | tail -1 | awk '{print $2}' | tr -d '\r')
     fi
 
     version="${redirect_url##*/}"
@@ -179,7 +180,7 @@ verify_checksum() {
 # This is intentional since we want to show PATH instructions for the user's default shell.
 get_shell_config() {
     local shell_name
-    shell_name="$(basename "$SHELL")"
+    shell_name="$(basename "${SHELL:-/bin/sh}")"
 
     case "$shell_name" in
         bash)
@@ -207,7 +208,7 @@ get_shell_config() {
 print_path_instructions() {
     local shell_name
     local shell_config
-    shell_name="$(basename "$SHELL")"
+    shell_name="$(basename "${SHELL:-/bin/sh}")"
     shell_config="$(get_shell_config)"
 
     echo ""

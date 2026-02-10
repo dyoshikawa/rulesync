@@ -108,6 +108,7 @@ export const HooksConfigSchema = z.object({
   cursor: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
+  factorydroid: z.optional(z.object({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;

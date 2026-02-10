@@ -41,7 +41,7 @@ Body content`;
     it("should return correct paths for factorydroid commands", () => {
       const paths = FactorydroidCommand.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".factorydroid/commands",
+        relativeDirPath: ".factory/commands",
       });
     });
   });
@@ -78,7 +78,7 @@ Body content`;
 
   describe("fromFile", () => {
     it("should load FactorydroidCommand from file", async () => {
-      const commandsDir = join(testDir, ".factorydroid", "commands");
+      const commandsDir = join(testDir, ".factory", "commands");
       const filePath = join(commandsDir, "test-file-command.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -109,7 +109,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const commandsDir = join(testDir, ".factorydroid", "commands");
+      const commandsDir = join(testDir, ".factory", "commands");
       const filePath = join(commandsDir, "invalid-command.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -169,7 +169,7 @@ Body content`;
     it("should create deletion marker", () => {
       const command = FactorydroidCommand.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/commands",
+        relativeDirPath: ".factory/commands",
         relativeFilePath: "to-delete.md",
       });
 

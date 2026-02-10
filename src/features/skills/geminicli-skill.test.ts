@@ -5,7 +5,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { GeminiCliSkill } from "./geminicli-skill.js";
+import { GeminiCliSkill, GeminiCliSkillFrontmatterSchema } from "./geminicli-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 describe("GeminiCliSkill", () => {
@@ -30,10 +30,9 @@ describe("GeminiCliSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".gemini", "skills"));
     });
 
-    it("should throw error when global is true", () => {
-      expect(() => GeminiCliSkill.getSettablePaths({ global: true })).toThrow(
-        "GeminiCliSkill does not support global mode.",
-      );
+    it("should return the same path in global mode", () => {
+      const paths = GeminiCliSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".gemini", "skills"));
     });
   });
 
@@ -95,6 +94,46 @@ This is the body of the gemini cli skill.`;
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
+    });
+
+    it("should throw error when frontmatter is invalid", async () => {
+      const skillDir = join(testDir, ".gemini", "skills", "bad-frontmatter");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: 123
+---
+
+Body content`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      await expect(
+        GeminiCliSkill.fromDir({
+          baseDir: testDir,
+          dirName: "bad-frontmatter",
+        }),
+      ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
+    it("should create instance from directory in global mode", async () => {
+      const skillDir = join(testDir, ".gemini", "skills", "global-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Global Skill
+description: A global skill
+---
+
+Global body content`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await GeminiCliSkill.fromDir({
+        baseDir: testDir,
+        dirName: "global-skill",
+        global: true,
+      });
+
+      expect(skill).toBeInstanceOf(GeminiCliSkill);
+      expect(skill.getGlobal()).toBe(true);
+      expect(skill.getBody()).toBe("Global body content");
     });
   });
 
@@ -180,7 +219,7 @@ This is the body of the gemini cli skill.`;
   });
 
   describe("toRulesyncSkill", () => {
-    it("should throw error because GeminiCliSkill is simulated", () => {
+    it("should convert to RulesyncSkill with correct frontmatter", () => {
       const skill = new GeminiCliSkill({
         baseDir: testDir,
         relativeDirPath: join(".gemini", "skills"),
@@ -193,9 +232,93 @@ This is the body of the gemini cli skill.`;
         validate: true,
       });
 
-      expect(() => skill.toRulesyncSkill()).toThrow(
-        "Not implemented because it is a SIMULATED skill.",
-      );
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill).toBeInstanceOf(RulesyncSkill);
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test description",
+        targets: ["*"],
+      });
+      expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+  });
+
+  describe("global mode", () => {
+    it("should support global mode in constructor", () => {
+      const skill = new GeminiCliSkill({
+        dirName: "global-skill",
+        frontmatter: {
+          name: "Global Skill",
+          description: "A global skill",
+        },
+        body: "Global body",
+        global: true,
+      });
+
+      expect(skill.getGlobal()).toBe(true);
+    });
+
+    it("should convert from RulesyncSkill in global mode", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "global-skill",
+        frontmatter: {
+          name: "Global Skill",
+          description: "A globally available skill",
+          targets: ["geminicli"],
+        },
+        body: "Global content",
+      });
+
+      const geminiSkill = GeminiCliSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: true,
+      });
+
+      expect(geminiSkill.getGlobal()).toBe(true);
+      expect(geminiSkill.getRelativeDirPath()).toBe(join(".gemini", "skills"));
+    });
+
+    it("should support global deletion", () => {
+      const skill = GeminiCliSkill.forDeletion({
+        dirName: "cleanup",
+        relativeDirPath: join(".gemini", "skills"),
+        global: true,
+      });
+
+      expect(skill.getGlobal()).toBe(true);
+    });
+  });
+
+  describe("schema", () => {
+    it("should accept valid frontmatter", () => {
+      const result = GeminiCliSkillFrontmatterSchema.safeParse({
+        name: "skill-name",
+        description: "Skill description",
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject invalid frontmatter", () => {
+      const result = GeminiCliSkillFrontmatterSchema.safeParse({ name: 123, description: true });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create minimal instance for deletion", () => {
+      const skill = GeminiCliSkill.forDeletion({
+        dirName: "cleanup",
+        relativeDirPath: join(".gemini", "skills"),
+      });
+
+      expect(skill.getDirName()).toBe("cleanup");
+      expect(skill.getRelativeDirPath()).toBe(join(".gemini", "skills"));
+      expect(skill.getGlobal()).toBe(false);
     });
   });
 });

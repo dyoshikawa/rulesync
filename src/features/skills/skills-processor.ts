@@ -152,7 +152,7 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "geminicli",
     {
       class: GeminiCliSkill,
-      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

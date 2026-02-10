@@ -22,11 +22,12 @@ import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
+import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
-const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "opencode"] as const;
+const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "opencode", "factorydroid"] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -76,6 +77,15 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+    },
+  ],
+  [
+    "factorydroid",
+    {
+      class: FactorydroidHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: CLAUDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
     },
   ],
 ]);

@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
@@ -16,15 +17,14 @@ export type FactorydroidRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-export type FactorydroidRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+export type FactorydroidRuleSettablePaths = ToolRuleSettablePaths & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRoot: {
-    relativeDirPath: string;
-  };
 };
+
+export type FactorydroidRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 export class FactorydroidRule extends ToolRule {
   constructor({ fileContent, root, ...rest }: FactorydroidRuleParams) {
@@ -35,28 +35,28 @@ export class FactorydroidRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(options?: {
+  static getSettablePaths({
+    global,
+    excludeToolDir,
+  }: {
     global?: boolean;
     excludeToolDir?: boolean;
-  }): FactorydroidRuleSettablePaths {
-    if (options?.global) {
+  } = {}): FactorydroidRuleSettablePaths | FactorydroidRuleSettablePathsGlobal {
+    if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".factorydroid", ".", options.excludeToolDir),
+          relativeDirPath: buildToolPath(".factory", ".", excludeToolDir),
           relativeFilePath: "AGENTS.md",
-        },
-        nonRoot: {
-          relativeDirPath: buildToolPath(".factorydroid", "memories", options.excludeToolDir),
         },
       };
     }
     return {
       root: {
-        relativeDirPath: buildToolPath(".factorydroid", ".", options?.excludeToolDir),
+        relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".factorydroid", "memories", options?.excludeToolDir),
+        relativeDirPath: buildToolPath(".factory", "rules", excludeToolDir),
       },
     };
   }
@@ -69,20 +69,34 @@ export class FactorydroidRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<FactorydroidRule> {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
-    const relativePath = isRoot
-      ? join(paths.root.relativeDirPath, paths.root.relativeFilePath)
-      : join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
 
+    if (isRoot) {
+      const relativePath = join(paths.root.relativeDirPath, paths.root.relativeFilePath);
+      const fileContent = await readFileContent(join(baseDir, relativePath));
+
+      return new FactorydroidRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error("nonRoot path is not set");
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new FactorydroidRule({
       baseDir,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? paths.root.relativeFilePath : relativeFilePath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: false,
     });
   }
 
@@ -94,7 +108,8 @@ export class FactorydroidRule extends ToolRule {
   }: ToolRuleForDeletionParams): FactorydroidRule {
     const paths = this.getSettablePaths({ global });
     const isRoot =
-      relativeFilePath === "AGENTS.md" && relativeDirPath === paths.root.relativeDirPath;
+      relativeFilePath === paths.root.relativeFilePath &&
+      relativeDirPath === paths.root.relativeDirPath;
 
     return new FactorydroidRule({
       baseDir,

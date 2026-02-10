@@ -32,14 +32,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     silent: config.getSilent(),
   });
 
-  const dryRun = config.getDryRun();
   const check = config.getCheck();
-
-  // Validate --dry-run and --check are mutually exclusive
-  if (dryRun && check) {
-    logger.error("❌ --dry-run and --check cannot be used together");
-    process.exit(1);
-  }
 
   const isPreview = config.isPreviewMode();
   const modePrefix = isPreview ? "[DRY RUN]" : "";

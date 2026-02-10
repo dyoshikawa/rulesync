@@ -13,7 +13,7 @@ import {
 export class FactorydroidSubagent extends SimulatedSubagent {
   static getSettablePaths(_options?: { global?: boolean }): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".factorydroid", "droids"),
+      relativeDirPath: join(".factory", "droids"),
     };
   }
 

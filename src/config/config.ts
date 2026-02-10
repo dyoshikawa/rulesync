@@ -94,6 +94,11 @@ export class Config {
     // Validate conflicting targets
     this.validateConflictingTargets(targets);
 
+    // Validate --dry-run and --check are mutually exclusive
+    if (dryRun && check) {
+      throw new Error("--dry-run and --check cannot be used together");
+    }
+
     this.baseDirs = baseDirs;
     this.targets = targets;
     this.features = features;
