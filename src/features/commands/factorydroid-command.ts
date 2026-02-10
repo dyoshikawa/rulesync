@@ -15,7 +15,7 @@ import {
 export class FactorydroidCommand extends SimulatedCommand {
   static getSettablePaths(_options?: { global?: boolean }): ToolCommandSettablePaths {
     return {
-      relativeDirPath: join(".factorydroid", "commands"),
+      relativeDirPath: join(".factory", "commands"),
     };
   }
 

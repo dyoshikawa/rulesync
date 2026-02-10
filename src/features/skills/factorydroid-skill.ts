@@ -12,12 +12,12 @@ import {
 /**
  * Represents a simulated skill for Factory Droid.
  * Since Factory Droid uses AGENTS.md format, this provides
- * a compatible skill directory format at .factorydroid/skills/.
+ * a compatible skill directory format at .factory/skills/.
  */
 export class FactorydroidSkill extends SimulatedSkill {
   static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
     return {
-      relativeDirPath: join(".factorydroid", "skills"),
+      relativeDirPath: join(".factory", "skills"),
     };
   }
 

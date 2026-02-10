@@ -45,7 +45,7 @@ Body content`;
     it("should return correct paths for factorydroid subagents", () => {
       const paths = FactorydroidSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
       });
     });
   });
@@ -54,7 +54,7 @@ Body content`;
     it("should create instance with valid markdown content", () => {
       const subagent = new FactorydroidSubagent({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
         relativeFilePath: "test-droid.md",
         frontmatter: {
           name: "Test Factorydroid Droid",
@@ -79,7 +79,7 @@ Body content`;
         () =>
           new FactorydroidSubagent({
             baseDir: testDir,
-            relativeDirPath: ".factorydroid/droids",
+            relativeDirPath: ".factory/droids",
             relativeFilePath: "invalid-droid.md",
             frontmatter: {
               // Missing required fields
@@ -95,7 +95,7 @@ Body content`;
     it("should throw error as it is a simulated file", () => {
       const subagent = new FactorydroidSubagent({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
         relativeFilePath: "test-droid.md",
         frontmatter: {
           name: "Test Droid",
@@ -128,7 +128,7 @@ Body content`;
 
       const factorydroidSubagent = FactorydroidSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
         rulesyncSubagent,
         validate: true,
       }) as FactorydroidSubagent;
@@ -140,13 +140,13 @@ Body content`;
         description: "Test description from rulesync",
       });
       expect(factorydroidSubagent.getRelativeFilePath()).toBe("test-droid.md");
-      expect(factorydroidSubagent.getRelativeDirPath()).toBe(".factorydroid/droids");
+      expect(factorydroidSubagent.getRelativeDirPath()).toBe(".factory/droids");
     });
   });
 
   describe("fromFile", () => {
     it("should load FactorydroidSubagent from file", async () => {
-      const droidsDir = join(testDir, ".factorydroid", "droids");
+      const droidsDir = join(testDir, ".factory", "droids");
       const filePath = join(droidsDir, "test-file-droid.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -179,7 +179,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const droidsDir = join(testDir, ".factorydroid", "droids");
+      const droidsDir = join(testDir, ".factory", "droids");
       const filePath = join(droidsDir, "invalid-droid.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -198,7 +198,7 @@ Body content`;
     it("should return success for valid frontmatter", () => {
       const subagent = new FactorydroidSubagent({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
         relativeFilePath: "valid-droid.md",
         frontmatter: {
           name: "Valid Droid",
@@ -256,7 +256,7 @@ Body content`;
     it("should create deletion marker", () => {
       const subagent = FactorydroidSubagent.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
         relativeFilePath: "to-delete.md",
       });
 
@@ -269,7 +269,7 @@ Body content`;
     it("should be assignable to ToolSubagent type", () => {
       const subagent = new FactorydroidSubagent({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/droids",
+        relativeDirPath: ".factory/droids",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",

@@ -12,10 +12,11 @@ import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
+import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
-const hooksProcessorToolTargetTuple = ["cursor", "claudecode"] as const;
+const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "factorydroid"] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -48,6 +49,13 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
     "claudecode",
     {
       class: ClaudecodeHooks,
+      meta: { supportsProject: true, supportsGlobal: true },
+    },
+  ],
+  [
+    "factorydroid",
+    {
+      class: FactorydroidHooks,
       meta: { supportsProject: true, supportsGlobal: true },
     },
   ],
@@ -123,11 +131,17 @@ export class HooksProcessor extends FeatureProcessor {
       const fromFile =
         this.toolTarget === "cursor"
           ? CursorHooks.fromFile({ baseDir: this.baseDir, validate: true })
-          : ClaudecodeHooks.fromFile({
-              baseDir: this.baseDir,
-              validate: true,
-              global: this.global,
-            });
+          : this.toolTarget === "factorydroid"
+            ? FactorydroidHooks.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+                global: this.global,
+              })
+            : ClaudecodeHooks.fromFile({
+                baseDir: this.baseDir,
+                validate: true,
+                global: this.global,
+              });
       const toolHooks = await fromFile;
       logger.info(`Successfully loaded 1 ${this.toolTarget} hooks file`);
       return [toolHooks];
@@ -174,12 +188,19 @@ export class HooksProcessor extends FeatureProcessor {
             rulesyncHooks,
             validate: true,
           })
-        : await ClaudecodeHooks.fromRulesyncHooks({
-            baseDir: this.baseDir,
-            rulesyncHooks,
-            validate: true,
-            global: this.global,
-          });
+        : this.toolTarget === "factorydroid"
+          ? await FactorydroidHooks.fromRulesyncHooks({
+              baseDir: this.baseDir,
+              rulesyncHooks,
+              validate: true,
+              global: this.global,
+            })
+          : await ClaudecodeHooks.fromRulesyncHooks({
+              baseDir: this.baseDir,
+              rulesyncHooks,
+              validate: true,
+              global: this.global,
+            });
     return [toolHooks];
   }
 

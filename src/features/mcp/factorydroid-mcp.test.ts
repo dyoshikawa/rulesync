@@ -35,7 +35,7 @@ describe("FactorydroidMcp", () => {
     it("should return correct paths for factorydroid mcp", () => {
       const paths = FactorydroidMcp.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
       });
     });
@@ -45,7 +45,7 @@ describe("FactorydroidMcp", () => {
     it("should create instance with valid MCP config", () => {
       const mcp = new FactorydroidMcp({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
         validate: true,
@@ -58,7 +58,7 @@ describe("FactorydroidMcp", () => {
     it("should handle empty MCP config", () => {
       const mcp = new FactorydroidMcp({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: "{}",
         validate: true,
@@ -110,7 +110,7 @@ describe("FactorydroidMcp", () => {
 
   describe("fromFile", () => {
     it("should load FactorydroidMcp from file", async () => {
-      const mcpFile = join(testDir, ".factorydroid", "mcp.json");
+      const mcpFile = join(testDir, ".factory", "mcp.json");
 
       await writeFileContent(mcpFile, JSON.stringify(validMcpConfig, null, 2));
 
@@ -137,7 +137,7 @@ describe("FactorydroidMcp", () => {
     it("should convert to RulesyncMcp", () => {
       const mcp = new FactorydroidMcp({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
         validate: true,
@@ -154,7 +154,7 @@ describe("FactorydroidMcp", () => {
     it("should return success for valid MCP config", () => {
       const mcp = new FactorydroidMcp({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
         validate: false,
@@ -170,7 +170,7 @@ describe("FactorydroidMcp", () => {
     it("should create deletion marker", () => {
       const mcp = FactorydroidMcp.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid",
+        relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
       });
 

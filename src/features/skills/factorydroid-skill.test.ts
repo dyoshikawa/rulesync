@@ -34,7 +34,7 @@ This is a test factorydroid skill content.`;
     it("should return correct paths for factorydroid skills", () => {
       const paths = FactorydroidSkill.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".factorydroid/skills",
+        relativeDirPath: ".factory/skills",
       });
     });
   });
@@ -61,13 +61,13 @@ This is a test factorydroid skill content.`;
 
       expect(factorydroidSkill).toBeInstanceOf(FactorydroidSkill);
       expect(factorydroidSkill.getBody()).toBe("This is a test factorydroid skill content.");
-      expect(factorydroidSkill.getRelativeDirPath()).toBe(".factorydroid/skills");
+      expect(factorydroidSkill.getRelativeDirPath()).toBe(".factory/skills");
     });
   });
 
   describe("fromDir", () => {
     it("should load FactorydroidSkill from directory", async () => {
-      const skillDir = join(testDir, ".factorydroid", "skills", "test-skill");
+      const skillDir = join(testDir, ".factory", "skills", "test-skill");
       const skillFile = join(skillDir, SKILL_FILE_NAME);
 
       await writeFileContent(skillFile, validSkillContent);
@@ -80,11 +80,11 @@ This is a test factorydroid skill content.`;
 
       expect(skill).toBeInstanceOf(FactorydroidSkill);
       expect(skill.getBody()).toBe("This is a test factorydroid skill content.");
-      expect(skill.getRelativeDirPath()).toBe(".factorydroid/skills");
+      expect(skill.getRelativeDirPath()).toBe(".factory/skills");
     });
 
     it("should throw error when SKILL.md does not exist", async () => {
-      const skillDir = join(testDir, ".factorydroid", "skills", "test-skill");
+      const skillDir = join(testDir, ".factory", "skills", "test-skill");
       await writeFileContent(join(skillDir, "other.md"), "content");
 
       await expect(
@@ -151,7 +151,7 @@ This is a test factorydroid skill content.`;
     it("should create deletion marker", () => {
       const skill = FactorydroidSkill.forDeletion({
         baseDir: testDir,
-        relativeDirPath: ".factorydroid/skills",
+        relativeDirPath: ".factory/skills",
         dirName: "to-delete",
       });
 
