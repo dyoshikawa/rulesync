@@ -19,7 +19,7 @@ A Node.js CLI tool that automatically generates configuration files for various 
 - [Case Studies](./case-studies.md)
 - [Quick Commands](./quick-commands.md)
 - [Dry Run](./dry-run.md)
-- [Fetch Command (In Development)](./fetch-command-in-development.md)
+- [Fetch Command (Unstable)](./fetch-command-unstable.md)
 - [Configuration](./configuration.md)
 - [Each File Format](./each-file-format.md)
 - [Global Mode](./global-mode.md)
