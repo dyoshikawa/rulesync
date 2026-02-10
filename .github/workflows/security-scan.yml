@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4.2.2
 
       - name: Setup mise
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2.2.3
         with:
           experimental: true
 
@@ -32,6 +32,7 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SECURITY_SCAN_MODEL: ${{ secrets.SECURITY_SCAN_MODEL }}
-          SECURITY_SCAN_PROMPT: ${{ secrets.SECURITY_SCAN_PROMPT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          SECURITY_SCAN_RECIPIENT: ${{ secrets.SECURITY_SCAN_RECIPIENT }}
         run: pnpm tsx scripts/security-scan-toon.ts

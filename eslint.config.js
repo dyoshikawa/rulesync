@@ -88,7 +88,7 @@ export default defineConfig([
   },
 
   {
-    files: ["src/**/*.test.ts"],
+    files: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
