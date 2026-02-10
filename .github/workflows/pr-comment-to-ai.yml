@@ -29,6 +29,7 @@ jobs:
 
       - name: Hide outdated opencode-agent comments
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
@@ -41,7 +42,7 @@ jobs:
 
           gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments \
             -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent") | .url' | \
+            --jq '.[] | select(.user.login == "opencode-agent" || .user.login == "github-actions") | .url' | \
           while read -r COMMENT_URL; do
             if [ "$COMMENT_URL" != "$LATEST_URL" ]; then
               gh api --method PATCH "$COMMENT_URL" \
