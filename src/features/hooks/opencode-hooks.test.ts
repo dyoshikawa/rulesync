@@ -116,7 +116,7 @@ describe("OpencodeHooks", () => {
       const content = opencodeHooks.getFileContent();
       expect(content).toContain('"tool.execute.before"');
       expect(content).toContain("input.tool");
-      expect(content).toContain("/Write|Edit/");
+      expect(content).toContain('new RegExp("Write|Edit")');
       expect(content).toContain(".rulesync/hooks/lint.sh");
     });
 
@@ -296,8 +296,8 @@ describe("OpencodeHooks", () => {
       const content = opencodeHooks.getFileContent();
       expect(content).toContain("lint.sh");
       expect(content).toContain("format.sh");
-      expect(content).toContain("/Write/");
-      expect(content).toContain("/Edit/");
+      expect(content).toContain('new RegExp("Write")');
+      expect(content).toContain('new RegExp("Edit")');
     });
 
     it("should throw on invalid regex in matcher", () => {
@@ -346,7 +346,7 @@ describe("OpencodeHooks", () => {
       });
 
       const content = opencodeHooks.getFileContent();
-      expect(content).toContain("/Write|Edit/");
+      expect(content).toContain('new RegExp("Write|Edit")');
       // The matcher itself should not contain newline/CR (they were stripped)
       expect(content).not.toMatch(/\/Write\n/);
       expect(content).not.toMatch(/Edit\r/);

@@ -30,10 +30,10 @@ function escapeForTemplateLiteral(command: string): string {
 }
 
 /**
- * Validate and sanitize a matcher string for use in a generated JS regex literal.
+ * Validate and sanitize a matcher string for use in generated JS code.
  * - Strips newline, carriage-return, and NUL bytes
  * - Validates the result is a legal RegExp
- * - Escapes forward slashes for embedding in `/.../`
+ * - Escapes for embedding inside a JS double-quoted string (`new RegExp("...")`)
  */
 function validateAndSanitizeMatcher(matcher: string): string {
   const sanitized = matcher
@@ -45,7 +45,7 @@ function validateAndSanitizeMatcher(matcher: string): string {
   } catch {
     throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
   }
-  return sanitized.replace(/\//g, "\\/");
+  return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 type OpencodeHandler = {
@@ -142,7 +142,7 @@ function generatePluginCode(config: HooksConfig): string {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
       if (handler.matcher) {
         const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
-        lines.push(`      if (/${safeMatcher}/.test(input.tool)) {`);
+        lines.push(`      if (new RegExp("${safeMatcher}").test(input.tool)) {`);
         lines.push(`        await $\`${escapedCommand}\``);
         lines.push("      }");
       } else {
