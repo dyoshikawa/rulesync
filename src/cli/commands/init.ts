@@ -10,7 +10,7 @@ import { ensureDir } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 
 export async function initCommand(): Promise<void> {
-  logger.info("Initializing rulesync...");
+  logger.debug("Initializing rulesync...");
 
   await ensureDir(RULESYNC_RELATIVE_DIR_PATH);
 

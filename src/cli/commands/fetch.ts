@@ -18,7 +18,7 @@ export async function fetchCommand(options: FetchCommandOptions): Promise<void> 
     silent: fetchOptions.silent ?? false,
   });
 
-  logger.info(`Fetching files from ${source}...`);
+  logger.debug(`Fetching files from ${source}...`);
 
   try {
     const summary = await fetchFiles({

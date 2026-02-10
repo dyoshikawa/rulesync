@@ -26,6 +26,7 @@ function createMockDir(dirPath: string): AiDir {
     getDirPath: () => dirPath,
     getMainFile: () => undefined,
     getOtherFiles: () => [],
+    getRelativePathFromCwd: () => dirPath,
   } as unknown as AiDir;
 }
 
@@ -159,6 +160,7 @@ describe("DirFeatureProcessor", () => {
             ? { name: "SKILL.md", body: mainFileBody, frontmatter: {} }
             : undefined,
         getOtherFiles: () => otherFiles,
+        getRelativePathFromCwd: () => dirPath,
       } as unknown as AiDir;
     }
 
@@ -171,9 +173,9 @@ describe("DirFeatureProcessor", () => {
         createMockDirWithFiles({ dirPath: "/path/to/dir2", mainFileBody: "body2" }),
       ];
 
-      const count = await processor.writeAiDirs(dirs);
+      const result = await processor.writeAiDirs(dirs);
 
-      expect(count).toBe(2);
+      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
       expect(ensureDir).toHaveBeenCalledTimes(2);
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
@@ -184,9 +186,9 @@ describe("DirFeatureProcessor", () => {
 
       const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", mainFileBody: "body1" })];
 
-      const count = await processor.writeAiDirs(dirs);
+      const result = await processor.writeAiDirs(dirs);
 
-      expect(count).toBe(0);
+      expect(result).toEqual({ count: 0, paths: [] });
       expect(ensureDir).not.toHaveBeenCalled();
       expect(writeFileContent).not.toHaveBeenCalled();
     });
@@ -201,9 +203,9 @@ describe("DirFeatureProcessor", () => {
       };
       const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
 
-      const count = await processor.writeAiDirs(dirs);
+      const result = await processor.writeAiDirs(dirs);
 
-      expect(count).toBe(1);
+      expect(result).toEqual({ count: 1, paths: expect.any(Array) });
       expect(ensureDir).toHaveBeenCalledTimes(1);
       expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
@@ -217,9 +219,9 @@ describe("DirFeatureProcessor", () => {
         createMockDirWithFiles({ dirPath: "/path/to/dir2", mainFileBody: "body2" }),
       ];
 
-      const count = await processor.writeAiDirs(dirs);
+      const result = await processor.writeAiDirs(dirs);
 
-      expect(count).toBe(2);
+      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
       expect(ensureDir).not.toHaveBeenCalled();
       expect(writeFileContent).not.toHaveBeenCalled();
     });

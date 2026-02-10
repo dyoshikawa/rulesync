@@ -157,7 +157,7 @@ export class HooksProcessor extends FeatureProcessor {
           global: this.global,
         });
         const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
-        logger.info(
+        logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
         );
         return list;
@@ -168,7 +168,7 @@ export class HooksProcessor extends FeatureProcessor {
         validate: true,
         global: this.global,
       });
-      logger.info(`Successfully loaded 1 ${this.toolTarget} hooks file`);
+      logger.debug(`Successfully loaded 1 ${this.toolTarget} hooks file`);
       return [toolHooks];
     } catch (error) {
       const msg = `Failed to load hooks files for tool target: ${this.toolTarget}: ${formatError(error)}`;

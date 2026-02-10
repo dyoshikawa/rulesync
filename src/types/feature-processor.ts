@@ -1,3 +1,5 @@
+import type { WriteResult } from "../utils/result.js";
+
 import {
   addTrailingNewline,
   readFileContentOrNull,
@@ -38,10 +40,11 @@ export abstract class FeatureProcessor {
 
   /**
    * Once converted to rulesync/tool files, write them to the filesystem.
-   * Returns the number of files written.
+   * Returns the count and paths of files written.
    */
-  async writeAiFiles(aiFiles: AiFile[]): Promise<number> {
+  async writeAiFiles(aiFiles: AiFile[]): Promise<WriteResult> {
     let changedCount = 0;
+    const changedPaths: string[] = [];
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
       const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
@@ -57,9 +60,10 @@ export abstract class FeatureProcessor {
         await writeFileContent(filePath, contentWithNewline);
       }
       changedCount++;
+      changedPaths.push(aiFile.getRelativePathFromCwd());
     }
 
-    return changedCount;
+    return { count: changedCount, paths: changedPaths };
   }
 
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {

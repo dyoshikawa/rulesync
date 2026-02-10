@@ -1,4 +1,12 @@
 /**
+ * Result of writing AI files, including both count and file paths
+ */
+export type WriteResult = {
+  count: number;
+  paths: string[];
+};
+
+/**
  * Common count fields shared by ImportResult and GenerateResult
  */
 export type CountableResult = {

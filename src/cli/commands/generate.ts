@@ -10,16 +10,20 @@ export type GenerateOptions = ConfigResolverResolveParams;
  */
 function logFeatureResult(params: {
   count: number;
+  paths: string[];
   featureName: string;
   isPreview: boolean;
   modePrefix: string;
 }): void {
-  const { count, featureName, isPreview, modePrefix } = params;
+  const { count, paths, featureName, isPreview, modePrefix } = params;
   if (count > 0) {
     if (isPreview) {
       logger.info(`${modePrefix} Would write ${count} ${featureName}`);
     } else {
       logger.success(`Written ${count} ${featureName}`);
+    }
+    for (const p of paths) {
+      logger.info(`    ${p}`);
     }
   }
 }
@@ -37,79 +41,86 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   const isPreview = config.isPreviewMode();
   const modePrefix = isPreview ? "[DRY RUN]" : "";
 
-  logger.info("Generating files...");
+  logger.debug("Generating files...");
 
   if (!(await checkRulesyncDirExists({ baseDir: process.cwd() }))) {
     logger.error("❌ .rulesync directory not found. Run 'rulesync init' first.");
     process.exit(1);
   }
 
-  logger.info(`Base directories: ${config.getBaseDirs().join(", ")}`);
+  logger.debug(`Base directories: ${config.getBaseDirs().join(", ")}`);
 
   const features = config.getFeatures();
 
   if (features.includes("ignore")) {
-    logger.info("Generating ignore files...");
+    logger.debug("Generating ignore files...");
   }
   if (features.includes("mcp")) {
-    logger.info("Generating MCP files...");
+    logger.debug("Generating MCP files...");
   }
   if (features.includes("commands")) {
-    logger.info("Generating command files...");
+    logger.debug("Generating command files...");
   }
   if (features.includes("subagents")) {
-    logger.info("Generating subagent files...");
+    logger.debug("Generating subagent files...");
   }
   if (features.includes("skills")) {
-    logger.info("Generating skill files...");
+    logger.debug("Generating skill files...");
   }
   if (features.includes("hooks")) {
-    logger.info("Generating hooks...");
+    logger.debug("Generating hooks...");
   }
   if (features.includes("rules")) {
-    logger.info("Generating rule files...");
+    logger.debug("Generating rule files...");
   }
 
   const result = await generate({ config });
 
   logFeatureResult({
     count: result.ignoreCount,
+    paths: result.ignorePaths,
     featureName: "ignore file(s)",
     isPreview,
     modePrefix,
   });
   logFeatureResult({
     count: result.mcpCount,
+    paths: result.mcpPaths,
     featureName: "MCP configuration(s)",
     isPreview,
     modePrefix,
   });
   logFeatureResult({
     count: result.commandsCount,
+    paths: result.commandsPaths,
     featureName: "command(s)",
     isPreview,
     modePrefix,
   });
   logFeatureResult({
     count: result.subagentsCount,
+    paths: result.subagentsPaths,
     featureName: "subagent(s)",
     isPreview,
     modePrefix,
   });
   logFeatureResult({
     count: result.skillsCount,
+    paths: result.skillsPaths,
     featureName: "skill(s)",
     isPreview,
     modePrefix,
   });
   logFeatureResult({
     count: result.hooksCount,
+    paths: result.hooksPaths,
     featureName: "hooks file(s)",
     isPreview,
     modePrefix,
   });
   logFeatureResult({
     count: result.rulesCount,
+    paths: result.rulesPaths,
     featureName: "rule(s)",
     isPreview,
     modePrefix,

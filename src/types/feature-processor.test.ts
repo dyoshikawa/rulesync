@@ -21,6 +21,7 @@ function createMockFile(filePath: string): AiFile {
   return {
     getFilePath: () => filePath,
     getFileContent: () => "content",
+    getRelativePathFromCwd: () => filePath,
   } as AiFile;
 }
 
@@ -149,9 +150,9 @@ describe("FeatureProcessor", () => {
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
-      const count = await processor.writeAiFiles(files);
+      const result = await processor.writeAiFiles(files);
 
-      expect(count).toBe(2);
+      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
 
@@ -161,9 +162,9 @@ describe("FeatureProcessor", () => {
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
-      const count = await processor.writeAiFiles(files);
+      const result = await processor.writeAiFiles(files);
 
-      expect(count).toBe(0);
+      expect(result).toEqual({ count: 0, paths: [] });
       expect(writeFileContent).not.toHaveBeenCalled();
     });
 
@@ -175,9 +176,9 @@ describe("FeatureProcessor", () => {
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
-      const count = await processor.writeAiFiles(files);
+      const result = await processor.writeAiFiles(files);
 
-      expect(count).toBe(1);
+      expect(result).toEqual({ count: 1, paths: expect.any(Array) });
       expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
 
@@ -187,9 +188,9 @@ describe("FeatureProcessor", () => {
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
-      const count = await processor.writeAiFiles(files);
+      const result = await processor.writeAiFiles(files);
 
-      expect(count).toBe(2);
+      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
       expect(writeFileContent).not.toHaveBeenCalled();
     });
   });

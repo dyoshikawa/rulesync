@@ -75,7 +75,7 @@ async function importRulesCore(params: { config: Config; tool: ToolTarget }): Pr
   }
 
   const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await rulesProcessor.writeAiFiles(rulesyncFiles);
+  const { count: writtenCount } = await rulesProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} rule files`);
@@ -111,7 +111,7 @@ async function importIgnoreCore(params: { config: Config; tool: ToolTarget }): P
   }
 
   const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await ignoreProcessor.writeAiFiles(rulesyncFiles);
+  const { count: writtenCount } = await ignoreProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose()) {
     logger.success(`Created ignore files from ${toolFiles.length} tool ignore configurations`);
@@ -151,7 +151,7 @@ async function importMcpCore(params: { config: Config; tool: ToolTarget }): Prom
   }
 
   const rulesyncFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await mcpProcessor.writeAiFiles(rulesyncFiles);
+  const { count: writtenCount } = await mcpProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} MCP files`);
@@ -187,7 +187,7 @@ async function importCommandsCore(params: { config: Config; tool: ToolTarget }):
   }
 
   const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await commandsProcessor.writeAiFiles(rulesyncFiles);
+  const { count: writtenCount } = await commandsProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} command files`);
@@ -222,7 +222,7 @@ async function importSubagentsCore(params: { config: Config; tool: ToolTarget })
   }
 
   const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await subagentsProcessor.writeAiFiles(rulesyncFiles);
+  const { count: writtenCount } = await subagentsProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} subagent files`);
@@ -258,7 +258,7 @@ async function importSkillsCore(params: { config: Config; tool: ToolTarget }): P
   }
 
   const rulesyncDirs = await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs);
-  const writtenCount = await skillsProcessor.writeAiDirs(rulesyncDirs);
+  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rulesyncDirs);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} skill directories`);
@@ -299,7 +299,7 @@ async function importHooksCore(params: { config: Config; tool: ToolTarget }): Pr
   }
 
   const rulesyncFiles = await hooksProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const writtenCount = await hooksProcessor.writeAiFiles(rulesyncFiles);
+  const { count: writtenCount } = await hooksProcessor.writeAiFiles(rulesyncFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} hooks file(s)`);

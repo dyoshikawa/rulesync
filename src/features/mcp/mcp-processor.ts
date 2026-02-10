@@ -264,7 +264,7 @@ export class McpProcessor extends FeatureProcessor {
         });
 
         const toolMcps = toolMcp.isDeletable() ? [toolMcp] : [];
-        logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+        logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
         return toolMcps;
       }
 
@@ -275,7 +275,7 @@ export class McpProcessor extends FeatureProcessor {
           global: this.global,
         }),
       ];
-      logger.info(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+      logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
       return toolMcps;
     } catch (error) {
       const errorMessage = `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`;

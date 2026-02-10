@@ -310,7 +310,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ),
     );
 
-    logger.info(`Successfully loaded ${rulesyncSkills.length} rulesync skills`);
+    logger.debug(`Successfully loaded ${rulesyncSkills.length} rulesync skills`);
     return rulesyncSkills;
   }
 
@@ -336,7 +336,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ),
     );
 
-    logger.info(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
+    logger.debug(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
     return toolSkills;
   }
 
@@ -357,7 +357,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }),
     );
 
-    logger.info(
+    logger.debug(
       `Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills for deletion`,
     );
     return toolSkills;
