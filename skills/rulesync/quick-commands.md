@@ -31,6 +31,18 @@ rulesync generate --dry-run --targets claudecode --features rules
 # Check if files are up to date (for CI/CD pipelines)
 rulesync generate --check --targets "*" --features "*"
 
+# Install skills from declarative sources in rulesync.jsonc
+rulesync install
+
+# Force re-resolve all source refs (ignore lockfile)
+rulesync install --update
+
+# Fail if lockfile is missing or out of sync (for CI)
+rulesync install --frozen
+
+# Install then generate (typical workflow)
+rulesync install && rulesync generate
+
 # Add generated files to .gitignore
 rulesync gitignore
 

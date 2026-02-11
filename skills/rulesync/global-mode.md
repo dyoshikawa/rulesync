@@ -5,20 +5,26 @@ You can use global mode via Rulesync by enabling `--global` option. It can also 
 Currently, supports rules and commands generation for Claude Code. Import for global files is supported for rules and commands.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
+
    ```bash
    mkdir -p ~/.aiglobal
    ```
+
 2. Initialize files for global files in the directory.
+
    ```bash
    cd ~/.aiglobal
    rulesync init
    ```
+
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
+
    ```jsonc
    {
      "global": true,
    }
    ```
+
 4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.
 
    ```md
@@ -32,6 +38,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
    ```
 
 5. Generate rules for global settings.
+
    ```bash
    # Run in the `~/.aiglobal` directory
    rulesync generate

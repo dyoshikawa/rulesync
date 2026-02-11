@@ -4,6 +4,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
 
 1. Prepare `.rulesync/commands/*.md`, `.rulesync/subagents/*.md` and `.rulesync/skills/*/SKILL.md` for your purposes.
 2. Generate simulated commands, subagents and skills for specific tools that are included in cursor, codexcli and etc.
+
    ```bash
    rulesync generate \
      --targets copilot,cursor,codexcli \
@@ -12,6 +13,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
      --simulate-subagents \
      --simulate-skills
    ```
+
 3. Use simulated commands, subagents and skills in your prompts.
    - Prompt examples:
 
