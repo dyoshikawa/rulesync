@@ -8,7 +8,7 @@ jobs:
   handle-pr-comment:
     if: >-
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '[ai]') &&
+      (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode')) &&
       (
           github.event.comment.author_association == 'OWNER' ||
           github.event.comment.author_association == 'MEMBER' ||
@@ -58,17 +58,9 @@ jobs:
 
       - name: Determine model based on comment
         id: select-model
-        shell: bash
-        env:
-          COMMENT_BODY: ${{ github.event.comment.body }}
-        run: |
-          if [[ "$COMMENT_BODY" == *"glm"* ]]; then
-            echo "model=openrouter/z-ai/glm-4.7" >> $GITHUB_OUTPUT
-          elif [[ "$COMMENT_BODY" == *"kimi"* ]]; then
-            echo "model=openrouter/moonshotai/kimi-k2.5" >> $GITHUB_OUTPUT
-          else
-            echo "model=openrouter/moonshotai/kimi-k2" >> $GITHUB_OUTPUT
-          fi
+        uses: ./.github/actions/select-opencode-model
+        with:
+          comment-body: ${{ github.event.comment.body }}
 
       - name: Run OpenCode to handle PR comment
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
@@ -77,7 +69,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IS_UPSTREAM: ${{ github.repository == 'dyoshikawa/rulesync' }}
           PR_NUMBER: ${{ github.event.issue.number }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_BODY: ${{ steps.select-model.outputs.comment-body-cleaned }}
         with:
           model: ${{ steps.select-model.outputs.model }}
           use_github_token: "true"
