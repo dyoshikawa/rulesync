@@ -152,7 +152,7 @@ describe("FeatureProcessor", () => {
 
       const result = await processor.writeAiFiles(files);
 
-      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
+      expect(result).toEqual({ count: 2, paths: ["/path/to/file1.md", "/path/to/file2.md"] });
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
 
@@ -178,7 +178,7 @@ describe("FeatureProcessor", () => {
 
       const result = await processor.writeAiFiles(files);
 
-      expect(result).toEqual({ count: 1, paths: expect.any(Array) });
+      expect(result).toEqual({ count: 1, paths: ["/path/to/file2.md"] });
       expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
 
@@ -190,7 +190,7 @@ describe("FeatureProcessor", () => {
 
       const result = await processor.writeAiFiles(files);
 
-      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
+      expect(result).toEqual({ count: 2, paths: ["/path/to/file1.md", "/path/to/file2.md"] });
       expect(writeFileContent).not.toHaveBeenCalled();
     });
   });
