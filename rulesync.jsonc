@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
 
   // List of tools to generate configurations for
-  "targets": ["copilot", "claudecode"],
+  "targets": ["copilot", "claudecode", "opencode"],
 
   "features": ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
 
