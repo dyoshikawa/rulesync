@@ -112,7 +112,7 @@ describe("generate", () => {
       convertRulesyncFilesToToolFiles: vi
         .fn()
         .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
-      writeAiFiles: vi.fn().mockResolvedValue(1),
+      writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
     });
 
     const createMockSkillsProcessor = () => ({
@@ -120,7 +120,7 @@ describe("generate", () => {
       removeAiDirs: vi.fn().mockResolvedValue(undefined),
       loadRulesyncDirs: vi.fn().mockResolvedValue([]),
       convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
-      writeAiDirs: vi.fn().mockResolvedValue(0),
+      writeAiDirs: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
     });
 
     vi.mocked(RulesProcessor).mockImplementation(function () {
@@ -193,7 +193,7 @@ describe("generate", () => {
         removeAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([mockSkill]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
-        writeAiDirs: vi.fn().mockResolvedValue(1),
+        writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return mockSkillsProcessor as unknown as SkillsProcessor;
@@ -219,7 +219,7 @@ describe("generate", () => {
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -244,7 +244,7 @@ describe("generate", () => {
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -321,7 +321,7 @@ describe("generate", () => {
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         return mockProcessor as unknown as IgnoreProcessor;
@@ -443,7 +443,7 @@ describe("generate", () => {
         removeAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([{ dir: "skill" }]),
-        writeAiDirs: vi.fn().mockResolvedValue(1),
+        writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return mockSkillsProcessor as unknown as SkillsProcessor;
@@ -485,7 +485,7 @@ describe("generate", () => {
         removeAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([mockSkill]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
-        writeAiDirs: vi.fn().mockResolvedValue(1),
+        writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return mockSkillsProcessor as unknown as SkillsProcessor;
@@ -507,7 +507,7 @@ describe("generate", () => {
         removeOrphanAiDirs: vi.fn().mockResolvedValue(0),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue(generatedDirs),
-        writeAiDirs: vi.fn().mockResolvedValue(1),
+        writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return mockSkillsProcessor as unknown as SkillsProcessor;
@@ -544,7 +544,7 @@ describe("generate", () => {
         removeAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
-        writeAiDirs: vi.fn().mockResolvedValue(1),
+        writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return mockSkillsProcessor as unknown as SkillsProcessor;
@@ -716,7 +716,7 @@ describe("generate", () => {
         convertRulesyncFilesToToolFiles: vi
           .fn()
           .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
-        writeAiFiles: vi.fn().mockResolvedValue(0), // No changes
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }), // No changes
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -740,7 +740,7 @@ describe("generate", () => {
         convertRulesyncFilesToToolFiles: vi
           .fn()
           .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
-        writeAiFiles: vi.fn().mockResolvedValue(1), // Has changes
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }), // Has changes
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -764,7 +764,7 @@ describe("generate", () => {
         convertRulesyncFilesToToolFiles: vi
           .fn()
           .mockResolvedValue([createMockAiFile("/path/to/file", "new content")]),
-        writeAiFiles: vi.fn().mockResolvedValue(1), // Has changes (content differs)
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }), // Has changes (content differs)
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -787,7 +787,7 @@ describe("generate", () => {
         convertRulesyncFilesToToolFiles: vi
           .fn()
           .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
-        writeAiFiles: vi.fn().mockResolvedValue(0), // No changes (content matches)
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }), // No changes (content matches)
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -810,7 +810,7 @@ describe("generate", () => {
         convertRulesyncFilesToToolFiles: vi
           .fn()
           .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
-        writeAiFiles: vi.fn().mockResolvedValue(1), // Has changes (file doesn't exist)
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }), // Has changes (file doesn't exist)
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;

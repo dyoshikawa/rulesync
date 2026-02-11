@@ -21,12 +21,19 @@ import { logger } from "../utils/logger.js";
 
 export type GenerateResult = {
   rulesCount: number;
+  rulesPaths: string[];
   ignoreCount: number;
+  ignorePaths: string[];
   mcpCount: number;
+  mcpPaths: string[];
   commandsCount: number;
+  commandsPaths: string[];
   subagentsCount: number;
+  subagentsPaths: string[];
   skillsCount: number;
+  skillsPaths: string[];
   hooksCount: number;
+  hooksPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
 };
@@ -35,15 +42,17 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   config: Config;
   processor: FeatureProcessor;
   toolFiles: T[];
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config, processor, toolFiles } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
-  const writtenCount = await processor.writeAiFiles(toolFiles);
-  totalCount += writtenCount;
-  if (writtenCount > 0) hasDiff = true;
+  const writeResult = await processor.writeAiFiles(toolFiles);
+  totalCount += writeResult.count;
+  allPaths.push(...writeResult.paths);
+  if (writeResult.count > 0) hasDiff = true;
 
   if (config.getDelete()) {
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
@@ -51,22 +60,24 @@ async function processFeatureGeneration<T extends AiFile>(params: {
     if (orphanCount > 0) hasDiff = true;
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 async function processDirFeatureGeneration(params: {
   config: Config;
   processor: DirFeatureProcessor;
   toolDirs: AiDir[];
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config, processor, toolDirs } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
-  const writtenCount = await processor.writeAiDirs(toolDirs);
-  totalCount += writtenCount;
-  if (writtenCount > 0) hasDiff = true;
+  const writeResult = await processor.writeAiDirs(toolDirs);
+  totalCount += writeResult.count;
+  allPaths.push(...writeResult.paths);
+  if (writeResult.count > 0) hasDiff = true;
 
   if (config.getDelete()) {
     const existingToolDirs = await processor.loadToolDirsToDelete();
@@ -74,14 +85,14 @@ async function processDirFeatureGeneration(params: {
     if (orphanCount > 0) hasDiff = true;
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 // Handle special case for empty rulesync files
 async function processEmptyFeatureGeneration(params: {
   config: Config;
   processor: FeatureProcessor;
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config, processor } = params;
 
   const totalCount = 0;
@@ -93,7 +104,7 @@ async function processEmptyFeatureGeneration(params: {
     if (orphanCount > 0) hasDiff = true;
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: [], hasDiff };
 }
 
 /**
@@ -129,12 +140,19 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
 
   return {
     rulesCount: rulesResult.count,
+    rulesPaths: rulesResult.paths,
     ignoreCount: ignoreResult.count,
+    ignorePaths: ignoreResult.paths,
     mcpCount: mcpResult.count,
+    mcpPaths: mcpResult.paths,
     commandsCount: commandsResult.count,
+    commandsPaths: commandsResult.paths,
     subagentsCount: subagentsResult.count,
+    subagentsPaths: subagentsResult.paths,
     skillsCount: skillsResult.count,
+    skillsPaths: skillsResult.paths,
     hooksCount: hooksResult.count,
+    hooksPaths: hooksResult.paths,
     skills: skillsResult.skills,
     hasDiff,
   };
@@ -143,10 +161,11 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
 async function generateRulesCore(params: {
   config: Config;
   skills?: RulesyncSkill[];
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config, skills } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
   const toolTargets = intersection(
@@ -182,23 +201,25 @@ async function generateRulesCore(params: {
       });
 
       totalCount += result.count;
+      allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
     }
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 async function generateIgnoreCore(params: {
   config: Config;
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config } = params;
 
   if (config.getGlobal()) {
-    return { count: 0, hasDiff: false };
+    return { count: 0, paths: [], hasDiff: false };
   }
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
   for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
@@ -233,6 +254,7 @@ async function generateIgnoreCore(params: {
         }
 
         totalCount += result.count;
+        allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
       } catch (error) {
         logger.warn(
@@ -243,15 +265,16 @@ async function generateIgnoreCore(params: {
     }
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 async function generateMcpCore(params: {
   config: Config;
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
   const toolTargets = intersection(
@@ -283,19 +306,21 @@ async function generateMcpCore(params: {
       });
 
       totalCount += result.count;
+      allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
     }
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 async function generateCommandsCore(params: {
   config: Config;
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
   const toolTargets = intersection(
@@ -330,19 +355,21 @@ async function generateCommandsCore(params: {
       });
 
       totalCount += result.count;
+      allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
     }
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 async function generateSubagentsCore(params: {
   config: Config;
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
   const toolTargets = intersection(
@@ -377,19 +404,21 @@ async function generateSubagentsCore(params: {
       });
 
       totalCount += result.count;
+      allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
     }
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }
 
 async function generateSkillsCore(params: {
   config: Config;
-}): Promise<{ count: number; skills: RulesyncSkill[]; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; skills: RulesyncSkill[]; hasDiff: boolean }> {
   const { config } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
   const allSkills: RulesyncSkill[] = [];
 
@@ -432,19 +461,21 @@ async function generateSkillsCore(params: {
       });
 
       totalCount += result.count;
+      allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
     }
   }
 
-  return { count: totalCount, skills: allSkills, hasDiff };
+  return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff };
 }
 
 async function generateHooksCore(params: {
   config: Config;
-}): Promise<{ count: number; hasDiff: boolean }> {
+}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
   const { config } = params;
 
   let totalCount = 0;
+  const allPaths: string[] = [];
   let hasDiff = false;
 
   const toolTargets = intersection(
@@ -484,9 +515,10 @@ async function generateHooksCore(params: {
       }
 
       totalCount += result.count;
+      allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
     }
   }
 
-  return { count: totalCount, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff };
 }

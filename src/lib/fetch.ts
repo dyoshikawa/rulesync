@@ -817,7 +817,7 @@ async function fetchAndConvertToolFiles(params: {
       status: "created" as const,
     }));
 
-    logger.info(`Converted ${converted} files from ${target} format to rulesync format`);
+    logger.debug(`Converted ${converted} files from ${target} format to rulesync format`);
 
     return {
       source: `${parsed.owner}/${parsed.repo}`,

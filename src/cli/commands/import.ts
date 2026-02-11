@@ -27,7 +27,7 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   const tool = config.getTargets()[0]!;
 
-  logger.info(`Importing files from ${tool}...`);
+  logger.debug(`Importing files from ${tool}...`);
 
   const result = await importFromTool({ config, tool });
 

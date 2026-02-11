@@ -39,6 +39,7 @@ describe("initCommand", () => {
   beforeEach(() => {
     // Setup logger mocks
     vi.mocked(logger.info).mockImplementation(() => {});
+    vi.mocked(logger.debug).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});
 
     // Setup file utility mocks
@@ -93,7 +94,7 @@ describe("initCommand", () => {
     it("should initialize rulesync successfully", async () => {
       await initCommand();
 
-      expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
+      expect(logger.debug).toHaveBeenCalledWith("Initializing rulesync...");
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
@@ -222,7 +223,7 @@ describe("initCommand", () => {
 
       await expect(initCommand()).rejects.toThrow("Permission denied");
 
-      expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
+      expect(logger.debug).toHaveBeenCalledWith("Initializing rulesync...");
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(logger.success).not.toHaveBeenCalled();
     });
@@ -243,7 +244,7 @@ describe("initCommand", () => {
 
       await expect(initCommand()).rejects.toThrow("File system error");
 
-      expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
+      expect(logger.debug).toHaveBeenCalledWith("Initializing rulesync...");
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
     });
 
@@ -252,7 +253,7 @@ describe("initCommand", () => {
 
       await expect(initCommand()).rejects.toThrow("Write permission denied");
 
-      expect(logger.info).toHaveBeenCalledWith("Initializing rulesync...");
+      expect(logger.debug).toHaveBeenCalledWith("Initializing rulesync...");
       expect(writeFileContent).toHaveBeenCalled();
       expect(logger.success).not.toHaveBeenCalledWith(expect.stringContaining("Created"));
     });
@@ -322,8 +323,8 @@ describe("initCommand", () => {
     it("should log initialization start message first", async () => {
       await initCommand();
 
-      const loggerInfoCalls = vi.mocked(logger.info).mock.calls;
-      expect(loggerInfoCalls[0]?.[0]).toBe("Initializing rulesync...");
+      const loggerDebugCalls = vi.mocked(logger.debug).mock.calls;
+      expect(loggerDebugCalls[0]?.[0]).toBe("Initializing rulesync...");
     });
 
     it("should log success message after completion", async () => {

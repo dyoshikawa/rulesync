@@ -56,13 +56,13 @@ describe("importFromTool", () => {
     const createMockProcessor = () => ({
       loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
       convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ file: "rulesync" }]),
-      writeAiFiles: vi.fn().mockResolvedValue(1),
+      writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
     });
 
     const createMockSkillsProcessor = () => ({
       loadToolDirs: vi.fn().mockResolvedValue([{ dir: "tool" }]),
       convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([{ dir: "rulesync" }]),
-      writeAiDirs: vi.fn().mockResolvedValue(1),
+      writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
     });
 
     vi.mocked(RulesProcessor).mockImplementation(function () {

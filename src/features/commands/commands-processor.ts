@@ -305,7 +305,7 @@ export class CommandsProcessor extends FeatureProcessor {
       ),
     );
 
-    logger.info(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
+    logger.debug(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
     return rulesyncCommands;
   }
 
@@ -337,7 +337,7 @@ export class CommandsProcessor extends FeatureProcessor {
         )
         .filter((cmd) => cmd.isDeletable());
 
-      logger.info(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
+      logger.debug(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
       return toolCommands;
     }
 
@@ -351,7 +351,7 @@ export class CommandsProcessor extends FeatureProcessor {
       ),
     );
 
-    logger.info(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
+    logger.debug(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
     return toolCommands;
   }
 

@@ -57,35 +57,35 @@ describe("importCommand", () => {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       } as any;
     });
     vi.mocked(IgnoreProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       } as any;
     });
     vi.mocked(McpProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       } as any;
     });
     vi.mocked(SubagentsProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       } as any;
     });
     vi.mocked(CommandsProcessor).mockImplementation(function () {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-        writeAiFiles: vi.fn().mockResolvedValue(0),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       } as any;
     });
   });
@@ -119,7 +119,7 @@ describe("importCommand", () => {
       const mockRulesProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "rule1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ rule: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockRulesProcessor as any;
@@ -145,7 +145,7 @@ describe("importCommand", () => {
       const mockIgnoreProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "ignore1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ ignore: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         return mockIgnoreProcessor as any;
@@ -170,7 +170,7 @@ describe("importCommand", () => {
       const mockMcpProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "mcp1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ mcp: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(McpProcessor).mockImplementation(function () {
         return mockMcpProcessor as any;
@@ -196,7 +196,7 @@ describe("importCommand", () => {
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return mockSubagentsProcessor as any;
@@ -228,7 +228,7 @@ describe("importCommand", () => {
       const mockCommandsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "command1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return mockCommandsProcessor as any;
@@ -304,7 +304,7 @@ describe("importCommand", () => {
       const mockRulesProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "rule1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ rule: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(2),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 2, paths: [] }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockRulesProcessor as any;
@@ -313,7 +313,7 @@ describe("importCommand", () => {
       const mockIgnoreProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "ignore1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ ignore: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         return mockIgnoreProcessor as any;
@@ -322,7 +322,7 @@ describe("importCommand", () => {
       const mockMcpProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "mcp1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ mcp: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(3),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
       };
       vi.mocked(McpProcessor).mockImplementation(function () {
         return mockMcpProcessor as any;
@@ -331,7 +331,7 @@ describe("importCommand", () => {
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(4),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 4, paths: [] }),
       };
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return mockSubagentsProcessor as any;
@@ -340,7 +340,7 @@ describe("importCommand", () => {
       const mockCommandsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "command1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ command: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(5),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 5, paths: [] }),
       };
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return mockCommandsProcessor as any;
@@ -371,35 +371,35 @@ describe("importCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
 
@@ -427,7 +427,7 @@ describe("importCommand", () => {
       const mockSubagentsProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "subagent1" }]),
         convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ subagent: "converted" }]),
-        writeAiFiles: vi.fn().mockResolvedValue(1),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return mockSubagentsProcessor as any;
@@ -452,35 +452,35 @@ describe("importCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
-          writeAiFiles: vi.fn().mockResolvedValue(1),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
-          writeAiFiles: vi.fn().mockResolvedValue(1),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
-          writeAiFiles: vi.fn().mockResolvedValue(1),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
-          writeAiFiles: vi.fn().mockResolvedValue(1),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });
 
@@ -522,35 +522,35 @@ describe("importCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(CommandsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([]),
-          writeAiFiles: vi.fn().mockResolvedValue(0),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
         } as any;
       });
 

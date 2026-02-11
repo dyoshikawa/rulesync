@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import type { WriteResult } from "../utils/result.js";
+
 import {
   addTrailingNewline,
   ensureDir,
@@ -48,8 +50,9 @@ export abstract class DirFeatureProcessor {
    * a directory has changed, ALL files in that directory are rewritten. This is
    * an intentional design decision to ensure consistency within directory units.
    */
-  async writeAiDirs(aiDirs: AiDir[]): Promise<number> {
+  async writeAiDirs(aiDirs: AiDir[]): Promise<WriteResult> {
     let changedCount = 0;
+    const changedPaths: string[] = [];
     for (const aiDir of aiDirs) {
       const dirPath = aiDir.getDirPath();
       let dirHasChanges = false;
@@ -86,13 +89,16 @@ export abstract class DirFeatureProcessor {
         continue;
       }
 
+      const relativeDir = aiDir.getRelativePathFromCwd();
       if (this.dryRun) {
         logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
         if (mainFile) {
           logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
+          changedPaths.push(join(relativeDir, mainFile.name));
         }
         for (const file of otherFiles) {
           logger.info(`[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`);
+          changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
       } else {
         // Create directory
@@ -102,6 +108,7 @@ export abstract class DirFeatureProcessor {
         if (mainFile && mainFileContent) {
           const mainFilePath = join(dirPath, mainFile.name);
           await writeFileContent(mainFilePath, mainFileContent);
+          changedPaths.push(join(relativeDir, mainFile.name));
         }
 
         // Write other files
@@ -115,12 +122,13 @@ export abstract class DirFeatureProcessor {
             );
           }
           await writeFileContent(filePath, content);
+          changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
       }
       changedCount++;
     }
 
-    return changedCount;
+    return { count: changedCount, paths: changedPaths };
   }
 
   async removeAiDirs(aiDirs: AiDir[]): Promise<void> {

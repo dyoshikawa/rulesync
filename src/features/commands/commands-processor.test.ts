@@ -29,6 +29,7 @@ vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js", () => ({
   logger: {
     info: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 // Mock RulesyncCommand after importing it
@@ -591,7 +592,7 @@ describe("CommandsProcessor", () => {
       expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "test1.md" });
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "test2.md" });
-      expect(logger.info).toHaveBeenCalledWith("Successfully loaded 2 rulesync commands");
+      expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 2 rulesync commands");
       expect(result).toEqual(mockRulesyncCommands);
     });
 
@@ -623,7 +624,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadRulesyncFiles();
 
       expect(result).toEqual([]);
-      expect(logger.info).toHaveBeenCalledWith("Successfully loaded 0 rulesync commands");
+      expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 0 rulesync commands");
     });
   });
 
@@ -658,7 +659,7 @@ describe("CommandsProcessor", () => {
         relativeFilePath: "test.md",
         global: false,
       });
-      expect(logger.info).toHaveBeenCalledWith("Successfully loaded 1 .claude/commands commands");
+      expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 1 .claude/commands commands");
       expect(result).toEqual([mockCommand]);
     });
 

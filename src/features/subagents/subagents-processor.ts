@@ -290,7 +290,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       return [];
     }
 
-    logger.info(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
+    logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
 
     // Parse all files and create RulesyncSubagent instances using fromFilePath
     const rulesyncSubagents: RulesyncSubagent[] = [];
@@ -317,7 +317,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       return [];
     }
 
-    logger.info(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
+    logger.debug(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
     return rulesyncSubagents;
   }
 
@@ -349,7 +349,9 @@ export class SubagentsProcessor extends FeatureProcessor {
         )
         .filter((subagent) => subagent.isDeletable());
 
-      logger.info(`Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`);
+      logger.debug(
+        `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
+      );
       return toolSubagents;
     }
 
@@ -363,7 +365,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       ),
     );
 
-    logger.info(`Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`);
+    logger.debug(`Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`);
     return toolSubagents;
   }
 
