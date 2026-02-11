@@ -86,6 +86,7 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.31",
     "@eslint/js": "9.39.2",
+    "@openrouter/sdk": "0.8.0",
     "@secretlint/secretlint-rule-preset-recommend": "11.3.1",
     "@tsconfig/node24": "24.0.4",
     "@types/js-yaml": "4.0.9",
@@ -105,6 +106,7 @@
     "oxfmt": "0.28.0",
     "oxlint": "1.43.0",
     "repomix": "1.11.1",
+    "resend": "4.1.2",
     "secretlint": "11.3.1",
     "simple-git-hooks": "2.13.1",
     "sort-package-json": "3.6.1",
