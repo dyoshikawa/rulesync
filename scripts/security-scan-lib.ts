@@ -54,39 +54,22 @@ export type ValidatedEnv = {
   securityScanRecipient: string;
 };
 
-export const validateEnv = (): ValidatedEnv => {
-  const openrouterApiKey = process.env.OPENROUTER_API_KEY;
-  if (!openrouterApiKey) {
-    throw new Error("OPENROUTER_API_KEY is not set");
+const requireEnv = (name: string): string => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set`);
   }
-  const model = process.env.SECURITY_SCAN_MODEL;
-  if (!model) {
-    throw new Error("SECURITY_SCAN_MODEL is not set");
-  }
-  const securityScanPrompt = process.env.SECURITY_SCAN_PROMPT;
-  if (!securityScanPrompt) {
-    throw new Error("SECURITY_SCAN_PROMPT is not set");
-  }
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    throw new Error("RESEND_API_KEY is not set");
-  }
-  const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-  if (!resendFromEmail) {
-    throw new Error("RESEND_FROM_EMAIL is not set");
-  }
-  const securityScanRecipient = process.env.SECURITY_SCAN_RECIPIENT;
-  if (!securityScanRecipient) {
-    throw new Error("SECURITY_SCAN_RECIPIENT is not set");
-  }
+  return value;
+};
 
+export const validateEnv = (): ValidatedEnv => {
   return {
-    openrouterApiKey,
-    model,
-    securityScanPrompt,
-    resendApiKey,
-    resendFromEmail,
-    securityScanRecipient,
+    openrouterApiKey: requireEnv("OPENROUTER_API_KEY"),
+    model: requireEnv("SECURITY_SCAN_MODEL"),
+    securityScanPrompt: requireEnv("SECURITY_SCAN_PROMPT"),
+    resendApiKey: requireEnv("RESEND_API_KEY"),
+    resendFromEmail: requireEnv("RESEND_FROM_EMAIL"),
+    securityScanRecipient: requireEnv("SECURITY_SCAN_RECIPIENT"),
   };
 };
 
@@ -128,7 +111,7 @@ export const runSecurityScan = async ({
     xTitle: "rulesync security-scan",
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.choices?.[0]?.message?.content;
 
   if (!content || typeof content !== "string") {
     throw new Error("No content returned from OpenRouter");
