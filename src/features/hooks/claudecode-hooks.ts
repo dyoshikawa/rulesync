@@ -11,7 +11,7 @@ import {
   CURSOR_TO_CLAUDE_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -156,10 +156,7 @@ export class ClaudecodeHooks extends ToolHooks {
   }: ToolHooksFromFileParams): Promise<ClaudecodeHooks> {
     const paths = ClaudecodeHooks.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({ hooks: {} }, null, 2),
-    );
+    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
     return new ClaudecodeHooks({
       baseDir,
       relativeDirPath: paths.relativeDirPath,

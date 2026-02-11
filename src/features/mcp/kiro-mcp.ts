@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -36,10 +36,9 @@ export class KiroMcp extends ToolMcp {
     validate = true,
   }: ToolMcpFromFileParams): Promise<KiroMcp> {
     const paths = this.getSettablePaths();
-    const fileContent = await readOrInitializeFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
+      '{"mcpServers":{}}';
 
     return new KiroMcp({
       baseDir,

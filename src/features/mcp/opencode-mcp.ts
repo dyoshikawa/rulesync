@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -178,10 +178,9 @@ export class OpencodeMcp extends ToolMcp {
     global = false,
   }: ToolMcpFromFileParams): Promise<OpencodeMcp> {
     const paths = this.getSettablePaths({ global });
-    const fileContent = await readOrInitializeFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcp: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
+      '{"mcp":{}}';
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
