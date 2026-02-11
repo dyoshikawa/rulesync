@@ -11,6 +11,7 @@ import { generateCommand } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
+import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand } from "./commands/update.js";
 
@@ -123,6 +124,31 @@ const main = async () => {
     .action(async () => {
       try {
         await mcpCommand({ version });
+      } catch (error) {
+        logger.error(formatError(error));
+        process.exit(1);
+      }
+    });
+
+  program
+    .command("install")
+    .description("Install skills from declarative sources in rulesync.jsonc")
+    .option("--update", "Force re-resolve all source refs, ignoring lockfile")
+    .option("--frozen", "Fail if lockfile is missing or out of sync (for CI)")
+    .option("--token <token>", "GitHub token for private repos")
+    .option("-c, --config <path>", "Path to configuration file")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(async (options) => {
+      try {
+        await installCommand({
+          update: options.update,
+          frozen: options.frozen,
+          token: options.token,
+          configPath: options.config,
+          verbose: options.verbose,
+          silent: options.silent,
+        });
       } catch (error) {
         logger.error(formatError(error));
         process.exit(1);
