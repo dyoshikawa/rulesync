@@ -25,3 +25,6 @@ export const RULESYNC_HOOKS_FILE_NAME = "hooks.json";
 
 // Size limits
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+// Concurrency limits
+export const FETCH_CONCURRENCY_LIMIT = 10;

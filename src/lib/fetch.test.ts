@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
-import { fetchFiles, formatFetchSummary, parseSource } from "./fetch.js";
+import { fetchFiles, formatFetchSummary } from "./fetch.js";
+import { parseSource } from "./source-parser.js";
 
 let mockClientInstance: any;
 

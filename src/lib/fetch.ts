@@ -14,6 +14,7 @@ import type {
 import type { ToolTarget } from "../types/tool-targets.js";
 
 import {
+  FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_HOOKS_FILE_NAME,
@@ -37,9 +38,8 @@ import {
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
+import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
-
-export { parseSource };
 
 /**
  * Feature to path mapping for filtering (rulesync format)
@@ -209,22 +209,6 @@ async function convertFetchedFilesToRulesync(params: {
   }
 
   return { converted: convertedPaths.length, convertedPaths };
-}
-
-const MAX_RECURSION_DEPTH = 15;
-const FETCH_CONCURRENCY_LIMIT = 10;
-
-/**
- * Execute an async function with semaphore-controlled concurrency.
- * Ensures the semaphore permit is always released, even if the function throws.
- */
-export async function withSemaphore<T>(semaphore: Semaphore, fn: () => Promise<T>): Promise<T> {
-  await semaphore.acquire();
-  try {
-    return await fn();
-  } finally {
-    semaphore.release();
-  }
 }
 
 /**
@@ -518,63 +502,6 @@ async function collectFeatureFiles(params: {
   );
 
   return results.flat();
-}
-
-/**
- * Recursively list all files in a directory.
- *
- * NOTE: The semaphore is released before spawning recursive calls via Promise.all.
- * This acquire-release-then-recurse ordering is critical to avoid deadlock when the
- * same semaphore is shared across collectFeatureFiles and this function.
- */
-export async function listDirectoryRecursive(params: {
-  client: GitHubClient;
-  owner: string;
-  repo: string;
-  path: string;
-  ref?: string;
-  depth?: number;
-  semaphore: Semaphore;
-}): Promise<GitHubFileEntry[]> {
-  const { client, owner, repo, path, ref, depth = 0, semaphore } = params;
-
-  if (depth > MAX_RECURSION_DEPTH) {
-    throw new Error(
-      `Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded while listing directory: ${path}`,
-    );
-  }
-
-  // Semaphore is released here before recursive Promise.all below to avoid deadlock
-  const entries = await withSemaphore(semaphore, () =>
-    client.listDirectory(owner, repo, path, ref),
-  );
-
-  const files: GitHubFileEntry[] = [];
-  const directories: GitHubFileEntry[] = [];
-
-  for (const entry of entries) {
-    if (entry.type === "file") {
-      files.push(entry);
-    } else if (entry.type === "dir") {
-      directories.push(entry);
-    }
-  }
-
-  const subResults = await Promise.all(
-    directories.map((dir) =>
-      listDirectoryRecursive({
-        client,
-        owner,
-        repo,
-        path: dir.path,
-        ref,
-        depth: depth + 1,
-        semaphore,
-      }),
-    ),
-  );
-
-  return [...files, ...subResults.flat()];
 }
 
 /**

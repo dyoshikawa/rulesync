@@ -1,23 +1,23 @@
 import { Semaphore } from "es-toolkit/promise";
-import { basename, join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 import type { SourceEntry } from "../config/config.js";
 
 import {
+  FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
-  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { getLocalSkillDirNames } from "../features/skills/skills-utils.js";
 import {
   checkPathTraversal,
   directoryExists,
-  findFilesByGlobs,
   removeDirectory,
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { listDirectoryRecursive, withSemaphore } from "./fetch.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
+import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
 import {
   type LockedSkill,
@@ -31,8 +31,6 @@ import {
   setLockedSource,
   writeLockFile,
 } from "./sources-lock.js";
-
-const FETCH_CONCURRENCY_LIMIT = 10;
 
 export type ResolveAndFetchSourcesOptions = {
   /** Force re-resolve all refs, ignoring the lockfile. */
@@ -75,18 +73,34 @@ export async function resolveAndFetchSources(params: {
     ? createEmptyLock()
     : await readLockFile({ baseDir });
 
-  // Frozen mode: validate lockfile covers all declared sources
+  // Frozen mode: validate lockfile covers all declared sources and skills exist on disk
   if (options.frozen) {
     const missingKeys: string[] = [];
+    const missingSkills: string[] = [];
+    const curatedDir = join(baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+
     for (const source of sources) {
       const locked = getLockedSource(lock, source.source);
       if (!locked) {
         missingKeys.push(source.source);
+        continue;
+      }
+      // Validate all locked skills exist on disk
+      const skillNames = getLockedSkillNames(locked);
+      for (const skillName of skillNames) {
+        if (!(await directoryExists(join(curatedDir, skillName)))) {
+          missingSkills.push(`${source.source}:${skillName}`);
+        }
       }
     }
     if (missingKeys.length > 0) {
       throw new Error(
         `Frozen install failed: lockfile is missing entries for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
+      );
+    }
+    if (missingSkills.length > 0) {
+      throw new Error(
+        `Frozen install failed: locked skills missing from disk: ${missingSkills.join(", ")}. Run 'rulesync install' to fetch missing skills.`,
       );
     }
   }
@@ -98,7 +112,7 @@ export async function resolveAndFetchSources(params: {
   const client = new GitHubClient({ token });
 
   // Determine local skills (in .rulesync/skills/ but not in .curated/)
-  const localSkillNames = await getLocalSkillNames(baseDir);
+  const localSkillNames = await getLocalSkillDirNames(baseDir);
 
   let totalSkillCount = 0;
   const allFetchedSkillNames = new Set<string>();
@@ -149,28 +163,6 @@ export async function resolveAndFetchSources(params: {
   }
 
   return { fetchedSkillCount: totalSkillCount, sourcesProcessed: sources.length };
-}
-
-/**
- * Get the names of locally defined skills (not in .curated/).
- */
-async function getLocalSkillNames(baseDir: string): Promise<Set<string>> {
-  const skillsDir = join(baseDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
-  const names = new Set<string>();
-
-  if (!(await directoryExists(skillsDir))) {
-    return names;
-  }
-
-  const dirPaths = await findFilesByGlobs(join(skillsDir, "*"), { type: "dir" });
-  for (const dirPath of dirPaths) {
-    const name = basename(dirPath);
-    // Skip the .curated directory itself
-    if (name === ".curated") continue;
-    names.add(name);
-  }
-
-  return names;
 }
 
 /**
@@ -283,8 +275,16 @@ async function fetchSource(params: {
 
   // Clean previously curated skills for this source before re-fetching
   if (locked) {
+    const resolvedCuratedDir = resolve(curatedDir);
     for (const prevSkill of lockedSkillNames) {
       const prevDir = join(curatedDir, prevSkill);
+      // Verify the resolved path is within the curated directory to prevent traversal
+      if (!resolve(prevDir).startsWith(resolvedCuratedDir + sep)) {
+        logger.warn(
+          `Skipping removal of "${prevSkill}": resolved path is outside the curated directory.`,
+        );
+        continue;
+      }
       if (await directoryExists(prevDir)) {
         await removeDirectory(prevDir);
       }
@@ -363,18 +363,43 @@ async function fetchSource(params: {
     }
 
     const integrity = computeSkillIntegrity(skillFiles);
+
+    // Verify integrity against lockfile hash when available
+    const lockedSkillEntry = locked?.skills[skillDir.name];
+    if (
+      lockedSkillEntry &&
+      lockedSkillEntry.integrity &&
+      lockedSkillEntry.integrity !== integrity &&
+      resolvedSha === locked?.resolvedRef
+    ) {
+      logger.warn(
+        `Integrity mismatch for skill "${skillDir.name}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+      );
+    }
+
     fetchedSkills[skillDir.name] = { integrity };
     logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);
   }
 
   const fetchedNames = Object.keys(fetchedSkills);
 
+  // Merge newly fetched skills with existing locked skills that were skipped
+  // (due to local precedence, already-fetched, etc.) to prevent overwriting their entries
+  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
+  if (locked) {
+    for (const [skillName, skillEntry] of Object.entries(locked.skills)) {
+      if (!(skillName in mergedSkills)) {
+        mergedSkills[skillName] = skillEntry;
+      }
+    }
+  }
+
   // Update lockfile entry
   lock = setLockedSource(lock, sourceKey, {
     requestedRef,
     resolvedRef: resolvedSha,
     resolvedAt: new Date().toISOString(),
-    skills: fetchedSkills,
+    skills: mergedSkills,
   });
 
   logger.info(

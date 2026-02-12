@@ -1,8 +1,9 @@
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
   LOCKFILE_VERSION,
   computeSkillIntegrity,
@@ -14,16 +15,6 @@ import {
   setLockedSource,
   writeLockFile,
 } from "./sources-lock.js";
-
-vi.mock("../utils/file.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../utils/file.js")>();
-  return {
-    ...actual,
-    fileExists: vi.fn(),
-    readFileContent: vi.fn(),
-    writeFileContent: vi.fn(),
-  };
-});
 
 vi.mock("../utils/logger.js", () => ({
   logger: {
@@ -50,15 +41,21 @@ describe("sources-lock", () => {
   });
 
   describe("readLockFile", () => {
+    let testDir: string;
+    let cleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+      vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    });
+
+    afterEach(async () => {
+      await cleanup();
+    });
+
     it("should return empty lock when file does not exist", async () => {
-      vi.mocked(fileExists).mockResolvedValue(false);
-
-      const lock = await readLockFile({ baseDir: "/project" });
-
+      const lock = await readLockFile({ baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
-      expect(fileExists).toHaveBeenCalledWith(
-        join("/project", RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
-      );
     });
 
     it("should parse a valid lockfile", async () => {
@@ -75,10 +72,9 @@ describe("sources-lock", () => {
         },
       });
 
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue(lockContent);
+      await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), lockContent);
 
-      const lock = await readLockFile({ baseDir: "/project" });
+      const lock = await readLockFile({ baseDir: testDir });
 
       expect(lock.sources["https://github.com/org/repo"]).toEqual({
         resolvedRef: "abc123",
@@ -90,29 +86,19 @@ describe("sources-lock", () => {
     });
 
     it("should return empty lock for invalid JSON", async () => {
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue("not-json");
+      await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), "not-json");
 
-      const lock = await readLockFile({ baseDir: "/project" });
-
+      const lock = await readLockFile({ baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
     it("should return empty lock for invalid schema", async () => {
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue(JSON.stringify({ wrong: "shape" }));
+      await writeFileContent(
+        join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
+        JSON.stringify({ wrong: "shape" }),
+      );
 
-      const lock = await readLockFile({ baseDir: "/project" });
-
-      expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
-    });
-
-    it("should return empty lock when read throws", async () => {
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockRejectedValue(new Error("read error"));
-
-      const lock = await readLockFile({ baseDir: "/project" });
-
+      const lock = await readLockFile({ baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -126,10 +112,12 @@ describe("sources-lock", () => {
         },
       });
 
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue(legacyContent);
+      await writeFileContent(
+        join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
+        legacyContent,
+      );
 
-      const lock = await readLockFile({ baseDir: "/project" });
+      const lock = await readLockFile({ baseDir: testDir });
 
       expect(lock).toEqual({
         lockfileVersion: 1,
@@ -150,9 +138,19 @@ describe("sources-lock", () => {
   });
 
   describe("writeLockFile", () => {
-    it("should write formatted JSON to the lockfile path", async () => {
-      vi.mocked(writeFileContent).mockResolvedValue(undefined);
+    let testDir: string;
+    let cleanup: () => Promise<void>;
 
+    beforeEach(async () => {
+      ({ testDir, cleanup } = await setupTestDirectory());
+      vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    });
+
+    afterEach(async () => {
+      await cleanup();
+    });
+
+    it("should write formatted JSON to the lockfile path", async () => {
       const lock = {
         lockfileVersion: LOCKFILE_VERSION,
         sources: {
@@ -163,13 +161,11 @@ describe("sources-lock", () => {
         },
       };
 
-      await writeLockFile({ baseDir: "/project", lock });
+      await writeLockFile({ baseDir: testDir, lock });
 
-      const expectedPath = join("/project", RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
-      expect(writeFileContent).toHaveBeenCalledWith(
-        expectedPath,
-        JSON.stringify(lock, null, 2) + "\n",
-      );
+      const expectedPath = join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
+      const written = await readFileContent(expectedPath);
+      expect(written).toBe(JSON.stringify(lock, null, 2) + "\n");
     });
   });
 

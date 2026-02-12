@@ -23,6 +23,7 @@ import { ReplitSkill } from "./replit-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
+import { getLocalSkillDirNames } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -305,10 +306,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
 
     // Load local skills (directly under .rulesync/skills/)
-    const localDirPaths = await findFilesByGlobs(join(rulesyncSkillsDirPath, "*"), { type: "dir" });
-    const localDirNames = localDirPaths
-      .map((path) => basename(path))
-      .filter((name) => name !== ".curated");
+    const localDirNames = [...(await getLocalSkillDirNames(this.baseDir))];
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
