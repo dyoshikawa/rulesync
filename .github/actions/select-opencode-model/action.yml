@@ -21,7 +21,7 @@ runs:
         COMMENT_BODY: ${{ inputs.comment-body }}
       run: |
         if [[ "$COMMENT_BODY" == *"codex"* ]]; then
-          echo "model=openai/gpt-5.2-codex" >> $GITHUB_OUTPUT
+          echo "model=openrouter/openai/gpt-5.2-codex" >> $GITHUB_OUTPUT
         elif [[ "$COMMENT_BODY" == *"glm"* ]]; then
           echo "model=openrouter/z-ai/glm-4.7" >> $GITHUB_OUTPUT
         elif [[ "$COMMENT_BODY" == *"kimi"* ]]; then
