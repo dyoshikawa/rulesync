@@ -1,6 +1,7 @@
 import { basename, join } from "node:path";
 import { z } from "zod/mini";
 
+import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -302,9 +303,6 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * Local skills take precedence over curated skills with the same name.
    */
   async loadRulesyncDirs(): Promise<AiDir[]> {
-    const paths = RulesyncSkill.getSettablePaths();
-    const rulesyncSkillsDirPath = join(this.baseDir, paths.relativeDirPath);
-
     // Load local skills (directly under .rulesync/skills/)
     const localDirNames = [...(await getLocalSkillDirNames(this.baseDir))];
 
@@ -317,7 +315,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const localSkillNames = new Set(localDirNames);
 
     // Load curated (remote) skills from .curated/ subdirectory
-    const curatedDirPath = join(rulesyncSkillsDirPath, ".curated");
+    const curatedDirPath = join(this.baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
     let curatedSkills: RulesyncSkill[] = [];
 
     if (await directoryExists(curatedDirPath)) {
@@ -333,7 +331,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
         return true;
       });
 
-      const curatedRelativeDirPath = join(paths.relativeDirPath, ".curated");
+      const curatedRelativeDirPath = RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH;
       curatedSkills = await Promise.all(
         nonConflicting.map((dirName) =>
           RulesyncSkill.fromDir({

@@ -20,13 +20,7 @@ function createMockConfig(sources: SourceEntry[]): Config {
 }
 
 describe("installCommand", () => {
-  let mockExit: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
-    mockExit = vi.spyOn(process, "exit").mockImplementation(function () {
-      throw new Error("Process exit");
-    } as never);
-
     vi.mocked(logger.configure).mockImplementation(() => {});
     vi.mocked(logger.info).mockImplementation(() => {});
     vi.mocked(logger.success).mockImplementation(() => {});
@@ -141,28 +135,24 @@ describe("installCommand", () => {
   });
 
   describe("error handling", () => {
-    it("should handle errors from resolveAndFetchSources", async () => {
+    it("should propagate errors from resolveAndFetchSources", async () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockRejectedValue(
         new Error("Frozen install failed: lockfile is missing entries"),
       );
 
-      await expect(installCommand({ frozen: true })).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Frozen install failed"));
-      expect(mockExit).toHaveBeenCalledWith(1);
+      await expect(installCommand({ frozen: true })).rejects.toThrow(
+        "Frozen install failed: lockfile is missing entries",
+      );
     });
 
-    it("should handle generic errors", async () => {
+    it("should propagate generic errors", async () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockRejectedValue(new Error("Network error"));
 
-      await expect(installCommand({})).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Network error"));
-      expect(mockExit).toHaveBeenCalledWith(1);
+      await expect(installCommand({})).rejects.toThrow("Network error");
     });
   });
 

@@ -9,6 +9,7 @@ import {
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getLocalSkillDirNames } from "../features/skills/skills-utils.js";
+import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   directoryExists,
@@ -138,7 +139,7 @@ export async function resolveAndFetchSources(params: {
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints(error);
       } else {
-        logger.error(`Failed to fetch source "${sourceEntry.source}": ${String(error)}`);
+        logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       }
     }
   }

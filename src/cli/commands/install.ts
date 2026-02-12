@@ -1,6 +1,5 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
-import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 
 export type InstallCommandOptions = {
@@ -33,26 +32,21 @@ export async function installCommand(options: InstallCommandOptions): Promise<vo
 
   logger.debug(`Installing skills from ${sources.length} source(s)...`);
 
-  try {
-    const result = await resolveAndFetchSources({
-      sources,
-      baseDir: process.cwd(),
-      options: {
-        updateSources: options.update,
-        frozen: options.frozen,
-        token: options.token,
-      },
-    });
+  const result = await resolveAndFetchSources({
+    sources,
+    baseDir: process.cwd(),
+    options: {
+      updateSources: options.update,
+      frozen: options.frozen,
+      token: options.token,
+    },
+  });
 
-    if (result.fetchedSkillCount > 0) {
-      logger.success(
-        `Installed ${result.fetchedSkillCount} skill(s) from ${result.sourcesProcessed} source(s).`,
-      );
-    } else {
-      logger.success(`All skills up to date (${result.sourcesProcessed} source(s) checked).`);
-    }
-  } catch (error) {
-    logger.error(formatError(error));
-    process.exit(1);
+  if (result.fetchedSkillCount > 0) {
+    logger.success(
+      `Installed ${result.fetchedSkillCount} skill(s) from ${result.sourcesProcessed} source(s).`,
+    );
+  } else {
+    logger.success(`All skills up to date (${result.sourcesProcessed} source(s) checked).`);
   }
 }
