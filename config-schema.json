@@ -93,6 +93,26 @@
     },
     "check": {
       "type": "boolean"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["source"],
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false,

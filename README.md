@@ -126,6 +126,8 @@ rulesync init
 
 # Install official skills (recommended)
 rulesync fetch dyoshikawa/rulesync --features skills
+
+# Or add skill sources to rulesync.jsonc and run 'rulesync install' (see "Declarative Skill Sources")
 ```
 
 On the other hand, if you already have AI tool configurations:
@@ -241,6 +243,18 @@ rulesync generate --dry-run --targets claudecode --features rules
 
 # Check if files are up to date (for CI/CD pipelines)
 rulesync generate --check --targets "*" --features "*"
+
+# Install skills from declarative sources in rulesync.jsonc
+rulesync install
+
+# Force re-resolve all source refs (ignore lockfile)
+rulesync install --update
+
+# Fail if lockfile is missing or out of sync (for CI)
+rulesync install --frozen
+
+# Install then generate (typical workflow)
+rulesync install && rulesync generate
 
 # Add generated files to .gitignore
 rulesync gitignore
@@ -399,6 +413,13 @@ Example:
   "simulateCommands": false, // Generate simulated commands
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
+
+  // Declarative skill sources — installed via 'rulesync install'
+  // See the "Declarative Skill Sources" section for details.
+  // "sources": [
+  //   { "source": "owner/repo" },
+  //   { "source": "org/repo", "skills": ["specific-skill"] },
+  // ],
 }
 ```
 
@@ -697,20 +718,26 @@ You can use global mode via Rulesync by enabling `--global` option. It can also 
 Currently, supports rules and commands generation for Claude Code. Import for global files is supported for rules and commands.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
+
    ```bash
    mkdir -p ~/.aiglobal
    ```
+
 2. Initialize files for global files in the directory.
+
    ```bash
    cd ~/.aiglobal
    rulesync init
    ```
+
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
+
    ```jsonc
    {
      "global": true,
    }
    ```
+
 4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.
 
    ```md
@@ -724,6 +751,7 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
    ```
 
 5. Generate rules for global settings.
+
    ```bash
    # Run in the `~/.aiglobal` directory
    rulesync generate
@@ -742,6 +770,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
 
 1. Prepare `.rulesync/commands/*.md`, `.rulesync/subagents/*.md` and `.rulesync/skills/*/SKILL.md` for your purposes.
 2. Generate simulated commands, subagents and skills for specific tools that are included in cursor, codexcli and etc.
+
    ```bash
    rulesync generate \
      --targets copilot,cursor,codexcli \
@@ -750,6 +779,7 @@ Simulated commands, subagents and skills allow you to generate simulated feature
      --simulate-subagents \
      --simulate-skills
    ```
+
 3. Use simulated commands, subagents and skills in your prompts.
    - Prompt examples:
 
@@ -766,13 +796,136 @@ Simulated commands, subagents and skills allow you to generate simulated feature
 
 ## Official Skills
 
-Rulesync provides official skills that you can install using the fetch command:
+Rulesync provides official skills that you can install using the fetch command or declarative sources:
 
 ```bash
+# One-time fetch
 rulesync fetch dyoshikawa/rulesync --features skills
+
+# Or declare in rulesync.jsonc and run 'rulesync install'
 ```
 
 This will install the Rulesync documentation skill to your project.
+
+## Declarative Skill Sources
+
+Rulesync can fetch skills from external GitHub repositories using the `install` command. Instead of manually running `fetch` for each skill source, declare them in your `rulesync.jsonc` and run `rulesync install` to resolve and fetch them. Then `rulesync generate` picks them up as local curated skills. Typical workflow: `rulesync install && rulesync generate`.
+
+### Configuration
+
+Add a `sources` array to your `rulesync.jsonc`:
+
+```jsonc
+{
+  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "targets": ["copilot", "claudecode"],
+  "features": ["rules", "skills"],
+  "sources": [
+    // Fetch all skills from a repository
+    { "source": "owner/repo" },
+
+    // Fetch only specific skills by name
+    { "source": "anthropics/skills", "skills": ["skill-creator"] },
+
+    // With ref pinning and subdirectory path (same syntax as fetch command)
+    { "source": "owner/repo@v1.0.0:path/to/skills" },
+  ],
+}
+```
+
+Each entry in `sources` accepts:
+
+| Property | Type       | Description                                                                                                 |
+| -------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| `source` | `string`   | Repository source using the same format as the `fetch` command (`owner/repo`, `owner/repo@ref:path`, etc.). |
+| `skills` | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                  |
+
+### How It Works
+
+When `rulesync install` runs and `sources` is configured:
+
+1. **Lockfile resolution** — Each source's ref is resolved to a commit SHA and stored in `rulesync.lock` (at the project root). On subsequent runs the locked SHA is reused for deterministic builds.
+2. **Remote skill listing** — The `skills/` directory (or the path specified in the source URL) is listed from the remote repository.
+3. **Filtering** — If `skills` is specified, only matching skill directories are fetched.
+4. **Precedence rules**:
+   - **Local skills always win** — Skills in `.rulesync/skills/` (not in `.curated/`) take precedence; a remote skill with the same name is skipped.
+   - **First-declared source wins** — If two sources provide a skill with the same name, the one declared first in the `sources` array is used.
+5. **Output** — Fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. This directory is automatically added to `.gitignore` by `rulesync gitignore`.
+
+### CLI Options
+
+The `install` command accepts these flags:
+
+| Flag              | Description                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| `--update`        | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates). |
+| `--frozen`        | Fail if lockfile is missing or out of sync. Useful for CI to ensure reproducibility.  |
+| `--token <token>` | GitHub token for private repositories.                                                |
+
+```bash
+# Install skills using locked refs
+rulesync install
+
+# Force update to latest refs
+rulesync install --update
+
+# Strict CI mode — fail if lockfile doesn't cover all sources
+rulesync install --frozen
+
+# Install then generate
+rulesync install && rulesync generate
+
+# Skip source installation — just don't run install
+rulesync generate
+```
+
+### Lockfile
+
+The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA and per-skill integrity hashes for each source so that builds are reproducible. It is safe to commit this file. An example:
+
+```json
+{
+  "lockfileVersion": 1,
+  "sources": {
+    "owner/skill-repo": {
+      "requestedRef": "main",
+      "resolvedRef": "abc123def456...",
+      "resolvedAt": "2025-01-15T12:00:00.000Z",
+      "skills": {
+        "my-skill": { "integrity": "sha256-abcdef..." },
+        "another-skill": { "integrity": "sha256-123456..." }
+      }
+    }
+  }
+}
+```
+
+To update locked refs, run `rulesync install --update`.
+
+### Authentication
+
+Source fetching uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits.
+
+```bash
+# Using environment variable
+export GITHUB_TOKEN=ghp_xxxx
+npx rulesync install
+
+# Or using GitHub CLI
+GITHUB_TOKEN=$(gh auth token) npx rulesync install
+```
+
+> [!TIP]
+> The `install` command also accepts a `--token` flag for explicit authentication: `rulesync install --token ghp_xxxx`.
+
+### Curated vs Local Skills
+
+| Location                            | Type    | Precedence | Committed to Git |
+| ----------------------------------- | ------- | ---------- | ---------------- |
+| `.rulesync/skills/<name>/`          | Local   | Highest    | Yes              |
+| `.rulesync/skills/.curated/<name>/` | Curated | Lower      | No (gitignored)  |
+
+When both a local and a curated skill share the same name, the local skill is used and the remote one is not fetched.
 
 ## Rulesync MCP Server
 
@@ -810,7 +963,7 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 
 ## FAQ
 
-### Q. The generated `.mcp.json` doesn't work properly in Claude Code.
+### Q. The generated `.mcp.json` doesn't work properly in Claude Code
 
 You can try adding the following to `.claude/settings.json` or `.claude/settings.local.json`:
 

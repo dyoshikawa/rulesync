@@ -49,6 +49,13 @@ Example:
   "simulateCommands": false, // Generate simulated commands
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
+
+  // Declarative skill sources — installed via 'rulesync install'
+  // See the "Declarative Skill Sources" section for details.
+  // "sources": [
+  //   { "source": "owner/repo" },
+  //   { "source": "org/repo", "skills": ["specific-skill"] },
+  // ],
 }
 ```
 

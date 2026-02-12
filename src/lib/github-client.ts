@@ -230,6 +230,22 @@ export class GitHubClient {
   }
 
   /**
+   * Resolve a ref (branch, tag, or SHA) to a full commit SHA.
+   */
+  async resolveRefToSha(owner: string, repo: string, ref: string): Promise<string> {
+    try {
+      const { data } = await this.octokit.repos.getCommit({
+        owner,
+        repo,
+        ref,
+      });
+      return data.sha;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Get the latest release from a repository
    */
   async getLatestRelease(owner: string, repo: string): Promise<GitHubRelease> {

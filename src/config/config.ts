@@ -1,4 +1,4 @@
-import { optional, z } from "zod/mini";
+import { minLength, optional, z } from "zod/mini";
 
 import {
   ALL_FEATURES,
@@ -16,6 +16,16 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 
+/**
+ * Schema for a single source entry in the sources array.
+ * Declares an external repository from which skills can be fetched.
+ */
+export const SourceEntrySchema = z.object({
+  source: z.string().check(minLength(1, "source must be a non-empty string")),
+  skills: optional(z.array(z.string())),
+});
+export type SourceEntry = z.infer<typeof SourceEntrySchema>;
+
 export const ConfigParamsSchema = z.object({
   baseDirs: z.array(z.string()),
   targets: RulesyncTargetsSchema,
@@ -30,6 +40,8 @@ export const ConfigParamsSchema = z.object({
   simulateSkills: optional(z.boolean()),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
+  // Declarative skill sources
+  sources: optional(z.array(SourceEntrySchema)),
 });
 export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
 
@@ -73,6 +85,7 @@ export class Config {
   private readonly simulateSkills: boolean;
   private readonly dryRun: boolean;
   private readonly check: boolean;
+  private readonly sources: SourceEntry[];
 
   constructor({
     baseDirs,
@@ -87,6 +100,7 @@ export class Config {
     simulateSkills,
     dryRun,
     check,
+    sources,
   }: ConfigParams) {
     // Validate conflicting targets
     this.validateConflictingTargets(targets);
@@ -109,6 +123,7 @@ export class Config {
     this.simulateSkills = simulateSkills ?? false;
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
+    this.sources = sources ?? [];
   }
 
   private validateConflictingTargets(targets: RulesyncTargets): void {
@@ -230,6 +245,10 @@ export class Config {
 
   public getCheck(): boolean {
     return this.check;
+  }
+
+  public getSources(): SourceEntry[] {
+    return this.sources;
   }
 
   /**

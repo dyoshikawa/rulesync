@@ -13,6 +13,11 @@ export const RULESYNC_AIIGNORE_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_P
 export const RULESYNC_IGNORE_RELATIVE_FILE_PATH = ".rulesyncignore";
 export const RULESYNC_OVERVIEW_FILE_NAME = "overview.md";
 export const RULESYNC_SKILLS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "skills");
+export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+  ".curated",
+);
+export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 
 // File names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";
@@ -20,3 +25,6 @@ export const RULESYNC_HOOKS_FILE_NAME = "hooks.json";
 
 // Size limits
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+// Concurrency limits
+export const FETCH_CONCURRENCY_LIMIT = 10;
