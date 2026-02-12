@@ -7,6 +7,11 @@ export type WriteResult = {
 };
 
 /**
+ * Result of feature generation, extending WriteResult with hasDiff
+ */
+export type FeatureGenerateResult = WriteResult & { hasDiff: boolean };
+
+/**
  * Common count fields shared by ImportResult and GenerateResult
  */
 export type CountableResult = {

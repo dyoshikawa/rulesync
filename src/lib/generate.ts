@@ -1,6 +1,8 @@
 import { intersection } from "es-toolkit";
 import { join } from "node:path";
 
+import type { FeatureGenerateResult } from "../utils/result.js";
+
 import { Config } from "../config/config.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
@@ -42,7 +44,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   config: Config;
   processor: FeatureProcessor;
   toolFiles: T[];
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+}): Promise<FeatureGenerateResult> {
   const { config, processor, toolFiles } = params;
 
   let totalCount = 0;
@@ -67,7 +69,7 @@ async function processDirFeatureGeneration(params: {
   config: Config;
   processor: DirFeatureProcessor;
   toolDirs: AiDir[];
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+}): Promise<FeatureGenerateResult> {
   const { config, processor, toolDirs } = params;
 
   let totalCount = 0;
@@ -92,7 +94,7 @@ async function processDirFeatureGeneration(params: {
 async function processEmptyFeatureGeneration(params: {
   config: Config;
   processor: FeatureProcessor;
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+}): Promise<FeatureGenerateResult> {
   const { config, processor } = params;
 
   const totalCount = 0;
@@ -161,7 +163,7 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
 async function generateRulesCore(params: {
   config: Config;
   skills?: RulesyncSkill[];
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+}): Promise<FeatureGenerateResult> {
   const { config, skills } = params;
 
   let totalCount = 0;
@@ -209,9 +211,7 @@ async function generateRulesCore(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateIgnoreCore(params: {
-  config: Config;
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
   if (config.getGlobal()) {
@@ -268,9 +268,7 @@ async function generateIgnoreCore(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateMcpCore(params: {
-  config: Config;
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+async function generateMcpCore(params: { config: Config }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
   let totalCount = 0;
@@ -314,9 +312,7 @@ async function generateMcpCore(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateCommandsCore(params: {
-  config: Config;
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+async function generateCommandsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
   let totalCount = 0;
@@ -363,9 +359,7 @@ async function generateCommandsCore(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateSubagentsCore(params: {
-  config: Config;
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+async function generateSubagentsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
   let totalCount = 0;
@@ -469,9 +463,7 @@ async function generateSkillsCore(params: {
   return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff };
 }
 
-async function generateHooksCore(params: {
-  config: Config;
-}): Promise<{ count: number; paths: string[]; hasDiff: boolean }> {
+async function generateHooksCore(params: { config: Config }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
   let totalCount = 0;

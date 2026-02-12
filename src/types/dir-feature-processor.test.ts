@@ -175,7 +175,10 @@ describe("DirFeatureProcessor", () => {
 
       const result = await processor.writeAiDirs(dirs);
 
-      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
+      expect(result).toEqual({
+        count: 2,
+        paths: ["/path/to/dir1/SKILL.md", "/path/to/dir2/SKILL.md"],
+      });
       expect(ensureDir).toHaveBeenCalledTimes(2);
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
@@ -205,7 +208,7 @@ describe("DirFeatureProcessor", () => {
 
       const result = await processor.writeAiDirs(dirs);
 
-      expect(result).toEqual({ count: 1, paths: expect.any(Array) });
+      expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/extra.txt"] });
       expect(ensureDir).toHaveBeenCalledTimes(1);
       expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
@@ -221,7 +224,10 @@ describe("DirFeatureProcessor", () => {
 
       const result = await processor.writeAiDirs(dirs);
 
-      expect(result).toEqual({ count: 2, paths: expect.any(Array) });
+      expect(result).toEqual({
+        count: 2,
+        paths: ["/path/to/dir1/SKILL.md", "/path/to/dir2/SKILL.md"],
+      });
       expect(ensureDir).not.toHaveBeenCalled();
       expect(writeFileContent).not.toHaveBeenCalled();
     });
