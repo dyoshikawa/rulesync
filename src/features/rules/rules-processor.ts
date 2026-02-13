@@ -85,6 +85,9 @@ const rulesProcessorToolTargets: ToolTarget[] = [
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
 
+const formatRulePaths = (rules: RulesyncRule[]): string =>
+  rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
+
 /**
  * Rule discovery mode for determining how non-root rules are referenced.
  * - `auto`: Tool auto-discovers rules in a directory, no reference section needed
@@ -692,9 +695,7 @@ export class RulesProcessor extends FeatureProcessor {
 
     // A root file should be only one
     if (rootRules.length > 1) {
-      throw new Error(
-        `Multiple root rulesync rules found: ${rootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}`,
-      );
+      throw new Error(`Multiple root rulesync rules found: ${formatRulePaths(rootRules)}`);
     }
 
     if (rootRules.length === 0 && rulesyncRules.length > 0) {
@@ -708,13 +709,13 @@ export class RulesProcessor extends FeatureProcessor {
 
     if (localRootRules.length > 1) {
       throw new Error(
-        `Multiple localRoot rules found: ${localRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}. Only one rule can have localRoot: true`,
+        `Multiple localRoot rules found: ${formatRulePaths(localRootRules)}. Only one rule can have localRoot: true`,
       );
     }
 
     if (localRootRules.length > 0 && rootRules.length === 0) {
       throw new Error(
-        `localRoot: true requires a root: true rule to exist (found in ${localRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")})`,
+        `localRoot: true requires a root: true rule to exist (found in ${formatRulePaths(localRootRules)})`,
       );
     }
 
@@ -723,12 +724,12 @@ export class RulesProcessor extends FeatureProcessor {
       const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
       if (nonRootRules.length > 0) {
         logger.warn(
-          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${nonRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}`,
+          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${formatRulePaths(nonRootRules)}`,
         );
       }
       if (localRootRules.length > 0) {
         logger.warn(
-          `${localRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${localRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}`,
+          `${localRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${formatRulePaths(localRootRules)}`,
         );
       }
       return rootRules;

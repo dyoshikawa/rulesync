@@ -83,10 +83,7 @@ export class RooSkill extends ToolSkill {
   }
 
   getFrontmatter(): RooSkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = RooSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = RooSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 

@@ -86,10 +86,7 @@ export class GeminiCliSkill extends ToolSkill {
   }
 
   getFrontmatter(): GeminiCliSkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = GeminiCliSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = GeminiCliSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 

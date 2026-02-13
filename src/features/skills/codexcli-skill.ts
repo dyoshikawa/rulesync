@@ -87,10 +87,7 @@ export class CodexCliSkill extends ToolSkill {
   }
 
   getFrontmatter(): CodexCliSkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = CodexCliSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = CodexCliSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 

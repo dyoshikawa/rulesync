@@ -78,10 +78,7 @@ export class KiroSkill extends ToolSkill {
   }
 
   getFrontmatter(): KiroSkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = KiroSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = KiroSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 
