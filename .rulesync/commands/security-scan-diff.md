@@ -20,7 +20,6 @@ Thoroughly check for malicious code in the diff between `${target_ref}` and the 
    - Categorize changed files into: CI/CD workflows, source code, and config/docs.
 
 2. Execute the following security reviews in parallel using subagents:
-
    - Call security-reviewer subagent to review CI/CD and workflow files (`.github/`, `scripts/`) for:
      - Secret exfiltration
      - Script injection (`${{ github.event.* }}` direct expansion in `run:`)
