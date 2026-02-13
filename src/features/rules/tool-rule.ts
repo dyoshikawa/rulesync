@@ -125,7 +125,7 @@ export abstract class ToolRule extends ToolFile {
     }
 
     if (!nonRootPath) {
-      throw new Error("nonRootPath is not set");
+      throw new Error(`nonRootPath is not set for ${rulesyncRule.getRelativeFilePath()}`);
     }
 
     return {

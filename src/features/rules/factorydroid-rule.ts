@@ -85,7 +85,7 @@ export class FactorydroidRule extends ToolRule {
     }
 
     if (!paths.nonRoot) {
-      throw new Error("nonRoot path is not set");
+      throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
     }
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);

@@ -692,7 +692,9 @@ export class RulesProcessor extends FeatureProcessor {
 
     // A root file should be only one
     if (rootRules.length > 1) {
-      throw new Error("Multiple root rulesync rules found");
+      throw new Error(
+        `Multiple root rulesync rules found: ${rootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}`,
+      );
     }
 
     if (rootRules.length === 0 && rulesyncRules.length > 0) {
@@ -705,11 +707,15 @@ export class RulesProcessor extends FeatureProcessor {
     const localRootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().localRoot);
 
     if (localRootRules.length > 1) {
-      throw new Error("Multiple localRoot rules found. Only one rule can have localRoot: true");
+      throw new Error(
+        `Multiple localRoot rules found: ${localRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}. Only one rule can have localRoot: true`,
+      );
     }
 
     if (localRootRules.length > 0 && rootRules.length === 0) {
-      throw new Error("localRoot: true requires a root: true rule to exist");
+      throw new Error(
+        `localRoot: true requires a root: true rule to exist (found in ${localRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")})`,
+      );
     }
 
     // If global is true, return only the root rule
