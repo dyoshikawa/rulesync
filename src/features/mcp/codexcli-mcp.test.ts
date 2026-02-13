@@ -447,6 +447,173 @@ fontSize = 14
       expect(codexcliMcp.getToml().mcp_servers).toEqual({});
     });
 
+    it("should convert disabled: true to enabled = false in codex format", async () => {
+      const jsonData = {
+        mcpServers: {
+          "disabled-server": {
+            command: "node",
+            args: ["server.js"],
+            disabled: true,
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["disabled-server"].enabled).toBe(false);
+      expect(mcpServers["disabled-server"].disabled).toBeUndefined();
+    });
+
+    it("should convert enabledTools to enabled_tools in codex format", async () => {
+      const jsonData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search", "list"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["my-server"].enabled_tools).toEqual(["search", "list"]);
+      expect(mcpServers["my-server"].enabledTools).toBeUndefined();
+    });
+
+    it("should convert disabledTools to disabled_tools in codex format", async () => {
+      const jsonData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            disabledTools: ["write", "delete"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["my-server"].disabled_tools).toEqual(["write", "delete"]);
+      expect(mcpServers["my-server"].disabledTools).toBeUndefined();
+    });
+
+    it("should convert both enabledTools and disabledTools in codex format", async () => {
+      const jsonData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search"],
+            disabledTools: ["delete"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["my-server"].enabled_tools).toEqual(["search"]);
+      expect(mcpServers["my-server"].disabled_tools).toEqual(["delete"]);
+    });
+
+    it("should convert enabledTools/disabledTools for multiple servers", async () => {
+      const jsonData = {
+        mcpServers: {
+          "server-a": {
+            command: "node",
+            args: ["a.js"],
+            disabledTools: ["write"],
+          },
+          "server-b": {
+            command: "node",
+            args: ["b.js"],
+            enabledTools: ["read"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["server-a"].disabled_tools).toEqual(["write"]);
+      expect(mcpServers["server-b"].enabled_tools).toEqual(["read"]);
+    });
+
+    it("should not include tool keys when no enabledTools/disabledTools are specified", async () => {
+      const jsonData = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["test-server"].enabled_tools).toBeUndefined();
+      expect(mcpServers["test-server"].disabled_tools).toBeUndefined();
+    });
+
     it("should handle complex nested MCP server configuration", async () => {
       const jsonData = {
         mcpServers: {
@@ -577,6 +744,125 @@ theme = "dark"
 
       const json = JSON.parse(rulesyncMcp.getFileContent());
       expect(json.mcpServers).toEqual({});
+    });
+
+    it("should convert enabled = false to disabled: true in rulesync format", () => {
+      const tomlContent = `[mcp_servers."disabled-server"]
+command = "node"
+args = ["server.js"]
+enabled = false
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["disabled-server"].disabled).toBe(true);
+      expect(json.mcpServers["disabled-server"].enabled).toBeUndefined();
+    });
+
+    it("should convert enabled_tools to enabledTools in rulesync format", () => {
+      const tomlContent = `[mcp_servers."my-server"]
+command = "node"
+args = ["server.js"]
+enabled_tools = ["search", "list"]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["my-server"].enabledTools).toEqual(["search", "list"]);
+      expect(json.mcpServers["my-server"].enabled_tools).toBeUndefined();
+    });
+
+    it("should convert disabled_tools to disabledTools in rulesync format", () => {
+      const tomlContent = `[mcp_servers."my-server"]
+command = "node"
+args = ["server.js"]
+disabled_tools = ["write", "delete"]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["my-server"].disabledTools).toEqual(["write", "delete"]);
+      expect(json.mcpServers["my-server"].disabled_tools).toBeUndefined();
+    });
+
+    it("should convert both enabled_tools and disabled_tools in rulesync format", () => {
+      const tomlContent = `[mcp_servers."my-server"]
+command = "node"
+args = ["server.js"]
+enabled_tools = ["search"]
+disabled_tools = ["delete"]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["my-server"].enabledTools).toEqual(["search"]);
+      expect(json.mcpServers["my-server"].disabledTools).toEqual(["delete"]);
+    });
+
+    it("should convert enabled_tools/disabled_tools for multiple servers", () => {
+      const tomlContent = `[mcp_servers."server-a"]
+command = "node"
+args = ["a.js"]
+disabled_tools = ["write"]
+
+[mcp_servers."server-b"]
+command = "node"
+args = ["b.js"]
+enabled_tools = ["read"]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["server-a"].disabledTools).toEqual(["write"]);
+      expect(json.mcpServers["server-b"].enabledTools).toEqual(["read"]);
+    });
+
+    it("should not include enabledTools/disabledTools when no tool keys exist", () => {
+      const tomlContent = `[mcp_servers."my-server"]
+command = "node"
+args = ["server.js"]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["my-server"].enabledTools).toBeUndefined();
+      expect(json.mcpServers["my-server"].disabledTools).toBeUndefined();
     });
   });
 
@@ -760,6 +1046,125 @@ fontSize = 14
       expect((newJson as any).general).toEqual({ theme: "dark", language: "en" });
       expect((newJson as any).editor).toEqual({ fontSize: 14 });
       expect((newJson.mcp_servers as any)?.filesystem).toBeDefined();
+    });
+
+    it("should round-trip enabled_tools/disabled_tools through rulesync format", async () => {
+      const originalTomlData = `[mcp_servers."my-server"]
+command = "node"
+args = ["server.js"]
+enabled_tools = ["search", "read"]
+disabled_tools = ["write"]
+`;
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), originalTomlData);
+
+      // Step 1: Load from file
+      const originalCodexcliMcp = await CodexcliMcp.fromFile({
+        baseDir: testDir,
+        global: true,
+      });
+
+      // Step 2: Convert to RulesyncMcp
+      const rulesyncMcp = originalCodexcliMcp.toRulesyncMcp();
+
+      // Verify RulesyncMcp has enabledTools/disabledTools
+      const rulesyncJson = JSON.parse(rulesyncMcp.getFileContent());
+      expect(rulesyncJson.mcpServers["my-server"].enabledTools).toEqual(["search", "read"]);
+      expect(rulesyncJson.mcpServers["my-server"].disabledTools).toEqual(["write"]);
+
+      // Step 3: Convert back to CodexcliMcp
+      const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      // After round-trip, should be back to codex format
+      const mcpServers = newCodexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["my-server"].enabled_tools).toEqual(["search", "read"]);
+      expect(mcpServers["my-server"].disabled_tools).toEqual(["write"]);
+    });
+
+    it("should round-trip enabled = false through rulesync format", async () => {
+      const originalTomlData = `[mcp_servers."disabled-server"]
+command = "node"
+args = ["server.js"]
+enabled = false
+`;
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), originalTomlData);
+
+      // Step 1: Load from file
+      const originalCodexcliMcp = await CodexcliMcp.fromFile({
+        baseDir: testDir,
+        global: true,
+      });
+
+      // Step 2: Convert to RulesyncMcp
+      const rulesyncMcp = originalCodexcliMcp.toRulesyncMcp();
+
+      // Verify RulesyncMcp has disabled: true
+      const rulesyncJson = JSON.parse(rulesyncMcp.getFileContent());
+      expect(rulesyncJson.mcpServers["disabled-server"].disabled).toBe(true);
+
+      // Step 3: Convert back to CodexcliMcp
+      const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      // After round-trip, should be back to codex format
+      const mcpServers = newCodexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["disabled-server"].enabled).toBe(false);
+      expect(mcpServers["disabled-server"].disabled).toBeUndefined();
+    });
+
+    it("should round-trip from rulesync format with enabledTools/disabledTools", async () => {
+      const rulesyncData = {
+        mcpServers: {
+          "server-a": {
+            command: "node",
+            args: ["a.js"],
+            enabledTools: ["search", "read"],
+            disabledTools: ["write"],
+          },
+          "server-b": {
+            command: "python",
+            args: ["b.py"],
+            disabled: true,
+            disabledTools: ["delete"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncData),
+      });
+
+      // Step 1: Convert to CodexcliMcp
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      // Verify Codex format
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["server-a"].enabled_tools).toEqual(["search", "read"]);
+      expect(mcpServers["server-a"].disabled_tools).toEqual(["write"]);
+      expect(mcpServers["server-b"].enabled).toBe(false);
+      expect(mcpServers["server-b"].disabled_tools).toEqual(["delete"]);
+
+      // Step 2: Convert back to rulesync
+      const backToRulesync = codexcliMcp.toRulesyncMcp();
+      const backJson = JSON.parse(backToRulesync.getFileContent());
+
+      expect(backJson.mcpServers["server-a"].enabledTools).toEqual(["search", "read"]);
+      expect(backJson.mcpServers["server-a"].disabledTools).toEqual(["write"]);
+      expect(backJson.mcpServers["server-b"].disabled).toBe(true);
+      expect(backJson.mcpServers["server-b"].disabledTools).toEqual(["delete"]);
     });
   });
 });
