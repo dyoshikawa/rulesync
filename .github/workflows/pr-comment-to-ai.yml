@@ -73,6 +73,7 @@ jobs:
         with:
           model: ${{ steps.select-model.outputs.model }}
           use_github_token: "true"
+          share: false
           prompt: |
             You are working on a GitHub pull request. Read the following environment variables to get context:
             - PR_NUMBER: The pull request number
