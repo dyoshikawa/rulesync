@@ -17,7 +17,7 @@ import {
 
 export const OpenCodeSubagentFrontmatterSchema = z.looseObject({
   description: z.string(),
-  mode: z.optional(z._default(z.string(), "subagent")),
+  mode: z._default(z.string(), "subagent"),
   name: z.optional(z.string()),
 });
 
