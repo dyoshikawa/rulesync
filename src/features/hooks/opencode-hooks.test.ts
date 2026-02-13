@@ -352,6 +352,31 @@ describe("OpencodeHooks", () => {
       expect(content).not.toMatch(/Edit\r/);
     });
 
+    it("should strip NUL byte from matcher", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: "Write\0|Edit" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      expect(content).toContain('new RegExp("Write|Edit")');
+    });
+
     it("should escape double quotes in matcher", () => {
       const config = {
         version: 1,
@@ -378,6 +403,32 @@ describe("OpencodeHooks", () => {
       expect(content).toContain('new RegExp("Write\\"||true||\\"")');
       // Should not contain unescaped double quotes that would break the JS string
       expect(content).not.toContain('new RegExp("Write"');
+    });
+
+    it("should escape backslashes in matcher for JS string embedding", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: "\\bWrite\\b" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      // \b should be double-escaped for embedding in a JS double-quoted string
+      expect(content).toContain('new RegExp("\\\\bWrite\\\\b")');
     });
 
     it("should escape backticks in commands", () => {
