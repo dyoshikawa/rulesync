@@ -106,10 +106,14 @@ export async function readLockFile(params: { baseDir: string }): Promise<Sources
       return migrateLegacyLock(legacyResult.data);
     }
 
-    logger.warn("Invalid sources lockfile format. Starting fresh.");
+    logger.warn(
+      `Invalid sources lockfile format (${RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH}). Starting fresh.`,
+    );
     return createEmptyLock();
   } catch {
-    logger.warn("Failed to read sources lockfile. Starting fresh.");
+    logger.warn(
+      `Failed to read sources lockfile (${RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH}). Starting fresh.`,
+    );
     return createEmptyLock();
   }
 }

@@ -61,7 +61,9 @@ async function listRules(): Promise<
     // Filter out null values (failed reads)
     return rules.filter((rule): rule is NonNullable<typeof rule> => rule !== null);
   } catch (error) {
-    logger.error(`Failed to read rules directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read rules directory (${RULESYNC_RULES_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }

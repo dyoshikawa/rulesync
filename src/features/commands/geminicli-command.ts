@@ -61,7 +61,10 @@ export class GeminiCliCommand extends ToolCommand {
         description: result.data.description || "",
       };
     } catch (error) {
-      throw new Error(`Failed to parse TOML command file: ${error}`, { cause: error });
+      throw new Error(
+        `Failed to parse TOML command file (${join(this.relativeDirPath, this.relativeFilePath)}): ${error}`,
+        { cause: error },
+      );
     }
   }
 

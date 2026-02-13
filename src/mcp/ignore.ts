@@ -27,9 +27,12 @@ async function getIgnoreFile(): Promise<{
       content,
     };
   } catch (error) {
-    throw new Error(`Failed to read .rulesync/.aiignore file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to read ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -62,9 +65,12 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
       content,
     };
   } catch (error) {
-    throw new Error(`Failed to write .rulesync/.aiignore file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to write ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -90,7 +96,7 @@ async function deleteIgnoreFile(): Promise<{
     };
   } catch (error) {
     throw new Error(
-      `Failed to delete .rulesyncignore and .rulesync/.aiignore files: ${formatError(error)}`,
+      `Failed to delete ignore files (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}, ${RULESYNC_IGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       {
         cause: error,
       },

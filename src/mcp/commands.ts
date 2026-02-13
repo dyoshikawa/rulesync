@@ -60,7 +60,9 @@ async function listCommands(): Promise<
     // Filter out null values (failed reads)
     return commands.filter((command): command is NonNullable<typeof command> => command !== null);
   } catch (error) {
-    logger.error(`Failed to read commands directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read commands directory (${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }

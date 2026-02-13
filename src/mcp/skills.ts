@@ -105,7 +105,9 @@ async function listSkills(): Promise<
     // Filter out null values (failed reads)
     return skills.filter((skill): skill is NonNullable<typeof skill> => skill !== null);
   } catch (error) {
-    logger.error(`Failed to read skills directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read skills directory (${RULESYNC_SKILLS_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }

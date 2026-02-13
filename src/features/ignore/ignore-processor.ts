@@ -124,7 +124,9 @@ export class IgnoreProcessor extends FeatureProcessor {
     try {
       return [await RulesyncIgnore.fromFile()];
     } catch (error) {
-      logger.error(`Failed to load rulesync files: ${formatError(error)}`);
+      logger.error(
+        `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      );
       return [];
     }
   }
@@ -156,7 +158,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       const toolIgnores = await this.loadToolIgnores();
       return toolIgnores;
     } catch (error) {
-      const errorMessage = `Failed to load tool files: ${formatError(error)}`;
+      const errorMessage = `Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`;
       if (error instanceof Error && error.message.includes("no such file or directory")) {
         logger.debug(errorMessage);
       } else {

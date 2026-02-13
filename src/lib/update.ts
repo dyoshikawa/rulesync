@@ -221,7 +221,7 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to download: HTTP ${response.status}`);
+    throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
   }
 
   // Validate the final URL after redirects to prevent redirect-based bypass

@@ -857,7 +857,7 @@ export class RulesProcessor extends FeatureProcessor {
 
       return [...rootToolRules, ...localRootToolRules, ...nonRootToolRules];
     } catch (error) {
-      logger.error(`Failed to load tool files: ${formatError(error)}`);
+      logger.error(`Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`);
       return [];
     }
   }

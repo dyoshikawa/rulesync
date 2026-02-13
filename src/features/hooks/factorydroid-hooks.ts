@@ -199,9 +199,12 @@ export class FactorydroidHooks extends ToolHooks {
     try {
       settings = JSON.parse(this.getFileContent());
     } catch (error) {
-      throw new Error(`Failed to parse Factory Droid hooks content: ${formatError(error)}`, {
-        cause: error,
-      });
+      throw new Error(
+        `Failed to parse Factory Droid hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        {
+          cause: error,
+        },
+      );
     }
     const hooks = factorydroidHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({

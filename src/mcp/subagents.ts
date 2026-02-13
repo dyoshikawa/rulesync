@@ -62,7 +62,9 @@ async function listSubagents(): Promise<
       (subagent): subagent is NonNullable<typeof subagent> => subagent !== null,
     );
   } catch (error) {
-    logger.error(`Failed to read subagents directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read subagents directory (${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }

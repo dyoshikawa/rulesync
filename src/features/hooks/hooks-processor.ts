@@ -136,7 +136,9 @@ export class HooksProcessor extends FeatureProcessor {
         }),
       ];
     } catch (error) {
-      logger.error(`Failed to load Rulesync hooks file: ${formatError(error)}`);
+      logger.error(
+        `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      );
       return [];
     }
   }
