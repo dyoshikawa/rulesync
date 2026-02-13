@@ -130,4 +130,44 @@ Assist with any tasks`,
 
     expect(result.success).toBe(true);
   });
+
+  it("should apply default mode 'subagent' when mode is omitted", async () => {
+    const dirPath = join(testDir, ".opencode", "agent");
+    const filePath = join(dirPath, "no-mode.md");
+
+    await writeFileContent(
+      filePath,
+      `---
+description: Agent without explicit mode
+temperature: 0.5
+---
+Body content`,
+    );
+
+    const subagent = await OpenCodeSubagent.fromFile({
+      relativeFilePath: "no-mode.md",
+    });
+
+    expect(subagent.getFrontmatter().mode).toBe("subagent");
+  });
+
+  it("should preserve custom mode value when explicitly set", async () => {
+    const dirPath = join(testDir, ".opencode", "agent");
+    const filePath = join(dirPath, "custom-mode.md");
+
+    await writeFileContent(
+      filePath,
+      `---
+description: Agent with custom mode
+mode: all
+---
+Body content`,
+    );
+
+    const subagent = await OpenCodeSubagent.fromFile({
+      relativeFilePath: "custom-mode.md",
+    });
+
+    expect(subagent.getFrontmatter().mode).toBe("all");
+  });
 });
