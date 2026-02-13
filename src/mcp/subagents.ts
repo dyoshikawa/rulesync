@@ -129,7 +129,7 @@ async function putSubagent({
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
   if (estimatedSize > maxSubagentSizeBytes) {
     throw new Error(
-      `Subagent size ${estimatedSize} bytes exceeds maximum ${maxSubagentSizeBytes} bytes (1MB)`,
+      `Subagent size ${estimatedSize} bytes exceeds maximum ${maxSubagentSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
     );
   }
 

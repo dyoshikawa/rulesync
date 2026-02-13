@@ -49,7 +49,7 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
   const contentSizeBytes = Buffer.byteLength(content, "utf8");
   if (contentSizeBytes > maxIgnoreFileSizeBytes) {
     throw new Error(
-      `Ignore file size ${contentSizeBytes} bytes exceeds maximum ${maxIgnoreFileSizeBytes} bytes (100KB)`,
+      `Ignore file size ${contentSizeBytes} bytes exceeds maximum ${maxIgnoreFileSizeBytes} bytes (100KB) for ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
     );
   }
 

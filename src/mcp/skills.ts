@@ -182,7 +182,7 @@ async function putSkill({
     otherFiles.reduce((acc, file) => acc + file.name.length + file.body.length, 0);
   if (estimatedSize > maxSkillSizeBytes) {
     throw new Error(
-      `Skill size ${estimatedSize} bytes exceeds maximum ${maxSkillSizeBytes} bytes (1MB)`,
+      `Skill size ${estimatedSize} bytes exceeds maximum ${maxSkillSizeBytes} bytes (1MB) for ${relativeDirPathFromCwd}`,
     );
   }
 

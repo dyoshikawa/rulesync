@@ -126,7 +126,7 @@ async function putCommand({
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
   if (estimatedSize > maxCommandSizeBytes) {
     throw new Error(
-      `Command size ${estimatedSize} bytes exceeds maximum ${maxCommandSizeBytes} bytes (1MB)`,
+      `Command size ${estimatedSize} bytes exceeds maximum ${maxCommandSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
     );
   }
 

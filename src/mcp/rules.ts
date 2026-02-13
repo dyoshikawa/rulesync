@@ -128,7 +128,7 @@ async function putRule({
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
   if (estimatedSize > maxRuleSizeBytes) {
     throw new Error(
-      `Rule size ${estimatedSize} bytes exceeds maximum ${maxRuleSizeBytes} bytes (1MB)`,
+      `Rule size ${estimatedSize} bytes exceeds maximum ${maxRuleSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
     );
   }
 

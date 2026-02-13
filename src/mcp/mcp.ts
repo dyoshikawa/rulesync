@@ -49,7 +49,7 @@ async function putMcpFile({ content }: { content: string }): Promise<{
   // Check file size constraint
   if (content.length > maxMcpSizeBytes) {
     throw new Error(
-      `MCP file size ${content.length} bytes exceeds maximum ${maxMcpSizeBytes} bytes (1MB)`,
+      `MCP file size ${content.length} bytes exceeds maximum ${maxMcpSizeBytes} bytes (1MB) for ${RULESYNC_MCP_RELATIVE_FILE_PATH}`,
     );
   }
 
