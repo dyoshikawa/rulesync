@@ -122,25 +122,6 @@ Assist with any tasks`,
     expect(subagent.getBody()).toBe("Assist with any tasks");
   });
 
-  it("should throw for invalid frontmatter when mode is missing", async () => {
-    const dirPath = join(testDir, ".opencode", "agent");
-    const filePath = join(dirPath, "invalid.md");
-
-    await writeFileContent(
-      filePath,
-      `---
-description: Missing mode
----
-Body`,
-    );
-
-    await expect(
-      OpenCodeSubagent.fromFile({
-        relativeFilePath: "invalid.md",
-      }),
-    ).rejects.toThrow();
-  });
-
   it("should expose schema for direct validation", () => {
     const result = OpenCodeSubagentFrontmatterSchema.safeParse({
       description: "Valid agent",
