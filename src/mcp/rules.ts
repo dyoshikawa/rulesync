@@ -140,7 +140,9 @@ async function putRule({
     );
 
     if (!isUpdate && existingRules.length >= maxRulesCount) {
-      throw new Error(`Maximum number of rules (${maxRulesCount}) reached`);
+      throw new Error(
+        `Maximum number of rules (${maxRulesCount}) reached in ${RULESYNC_RULES_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Create a new RulesyncRule instance

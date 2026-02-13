@@ -307,7 +307,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         rulesyncSubagents.push(rulesyncSubagent);
         logger.debug(`Successfully loaded subagent: ${mdFile}`);
       } catch (error) {
-        logger.warn(`Failed to load subagent file ${filepath}:`, error);
+        logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
         continue;
       }
     }

@@ -723,12 +723,12 @@ export class RulesProcessor extends FeatureProcessor {
       const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
       if (nonRootRules.length > 0) {
         logger.warn(
-          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them`,
+          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${nonRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}`,
         );
       }
       if (localRootRules.length > 0) {
         logger.warn(
-          `${localRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them`,
+          `${localRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${localRootRules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ")}`,
         );
       }
       return rootRules;

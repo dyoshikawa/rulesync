@@ -52,7 +52,7 @@ export class GeminiCliCommand extends ToolCommand {
       const result = GeminiCliCommandFrontmatterSchema.safeParse(parsed);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in Gemini CLI command file: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
       // Preserve all fields including unknown ones (looseObject passthrough)

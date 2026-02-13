@@ -50,7 +50,7 @@ export class ReplitRule extends ToolRule {
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (!isRoot) {
-      throw new Error("ReplitRule only supports root rules");
+      throw new Error(`ReplitRule only supports root rules: ${relativeFilePath}`);
     }
 
     const relativePath = paths.root.relativeFilePath;
@@ -78,7 +78,7 @@ export class ReplitRule extends ToolRule {
     // Only support root rules
     const isRoot = rulesyncRule.getFrontmatter().root ?? false;
     if (!isRoot) {
-      throw new Error("ReplitRule only supports root rules");
+      throw new Error(`ReplitRule only supports root rules: ${rulesyncRule.getRelativeFilePath()}`);
     }
 
     return new ReplitRule(

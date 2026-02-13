@@ -194,7 +194,9 @@ async function putSkill({
     );
 
     if (!isUpdate && existingSkills.length >= maxSkillsCount) {
-      throw new Error(`Maximum number of skills (${maxSkillsCount}) reached`);
+      throw new Error(
+        `Maximum number of skills (${maxSkillsCount}) reached in ${RULESYNC_SKILLS_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Convert McpSkillFile to AiDirFile for RulesyncSkill

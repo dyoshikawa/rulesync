@@ -142,7 +142,9 @@ async function putSubagent({
     );
 
     if (!isUpdate && existingSubagents.length >= maxSubagentsCount) {
-      throw new Error(`Maximum number of subagents (${maxSubagentsCount}) reached`);
+      throw new Error(
+        `Maximum number of subagents (${maxSubagentsCount}) reached in ${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Create a new RulesyncSubagent instance

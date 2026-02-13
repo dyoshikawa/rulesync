@@ -139,7 +139,9 @@ async function putCommand({
     );
 
     if (!isUpdate && existingCommands.length >= maxCommandsCount) {
-      throw new Error(`Maximum number of commands (${maxCommandsCount}) reached`);
+      throw new Error(
+        `Maximum number of commands (${maxCommandsCount}) reached in ${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Create a new RulesyncCommand instance
