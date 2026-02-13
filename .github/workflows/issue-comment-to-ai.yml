@@ -58,6 +58,7 @@ jobs:
         with:
           model: ${{ steps.select-model.outputs.model }}
           use_github_token: "true"
+          share: false
           prompt: |
             You are working on a GitHub Issue. Read the following environment variables to get context:
             - ISSUE_NUMBER: The issue number
