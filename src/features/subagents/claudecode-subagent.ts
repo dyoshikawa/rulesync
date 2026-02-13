@@ -104,6 +104,8 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const claudecodeSection = rulesyncFrontmatter.claudecode ?? {};
+    const paths = this.getSettablePaths({ global });
+    const filePath = join(baseDir, paths.relativeDirPath, rulesyncSubagent.getRelativeFilePath());
 
     // Build claudecode frontmatter from rulesync frontmatter + claudecode section
     const rawClaudecodeFrontmatter = {
@@ -115,7 +117,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     // Validate with ClaudecodeSubagentFrontmatterSchema (validates model if present)
     const result = ClaudecodeSubagentFrontmatterSchema.safeParse(rawClaudecodeFrontmatter);
     if (!result.success) {
-      throw new Error(`Invalid claudecode subagent frontmatter: ${formatError(result.error)}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     const claudecodeFrontmatter = result.data;
@@ -123,8 +125,6 @@ export class ClaudecodeSubagent extends ToolSubagent {
     // Generate proper file content with Claude Code specific frontmatter
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, claudecodeFrontmatter);
-
-    const paths = this.getSettablePaths({ global });
 
     return new ClaudecodeSubagent({
       baseDir: baseDir,

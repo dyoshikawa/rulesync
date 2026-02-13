@@ -42,6 +42,19 @@ function isZodErrorLike(error: unknown): error is {
   );
 }
 
+function getErrorPath(error: Error): string | null {
+  if (!("path" in error)) {
+    return null;
+  }
+
+  const candidate = Reflect.get(error, "path");
+  if (typeof candidate === "string" && candidate.length > 0) {
+    return candidate;
+  }
+
+  return null;
+}
+
 export function formatError(error: unknown): string {
   // Check for ZodError by duck typing (handles both zod and zod/mini)
   if (error instanceof ZodError || isZodErrorLike(error)) {
@@ -49,7 +62,10 @@ export function formatError(error: unknown): string {
   }
 
   if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
+    const errorPath = getErrorPath(error);
+    const pathSuffix =
+      errorPath && !error.message.includes(errorPath) ? ` (path: ${errorPath})` : "";
+    return `${error.name}: ${error.message}${pathSuffix}`;
   }
 
   return String(error);

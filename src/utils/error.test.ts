@@ -102,6 +102,15 @@ describe("formatError", () => {
     expect(formatted).toBe("Error: Something went wrong");
   });
 
+  it("should append path for Error with path property", () => {
+    const error = new Error("File not found") as Error & { path: string };
+    error.path = "/tmp/missing.txt";
+
+    const formatted = formatError(error);
+
+    expect(formatted).toBe("Error: File not found (path: /tmp/missing.txt)");
+  });
+
   it("should format custom Error subclass with name and message", () => {
     class CustomError extends Error {
       constructor(message: string) {
