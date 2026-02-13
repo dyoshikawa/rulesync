@@ -80,7 +80,7 @@ export class CursorSkill extends ToolSkill {
 
   getFrontmatter(): CursorSkillFrontmatter {
     if (!this.mainFile?.frontmatter) {
-      throw new Error("Frontmatter is not defined");
+      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
     }
     const result = CursorSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
     return result;

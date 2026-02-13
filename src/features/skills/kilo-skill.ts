@@ -80,7 +80,7 @@ export class KiloSkill extends ToolSkill {
 
   getFrontmatter(): KiloSkillFrontmatter {
     if (!this.mainFile?.frontmatter) {
-      throw new Error("Frontmatter is not defined");
+      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
     }
     const result = KiloSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
     return result;

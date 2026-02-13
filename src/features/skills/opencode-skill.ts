@@ -73,7 +73,7 @@ export class OpenCodeSkill extends ToolSkill {
 
   getFrontmatter(): OpenCodeSkillFrontmatter {
     if (!this.mainFile?.frontmatter) {
-      throw new Error("Frontmatter is not defined");
+      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
     }
     const result = OpenCodeSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
     return result;

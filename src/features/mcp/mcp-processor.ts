@@ -237,7 +237,9 @@ export class McpProcessor extends FeatureProcessor {
     try {
       return [await RulesyncMcp.fromFile({})];
     } catch (error) {
-      logger.error(`Failed to load a Rulesync MCP file: ${formatError(error)}`);
+      logger.error(
+        `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      );
       return [];
     }
   }

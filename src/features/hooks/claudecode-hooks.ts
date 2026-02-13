@@ -205,9 +205,12 @@ export class ClaudecodeHooks extends ToolHooks {
     try {
       settings = JSON.parse(this.getFileContent());
     } catch (error) {
-      throw new Error(`Failed to parse Claude hooks content: ${formatError(error)}`, {
-        cause: error,
-      });
+      throw new Error(
+        `Failed to parse Claude hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        {
+          cause: error,
+        },
+      );
     }
     const hooks = claudeHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({

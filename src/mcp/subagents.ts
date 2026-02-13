@@ -62,7 +62,9 @@ async function listSubagents(): Promise<
       (subagent): subagent is NonNullable<typeof subagent> => subagent !== null,
     );
   } catch (error) {
-    logger.error(`Failed to read subagents directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read subagents directory (${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }
@@ -127,7 +129,7 @@ async function putSubagent({
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
   if (estimatedSize > maxSubagentSizeBytes) {
     throw new Error(
-      `Subagent size ${estimatedSize} bytes exceeds maximum ${maxSubagentSizeBytes} bytes (1MB)`,
+      `Subagent size ${estimatedSize} bytes exceeds maximum ${maxSubagentSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
     );
   }
 
@@ -140,7 +142,9 @@ async function putSubagent({
     );
 
     if (!isUpdate && existingSubagents.length >= maxSubagentsCount) {
-      throw new Error(`Maximum number of subagents (${maxSubagentsCount}) reached`);
+      throw new Error(
+        `Maximum number of subagents (${maxSubagentsCount}) reached in ${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Create a new RulesyncSubagent instance

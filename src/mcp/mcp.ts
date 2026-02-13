@@ -30,9 +30,12 @@ async function getMcpFile(): Promise<{
       content: rulesyncMcp.getFileContent(),
     };
   } catch (error) {
-    throw new Error(`Failed to read MCP file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to read MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -46,7 +49,7 @@ async function putMcpFile({ content }: { content: string }): Promise<{
   // Check file size constraint
   if (content.length > maxMcpSizeBytes) {
     throw new Error(
-      `MCP file size ${content.length} bytes exceeds maximum ${maxMcpSizeBytes} bytes (1MB)`,
+      `MCP file size ${content.length} bytes exceeds maximum ${maxMcpSizeBytes} bytes (1MB) for ${RULESYNC_MCP_RELATIVE_FILE_PATH}`,
     );
   }
 
@@ -54,9 +57,12 @@ async function putMcpFile({ content }: { content: string }): Promise<{
   try {
     JSON.parse(content);
   } catch (error) {
-    throw new Error(`Invalid JSON format in MCP file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Invalid JSON format in MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 
   try {
@@ -90,9 +96,12 @@ async function putMcpFile({ content }: { content: string }): Promise<{
       content: rulesyncMcp.getFileContent(),
     };
   } catch (error) {
-    throw new Error(`Failed to write MCP file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to write MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -129,9 +138,12 @@ async function deleteMcpFile(): Promise<{
       relativePathFromCwd,
     };
   } catch (error) {
-    throw new Error(`Failed to delete MCP file: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to delete MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 

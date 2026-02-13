@@ -105,7 +105,9 @@ async function listSkills(): Promise<
     // Filter out null values (failed reads)
     return skills.filter((skill): skill is NonNullable<typeof skill> => skill !== null);
   } catch (error) {
-    logger.error(`Failed to read skills directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read skills directory (${RULESYNC_SKILLS_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }
@@ -180,7 +182,7 @@ async function putSkill({
     otherFiles.reduce((acc, file) => acc + file.name.length + file.body.length, 0);
   if (estimatedSize > maxSkillSizeBytes) {
     throw new Error(
-      `Skill size ${estimatedSize} bytes exceeds maximum ${maxSkillSizeBytes} bytes (1MB)`,
+      `Skill size ${estimatedSize} bytes exceeds maximum ${maxSkillSizeBytes} bytes (1MB) for ${relativeDirPathFromCwd}`,
     );
   }
 
@@ -192,7 +194,9 @@ async function putSkill({
     );
 
     if (!isUpdate && existingSkills.length >= maxSkillsCount) {
-      throw new Error(`Maximum number of skills (${maxSkillsCount}) reached`);
+      throw new Error(
+        `Maximum number of skills (${maxSkillsCount}) reached in ${RULESYNC_SKILLS_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Convert McpSkillFile to AiDirFile for RulesyncSkill

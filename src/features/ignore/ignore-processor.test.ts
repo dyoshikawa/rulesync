@@ -142,7 +142,7 @@ describe("IgnoreProcessor", () => {
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to load rulesync files"),
+        expect.stringContaining("Failed to load rulesync ignore file"),
       );
     });
   });

@@ -52,7 +52,7 @@ export class GeminiCliCommand extends ToolCommand {
       const result = GeminiCliCommandFrontmatterSchema.safeParse(parsed);
       if (!result.success) {
         throw new Error(
-          `Invalid frontmatter in Gemini CLI command file: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
       // Preserve all fields including unknown ones (looseObject passthrough)
@@ -61,7 +61,10 @@ export class GeminiCliCommand extends ToolCommand {
         description: result.data.description || "",
       };
     } catch (error) {
-      throw new Error(`Failed to parse TOML command file: ${error}`, { cause: error });
+      throw new Error(
+        `Failed to parse TOML command file (${join(this.relativeDirPath, this.relativeFilePath)}): ${error}`,
+        { cause: error },
+      );
     }
   }
 

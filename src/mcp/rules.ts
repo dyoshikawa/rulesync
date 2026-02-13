@@ -61,7 +61,9 @@ async function listRules(): Promise<
     // Filter out null values (failed reads)
     return rules.filter((rule): rule is NonNullable<typeof rule> => rule !== null);
   } catch (error) {
-    logger.error(`Failed to read rules directory: ${formatError(error)}`);
+    logger.error(
+      `Failed to read rules directory (${RULESYNC_RULES_RELATIVE_DIR_PATH}): ${formatError(error)}`,
+    );
     return [];
   }
 }
@@ -126,7 +128,7 @@ async function putRule({
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
   if (estimatedSize > maxRuleSizeBytes) {
     throw new Error(
-      `Rule size ${estimatedSize} bytes exceeds maximum ${maxRuleSizeBytes} bytes (1MB)`,
+      `Rule size ${estimatedSize} bytes exceeds maximum ${maxRuleSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
     );
   }
 
@@ -138,7 +140,9 @@ async function putRule({
     );
 
     if (!isUpdate && existingRules.length >= maxRulesCount) {
-      throw new Error(`Maximum number of rules (${maxRulesCount}) reached`);
+      throw new Error(
+        `Maximum number of rules (${maxRulesCount}) reached in ${RULESYNC_RULES_RELATIVE_DIR_PATH}`,
+      );
     }
 
     // Create a new RulesyncRule instance
