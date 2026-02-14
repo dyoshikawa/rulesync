@@ -85,10 +85,7 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   getFrontmatter(): ClaudecodeSkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = ClaudecodeSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = ClaudecodeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 

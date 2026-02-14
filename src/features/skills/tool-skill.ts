@@ -192,4 +192,11 @@ export abstract class ToolSkill extends AiDir {
       global,
     };
   }
+
+  protected requireMainFileFrontmatter(): Record<string, unknown> {
+    if (!this.mainFile?.frontmatter) {
+      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
+    }
+    return this.mainFile.frontmatter;
+  }
 }

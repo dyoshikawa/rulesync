@@ -88,10 +88,7 @@ export class AntigravitySkill extends ToolSkill {
   }
 
   getFrontmatter(): AntigravitySkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = AntigravitySkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = AntigravitySkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 

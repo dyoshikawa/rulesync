@@ -79,10 +79,7 @@ export class AgentsSkillsSkill extends ToolSkill {
   }
 
   getFrontmatter(): AgentsSkillsSkillFrontmatter {
-    if (!this.mainFile?.frontmatter) {
-      throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);
-    }
-    const result = AgentsSkillsSkillFrontmatterSchema.parse(this.mainFile.frontmatter);
+    const result = AgentsSkillsSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 
