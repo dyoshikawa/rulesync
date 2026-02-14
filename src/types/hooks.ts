@@ -1,11 +1,16 @@
 import { z } from "zod/mini";
 
 /**
+ * Control characters that must be stripped from command and matcher fields
+ * before embedding in generated code.
+ */
+export const CONTROL_CHARS = ["\n", "\r", "\0"] as const;
+
+/**
  * A string that must not contain newline (\n), carriage return (\r), or NUL (\0) characters.
  * Used for command and matcher fields that are embedded in generated code.
  */
-const hasControlChars = (val: string): boolean =>
-  val.includes("\n") || val.includes("\r") || val.includes("\0");
+const hasControlChars = (val: string): boolean => CONTROL_CHARS.some((char) => val.includes(char));
 const safeString = z.pipe(
   z.string(),
   z.custom<string>(

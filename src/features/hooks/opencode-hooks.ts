@@ -4,7 +4,11 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 
-import { CURSOR_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
+import {
+  CONTROL_CHARS,
+  CURSOR_TO_OPENCODE_EVENT_NAMES,
+  OPENCODE_HOOK_EVENTS,
+} from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import {
   ToolHooks,
@@ -38,7 +42,10 @@ function escapeForTemplateLiteral(command: string): string {
  * - Escapes for embedding inside a JS double-quoted string (`new RegExp("...")`)
  */
 function validateAndSanitizeMatcher(matcher: string): string {
-  const sanitized = matcher.replaceAll("\n", "").replaceAll("\r", "").replaceAll("\0", "");
+  let sanitized = matcher;
+  for (const char of CONTROL_CHARS) {
+    sanitized = sanitized.replaceAll(char, "");
+  }
   try {
     new RegExp(sanitized);
   } catch {
