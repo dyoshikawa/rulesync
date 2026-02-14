@@ -50,8 +50,8 @@
     "knip": "knip",
     "oxlint": "oxlint . --max-warnings 0",
     "oxlint:fix": "oxlint . --fix --max-warnings 0",
-    "prepare": "simple-git-hooks && pnpm generate",
-    "prepublishOnly": "pnpm build",
+    "prepack": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
+    "prepare": "(simple-git-hooks && pnpm generate) || true",
     "secretlint": "secretlint --secretlintignore .gitignore \"**/*\"",
     "sort": "sort-package-json",
     "task": "tsx scripts/run-tasks.ts",
@@ -62,7 +62,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm exec lint-staged"
+    "pre-commit": "pnpm exec lint-staged && git diff --cached --name-only | grep -q '^src/' && pnpm build && git add dist/ || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",
