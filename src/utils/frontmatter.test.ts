@@ -187,6 +187,42 @@ Body content after empty frontmatter.`;
       expect(result.body).toBe("Body content after empty frontmatter.");
     });
 
+    it("should strip YAML null values from parsed frontmatter", () => {
+      // YAML parses bare keys like "description:" as null
+      const content = `---
+description:
+globs: "*.ts"
+alwaysApply: true
+---
+Body content.`;
+
+      const result = parseFrontmatter(content);
+
+      // null value from "description:" should be stripped
+      expect(result.frontmatter).toEqual({
+        globs: "*.ts",
+        alwaysApply: true,
+      });
+      expect(result.frontmatter).not.toHaveProperty("description");
+    });
+
+    it("should strip nested null values from parsed frontmatter", () => {
+      const content = `---
+cursor:
+  description:
+  alwaysApply: true
+---
+Body content.`;
+
+      const result = parseFrontmatter(content);
+
+      expect(result.frontmatter).toEqual({
+        cursor: {
+          alwaysApply: true,
+        },
+      });
+    });
+
     it("should handle malformed YAML gracefully", () => {
       const content = `---
 title: "Valid quote"

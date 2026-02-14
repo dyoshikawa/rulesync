@@ -90,6 +90,43 @@ describe("CursorRule", () => {
       expect(createInvalidRule).not.toThrow();
     });
 
+    it("should not emit description in frontmatter when description is undefined", () => {
+      const rule = new CursorRule({
+        frontmatter: {
+          globs: "*.ts",
+          alwaysApply: false,
+        },
+        body: "Rule body content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "test.mdc",
+      });
+
+      const expectedContent = `---
+alwaysApply: false
+globs: *.ts
+---
+
+Rule body content`;
+      expect(rule.getFileContent()).toBe(expectedContent);
+      // Ensure no "description:" line appears
+      expect(rule.getFileContent()).not.toContain("description:");
+    });
+
+    it("should not emit description in frontmatter when description is empty string", () => {
+      const rule = new CursorRule({
+        frontmatter: {
+          description: "",
+          globs: "*.ts",
+        },
+        body: "Rule body content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "test.mdc",
+      });
+
+      // Empty string description should not produce "description:" in output
+      expect(rule.getFileContent()).not.toContain("description:");
+    });
+
     it("should generate correct file content with frontmatter", () => {
       const frontmatter: CursorRuleFrontmatter = {
         description: "Test rule",
@@ -208,6 +245,28 @@ Test content`;
       });
 
       expect(cursorRule.getFrontmatter().globs).toBeUndefined();
+    });
+
+    it("should omit description when source rule has no description", () => {
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          globs: ["*.ts"],
+        },
+        body: "Rule content without description",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-desc.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({
+        rulesyncRule,
+        baseDir: testDir,
+      });
+
+      expect(cursorRule.getFrontmatter().description).toBeUndefined();
+      // The generated file should not contain "description:"
+      expect(cursorRule.getFileContent()).not.toContain("description:");
     });
 
     it("should convert .md extension to .mdc", () => {
@@ -749,6 +808,57 @@ This is the rule content
         "!node_modules/**",
         "src/**/*.js",
       ]);
+    });
+
+    it("should roundtrip cursor rules without description (no YAML null)", async () => {
+      // Write a cursor rule with no description (simulates generation from a rule imported from Claude Code)
+      const filePath = join(testDir, ".cursor/rules", "no-desc.mdc");
+      const rule = new CursorRule({
+        frontmatter: {
+          alwaysApply: true,
+        },
+        body: "Rule without description",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "no-desc.mdc",
+      });
+
+      // The file content should NOT contain "description:"
+      expect(rule.getFileContent()).not.toContain("description:");
+
+      // Write to disk and re-read
+      await writeFileContent(filePath, rule.getFileContent());
+      const reimported = await CursorRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "no-desc.mdc",
+      });
+
+      // Should parse successfully without Zod validation error
+      expect(reimported.getFrontmatter().description).toBeUndefined();
+      expect(reimported.getFrontmatter().alwaysApply).toBe(true);
+      expect(reimported.getBody()).toBe("Rule without description");
+    });
+
+    it("should handle re-importing a cursor file with YAML null description", async () => {
+      // Simulates a manually-created or legacy .mdc file with "description:" (YAML null)
+      const filePath = join(testDir, ".cursor/rules", "null-desc.mdc");
+      const fileContent = `---
+description:
+alwaysApply: true
+---
+
+Rule with null description`;
+
+      await writeFileContent(filePath, fileContent);
+
+      // Should NOT throw a Zod validation error
+      const rule = await CursorRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "null-desc.mdc",
+      });
+
+      expect(rule.getFrontmatter().description).toBeUndefined();
+      expect(rule.getFrontmatter().alwaysApply).toBe(true);
+      expect(rule.getBody()).toBe("Rule with null description");
     });
   });
 });

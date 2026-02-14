@@ -90,7 +90,7 @@ description: "Second rule"
         root: false,
         localRoot: false,
         targets: ["*"],
-        description: "",
+        description: undefined,
         globs: [],
       });
     });

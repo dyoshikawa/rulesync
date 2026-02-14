@@ -174,7 +174,7 @@ export abstract class ToolRule extends ToolFile {
       frontmatter: {
         root: this.isRoot(),
         targets: ["*"],
-        description: this.description ?? "",
+        description: this.description,
         globs: this.globs ?? (this.isRoot() ? ["**/*"] : []),
       },
       body: this.getFileContent(),
