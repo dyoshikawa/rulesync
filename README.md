@@ -149,29 +149,29 @@ rulesync generate --targets "*" --features "*"
 
 Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 
-| Tool               | rules | ignore |  mcp  | commands | subagents | skills | hooks |
-| ------------------ | :---: | :----: | :---: | :------: | :-------: | :----: | :---: |
-| AGENTS.md          |  ✅   |        |       |    🎮    |    🎮     |   🎮   |       |
-| AgentsSkills       |       |        |       |          |           |   ✅   |       |
-| Claude Code        | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
-| Codex CLI          | ✅ 🌏 |        |  🌏   |    🌏    |    🎮     | ✅ 🌏  |       |
-| Gemini CLI         | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |    🎮     | ✅ 🌏  |       |
-| GitHub Copilot     |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
-| Cursor             |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
-| Factory Droid      | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
-| OpenCode           |  ✅   |        |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
-| Cline              |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |           |        |       |
-| Kilo Code          | ✅ 🌏 |   ✅   |  ✅   |  ✅ 🌏   |           | ✅ 🌏  |       |
-| Roo Code           |  ✅   |   ✅   |  ✅   |    ✅    |    🎮     | ✅ 🌏  |       |
-| Qwen Code          |  ✅   |   ✅   |       |          |           |        |       |
-| Kiro               |  ✅   |   ✅   |  ✅   |    ✅    |    ✅     |   ✅   |       |
-| Google Antigravity |  ✅   |        |       |    ✅    |           | ✅ 🌏  |       |
-| JetBrains Junie    |  ✅   |   ✅   |  ✅   |          |           |        |       |
-| AugmentCode        |  ✅   |   ✅   |       |          |           |        |       |
-| Windsurf           |  ✅   |   ✅   |       |          |           |        |       |
-| Warp               |  ✅   |        |       |          |           |        |       |
-| Replit             |  ✅   |        |       |          |           |   ✅   |       |
-| Zed                |       |   ✅   |       |          |           |        |       |
+| Tool               | --targets    | rules | ignore |  mcp  | commands | subagents | skills | hooks |
+| ------------------ | ------------ | :---: | :----: | :---: | :------: | :-------: | :----: | :---: |
+| AGENTS.md          | agentsmd     |  ✅   |        |       |    🎮    |    🎮     |   🎮   |       |
+| AgentsSkills       | agentsskills |       |        |       |          |           |   ✅   |       |
+| Claude Code        | claudecode   | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| Codex CLI          | codexcli     | ✅ 🌏 |        |  🌏   |    🌏    |    🎮     | ✅ 🌏  |       |
+| Gemini CLI         | geminicli    | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |    🎮     | ✅ 🌏  |       |
+| GitHub Copilot     | copilot      |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
+| Cursor             | cursor       |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| Factory Droid      | factorydroid | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
+| OpenCode           | opencode     |  ✅   |        |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
+| Cline              | cline        |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |           |        |       |
+| Kilo Code          | kilo         | ✅ 🌏 |   ✅   |  ✅   |  ✅ 🌏   |           | ✅ 🌏  |       |
+| Roo Code           | roo          |  ✅   |   ✅   |  ✅   |    ✅    |    🎮     | ✅ 🌏  |       |
+| Qwen Code          | qwencode     |  ✅   |   ✅   |       |          |           |        |       |
+| Kiro               | kiro         |  ✅   |   ✅   |  ✅   |    ✅    |    ✅     |   ✅   |       |
+| Google Antigravity | antigravity  |  ✅   |        |       |    ✅    |           | ✅ 🌏  |       |
+| JetBrains Junie    | junie        |  ✅   |   ✅   |  ✅   |          |           |        |       |
+| AugmentCode        | augmentcode  |  ✅   |   ✅   |       |          |           |        |       |
+| Windsurf           | windsurf     |  ✅   |   ✅   |       |          |           |        |       |
+| Warp               | warp         |  ✅   |        |       |          |           |        |       |
+| Replit             | replit       |  ✅   |        |       |          |           |   ✅   |       |
+| Zed                | zed          |       |   ✅   |       |          |           |        |       |
 
 - ✅: Supports project mode
 - 🌏: Supports global mode
