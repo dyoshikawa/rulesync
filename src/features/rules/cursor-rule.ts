@@ -89,7 +89,7 @@ export class CursorRule extends ToolRule {
     if (frontmatter.alwaysApply !== undefined) {
       lines.push(`alwaysApply: ${frontmatter.alwaysApply}`);
     }
-    if (frontmatter.description !== undefined) {
+    if (frontmatter.description) {
       lines.push(`description: ${frontmatter.description}`);
     }
     if (frontmatter.globs !== undefined) {

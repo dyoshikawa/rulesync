@@ -278,7 +278,7 @@ describe("AgentsMdRule", () => {
       expect(rulesyncRule.getFrontmatter()).toEqual({
         root: false,
         targets: ["*"],
-        description: "",
+        description: undefined,
         globs: [],
       });
     });
@@ -298,7 +298,7 @@ describe("AgentsMdRule", () => {
       expect(rulesyncRule.getFrontmatter()).toEqual({
         root: true,
         targets: ["*"],
-        description: "",
+        description: undefined,
         globs: ["**/*"],
       });
     });

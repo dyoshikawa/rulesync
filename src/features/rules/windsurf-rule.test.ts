@@ -259,7 +259,7 @@ describe("WindsurfRule", () => {
       expect(rulesyncRule.getFrontmatter()).toEqual({
         root: false,
         targets: ["*"],
-        description: "",
+        description: undefined,
         globs: [],
       });
     });
@@ -301,7 +301,7 @@ describe("WindsurfRule", () => {
       const rulesyncRule = windsurfRule.toRulesyncRule();
 
       expect(rulesyncRule.getFileContent()).toContain(
-        "---\nroot: false\ntargets:\n  - '*'\ndescription: ''\nglobs: []\n---\n",
+        "---\nroot: false\ntargets:\n  - '*'\nglobs: []\n---\n",
       );
     });
   });
