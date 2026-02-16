@@ -123,7 +123,7 @@ copilot: # for GitHub Copilot specific parameters
   tools:
     - web/fetch # agent/runSubagent is always included automatically
 opencode: # for OpenCode-specific parameters
-  mode: subagent # must be set so OpenCode treats the agent as a subagent
+  mode: subagent # (optional, defaults to "subagent") OpenCode agent mode
   model: anthropic/claude-sonnet-4-20250514
   temperature: 0.1
   tools:
