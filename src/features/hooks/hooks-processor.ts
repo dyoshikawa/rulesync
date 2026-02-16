@@ -14,6 +14,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   CLAUDE_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
+  FACTORYDROID_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
@@ -84,7 +85,7 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
     {
       class: FactorydroidHooks,
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
-      supportedEvents: CLAUDE_HOOK_EVENTS,
+      supportedEvents: FACTORYDROID_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
     },
   ],

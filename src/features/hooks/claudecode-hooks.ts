@@ -7,8 +7,8 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 
 import {
   CLAUDE_HOOK_EVENTS,
-  CLAUDE_TO_CURSOR_EVENT_NAMES,
-  CURSOR_TO_CLAUDE_EVENT_NAMES,
+  CLAUDE_TO_CANONICAL_EVENT_NAMES,
+  CANONICAL_TO_CLAUDE_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -21,7 +21,7 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * Convert canonical (Cursor-style) hooks config to Claude format.
+ * Convert canonical hooks config to Claude format.
  * Filters shared hooks to CLAUDE_HOOK_EVENTS, merges config.claudecode?.hooks,
  * then converts to PascalCase and Claude matcher/hooks structure.
  */
@@ -39,7 +39,7 @@ function canonicalToClaudeHooks(config: HooksConfig): Record<string, unknown[]> 
   };
   const claude: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const claudeEventName = CURSOR_TO_CLAUDE_EVENT_NAMES[eventName] ?? eventName;
+    const claudeEventName = CANONICAL_TO_CLAUDE_EVENT_NAMES[eventName] ?? eventName;
     const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
     for (const def of definitions) {
       const key = def.matcher ?? "";
@@ -97,7 +97,7 @@ function claudeHooksToCanonical(claudeHooks: unknown): HooksConfig["hooks"] {
   }
   const canonical: HooksConfig["hooks"] = {};
   for (const [claudeEventName, matcherEntries] of Object.entries(claudeHooks)) {
-    const eventName = CLAUDE_TO_CURSOR_EVENT_NAMES[claudeEventName] ?? claudeEventName;
+    const eventName = CLAUDE_TO_CANONICAL_EVENT_NAMES[claudeEventName] ?? claudeEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {

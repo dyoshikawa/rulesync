@@ -5,7 +5,11 @@ import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 
-import { CURSOR_HOOK_EVENTS } from "../../types/hooks.js";
+import {
+  CURSOR_HOOK_EVENTS,
+  CURSOR_TO_CANONICAL_EVENT_NAMES,
+  CANONICAL_TO_CURSOR_EVENT_NAMES,
+} from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import {
   ToolHooks,
@@ -69,9 +73,14 @@ export class CursorHooks extends ToolHooks {
       ...sharedHooks,
       ...config.cursor?.hooks,
     };
+    const mappedHooks: HooksConfig["hooks"] = {};
+    for (const [eventName, defs] of Object.entries(mergedHooks)) {
+      const cursorEventName = CANONICAL_TO_CURSOR_EVENT_NAMES[eventName] ?? eventName;
+      mappedHooks[cursorEventName] = defs;
+    }
     const cursorConfig = {
       version: config.version ?? 1,
-      hooks: mergedHooks,
+      hooks: mappedHooks,
     };
     const fileContent = JSON.stringify(cursorConfig, null, 2);
     const paths = CursorHooks.getSettablePaths();
@@ -88,10 +97,15 @@ export class CursorHooks extends ToolHooks {
   toRulesyncHooks(): RulesyncHooks {
     const content = this.getFileContent();
     const parsed: { version?: number; hooks?: HooksConfig["hooks"] } = JSON.parse(content);
-    const hooks = parsed.hooks ?? {};
+    const cursorHooks = parsed.hooks ?? {};
+    const canonicalHooks: HooksConfig["hooks"] = {};
+    for (const [cursorEventName, defs] of Object.entries(cursorHooks)) {
+      const eventName = CURSOR_TO_CANONICAL_EVENT_NAMES[cursorEventName] ?? cursorEventName;
+      canonicalHooks[eventName] = defs;
+    }
     const version = parsed.version ?? 1;
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version, hooks }, null, 2),
+      fileContent: JSON.stringify({ version, hooks: canonicalHooks }, null, 2),
     });
   }
 

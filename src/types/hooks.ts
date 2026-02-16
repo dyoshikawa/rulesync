@@ -20,7 +20,7 @@ const safeString = z.pipe(
 );
 
 /**
- * Canonical hook definition (Cursor-style).
+ * Canonical hook definition.
  * Used in .rulesync/hooks.json and mapped to tool-specific formats.
  */
 export const HookDefinitionSchema = z.looseObject({
@@ -116,10 +116,25 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
 ];
 
+/** Hook events supported by Factory Droid. */
+export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+  "subagentStop",
+  "preCompact",
+  "permissionRequest",
+  "notification",
+  "setup",
+];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
- * Canonical hooks config (Cursor-style event names in camelCase).
+ * Canonical hooks config (canonical event names in camelCase).
  */
 export const HooksConfigSchema = z.looseObject({
   version: z.optional(z.number()),
@@ -133,10 +148,9 @@ export const HooksConfigSchema = z.looseObject({
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
 
 /**
- * Map canonical (Cursor) camelCase event names to Claude PascalCase.
- * Includes common and Claude-only events.
+ * Map canonical camelCase event names to Claude PascalCase.
  */
-export const CURSOR_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
+export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
   sessionEnd: "SessionEnd",
   preToolUse: "PreToolUse",
@@ -153,15 +167,72 @@ export const CURSOR_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Claude PascalCase event names to canonical camelCase.
  */
-export const CLAUDE_TO_CURSOR_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CURSOR_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
- * Map canonical (Cursor) camelCase event names to OpenCode dot-notation.
- * Only includes events that have a meaningful OpenCode plugin equivalent.
+ * Map canonical camelCase event names to Cursor camelCase.
+ * Currently 1:1 but kept explicit so divergences are easy to add.
  */
-export const CURSOR_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
+export const CANONICAL_TO_CURSOR_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  preToolUse: "preToolUse",
+  postToolUse: "postToolUse",
+  beforeSubmitPrompt: "beforeSubmitPrompt",
+  stop: "stop",
+  subagentStop: "subagentStop",
+  preCompact: "preCompact",
+  postToolUseFailure: "postToolUseFailure",
+  subagentStart: "subagentStart",
+  beforeShellExecution: "beforeShellExecution",
+  afterShellExecution: "afterShellExecution",
+  beforeMCPExecution: "beforeMCPExecution",
+  afterMCPExecution: "afterMCPExecution",
+  beforeReadFile: "beforeReadFile",
+  afterFileEdit: "afterFileEdit",
+  afterAgentResponse: "afterAgentResponse",
+  afterAgentThought: "afterAgentThought",
+  beforeTabFileRead: "beforeTabFileRead",
+  afterTabFileEdit: "afterTabFileEdit",
+};
+
+/**
+ * Map Cursor camelCase event names to canonical camelCase.
+ */
+export const CURSOR_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CURSOR_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Factory Droid PascalCase.
+ */
+export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+  setup: "Setup",
+};
+
+/**
+ * Map Factory Droid PascalCase event names to canonical camelCase.
+ */
+export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_FACTORYDROID_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to OpenCode dot-notation.
+ */
+export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "session.created",
   preToolUse: "tool.execute.before",
   postToolUse: "tool.execute.after",
