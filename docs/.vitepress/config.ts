@@ -7,7 +7,31 @@ export default defineConfig({
   base: "/",
   lastUpdated: true,
 
-  head: [["link", { rel: "icon", href: "/rulesync/logo.jpg" }]],
+  head: [
+    ["link", { rel: "icon", href: "/rulesync/logo.jpg" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:title", content: "Rulesync" }],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
+      },
+    ],
+    ["meta", { property: "og:image", content: "/rulesync/logo.jpg" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ["meta", { name: "twitter:title", content: "Rulesync" }],
+    [
+      "meta",
+      {
+        name: "twitter:description",
+        content:
+          "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
+      },
+    ],
+    ["meta", { name: "twitter:image", content: "/rulesync/logo.jpg" }],
+  ],
 
   themeConfig: {
     logo: "/logo.jpg",
