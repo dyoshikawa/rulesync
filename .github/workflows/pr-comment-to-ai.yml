@@ -83,7 +83,7 @@ jobs:
 
             Follow these instructions:
             If the triggering comment is a review request, perform step 1. If it is a fix request, perform step 2. If you cannot determine which, post a comment on this PR stating so and exit immediately.
-              1. Review the changes in this PR using /review-pr and post the results as a comment.
+              1. Review the changes in this PR using /review-pr (.opencode/command/review-pr.md) and post the results as a comment.
               2. Fix the code. Run `pnpm cicheck` to verify code quality. If the environment variable IS_UPSTREAM is true, perform 2-1. If false (fork repository), perform 2-2.
                 2-1. Commit and push the fix to this branch.
                 2-2. Carry over the commits from this PR, then commit and push the fix to a new branch. Create a new PR.
