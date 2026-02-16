@@ -561,8 +561,8 @@ describe("resolveAndFetchSources", () => {
     expect(result.sourcesProcessed).toBe(1);
   });
 
-  it("should throw in frozen mode when locked skills are missing from disk", async () => {
-    const { readLockFile } = await import("./sources-lock.js");
+  it("should fetch missing locked skills in frozen mode without writing lockfile", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
 
     vi.mocked(readLockFile).mockResolvedValue({
       lockfileVersion: 1,
@@ -577,13 +577,31 @@ describe("resolveAndFetchSources", () => {
     // Skill dir does not exist on disk
     vi.mocked(directoryExists).mockResolvedValue(false);
 
-    await expect(
-      resolveAndFetchSources({
-        sources: [{ source: "https://github.com/org/repo" }],
-        baseDir: testDir,
-        options: { frozen: true },
-      }),
-    ).rejects.toThrow("Frozen install failed: locked skills missing from disk");
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "missing-skill", path: "skills/missing-skill", type: "dir" }];
+        }
+        if (path === "skills/missing-skill") {
+          return [
+            { name: "SKILL.md", path: "skills/missing-skill/SKILL.md", type: "file", size: 42 },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("locked skill content");
+
+    const result = await resolveAndFetchSources({
+      sources: [{ source: "https://github.com/org/repo" }],
+      baseDir: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result).toEqual({ fetchedSkillCount: 1, sourcesProcessed: 1 });
+    expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
+    expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+    expect(writeLockFile).not.toHaveBeenCalled();
   });
 
   it("should warn when computed integrity differs from locked hash", async () => {

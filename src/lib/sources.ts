@@ -74,34 +74,20 @@ export async function resolveAndFetchSources(params: {
     ? createEmptyLock()
     : await readLockFile({ baseDir });
 
-  // Frozen mode: validate lockfile covers all declared sources and skills exist on disk
+  // Frozen mode: validate lockfile covers all declared sources.
+  // Missing curated skills are fetched using locked refs.
   if (options.frozen) {
     const missingKeys: string[] = [];
-    const missingSkills: string[] = [];
-    const curatedDir = join(baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
     for (const source of sources) {
       const locked = getLockedSource(lock, source.source);
       if (!locked) {
         missingKeys.push(source.source);
-        continue;
-      }
-      // Validate all locked skills exist on disk
-      const skillNames = getLockedSkillNames(locked);
-      for (const skillName of skillNames) {
-        if (!(await directoryExists(join(curatedDir, skillName)))) {
-          missingSkills.push(`${source.source}:${skillName}`);
-        }
       }
     }
     if (missingKeys.length > 0) {
       throw new Error(
         `Frozen install failed: lockfile is missing entries for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
-      );
-    }
-    if (missingSkills.length > 0) {
-      throw new Error(
-        `Frozen install failed: locked skills missing from disk: ${missingSkills.join(", ")}. Run 'rulesync install' to fetch missing skills.`,
       );
     }
   }

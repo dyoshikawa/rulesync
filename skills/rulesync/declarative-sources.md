@@ -50,7 +50,7 @@ The `install` command accepts these flags:
 | Flag              | Description                                                                           |
 | ----------------- | ------------------------------------------------------------------------------------- |
 | `--update`        | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates). |
-| `--frozen`        | Fail if lockfile is missing or out of sync. Useful for CI to ensure reproducibility.  |
+| `--frozen`        | Fail if lockfile is missing or out of sync. Fetches missing skills using locked refs without updating the lockfile. Useful for CI to ensure reproducibility. |
 | `--token <token>` | GitHub token for private repositories.                                                |
 
 ```bash
@@ -60,7 +60,7 @@ rulesync install
 # Force update to latest refs
 rulesync install --update
 
-# Strict CI mode — fail if lockfile doesn't cover all sources
+# Strict CI mode — fail if lockfile doesn't cover all sources (missing locked skills are fetched)
 rulesync install --frozen
 
 # Install then generate

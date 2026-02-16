@@ -134,7 +134,10 @@ const main = async () => {
     .command("install")
     .description("Install skills from declarative sources in rulesync.jsonc")
     .option("--update", "Force re-resolve all source refs, ignoring lockfile")
-    .option("--frozen", "Fail if lockfile is missing or out of sync (for CI)")
+    .option(
+      "--frozen",
+      "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs",
+    )
     .option("--token <token>", "GitHub token for private repos")
     .option("-c, --config <path>", "Path to configuration file")
     .option("-V, --verbose", "Verbose output")
