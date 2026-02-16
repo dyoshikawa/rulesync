@@ -159,7 +159,7 @@ export class RulesyncRule extends RulesyncFile {
       root: result.data.root ?? false,
       localRoot: result.data.localRoot ?? false,
       targets: result.data.targets ?? ["*"],
-      description: result.data.description ?? "",
+      description: result.data.description,
       globs: result.data.globs ?? [],
       agentsmd: result.data.agentsmd,
       cursor: result.data.cursor,

@@ -442,7 +442,7 @@ More detailed instructions here.`;
       expect(rulesyncRule.getBody()).toBe(agentsContent);
       expect(rulesyncRule.getFrontmatter().root).toBe(true);
       expect(rulesyncRule.getFrontmatter().targets).toEqual(["*"]);
-      expect(rulesyncRule.getFrontmatter().description).toBe("");
+      expect(rulesyncRule.getFrontmatter().description).toBeUndefined();
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["**/*"]);
     });
 
@@ -464,7 +464,7 @@ More detailed instructions here.`;
       expect(rulesyncRule.getBody()).toBe(memoryContent);
       expect(rulesyncRule.getFrontmatter().root).toBe(false);
       expect(rulesyncRule.getFrontmatter().targets).toEqual(["*"]);
-      expect(rulesyncRule.getFrontmatter().description).toBe("");
+      expect(rulesyncRule.getFrontmatter().description).toBeUndefined();
       expect(rulesyncRule.getFrontmatter().globs).toEqual([]);
     });
 

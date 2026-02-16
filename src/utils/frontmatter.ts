@@ -64,5 +64,11 @@ export function parseFrontmatter(content: string): {
 } {
   const { data: frontmatter, content: body } = matter(content);
 
-  return { frontmatter, body };
+  // Strip null/undefined values from parsed frontmatter for consistency.
+  // YAML parses bare keys (e.g. "description:") as null, which would fail
+  // Zod validation (z.optional(z.string()) does not accept null).
+  // This mirrors the deepRemoveNullishObject cleanup done in stringifyFrontmatter.
+  const cleanFrontmatter = deepRemoveNullishObject(frontmatter);
+
+  return { frontmatter: cleanFrontmatter, body };
 }
