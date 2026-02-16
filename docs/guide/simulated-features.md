@@ -1,4 +1,4 @@
-## Simulate Commands, Subagents and Skills
+# Simulated Commands, Subagents and Skills
 
 Simulated commands, subagents and skills allow you to generate simulated features for cursor, codexcli and etc. This is useful for shortening your prompts.
 

@@ -5,7 +5,7 @@ export default {
   "src/config/config.ts": ["pnpm generate:schema", "git add config-schema.json"],
   "src/types/features.ts": ["pnpm generate:schema", "git add config-schema.json"],
   "src/types/tool-targets.ts": ["pnpm generate:schema", "git add config-schema.json"],
-  "README.md": ["tsx scripts/sync-skill-readme.ts", "git add skills/rulesync/"],
+  "docs/**/*.md": ["tsx scripts/sync-skill-docs.ts", "git add skills/rulesync/"],
   // Regenerate tool configurations when rulesync source files change
   ".rulesync/**/*": [() => "pnpm dev generate"],
 };

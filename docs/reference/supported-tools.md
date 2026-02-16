@@ -1,4 +1,4 @@
-## Supported Tools and Features
+# Supported Tools and Features
 
 Rulesync supports both **generation** and **import** for All of the major AI coding tools:
 

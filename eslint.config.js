@@ -21,6 +21,7 @@ export default defineConfig([
       "**/.lintstagedrc.js",
       "**/eslint-plugin-*.js",
       "**/tmp/**",
+      "**/docs/**",
     ],
   },
 

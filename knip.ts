@@ -15,6 +15,7 @@ const config: KnipConfig = {
     "eslint.config.js",
     ".oxfmtrc.json",
     ".rulesync/**",
+    "docs/**",
   ],
   ignoreDependencies: [
     // Dependencies used only in configuration files
@@ -28,6 +29,8 @@ const config: KnipConfig = {
     "@types/micromatch",
     // lint-staged is used in git hooks
     "lint-staged",
+    // Used in docs site
+    "vitepress",
   ],
   typescript: {
     config: "tsconfig.json",

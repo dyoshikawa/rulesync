@@ -1,8 +1,8 @@
-## Declarative Skill Sources
+# Declarative Skill Sources
 
 Rulesync can fetch skills from external GitHub repositories using the `install` command. Instead of manually running `fetch` for each skill source, declare them in your `rulesync.jsonc` and run `rulesync install` to resolve and fetch them. Then `rulesync generate` picks them up as local curated skills. Typical workflow: `rulesync install && rulesync generate`.
 
-### Configuration
+## Configuration
 
 Add a `sources` array to your `rulesync.jsonc`:
 
@@ -31,7 +31,7 @@ Each entry in `sources` accepts:
 | `source` | `string`   | Repository source using the same format as the `fetch` command (`owner/repo`, `owner/repo@ref:path`, etc.). |
 | `skills` | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                  |
 
-### How It Works
+## How It Works
 
 When `rulesync install` runs and `sources` is configured:
 
@@ -43,7 +43,7 @@ When `rulesync install` runs and `sources` is configured:
    - **First-declared source wins** — If two sources provide a skill with the same name, the one declared first in the `sources` array is used.
 5. **Output** — Fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. This directory is automatically added to `.gitignore` by `rulesync gitignore`.
 
-### CLI Options
+## CLI Options
 
 The `install` command accepts these flags:
 
@@ -70,7 +70,7 @@ rulesync install && rulesync generate
 rulesync generate
 ```
 
-### Lockfile
+## Lockfile
 
 The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA and per-skill integrity hashes for each source so that builds are reproducible. It is safe to commit this file. An example:
 
@@ -93,7 +93,7 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 
 To update locked refs, run `rulesync install --update`.
 
-### Authentication
+## Authentication
 
 Source fetching uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits.
 
@@ -109,7 +109,7 @@ GITHUB_TOKEN=$(gh auth token) npx rulesync install
 > [!TIP]
 > The `install` command also accepts a `--token` flag for explicit authentication: `rulesync install --token ghp_xxxx`.
 
-### Curated vs Local Skills
+## Curated vs Local Skills
 
 | Location                            | Type    | Precedence | Committed to Git |
 | ----------------------------------- | ------- | ---------- | ---------------- |

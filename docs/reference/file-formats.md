@@ -1,6 +1,6 @@
-## Each File Format
+# File Formats
 
-### `rulesync/rules/*.md`
+## `rulesync/rules/*.md`
 
 Example:
 
@@ -34,7 +34,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 ...
 ```
 
-### `.rulesync/hooks.json`
+## `.rulesync/hooks.json`
 
 Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file; Cursor uses them as-is; Claude Code gets PascalCase in `.claude/settings.json`; OpenCode hooks are generated as a JavaScript plugin at `.opencode/plugins/rulesync-hooks.js`.
 
@@ -81,7 +81,7 @@ Example:
 }
 ```
 
-### `rulesync/commands/*.md`
+## `rulesync/commands/*.md`
 
 Example:
 
@@ -105,7 +105,7 @@ Execute the following in parallel:
 ...
 ```
 
-### `rulesync/subagents/*.md`
+## `rulesync/subagents/*.md`
 
 Example:
 
@@ -142,7 +142,7 @@ Based on the user's instruction, create a plan while analyzing the related files
 Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
 ```
 
-### `.rulesync/skills/*/SKILL.md`
+## `.rulesync/skills/*/SKILL.md`
 
 Example:
 
@@ -176,7 +176,7 @@ The skill can include:
 Skills are directory-based and can include additional files alongside SKILL.md.
 ```
 
-### `.rulesync/mcp.json`
+## `.rulesync/mcp.json`
 
 Example:
 
@@ -212,7 +212,7 @@ Example:
 }
 ```
 
-#### MCP Tool Config (`enabledTools` / `disabledTools`)
+### MCP Tool Config (`enabledTools` / `disabledTools`)
 
 You can control which individual tools from an MCP server are enabled or disabled using `enabledTools` and `disabledTools` arrays per server.
 
@@ -233,7 +233,7 @@ You can control which individual tools from an MCP server are enabled or disable
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
-### `.rulesync/.aiignore` or `.rulesyncignore`
+## `.rulesync/.aiignore` or `.rulesyncignore`
 
 Rulesync supports a single ignore list that can live in either location below:
 
