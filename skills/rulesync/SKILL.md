@@ -8,7 +8,7 @@ targets: ["*"]
 
 # Rulesync
 
-**[Documentation](https://dyoshikawa.github.io/rulesync/)**
+**[Documentation](https://dyoshikawa.github.io/rulesync/)** | **[npm](https://www.npmjs.com/package/rulesync)**
 
 A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, subagents and skills.
 
@@ -17,18 +17,5 @@ A Node.js CLI tool that automatically generates configuration files for various 
 - [Installation](./installation.md)
 - [Getting Started](./getting-started.md)
 - [Supported Tools and Features](./supported-tools-and-features.md)
-- [Why Rulesync?](./why-rulesync.md)
-- [Case Studies](./case-studies.md)
-- [Quick Commands](./quick-commands.md)
-- [Dry Run](./dry-run.md)
-- [Fetch Command (In Development)](./fetch-command-in-development.md)
-- [Configuration](./configuration.md)
-- [Each File Format](./each-file-format.md)
-- [Global Mode](./global-mode.md)
-- [Simulate Commands, Subagents and Skills](./simulate-commands-subagents-and-skills.md)
-- [Official Skills](./official-skills.md)
-- [Declarative Skill Sources](./declarative-skill-sources.md)
-- [Programmatic API](./programmatic-api.md)
-- [Rulesync MCP Server](./rulesync-mcp-server.md)
-- [FAQ](./faq.md)
+- [Documentation](./documentation.md)
 - [License](./license.md)
