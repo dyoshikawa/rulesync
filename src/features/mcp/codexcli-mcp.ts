@@ -3,6 +3,7 @@ import * as smolToml from "smol-toml";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { McpServers } from "../../types/mcp.js";
 import { readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -13,6 +14,60 @@ import {
   type ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+
+function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
+  const result: McpServers = {};
+
+  for (const [name, config] of Object.entries(codexMcp)) {
+    if (typeof config !== "object" || config === null || Array.isArray(config)) {
+      continue;
+    }
+
+    const converted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(config)) {
+      if (key === "enabled") {
+        if (value === false) {
+          converted["disabled"] = true;
+        }
+      } else if (key === "enabled_tools") {
+        converted["enabledTools"] = value;
+      } else if (key === "disabled_tools") {
+        converted["disabledTools"] = value;
+      } else {
+        converted[key] = value;
+      }
+    }
+
+    result[name] = converted;
+  }
+
+  return result;
+}
+
+function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
+  const result: Record<string, Record<string, unknown>> = {};
+
+  for (const [name, config] of Object.entries(mcpServers)) {
+    const converted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(config)) {
+      if (key === "disabled") {
+        if (value === true) {
+          converted["enabled"] = false;
+        }
+      } else if (key === "enabledTools") {
+        converted["enabled_tools"] = value;
+      } else if (key === "disabledTools") {
+        converted["disabled_tools"] = value;
+      } else {
+        converted[key] = value;
+      }
+    }
+
+    result[name] = converted;
+  }
+
+  return result;
+}
 
 export class CodexcliMcp extends ToolMcp {
   private readonly toml: smolToml.TomlTable;
@@ -83,7 +138,8 @@ export class CodexcliMcp extends ToolMcp {
     const configToml = smolToml.parse(configTomlFileContent);
 
     const mcpServers = rulesyncMcp.getJson().mcpServers;
-    const filteredMcpServers = this.removeEmptyEntries(mcpServers);
+    const converted = convertToCodexFormat(mcpServers);
+    const filteredMcpServers = this.removeEmptyEntries(converted);
 
     // eslint-disable-next-line no-type-assertion/no-type-assertion
     configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
@@ -98,11 +154,15 @@ export class CodexcliMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    const mcpServers = (this.toml.mcp_servers ?? {}) as Record<string, unknown>;
+    const converted = convertFromCodexFormat(mcpServers);
+
     return new RulesyncMcp({
       baseDir: this.baseDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: ".mcp.json",
-      fileContent: JSON.stringify({ mcpServers: this.toml.mcp_servers ?? {} }, null, 2),
+      fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
   }
 

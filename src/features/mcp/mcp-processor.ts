@@ -71,6 +71,10 @@ type ToolMcpFactory = {
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) MCP configuration */
     supportsGlobal: boolean;
+    /** Whether the tool supports enabledTools per MCP server */
+    supportsEnabledTools: boolean;
+    /** Whether the tool supports disabledTools per MCP server */
+    supportsDisabledTools: boolean;
   };
 };
 
@@ -83,91 +87,156 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "claudecode",
     {
       class: ClaudecodeMcp,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeMcp,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "cline",
     {
       class: ClineMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "codexcli",
     {
       class: CodexcliMcp,
-      meta: { supportsProject: false, supportsGlobal: true },
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
+      },
     },
   ],
   [
     "copilot",
     {
       class: CopilotMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "cursor",
     {
       class: CursorMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "factorydroid",
     {
       class: FactorydroidMcp,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "geminicli",
     {
       class: GeminiCliMcp,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "kilo",
     {
       class: KiloMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "kiro",
     {
       class: KiroMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "junie",
     {
       class: JunieMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
   [
     "opencode",
     {
       class: OpencodeMcp,
-      meta: { supportsProject: true, supportsGlobal: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
+      },
     },
   ],
   [
     "roo",
     {
       class: RooMcp,
-      meta: { supportsProject: true, supportsGlobal: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
     },
   ],
 ]);
@@ -306,9 +375,15 @@ export class McpProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const toolMcps = await Promise.all(
       [rulesyncMcp].map(async (rulesyncMcp) => {
+        // Strip MCP server fields unsupported by the target tool
+        const fieldsToStrip: string[] = [];
+        if (!factory.meta.supportsEnabledTools) fieldsToStrip.push("enabledTools");
+        if (!factory.meta.supportsDisabledTools) fieldsToStrip.push("disabledTools");
+        const filteredRulesyncMcp = rulesyncMcp.stripMcpServerFields(fieldsToStrip);
+
         return await factory.class.fromRulesyncMcp({
           baseDir: this.baseDir,
-          rulesyncMcp,
+          rulesyncMcp: filteredRulesyncMcp,
           global: this.global,
         });
       }),

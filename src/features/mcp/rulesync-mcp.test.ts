@@ -754,6 +754,217 @@ describe("RulesyncMcp", () => {
     });
   });
 
+  describe("stripMcpServerFields", () => {
+    it("should return the same instance when no fields to strip", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "test-server": {
+              command: "node",
+              args: ["server.js"],
+              enabledTools: ["search"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields([]);
+
+      expect(result).toBe(rulesyncMcp);
+    });
+
+    it("should strip enabledTools from all servers", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "server-a": {
+              command: "node",
+              args: ["a.js"],
+              enabledTools: ["search", "list"],
+            },
+            "server-b": {
+              command: "python",
+              args: ["b.py"],
+              enabledTools: ["read"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["enabledTools"]);
+
+      expect(result).not.toBe(rulesyncMcp);
+      const json = result.getJson();
+      expect(json.mcpServers["server-a"]).toEqual({ command: "node", args: ["a.js"] });
+      expect(json.mcpServers["server-b"]).toEqual({ command: "python", args: ["b.py"] });
+    });
+
+    it("should strip disabledTools from all servers", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my-server": {
+              command: "node",
+              args: ["server.js"],
+              disabledTools: ["write", "delete"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["disabledTools"]);
+
+      const json = result.getJson();
+      expect(json.mcpServers["my-server"]).toEqual({ command: "node", args: ["server.js"] });
+    });
+
+    it("should strip both enabledTools and disabledTools", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my-server": {
+              command: "node",
+              args: ["server.js"],
+              enabledTools: ["search"],
+              disabledTools: ["delete"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["enabledTools", "disabledTools"]);
+
+      const json = result.getJson();
+      expect(json.mcpServers["my-server"]).toEqual({ command: "node", args: ["server.js"] });
+    });
+
+    it("should preserve other server fields when stripping", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my-server": {
+              command: "node",
+              args: ["server.js"],
+              env: { NODE_ENV: "production" },
+              disabled: true,
+              enabledTools: ["search"],
+              disabledTools: ["delete"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["enabledTools", "disabledTools"]);
+
+      const json = result.getJson();
+      expect(json.mcpServers["my-server"]).toEqual({
+        command: "node",
+        args: ["server.js"],
+        env: { NODE_ENV: "production" },
+        disabled: true,
+      });
+    });
+
+    it("should not modify the original instance", () => {
+      const originalData = {
+        mcpServers: {
+          "my-server": {
+            command: "node",
+            args: ["server.js"],
+            enabledTools: ["search"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(originalData),
+      });
+
+      rulesyncMcp.stripMcpServerFields(["enabledTools"]);
+
+      expect(rulesyncMcp.getJson()).toEqual(originalData);
+    });
+
+    it("should preserve baseDir and paths in the new instance", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: "/custom/path",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my-server": {
+              command: "node",
+              enabledTools: ["search"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["enabledTools"]);
+
+      expect(result.getBaseDir()).toBe("/custom/path");
+      expect(result.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(result.getRelativeFilePath()).toBe(".mcp.json");
+    });
+
+    it("should handle servers without the fields being stripped", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my-server": {
+              command: "node",
+              args: ["server.js"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["enabledTools", "disabledTools"]);
+
+      const json = result.getJson();
+      expect(json.mcpServers["my-server"]).toEqual({ command: "node", args: ["server.js"] });
+    });
+
+    it("should also strip fields from getFileContent and getMcpServers", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my-server": {
+              command: "node",
+              args: ["server.js"],
+              enabledTools: ["search"],
+            },
+          },
+        }),
+      });
+
+      const result = rulesyncMcp.stripMcpServerFields(["enabledTools"]);
+
+      // getFileContent should also reflect stripped fields
+      const parsedContent = JSON.parse(result.getFileContent());
+      expect(parsedContent.mcpServers["my-server"].enabledTools).toBeUndefined();
+
+      // getMcpServers should also reflect stripped fields
+      const servers = result.getMcpServers();
+      expect((servers["my-server"] as any).enabledTools).toBeUndefined();
+    });
+  });
+
   describe("integration and edge cases", () => {
     it("should handle large JSON structures", () => {
       const largeJsonData = {

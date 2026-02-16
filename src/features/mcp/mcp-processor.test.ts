@@ -16,6 +16,7 @@ import {
   type McpProcessorToolTarget,
   McpProcessorToolTargetSchema,
 } from "./mcp-processor.js";
+import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -26,6 +27,7 @@ vi.mock("./codexcli-mcp.js");
 vi.mock("./copilot-mcp.js");
 vi.mock("./cursor-mcp.js");
 vi.mock("./geminicli-mcp.js");
+vi.mock("./opencode-mcp.js");
 vi.mock("./roo-mcp.js");
 vi.mock("./rulesync-mcp.js");
 vi.mock("./tool-mcp.js");
@@ -92,6 +94,13 @@ describe("McpProcessor", () => {
       isDeletable: () => true,
       getRelativeFilePath: () => params.relativeFilePath,
     }));
+    (OpencodeMcp as any).fromFile = vi.fn();
+    (OpencodeMcp as any).fromRulesyncMcp = vi.fn();
+    (OpencodeMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
     (RooMcp as any).fromFile = vi.fn();
     (RooMcp as any).fromRulesyncMcp = vi.fn();
     (RooMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
@@ -100,6 +109,8 @@ describe("McpProcessor", () => {
       getRelativeFilePath: () => params.relativeFilePath,
     }));
     (RulesyncMcp as any).fromFile = vi.fn();
+    // stripMcpServerFields returns the same instance by default (no-op for mocked tests)
+    (RulesyncMcp.prototype as any).stripMcpServerFields = vi.fn().mockReturnThis();
   });
 
   afterEach(async () => {
@@ -823,6 +834,71 @@ describe("McpProcessor", () => {
       await expect(processor.convertRulesyncFilesToToolFiles([rulesyncMcp])).rejects.toThrow(
         "Unsupported tool target: unsupported",
       );
+    });
+
+    it("should strip enabledTools and disabledTools for tools that do not support them", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue({} as any);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([
+        "enabledTools",
+        "disabledTools",
+      ]);
+    });
+
+    it("should not strip enabledTools and disabledTools for codexcli", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(CodexcliMcp.fromRulesyncMcp).mockResolvedValue({} as any);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
+    });
+
+    it("should not strip enabledTools and disabledTools for opencode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = {} as any;
+      vi.mocked(OpencodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+
+      const processor = new McpProcessor({
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
     });
   });
 

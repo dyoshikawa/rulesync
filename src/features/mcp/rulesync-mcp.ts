@@ -137,6 +137,25 @@ export class RulesyncMcp extends RulesyncFile {
     );
   }
 
+  /**
+   * Create a new RulesyncMcp with specified fields stripped from each server config.
+   * Returns the same instance if no fields need stripping.
+   */
+  stripMcpServerFields(fields: string[]): RulesyncMcp {
+    if (fields.length === 0) return this;
+
+    const filteredServers = Object.fromEntries(
+      Object.entries(this.json.mcpServers).map(([name, config]) => [name, omit(config, fields)]),
+    );
+
+    return new RulesyncMcp({
+      baseDir: this.baseDir,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+      fileContent: JSON.stringify({ mcpServers: filteredServers }, null, 2),
+    });
+  }
+
   getJson(): RulesyncMcpConfig {
     return this.json;
   }
