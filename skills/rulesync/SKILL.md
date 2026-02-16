@@ -26,6 +26,7 @@ A Node.js CLI tool that automatically generates configuration files for various 
 - [Simulate Commands, Subagents and Skills](./simulate-commands-subagents-and-skills.md)
 - [Official Skills](./official-skills.md)
 - [Declarative Skill Sources](./declarative-skill-sources.md)
+- [Programmatic API](./programmatic-api.md)
 - [Rulesync MCP Server](./rulesync-mcp-server.md)
 - [FAQ](./faq.md)
 - [License](./license.md)
