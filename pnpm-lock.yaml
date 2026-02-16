@@ -114,9 +114,6 @@ importers:
       lint-staged:
         specifier: 16.2.7
         version: 16.2.7
-      marked:
-        specifier: 17.0.2
-        version: 17.0.2
       oxfmt:
         specifier: 0.31.0
         version: 0.31.0
@@ -3456,11 +3453,6 @@ packages:
 
   mark.js@8.11.1:
     resolution: {integrity: sha512-1I+1qpDt4idfgLQG+BNWmrqku+7/2bi5nLf4YwF8y8zXvmfiTBY3PV3ZibfrjBueCByROpuBjLLFCajqkgYoLQ==}
-
-  marked@17.0.2:
-    resolution: {integrity: sha512-s5HZGFQea7Huv5zZcAGhJLT3qLpAfnY7v7GWkICUr0+Wd5TFEtdlRR2XUL5Gg+RH7u2Df595ifrxR03mBaw7gA==}
-    engines: {node: '>= 20'}
-    hasBin: true
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -8215,8 +8207,6 @@ snapshots:
       semver: 7.7.4
 
   mark.js@8.11.1: {}
-
-  marked@17.0.2: {}
 
   math-intrinsics@1.1.0: {}
 
