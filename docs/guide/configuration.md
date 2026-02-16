@@ -30,6 +30,12 @@ Example:
   // Features to generate. You can specify "*" to generate all features.
   "features": ["rules", "ignore", "mcp", "commands", "subagents", "hooks"],
 
+  // Alternatively, you can use object format to specify features per target:
+  // "features": {
+  //   "claudecode": ["rules", "commands"],
+  //   "cursor": ["rules", "mcp"],
+  // },
+
   // Base directories for generation.
   // Basically, you can specify a `["."]` only.
   // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple base directories.
@@ -56,6 +62,40 @@ Example:
   //   { "source": "owner/repo" },
   //   { "source": "org/repo", "skills": ["specific-skill"] },
   // ],
+}
+```
+
+## Per-Target Features
+
+The `features` option accepts both an array and an object format. Use the object format when you want to generate different features for different targets:
+
+```jsonc
+// rulesync.jsonc
+{
+  "targets": ["claudecode", "cursor", "copilot"],
+  "features": {
+    "claudecode": ["rules", "commands"],
+    "cursor": ["rules", "mcp"],
+    "copilot": ["rules", "subagents"],
+  },
+}
+```
+
+In this example:
+
+- `claudecode` generates rules and commands
+- `cursor` generates rules and MCP configuration
+- `copilot` generates rules and subagents
+
+You can also use `*` (wildcard) for specific targets:
+
+```jsonc
+{
+  "targets": ["claudecode", "cursor"],
+  "features": {
+    "claudecode": ["*"], // Generate all features for Claude Code
+    "cursor": ["rules"], // Only rules for Cursor
+  },
 }
 ```
 
