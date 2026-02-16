@@ -4,7 +4,7 @@ export default defineConfig({
   title: "Rulesync",
   description:
     "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
-  base: "/rulesync/",
+  base: "/",
   lastUpdated: true,
 
   head: [["link", { rel: "icon", href: "/rulesync/logo.jpg" }]],
