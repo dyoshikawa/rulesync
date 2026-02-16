@@ -23,17 +23,29 @@
   "license": "MIT",
   "author": "dyoshikawa",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "rulesync": "dist/index.js"
+    "rulesync": "dist/cli/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/cli/index.ts --format cjs,esm --dts --clean",
+    "build": "tsup src/cli/index.ts src/index.ts --format cjs,esm --dts --clean",
     "check": "pnpm run fmt:check && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
     "cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
     "cicheck:code": "pnpm run check && pnpm run test",

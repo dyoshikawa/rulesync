@@ -1,7 +1,7 @@
 import { type KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  entry: ["src/cli/index.ts", "src/**/*.test.ts", "src/**/*.test-d.ts"],
+  entry: ["src/cli/index.ts", "src/index.ts", "src/**/*.test.ts", "src/**/*.test-d.ts"],
   project: ["src/**/*.ts"],
   ignore: [
     // Build output and node_modules
