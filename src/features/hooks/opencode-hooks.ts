@@ -5,8 +5,8 @@ import type { HooksConfig } from "../../types/hooks.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 
 import {
+  CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CONTROL_CHARS,
-  CURSOR_TO_OPENCODE_EVENT_NAMES,
   OPENCODE_HOOK_EVENTS,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
@@ -82,7 +82,7 @@ function groupByOpencodeEvent(config: HooksConfig): {
   const namedEventHandlers: Record<string, OpencodeHandler[]> = {};
   const genericEventHandlers: Record<string, OpencodeHandler[]> = {};
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
-    const opencodeEvent = CURSOR_TO_OPENCODE_EVENT_NAMES[canonicalEvent];
+    const opencodeEvent = CANONICAL_TO_OPENCODE_EVENT_NAMES[canonicalEvent];
     if (!opencodeEvent) continue;
 
     const handlers: OpencodeHandler[] = [];

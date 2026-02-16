@@ -6,9 +6,9 @@ import type { HooksConfig } from "../../types/hooks.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 
 import {
-  CLAUDE_HOOK_EVENTS,
-  CLAUDE_TO_CURSOR_EVENT_NAMES,
-  CURSOR_TO_CLAUDE_EVENT_NAMES,
+  FACTORYDROID_HOOK_EVENTS,
+  FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
+  CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -21,13 +21,12 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * Convert canonical (Cursor-style) hooks config to Factory Droid format.
- * Factory Droid uses the same PascalCase event names and matcher/hooks
- * structure as Claude Code, but with $FACTORY_PROJECT_DIR instead of
- * $CLAUDE_PROJECT_DIR.
+ * Convert canonical hooks config to Factory Droid format.
+ * Factory Droid uses PascalCase event names and a matcher/hooks structure,
+ * with $FACTORY_PROJECT_DIR as the project directory variable.
  */
 function canonicalToFactorydroidHooks(config: HooksConfig): Record<string, unknown[]> {
-  const supported: Set<string> = new Set(CLAUDE_HOOK_EVENTS);
+  const supported: Set<string> = new Set(FACTORYDROID_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
     if (supported.has(event)) {
@@ -36,11 +35,11 @@ function canonicalToFactorydroidHooks(config: HooksConfig): Record<string, unkno
   }
   const effectiveHooks: HooksConfig["hooks"] = {
     ...sharedHooks,
-    ...config.claudecode?.hooks,
+    ...config.factorydroid?.hooks,
   };
   const result: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const pascalEventName = CURSOR_TO_CLAUDE_EVENT_NAMES[eventName] ?? eventName;
+    const pascalEventName = CANONICAL_TO_FACTORYDROID_EVENT_NAMES[eventName] ?? eventName;
     const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
     for (const def of definitions) {
       const key = def.matcher ?? "";
@@ -93,7 +92,7 @@ function factorydroidHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
   }
   const canonical: HooksConfig["hooks"] = {};
   for (const [pascalEventName, matcherEntries] of Object.entries(hooks)) {
-    const eventName = CLAUDE_TO_CURSOR_EVENT_NAMES[pascalEventName] ?? pascalEventName;
+    const eventName = FACTORYDROID_TO_CANONICAL_EVENT_NAMES[pascalEventName] ?? pascalEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {
