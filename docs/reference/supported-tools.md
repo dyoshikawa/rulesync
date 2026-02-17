@@ -9,7 +9,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Claude Code        | claudecode   | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Codex CLI          | codexcli     | ✅ 🌏 |        | 🌏 🔧 |    🌏    |    🎮     | ✅ 🌏  |       |
 | Gemini CLI         | geminicli    | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |    🎮     | ✅ 🌏  |       |
-| GitHub Copilot     | copilot      |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
+| GitHub Copilot     | copilot      | ✅ 🌏 |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
 | Cursor             | cursor       |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | factorydroid | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
 | OpenCode           | opencode     | ✅ 🌏 |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |

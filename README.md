@@ -69,7 +69,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | Claude Code        | claudecode   | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Codex CLI          | codexcli     | ✅ 🌏 |        | 🌏 🔧 |    🌏    |    🎮     | ✅ 🌏  |       |
 | Gemini CLI         | geminicli    | ✅ 🌏 |   ✅   | ✅ 🌏 |  ✅ 🌏   |    🎮     | ✅ 🌏  |       |
-| GitHub Copilot     | copilot      |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
+| GitHub Copilot     | copilot      | ✅ 🌏 |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
 | Cursor             | cursor       |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | factorydroid | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
 | OpenCode           | opencode     | ✅ 🌏 |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |

@@ -2,7 +2,7 @@
 
 You can use global mode via Rulesync by enabling `--global` option. It can also be called as user scope mode.
 
-Currently, supports rules and commands generation for Claude Code. Import for global files is supported for rules and commands.
+Currently, supports rules generation for Claude Code, GitHub Copilot, and OpenCode. Import for global files is supported for rules and commands. Command generation in global mode remains Claude Code only.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
 
@@ -50,3 +50,4 @@ Currently, supports rules and commands generation for Claude Code. Import for gl
 > - `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
 > - `rules/*.md` only supports single file has `root: true`, and frontmatter parameters without `root` are ignored.
 > - Only Claude Code is supported for global mode commands.
+> - Global mode rules are supported for Claude Code, GitHub Copilot, and OpenCode.
