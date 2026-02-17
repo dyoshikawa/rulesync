@@ -12,7 +12,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot     | copilot      |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
 | Cursor             | cursor       |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | factorydroid | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
-| OpenCode           | opencode     |  ✅   |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
+| OpenCode           | opencode     | ✅ 🌏 |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
 | Cline              | cline        |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |           |        |       |
 | Kilo Code          | kilo         | ✅ 🌏 |   ✅   |  ✅   |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Roo Code           | roo          |  ✅   |   ✅   |  ✅   |    ✅    |    🎮     | ✅ 🌏  |       |

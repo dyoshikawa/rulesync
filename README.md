@@ -72,7 +72,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | GitHub Copilot     | copilot      |  ✅   |        |  ✅   |    ✅    |    ✅     |   ✅   |       |
 | Cursor             | cursor       |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | factorydroid | ✅ 🌏 |        | ✅ 🌏 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
-| OpenCode           | opencode     |  ✅   |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
+| OpenCode           | opencode     | ✅ 🌏 |        | ✅ 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
 | Cline              | cline        |  ✅   |   ✅   |  ✅   |  ✅ 🌏   |           |        |       |
 | Kilo Code          | kilo         | ✅ 🌏 |   ✅   |  ✅   |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Roo Code           | roo          |  ✅   |   ✅   |  ✅   |    ✅    |    🎮     | ✅ 🌏  |       |

@@ -196,7 +196,10 @@ describe("RulesProcessor", () => {
         { toolTarget: "cursor" as const, ruleClass: CursorRule },
         { toolTarget: "claudecode" as const, ruleClass: ClaudecodeRule },
         { toolTarget: "warp" as const, ruleClass: WarpRule },
-        { toolTarget: "augmentcode-legacy" as const, ruleClass: AugmentcodeLegacyRule },
+        {
+          toolTarget: "augmentcode-legacy" as const,
+          ruleClass: AugmentcodeLegacyRule,
+        },
       ];
 
       for (const { toolTarget, ruleClass } of testCases) {
@@ -526,7 +529,9 @@ describe("RulesProcessor", () => {
         toolTarget: "cursor",
       });
 
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
       const filePaths = filesToDelete.map((file) => file.getRelativeFilePath());
 
       expect(filePaths).toContain(join("frontend", "react-rule.mdc"));
@@ -546,7 +551,9 @@ describe("RulesProcessor", () => {
         toolTarget: "claudecode-legacy",
       });
 
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
 
       expect(filesToDelete.length).toBeGreaterThan(0);
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
@@ -582,7 +589,9 @@ describe("RulesProcessor", () => {
           toolTarget: target,
         });
 
-        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+        const filesToDelete = await processor.loadToolFiles({
+          forDeletion: true,
+        });
 
         // Should return empty array since no files exist
         expect(filesToDelete).toEqual([]);
@@ -595,7 +604,9 @@ describe("RulesProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
 
       // Should return empty array when no files exist
       expect(filesToDelete).toEqual([]);
@@ -619,7 +630,9 @@ Content that would fail parsing`;
       });
 
       // forDeletion should succeed without parsing file content
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
 
       expect(filesToDelete.length).toBeGreaterThan(0);
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
@@ -635,7 +648,9 @@ Content that would fail parsing`;
         toolTarget: "claudecode",
       });
 
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
 
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
       expect(filePaths).toContain("CLAUDE.md");
@@ -651,7 +666,9 @@ Content that would fail parsing`;
         toolTarget: "claudecode-legacy",
       });
 
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
 
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
       expect(filePaths).toContain("CLAUDE.md");
@@ -660,7 +677,7 @@ Content that would fail parsing`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, claudecode-legacy, codexcli, geminicli, kilo, and copilot as global targets", () => {
+    it("should return claudecode, claudecode-legacy, codexcli, geminicli, kilo, copilot and opencode as global targets", () => {
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       expect(globalTargets).toEqual([
@@ -671,6 +688,7 @@ Content that would fail parsing`;
         "factorydroid",
         "geminicli",
         "kilo",
+        "opencode",
       ]);
     });
 
@@ -694,10 +712,12 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("claudecode");
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("codexcli");
+      expect(globalTargets).toContain("copilot");
+      expect(globalTargets).toContain("factorydroid");
       expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("kilo");
-      expect(globalTargets).toContain("copilot");
-      expect(globalTargets.length).toBe(7);
+      expect(globalTargets).toContain("opencode");
+      expect(globalTargets.length).toBe(8);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

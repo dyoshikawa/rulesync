@@ -5,10 +5,7 @@ import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-} from "../../utils/frontmatter.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -24,14 +21,10 @@ import {
 export const CopilotRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
   applyTo: z.optional(z.string()),
-  excludeAgent: z.optional(
-    z.union([z.literal("code-review"), z.literal("coding-agent")]),
-  ),
+  excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
 });
 
-export type CopilotRuleFrontmatter = z.infer<
-  typeof CopilotRuleFrontmatterSchema
->;
+export type CopilotRuleFrontmatter = z.infer<typeof CopilotRuleFrontmatterSchema>;
 
 export type CopilotRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   frontmatter: CopilotRuleFrontmatter;
@@ -63,11 +56,7 @@ export class CopilotRule extends ToolRule {
     if (options.global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(
-            ".copilot",
-            ".",
-            options.excludeToolDir,
-          ),
+          relativeDirPath: buildToolPath(".copilot", ".", options.excludeToolDir),
           relativeFilePath: "copilot-instructions.md",
         },
       };
@@ -78,11 +67,7 @@ export class CopilotRule extends ToolRule {
         relativeFilePath: "copilot-instructions.md",
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(
-          ".github",
-          "instructions",
-          options.excludeToolDir,
-        ),
+        relativeDirPath: buildToolPath(".github", "instructions", options.excludeToolDir),
       },
     };
   }
@@ -130,10 +115,7 @@ export class CopilotRule extends ToolRule {
 
     // Strip .instructions.md extension and normalize to .md
     const originalFilePath = this.getRelativeFilePath();
-    const relativeFilePath = originalFilePath.replace(
-      /\.instructions\.md$/,
-      ".md",
-    );
+    const relativeFilePath = originalFilePath.replace(/\.instructions\.md$/, ".md");
 
     return new RulesyncRule({
       baseDir: this.getBaseDir(),
@@ -157,9 +139,7 @@ export class CopilotRule extends ToolRule {
 
     const copilotFrontmatter: CopilotRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
-      applyTo: rulesyncFrontmatter.globs?.length
-        ? rulesyncFrontmatter.globs.join(",")
-        : undefined,
+      applyTo: rulesyncFrontmatter.globs?.length ? rulesyncFrontmatter.globs.join(",") : undefined,
       excludeAgent: rulesyncFrontmatter.copilot?.excludeAgent,
     };
 
@@ -180,9 +160,7 @@ export class CopilotRule extends ToolRule {
     }
 
     if (!paths.nonRoot) {
-      throw new Error(
-        `nonRoot path is not set for ${rulesyncRule.getRelativeFilePath()}`,
-      );
+      throw new Error(`nonRoot path is not set for ${rulesyncRule.getRelativeFilePath()}`);
     }
 
     // Generate filename with .instructions.md extension
@@ -212,10 +190,7 @@ export class CopilotRule extends ToolRule {
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
-      const relativePath = join(
-        paths.root.relativeDirPath,
-        paths.root.relativeFilePath,
-      );
+      const relativePath = join(paths.root.relativeDirPath, paths.root.relativeFilePath);
       const fileContent = await readFileContent(join(baseDir, relativePath));
       // Root file: no frontmatter expected
       return new CopilotRule({
