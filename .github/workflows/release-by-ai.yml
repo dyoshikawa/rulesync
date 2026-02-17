@@ -19,12 +19,7 @@ on:
 
 jobs:
   release:
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      (
-          github.actor == github.repository_owner ||
-          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.sender.login)
-      )
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
