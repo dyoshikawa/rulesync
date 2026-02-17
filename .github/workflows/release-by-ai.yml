@@ -63,6 +63,12 @@ jobs:
 
             Follow these steps:
 
+            ## Step 0: Switch to the main branch
+
+            The OpenCode GitHub Action automatically creates a temporary branch.
+            You MUST switch back to the main branch before proceeding:
+            Run `git checkout main` to switch to the main branch.
+
             ## Step 1: Determine the release version
 
             If RELEASE_VERSION is empty or not set:
@@ -79,7 +85,7 @@ jobs:
             For example, if the version is "v1.2.3", run: /release v1.2.3
 
             IMPORTANT:
-            - You MUST be on the main branch. If not, abort immediately.
+            - You MUST be on the main branch before executing /release. Use `git checkout main` if needed.
             - Follow the release command instructions exactly.
             - Do not skip any steps in the release process.
             - Wait for the publish-assets workflow to complete before publishing the release.
