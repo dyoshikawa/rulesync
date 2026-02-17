@@ -256,7 +256,7 @@ export class AntigravityCommand extends ToolCommand {
     return new AntigravityCommand({
       baseDir: baseDir,
       relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       fileContent,

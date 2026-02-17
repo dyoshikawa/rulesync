@@ -324,7 +324,7 @@ Body content`;
         validate: true,
       });
 
-      expect(command.getRelativeFilePath()).toBe("nested-command.prompt.md");
+      expect(command.getRelativeFilePath()).toBe("subdir/nested-command.prompt.md");
     });
 
     it("should throw error when file does not exist", async () => {

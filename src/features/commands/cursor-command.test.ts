@@ -293,7 +293,7 @@ It can be multiline.`;
         validate: true,
       });
 
-      expect(command.getRelativeFilePath()).toBe("nested-command.md");
+      expect(command.getRelativeFilePath()).toBe("subdir/nested-command.md");
       expect(command.getRelativeDirPath()).toBe(".cursor/commands");
     });
 

@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -50,7 +50,7 @@ export class AgentsmdCommand extends SimulatedCommand {
     return new AgentsmdCommand({
       baseDir: baseDir,
       relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       validate,

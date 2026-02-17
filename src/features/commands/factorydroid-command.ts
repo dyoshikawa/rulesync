@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -49,7 +49,7 @@ export class FactorydroidCommand extends SimulatedCommand {
     return new FactorydroidCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       validate,
