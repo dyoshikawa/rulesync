@@ -38,7 +38,7 @@ export type ResolveAndFetchSourcesOptions = {
   updateSources?: boolean;
   /** Skip fetching entirely (use what's already on disk). */
   skipSources?: boolean;
-  /** Fail if lockfile is missing or doesn't match sources (for CI). */
+  /** Fail if lockfile is missing, doesn't cover all sources, or integrity mismatches are detected (for CI). */
   frozen?: boolean;
   /** GitHub token for private repositories. */
   token?: string;
@@ -114,6 +114,7 @@ export async function resolveAndFetchSources(params: {
         localSkillNames,
         alreadyFetchedSkillNames: allFetchedSkillNames,
         updateSources: options.updateSources ?? false,
+        frozen: options.frozen,
       });
 
       lock = updatedLock;
@@ -122,6 +123,10 @@ export async function resolveAndFetchSources(params: {
         allFetchedSkillNames.add(name);
       }
     } catch (error) {
+      // In frozen mode, integrity errors must not be swallowed
+      if (options.frozen && error instanceof Error && error.message.startsWith("Frozen install")) {
+        throw error;
+      }
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints(error);
       } else {
@@ -176,6 +181,7 @@ async function fetchSource(params: {
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
   updateSources: boolean;
+  frozen?: boolean;
 }): Promise<{
   skillCount: number;
   fetchedSkillNames: string[];
@@ -359,9 +365,11 @@ async function fetchSource(params: {
       lockedSkillEntry.integrity !== integrity &&
       resolvedSha === locked?.resolvedRef
     ) {
-      logger.warn(
-        `Integrity mismatch for skill "${skillDir.name}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
-      );
+      const message = `Integrity mismatch for skill "${skillDir.name}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`;
+      if (params.frozen) {
+        throw new Error(`Frozen install failed: ${message}`);
+      }
+      logger.warn(message);
     }
 
     fetchedSkills[skillDir.name] = { integrity };

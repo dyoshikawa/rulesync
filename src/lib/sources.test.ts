@@ -569,7 +569,11 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "org/repo": {
           resolvedRef: "sha-123",
-          skills: { "missing-skill": { integrity: "sha256-xxx" } },
+          skills: {
+            "missing-skill": {
+              integrity: "sha256-3cf172cc8bf603e45354b443326e07357681b17caf8caa8c027d64742739a35a",
+            },
+          },
         },
       },
     });
@@ -643,6 +647,46 @@ describe("resolveAndFetchSources", () => {
 
     // Should have warned about integrity mismatch
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
+  });
+
+  it("should throw in frozen mode when integrity mismatch is detected", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+
+    // Lock has a source with a specific integrity hash
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+
+    // Skill dir is missing on disk so re-fetch is triggered
+    vi.mocked(directoryExists).mockResolvedValue(false);
+
+    // Mock: remote has one skill with different content than what was locked
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("tampered content");
+
+    await expect(
+      resolveAndFetchSources({
+        sources: [{ source: "https://github.com/org/repo" }],
+        baseDir: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow("Frozen install failed: Integrity mismatch");
   });
 
   it("should preserve lock entries for skipped skills", async () => {
