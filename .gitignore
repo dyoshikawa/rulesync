@@ -281,6 +281,8 @@ bun.lock
 **/.roo/subagents/
 **/.warp/
 **/WARP.md
+**/.playwright/
+**/.playwright-cli/
 .rulesync/rules/*.local.md
 rulesync.local.jsonc
 docs/.vitepress/dist
