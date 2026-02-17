@@ -250,7 +250,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: CopilotRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },

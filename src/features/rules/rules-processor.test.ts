@@ -660,13 +660,14 @@ Content that would fail parsing`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, claudecode-legacy, codexcli, geminicli and kilo as global targets", () => {
+    it("should return claudecode, claudecode-legacy, codexcli, geminicli, kilo, and copilot as global targets", () => {
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       expect(globalTargets).toEqual([
         "claudecode",
         "claudecode-legacy",
         "codexcli",
+        "copilot",
         "factorydroid",
         "geminicli",
         "kilo",
@@ -695,11 +696,11 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("kilo");
-      expect(globalTargets.length).toBe(6);
+      expect(globalTargets).toContain("copilot");
+      expect(globalTargets.length).toBe(7);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
-      expect(globalTargets).not.toContain("copilot");
       expect(globalTargets).not.toContain("warp");
     });
   });
