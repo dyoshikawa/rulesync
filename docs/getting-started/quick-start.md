@@ -71,7 +71,7 @@ rulesync install
 # Force re-resolve all source refs (ignore lockfile)
 rulesync install --update
 
-# Fail if lockfile is missing or out of sync (for CI)
+# Fail if lockfile is missing or out of sync (for CI); fetch missing skills using locked refs
 rulesync install --frozen
 
 # Install then generate (typical workflow)
