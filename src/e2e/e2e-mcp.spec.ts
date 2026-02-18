@@ -14,6 +14,7 @@ describe("E2E: mcp", () => {
     { target: "claudecode", outputPath: ".mcp.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "codexcli", outputPath: join(".codex", "config.toml") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 

@@ -22,10 +22,11 @@ describe("CodexcliMcp", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should throw error for local mode", () => {
-      expect(() => CodexcliMcp.getSettablePaths()).toThrow(
-        "CodexcliMcp only supports global mode. Please pass { global: true }.",
-      );
+    it("should return correct paths for local mode", () => {
+      const paths = CodexcliMcp.getSettablePaths();
+
+      expect(paths.relativeDirPath).toBe(".codex");
+      expect(paths.relativeFilePath).toBe("config.toml");
     });
 
     it("should return correct paths for global mode", () => {
@@ -170,20 +171,22 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
   });
 
   describe("fromFile", () => {
-    it("should throw error for local mode", async () => {
-      const tomlData = `[mcpServers.filesystem]
+    it("should create instance from file in local mode", async () => {
+      const tomlData = `[mcp_servers.filesystem]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "${testDir}"]
 `;
       await ensureDir(join(testDir, ".codex"));
       await writeFileContent(join(testDir, ".codex/config.toml"), tomlData);
 
-      await expect(
-        CodexcliMcp.fromFile({
-          baseDir: testDir,
-          global: false,
-        }),
-      ).rejects.toThrow("CodexcliMcp only supports global mode. Please pass { global: true }.");
+      const codexcliMcp = await CodexcliMcp.fromFile({
+        baseDir: testDir,
+        global: false,
+      });
+
+      expect(codexcliMcp).toBeInstanceOf(CodexcliMcp);
+      expect((codexcliMcp.getToml().mcp_servers as any)?.filesystem).toBeDefined();
+      expect(codexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
 
     it("should create instance from file in global mode", async () => {
@@ -255,18 +258,19 @@ args = ["server.js"]
       expect(codexcliMcp.getToml().mcpServers).toBeDefined();
     });
 
-    it("should throw error if file does not exist", async () => {
-      await expect(
-        CodexcliMcp.fromFile({
-          baseDir: testDir,
-          global: true,
-        }),
-      ).rejects.toThrow();
+    it("should return empty instance if file does not exist", async () => {
+      const codexcliMcp = await CodexcliMcp.fromFile({
+        baseDir: testDir,
+        global: true,
+      });
+
+      expect(codexcliMcp).toBeInstanceOf(CodexcliMcp);
+      expect(codexcliMcp.getToml()).toEqual({});
     });
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should throw error for local mode", async () => {
+    it("should create instance from RulesyncMcp in local mode with new file", async () => {
       const jsonData = {
         mcpServers: {
           "test-server": {
@@ -281,12 +285,16 @@ args = ["server.js"]
         fileContent: JSON.stringify(jsonData),
       });
 
-      await expect(
-        CodexcliMcp.fromRulesyncMcp({
-          rulesyncMcp,
-          global: false,
-        }),
-      ).rejects.toThrow("CodexcliMcp only supports global mode. Please pass { global: true }.");
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect(codexcliMcp).toBeInstanceOf(CodexcliMcp);
+      expect(codexcliMcp.getToml().mcp_servers).toEqual(jsonData.mcpServers);
+      expect(codexcliMcp.getRelativeDirPath()).toBe(".codex");
+      expect(codexcliMcp.getRelativeFilePath()).toBe("config.toml");
     });
 
     it("should create instance from RulesyncMcp in global mode with new file", async () => {
@@ -866,6 +874,19 @@ args = ["server.js"]
     });
   });
 
+  describe("isDeletable", () => {
+    it("should return false (config.toml should not be deleted)", () => {
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: "",
+        validate: false,
+      });
+
+      expect(codexcliMcp.isDeletable()).toBe(false);
+    });
+  });
+
   describe("validate", () => {
     it("should return successful validation result", () => {
       const tomlContent = `[mcpServers."test-server"]
@@ -963,10 +984,10 @@ NODE_ENV = "test"
         global: true,
       });
 
-      // Verify data integrity for mcpServers
+      // Verify data integrity for mcp_servers
       const originalJson = originalCodexcliMcp.getToml();
       const newJson = newCodexcliMcp.getToml();
-      expect(newJson.mcpServers).toEqual(originalJson.mcpServers);
+      expect(newJson.mcp_servers).toEqual(originalJson.mcp_servers);
       expect(newCodexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
 
@@ -1043,7 +1064,10 @@ fontSize = 14
       });
 
       const newJson = newCodexcliMcp.getToml();
-      expect((newJson as any).general).toEqual({ theme: "dark", language: "en" });
+      expect((newJson as any).general).toEqual({
+        theme: "dark",
+        language: "en",
+      });
       expect((newJson as any).editor).toEqual({ fontSize: 14 });
       expect((newJson.mcp_servers as any)?.filesystem).toBeDefined();
     });
@@ -1165,6 +1189,40 @@ enabled = false
       expect(backJson.mcpServers["server-a"].disabledTools).toEqual(["write"]);
       expect(backJson.mcpServers["server-b"].disabled).toBe(true);
       expect(backJson.mcpServers["server-b"].disabledTools).toEqual(["delete"]);
+    });
+
+    it("should handle complete workflow in local mode: fromFile -> toRulesyncMcp -> fromRulesyncMcp", async () => {
+      const originalTomlData = `[mcp_servers."local-server"]
+command = "node"
+args = ["local-server.js"]
+enabled_tools = ["search"]
+`;
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), originalTomlData);
+
+      // Step 1: Load from local file (no global flag)
+      const originalCodexcliMcp = await CodexcliMcp.fromFile({
+        baseDir: testDir,
+        global: false,
+      });
+
+      expect(originalCodexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
+
+      // Step 2: Convert to RulesyncMcp
+      const rulesyncMcp = originalCodexcliMcp.toRulesyncMcp();
+      const rulesyncJson = JSON.parse(rulesyncMcp.getFileContent());
+      expect(rulesyncJson.mcpServers["local-server"].enabledTools).toEqual(["search"]);
+
+      // Step 3: Convert back to CodexcliMcp in local mode
+      const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect(newCodexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
+      const mcpServers = newCodexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers["local-server"].enabled_tools).toEqual(["search"]);
     });
   });
 });
