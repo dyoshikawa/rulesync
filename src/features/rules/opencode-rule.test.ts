@@ -603,6 +603,149 @@ describe("OpenCodeRule", () => {
     });
   });
 
+  describe("getSettablePaths", () => {
+    it("should return correct paths for root and nonRoot", () => {
+      const paths = OpenCodeRule.getSettablePaths();
+
+      expect(paths.root).toEqual({
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: ".opencode/memories",
+      });
+    });
+
+    it("should have consistent paths structure", () => {
+      const paths = OpenCodeRule.getSettablePaths();
+
+      expect(paths).toHaveProperty("root");
+      expect(paths).toHaveProperty("nonRoot");
+      expect(paths.root).toHaveProperty("relativeDirPath");
+      expect(paths.root).toHaveProperty("relativeFilePath");
+      expect(paths.nonRoot).toHaveProperty("relativeDirPath");
+    });
+  });
+
+  describe("getSettablePaths with global flag", () => {
+    it("should return global-specific paths", () => {
+      const paths = OpenCodeRule.getSettablePaths({ global: true });
+
+      expect(paths).toHaveProperty("root");
+      expect(paths.root).toEqual({
+        relativeDirPath: ".config/opencode",
+        relativeFilePath: "AGENTS.md",
+      });
+      expect(paths).not.toHaveProperty("nonRoot");
+    });
+
+    it("should have different paths than regular getSettablePaths", () => {
+      const globalPaths = OpenCodeRule.getSettablePaths({ global: true });
+      const regularPaths = OpenCodeRule.getSettablePaths();
+
+      expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
+      expect(globalPaths.root.relativeFilePath).toBe(regularPaths.root.relativeFilePath);
+    });
+  });
+
+  describe("fromFile with global flag", () => {
+    it("should load root file from .config/opencode/AGENTS.md when global=true", async () => {
+      const globalDir = join(testDir, ".config/opencode");
+      await ensureDir(globalDir);
+      const testContent = "# Global OpenCode\n\nGlobal user configuration.";
+      await writeFileContent(join(globalDir, "AGENTS.md"), testContent);
+
+      const opencodeRule = await OpenCodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      expect(opencodeRule.getRelativeDirPath()).toBe(".config/opencode");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(opencodeRule.getFileContent()).toBe(testContent);
+      expect(opencodeRule.getFilePath()).toBe(join(testDir, ".config/opencode/AGENTS.md"));
+    });
+
+    it("should use global paths when global=true", async () => {
+      const globalDir = join(testDir, ".config/opencode");
+      await ensureDir(globalDir);
+      const testContent = "# Global Mode Test";
+      await writeFileContent(join(globalDir, "AGENTS.md"), testContent);
+
+      const opencodeRule = await OpenCodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      const globalPaths = OpenCodeRule.getSettablePaths({ global: true });
+      expect(opencodeRule.getRelativeDirPath()).toBe(globalPaths.root.relativeDirPath);
+      expect(opencodeRule.getRelativeFilePath()).toBe(globalPaths.root.relativeFilePath);
+    });
+
+    it("should use regular paths when global=false", async () => {
+      const testContent = "# Non-Global Mode Test";
+      await writeFileContent(join(testDir, "AGENTS.md"), testContent);
+
+      const opencodeRule = await OpenCodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: false,
+      });
+
+      expect(opencodeRule.getRelativeDirPath()).toBe(".");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+  });
+
+  describe("fromRulesyncRule with global flag", () => {
+    it("should use global paths when global=true for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: `${RULESYNC_RELATIVE_DIR_PATH}/rules`,
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Global Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(opencodeRule.getRelativeDirPath()).toBe(".config/opencode");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should use regular paths when global=false for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: `${RULESYNC_RELATIVE_DIR_PATH}/rules`,
+        relativeFilePath: "test-rule.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Test root rule",
+          globs: [],
+        },
+        body: "# Regular Test RulesyncRule\n\nContent from rulesync.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        rulesyncRule,
+        global: false,
+      });
+
+      expect(opencodeRule.getRelativeDirPath()).toBe(".");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+  });
+
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting opencode", () => {
       const rulesyncRule = new RulesyncRule({

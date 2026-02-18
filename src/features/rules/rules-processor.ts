@@ -100,14 +100,18 @@ type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
  * Type for command class that provides settable paths.
  */
 type CommandClassType = {
-  getSettablePaths: (options?: { global?: boolean }) => { relativeDirPath: string };
+  getSettablePaths: (options?: { global?: boolean }) => {
+    relativeDirPath: string;
+  };
 };
 
 /**
  * Type for subagent class that provides settable paths.
  */
 type SubagentClassType = {
-  getSettablePaths: (options?: { global?: boolean }) => { relativeDirPath: string };
+  getSettablePaths: (options?: { global?: boolean }) => {
+    relativeDirPath: string;
+  };
 };
 
 /**
@@ -115,7 +119,9 @@ type SubagentClassType = {
  */
 type SkillClassType = {
   isTargetedByRulesyncSkill: (rulesyncSkill: RulesyncSkill) => boolean;
-  getSettablePaths: (options?: { global?: boolean }) => { relativeDirPath: string };
+  getSettablePaths: (options?: { global?: boolean }) => {
+    relativeDirPath: string;
+  };
 };
 
 /**
@@ -192,42 +198,66 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "antigravity",
     {
       class: AntigravityRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
   [
     "augmentcode",
     {
       class: AugmentcodeRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
   [
     "augmentcode-legacy",
     {
       class: AugmentcodeLegacyRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeRule,
-      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeLegacyRule,
-      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "claudecode-legacy" },
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "claudecode-legacy",
+      },
     },
   ],
   [
     "cline",
     {
       class: ClineRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
   [
@@ -250,7 +280,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: CopilotRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },
@@ -300,42 +330,66 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "junie",
     {
       class: JunieRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
     },
   ],
   [
     "kilo",
     {
       class: KiloRule,
-      meta: { extension: "md", supportsGlobal: true, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
   [
     "kiro",
     {
       class: KiroRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
     },
   ],
   [
     "opencode",
     {
       class: OpenCodeRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+      },
     },
   ],
   [
     "qwencode",
     {
       class: QwencodeRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
     },
   ],
   [
     "replit",
     {
       class: ReplitRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
   [
@@ -357,14 +411,22 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "warp",
     {
       class: WarpRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "toon" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
     },
   ],
   [
     "windsurf",
     {
       class: WindsurfRule,
-      meta: { extension: "md", supportsGlobal: false, ruleDiscoveryMode: "auto" },
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
     },
   ],
 ]);
@@ -529,7 +591,9 @@ export class RulesProcessor extends FeatureProcessor {
 
   private buildSkillList(skillClass: {
     isTargetedByRulesyncSkill: (rulesyncSkill: RulesyncSkill) => boolean;
-    getSettablePaths: (options?: { global?: boolean }) => { relativeDirPath: string };
+    getSettablePaths: (options?: { global?: boolean }) => {
+      relativeDirPath: string;
+    };
   }): Array<{
     name: string;
     description: string;
@@ -583,7 +647,9 @@ export class RulesProcessor extends FeatureProcessor {
       );
     } else if (this.toolTarget === "claudecode-legacy") {
       // Claude Code Legacy: generate separate CLAUDE.local.md file in ./
-      const paths = ClaudecodeLegacyRule.getSettablePaths({ global: this.global });
+      const paths = ClaudecodeLegacyRule.getSettablePaths({
+        global: this.global,
+      });
       toolRules.push(
         new ClaudecodeLegacyRule({
           baseDir: this.baseDir,
@@ -684,7 +750,10 @@ export class RulesProcessor extends FeatureProcessor {
     const rulesyncRules = await Promise.all(
       files.map((file) => {
         const relativeFilePath = relative(rulesyncBaseDir, file);
-        checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: rulesyncBaseDir });
+        checkPathTraversal({
+          relativePath: relativeFilePath,
+          intendedRootDir: rulesyncBaseDir,
+        });
         return RulesyncRule.fromFile({
           relativeFilePath,
         });
@@ -749,7 +818,9 @@ export class RulesProcessor extends FeatureProcessor {
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = this.getFactory(this.toolTarget);
-      const settablePaths = factory.class.getSettablePaths({ global: this.global });
+      const settablePaths = factory.class.getSettablePaths({
+        global: this.global,
+      });
 
       const rootToolRules = await (async () => {
         if (!settablePaths.root) {
@@ -851,7 +922,10 @@ export class RulesProcessor extends FeatureProcessor {
         return await Promise.all(
           nonRootFilePaths.map((filePath) => {
             const relativeFilePath = relative(nonRootBaseDir, filePath);
-            checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: nonRootBaseDir });
+            checkPathTraversal({
+              relativePath: relativeFilePath,
+              intendedRootDir: nonRootBaseDir,
+            });
             return factory.class.fromFile({
               baseDir: this.baseDir,
               relativeFilePath,

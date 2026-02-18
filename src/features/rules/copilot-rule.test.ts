@@ -141,6 +141,52 @@ describe("CopilotRule", () => {
     });
   });
 
+  describe("getSettablePaths", () => {
+    it("should return correct paths for root and nonRoot", () => {
+      const paths = CopilotRule.getSettablePaths();
+
+      expect(paths.root).toEqual({
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+      });
+
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: ".github/instructions",
+      });
+    });
+
+    it("should have consistent paths structure", () => {
+      const paths = CopilotRule.getSettablePaths();
+
+      expect(paths).toHaveProperty("root");
+      expect(paths).toHaveProperty("nonRoot");
+      expect(paths.root).toHaveProperty("relativeDirPath");
+      expect(paths.root).toHaveProperty("relativeFilePath");
+      expect(paths.nonRoot).toHaveProperty("relativeDirPath");
+    });
+  });
+
+  describe("getSettablePaths with global flag", () => {
+    it("should return global-specific paths", () => {
+      const paths = CopilotRule.getSettablePaths({ global: true });
+
+      expect(paths).toHaveProperty("root");
+      expect(paths.root).toEqual({
+        relativeDirPath: ".copilot",
+        relativeFilePath: "copilot-instructions.md",
+      });
+      expect(paths).not.toHaveProperty("nonRoot");
+    });
+
+    it("should have different paths than regular getSettablePaths", () => {
+      const globalPaths = CopilotRule.getSettablePaths({ global: true });
+      const regularPaths = CopilotRule.getSettablePaths();
+
+      expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
+      expect(globalPaths.root.relativeFilePath).toBe(regularPaths.root.relativeFilePath);
+    });
+  });
+
   describe("toRulesyncRule", () => {
     it("should convert non-root CopilotRule to RulesyncRule", () => {
       const copilotRule = new CopilotRule({
@@ -309,6 +355,59 @@ describe("CopilotRule", () => {
       expect(copilotRule.isRoot()).toBe(true);
     });
 
+    it("should create root CopilotRule in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "root.md",
+        frontmatter: {
+          targets: ["*"],
+          root: true,
+          description: "Root rule from rulesync",
+          globs: ["**/*"],
+        },
+        body: "Root rulesync rule content",
+        validate: true,
+      });
+
+      const copilotRule = CopilotRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+        validate: true,
+        global: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(true);
+      expect(copilotRule.getRelativeDirPath()).toBe(".copilot");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
+    });
+
+    it("should use regular paths when global=false for root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "root.md",
+        frontmatter: {
+          targets: ["*"],
+          root: true,
+          description: "Root rule from rulesync",
+          globs: ["**/*"],
+        },
+        body: "Root rulesync rule content",
+        validate: true,
+      });
+
+      const copilotRule = CopilotRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+        validate: true,
+        global: false,
+      });
+
+      expect(copilotRule.getRelativeDirPath()).toBe(".github");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
+    });
+
     it("should carry copilot-specific fields from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
@@ -431,6 +530,58 @@ This is test rule content from file.`;
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
       expect(copilotRule.isRoot()).toBe(true);
+    });
+
+    it("should load root file from .copilot/copilot-instructions.md when global=true", async () => {
+      const copilotDir = join(testDir, ".copilot");
+      await ensureDir(copilotDir);
+
+      const rootContent = "Global root content";
+      const rootFilePath = join(copilotDir, "copilot-instructions.md");
+      await writeFileContent(rootFilePath, rootContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "copilot-instructions.md",
+        global: true,
+      });
+
+      expect(copilotRule.getRelativeDirPath()).toBe(".copilot");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
+      expect(copilotRule.getBody()).toBe(rootContent);
+      expect(copilotRule.getFilePath()).toBe(join(testDir, ".copilot", "copilot-instructions.md"));
+    });
+
+    it("should use global paths when global=true", async () => {
+      const copilotDir = join(testDir, ".copilot");
+      await ensureDir(copilotDir);
+      const rootContent = "Global Mode Test";
+      await writeFileContent(join(copilotDir, "copilot-instructions.md"), rootContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "copilot-instructions.md",
+        global: true,
+      });
+
+      const globalPaths = CopilotRule.getSettablePaths({ global: true });
+      expect(copilotRule.getRelativeDirPath()).toBe(globalPaths.root.relativeDirPath);
+      expect(copilotRule.getRelativeFilePath()).toBe(globalPaths.root.relativeFilePath);
+    });
+
+    it("should use regular paths when global=false", async () => {
+      await ensureDir(join(testDir, ".github"));
+      const rootContent = "Non-Global Mode Test";
+      await writeFileContent(join(testDir, ".github", "copilot-instructions.md"), rootContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "copilot-instructions.md",
+        global: false,
+      });
+
+      expect(copilotRule.getRelativeDirPath()).toBe(".github");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
     });
 
     it("should use default baseDir when not provided", async () => {

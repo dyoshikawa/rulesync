@@ -1,14 +1,16 @@
 import { join } from "node:path";
 
-import { type AiFileFromFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
+  ToolRuleFromFileParams,
   type ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
@@ -21,41 +23,73 @@ export type OpenCodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   };
 };
 
+export type OpenCodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
+
 export class OpenCodeRule extends ToolRule {
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): OpenCodeRuleSettablePaths {
+  static getSettablePaths({
+    global,
+    excludeToolDir,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): OpenCodeRuleSettablePaths | OpenCodeRuleSettablePathsGlobal {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: buildToolPath(".config/opencode", ".", excludeToolDir),
+          relativeFilePath: "AGENTS.md",
+        },
+      };
+    }
     return {
       root: {
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".opencode", "memories", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(".opencode", "memories", excludeToolDir),
       },
     };
   }
+
   static async fromFile({
     baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
-  }: AiFileFromFileParams): Promise<OpenCodeRule> {
-    const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot ? "AGENTS.md" : join(".opencode", "memories", relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    global = false,
+  }: ToolRuleFromFileParams): Promise<OpenCodeRule> {
+    const paths = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
+    if (isRoot) {
+      const relativePath = paths.root.relativeFilePath;
+      const fileContent = await readFileContent(
+        join(baseDir, paths.root.relativeDirPath, relativePath),
+      );
+
+      return new OpenCodeRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new OpenCodeRule({
       baseDir,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
-      validate,
-      root: isRoot,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath: relativeFilePath,
       fileContent,
+      validate,
+      root: false,
     });
   }
 
@@ -63,14 +97,16 @@ export class OpenCodeRule extends ToolRule {
     baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): OpenCodeRule {
+    const paths = this.getSettablePaths({ global });
     return new OpenCodeRule(
       this.buildToolRuleParamsDefault({
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }
@@ -89,8 +125,10 @@ export class OpenCodeRule extends ToolRule {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolRuleForDeletionParams): OpenCodeRule {
-    const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".";
+    const paths = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     return new OpenCodeRule({
       baseDir,
