@@ -20,6 +20,6 @@ Collaborators are trusted contributors who have been granted write access to the
 
 ## Collaborator Invitation and Removal
 
-Invitation and removal of Collaborators are at the sole discretion of the Owner.
+Invitation and removal of Collaborators are at the sole discretion of the Owner and may occur at any time.
 
 The Owner will make best efforts to provide reasoning for these decisions. However, there may be cases where full disclosure is not possible.
