@@ -30,6 +30,7 @@ vi.mock("../../utils/logger.js", () => ({
   logger: {
     info: vi.fn(),
     debug: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 // Mock RulesyncCommand after importing it
@@ -518,6 +519,61 @@ describe("CommandsProcessor", () => {
 
       const calledArgs = vi.mocked(ClaudecodeCommand.fromRulesyncCommand).mock.calls[0]![0]!;
       expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "test.md"));
+    });
+
+    it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const commandInPj = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("pj", "test.md"),
+        fileContent: "content from pj",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "pj command",
+        },
+        body: "content from pj",
+      });
+      const commandInOps = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("ops", "test.md"),
+        fileContent: "content from ops",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "ops command",
+        },
+        body: "content from ops",
+      });
+
+      vi.mocked(CursorCommand.fromRulesyncCommand)
+        .mockReturnValueOnce(
+          new CursorCommand({
+            baseDir: testDir,
+            relativeDirPath: join(".cursor", "commands"),
+            relativeFilePath: "test.md",
+            fileContent: "converted from pj",
+          }),
+        )
+        .mockReturnValueOnce(
+          new CursorCommand({
+            baseDir: testDir,
+            relativeDirPath: join(".cursor", "commands"),
+            relativeFilePath: "test.md",
+            fileContent: "converted from ops",
+          }),
+        );
+
+      const result = await processor.convertRulesyncFilesToToolFiles([commandInPj, commandInOps]);
+
+      expect(result).toHaveLength(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('both map to "test.md". The later command will overwrite'),
+      );
     });
 
     it("should filter out non-rulesync command files", async () => {

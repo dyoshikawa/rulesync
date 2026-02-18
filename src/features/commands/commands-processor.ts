@@ -342,15 +342,28 @@ export class CommandsProcessor extends FeatureProcessor {
     );
 
     const factory = this.getFactory(this.toolTarget);
+    const flattenedPathOrigins = new Map<string, string>();
 
     const toolCommands = rulesyncCommands
       .map((rulesyncCommand) => {
         if (!factory.class.isTargetedByRulesyncCommand(rulesyncCommand)) {
           return null;
         }
+        const originalRelativePath = rulesyncCommand.getRelativeFilePath();
         const commandToConvert = factory.meta.supportsSubdirectory
           ? rulesyncCommand
           : this.flattenRelativeFilePath(rulesyncCommand);
+        if (!factory.meta.supportsSubdirectory) {
+          const flattenedPath = commandToConvert.getRelativeFilePath();
+          const firstOrigin = flattenedPathOrigins.get(flattenedPath);
+          if (firstOrigin && firstOrigin !== originalRelativePath) {
+            logger.warn(
+              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". The later command will overwrite the earlier one.`,
+            );
+          } else if (!firstOrigin) {
+            flattenedPathOrigins.set(flattenedPath, originalRelativePath);
+          }
+        }
         return factory.class.fromRulesyncCommand({
           baseDir: this.baseDir,
           rulesyncCommand: commandToConvert,
