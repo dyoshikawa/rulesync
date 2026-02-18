@@ -8,7 +8,7 @@ export default defineConfig({
   lastUpdated: true,
 
   head: [
-    ["link", { rel: "icon", href: "/rulesync/logo.jpg" }],
+    ["link", { rel: "icon", href: "/logo.jpg" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:title", content: "Rulesync" }],
     [
@@ -19,7 +19,13 @@ export default defineConfig({
           "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
       },
     ],
-    ["meta", { property: "og:image", content: "/rulesync/logo.jpg" }],
+    [
+      "meta",
+      {
+        property: "og:image",
+        content: "https://rulesync.dyoshikawa.com/logo.jpg",
+      },
+    ],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:title", content: "Rulesync" }],
     [
@@ -30,7 +36,13 @@ export default defineConfig({
           "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
       },
     ],
-    ["meta", { name: "twitter:image", content: "/rulesync/logo.jpg" }],
+    [
+      "meta",
+      {
+        name: "twitter:image",
+        content: "https://rulesync.dyoshikawa.com/logo.jpg",
+      },
+    ],
   ],
 
   themeConfig: {
