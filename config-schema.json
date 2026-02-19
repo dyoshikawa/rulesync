@@ -29,6 +29,7 @@
           "cursor",
           "factorydroid",
           "geminicli",
+          "goose",
           "junie",
           "kilo",
           "kiro",
@@ -49,7 +50,16 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
+            "enum": [
+              "rules",
+              "ignore",
+              "mcp",
+              "subagents",
+              "commands",
+              "skills",
+              "hooks",
+              "*"
+            ]
           }
         },
         {
@@ -61,7 +71,16 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["rules", "ignore", "mcp", "subagents", "commands", "skills", "hooks", "*"]
+              "enum": [
+                "rules",
+                "ignore",
+                "mcp",
+                "subagents",
+                "commands",
+                "skills",
+                "hooks",
+                "*"
+              ]
             }
           }
         }
@@ -110,7 +129,9 @@
             }
           }
         },
-        "required": ["source"],
+        "required": [
+          "source"
+        ],
         "additionalProperties": false
       }
     }

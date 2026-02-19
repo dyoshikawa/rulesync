@@ -40,6 +40,7 @@ import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
+import { GooseRule } from "./goose-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KiroRule } from "./kiro-rule.js";
@@ -72,6 +73,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "cursor",
   "factorydroid",
   "geminicli",
+  "goose",
   "junie",
   "kilo",
   "kiro",
@@ -323,6 +325,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         additionalConventions: {
           subagents: { subagentClass: GeminiCliSubagent },
         },
+      },
+    },
+  ],
+  [
+    "goose",
+    {
+      class: GooseRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
       },
     },
   ],

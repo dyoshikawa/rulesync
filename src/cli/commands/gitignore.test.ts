@@ -228,6 +228,9 @@ dist/`;
 **/.gemini/subagents/
 **/.gemini/skills/
 **/.geminiignore
+**/.goosehints
+**/.goose/
+**/.gooseignore
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
@@ -352,6 +355,9 @@ rulesync.local.jsonc
 **/.gemini/subagents/
 **/.gemini/skills/
 **/.geminiignore
+**/.goosehints
+**/.goose/
+**/.gooseignore
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
