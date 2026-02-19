@@ -77,6 +77,17 @@ export class RulesyncCommand extends RulesyncFile {
     return this.body;
   }
 
+  withRelativeFilePath(newRelativeFilePath: string): RulesyncCommand {
+    return new RulesyncCommand({
+      baseDir: this.getBaseDir(),
+      relativeDirPath: this.getRelativeDirPath(),
+      relativeFilePath: newRelativeFilePath,
+      frontmatter: this.getFrontmatter(),
+      body: this.getBody(),
+      fileContent: this.getFileContent(),
+    });
+  }
+
   validate(): ValidationResult {
     // Check if frontmatter is set (may be undefined during construction)
     if (!this.frontmatter) {

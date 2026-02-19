@@ -390,14 +390,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private flattenRelativeFilePath(rulesyncCommand: RulesyncCommand): RulesyncCommand {
     const flatPath = basename(rulesyncCommand.getRelativeFilePath());
     if (flatPath === rulesyncCommand.getRelativeFilePath()) return rulesyncCommand;
-    return new RulesyncCommand({
-      baseDir: rulesyncCommand.getBaseDir(),
-      relativeDirPath: rulesyncCommand.getRelativeDirPath(),
-      relativeFilePath: flatPath,
-      frontmatter: rulesyncCommand.getFrontmatter(),
-      body: rulesyncCommand.getBody(),
-      fileContent: rulesyncCommand.getFileContent(),
-    });
+    return rulesyncCommand.withRelativeFilePath(flatPath);
   }
 
   private safeRelativePath(basePath: string, fullPath: string): string {

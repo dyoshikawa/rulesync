@@ -25,7 +25,13 @@ const createMockGetFactoryThatThrowsUnsupported = () => {
 };
 
 // Mock the dependencies
-vi.mock("../../utils/file.js");
+vi.mock("../../utils/file.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../utils/file.js")>();
+  return {
+    ...actual,
+    findFilesByGlobs: vi.fn(),
+  };
+});
 vi.mock("../../utils/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -83,6 +89,8 @@ vi.mocked(RulesyncCommand).mockImplementation(function (config: any) {
   instance.getFrontmatter = () => config.frontmatter;
   instance.getBody = () => config.body;
   instance.getFileContent = () => config.fileContent;
+  instance.withRelativeFilePath = (newPath: string) =>
+    new RulesyncCommand({ ...config, relativeFilePath: newPath });
   return instance;
 });
 
@@ -647,6 +655,28 @@ describe("CommandsProcessor", () => {
       expect(result[0]).toBe(mockRulesyncCommand);
     });
 
+    it("should preserve subdirectory path through toRulesyncCommand in import flow", async () => {
+      const mockRulesyncCommand = {
+        getBody: () => "subdirectory content",
+        getRelativeFilePath: () => join("pj", "test.md"),
+        getFrontmatter: () => ({
+          targets: ["claudecode"],
+          description: "subdirectory command",
+        }),
+      };
+
+      const mockToolCommand = {
+        toRulesyncCommand: vi.fn().mockReturnValue(mockRulesyncCommand),
+      };
+
+      Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
+
+      const result = await processor.convertToolFilesToRulesyncFiles([mockToolCommand as any]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.getRelativeFilePath()).toBe(join("pj", "test.md"));
+    });
+
     it("should filter out non-tool command files", async () => {
       const mockRulesyncCommand = {
         getBody: () => "converted content",
@@ -807,6 +837,14 @@ describe("CommandsProcessor", () => {
       });
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "bar.md" });
       expect(result).toEqual(mockRulesyncCommands);
+    });
+
+    it("should reject path traversal in loadRulesyncFiles", async () => {
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "..", "..", "etc", "passwd"),
+      ]);
+
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow("Path traversal detected");
     });
   });
 
@@ -1044,6 +1082,26 @@ describe("CommandsProcessor", () => {
       );
     });
 
+    it("should produce correct relative paths for deeply nested files in forDeletion mode", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "pj", "sub", "deep.md"),
+      ]);
+
+      await processor.loadToolFiles({ forDeletion: true });
+
+      expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: testDir,
+          relativeFilePath: join("pj", "sub", "deep.md"),
+        }),
+      );
+    });
+
     it("should throw error for unsupported tool target", async () => {
       processor = new CommandsProcessor({
         baseDir: testDir,
@@ -1217,6 +1275,34 @@ describe("CommandsProcessor", () => {
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
         expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+      );
+    });
+
+    it("should reject path traversal in loadToolFiles", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
+      ]);
+
+      await expect(processor.loadToolFiles()).rejects.toThrow("Path traversal detected");
+    });
+
+    it("should reject path traversal in loadToolFiles with forDeletion", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
+      ]);
+
+      await expect(processor.loadToolFiles({ forDeletion: true })).rejects.toThrow(
+        "Path traversal detected",
       );
     });
 
