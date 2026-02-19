@@ -392,13 +392,10 @@ Claude content`,
 
       const codexCliSubagent = new CodexCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".codex/subagents",
-        relativeFilePath: "codex-agent.md",
-        frontmatter: {
-          name: "codex-agent",
-          description: "CodexCli agent",
-        },
-        body: "Codex content",
+        relativeDirPath: ".codex/agents",
+        relativeFilePath: "codex-agent.toml",
+        body: 'name = "codex-agent"\ndescription = "CodexCli agent"',
+        fileContent: 'name = "codex-agent"\ndescription = "CodexCli agent"',
         validate: false,
       });
 
@@ -406,8 +403,8 @@ Claude content`,
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
 
-      // Claudecode, Copilot, and Cursor subagents should be converted (non-simulated)
-      expect(rulesyncFiles).toHaveLength(3);
+      // Claudecode, Copilot, Cursor, and CodexCli subagents should all be converted (non-simulated)
+      expect(rulesyncFiles).toHaveLength(4);
       expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
     });
   });
@@ -654,17 +651,13 @@ Cursor agent content`;
       expect(toolFiles).toEqual([]);
     });
 
-    it("should load codexcli subagent files from .codex/subagents", async () => {
-      const subagentsDir = join(testDir, ".codex", "subagents");
-      await ensureDir(subagentsDir);
+    it("should load codexcli subagent files from .codex/agents", async () => {
+      const agentsDir = join(testDir, ".codex", "agents");
+      await ensureDir(agentsDir);
 
-      const subagentContent = `---
-name: codex-agent
-description: CodexCli agent description
----
-CodexCli agent content`;
+      const tomlContent = 'name = "codex-agent"\ndescription = "CodexCli agent description"';
 
-      await writeFileContent(join(subagentsDir, "codex-agent.md"), subagentContent);
+      await writeFileContent(join(agentsDir, "codex-agent.toml"), tomlContent);
 
       const toolFiles = await processor.loadToolFiles();
 
@@ -832,7 +825,7 @@ Second global content`;
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("opencode");
       expect(toolTargets).toContain("cursor");
-      expect(toolTargets).not.toContain("codexcli");
+      expect(toolTargets).toContain("codexcli");
     });
 
     it("should exclude simulated targets when includeSimulated is false", () => {
@@ -844,7 +837,7 @@ Second global content`;
       expect(toolTargets).toContain("copilot");
       expect(toolTargets).toContain("opencode");
       expect(toolTargets).toContain("cursor");
-      expect(toolTargets).not.toContain("codexcli");
+      expect(toolTargets).toContain("codexcli");
     });
 
     it("should include simulated targets when includeSimulated is true", () => {
@@ -923,7 +916,7 @@ Second global content`;
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
       expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
-        new Set(["agentsmd", "codexcli", "factorydroid", "geminicli", "roo"]),
+        new Set(["agentsmd", "factorydroid", "geminicli", "roo"]),
       );
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });

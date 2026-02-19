@@ -213,7 +213,7 @@ dist/`;
 **/.codexignore
 **/.codex/memories/
 **/.codex/skills/
-**/.codex/subagents/
+**/.codex/agents/
 **/.cursor/
 **/.cursorignore
 **/.factory/rules/
@@ -337,7 +337,7 @@ rulesync.local.jsonc
 **/.codexignore
 **/.codex/memories/
 **/.codex/skills/
-**/.codex/subagents/
+**/.codex/agents/
 **/.cursor/
 **/.cursorignore
 **/.factory/rules/
