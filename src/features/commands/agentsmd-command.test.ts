@@ -291,7 +291,7 @@ Body content`;
         validate: true,
       });
 
-      expect(command.getRelativeFilePath()).toBe("nested-command.md");
+      expect(command.getRelativeFilePath()).toBe("subdir/nested-command.md");
     });
 
     it("should throw error when file does not exist", async () => {

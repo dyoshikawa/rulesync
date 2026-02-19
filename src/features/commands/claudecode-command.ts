@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -170,7 +170,7 @@ export class ClaudecodeCommand extends ToolCommand {
     return new ClaudecodeCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       validate,

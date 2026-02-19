@@ -1,7 +1,9 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
   RulesyncCommand,
   RulesyncCommandFrontmatter,
@@ -338,6 +340,53 @@ describe("RulesyncCommand", () => {
 
       expect(command.getBody()).toBe(bodyWithSpecialChars);
       expect(command.getFileContent()).toContain(bodyWithSpecialChars);
+    });
+  });
+
+  describe("fromFile", () => {
+    it("should load rulesync command from file", async () => {
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+      await ensureDir(commandsDir);
+
+      const fileContent = `---
+targets:
+  - claudecode
+description: Test command
+---
+Test command body`;
+
+      await writeFileContent(join(commandsDir, "test.md"), fileContent);
+
+      const command = await RulesyncCommand.fromFile({
+        relativeFilePath: "test.md",
+      });
+
+      expect(command).toBeInstanceOf(RulesyncCommand);
+      expect(command.getBody()).toBe("Test command body");
+      expect(command.getRelativeFilePath()).toBe("test.md");
+    });
+
+    it("should preserve subdirectory path in relativeFilePath", async () => {
+      const commandsDir = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "pj");
+      await ensureDir(commandsDir);
+
+      const fileContent = `---
+targets:
+  - claudecode
+description: Subdirectory command
+---
+Subdirectory body`;
+
+      await writeFileContent(join(commandsDir, "sub-test.md"), fileContent);
+
+      const command = await RulesyncCommand.fromFile({
+        relativeFilePath: join("pj", "sub-test.md"),
+      });
+
+      expect(command).toBeInstanceOf(RulesyncCommand);
+      expect(command.getBody()).toBe("Subdirectory body");
+      expect(command.getRelativeFilePath()).toBe(join("pj", "sub-test.md"));
+      expect(command.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
     });
   });
 

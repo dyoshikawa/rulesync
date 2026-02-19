@@ -25,11 +25,18 @@ const createMockGetFactoryThatThrowsUnsupported = () => {
 };
 
 // Mock the dependencies
-vi.mock("../../utils/file.js");
+vi.mock("../../utils/file.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../utils/file.js")>();
+  return {
+    ...actual,
+    findFilesByGlobs: vi.fn(),
+  };
+});
 vi.mock("../../utils/logger.js", () => ({
   logger: {
     info: vi.fn(),
     debug: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 // Mock RulesyncCommand after importing it
@@ -75,7 +82,16 @@ const mockFindFilesByGlobs = findFilesByGlobs as MockedFunction<typeof findFiles
 // Set up RulesyncCommand mock
 vi.mocked(RulesyncCommand).mockImplementation(function (config: any) {
   const instance = Object.create(RulesyncCommand.prototype);
-  return Object.assign(instance, config);
+  Object.assign(instance, config);
+  instance.getRelativeFilePath = () => config.relativeFilePath;
+  instance.getRelativeDirPath = () => config.relativeDirPath;
+  instance.getBaseDir = () => config.baseDir;
+  instance.getFrontmatter = () => config.frontmatter;
+  instance.getBody = () => config.body;
+  instance.getFileContent = () => config.fileContent;
+  instance.withRelativeFilePath = (newPath: string) =>
+    new RulesyncCommand({ ...config, relativeFilePath: newPath });
+  return instance;
 });
 
 // Set up static methods after mocking
@@ -444,6 +460,130 @@ describe("CommandsProcessor", () => {
       });
     });
 
+    it("should flatten subdirectory path for supportsSubdirectory=false tools (generate)", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const mockRulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("pj", "test.md"),
+        fileContent: "test content",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "test description",
+        },
+        body: "test content",
+      });
+
+      const mockCursorCommand = new CursorCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".cursor", "commands"),
+        relativeFilePath: "test.md",
+        fileContent: "converted content",
+      });
+
+      vi.mocked(CursorCommand.fromRulesyncCommand).mockReturnValue(mockCursorCommand);
+
+      await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
+
+      const calledArgs = vi.mocked(CursorCommand.fromRulesyncCommand).mock.calls[0]![0]!;
+      expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe("test.md");
+    });
+
+    it("should preserve subdirectory path for supportsSubdirectory=true tools (generate)", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const mockRulesyncCommand = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("pj", "test.md"),
+        fileContent: "test content",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "test description",
+        },
+        body: "test content",
+      });
+
+      const mockClaudecodeCommand = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".claude", "commands"),
+        relativeFilePath: join("pj", "test.md"),
+        frontmatter: {
+          description: "test description",
+        },
+        body: "converted content",
+      });
+
+      vi.mocked(ClaudecodeCommand.fromRulesyncCommand).mockReturnValue(mockClaudecodeCommand);
+
+      await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
+
+      const calledArgs = vi.mocked(ClaudecodeCommand.fromRulesyncCommand).mock.calls[0]![0]!;
+      expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "test.md"));
+    });
+
+    it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const commandInPj = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("pj", "test.md"),
+        fileContent: "content from pj",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "pj command",
+        },
+        body: "content from pj",
+      });
+      const commandInOps = new RulesyncCommand({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("ops", "test.md"),
+        fileContent: "content from ops",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "ops command",
+        },
+        body: "content from ops",
+      });
+
+      vi.mocked(CursorCommand.fromRulesyncCommand)
+        .mockReturnValueOnce(
+          new CursorCommand({
+            baseDir: testDir,
+            relativeDirPath: join(".cursor", "commands"),
+            relativeFilePath: "test.md",
+            fileContent: "converted from pj",
+          }),
+        )
+        .mockReturnValueOnce(
+          new CursorCommand({
+            baseDir: testDir,
+            relativeDirPath: join(".cursor", "commands"),
+            relativeFilePath: "test.md",
+            fileContent: "converted from ops",
+          }),
+        );
+
+      const result = await processor.convertRulesyncFilesToToolFiles([commandInPj, commandInOps]);
+
+      expect(result).toHaveLength(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('both map to "test.md". The later command will overwrite'),
+      );
+    });
+
     it("should filter out non-rulesync command files", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
@@ -515,6 +655,28 @@ describe("CommandsProcessor", () => {
       expect(result[0]).toBe(mockRulesyncCommand);
     });
 
+    it("should preserve subdirectory path through toRulesyncCommand in import flow", async () => {
+      const mockRulesyncCommand = {
+        getBody: () => "subdirectory content",
+        getRelativeFilePath: () => join("pj", "test.md"),
+        getFrontmatter: () => ({
+          targets: ["claudecode"],
+          description: "subdirectory command",
+        }),
+      };
+
+      const mockToolCommand = {
+        toRulesyncCommand: vi.fn().mockReturnValue(mockRulesyncCommand),
+      };
+
+      Object.setPrototypeOf(mockToolCommand, ToolCommand.prototype);
+
+      const result = await processor.convertToolFilesToRulesyncFiles([mockToolCommand as any]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.getRelativeFilePath()).toBe(join("pj", "test.md"));
+    });
+
     it("should filter out non-tool command files", async () => {
       const mockRulesyncCommand = {
         getBody: () => "converted content",
@@ -553,7 +715,10 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load rulesync command files successfully", async () => {
-      const mockPaths = ["test1.md", "test2.md"];
+      const mockPaths = [
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "test1.md"),
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "test2.md"),
+      ];
       const mockRulesyncCommands = [
         new RulesyncCommand({
           baseDir: testDir,
@@ -587,7 +752,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadRulesyncFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/*.md`,
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "**", "*.md"),
       );
       expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "test1.md" });
@@ -597,7 +762,10 @@ describe("CommandsProcessor", () => {
     });
 
     it("should throw error when file loading fails", async () => {
-      const mockPaths = ["test1.md", "test2.md"];
+      const mockPaths = [
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "test1.md"),
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "test2.md"),
+      ];
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -626,6 +794,58 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual([]);
       expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 0 rulesync commands");
     });
+
+    it("should load rulesync command files from subdirectories", async () => {
+      const mockPaths = [
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "pj", "foo.md"),
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "bar.md"),
+      ];
+      const mockRulesyncCommands = [
+        new RulesyncCommand({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath: join("pj", "foo.md"),
+          fileContent: "content1",
+          frontmatter: {
+            targets: ["claudecode"],
+            description: "subdirectory command",
+          },
+          body: "content1",
+        }),
+        new RulesyncCommand({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath: "bar.md",
+          fileContent: "content2",
+          frontmatter: {
+            targets: ["claudecode"],
+            description: "flat command",
+          },
+          body: "content2",
+        }),
+      ];
+
+      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      vi.mocked(RulesyncCommand.fromFile)
+        .mockResolvedValueOnce(mockRulesyncCommands[0]!)
+        .mockResolvedValueOnce(mockRulesyncCommands[1]!);
+
+      const result = await processor.loadRulesyncFiles();
+
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
+        relativeFilePath: join("pj", "foo.md"),
+      });
+      expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({ relativeFilePath: "bar.md" });
+      expect(result).toEqual(mockRulesyncCommands);
+    });
+
+    it("should reject path traversal in loadRulesyncFiles", async () => {
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "..", "..", "etc", "passwd"),
+      ]);
+
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow("Path traversal detected");
+    });
   });
 
   describe("loadToolFiles", () => {
@@ -652,7 +872,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadToolFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        expect.stringContaining("/.claude/commands/*.md"),
+        expect.stringContaining(join(".claude", "commands", "**", "*.md")),
       );
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
         baseDir: testDir,
@@ -717,7 +937,10 @@ describe("CommandsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      const mockPaths = ["test1.md", "test2.md"];
+      const mockPaths = [
+        join(testDir, ".claude", "commands", "test1.md"),
+        join(testDir, ".claude", "commands", "test2.md"),
+      ];
       const mockCommand = new ClaudecodeCommand({
         baseDir: testDir,
         relativeDirPath: join(".claude", "commands"),
@@ -791,6 +1014,92 @@ describe("CommandsProcessor", () => {
         relativeFilePath: "test.md",
         global: true,
       });
+    });
+
+    it("should load tool commands from subdirectories", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const mockPaths = [
+        join(testDir, ".claude", "commands", "pj", "foo.md"),
+        join(testDir, ".claude", "commands", "bar.md"),
+      ];
+      const mockCommand1 = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".claude", "commands"),
+        relativeFilePath: join("pj", "foo.md"),
+        frontmatter: { description: "subdirectory command" },
+        body: "content1",
+      });
+      const mockCommand2 = new ClaudecodeCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".claude", "commands"),
+        relativeFilePath: "bar.md",
+        frontmatter: { description: "flat command" },
+        body: "content2",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
+      vi.mocked(ClaudecodeCommand.fromFile)
+        .mockResolvedValueOnce(mockCommand1)
+        .mockResolvedValueOnce(mockCommand2);
+
+      const result = await processor.loadToolFiles();
+
+      expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
+        baseDir: testDir,
+        relativeFilePath: join("pj", "foo.md"),
+        global: false,
+      });
+      expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
+        baseDir: testDir,
+        relativeFilePath: "bar.md",
+        global: false,
+      });
+      expect(result).toEqual([mockCommand1, mockCommand2]);
+    });
+
+    it("should load tool commands from subdirectories for deletion", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "pj", "foo.md"),
+      ]);
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(1);
+      expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: testDir,
+          relativeFilePath: join("pj", "foo.md"),
+        }),
+      );
+    });
+
+    it("should produce correct relative paths for deeply nested files in forDeletion mode", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "pj", "sub", "deep.md"),
+      ]);
+
+      await processor.loadToolFiles({ forDeletion: true });
+
+      expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: testDir,
+          relativeFilePath: join("pj", "sub", "deep.md"),
+        }),
+      );
     });
 
     it("should throw error for unsupported tool target", async () => {
@@ -874,7 +1183,7 @@ describe("CommandsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      mockFindFilesByGlobs.mockResolvedValue(["test.md"]);
+      mockFindFilesByGlobs.mockResolvedValue([join(testDir, ".claude", "commands", "test.md")]);
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
@@ -917,7 +1226,10 @@ describe("CommandsProcessor", () => {
         toolTarget: "claudecode",
       });
 
-      mockFindFilesByGlobs.mockResolvedValue(["deletable.md", "non-deletable.md"]);
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "deletable.md"),
+        join(testDir, ".claude", "commands", "non-deletable.md"),
+      ]);
 
       // Mock forDeletion to return instances with different isDeletable results
       (vi.mocked(ClaudecodeCommand).forDeletion as ReturnType<typeof vi.fn>).mockImplementation(
@@ -931,6 +1243,67 @@ describe("CommandsProcessor", () => {
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]?.getRelativeFilePath()).toBe("deletable.md");
+    });
+
+    it("should use top-level only glob for supportsSubdirectory=false tools (import)", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
+        expect.stringContaining(join(".cursor", "commands", "*.md")),
+      );
+      // Should NOT contain "**" in the glob pattern
+      const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
+      expect(calledGlob).not.toContain(join("**", "*.md"));
+    });
+
+    it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
+        expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+      );
+    });
+
+    it("should reject path traversal in loadToolFiles", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
+      ]);
+
+      await expect(processor.loadToolFiles()).rejects.toThrow("Path traversal detected");
+    });
+
+    it("should reject path traversal in loadToolFiles with forDeletion", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
+      ]);
+
+      await expect(processor.loadToolFiles({ forDeletion: true })).rejects.toThrow(
+        "Path traversal detected",
+      );
     });
 
     it("should return all files when forDeletion is false regardless of isDeletable", async () => {
@@ -952,7 +1325,10 @@ describe("CommandsProcessor", () => {
         isDeletable: () => false,
       };
 
-      mockFindFilesByGlobs.mockResolvedValue(["deletable.md", "non-deletable.md"]);
+      mockFindFilesByGlobs.mockResolvedValue([
+        join(testDir, ".claude", "commands", "deletable.md"),
+        join(testDir, ".claude", "commands", "non-deletable.md"),
+      ]);
       vi.mocked(ClaudecodeCommand.fromFile)
         .mockResolvedValueOnce(deletableCommand as unknown as ClaudecodeCommand)
         .mockResolvedValueOnce(nonDeletableCommand as unknown as ClaudecodeCommand);

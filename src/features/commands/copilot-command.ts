@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -158,7 +158,7 @@ export class CopilotCommand extends ToolCommand {
     return new CopilotCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       validate,

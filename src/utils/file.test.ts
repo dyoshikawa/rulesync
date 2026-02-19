@@ -8,6 +8,7 @@ import {
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   addTrailingNewline,
+  checkPathTraversal,
   createPathResolver,
   directoryExists,
   ensureDir,
@@ -788,6 +789,47 @@ describe("file utilities", () => {
         expect(toKebabCaseFilename("API_Documentation.md")).toBe("api-documentation.md");
         expect(toKebabCaseFilename("ProjectOverview.md")).toBe("project-overview.md");
       });
+    });
+  });
+
+  describe("checkPathTraversal", () => {
+    it("should allow simple relative paths", () => {
+      expect(() =>
+        checkPathTraversal({ relativePath: "foo.md", intendedRootDir: testDir }),
+      ).not.toThrow();
+      expect(() =>
+        checkPathTraversal({ relativePath: join("sub", "foo.md"), intendedRootDir: testDir }),
+      ).not.toThrow();
+    });
+
+    it("should allow deeply nested paths", () => {
+      expect(() =>
+        checkPathTraversal({
+          relativePath: join("a", "b", "c", "d", "e", "f.md"),
+          intendedRootDir: testDir,
+        }),
+      ).not.toThrow();
+    });
+
+    it("should reject paths with .. segments", () => {
+      expect(() =>
+        checkPathTraversal({ relativePath: join("..", "escape.md"), intendedRootDir: testDir }),
+      ).toThrow("Path traversal detected");
+      expect(() =>
+        checkPathTraversal({
+          relativePath: join("sub", "..", "..", "escape.md"),
+          intendedRootDir: testDir,
+        }),
+      ).toThrow("Path traversal detected");
+    });
+
+    it("should reject paths with .. even if they resolve inside root", () => {
+      expect(() =>
+        checkPathTraversal({
+          relativePath: "sub/../file.md",
+          intendedRootDir: testDir,
+        }),
+      ).toThrow("Path traversal detected");
     });
   });
 });

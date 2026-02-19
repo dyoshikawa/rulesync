@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -77,6 +77,17 @@ export class RulesyncCommand extends RulesyncFile {
     return this.body;
   }
 
+  withRelativeFilePath(newRelativeFilePath: string): RulesyncCommand {
+    return new RulesyncCommand({
+      baseDir: this.getBaseDir(),
+      relativeDirPath: this.getRelativeDirPath(),
+      relativeFilePath: newRelativeFilePath,
+      frontmatter: this.getFrontmatter(),
+      body: this.getBody(),
+      fileContent: this.getFileContent(),
+    });
+  }
+
   validate(): ValidationResult {
     // Check if frontmatter is set (may be undefined during construction)
     if (!this.frontmatter) {
@@ -115,12 +126,10 @@ export class RulesyncCommand extends RulesyncFile {
       throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`);
     }
 
-    const filename = basename(relativeFilePath);
-
     return new RulesyncCommand({
       baseDir: process.cwd(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: filename,
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       fileContent,

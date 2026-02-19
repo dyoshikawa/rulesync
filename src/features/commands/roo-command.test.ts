@@ -387,7 +387,7 @@ This file has invalid frontmatter`;
           relativeFilePath: "subfolder/nested.md",
         });
 
-        expect(command.getRelativeFilePath()).toBe("nested.md");
+        expect(command.getRelativeFilePath()).toBe("subfolder/nested.md");
         expect(command.getBody()).toBe(body);
       } finally {
         await cleanup();

@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
@@ -81,7 +81,7 @@ export class KiroCommand extends ToolCommand {
     return new KiroCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       fileContent: content.trim(),
       validate,
     });

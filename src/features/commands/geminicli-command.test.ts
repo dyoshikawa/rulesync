@@ -318,7 +318,7 @@ prompt = "Unclosed string`;
         validate: true,
       });
 
-      expect(command.getRelativeFilePath()).toBe("nested-command.toml");
+      expect(command.getRelativeFilePath()).toBe("subdir/nested-command.toml");
     });
 
     it("should throw error when file does not exist", async () => {

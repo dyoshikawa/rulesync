@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod/mini";
 
@@ -153,7 +153,7 @@ ${geminiFrontmatter.prompt}
     return new GeminiCliCommand({
       baseDir: baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: basename(relativeFilePath),
+      relativeFilePath,
       fileContent,
       validate,
     });

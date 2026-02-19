@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { z } from "zod/mini";
 
 import type { ToolTarget } from "../../types/tool-targets.js";
@@ -7,7 +7,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs } from "../../utils/file.js";
+import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCommand } from "./antigravity-command.js";
@@ -52,6 +52,8 @@ type ToolCommandFactory = {
     supportsGlobal: boolean;
     /** Whether the command is simulated (embedded in rules) */
     isSimulated: boolean;
+    /** Whether the tool supports subdirectory paths in commands */
+    supportsSubdirectory: boolean;
   };
 };
 
@@ -90,42 +92,78 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     "agentsmd",
     {
       class: AgentsmdCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: true },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: true,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "antigravity",
     {
       class: AntigravityCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
     },
   ],
   [
     "cline",
     {
       class: ClineCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "codexcli",
     {
       class: CodexcliCommand,
-      meta: { extension: "md", supportsProject: false, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: false,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
@@ -137,6 +175,7 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
         supportsProject: true,
         supportsGlobal: false,
         isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],
@@ -144,49 +183,91 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     "cursor",
     {
       class: CursorCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "factorydroid",
     {
       class: FactorydroidCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: true },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: true,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "geminicli",
     {
       class: GeminiCliCommand,
-      meta: { extension: "toml", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "toml",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
     },
   ],
   [
     "kilo",
     {
       class: KiloCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "kiro",
     {
       class: KiroCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "opencode",
     {
       class: OpenCodeCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: true, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
     },
   ],
   [
     "roo",
     {
       class: RooCommand,
-      meta: { extension: "md", supportsProject: true, supportsGlobal: false, isSimulated: false },
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
     },
   ],
 ]);
@@ -261,15 +342,31 @@ export class CommandsProcessor extends FeatureProcessor {
     );
 
     const factory = this.getFactory(this.toolTarget);
+    const flattenedPathOrigins = new Map<string, string>();
 
     const toolCommands = rulesyncCommands
       .map((rulesyncCommand) => {
         if (!factory.class.isTargetedByRulesyncCommand(rulesyncCommand)) {
           return null;
         }
+        const originalRelativePath = rulesyncCommand.getRelativeFilePath();
+        const commandToConvert = factory.meta.supportsSubdirectory
+          ? rulesyncCommand
+          : this.flattenRelativeFilePath(rulesyncCommand);
+        if (!factory.meta.supportsSubdirectory) {
+          const flattenedPath = commandToConvert.getRelativeFilePath();
+          const firstOrigin = flattenedPathOrigins.get(flattenedPath);
+          if (firstOrigin && firstOrigin !== originalRelativePath) {
+            logger.warn(
+              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". The later command will overwrite the earlier one.`,
+            );
+          } else if (!firstOrigin) {
+            flattenedPathOrigins.set(flattenedPath, originalRelativePath);
+          }
+        }
         return factory.class.fromRulesyncCommand({
           baseDir: this.baseDir,
-          rulesyncCommand,
+          rulesyncCommand: commandToConvert,
           global: this.global,
         });
       })
@@ -290,18 +387,29 @@ export class CommandsProcessor extends FeatureProcessor {
     return rulesyncCommands;
   }
 
+  private flattenRelativeFilePath(rulesyncCommand: RulesyncCommand): RulesyncCommand {
+    const flatPath = basename(rulesyncCommand.getRelativeFilePath());
+    if (flatPath === rulesyncCommand.getRelativeFilePath()) return rulesyncCommand;
+    return rulesyncCommand.withRelativeFilePath(flatPath);
+  }
+
+  private safeRelativePath(basePath: string, fullPath: string): string {
+    const rel = relative(basePath, fullPath);
+    checkPathTraversal({ relativePath: rel, intendedRootDir: basePath });
+    return rel;
+  }
+
   /**
    * Implementation of abstract method from FeatureProcessor
    * Load and parse rulesync command files from .rulesync/commands/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncCommandPaths = await findFilesByGlobs(
-      join(RulesyncCommand.getSettablePaths().relativeDirPath, "*.md"),
-    );
+    const basePath = RulesyncCommand.getSettablePaths().relativeDirPath;
+    const rulesyncCommandPaths = await findFilesByGlobs(join(basePath, "**", "*.md"));
 
     const rulesyncCommands = await Promise.all(
       rulesyncCommandPaths.map((path) =>
-        RulesyncCommand.fromFile({ relativeFilePath: basename(path) }),
+        RulesyncCommand.fromFile({ relativeFilePath: this.safeRelativePath(basePath, path) }),
       ),
     );
 
@@ -321,9 +429,11 @@ export class CommandsProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
 
-    const commandFilePaths = await findFilesByGlobs(
-      join(this.baseDir, paths.relativeDirPath, `*.${factory.meta.extension}`),
-    );
+    const baseDirFull = join(this.baseDir, paths.relativeDirPath);
+    const globPattern = factory.meta.supportsSubdirectory
+      ? join(baseDirFull, "**", `*.${factory.meta.extension}`)
+      : join(baseDirFull, `*.${factory.meta.extension}`);
+    const commandFilePaths = await findFilesByGlobs(globPattern);
 
     if (forDeletion) {
       const toolCommands = commandFilePaths
@@ -331,7 +441,7 @@ export class CommandsProcessor extends FeatureProcessor {
           factory.class.forDeletion({
             baseDir: this.baseDir,
             relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: basename(path),
+            relativeFilePath: this.safeRelativePath(baseDirFull, path),
             global: this.global,
           }),
         )
@@ -345,7 +455,7 @@ export class CommandsProcessor extends FeatureProcessor {
       commandFilePaths.map((path) =>
         factory.class.fromFile({
           baseDir: this.baseDir,
-          relativeFilePath: basename(path),
+          relativeFilePath: this.safeRelativePath(baseDirFull, path),
           global: this.global,
         }),
       ),

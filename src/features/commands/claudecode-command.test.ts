@@ -514,6 +514,52 @@ Command body`;
 
       expect(command).toBeInstanceOf(ClaudecodeCommand);
     });
+
+    it("should preserve subdirectory path in relativeFilePath", async () => {
+      const commandsDir = join(testDir, ".claude", "commands", "pj");
+      await ensureDir(commandsDir);
+
+      const fileContent = `---
+description: Subdirectory command
+---
+Subdirectory command body`;
+
+      const filePath = join(commandsDir, "sub-test.md");
+      await writeFileContent(filePath, fileContent);
+
+      const command = await ClaudecodeCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: join("pj", "sub-test.md"),
+      });
+
+      expect(command).toBeInstanceOf(ClaudecodeCommand);
+      expect(command.getBody()).toBe("Subdirectory command body");
+      expect(command.getRelativeFilePath()).toBe(join("pj", "sub-test.md"));
+      expect(command.getRelativeDirPath()).toBe(".claude/commands");
+    });
+
+    it("should roundtrip subdirectory path through toRulesyncCommand", async () => {
+      const commandsDir = join(testDir, ".claude", "commands", "pj");
+      await ensureDir(commandsDir);
+
+      const fileContent = `---
+description: Roundtrip test
+---
+Roundtrip body`;
+
+      const filePath = join(commandsDir, "roundtrip.md");
+      await writeFileContent(filePath, fileContent);
+
+      const command = await ClaudecodeCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: join("pj", "roundtrip.md"),
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+
+      expect(rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "roundtrip.md"));
+      expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+    });
   });
 
   describe("getSettablePaths with global flag", () => {
