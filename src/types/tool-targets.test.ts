@@ -25,6 +25,7 @@ describe("tool targets", () => {
         "cursor",
         "factorydroid",
         "geminicli",
+        "goose",
         "junie",
         "kilo",
         "kiro",
