@@ -208,7 +208,6 @@ bun.lock
 **/.agent/rules/
 **/.agent/skills/
 **/.agent/workflows/
-**/.codex/subagents/
 **/.playwright/
 **/.playwright-cli/
 docs/.vitepress/dist

@@ -51,7 +51,17 @@ export class CodexCliSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const parsed = CodexCliSubagentTomlSchema.parse(smolToml.parse(this.body));
+    let parsed: CodexCliSubagentToml;
+    try {
+      parsed = CodexCliSubagentTomlSchema.parse(smolToml.parse(this.body));
+    } catch (error) {
+      throw new Error(
+        `Failed to parse TOML in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
+    }
     const { name, description, developer_instructions, ...restFields } = parsed;
 
     // Build codexcli section with all fields except name, description, and developer_instructions
@@ -84,9 +94,15 @@ export class CodexCliSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = rulesyncSubagent.getFrontmatter();
-    const codexcliSection = frontmatter.codexcli ?? {};
+    const rawSection: Record<string, unknown> = frontmatter.codexcli ?? {};
+    const {
+      name: _n,
+      description: _d,
+      developer_instructions: _di,
+      ...codexcliSection
+    } = rawSection;
 
-    // Build TOML object from rulesync frontmatter + codexcli section
+    // Build TOML object from rulesync frontmatter + codexcli section (tool-specific fields only)
     const tomlObj: CodexCliSubagentToml = {
       name: frontmatter.name,
       ...(frontmatter.description ? { description: frontmatter.description } : {}),

@@ -153,6 +153,20 @@ describe("CodexCliSubagent", () => {
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("reviewer.md");
     });
 
+    it("should throw descriptive error for invalid TOML body", () => {
+      const subagent = new CodexCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".codex/agents",
+        relativeFilePath: "broken.toml",
+        body: "not valid toml {{{}",
+        fileContent: "",
+        validate: false,
+      });
+
+      expect(() => subagent.toRulesyncSubagent()).toThrow(/Failed to parse TOML in/);
+      expect(() => subagent.toRulesyncSubagent()).toThrow(/broken\.toml/);
+    });
+
     it("should handle TOML without extra fields (no codexcli section)", () => {
       const toml = ['name = "simple"', 'description = "Simple agent"'].join("\n");
 
@@ -213,6 +227,38 @@ describe("CodexCliSubagent", () => {
       );
       expect(codexcliSubagent.getBody()).toContain('model = "gpt-5"');
       expect(codexcliSubagent.getBody()).toContain('sandbox_mode = "full"');
+    });
+
+    it("should not allow codexcli section to override name or description", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "override.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "correct-name",
+          description: "correct description",
+          codexcli: {
+            name: "wrong-name",
+            description: "wrong description",
+            model: "gpt-5",
+          },
+        },
+        body: "Correct instructions",
+        validate: true,
+      });
+
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        rulesyncSubagent,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      }) as CodexCliSubagent;
+
+      expect(codexcliSubagent.getBody()).toContain('name = "correct-name"');
+      expect(codexcliSubagent.getBody()).toContain('description = "correct description"');
+      expect(codexcliSubagent.getBody()).toContain('model = "gpt-5"');
+      expect(codexcliSubagent.getBody()).not.toContain("wrong-name");
+      expect(codexcliSubagent.getBody()).not.toContain("wrong description");
     });
 
     it("should handle empty body and description", () => {
@@ -406,6 +452,48 @@ describe("CodexCliSubagent", () => {
       expect(rulesyncSubagent.getBody()).toBe("You are a test agent");
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("test-agent.md");
     });
+
+    it("should preserve fields through full round-trip (RulesyncSubagent → CodexCli → RulesyncSubagent)", () => {
+      const originalRulesync = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "round-trip.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "round-trip-agent",
+          description: "Round trip test",
+          codexcli: {
+            model: "gpt-5",
+            sandbox_mode: "full",
+            model_reasoning_effort: "high",
+          },
+        },
+        body: "You are a round-trip agent",
+        validate: true,
+      });
+
+      // RulesyncSubagent → CodexCliSubagent
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        rulesyncSubagent: originalRulesync,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      }) as CodexCliSubagent;
+
+      // CodexCliSubagent → RulesyncSubagent
+      const restored = codexcliSubagent.toRulesyncSubagent();
+
+      expect(restored.getFrontmatter()).toMatchObject({
+        targets: ["codexcli"],
+        name: "round-trip-agent",
+        description: "Round trip test",
+        codexcli: {
+          model: "gpt-5",
+          sandbox_mode: "full",
+          model_reasoning_effort: "high",
+        },
+      });
+      expect(restored.getBody()).toBe("You are a round-trip agent");
+    });
   });
 
   describe("edge cases", () => {
@@ -445,6 +533,27 @@ describe("CodexCliSubagent", () => {
       const rulesyncSubagent = subagent.toRulesyncSubagent();
       expect(rulesyncSubagent.getBody()).toContain("Line 1");
       expect(rulesyncSubagent.getBody()).toContain("Line 2");
+    });
+
+    it("should handle special characters in TOML values", () => {
+      const toml = [
+        'name = "special-agent"',
+        'description = "Quotes: \\"Hello \'World\'\\""',
+        'developer_instructions = "Unicode: \u4f60\u597d\u4e16\u754c"',
+      ].join("\n");
+
+      const subagent = new CodexCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".codex/agents",
+        relativeFilePath: "special.toml",
+        body: toml,
+        fileContent: toml,
+        validate: true,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("special-agent");
+      expect(rulesyncSubagent.getBody()).toContain("\u4f60\u597d\u4e16\u754c");
     });
 
     it("should be assignable to ToolSubagent type", () => {
