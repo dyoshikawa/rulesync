@@ -27,6 +27,8 @@ Before writing the issue, investigate the relevant parts of the codebase to unde
 
 ## Step 3: Draft the Issue
 
+**Important: All issue content (title, body, labels) must be written in English**, regardless of the language used in the conversation with the user.
+
 Create a well-structured issue with the following sections:
 
 ```markdown
