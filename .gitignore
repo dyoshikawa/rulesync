@@ -238,7 +238,7 @@ docs/.vitepress/cache
 **/.codexignore
 **/.codex/memories/
 **/.codex/skills/
-**/.codex/subagents/
+**/.codex/agents/
 **/.cursor/
 **/.cursorignore
 **/.factory/rules/
