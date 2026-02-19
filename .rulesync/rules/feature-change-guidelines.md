@@ -10,4 +10,4 @@ description: "When you add or change features, must follow these guidelines."
 - Review frontmatter in both rulesync files (`rulesync-{feature}.ts`) and tool files (`{tool}-{feature}.ts`). For overlapping parameters (e.g., `description`), prefer the rulesync value by default, but if the tool file defines the parameter, that tool-specific value takes precedence.
 - Evaluate whether `gitignore.ts` needs additions or changes in its generated output. And `pnpm dev gitignore` should be run to update `.gitignore` in the project.
 - Consider project scope and global scope support. Simulated support should cover project scope only. For native support, implement both project and global scope when the target tool supports them. Consult the tool’s official documentation to decide scope support.
-- Keep `Supported Tools and Features` section and `Each File Format` section in `README.md` synchronized with the implemented functionality.
+- Keep `Supported Tools and Features` section and `Each File Format` section in `README.md` and `docs/**/*.md` synchronized with the implemented functionality.
