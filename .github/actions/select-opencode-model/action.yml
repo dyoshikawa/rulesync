@@ -27,7 +27,7 @@ runs:
         elif [[ "$COMMENT_BODY" == *"kimi"* ]]; then
           echo "model=openrouter/moonshotai/kimi-k2.5" >> $GITHUB_OUTPUT
         else
-          echo "model=openrouter/z-ai/glm-5" >> $GITHUB_OUTPUT
+          echo "model=zai-coding-plan/glm-5" >> $GITHUB_OUTPUT
         fi
         CLEANED_COMMENT_BODY="$COMMENT_BODY"
         CLEANED_COMMENT_BODY="${CLEANED_COMMENT_BODY//\/oc/}"
