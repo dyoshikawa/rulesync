@@ -476,7 +476,7 @@ describe("IgnoreProcessor", () => {
     it("should filter out non-deletable files when loading for deletion", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(
-        join(testDir, ".claude", "settings.local.json"),
+        join(testDir, ".claude", "settings.json"),
         JSON.stringify({
           permissions: {
             deny: ["Read(*.secret)", "Read(*.env)"],
@@ -502,7 +502,7 @@ describe("IgnoreProcessor", () => {
     it("should treat claudecode-legacy ignore files the same as claudecode", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(
-        join(testDir, ".claude", "settings.local.json"),
+        join(testDir, ".claude", "settings.json"),
         JSON.stringify({
           permissions: {
             deny: ["Read(*.secret)", "Read(*.env)"],
