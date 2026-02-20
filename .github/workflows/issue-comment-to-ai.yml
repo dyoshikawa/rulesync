@@ -10,9 +10,8 @@ jobs:
       !github.event.issue.pull_request &&
       (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode')) &&
       (
-          github.event.comment.author_association == 'OWNER' ||
-          github.event.comment.author_association == 'MEMBER' ||
-          github.event.comment.author_association == 'COLLABORATOR'
+          github.event.comment.user.login == 'dyoshikawa' ||
+          github.event.comment.user.login == 'cm-dyoshikawa'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -50,6 +49,7 @@ jobs:
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
