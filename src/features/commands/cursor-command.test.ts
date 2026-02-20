@@ -173,9 +173,7 @@ describe("CursorCommand", () => {
         relativeFilePath: "test.md",
         frontmatter: {
           description: "Test",
-          handoffs: [
-            { label: "Build Plan", agent: "planner", prompt: "Plan this", send: true },
-          ],
+          handoffs: [{ label: "Build Plan", agent: "planner", prompt: "Plan this", send: true }],
         },
         body: "Body",
         validate: true,
@@ -184,9 +182,7 @@ describe("CursorCommand", () => {
       const rulesyncCommand = command.toRulesyncCommand();
       const fm = rulesyncCommand.getFrontmatter();
       expect(fm.cursor).toEqual({
-        handoffs: [
-          { label: "Build Plan", agent: "planner", prompt: "Plan this", send: true },
-        ],
+        handoffs: [{ label: "Build Plan", agent: "planner", prompt: "Plan this", send: true }],
       });
     });
 
@@ -340,9 +336,7 @@ describe("CursorCommand", () => {
           targets: ["cursor"],
           description: "Test command",
           cursor: {
-            handoffs: [
-              { label: "Build Plan", agent: "planner", prompt: "Plan this", send: true },
-            ],
+            handoffs: [{ label: "Build Plan", agent: "planner", prompt: "Plan this", send: true }],
           },
         },
         body: "Test body",
@@ -449,7 +443,12 @@ This is the body.`;
         description: "Create a spec",
         handoffs: [
           { label: "Build Plan", agent: "speckit.plan", prompt: "Create a plan" },
-          { label: "Clarify", agent: "speckit.clarify", prompt: "Clarify requirements", send: true },
+          {
+            label: "Clarify",
+            agent: "speckit.clarify",
+            prompt: "Clarify requirements",
+            send: true,
+          },
         ],
       });
       expect(command.getBody()).toBe("This is the body.");
@@ -845,7 +844,7 @@ Local command body`,
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.handoffs).toHaveLength(2);
-        expect(result.data.handoffs![1].send).toBe(true);
+        expect(result.data.handoffs?.[1]?.send).toBe(true);
       }
     });
 
@@ -989,9 +988,7 @@ Local command body`,
           targets: ["*"],
           description: "Stable test",
           cursor: {
-            handoffs: [
-              { label: "Plan", agent: "planner", prompt: "Plan", send: false },
-            ],
+            handoffs: [{ label: "Plan", agent: "planner", prompt: "Plan", send: false }],
           },
         },
         body: "Stable body",

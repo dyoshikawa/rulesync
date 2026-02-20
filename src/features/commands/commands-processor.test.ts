@@ -446,7 +446,8 @@ describe("CommandsProcessor", () => {
         baseDir: testDir,
         relativeDirPath: join(".cursor", "commands"),
         relativeFilePath: "test.md",
-        fileContent: "converted content",
+        frontmatter: {},
+        body: "converted content",
       });
 
       vi.mocked(CursorCommand.fromRulesyncCommand).mockReturnValue(mockCursorCommand);
@@ -482,7 +483,8 @@ describe("CommandsProcessor", () => {
         baseDir: testDir,
         relativeDirPath: join(".cursor", "commands"),
         relativeFilePath: "test.md",
-        fileContent: "converted content",
+        frontmatter: {},
+        body: "converted content",
       });
 
       vi.mocked(CursorCommand.fromRulesyncCommand).mockReturnValue(mockCursorCommand);
@@ -564,7 +566,8 @@ describe("CommandsProcessor", () => {
             baseDir: testDir,
             relativeDirPath: join(".cursor", "commands"),
             relativeFilePath: "test.md",
-            fileContent: "converted from pj",
+            frontmatter: {},
+            body: "converted from pj",
           }),
         )
         .mockReturnValueOnce(
@@ -572,7 +575,8 @@ describe("CommandsProcessor", () => {
             baseDir: testDir,
             relativeDirPath: join(".cursor", "commands"),
             relativeFilePath: "test.md",
-            fileContent: "converted from ops",
+            frontmatter: {},
+            body: "converted from ops",
           }),
         );
 
@@ -1001,7 +1005,8 @@ describe("CommandsProcessor", () => {
         baseDir: testDir,
         relativeDirPath: join(".cursor", "commands"),
         relativeFilePath: "test.md",
-        fileContent: "content",
+        frontmatter: {},
+        body: "content",
       });
 
       mockFindFilesByGlobs.mockResolvedValue(mockPaths);
