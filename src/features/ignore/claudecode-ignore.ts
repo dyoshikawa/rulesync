@@ -36,7 +36,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   /**
-   * ClaudecodeIgnore uses settings.json which is a user-managed config file.
+   * ClaudecodeIgnore uses settings.json, which can include non-ignore settings.
    * It should not be deleted by rulesync.
    */
   override isDeletable(): boolean {

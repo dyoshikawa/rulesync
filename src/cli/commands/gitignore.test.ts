@@ -204,6 +204,7 @@ dist/`;
 **/.claude/commands/
 **/.claude/agents/
 **/.claude/skills/
+**/.claude/settings.local.json
 **/.mcp.json
 **/.clinerules/
 **/.clinerules/workflows/
@@ -331,6 +332,7 @@ rulesync.local.jsonc
 **/.claude/commands/
 **/.claude/agents/
 **/.claude/skills/
+**/.claude/settings.local.json
 **/.mcp.json
 **/.clinerules/
 **/.clinerules/workflows/
