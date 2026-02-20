@@ -152,6 +152,21 @@ describe("KiroSubagent", () => {
     expect(JSON.parse(subagent.getBody())).toEqual(json);
   });
 
+  it("should throw error when file contains invalid JSON content", async () => {
+    const agentsDir = join(testDir, ".kiro", "agents");
+    const filePath = join(agentsDir, "invalid.json");
+
+    await writeFileContent(filePath, "not valid json");
+
+    await expect(
+      KiroSubagent.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "invalid.json",
+        validate: true,
+      }),
+    ).rejects.toThrow();
+  });
+
   it("should identify targeted rulesync subagents", () => {
     const targeted = new RulesyncSubagent({
       baseDir: testDir,
