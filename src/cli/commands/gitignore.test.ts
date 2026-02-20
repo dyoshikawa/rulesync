@@ -214,6 +214,7 @@ dist/`;
 **/.codex/memories/
 **/.codex/skills/
 **/.codex/agents/
+**/.codex/config.toml
 **/.cursor/
 **/.cursorignore
 **/.factory/rules/
@@ -341,6 +342,7 @@ rulesync.local.jsonc
 **/.codex/memories/
 **/.codex/skills/
 **/.codex/agents/
+**/.codex/config.toml
 **/.cursor/
 **/.cursorignore
 **/.factory/rules/

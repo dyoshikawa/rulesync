@@ -927,7 +927,7 @@ describe("McpProcessor", () => {
       expect(targets).toContain("copilot");
       expect(targets).toContain("cursor");
       expect(targets).toContain("roo");
-      expect(targets).not.toContain("codexcli"); // codexcli is global-only
+      expect(targets).toContain("codexcli"); // codexcli supports both project and global
     });
   });
 

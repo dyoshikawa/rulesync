@@ -38,6 +38,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.codex/memories/",
   "**/.codex/skills/",
   "**/.codex/agents/",
+  "**/.codex/config.toml",
   // Cursor
   "**/.cursor/",
   "**/.cursorignore",

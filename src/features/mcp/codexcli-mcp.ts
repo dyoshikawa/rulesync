@@ -4,7 +4,7 @@ import * as smolToml from "smol-toml";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -92,14 +92,20 @@ export class CodexcliMcp extends ToolMcp {
     return this.toml;
   }
 
-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    if (!global) {
-      throw new Error("CodexcliMcp only supports global mode. Please pass { global: true }.");
-    }
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
+    // Both global (~/.codex/config.toml) and local (.codex/config.toml) use the same
+    // relative path. The difference is resolved by the baseDir passed to the processor.
     return {
       relativeDirPath: ".codex",
       relativeFilePath: "config.toml",
     };
+  }
+
+  /**
+   * config.toml may contain other Codex settings, so it should not be deleted.
+   */
+  override isDeletable(): boolean {
+    return false;
   }
 
   static async fromFile({
@@ -108,9 +114,9 @@ export class CodexcliMcp extends ToolMcp {
     global = false,
   }: ToolMcpFromFileParams): Promise<CodexcliMcp> {
     const paths = this.getSettablePaths({ global });
-    const fileContent = await readFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-    );
+    const fileContent =
+      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
+      smolToml.stringify({});
 
     return new CodexcliMcp({
       baseDir,

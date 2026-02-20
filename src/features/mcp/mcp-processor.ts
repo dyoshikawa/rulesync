@@ -124,7 +124,7 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     {
       class: CodexcliMcp,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
