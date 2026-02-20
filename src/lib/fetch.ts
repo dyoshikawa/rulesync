@@ -18,6 +18,7 @@ import {
   MAX_FILE_SIZE,
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_HOOKS_FILE_NAME,
+  RULESYNC_IGNORE_YAML_FILE_NAME,
   RULESYNC_MCP_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
@@ -49,7 +50,7 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   commands: ["commands"],
   subagents: ["subagents"],
   skills: ["skills"],
-  ignore: [RULESYNC_AIIGNORE_FILE_NAME],
+  ignore: [RULESYNC_IGNORE_YAML_FILE_NAME, RULESYNC_AIIGNORE_FILE_NAME],
   mcp: [RULESYNC_MCP_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME],
 };

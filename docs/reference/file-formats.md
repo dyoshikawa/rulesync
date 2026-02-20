@@ -233,26 +233,38 @@ You can control which individual tools from an MCP server are enabled or disable
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
-## `.rulesync/.aiignore` or `.rulesyncignore`
+## `.rulesync/ignore.yaml` (primary)
 
-Rulesync supports a single ignore list that can live in either location below:
+Rulesync supports an action-aware ignore source file at:
 
-- `.rulesync/.aiignore` (recommended)
-- `.rulesyncignore` (project root)
+- `.rulesync/ignore.yaml` (primary)
+
+Schema:
+
+```yaml
+version: 1
+rules:
+  - path: tmp/
+    actions: [read]
+  - path: secrets/**
+    actions: [read, write, edit]
+```
 
 Rules and behavior:
 
-- You may use either location.
-- When both exist, Rulesync prefers `.rulesync/.aiignore` (recommended) over `.rulesyncignore` (legacy) when reading.
-- If neither file exists yet, Rulesync defaults to creating `.rulesync/.aiignore`.
+- Supported actions are `read`, `write`, and `edit`.
+- When generating for Claude Code, actions map to `Read(...)`, `Write(...)`, and `Edit(...)` deny entries.
+- For path-only ignore targets (for example `.cursorignore`, `.geminiignore`, `.codeiumignore`), Rulesync projects to path patterns and ignores action semantics.
+- Running `rulesync init` creates `.rulesync/ignore.yaml`.
 
-Notes:
+## Legacy Compatibility: `.rulesync/.aiignore` or `.rulesyncignore`
 
-- Running `rulesync init` will create `.rulesync/.aiignore` if no ignore file is present.
+Compatibility inputs are still supported:
 
-Example:
+- `.rulesync/.aiignore`
+- `.rulesyncignore` (project root)
 
-```ignore
-tmp/
-credentials/
-```
+Precedence:
+
+- When `.rulesync/ignore.yaml` exists, Rulesync uses it as the source of truth.
+- If YAML is missing, Rulesync falls back to `.rulesync/.aiignore`, then `.rulesyncignore`.

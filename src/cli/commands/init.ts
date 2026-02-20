@@ -1,7 +1,7 @@
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
-  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -35,7 +35,7 @@ export async function initCommand(): Promise<void> {
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
   logger.info(
-    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH}, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH}, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH}`,
   );
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }

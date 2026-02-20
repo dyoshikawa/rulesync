@@ -1,22 +1,35 @@
+import { join } from "node:path";
 import { z } from "zod/mini";
 
-import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH,
+} from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { fileExists } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
+import {
+  IgnoreRule,
+  convertIgnoreRulesToClaudeDenyPatterns,
+  convertIgnoreRulesToPathPatterns,
+  parseIgnoreRulesFromText,
+} from "./ignore-rules.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
+import { RulesyncIgnoreYaml } from "./rulesync-ignore-yaml.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
@@ -111,7 +124,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     this.getFactory = getFactory;
   }
 
-  async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {
+  async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncFile[]): Promise<void> {
     const toolIgnores = await this.convertRulesyncFilesToToolFiles(rulesyncIgnores);
     await this.writeAiFiles(toolIgnores);
   }
@@ -122,10 +135,32 @@ export class IgnoreProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
+      const yamlPath = join(process.cwd(), RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH);
+      const hasYaml = await fileExists(yamlPath);
+      if (hasYaml) {
+        const hasAiignore = await fileExists(
+          join(process.cwd(), RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+        );
+        const hasLegacyIgnore = await fileExists(
+          join(process.cwd(), RULESYNC_IGNORE_RELATIVE_FILE_PATH),
+        );
+        if (hasAiignore || hasLegacyIgnore) {
+          logger.warn(
+            `Found both ${RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH} and legacy ignore files. Using ${RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH} as source of truth.`,
+          );
+        }
+
+        const rulesyncIgnoreYaml = await RulesyncIgnoreYaml.fromFile();
+        for (const warning of rulesyncIgnoreYaml.getWarnings()) {
+          logger.warn(`[ignore] ${warning}`);
+        }
+        return [rulesyncIgnoreYaml];
+      }
+
       return [await RulesyncIgnore.fromFile()];
     } catch (error) {
       logger.error(
-        `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+        `Failed to load rulesync ignore file (${RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH} or ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       return [];
     }
@@ -178,6 +213,25 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Convert RulesyncFile[] to ToolFile[]
    */
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
+    const rulesyncIgnoreYaml = rulesyncFiles.find(
+      (file): file is RulesyncIgnoreYaml => file instanceof RulesyncIgnoreYaml,
+    );
+
+    if (rulesyncIgnoreYaml) {
+      const rules = rulesyncIgnoreYaml.getRules();
+      const rulesyncIgnore = this.createRulesyncIgnoreForToolTarget({
+        rules,
+      });
+
+      const factory = this.getFactory(this.toolTarget);
+      const toolIgnore = await factory.class.fromRulesyncIgnore({
+        baseDir: this.baseDir,
+        rulesyncIgnore,
+      });
+
+      return [toolIgnore];
+    }
+
     const rulesyncIgnore = rulesyncFiles.find(
       (file): file is RulesyncIgnore => file instanceof RulesyncIgnore,
     );
@@ -201,12 +255,25 @@ export class IgnoreProcessor extends FeatureProcessor {
    */
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     const toolIgnores = toolFiles.filter((file): file is ToolIgnore => file instanceof ToolIgnore);
+    if (toolIgnores.length === 0) {
+      return [];
+    }
 
-    const rulesyncIgnores = toolIgnores.map((toolIgnore) => {
-      return toolIgnore.toRulesyncIgnore();
+    const rules: IgnoreRule[] = [];
+    for (const toolIgnore of toolIgnores) {
+      const rulesyncIgnore = toolIgnore.toRulesyncIgnore();
+      const parsed = parseIgnoreRulesFromText(rulesyncIgnore.getFileContent());
+      for (const warning of parsed.warnings) {
+        logger.warn(`[ignore] ${warning}`);
+      }
+      rules.push(...parsed.rules);
+    }
+
+    const rulesyncIgnoreYaml = RulesyncIgnoreYaml.fromRules({
+      baseDir: this.baseDir,
+      rules,
     });
-
-    return rulesyncIgnores;
+    return [rulesyncIgnoreYaml];
   }
 
   /**
@@ -218,5 +285,30 @@ export class IgnoreProcessor extends FeatureProcessor {
       throw new Error("IgnoreProcessor does not support global mode");
     }
     return ignoreProcessorToolTargets;
+  }
+
+  private createRulesyncIgnoreForToolTarget({ rules }: { rules: IgnoreRule[] }): RulesyncIgnore {
+    const { recommended } = RulesyncIgnore.getSettablePaths();
+
+    if (this.toolTarget === "claudecode" || this.toolTarget === "claudecode-legacy") {
+      const denyPatterns = convertIgnoreRulesToClaudeDenyPatterns(rules);
+      return new RulesyncIgnore({
+        baseDir: this.baseDir,
+        relativeDirPath: recommended.relativeDirPath,
+        relativeFilePath: recommended.relativeFilePath,
+        fileContent: denyPatterns.join("\n"),
+      });
+    }
+
+    const projected = convertIgnoreRulesToPathPatterns(rules);
+    for (const warning of projected.warnings) {
+      logger.warn(`[ignore] ${warning}`);
+    }
+    return new RulesyncIgnore({
+      baseDir: this.baseDir,
+      relativeDirPath: recommended.relativeDirPath,
+      relativeFilePath: recommended.relativeFilePath,
+      fileContent: projected.patterns.join("\n"),
+    });
   }
 }

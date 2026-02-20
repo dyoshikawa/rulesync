@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
-  RULESYNC_AIIGNORE_FILE_NAME,
-  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_YAML_FILE_NAME,
+  RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -15,7 +15,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncHooks } from "../../features/hooks/rulesync-hooks.js";
-import { RulesyncIgnore } from "../../features/ignore/rulesync-ignore.js";
+import { RulesyncIgnoreYaml } from "../../features/ignore/rulesync-ignore-yaml.js";
 import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
@@ -29,7 +29,7 @@ vi.mock("../../utils/file.js");
 vi.mock("../../utils/logger.js");
 vi.mock("../../features/commands/rulesync-command.js");
 vi.mock("../../features/hooks/rulesync-hooks.js");
-vi.mock("../../features/ignore/rulesync-ignore.js");
+vi.mock("../../features/ignore/rulesync-ignore-yaml.js");
 vi.mock("../../features/mcp/rulesync-mcp.js");
 vi.mock("../../features/rules/rulesync-rule.js");
 vi.mock("../../features/skills/rulesync-skill.js");
@@ -70,15 +70,9 @@ describe("initCommand", () => {
     vi.mocked(RulesyncSkill.getSettablePaths).mockReturnValue({
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
     } as any);
-    vi.mocked(RulesyncIgnore.getSettablePaths).mockReturnValue({
-      recommended: {
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
-      },
-      legacy: {
-        relativeDirPath: ".",
-        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
-      },
+    vi.mocked(RulesyncIgnoreYaml.getSettablePaths).mockReturnValue({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_IGNORE_YAML_FILE_NAME,
     } as any);
     vi.mocked(RulesyncHooks.getSettablePaths).mockReturnValue({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -98,7 +92,7 @@ describe("initCommand", () => {
       expect(logger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH}`,
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -338,7 +332,7 @@ describe("initCommand", () => {
 
       expect(logger.info).toHaveBeenCalledWith("Next steps:");
       expect(logger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH}`,
       );
       expect(logger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -364,30 +358,36 @@ describe("initCommand", () => {
     });
   });
 
-  describe(".aiignore creation", () => {
-    it("should create .aiignore in .rulesync when it doesn't exist", async () => {
+  describe("ignore.yaml creation", () => {
+    it("should create ignore.yaml in .rulesync when it doesn't exist", async () => {
       // by default in beforeEach, fileExists resolves to false
 
       await initCommand();
 
-      const expectedIgnoreFilePath = join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME);
+      const expectedIgnoreFilePath = join(
+        RULESYNC_RELATIVE_DIR_PATH,
+        RULESYNC_IGNORE_YAML_FILE_NAME,
+      );
 
       expect(writeFileContent).toHaveBeenCalledWith(expectedIgnoreFilePath, expect.any(String));
       expect(logger.success).toHaveBeenCalledWith(`Created ${expectedIgnoreFilePath}`);
     });
 
-    it("should skip creating .aiignore when it already exists", async () => {
+    it("should skip creating ignore.yaml when it already exists", async () => {
       // Make every file appear to exist to trigger skip path
       vi.mocked(fileExists).mockResolvedValue(true);
 
       await initCommand();
 
-      const expectedIgnoreFilePath = join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME);
+      const expectedIgnoreFilePath = join(
+        RULESYNC_RELATIVE_DIR_PATH,
+        RULESYNC_IGNORE_YAML_FILE_NAME,
+      );
 
       expect(logger.info).toHaveBeenCalledWith(
         `Skipped ${expectedIgnoreFilePath} (already exists)`,
       );
-      // Ensure we did not attempt to write the .aiignore file
+      // Ensure we did not attempt to write the ignore.yaml file
       expect(
         vi.mocked(writeFileContent).mock.calls.some((args) => args[0] === expectedIgnoreFilePath),
       ).toBe(false);

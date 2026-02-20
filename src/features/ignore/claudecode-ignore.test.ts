@@ -270,7 +270,7 @@ describe("ClaudecodeIgnore", () => {
       ]);
     });
 
-    it("should preserve non-Read permissions while syncing deny list", async () => {
+    it("should sync managed Read/Write/Edit permissions while preserving allow list", async () => {
       const existingJsonContent = JSON.stringify(
         {
           permissions: {
@@ -298,11 +298,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
-      expect(jsonValue.permissions.deny).toEqual([
-        "Read(*.log)",
-        "Read(node_modules/**)",
-        "Write(secret.txt)",
-      ]);
+      expect(jsonValue.permissions.deny).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
       expect(jsonValue.permissions.allow).toEqual(["Write(*.js)"]);
     });
 
@@ -325,6 +321,43 @@ describe("ClaudecodeIgnore", () => {
         "Read(.env)",
         "Read(node_modules/**)",
       ]);
+    });
+
+    it("should support explicit Read/Write/Edit wrappers from rulesync source", async () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "Read(tmp/**)\nWrite(tmp/**)\nEdit(tmp/**)\nplain/**",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        rulesyncIgnore,
+      });
+
+      const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
+      expect(jsonValue.permissions.deny).toEqual([
+        "Edit(tmp/**)",
+        "Read(plain/**)",
+        "Read(tmp/**)",
+        "Write(tmp/**)",
+      ]);
+    });
+
+    it("should skip unsupported wrappers in rulesync source", async () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "Delete(secret/**)\nRead(tmp/**)",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        rulesyncIgnore,
+      });
+
+      const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
+      expect(jsonValue.permissions.deny).toEqual(["Read(tmp/**)"]);
     });
 
     it("should preserve other JSON properties", async () => {
@@ -363,7 +396,7 @@ describe("ClaudecodeIgnore", () => {
       expect(jsonValue.permissions.deny).toEqual(["Read(*.log)"]);
     });
 
-    it("should remove stale Read entries when patterns are removed", async () => {
+    it("should remove stale managed entries when patterns are removed", async () => {
       const existingJsonContent = JSON.stringify(
         {
           permissions: {
@@ -390,7 +423,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
-      expect(jsonValue.permissions.deny).toEqual(["Read(keep.log)", "Write(secret.txt)"]);
+      expect(jsonValue.permissions.deny).toEqual(["Read(keep.log)"]);
     });
 
     it("should remove duplicates and sort patterns", async () => {

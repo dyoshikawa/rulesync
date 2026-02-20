@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -18,6 +19,7 @@ import { JunieIgnore } from "./junie-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
+import { RulesyncIgnoreYaml } from "./rulesync-ignore-yaml.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
@@ -26,6 +28,7 @@ vi.mock("../../utils/logger.js", () => ({
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
@@ -381,16 +384,16 @@ describe("IgnoreProcessor", () => {
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
-    it("should convert tool ignores to rulesync ignores", async () => {
+    it("should convert tool ignores to ignore.yaml rulesync files", async () => {
       const cursorIgnore = new CursorIgnore({
         baseDir: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".cursorignore",
         fileContent: "*.log\nnode_modules/",
       });
-
-      // Mock the toRulesyncIgnore method to return a proper mock
-      const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
+      const mockRulesyncIgnore = {
+        getFileContent: () => "*.log\nnode_modules/",
+      } as unknown as RulesyncIgnore;
       vi.spyOn(cursorIgnore, "toRulesyncIgnore").mockReturnValue(mockRulesyncIgnore);
 
       const processor = new IgnoreProcessor({
@@ -400,7 +403,12 @@ describe("IgnoreProcessor", () => {
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([cursorIgnore]);
       expect(rulesyncFiles).toHaveLength(1);
-      expect(rulesyncFiles[0]).toBe(mockRulesyncIgnore);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncIgnoreYaml);
+      expect(rulesyncFiles[0]?.getRelativePathFromCwd()).toBe(
+        RULESYNC_IGNORE_YAML_RELATIVE_FILE_PATH,
+      );
+      expect(rulesyncFiles[0]?.getFileContent()).toContain("version: 1");
+      expect(rulesyncFiles[0]?.getFileContent()).toContain("path: '*.log'");
     });
 
     it("should filter out non-ToolIgnore files", async () => {

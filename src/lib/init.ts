@@ -8,7 +8,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../features/commands/rulesync-command.js";
 import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
-import { RulesyncIgnore } from "../features/ignore/rulesync-ignore.js";
+import { RulesyncIgnoreYaml } from "../features/ignore/rulesync-ignore-yaml.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
@@ -201,7 +201,10 @@ Keep the summary concise and ready to reuse in future tasks.`,
   };
 
   const sampleIgnoreFile = {
-    content: `credentials/
+    content: `version: 1
+rules:
+  - path: credentials/
+    actions: [read]
 `,
   };
 
@@ -226,7 +229,7 @@ Keep the summary concise and ready to reuse in future tasks.`,
   const commandPaths = RulesyncCommand.getSettablePaths();
   const subagentPaths = RulesyncSubagent.getSettablePaths();
   const skillPaths = RulesyncSkill.getSettablePaths();
-  const ignorePaths = RulesyncIgnore.getSettablePaths();
+  const ignorePaths = RulesyncIgnoreYaml.getSettablePaths();
   const hooksPaths = RulesyncHooks.getSettablePaths();
 
   // Ensure directories
@@ -235,7 +238,7 @@ Keep the summary concise and ready to reuse in future tasks.`,
   await ensureDir(commandPaths.relativeDirPath);
   await ensureDir(subagentPaths.relativeDirPath);
   await ensureDir(skillPaths.relativeDirPath);
-  await ensureDir(ignorePaths.recommended.relativeDirPath);
+  await ensureDir(ignorePaths.relativeDirPath);
 
   // Create rule sample file
   const ruleFilepath = join(rulePaths.recommended.relativeDirPath, sampleRuleFile.filename);
@@ -263,10 +266,7 @@ Keep the summary concise and ready to reuse in future tasks.`,
   results.push(await writeIfNotExists(skillFilepath, sampleSkillFile.content));
 
   // Create ignore sample file
-  const ignoreFilepath = join(
-    ignorePaths.recommended.relativeDirPath,
-    ignorePaths.recommended.relativeFilePath,
-  );
+  const ignoreFilepath = join(ignorePaths.relativeDirPath, ignorePaths.relativeFilePath);
   results.push(await writeIfNotExists(ignoreFilepath, sampleIgnoreFile.content));
 
   // Create hooks sample file
