@@ -31,12 +31,12 @@ export class ClaudecodeIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".claude",
-      relativeFilePath: "settings.local.json",
+      relativeFilePath: "settings.json",
     };
   }
 
   /**
-   * ClaudecodeIgnore uses settings.local.json which is a user-managed config file.
+   * ClaudecodeIgnore uses settings.json which is a user-managed config file.
    * It should not be deleted by rulesync.
    */
   override isDeletable(): boolean {
