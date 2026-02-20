@@ -1,11 +1,11 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setupTestDirectory } from "../test-utils/test-directories.js";
 import type { GitHubRelease } from "../types/fetch.js";
+
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   checkForUpdate,
   compareVersions,

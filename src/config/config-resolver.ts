@@ -1,6 +1,5 @@
-import { dirname, join, resolve } from "node:path";
-
 import { parse as parseJsonc } from "jsonc-parser";
+import { dirname, join, resolve } from "node:path";
 
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,

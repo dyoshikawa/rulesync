@@ -1,12 +1,13 @@
 import { join } from "node:path";
 
+import type { ValidationResult } from "../../types/ai-file.js";
+import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
+
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { type HooksConfig, HooksConfigSchema } from "../../types/hooks.js";
-import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 

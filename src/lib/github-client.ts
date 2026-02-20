@@ -1,7 +1,6 @@
 import { RequestError } from "@octokit/request-error";
 import { Octokit } from "@octokit/rest";
 
-import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
 import type {
   GitHubApiError,
   GitHubClientConfig,
@@ -9,6 +8,8 @@ import type {
   GitHubRelease,
   GitHubRepoInfo,
 } from "../types/fetch.js";
+
+import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
 import {
   GitHubFileEntrySchema,
   GitHubReleaseSchema,

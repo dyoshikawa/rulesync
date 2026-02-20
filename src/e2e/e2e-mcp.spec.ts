@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
-
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";

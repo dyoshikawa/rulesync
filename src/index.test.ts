@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConfigResolver } from "./config/config-resolver.js";
 import type { Config } from "./config/config.js";
-import { generate, importFromTool } from "./index.js";
 import type { GenerateResult } from "./lib/generate.js";
-import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
 import type { ImportResult } from "./lib/import.js";
+
+import { ConfigResolver } from "./config/config-resolver.js";
+import { generate, importFromTool } from "./index.js";
+import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
 import { importFromTool as coreImportFromTool } from "./lib/import.js";
 import { logger } from "./utils/logger.js";
 

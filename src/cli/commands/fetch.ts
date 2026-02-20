@@ -1,6 +1,7 @@
+import type { FetchOptions } from "../../types/fetch.js";
+
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError, logGitHubAuthHints } from "../../lib/github-client.js";
-import type { FetchOptions } from "../../types/fetch.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 

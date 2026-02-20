@@ -1,5 +1,4 @@
 import { basename, join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";

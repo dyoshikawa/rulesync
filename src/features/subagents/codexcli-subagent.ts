@@ -1,5 +1,4 @@
 import { join } from "node:path";
-
 import * as smolToml from "smol-toml";
 import { z } from "zod/mini";
 

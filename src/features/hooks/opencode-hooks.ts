@@ -2,13 +2,14 @@ import { join } from "node:path";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
+import type { RulesyncHooks } from "./rulesync-hooks.js";
+
 import {
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CONTROL_CHARS,
   OPENCODE_HOOK_EVENTS,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,

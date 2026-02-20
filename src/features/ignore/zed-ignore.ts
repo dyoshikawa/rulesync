@@ -1,6 +1,5 @@
-import { join } from "node:path";
-
 import { uniq } from "es-toolkit";
+import { join } from "node:path";
 
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";

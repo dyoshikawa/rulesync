@@ -1,3 +1,5 @@
+import type { WriteResult } from "../utils/result.js";
+
 import {
   addTrailingNewline,
   readFileContentOrNull,
@@ -5,7 +7,6 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import type { WriteResult } from "../utils/result.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";

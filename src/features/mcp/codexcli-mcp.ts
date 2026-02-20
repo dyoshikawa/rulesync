@@ -1,5 +1,4 @@
 import { join } from "node:path";
-
 import * as smolToml from "smol-toml";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";

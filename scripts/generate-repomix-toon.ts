@@ -1,7 +1,6 @@
+import { encode } from "@toon-format/toon";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import { encode } from "@toon-format/toon";
 import { runCli } from "repomix";
 
 type Variant = {

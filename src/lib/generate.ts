@@ -1,6 +1,7 @@
+import { intersection } from "es-toolkit";
 import { join } from "node:path";
 
-import { intersection } from "es-toolkit";
+import type { FeatureGenerateResult } from "../utils/result.js";
 
 import { Config } from "../config/config.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
@@ -19,7 +20,6 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import type { FeatureGenerateResult } from "../utils/result.js";
 
 export type GenerateResult = {
   rulesCount: number;

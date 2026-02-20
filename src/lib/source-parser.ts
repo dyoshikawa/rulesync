@@ -1,5 +1,6 @@
 import type { ParsedSource } from "../types/fetch.js";
 import type { GitProvider } from "../types/git-provider.js";
+
 import { ALL_GIT_PROVIDERS } from "../types/git-provider.js";
 
 const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);

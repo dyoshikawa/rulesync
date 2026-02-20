@@ -1,5 +1,4 @@
 import { join } from "node:path";
-
 import { describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";

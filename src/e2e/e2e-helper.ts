@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-
 import { afterEach, beforeEach } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";

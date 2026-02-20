@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-
 import { optional, z } from "zod/mini";
 
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";

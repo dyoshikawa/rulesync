@@ -1,6 +1,7 @@
 import { join } from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ToolSubagent } from "./tool-subagent.js";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -8,7 +9,6 @@ import { writeFileContent } from "../../utils/file.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagentFrontmatter } from "./simulated-subagent.js";
-import type { ToolSubagent } from "./tool-subagent.js";
 
 describe("FactorydroidSubagent", () => {
   let testDir: string;

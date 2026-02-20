@@ -1,6 +1,17 @@
+import { Semaphore } from "es-toolkit/promise";
 import { join } from "node:path";
 
-import { Semaphore } from "es-toolkit/promise";
+import type { Feature } from "../types/features.js";
+import type { FetchTarget } from "../types/fetch-targets.js";
+import type {
+  ConflictStrategy,
+  FetchFileResult,
+  FetchOptions,
+  FetchSummary,
+  GitHubFileEntry,
+  ParsedSource,
+} from "../types/fetch.js";
+import type { ToolTarget } from "../types/tool-targets.js";
 
 import {
   FETCH_CONCURRENCY_LIMIT,
@@ -17,18 +28,7 @@ import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import type { Feature } from "../types/features.js";
 import { ALL_FEATURES } from "../types/features.js";
-import type { FetchTarget } from "../types/fetch-targets.js";
-import type {
-  ConflictStrategy,
-  FetchFileResult,
-  FetchOptions,
-  FetchSummary,
-  GitHubFileEntry,
-  ParsedSource,
-} from "../types/fetch.js";
-import type { ToolTarget } from "../types/tool-targets.js";
 import {
   checkPathTraversal,
   createTempDirectory,
