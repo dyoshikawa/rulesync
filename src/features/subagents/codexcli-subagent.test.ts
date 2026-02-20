@@ -320,20 +320,19 @@ describe("CodexCliSubagent", () => {
       ).rejects.toThrow();
     });
 
-    it("should load file with invalid TOML content and fail validation", async () => {
+    it("should throw error when file contains invalid TOML content", async () => {
       const agentsDir = join(testDir, ".codex", "agents");
       const filePath = join(agentsDir, "invalid.toml");
 
       await writeFileContent(filePath, "not valid toml");
 
-      const subagent = await CodexCliSubagent.fromFile({
-        baseDir: testDir,
-        relativeFilePath: "invalid.toml",
-        validate: true,
-      });
-
-      expect(subagent).toBeInstanceOf(CodexCliSubagent);
-      expect(subagent.validate().success).toBe(false);
+      await expect(
+        CodexCliSubagent.fromFile({
+          baseDir: testDir,
+          relativeFilePath: "invalid.toml",
+          validate: true,
+        }),
+      ).rejects.toThrow();
     });
   });
 

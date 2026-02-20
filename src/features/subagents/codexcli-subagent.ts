@@ -155,7 +155,7 @@ export class CodexCliSubagent extends ToolSubagent {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
-    return new CodexCliSubagent({
+    const subagent = new CodexCliSubagent({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -164,6 +164,17 @@ export class CodexCliSubagent extends ToolSubagent {
       validate,
       global,
     });
+
+    if (validate) {
+      const result = subagent.validate();
+      if (!result.success) {
+        throw new Error(
+          `Invalid TOML in ${filePath}: ${result.error instanceof Error ? result.error.message : String(result.error)}`,
+        );
+      }
+    }
+
+    return subagent;
   }
 
   static forDeletion({
