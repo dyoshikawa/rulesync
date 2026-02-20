@@ -26,6 +26,7 @@ const RULESYNC_IGNORE_ENTRIES = [
   "**/.claude/commands/",
   "**/.claude/agents/",
   "**/.claude/skills/",
+  "**/.claude/settings.local.json",
   "**/.mcp.json",
   // Cline
   "**/.clinerules/",
