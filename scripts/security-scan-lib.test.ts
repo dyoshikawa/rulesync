@@ -1,10 +1,10 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OpenRouterClient, SecurityScanResult } from "./security-scan-lib.js";
-
 import { setupTestDirectory } from "../src/test-utils/test-directories.js";
+import type { OpenRouterClient, SecurityScanResult } from "./security-scan-lib.js";
 import {
   SecurityScanResultSchema,
   formatEmailBody,

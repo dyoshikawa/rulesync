@@ -3,14 +3,13 @@ import { join } from "node:path";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
-
 import {
   CURSOR_HOOK_EVENTS,
   CURSOR_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CURSOR_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
+import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
