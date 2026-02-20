@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v7.6.2)"
+        required: true
+        type: string
 
 permissions:
   contents: write # Required for uploading release assets
@@ -48,9 +54,22 @@ jobs:
       - name: Bundle TOON files into zip
         run: zip repomix-toon.zip repomix-output-*.toon
 
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ -n "$TAG_INPUT" ]; then
+            echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+
       - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          draft: true
           files: |
             install.sh
             dist-bun/rulesync-linux-x64
