@@ -4,7 +4,7 @@ import { z } from "zod/mini";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -313,7 +313,7 @@ export class OpencodeMcp extends ToolMcp {
   validate(): ValidationResult {
     // Parse fileContent directly since this.json may not be initialized yet
     // when validate() is called from parent constructor
-    const json = parseJsonc(this.fileContent || "{}");
+    const json = JSON.parse(this.fileContent || "{}");
     const result = OpencodeConfigSchema.safeParse(json);
     if (!result.success) {
       return { success: false, error: result.error };
