@@ -12,7 +12,7 @@ describe("E2E: ignore", () => {
     { target: "cursor", outputPath: ".cursorignore", format: "plaintext" as const },
     {
       target: "claudecode",
-      outputPath: join(".claude", "settings.local.json"),
+      outputPath: join(".claude", "settings.json"),
       format: "json" as const,
     },
   ])("should generate $target ignore", async ({ target, outputPath, format }) => {
