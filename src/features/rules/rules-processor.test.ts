@@ -938,6 +938,33 @@ targets: ["*"]
       const rulesyncRule = result[0] as RulesyncRule;
       expect(rulesyncRule.getFrontmatter().root).toBe(true);
     });
+
+    it("should load rulesync files from cwd even when baseDir is different (global mode)", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Root rule`,
+      );
+
+      // Use a different baseDir to simulate global mode (baseDir = homeDir)
+      const differentBaseDir = join(testDir, "fake-home");
+      await ensureDir(differentBaseDir);
+
+      const processor = new RulesProcessor({
+        baseDir: differentBaseDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(1);
+      const rulesyncRule = result[0] as RulesyncRule;
+      expect(rulesyncRule.getFrontmatter().root).toBe(true);
+    });
   });
 
   describe("localRoot content generation", () => {

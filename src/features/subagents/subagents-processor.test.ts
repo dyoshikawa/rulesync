@@ -516,6 +516,37 @@ Invalid content`;
       const validRulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
       expect(validRulesyncSubagent.getFrontmatter().name).toBe("valid-agent");
     });
+
+    it("should load rulesync files from cwd even when baseDir is different (global mode)", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+
+      const validSubagentContent = `---
+name: global-agent
+description: Global agent description
+targets: ["*"]
+---
+Global agent content`;
+
+      await writeFileContent(join(subagentsDir, "global-agent.md"), validSubagentContent);
+
+      // Use a different baseDir to simulate global mode (baseDir = homeDir)
+      const differentBaseDir = join(testDir, "fake-home");
+      await ensureDir(differentBaseDir);
+
+      const globalProcessor = new SubagentsProcessor({
+        baseDir: differentBaseDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const rulesyncFiles = await globalProcessor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
+      const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("global-agent");
+    });
   });
 
   describe("loadToolFiles", () => {

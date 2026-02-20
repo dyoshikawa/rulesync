@@ -132,7 +132,7 @@ export class HooksProcessor extends FeatureProcessor {
     try {
       return [
         await RulesyncHooks.fromFile({
-          baseDir: this.baseDir,
+          baseDir: process.cwd(),
           validate: true,
         }),
       ];
