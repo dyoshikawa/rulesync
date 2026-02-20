@@ -1,3 +1,4 @@
+import { parse as parseJsonc } from "jsonc-parser";
 import { join } from "node:path";
 import { z } from "zod/mini";
 
@@ -192,7 +193,7 @@ export class OpencodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = OpencodeConfigSchema.parse(JSON.parse(this.fileContent || "{}"));
+    this.json = OpencodeConfigSchema.parse(parseJsonc(this.fileContent || "{}"));
   }
 
   getJson(): OpencodeConfig {
@@ -224,17 +225,30 @@ export class OpencodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<OpencodeMcp> {
-    const paths = this.getSettablePaths({ global });
-    const fileContent =
-      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
-      '{"mcp":{}}';
-    const json = JSON.parse(fileContent);
+    const basePaths = this.getSettablePaths({ global });
+    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+
+    // Try opencode.jsonc first, then opencode.json
+    let fileContent: string | null = null;
+    let relativeFilePath = "opencode.jsonc";
+
+    const jsoncPath = join(jsonDir, "opencode.jsonc");
+    const jsonPath = join(jsonDir, "opencode.json");
+
+    fileContent = await readFileContentOrNull(jsoncPath);
+    if (!fileContent) {
+      fileContent = await readFileContentOrNull(jsonPath);
+      relativeFilePath = "opencode.json";
+    }
+
+    const fileContentToUse = fileContent ?? '{"mcp":{}}';
+    const json = parseJsonc(fileContentToUse);
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
     return new OpencodeMcp({
       baseDir,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
+      relativeDirPath: basePaths.relativeDirPath,
+      relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
@@ -246,13 +260,29 @@ export class OpencodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<OpencodeMcp> {
-    const paths = this.getSettablePaths({ global });
+    const basePaths = this.getSettablePaths({ global });
+    const jsonDir = join(baseDir, basePaths.relativeDirPath);
 
-    const fileContent = await readOrInitializeFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcp: {} }, null, 2),
-    );
-    const json = JSON.parse(fileContent);
+    // Try opencode.jsonc first, then opencode.json
+    let fileContent: string | null = null;
+    let relativeFilePath = "opencode.jsonc";
+
+    const jsoncPath = join(jsonDir, "opencode.jsonc");
+    const jsonPath = join(jsonDir, "opencode.json");
+
+    fileContent = await readFileContentOrNull(jsoncPath);
+    if (!fileContent) {
+      fileContent = await readFileContentOrNull(jsonPath);
+      relativeFilePath = "opencode.json";
+    }
+
+    // If neither exists, use jsonc as it's the preferred format from this point on
+    if (!fileContent) {
+      relativeFilePath = "opencode.jsonc";
+      fileContent = JSON.stringify({ mcp: {} }, null, 2);
+    }
+
+    const json = parseJsonc(fileContent);
     const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
       rulesyncMcp.getMcpServers(),
     );
@@ -266,8 +296,8 @@ export class OpencodeMcp extends ToolMcp {
 
     return new OpencodeMcp({
       baseDir,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
+      relativeDirPath: basePaths.relativeDirPath,
+      relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
@@ -283,7 +313,7 @@ export class OpencodeMcp extends ToolMcp {
   validate(): ValidationResult {
     // Parse fileContent directly since this.json may not be initialized yet
     // when validate() is called from parent constructor
-    const json = JSON.parse(this.fileContent || "{}");
+    const json = parseJsonc(this.fileContent || "{}");
     const result = OpencodeConfigSchema.safeParse(json);
     if (!result.success) {
       return { success: false, error: result.error };
