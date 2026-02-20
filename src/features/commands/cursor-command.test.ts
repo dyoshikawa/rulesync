@@ -420,10 +420,10 @@ It can be multiline.`;
 description: Create a spec
 handoffs:
   - label: Build Plan
-    agent: speckit.plan
+    agent: planner.plan
     prompt: Create a plan
   - label: Clarify
-    agent: speckit.clarify
+    agent: planner.clarify
     prompt: Clarify requirements
     send: true
 ---
@@ -442,10 +442,10 @@ This is the body.`;
       expect(command.getFrontmatter()).toEqual({
         description: "Create a spec",
         handoffs: [
-          { label: "Build Plan", agent: "speckit.plan", prompt: "Create a plan" },
+          { label: "Build Plan", agent: "planner.plan", prompt: "Create a plan" },
           {
             label: "Clarify",
-            agent: "speckit.clarify",
+            agent: "planner.clarify",
             prompt: "Clarify requirements",
             send: true,
           },
@@ -873,8 +873,8 @@ Local command body`,
           description: "Roundtrip test",
           cursor: {
             handoffs: [
-              { label: "Build Plan", agent: "speckit.plan", prompt: "Plan this" },
-              { label: "Clarify", agent: "speckit.clarify", prompt: "Clarify", send: true },
+              { label: "Build Plan", agent: "planner.plan", prompt: "Plan this" },
+              { label: "Clarify", agent: "planner.clarify", prompt: "Clarify", send: true },
             ],
           },
         },
@@ -890,8 +890,8 @@ Local command body`,
       expect(cursor.getFrontmatter()).toEqual({
         description: "Roundtrip test",
         handoffs: [
-          { label: "Build Plan", agent: "speckit.plan", prompt: "Plan this" },
-          { label: "Clarify", agent: "speckit.clarify", prompt: "Clarify", send: true },
+          { label: "Build Plan", agent: "planner.plan", prompt: "Plan this" },
+          { label: "Clarify", agent: "planner.clarify", prompt: "Clarify", send: true },
         ],
       });
 
@@ -900,8 +900,8 @@ Local command body`,
       expect(backToRulesync.getFrontmatter().description).toBe("Roundtrip test");
       expect(backToRulesync.getFrontmatter().cursor).toEqual({
         handoffs: [
-          { label: "Build Plan", agent: "speckit.plan", prompt: "Plan this" },
-          { label: "Clarify", agent: "speckit.clarify", prompt: "Clarify", send: true },
+          { label: "Build Plan", agent: "planner.plan", prompt: "Plan this" },
+          { label: "Clarify", agent: "planner.clarify", prompt: "Clarify", send: true },
         ],
       });
     });
