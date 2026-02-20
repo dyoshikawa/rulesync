@@ -394,6 +394,39 @@ Invalid content`;
 
       await expect(processor.loadRulesyncDirs()).rejects.toThrow("SKILL.md not found in");
     });
+
+    it("should load rulesync dirs from cwd even when baseDir is different (global mode)", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+
+      const skill1Dir = join(skillsDir, "skill-1");
+      await ensureDir(skill1Dir);
+
+      const skillContent = `---
+name: skill-1
+description: First skill
+---
+This is skill content`;
+
+      await writeFileContent(join(skill1Dir, "SKILL.md"), skillContent);
+
+      // Use a different baseDir to simulate global mode (baseDir = homeDir)
+      const differentBaseDir = join(testDir, "fake-home");
+      await ensureDir(differentBaseDir);
+
+      const globalProcessor = new SkillsProcessor({
+        baseDir: differentBaseDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const rulesyncDirs = await globalProcessor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      expect(rulesyncDirs[0]).toBeInstanceOf(RulesyncSkill);
+      const rulesyncSkill = rulesyncDirs[0] as RulesyncSkill;
+      expect(rulesyncSkill.getFrontmatter().name).toBe("skill-1");
+    });
   });
 
   describe("loadToolDirs", () => {

@@ -304,18 +304,18 @@ export class SkillsProcessor extends DirFeatureProcessor {
    */
   async loadRulesyncDirs(): Promise<AiDir[]> {
     // Load local skills (directly under .rulesync/skills/)
-    const localDirNames = [...(await getLocalSkillDirNames(this.baseDir))];
+    const localDirNames = [...(await getLocalSkillDirNames(process.cwd()))];
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
-        RulesyncSkill.fromDir({ baseDir: this.baseDir, dirName, global: this.global }),
+        RulesyncSkill.fromDir({ baseDir: process.cwd(), dirName, global: this.global }),
       ),
     );
 
     const localSkillNames = new Set(localDirNames);
 
     // Load curated (remote) skills from .curated/ subdirectory
-    const curatedDirPath = join(this.baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const curatedDirPath = join(process.cwd(), RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
     let curatedSkills: RulesyncSkill[] = [];
 
     if (await directoryExists(curatedDirPath)) {
@@ -335,7 +335,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       curatedSkills = await Promise.all(
         nonConflicting.map((dirName) =>
           RulesyncSkill.fromDir({
-            baseDir: this.baseDir,
+            baseDir: process.cwd(),
             relativeDirPath: curatedRelativeDirPath,
             dirName,
             global: this.global,

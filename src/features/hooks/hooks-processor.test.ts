@@ -106,6 +106,30 @@ describe("HooksProcessor", () => {
         expect.stringContaining("Failed to load Rulesync hooks file"),
       );
     });
+
+    it("should load rulesync files from cwd even when baseDir is different (global mode)", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ type: "command", command: "echo hello" }] },
+        }),
+      );
+
+      // Use a different baseDir to simulate global mode (baseDir = homeDir)
+      const differentBaseDir = join(testDir, "fake-home");
+      await ensureDir(differentBaseDir);
+
+      const processor = new HooksProcessor({
+        baseDir: differentBaseDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+      const files = await processor.loadRulesyncFiles();
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(RulesyncHooks);
+    });
   });
 
   describe("loadToolFiles", () => {
