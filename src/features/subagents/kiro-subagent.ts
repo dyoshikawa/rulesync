@@ -58,7 +58,17 @@ export class KiroSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const parsed: KiroCliSubagentJson = JSON.parse(this.body);
+    let parsed: KiroCliSubagentJson;
+    try {
+      parsed = JSON.parse(this.body);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse JSON in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
+    }
     const { name, description, prompt, ...restFields } = parsed;
 
     // Build kiro section with all fields except name, description, and prompt
