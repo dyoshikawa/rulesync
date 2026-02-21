@@ -102,9 +102,14 @@ export class KiroSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = rulesyncSubagent.getFrontmatter();
-    const kiroSection = frontmatter.kiro ?? {};
+    const rawSection: Record<string, unknown> = frontmatter.kiro ?? {};
+    const kiroSection = this.filterToolSpecificSection(rawSection, [
+      "name",
+      "description",
+      "prompt",
+    ]);
 
-    // Build kiro JSON from rulesync frontmatter + kiro section
+    // Build kiro JSON from rulesync frontmatter + kiro section (tool-specific fields only)
     const json: KiroCliSubagentJson = {
       name: frontmatter.name,
       description: frontmatter.description || null,

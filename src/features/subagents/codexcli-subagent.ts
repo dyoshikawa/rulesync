@@ -96,12 +96,11 @@ export class CodexCliSubagent extends ToolSubagent {
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = rulesyncSubagent.getFrontmatter();
     const rawSection: Record<string, unknown> = frontmatter.codexcli ?? {};
-    const {
-      name: _n,
-      description: _d,
-      developer_instructions: _di,
-      ...codexcliSection
-    } = rawSection;
+    const codexcliSection = this.filterToolSpecificSection(rawSection, [
+      "name",
+      "description",
+      "developer_instructions",
+    ]);
 
     // Build TOML object from rulesync frontmatter + codexcli section (tool-specific fields only)
     const tomlObj: CodexCliSubagentToml = {
