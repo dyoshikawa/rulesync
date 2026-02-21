@@ -92,6 +92,44 @@ describe("CodexCliSubagent", () => {
       expect(subagent.getBody()).toBe(body);
     });
 
+    it("should throw error for invalid TOML body when validate is true", () => {
+      expect(() => {
+        new CodexCliSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".codex/agents",
+          relativeFilePath: "invalid.toml",
+          body: "not valid toml {{{}",
+          fileContent: "not valid toml",
+          validate: true,
+        });
+      }).toThrow(/Invalid TOML in/);
+    });
+
+    it("should throw error for invalid TOML body when validate is default (true)", () => {
+      expect(() => {
+        new CodexCliSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".codex/agents",
+          relativeFilePath: "invalid.toml",
+          body: "not valid toml {{{}",
+          fileContent: "not valid toml",
+        });
+      }).toThrow(/Invalid TOML in/);
+    });
+
+    it("should throw error for missing required name field when validate is true", () => {
+      expect(() => {
+        new CodexCliSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".codex/agents",
+          relativeFilePath: "missing-name.toml",
+          body: 'description = "no name"',
+          fileContent: 'description = "no name"',
+          validate: true,
+        });
+      }).toThrow(/Invalid TOML in/);
+    });
+
     it("should create instance with invalid TOML body when validate is false", () => {
       const subagent = new CodexCliSubagent({
         baseDir: testDir,

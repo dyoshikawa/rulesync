@@ -34,6 +34,20 @@ export class CodexCliSubagent extends ToolSubagent {
   private readonly body: string;
 
   constructor({ body, ...rest }: CodexCliSubagentParams) {
+    if (rest.validate !== false) {
+      try {
+        const parsed = smolToml.parse(body);
+        CodexCliSubagentTomlSchema.parse(parsed);
+      } catch (error) {
+        throw new Error(
+          `Invalid TOML in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
+    }
+
     super({
       ...rest,
     });
