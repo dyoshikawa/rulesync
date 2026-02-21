@@ -165,7 +165,7 @@ describe("SubagentsProcessor", () => {
     });
 
     it("should throw error for unsupported tool target", async () => {
-      const processor = new SubagentsProcessor({
+      const unsupportedProcessor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
         getFactory: createMockGetFactoryThatThrowsUnsupported,
@@ -180,13 +180,13 @@ describe("SubagentsProcessor", () => {
         validate: false,
       });
 
-      await expect(processor.convertRulesyncFilesToToolFiles([rulesyncSubagent])).rejects.toThrow(
-        "Unsupported tool target: unsupported",
-      );
+      await expect(
+        unsupportedProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]),
+      ).rejects.toThrow("Unsupported tool target: unsupported");
     });
 
     it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
-      const processor = new SubagentsProcessor({
+      const copilotProcessor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -204,14 +204,14 @@ describe("SubagentsProcessor", () => {
         validate: false,
       });
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+      const toolFiles = await copilotProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
 
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(CopilotSubagent);
     });
 
     it("should convert RulesyncSubagent to CursorSubagent for cursor target", async () => {
-      const processor = new SubagentsProcessor({
+      const cursorProcessor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "cursor",
       });
@@ -229,14 +229,14 @@ describe("SubagentsProcessor", () => {
         validate: false,
       });
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+      const toolFiles = await cursorProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
 
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(CursorSubagent);
     });
 
     it("should convert RulesyncSubagent to CodexCliSubagent for codexcli target", async () => {
-      const processor = new SubagentsProcessor({
+      const codexcliProcessor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "codexcli",
       });
@@ -254,14 +254,14 @@ describe("SubagentsProcessor", () => {
         validate: false,
       });
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+      const toolFiles = await codexcliProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
 
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(CodexCliSubagent);
     });
 
     it("should convert RulesyncSubagent to OpenCodeSubagent for opencode target", async () => {
-      const processor = new SubagentsProcessor({
+      const opencodeProcessor = new SubagentsProcessor({
         baseDir: testDir,
         toolTarget: "opencode",
       });
@@ -279,7 +279,7 @@ describe("SubagentsProcessor", () => {
         validate: false,
       });
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+      const toolFiles = await opencodeProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
 
       expect(toolFiles).toHaveLength(1);
       const [opencodeSubagent] = toolFiles;

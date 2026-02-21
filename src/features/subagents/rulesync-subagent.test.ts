@@ -320,17 +320,17 @@ describe("RulesyncSubagent", () => {
 
   describe("fromFile", () => {
     let testDir: string;
-    let cleanup: () => Promise<void>;
+    let fromFileCleanup: () => Promise<void>;
 
     beforeEach(async () => {
       const setup = await setupTestDirectory();
       testDir = setup.testDir;
-      cleanup = setup.cleanup;
+      fromFileCleanup = setup.cleanup;
       vi.spyOn(process, "cwd").mockReturnValue(testDir);
     });
 
     afterEach(async () => {
-      await cleanup();
+      await fromFileCleanup();
       vi.restoreAllMocks();
     });
 
@@ -544,17 +544,17 @@ description: Testing whitespace handling
 
   describe("edge cases", () => {
     let testDir: string;
-    let cleanup: () => Promise<void>;
+    let edgeCaseCleanup: () => Promise<void>;
 
     beforeEach(async () => {
       const setup = await setupTestDirectory();
       testDir = setup.testDir;
-      cleanup = setup.cleanup;
+      edgeCaseCleanup = setup.cleanup;
       vi.spyOn(process, "cwd").mockReturnValue(testDir);
     });
 
     afterEach(async () => {
-      await cleanup();
+      await edgeCaseCleanup();
       vi.restoreAllMocks();
     });
 
