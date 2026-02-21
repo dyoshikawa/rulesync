@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { Command } from "commander";
 
 import { ANNOUNCEMENT } from "../constants/announcements.js";
@@ -15,7 +19,14 @@ import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand } from "./commands/update.js";
 
-const getVersion = () => "7.6.3";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const getVersion = (): string => {
+  const packageJsonPath = join(__dirname, "..", "..", "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as {
+    version: string;
+  };
+  return packageJson.version;
+};
 
 const main = async () => {
   const program = new Command();
