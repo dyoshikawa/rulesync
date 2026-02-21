@@ -2,16 +2,15 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-} from "./tool-command.js";
-
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CursorCommand, CursorCommandFrontmatterSchema } from "./cursor-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+import type {
+  ToolCommandFromFileParams,
+  ToolCommandFromRulesyncCommandParams,
+} from "./tool-command.js";
 
 describe("CursorCommand", () => {
   let testDir: string;

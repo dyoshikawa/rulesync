@@ -2,13 +2,14 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "deny": [
-      "Bash(rm -rf ~/**)",
-      "Bash(rm -rf //**)",
+      "Bash(git commit --no-verify:*)",
       "Bash(git remote add:*)",
       "Bash(git remote set-url:*)",
       "Bash(npm publish:*)",
       "Bash(pnpm publish:*)",
-      "Bash(git commit --no-verify:*)"
+      "Bash(rm -rf //**)",
+      "Bash(rm -rf ~/**)",
+      "Read(.env*)"
     ],
     "allow": ["mcp__serena"],
     "defaultMode": "acceptEdits"
