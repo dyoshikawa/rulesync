@@ -1,5 +1,4 @@
 import { join } from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -667,6 +666,7 @@ Content that would fail parsing`;
           "antigravity",
           "claudecode",
           "claudecode-legacy",
+          "cline",
           "codexcli",
           "copilot",
           "cursor",
@@ -689,6 +689,7 @@ Content that would fail parsing`;
           "antigravity",
           "claudecode",
           "claudecode-legacy",
+          "cline",
           "codexcli",
           "copilot",
           "cursor",
@@ -711,6 +712,7 @@ Content that would fail parsing`;
           "antigravity",
           "claudecode",
           "claudecode-legacy",
+          "cline",
           "codexcli",
           "copilot",
           "cursor",
@@ -743,6 +745,7 @@ Content that would fail parsing`;
         "antigravity",
         "claudecode",
         "claudecode-legacy",
+        "cline",
         "codexcli",
         "cursor",
         "factorydroid",
@@ -762,6 +765,7 @@ Content that would fail parsing`;
         "antigravity",
         "claudecode",
         "claudecode-legacy",
+        "cline",
         "codexcli",
         "cursor",
         "factorydroid",

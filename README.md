@@ -74,7 +74,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | Cursor             | cursor       |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | Factory Droid      | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
 | OpenCode           | opencode     | ✅ 🌏 |        |  ✅ 🔧   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
-| Cline              | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           |        |       |
+| Cline              | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Kilo Code          | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Roo Code           | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |
 | Qwen Code          | qwencode     |  ✅   |   ✅   |          |          |           |        |       |
