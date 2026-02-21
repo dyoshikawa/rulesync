@@ -228,17 +228,19 @@ export class OpencodeMcp extends ToolMcp {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(baseDir, basePaths.relativeDirPath);
 
-    // Try opencode.jsonc first, then opencode.json
     let fileContent: string | null = null;
     let relativeFilePath = "opencode.jsonc";
 
     const jsoncPath = join(jsonDir, "opencode.jsonc");
     const jsonPath = join(jsonDir, "opencode.json");
 
+    // Always try JSONC first (preferred format), then fall back to JSON
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
-      relativeFilePath = "opencode.json";
+      if (fileContent) {
+        relativeFilePath = "opencode.json";
+      }
     }
 
     const fileContentToUse = fileContent ?? '{"mcp":{}}';
@@ -263,22 +265,23 @@ export class OpencodeMcp extends ToolMcp {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(baseDir, basePaths.relativeDirPath);
 
-    // Try opencode.jsonc first, then opencode.json
     let fileContent: string | null = null;
     let relativeFilePath = "opencode.jsonc";
 
     const jsoncPath = join(jsonDir, "opencode.jsonc");
     const jsonPath = join(jsonDir, "opencode.json");
 
+    // Try JSONC first (preferred format), then fall back to JSON
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
-      relativeFilePath = "opencode.json";
+      if (fileContent) {
+        relativeFilePath = "opencode.json";
+      }
     }
 
-    // If neither exists, use jsonc as it's the preferred format from this point on
+    // If neither exists, default to jsonc and empty mcp object
     if (!fileContent) {
-      relativeFilePath = "opencode.jsonc";
       fileContent = JSON.stringify({ mcp: {} }, null, 2);
     }
 
