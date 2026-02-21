@@ -3,8 +3,6 @@ import { join } from "node:path";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
-
 import {
   CLAUDE_HOOK_EVENTS,
   CLAUDE_TO_CANONICAL_EVENT_NAMES,
@@ -12,6 +10,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,

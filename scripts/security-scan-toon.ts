@@ -1,12 +1,12 @@
 // oxlint-disable no-console
 
-import { OpenRouter } from "@openrouter/sdk";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import type { SecurityScanResult } from "./security-scan-lib.js";
+import { OpenRouter } from "@openrouter/sdk";
 
 import { formatError } from "../src/utils/error.js";
+import type { SecurityScanResult } from "./security-scan-lib.js";
 import {
   formatEmailBody,
   getToonFiles,

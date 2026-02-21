@@ -1,14 +1,5 @@
 import { z } from "zod/mini";
 
-import type { RulesyncFile } from "../../types/rulesync-file.js";
-import type { ToolFile } from "../../types/tool-file.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
-import type {
-  ToolHooksForDeletionParams,
-  ToolHooksFromFileParams,
-  ToolHooksFromRulesyncHooksParams,
-} from "./tool-hooks.js";
-
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
@@ -19,6 +10,9 @@ import {
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
+import type { RulesyncFile } from "../../types/rulesync-file.js";
+import type { ToolFile } from "../../types/tool-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
@@ -26,6 +20,11 @@ import { CursorHooks } from "./cursor-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+import type {
+  ToolHooksForDeletionParams,
+  ToolHooksFromFileParams,
+  ToolHooksFromRulesyncHooksParams,
+} from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
 const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "opencode", "factorydroid"] as const;
