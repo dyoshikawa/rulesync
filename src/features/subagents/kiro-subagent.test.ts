@@ -34,6 +34,75 @@ describe("KiroSubagent", () => {
     });
   });
 
+  describe("constructor", () => {
+    it("should create instance with valid JSON body", () => {
+      const json = { name: "test" };
+      const subagent = new KiroSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".kiro/agents",
+        relativeFilePath: "test.json",
+        body: JSON.stringify(json),
+        fileContent: "",
+        validate: true,
+      });
+
+      expect(subagent).toBeInstanceOf(KiroSubagent);
+      expect(subagent.getBody()).toBe(JSON.stringify(json));
+    });
+
+    it("should throw error for invalid JSON body when validate is true", () => {
+      expect(() => {
+        new KiroSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".kiro/agents",
+          relativeFilePath: "invalid.json",
+          body: "not json",
+          fileContent: "",
+          validate: true,
+        });
+      }).toThrow(/Invalid JSON in/);
+    });
+
+    it("should throw error for invalid JSON body when validate is default (true)", () => {
+      expect(() => {
+        new KiroSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".kiro/agents",
+          relativeFilePath: "invalid.json",
+          body: "not json",
+          fileContent: "",
+        });
+      }).toThrow(/Invalid JSON in/);
+    });
+
+    it("should throw error for missing required name field when validate is true", () => {
+      expect(() => {
+        new KiroSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".kiro/agents",
+          relativeFilePath: "missing-name.json",
+          body: JSON.stringify({ description: "no name" }),
+          fileContent: "",
+          validate: true,
+        });
+      }).toThrow(/Invalid JSON in/);
+    });
+
+    it("should create instance with invalid JSON body when validate is false", () => {
+      const subagent = new KiroSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".kiro/agents",
+        relativeFilePath: "invalid.json",
+        body: "not json",
+        fileContent: "",
+        validate: false,
+      });
+
+      expect(subagent).toBeInstanceOf(KiroSubagent);
+      expect(subagent.validate().success).toBe(false);
+    });
+  });
+
   it("should create a RulesyncSubagent with kiro target from JSON", () => {
     const json = {
       name: "review",

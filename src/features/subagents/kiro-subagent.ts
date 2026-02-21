@@ -41,6 +41,20 @@ export class KiroSubagent extends ToolSubagent {
   private readonly body: string;
 
   constructor({ body, ...rest }: KiroSubagentParams) {
+    if (rest.validate !== false) {
+      try {
+        const parsed = JSON.parse(body);
+        KiroCliSubagentJsonSchema.parse(parsed);
+      } catch (error) {
+        throw new Error(
+          `Invalid JSON in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
+    }
+
     super({
       ...rest,
     });
