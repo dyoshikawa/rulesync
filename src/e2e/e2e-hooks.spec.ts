@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";

@@ -1,6 +1,5 @@
-import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
-
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 

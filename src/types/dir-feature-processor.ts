@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import type { WriteResult } from "../utils/result.js";
-
 import {
   addTrailingNewline,
   ensureDir,
@@ -11,6 +9,7 @@ import {
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { logger } from "../utils/logger.js";
+import type { WriteResult } from "../utils/result.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { ToolTarget } from "./tool-targets.js";
 

@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SourceEntry } from "../../config/config.js";
-
 import { ConfigResolver } from "../../config/config-resolver.js";
+import type { SourceEntry } from "../../config/config.js";
 import { Config } from "../../config/config.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import { logger } from "../../utils/logger.js";
