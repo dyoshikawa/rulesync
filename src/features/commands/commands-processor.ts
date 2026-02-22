@@ -358,7 +358,7 @@ export class CommandsProcessor extends FeatureProcessor {
           const firstOrigin = flattenedPathOrigins.get(flattenedPath);
           if (firstOrigin && firstOrigin !== originalRelativePath) {
             logger.warn(
-              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". The later command will overwrite the earlier one.`,
+              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". Only the last processed command will be used.`,
             );
           } else if (!firstOrigin) {
             flattenedPathOrigins.set(flattenedPath, originalRelativePath);
