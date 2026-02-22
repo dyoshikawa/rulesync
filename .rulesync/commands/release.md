@@ -4,7 +4,23 @@ targets:
   - "*"
 ---
 
-First, let's work on the following steps.
+## GitHub Actions Release Flow (Recommended)
+
+The recommended way to release is via GitHub Actions:
+
+1. Go to Actions > Bump Version workflow in GitHub
+2. Click "Run workflow" and optionally specify a version (leave empty for automatic detection)
+3. Review the generated PR with version bump changes
+4. Merge the PR to trigger the release process
+5. The workflow will:
+   - Create a draft release with generated release notes
+   - Build and upload release assets (binaries, checksums, TOON files)
+   - Publish the release
+   - Clean up the release branch
+
+## Manual Release Process
+
+If you need to release manually, follow these steps:
 
 1. Confirm that you are currently on the main branch. If not on main branch, abort this operation.
 2. Compare code changes between the previous version tag and the latest commit to prepare the release description.

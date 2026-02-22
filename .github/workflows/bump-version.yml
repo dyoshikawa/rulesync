@@ -1,0 +1,126 @@
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 7.7.0). Leave empty for automatic detection."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-bump
+  cancel-in-progress: false
+
+jobs:
+  bump-version:
+    name: Prepare Version Bump PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version bump
+        id: version
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION_INPUT" ]; then
+            NEW_VERSION="$VERSION_INPUT"
+          else
+            NEW_VERSION=$(bash scripts/release/determine-version.sh)
+          fi
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch_name=release/v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version format
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version format: '$NEW_VERSION'. Must match semver pattern X.Y.Z (e.g., 7.7.0)"
+            exit 1
+          fi
+          echo "Version format validated: $NEW_VERSION"
+
+      - name: Check if branch already exists
+        env:
+          BRANCH_NAME: ${{ steps.version.outputs.branch_name }}
+        run: |
+          if git show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
+            echo "::error::Branch ${BRANCH_NAME} already exists. Please delete it or merge the existing PR first."
+            exit 1
+          fi
+
+      - name: Create release branch
+        env:
+          BRANCH_NAME: ${{ steps.version.outputs.branch_name }}
+        run: git checkout -b "$BRANCH_NAME"
+
+      - name: Update CLI version
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          sed -i "s/const getVersion = () => \".*\";/const getVersion = () => \"${NEW_VERSION}\";/" src/cli/index.ts
+
+      - name: Update package.json version
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: pnpm version "$NEW_VERSION" --no-git-tag-version
+
+      - name: Run CI checks
+        run: pnpm cicheck:code
+
+      - name: Commit version bump
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          git add src/cli/index.ts package.json
+          git commit -m "chore(release): bump version to v${NEW_VERSION}"
+
+      - name: Push branch
+        env:
+          BRANCH_NAME: ${{ steps.version.outputs.branch_name }}
+        run: git push origin "$BRANCH_NAME"
+
+      - name: Generate release notes
+        id: notes
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ai-tmp
+          bash scripts/release/generate-release-notes.sh "$NEW_VERSION" > ai-tmp/release-notes.md
+          echo "notes_file=ai-tmp/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        env:
+          BRANCH_NAME: ${{ steps.version.outputs.branch_name }}
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "chore(release): bump version to v${NEW_VERSION}" \
+            --body-file ai-tmp/release-notes.md \
+            --label "release" \
+            --base main
