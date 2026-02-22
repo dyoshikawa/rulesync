@@ -1,0 +1,149 @@
+name: Release on Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
+    outputs:
+      tag_name: ${{ steps.version.outputs.tag_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract version from PR
+        id: version
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          VERSION="${BRANCH_NAME#release/v}"
+          echo "tag_name=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
+
+      - name: Generate release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ai-tmp
+          bash scripts/release/generate-release-notes.sh "$VERSION" > ai-tmp/release-notes.md
+
+      - name: Create draft release
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG_NAME" \
+            --draft \
+            --title "$TAG_NAME" \
+            --notes-file ai-tmp/release-notes.md \
+            --target main
+
+  upload-assets:
+    name: Upload Release Assets
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: needs.create-release.outputs.tag_name != ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: main
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist-bun
+          bun build --compile --minify --sourcemap --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-darwin-x64 --outfile=dist-bun/rulesync-darwin-x64 ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
+
+      - name: Generate checksums
+        run: |
+          cd dist-bun
+          sha256sum rulesync-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Generate repomix TOON variants
+        run: bun scripts/generate-repomix-toon.ts
+
+      - name: Bundle TOON files into zip
+        run: zip repomix-toon.zip repomix-output-*.toon
+
+      - name: Upload assets to release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          draft: true
+          files: |
+            install.sh
+            dist-bun/rulesync-linux-x64
+            dist-bun/rulesync-linux-arm64
+            dist-bun/rulesync-darwin-arm64
+            dist-bun/rulesync-darwin-x64
+            dist-bun/rulesync-windows-x64.exe
+            dist-bun/SHA256SUMS
+            repomix-toon.zip
+
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [create-release, upload-assets]
+    if: needs.create-release.outputs.tag_name != ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Publish release
+        env:
+          TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$TAG_NAME" --draft=false
+
+      - name: Clean up release branch
+        env:
+          TAG_NAME: ${{ needs.create-release.outputs.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          BRANCH_NAME="release/v${VERSION}"
+          git fetch --prune
+          if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH_NAME}"; then
+            git push origin --delete "$BRANCH_NAME" || true
+          fi
