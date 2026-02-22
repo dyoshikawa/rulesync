@@ -32,7 +32,7 @@ jobs:
           REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
+          gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
             -H "Accept: application/vnd.github+json" \
             --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .url' | \
           while IFS= read -r COMMENT_URL; do
@@ -100,7 +100,7 @@ jobs:
               failed=$((failed + 1))
             fi
           done < <(
-            gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
+            gh api --paginate "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
               -H "Accept: application/vnd.github+json" \
               --jq '.[] | select(.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") | .node_id'
           )
