@@ -100,21 +100,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Hide outdated opencode-agent comments
+      - name: Minimize old bot comments on PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
-          gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments \
+          set -euo pipefail
+          minimized=0
+
+          minimize_node_ids() {
+            while IFS= read -r node_id; do
+              [ -z "${node_id}" ] && continue
+              gh api graphql \
+                -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
+                -f id="${node_id}" >/dev/null && minimized=$((minimized + 1))
+            done
+          }
+
+          gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
             -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "github-actions") | .url' | \
-          while read -r COMMENT_URL; do
-            gh api --method PATCH "$COMMENT_URL" \
-              -H "Accept: application/vnd.github+json" \
-              -f state='OUTDATED'
-          done
+            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .node_id' | minimize_node_ids
+
+          gh api --paginate "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .node_id' | minimize_node_ids
+
+          echo "Minimized old bot comments: ${minimized}"
 
       - name: Configure git
         run: |
