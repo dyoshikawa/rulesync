@@ -585,7 +585,9 @@ describe("CommandsProcessor", () => {
 
       expect(result).toHaveLength(2);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('both map to "test.md". The later command will overwrite'),
+        expect.stringContaining(
+          'both map to "test.md". Only the last processed command will be used',
+        ),
       );
     });
 
@@ -1119,6 +1121,39 @@ describe("CommandsProcessor", () => {
         "Unsupported tool target: unsupported",
       );
     });
+
+    it("should use top-level only glob for supportsSubdirectory=false tools (import)", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
+        expect.stringContaining(join(".cursor", "commands", "*.md")),
+      );
+      // Should NOT contain "**" in the glob pattern
+      const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
+      expect(calledGlob).not.toContain(join("**", "*.md"));
+    });
+
+    it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
+      processor = new CommandsProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      mockFindFilesByGlobs.mockResolvedValue([]);
+
+      await processor.loadToolFiles();
+
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
+        expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+      );
+    });
   });
 
   describe("getToolTargets", () => {
@@ -1249,39 +1284,6 @@ describe("CommandsProcessor", () => {
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]?.getRelativeFilePath()).toBe("deletable.md");
-    });
-
-    it("should use top-level only glob for supportsSubdirectory=false tools (import)", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
-
-      mockFindFilesByGlobs.mockResolvedValue([]);
-
-      await processor.loadToolFiles();
-
-      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        expect.stringContaining(join(".cursor", "commands", "*.md")),
-      );
-      // Should NOT contain "**" in the glob pattern
-      const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
-      expect(calledGlob).not.toContain(join("**", "*.md"));
-    });
-
-    it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
-
-      mockFindFilesByGlobs.mockResolvedValue([]);
-
-      await processor.loadToolFiles();
-
-      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        expect.stringContaining(join(".claude", "commands", "**", "*.md")),
-      );
     });
 
     it("should reject path traversal in loadToolFiles", async () => {

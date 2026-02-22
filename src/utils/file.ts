@@ -195,7 +195,11 @@ export async function findFilesByGlobs(
   const normalizedGlobs = Array.isArray(globs)
     ? globs.map((g) => g.replaceAll("\\", "/"))
     : globs.replaceAll("\\", "/");
-  const results = globbySync(normalizedGlobs, { absolute: true, ...globbyOptions });
+  const results = globbySync(normalizedGlobs, {
+    absolute: true,
+    followSymbolicLinks: false,
+    ...globbyOptions,
+  });
   // Sort for consistent ordering across different glob implementations
   return results.toSorted();
 }

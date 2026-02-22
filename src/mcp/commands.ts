@@ -40,7 +40,11 @@ async function listCommands(): Promise<
     const commands = await Promise.all(
       mdFiles.map(async (file) => {
         try {
-          // Read the command file using RulesyncCommand
+          checkPathTraversal({
+            relativePath: file,
+            intendedRootDir: commandsDir,
+          });
+
           const command = await RulesyncCommand.fromFile({
             relativeFilePath: file,
           });
