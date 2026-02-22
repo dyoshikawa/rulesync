@@ -13,6 +13,7 @@ import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
+import { ClineSkill } from "./cline-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
@@ -66,6 +67,7 @@ const skillsProcessorToolTargetTuple = [
   "antigravity",
   "claudecode",
   "claudecode-legacy",
+  "cline",
   "codexcli",
   "copilot",
   "cursor",
@@ -120,6 +122,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "claudecode-legacy",
     {
       class: ClaudecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClineSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
