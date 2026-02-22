@@ -1,0 +1,66 @@
+name: PR Auto AI Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Hide outdated opencode-agent comments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "github-actions") | .url' | \
+          while read -r COMMENT_URL; do
+            gh api --method PATCH "${COMMENT_URL}" \
+              -H "Accept: application/vnd.github+json" \
+              -f "state=OUTDATED"
+          done
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run OpenCode AI review
+        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          model: openrouter/deepseek/deepseek-v3.2
+          use_github_token: "true"
+          share: false
+          prompt: |
+            You are working on a GitHub pull request. Read the following environment variables to get context:
+            - PR_NUMBER: The pull request number
+
+            Follow these steps:
+            - Call code-reviewer subagent to review the code changes in the PR.
+            - Call security-reviewer subagent to review the security issues in the PR.
+
+            Integrate and report the execution results from each subagent. Additionally, please output PR number in the result so that the user can easily find the PR.
