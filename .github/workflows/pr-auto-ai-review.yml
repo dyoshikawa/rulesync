@@ -79,3 +79,30 @@ jobs:
             - Call security-reviewer subagent to review the security issues in the PR.
 
             Integrate and report the execution results from each subagent. Additionally, please output PR number in the result so that the user can easily find the PR.
+
+      - name: Convert github-actions issue comments to PR review comments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | @base64' | \
+          while IFS= read -r row; do
+            [ -z "$row" ] && continue
+            decoded="$(printf '%s' "$row" | base64 -d)"
+            id="$(printf '%s' "$decoded" | jq -r '.id')"
+            body="$(printf '%s' "$decoded" | jq -r '.body')"
+
+            [ -z "$body" ] && continue
+
+            gh pr review "${PR_NUMBER}" \
+              --comment \
+              --body "$body"
+
+            gh api --method DELETE "repos/${OWNER}/${REPO}/issues/comments/${id}" \
+              -H "Accept: application/vnd.github+json"
+          done
