@@ -11,9 +11,7 @@
       "Bash(rm -rf ~/**)",
       "Read(.env*)"
     ],
-    "allow": [
-      "mcp__serena"
-    ],
+    "allow": ["mcp__serena"],
     "defaultMode": "acceptEdits"
   },
   "statusLine": {
@@ -30,14 +28,9 @@
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
-    "excludedCommands": [
-      "docker",
-      "git"
-    ],
+    "excludedCommands": ["docker", "git"],
     "network": {
-      "allowUnixSockets": [
-        "/var/run/docker.sock"
-      ],
+      "allowUnixSockets": ["/var/run/docker.sock"],
       "allowLocalBinding": true
     },
     "allowUnsandboxedCommands": false
