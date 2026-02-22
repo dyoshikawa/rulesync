@@ -3,13 +3,6 @@ name: PR Auto AI Review
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
-    paths-ignore:
-      - "docs/**"
-      - "images/**"
-      - ".devcontainer/**"
-      - "LICENSE"
-      - "CONTRIBUTING.md"
-      - "SECURITY.md"
 
 concurrency:
   group: pr-auto-ai-review-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
