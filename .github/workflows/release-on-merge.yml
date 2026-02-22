@@ -28,11 +28,15 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Extract version from PR
+      - name: Validate branch and extract version
         id: version
         env:
           BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
         run: |
+          if ! echo "$BRANCH_NAME" | grep -qE '^release/v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid branch name: '$BRANCH_NAME'. Must match pattern release/vX.Y.Z"
+            exit 1
+          fi
           VERSION="${BRANCH_NAME#release/v}"
           echo "tag_name=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -82,7 +86,7 @@ jobs:
           experimental: true
 
       - name: Install dependencies
-        run: bun install
+        run: pnpm install --ignore-scripts
 
       - name: Build binaries
         run: |
