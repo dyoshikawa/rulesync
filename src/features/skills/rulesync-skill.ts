@@ -34,6 +34,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       license: z.optional(z.string()),
     }),
   ),
+  cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
 });
 
@@ -58,6 +59,7 @@ export type RulesyncSkillFrontmatterInput = {
     license?: string;
   };
   roo?: Record<string, unknown>;
+  cline?: Record<string, unknown>;
 };
 
 // Type for output/validated data (targets is always present after validation)
