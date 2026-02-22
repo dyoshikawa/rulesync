@@ -3,6 +3,17 @@ name: PR Auto AI Review
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
+    paths-ignore:
+      - "docs/**"
+      - "images/**"
+      - ".devcontainer/**"
+      - "LICENSE"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+
+concurrency:
+  group: pr-auto-ai-review-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   review:
@@ -27,10 +38,21 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
+          set -euo pipefail
           gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
             -H "Accept: application/vnd.github+json" \
             --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "github-actions") | .url' | \
-          while read -r COMMENT_URL; do
+          while IFS= read -r COMMENT_URL; do
+            if [ -z "${COMMENT_URL}" ]; then
+              continue
+            fi
+            case "${COMMENT_URL}" in
+              https://api.github.com/*) ;;
+              *)
+                echo "Skipping non-API comment URL: ${COMMENT_URL}" >&2
+                continue
+                ;;
+            esac
             gh api --method PATCH "${COMMENT_URL}" \
               -H "Accept: application/vnd.github+json" \
               -f "state=OUTDATED"
@@ -42,7 +64,7 @@ jobs:
           experimental: true
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Run OpenCode AI review
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
