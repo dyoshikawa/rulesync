@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
             -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "github-actions") | .url' | \
+            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .url' | \
           while IFS= read -r COMMENT_URL; do
             if [ -z "${COMMENT_URL}" ]; then
               continue
