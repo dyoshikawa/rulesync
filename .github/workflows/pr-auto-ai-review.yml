@@ -88,12 +88,20 @@ jobs:
           REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
-            -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") | .node_id' | \
+          minimized=0
+          failed=0
           while IFS= read -r node_id; do
             [ -z "${node_id}" ] && continue
-            gh api graphql \
+            if gh api graphql \
               -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
-              -f id="${node_id}" >/dev/null
-          done
+              -f id="${node_id}" >/dev/null; then
+              minimized=$((minimized + 1))
+            else
+              failed=$((failed + 1))
+            fi
+          done < <(
+            gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
+              -H "Accept: application/vnd.github+json" \
+              --jq '.[] | select(.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") | .node_id'
+          )
+          echo "Minimize result: minimized=${minimized}, failed=${failed}"
