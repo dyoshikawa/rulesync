@@ -90,6 +90,13 @@ jobs:
             - Call code-reviewer subagent to review the code changes in the PR.
             - Call security-reviewer subagent to review the security issues in the PR.
 
+            IMPORTANT READ-ONLY RULES:
+            - Review is READ-ONLY.
+            - Do NOT perform any write operations.
+            - Do NOT edit/create/delete files.
+            - Do NOT run git commit, git push, or open PRs.
+            - Do NOT change repository state.
+
             Integrate and report the execution results from each subagent. Additionally, please output PR number in the result so that the user can easily find the PR.
 
       - name: Minimize old github-actions bot issue comments
