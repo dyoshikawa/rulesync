@@ -95,7 +95,7 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
         run: |
-          git add src/cli/index.ts package.json
+          git add src/cli/index.ts package.json pnpm-lock.yaml
           git commit -m "chore(release): bump version to v${NEW_VERSION}"
 
       - name: Push branch

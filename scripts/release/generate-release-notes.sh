@@ -21,10 +21,8 @@ LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
 if [ -z "$LATEST_TAG" ]; then
     COMMITS=$(git log --oneline --pretty=format:"- %s" HEAD)
-    CHANGES=$(git diff --stat 4b789519f854ea9e4aa56ec52eab80c16c78b281..HEAD 2>/dev/null || echo "Initial release")
 else
     COMMITS=$(git log "${LATEST_TAG}..HEAD" --oneline --pretty=format:"- %s")
-    CHANGES=$(git diff "${LATEST_TAG}..HEAD" --stat)
 fi
 
 cat << 'HEREDOC'
@@ -52,7 +50,11 @@ else
     echo "[v${VERSION}](${REPO_URL}/releases/tag/v${VERSION})"
 fi
 
-CONTRIBUTORS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%an" 2>/dev/null | sort -u | grep -v "github-actions\[bot\]" || true)
+if [ -n "$LATEST_TAG" ]; then
+    CONTRIBUTORS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%an" 2>/dev/null | sort -u | grep -v "github-actions\[bot\]" || true)
+else
+    CONTRIBUTORS=$(git log --pretty=format:"%an" 2>/dev/null | sort -u | grep -v "github-actions\[bot\]" || true)
+fi
 
 if [ -n "$CONTRIBUTORS" ]; then
     cat << 'HEREDOC'

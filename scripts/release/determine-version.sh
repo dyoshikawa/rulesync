@@ -38,13 +38,14 @@ HAS_FEATURE=false
 HAS_FIX=false
 
 while IFS= read -r commit; do
-    commit_lower=$(echo "$commit" | tr '[:upper:]' '[:lower:]')
-    
-    if echo "$commit_lower" | grep -qE '(breaking|breaking change|!:|breaks)'; then
+    subject="${commit#* }"
+    subject_lower=$(echo "$subject" | tr '[:upper:]' '[:lower:]')
+
+    if echo "$subject_lower" | grep -qE '(breaking change|breaking|!:|breaks)'; then
         HAS_BREAKING=true
-    elif echo "$commit_lower" | grep -qE '^(feat|feature)'; then
+    elif echo "$subject_lower" | grep -qE '^feat(\(|!|:)'; then
         HAS_FEATURE=true
-    elif echo "$commit_lower" | grep -qE '^fix'; then
+    elif echo "$subject_lower" | grep -qE '^fix(\(|!|:)'; then
         HAS_FIX=true
     fi
 done <<< "$COMMITS"
