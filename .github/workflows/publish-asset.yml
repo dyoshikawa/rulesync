@@ -1,23 +1,28 @@
-name: Publish Assets
+name: Publish Asset
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_run:
+    workflows: ["Draft Release"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g., v7.6.2)"
-        required: true
+        description: "Release tag (e.g., v7.7.0)"
+        required: false
         type: string
 
 permissions:
-  contents: write # Required for uploading release assets
+  contents: write
+
+concurrency:
+  group: publish-asset
+  cancel-in-progress: false
 
 jobs:
-  build-assets:
-    name: Build and upload assets
+  upload-assets:
+    name: Build and upload release assets
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Checkout code
@@ -46,7 +51,6 @@ jobs:
         run: |
           cd dist-bun
           sha256sum rulesync-* > SHA256SUMS
-          cat SHA256SUMS
 
       - name: Generate repomix TOON variants
         run: bun scripts/generate-repomix-toon.ts
@@ -54,18 +58,25 @@ jobs:
       - name: Bundle TOON files into zip
         run: zip repomix-toon.zip repomix-output-*.toon
 
-      - name: Determine tag name
+      - name: Determine tag
         id: tag
-        run: |
-          if [ -n "$TAG_INPUT" ]; then
-            echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          fi
         env:
           TAG_INPUT: ${{ inputs.tag }}
+          PR_TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          if [ -n "$TAG_INPUT" ]; then
+            TAG="$TAG_INPUT"
+          else
+            # extract from titles like: chore(release): bump version to v7.7.0
+            TAG=$(echo "$PR_TITLE" | sed -n 's/.*\(v[0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::Could not determine tag"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Upload assets to release
+      - name: Upload assets to draft release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           tag_name: ${{ steps.tag.outputs.tag }}

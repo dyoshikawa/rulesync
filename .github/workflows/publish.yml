@@ -1,31 +1,38 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Publish Asset"]
+    types: [completed]
 
 permissions:
-  id-token: write # Required for OIDC
-  contents: read # Required for checking out code
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish to NPM
+  publish-release:
+    name: Publish draft release
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          ref: main
+      - name: Determine tag from upstream workflow title
+        id: tag
+        env:
+          TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          TAG=$(echo "$TITLE" | sed -n 's/.*\(v[0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
+          if [ -z "$TAG" ]; then
+            echo "::error::Could not determine tag from workflow title: $TITLE"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Setup mise
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v2
-        with:
-          experimental: true
-
-      - name: Install dependencies
-        run: pnpm install --ignore-scripts
-
-      - name: Publish to npm
-        run: pnpm publish
+      - name: Publish draft release
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$TAG" --draft=false

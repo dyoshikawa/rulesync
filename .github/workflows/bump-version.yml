@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 concurrency:
   group: release-bump
@@ -40,6 +41,24 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Prepare AI temp directory
+        run: mkdir -p ai-tmp
+
+      - name: Determine version via OpenCode (when input empty)
+        if: inputs.version == ''
+        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: zai-coding-plan/glm-5
+          use_github_token: "true"
+          share: false
+          prompt: |
+            Follow release-dry-run style logic and determine next release version.
+            Output only semver (X.Y.Z) and write it to file: ai-tmp/next-version.txt
+
       - name: Determine version bump
         id: version
         env:
@@ -47,6 +66,8 @@ jobs:
         run: |
           if [ -n "$VERSION_INPUT" ]; then
             NEW_VERSION="$VERSION_INPUT"
+          elif [ -s ai-tmp/next-version.txt ]; then
+            NEW_VERSION=$(tr -d '[:space:]' < ai-tmp/next-version.txt)
           else
             NEW_VERSION=$(bash scripts/release/determine-version.sh)
           fi
