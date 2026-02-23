@@ -58,6 +58,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --ignore-scripts
 
+      - name: Generate project artifacts
+        run: pnpm generate
+
       - name: Run OpenCode AI review
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
         env:
