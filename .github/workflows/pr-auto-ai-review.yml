@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Hide outdated opencode-agent comments
+      - name: Minimize old bot review comments
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -32,24 +32,23 @@ jobs:
           REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
-            -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .url' | \
-          while IFS= read -r COMMENT_URL; do
-            if [ -z "${COMMENT_URL}" ]; then
-              continue
+          minimized=0
+          failed=0
+          while IFS= read -r node_id; do
+            [ -z "${node_id}" ] && continue
+            if gh api graphql \
+              -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
+              -f id="${node_id}" >/dev/null; then
+              minimized=$((minimized + 1))
+            else
+              failed=$((failed + 1))
             fi
-            case "${COMMENT_URL}" in
-              https://api.github.com/*) ;;
-              *)
-                echo "Skipping non-API comment URL: ${COMMENT_URL}" >&2
-                continue
-                ;;
-            esac
-            gh api --method PATCH "${COMMENT_URL}" \
+          done < <(
+            gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
               -H "Accept: application/vnd.github+json" \
-              -f "state=OUTDATED"
-          done
+              --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .node_id'
+          )
+          echo "Review comment minimize result: minimized=${minimized}, failed=${failed}"
 
       - name: Setup mise
         uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
