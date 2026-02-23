@@ -45,7 +45,7 @@ describe("GooseSkill", () => {
         relativeDirPath: join(".goose", "skills"),
         dirName: "test-skill",
         frontmatter: {
-          name: "Test Skill",
+          name: "test-skill",
           description: "Test skill description",
         },
         body: "This is the body of the goose skill.",
@@ -55,7 +55,7 @@ describe("GooseSkill", () => {
       expect(skill).toBeInstanceOf(GooseSkill);
       expect(skill.getBody()).toBe("This is the body of the goose skill.");
       expect(skill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test skill description",
       });
     });
@@ -66,7 +66,7 @@ describe("GooseSkill", () => {
       const skillDir = join(testDir, ".goose", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
-name: Test Skill
+name: test-skill
 description: Test skill description
 ---
 
@@ -81,7 +81,7 @@ This is the body of the goose skill.`;
       expect(skill).toBeInstanceOf(GooseSkill);
       expect(skill.getBody()).toBe("This is the body of the goose skill.");
       expect(skill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test skill description",
       });
     });
@@ -97,6 +97,25 @@ This is the body of the goose skill.`;
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
     });
+
+    it("should throw error when frontmatter name does not match dir", async () => {
+      const skillDir = join(testDir, ".goose", "skills", "mismatch-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Different Skill
+description: Mismatch example
+---
+
+This is the body of the goose skill.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      await expect(
+        GooseSkill.fromDir({
+          baseDir: testDir,
+          dirName: "mismatch-skill",
+        }),
+      ).rejects.toThrow(/name must match directory name/);
+    });
   });
 
   describe("fromRulesyncSkill", () => {
@@ -106,7 +125,7 @@ This is the body of the goose skill.`;
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
-          name: "Test Skill",
+          name: "Different Name",
           description: "Test skill description",
         },
         body: "Test body content",
@@ -121,7 +140,7 @@ This is the body of the goose skill.`;
       expect(gooseSkill).toBeInstanceOf(GooseSkill);
       expect(gooseSkill.getBody()).toBe("Test body content");
       expect(gooseSkill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test skill description",
       });
     });
@@ -187,7 +206,7 @@ This is the body of the goose skill.`;
         relativeDirPath: join(".goose", "skills"),
         dirName: "test-skill",
         frontmatter: {
-          name: "Test Skill",
+          name: "test-skill",
           description: "Test description",
         },
         body: "Test body",
@@ -198,7 +217,7 @@ This is the body of the goose skill.`;
 
       expect(rulesyncSkill).toBeInstanceOf(RulesyncSkill);
       expect(rulesyncSkill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test description",
         targets: ["*"],
       });

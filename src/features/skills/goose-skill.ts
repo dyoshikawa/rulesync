@@ -106,6 +106,15 @@ export class GooseSkill extends ToolSkill {
       };
     }
 
+    if (result.data.name !== this.getDirName()) {
+      return {
+        success: false,
+        error: new Error(
+          `Invalid frontmatter in ${this.getDirPath()}: name must match directory name`,
+        ),
+      };
+    }
+
     return { success: true, error: null };
   }
 
@@ -138,7 +147,7 @@ export class GooseSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const gooseFrontmatter: GooseSkillFrontmatter = {
-      name: rulesyncFrontmatter.name,
+      name: rulesyncSkill.getDirName(),
       description: rulesyncFrontmatter.description,
     };
 

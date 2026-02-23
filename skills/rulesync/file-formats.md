@@ -174,6 +174,22 @@ The skill can include:
 - Any relevant context
 
 Skills are directory-based and can include additional files alongside SKILL.md.
+
+## `.goose/skills/*/SKILL.md`
+
+Example:
+
+```md
+---
+name: example-skill # must match the directory name
+description: >- # skill description
+  A sample Goose skill
+---
+
+This is the skill body content.
+
+Goose skills live under `.goose/skills/` and must use matching `name` frontmatter.
+```
 ```
 
 ## `.rulesync/mcp.json`
