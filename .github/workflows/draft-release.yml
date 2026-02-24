@@ -1,0 +1,92 @@
+name: Draft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_version:
+        description: "New version without v prefix (e.g. 1.0.0). If empty, determined automatically by semantic versioning rules."
+        required: false
+        type: string
+        default: ""
+      model:
+        description: "Model abbreviation (codex, glm, kimi). If empty, defaults to glm."
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  draft-release:
+    if: >-
+      github.actor == 'dyoshikawa' ||
+      github.actor == 'cm-dyoshikawa'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name dyoshikawa
+          git config user.email dyoshikawa1993@gmail.com
+
+      - name: Setup mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
+
+      - name: Generate rules
+        run: pnpm generate
+
+      - name: Select model
+        id: select-model
+        uses: ./.github/actions/select-opencode-model
+        with:
+          comment-body: ${{ inputs.model }}
+
+      - name: Run OpenCode to draft release
+        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_NEW_VERSION: ${{ inputs.new_version }}
+        with:
+          model: ${{ steps.select-model.outputs.model }}
+          use_github_token: "true"
+          share: false
+          prompt: |
+            Let's work on the following steps.
+
+            1. Confirm that you are currently on the main branch and pull the latest changes. If not on main branch, switch to main branch.
+            2. Compare code changes between the previous version tag and the latest commit to prepare the release description.
+
+            - Write in English.
+            - Do not include confidential information.
+            - Sections, `What's Changed`, `Contributors` and `Full Changelog` are needed.
+            - `./tmp/release-notes/*.md` will be used as the release notes.
+
+            Then, check the environment variable $INPUT_NEW_VERSION. If it is not empty, use that value (without v prefix) as $new_version. For example, if $INPUT_NEW_VERSION is "1.0.0", the new version is "1.0.0".
+
+            If $INPUT_NEW_VERSION is empty, determine the new version automatically by performing the  /release-dry-run command.
+
+            Let's resume the release process.
+
+            3. Run `git pull`.
+            4. Run `git checkout -b release/v${new_version}`.
+            5. Update `getVersion()` function to return the ${new_version} in `src/cli/index.ts`, and run `pnpm cicheck`. If the checks fail, fix the code until pass. Then, execute `git add`, `git commit` and `git push`.
+            6. Update the version with `pnpm version ${new_version} --no-git-tag-version`.
+            7. Since `package.json` will be modified, execute `git commit` and `git push`.
+            8. As a precaution, verify that `getVersion()` in `src/cli/index.ts` is updated to the ${new_version}.
+            9. Run `gh pr create` to the main branch.
+            10. Create a **draft** release using `gh release create v${new_version} --draft --title v${new_version} --notes-file ./tmp/release-notes/*.md` command on the `github.com/dyoshikawa/rulesync` repository. This creates a draft release so that the publish-assets workflow can upload assets later.

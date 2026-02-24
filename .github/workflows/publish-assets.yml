@@ -1,9 +1,10 @@
 name: Publish Assets
 
 on:
-  push:
-    tags:
-      - "v*"
+  pull_request:
+    types: [closed]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       tag:
@@ -18,6 +19,12 @@ jobs:
   build-assets:
     name: Build and upload assets
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.merged == true &&
+        startsWith(github.event.pull_request.head.ref, 'release/v')
+      )
 
     steps:
       - name: Checkout code
@@ -59,11 +66,14 @@ jobs:
         run: |
           if [ -n "$TAG_INPUT" ]; then
             echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            TAG="${HEAD_REF#release/}"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           fi
         env:
           TAG_INPUT: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
 
       - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
