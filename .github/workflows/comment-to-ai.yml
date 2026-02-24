@@ -43,7 +43,7 @@ jobs:
         id: select-model
         uses: ./.github/actions/select-opencode-model
         with:
-          comment-body: ${{ github.event.comment.body }}
+          input-text: ${{ github.event.comment.body }}
 
       - name: Run OpenCode to handle issue
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
@@ -54,7 +54,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
-          COMMENT_BODY: ${{ steps.select-model.outputs.comment-body-cleaned }}
+          COMMENT_BODY: ${{ steps.select-model.outputs.cleaned-text }}
         with:
           model: ${{ steps.select-model.outputs.model }}
           use_github_token: "true"
@@ -146,7 +146,7 @@ jobs:
         id: select-model
         uses: ./.github/actions/select-opencode-model
         with:
-          comment-body: ${{ github.event.comment.body }}
+          input-text: ${{ github.event.comment.body }}
 
       - name: Run OpenCode to handle PR comment
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
@@ -156,7 +156,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IS_UPSTREAM: ${{ github.repository == 'dyoshikawa/rulesync' }}
           PR_NUMBER: ${{ github.event.issue.number }}
-          COMMENT_BODY: ${{ steps.select-model.outputs.comment-body-cleaned }}
+          COMMENT_BODY: ${{ steps.select-model.outputs.cleaned-text }}
         with:
           model: ${{ steps.select-model.outputs.model }}
           use_github_token: "true"

@@ -52,7 +52,7 @@ jobs:
         id: select-model
         uses: ./.github/actions/select-opencode-model
         with:
-          comment-body: ${{ inputs.model }}
+          input-text: ${{ inputs.model }}
 
       - name: Run OpenCode to draft release
         uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2

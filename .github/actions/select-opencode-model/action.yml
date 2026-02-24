@@ -1,38 +1,37 @@
 name: Select OpenCode model
-description: Selects OpenRouter model based on comment text
+description: Selects OpenRouter model based on keywords in input text
 inputs:
-  comment-body:
-    description: Comment body to inspect for model keywords
+  input-text:
+    description: Text to inspect for model keywords (e.g. codex, glm, kimi)
     required: true
 outputs:
   model:
     description: Selected OpenRouter model
     value: ${{ steps.select-model.outputs.model }}
-  comment-body-cleaned:
-    description: Comment body with model keywords removed
-    value: ${{ steps.select-model.outputs.comment_body_cleaned }}
+  cleaned-text:
+    description: Input text with model keywords and command prefixes removed
+    value: ${{ steps.select-model.outputs.cleaned_text }}
 runs:
   using: composite
   steps:
-    - name: Determine model based on comment
+    - name: Determine model based on input text
       id: select-model
       shell: bash
       env:
-        COMMENT_BODY: ${{ inputs.comment-body }}
+        INPUT_TEXT: ${{ inputs.input-text }}
       run: |
-        if [[ "$COMMENT_BODY" == *"codex"* ]]; then
+        if [[ "$INPUT_TEXT" == *"codex"* ]]; then
           echo "model=openrouter/openai/gpt-5.2-codex" >> $GITHUB_OUTPUT
-        elif [[ "$COMMENT_BODY" == *"glm"* ]]; then
+        elif [[ "$INPUT_TEXT" == *"glm"* ]]; then
           echo "model=openrouter/z-ai/glm-5" >> $GITHUB_OUTPUT
-        elif [[ "$COMMENT_BODY" == *"kimi"* ]]; then
+        elif [[ "$INPUT_TEXT" == *"kimi"* ]]; then
           echo "model=openrouter/moonshotai/kimi-k2.5" >> $GITHUB_OUTPUT
         else
           echo "model=zai-coding-plan/glm-5" >> $GITHUB_OUTPUT
         fi
-        CLEANED_COMMENT_BODY="$COMMENT_BODY"
-        CLEANED_COMMENT_BODY="${CLEANED_COMMENT_BODY//\/oc/}"
-        CLEANED_COMMENT_BODY="${CLEANED_COMMENT_BODY//\/opencode/}"
-        CLEANED_COMMENT_BODY="${CLEANED_COMMENT_BODY//codex/}"
-        CLEANED_COMMENT_BODY="${CLEANED_COMMENT_BODY//glm/}"
-        CLEANED_COMMENT_BODY="${CLEANED_COMMENT_BODY//kimi/}"
-        echo "comment_body_cleaned=$CLEANED_COMMENT_BODY" >> $GITHUB_OUTPUT
+        CLEANED="${INPUT_TEXT//\/oc/}"
+        CLEANED="${CLEANED//\/opencode/}"
+        CLEANED="${CLEANED//codex/}"
+        CLEANED="${CLEANED//glm/}"
+        CLEANED="${CLEANED//kimi/}"
+        echo "cleaned_text=$CLEANED" >> $GITHUB_OUTPUT
