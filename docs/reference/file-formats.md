@@ -146,7 +146,7 @@ Attention, again, you are just the planner, so though you can read any files and
 
 Example:
 
-```md
+````md
 ---
 name: example-skill # skill name
 description: >- # skill description
@@ -190,7 +190,7 @@ This is the skill body content.
 
 Goose skills live under `.goose/skills/` and must use matching `name` frontmatter.
 ```
-```
+````
 
 ## `.rulesync/mcp.json`
 
