@@ -133,6 +133,13 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN curl -fsSL https://opencode.ai/install | bash
 RUN echo 'PATH=/home/node/.opencode/bin:$PATH' >> "/home/node/.bashrc"
 
+# Install git-gtr
+RUN mkdir -p /home/node/.local/bin /home/node/.local/src && \
+    git clone https://github.com/coderabbitai/git-worktree-runner /home/node/.local/src/git-worktree-runner && \
+    ln -s /home/node/.local/src/git-worktree-runner/bin/git-gtr /home/node/.local/bin/git-gtr && \
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "/home/node/.bashrc" && \
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "/home/node/.zshrc"
+
 # Aliases
 ENV CLAUDE_COMMAND="alias claude=\"claude --dangerously-skip-permissions\""
 RUN echo ${CLAUDE_COMMAND} >> "/home/node/.zshrc"
