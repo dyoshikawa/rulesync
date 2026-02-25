@@ -160,7 +160,7 @@ export class ClaudecodeCommand extends ToolCommand {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate required fields using ClaudecodeCommandFrontmatterSchema
     const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);

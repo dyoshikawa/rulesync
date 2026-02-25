@@ -110,7 +110,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
   }: ToolSubagentFromFileParams): Promise<ConstructorParameters<typeof SimulatedSubagent>[0]> {
     const filePath = join(baseDir, this.getSettablePaths().relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

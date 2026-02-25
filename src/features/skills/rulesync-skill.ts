@@ -178,7 +178,7 @@ export class RulesyncSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
 
     const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

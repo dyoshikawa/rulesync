@@ -305,4 +305,25 @@ const code = "preserved";
       expect(parsed.body.trim()).toBe(body);
     });
   });
+
+  describe("error handling with file path", () => {
+    it("should include file path in error message for invalid YAML", () => {
+      const content = `---
+key: [invalid
+---
+body`;
+      expect(() => parseFrontmatter(content, "path/to/file.md")).toThrow(
+        /Failed to parse frontmatter in path\/to\/file\.md/,
+      );
+    });
+
+    it("should re-throw original error when no file path provided", () => {
+      const content = `---
+key: [invalid
+  nested: value
+---
+body`;
+      expect(() => parseFrontmatter(content)).toThrow();
+    });
+  });
 });

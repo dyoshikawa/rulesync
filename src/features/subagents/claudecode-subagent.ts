@@ -176,7 +176,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
     const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);

@@ -151,7 +151,7 @@ export class CursorSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     const result = CursorSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
