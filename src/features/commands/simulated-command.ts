@@ -112,7 +112,7 @@ export abstract class SimulatedCommand extends ToolCommand {
       relativeFilePath,
     );
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     const result = SimulatedCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

@@ -148,7 +148,10 @@ export class ClaudecodeRule extends ToolRule {
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(
+      fileContent,
+      join(baseDir, relativePath),
+    );
 
     // Validate frontmatter
     const result = ClaudecodeRuleFrontmatterSchema.safeParse(frontmatter);

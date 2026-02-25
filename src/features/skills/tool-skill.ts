@@ -173,7 +173,7 @@ export abstract class ToolSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
 
     const otherFiles = await this.collectOtherFiles(
       baseDir,

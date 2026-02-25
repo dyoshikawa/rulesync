@@ -152,7 +152,7 @@ export abstract class SimulatedSkill extends ToolSkill {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
 
     const result = SimulatedSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

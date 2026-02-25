@@ -58,11 +58,28 @@ export function stringifyFrontmatter(
   return matter.stringify(body, cleanFrontmatter);
 }
 
-export function parseFrontmatter(content: string): {
+export function parseFrontmatter(
+  content: string,
+  filePath?: string,
+): {
   frontmatter: Record<string, unknown>;
   body: string;
 } {
-  const { data: frontmatter, content: body } = matter(content);
+  let frontmatter: Record<string, unknown>;
+  let body: string;
+  try {
+    const result = matter(content);
+    frontmatter = result.data;
+    body = result.content;
+  } catch (error) {
+    if (filePath) {
+      throw new Error(
+        `Failed to parse frontmatter in ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 
   // Strip null/undefined values from parsed frontmatter for consistency.
   // YAML parses bare keys (e.g. "description:") as null, which would fail

@@ -342,7 +342,7 @@ export class AntigravityRule extends ToolRule {
       relativeFilePath,
     );
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body } = parseFrontmatter(fileContent);
+    const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
 
     let parsedFrontmatter: AntigravityRuleFrontmatter;
     if (validate) {

@@ -111,7 +111,10 @@ export class CursorRule extends ToolRule {
    * Custom parse function for Cursor MDC files
    * MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially
    */
-  private static parseCursorFrontmatter(fileContent: string): {
+  private static parseCursorFrontmatter(
+    fileContent: string,
+    filePath?: string,
+  ): {
     frontmatter: Record<string, unknown>;
     body: string;
   } {
@@ -125,7 +128,7 @@ export class CursorRule extends ToolRule {
       },
     );
 
-    return parseFrontmatter(preprocessedContent);
+    return parseFrontmatter(preprocessedContent, filePath);
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -221,12 +224,15 @@ export class CursorRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
-    const fileContent = await readFileContent(
-      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    const filePath = join(
+      baseDir,
+      this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeFilePath,
     );
+    const fileContent = await readFileContent(filePath);
 
     // Use custom parser for MDC files
-    const { frontmatter, body: content } = CursorRule.parseCursorFrontmatter(fileContent);
+    const { frontmatter, body: content } = CursorRule.parseCursorFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using CursorRuleFrontmatterSchema
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);

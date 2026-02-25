@@ -40,7 +40,7 @@ export class AgentsmdCommand extends SimulatedCommand {
       relativeFilePath,
     );
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     const result = SimulatedCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

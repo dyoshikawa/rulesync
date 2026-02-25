@@ -119,7 +119,7 @@ export class RulesyncCommand extends RulesyncFile {
       relativeFilePath,
     );
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using CommandFrontmatterSchema
     const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);

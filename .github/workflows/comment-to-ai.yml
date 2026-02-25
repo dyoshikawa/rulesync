@@ -46,7 +46,7 @@ jobs:
           input-text: ${{ github.event.comment.body }}
 
       - name: Run OpenCode to handle issue
-        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        uses: anomalyco/opencode/github@d848c9b6a32f408e8b9bf6448b83af05629454d0 # v1.2.13
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
@@ -149,7 +149,7 @@ jobs:
           input-text: ${{ github.event.comment.body }}
 
       - name: Run OpenCode to handle PR comment
-        uses: anomalyco/opencode/github@4d187af9d20b04e4fbd77ad04eaaea241b8e25bf # v1.1.2
+        uses: anomalyco/opencode/github@d848c9b6a32f408e8b9bf6448b83af05629454d0 # v1.2.13
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}

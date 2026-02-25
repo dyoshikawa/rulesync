@@ -246,7 +246,7 @@ export class AntigravityCommand extends ToolCommand {
     );
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using AntigravityCommandFrontmatterSchema
     const result = AntigravityCommandFrontmatterSchema.safeParse(frontmatter);

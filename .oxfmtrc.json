@@ -17,6 +17,7 @@
     "opencode.json",
     ".zed/settings.json",
     ".vscode/settings.json",
-    ".claude/settings.json"
+    ".claude/settings.json",
+    ".serena/project.yml"
   ]
 }
