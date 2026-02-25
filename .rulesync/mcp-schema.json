@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rulesync MCP configuration",
+  "type": "object",
+  "required": ["mcpServers"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "mcpServers": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/mcpServer"
+      }
+    }
+  },
+  "$defs": {
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "mcpServer": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["stdio", "sse", "http"]
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["stdio", "sse", "http"]
+        },
+        "command": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "url": { "type": "string" },
+        "httpUrl": { "type": "string" },
+        "env": { "$ref": "#/$defs/stringMap" },
+        "headers": { "$ref": "#/$defs/stringMap" },
+        "disabled": { "type": "boolean" },
+        "trust": { "type": "boolean" },
+        "networkTimeout": { "type": "number" },
+        "timeout": { "type": "number" },
+        "cwd": { "type": "string" },
+        "alwaysAllow": { "type": "array", "items": { "type": "string" } },
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "kiroAutoApprove": { "type": "array", "items": { "type": "string" } },
+        "kiroAutoBlock": { "type": "array", "items": { "type": "string" } },
+        "enabledTools": { "type": "array", "items": { "type": "string" } },
+        "disabledTools": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
