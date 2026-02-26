@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -175,7 +176,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
     const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);

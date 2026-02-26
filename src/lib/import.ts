@@ -1,5 +1,3 @@
-import type { ToolTarget } from "../types/tool-targets.js";
-
 import { Config } from "../config/config.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
@@ -8,6 +6,7 @@ import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import type { ToolTarget } from "../types/tool-targets.js";
 import { logger } from "../utils/logger.js";
 
 export type ImportResult = {

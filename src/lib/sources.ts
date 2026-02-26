@@ -1,8 +1,8 @@
-import { Semaphore } from "es-toolkit/promise";
 import { join, resolve, sep } from "node:path";
 
-import type { SourceEntry } from "../config/config.js";
+import { Semaphore } from "es-toolkit/promise";
 
+import type { SourceEntry } from "../config/config.js";
 import {
   FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,

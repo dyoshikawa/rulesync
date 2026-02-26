@@ -1,11 +1,11 @@
 import { basename, join, relative } from "node:path";
-import { z } from "zod/mini";
 
-import type { ToolTarget } from "../../types/tool-targets.js";
+import { z } from "zod/mini";
 
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
@@ -358,7 +358,7 @@ export class CommandsProcessor extends FeatureProcessor {
           const firstOrigin = flattenedPathOrigins.get(flattenedPath);
           if (firstOrigin && firstOrigin !== originalRelativePath) {
             logger.warn(
-              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". The later command will overwrite the earlier one.`,
+              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". Only the last processed command will be used.`,
             );
           } else if (!firstOrigin) {
             flattenedPathOrigins.set(flattenedPath, originalRelativePath);

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -40,6 +41,20 @@ export class KiroSubagent extends ToolSubagent {
   private readonly body: string;
 
   constructor({ body, ...rest }: KiroSubagentParams) {
+    if (rest.validate !== false) {
+      try {
+        const parsed = JSON.parse(body);
+        KiroCliSubagentJsonSchema.parse(parsed);
+      } catch (error) {
+        throw new Error(
+          `Invalid JSON in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
+    }
+
     super({
       ...rest,
     });
@@ -58,7 +73,17 @@ export class KiroSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const parsed: KiroCliSubagentJson = JSON.parse(this.body);
+    let parsed: KiroCliSubagentJson;
+    try {
+      parsed = JSON.parse(this.body);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse JSON in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
+    }
     const { name, description, prompt, ...restFields } = parsed;
 
     // Build kiro section with all fields except name, description, and prompt
@@ -91,9 +116,14 @@ export class KiroSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = rulesyncSubagent.getFrontmatter();
-    const kiroSection = frontmatter.kiro ?? {};
+    const rawSection: Record<string, unknown> = frontmatter.kiro ?? {};
+    const kiroSection = this.filterToolSpecificSection(rawSection, [
+      "name",
+      "description",
+      "prompt",
+    ]);
 
-    // Build kiro JSON from rulesync frontmatter + kiro section
+    // Build kiro JSON from rulesync frontmatter + kiro section (tool-specific fields only)
     const json: KiroCliSubagentJson = {
       name: frontmatter.name,
       description: frontmatter.description || null,
@@ -146,7 +176,7 @@ export class KiroSubagent extends ToolSubagent {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
-    return new KiroSubagent({
+    const subagent = new KiroSubagent({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -155,6 +185,17 @@ export class KiroSubagent extends ToolSubagent {
       validate,
       global,
     });
+
+    if (validate) {
+      const result = subagent.validate();
+      if (!result.success) {
+        throw new Error(
+          `Invalid JSON in ${filePath}: ${result.error instanceof Error ? result.error.message : String(result.error)}`,
+        );
+      }
+    }
+
+    return subagent;
   }
 
   static forDeletion({

@@ -1,5 +1,6 @@
-import { uniq } from "es-toolkit";
 import { join } from "node:path";
+
+import { uniq } from "es-toolkit";
 
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -31,12 +32,12 @@ export class ClaudecodeIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".claude",
-      relativeFilePath: "settings.local.json",
+      relativeFilePath: "settings.json",
     };
   }
 
   /**
-   * ClaudecodeIgnore uses settings.local.json which is a user-managed config file.
+   * ClaudecodeIgnore uses settings.json, which can include non-ignore settings.
    * It should not be deleted by rulesync.
    */
   override isDeletable(): boolean {

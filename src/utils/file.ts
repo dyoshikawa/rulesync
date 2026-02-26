@@ -1,8 +1,9 @@
-import { kebabCase } from "es-toolkit";
-import { globbySync } from "globby";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+
+import { kebabCase } from "es-toolkit";
+import { globbySync } from "globby";
 
 import { logger } from "./logger.js";
 import { isEnvTest } from "./vitest.js";
@@ -194,7 +195,11 @@ export async function findFilesByGlobs(
   const normalizedGlobs = Array.isArray(globs)
     ? globs.map((g) => g.replaceAll("\\", "/"))
     : globs.replaceAll("\\", "/");
-  const results = globbySync(normalizedGlobs, { absolute: true, ...globbyOptions });
+  const results = globbySync(normalizedGlobs, {
+    absolute: true,
+    followSymbolicLinks: false,
+    ...globbyOptions,
+  });
   // Sort for consistent ordering across different glob implementations
   return results.toSorted();
 }

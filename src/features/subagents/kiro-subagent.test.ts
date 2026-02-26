@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -30,6 +31,75 @@ describe("KiroSubagent", () => {
 
     expect(KiroSubagent.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: join(".kiro", "agents"),
+    });
+  });
+
+  describe("constructor", () => {
+    it("should create instance with valid JSON body", () => {
+      const json = { name: "test" };
+      const subagent = new KiroSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".kiro/agents",
+        relativeFilePath: "test.json",
+        body: JSON.stringify(json),
+        fileContent: "",
+        validate: true,
+      });
+
+      expect(subagent).toBeInstanceOf(KiroSubagent);
+      expect(subagent.getBody()).toBe(JSON.stringify(json));
+    });
+
+    it("should throw error for invalid JSON body when validate is true", () => {
+      expect(() => {
+        new KiroSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".kiro/agents",
+          relativeFilePath: "invalid.json",
+          body: "not json",
+          fileContent: "",
+          validate: true,
+        });
+      }).toThrow(/Invalid JSON in/);
+    });
+
+    it("should throw error for invalid JSON body when validate is default (true)", () => {
+      expect(() => {
+        new KiroSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".kiro/agents",
+          relativeFilePath: "invalid.json",
+          body: "not json",
+          fileContent: "",
+        });
+      }).toThrow(/Invalid JSON in/);
+    });
+
+    it("should throw error for missing required name field when validate is true", () => {
+      expect(() => {
+        new KiroSubagent({
+          baseDir: testDir,
+          relativeDirPath: ".kiro/agents",
+          relativeFilePath: "missing-name.json",
+          body: JSON.stringify({ description: "no name" }),
+          fileContent: "",
+          validate: true,
+        });
+      }).toThrow(/Invalid JSON in/);
+    });
+
+    it("should create instance with invalid JSON body when validate is false", () => {
+      const subagent = new KiroSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".kiro/agents",
+        relativeFilePath: "invalid.json",
+        body: "not json",
+        fileContent: "",
+        validate: false,
+      });
+
+      expect(subagent).toBeInstanceOf(KiroSubagent);
+      expect(subagent.validate().success).toBe(false);
     });
   });
 
@@ -150,6 +220,21 @@ describe("KiroSubagent", () => {
 
     expect(subagent).toBeInstanceOf(KiroSubagent);
     expect(JSON.parse(subagent.getBody())).toEqual(json);
+  });
+
+  it("should throw error when file contains invalid JSON content", async () => {
+    const agentsDir = join(testDir, ".kiro", "agents");
+    const filePath = join(agentsDir, "invalid.json");
+
+    await writeFileContent(filePath, "not valid json");
+
+    await expect(
+      KiroSubagent.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "invalid.json",
+        validate: true,
+      }),
+    ).rejects.toThrow();
   });
 
   it("should identify targeted rulesync subagents", () => {

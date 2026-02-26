@@ -1,17 +1,19 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Publish Assets"]
+    types: [completed]
 
 permissions:
   id-token: write # Required for OIDC
-  contents: read # Required for checking out code
+  contents: write # Required for checking out code and editing release state
 
 jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'release/v')
 
     steps:
       - name: Checkout code
@@ -29,3 +31,15 @@ jobs:
 
       - name: Publish to npm
         run: pnpm publish
+
+      - name: Publish target draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          TAG="${HEAD_BRANCH#release/}"
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid release tag derived from branch: $HEAD_BRANCH"
+            exit 1
+          fi
+          gh release edit "$TAG" --draft=false --latest

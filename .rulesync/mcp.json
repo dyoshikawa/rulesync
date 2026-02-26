@@ -18,8 +18,8 @@
       "env": {}
     },
     "deepwiki": {
-      "type": "sse",
-      "url": "https://mcp.deepwiki.com/sse",
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
       "env": {}
     },
     "rulesync": {

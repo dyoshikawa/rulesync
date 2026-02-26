@@ -24,6 +24,10 @@ export type GooseRuleSettablePaths = ToolRuleSettablePaths & {
 
 export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
+/**
+ * Represents a rule file for Goose
+ * Goose uses plain markdown files (.goosehints) without frontmatter
+ */
 export class GooseRule extends ToolRule {
   static getSettablePaths({
     global,
@@ -115,6 +119,8 @@ export class GooseRule extends ToolRule {
   }
 
   validate() {
+    // Goose uses plain markdown without frontmatter requirements
+    // Validation always succeeds
     return { success: true as const, error: null };
   }
 

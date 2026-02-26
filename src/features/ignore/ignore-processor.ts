@@ -12,6 +12,7 @@ import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
+import { GooseIgnore } from "./goose-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
@@ -35,6 +36,7 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "cline",
   "cursor",
   "geminicli",
+  "goose",
   "junie",
   "kilo",
   "kiro",
@@ -66,6 +68,7 @@ const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory
   ["cline", { class: ClineIgnore }],
   ["cursor", { class: CursorIgnore }],
   ["geminicli", { class: GeminiCliIgnore }],
+  ["goose", { class: GooseIgnore }],
   ["junie", { class: JunieIgnore }],
   ["kilo", { class: KiloIgnore }],
   ["kiro", { class: KiroIgnore }],

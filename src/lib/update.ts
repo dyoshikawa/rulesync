@@ -6,7 +6,6 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 import type { GitHubRelease, GitHubReleaseAsset } from "../types/fetch.js";
-
 import { GitHubClient } from "./github-client.js";
 
 const RULESYNC_REPO_OWNER = "dyoshikawa";

@@ -374,12 +374,12 @@ export class McpProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
     const toolMcps = await Promise.all(
-      [rulesyncMcp].map(async (rulesyncMcp) => {
+      [rulesyncMcp].map(async (mcp) => {
         // Strip MCP server fields unsupported by the target tool
         const fieldsToStrip: string[] = [];
         if (!factory.meta.supportsEnabledTools) fieldsToStrip.push("enabledTools");
         if (!factory.meta.supportsDisabledTools) fieldsToStrip.push("disabledTools");
-        const filteredRulesyncMcp = rulesyncMcp.stripMcpServerFields(fieldsToStrip);
+        const filteredRulesyncMcp = mcp.stripMcpServerFields(fieldsToStrip);
 
         return await factory.class.fromRulesyncMcp({
           baseDir: this.baseDir,

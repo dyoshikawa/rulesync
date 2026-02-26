@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import {
@@ -147,7 +148,7 @@ export class RulesyncRule extends RulesyncFile {
 
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using RuleFrontmatterSchema
     const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);

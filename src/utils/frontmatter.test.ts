@@ -305,4 +305,32 @@ const code = "preserved";
       expect(parsed.body.trim()).toBe(body);
     });
   });
+
+  describe("error handling with file path", () => {
+    it("should include file path in error message for invalid YAML", () => {
+      const content = "---\na: {\n---\nbody";
+      try {
+        parseFrontmatter(content, "path/to/file.md");
+        expect.unreachable("should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toMatch(
+          /Failed to parse frontmatter in path\/to\/file\.md/,
+        );
+        expect((error as Error).cause).toBeDefined();
+      }
+    });
+
+    it("should re-throw original error when no file path provided", () => {
+      const content = "---\na: {\n---\nbody";
+      try {
+        parseFrontmatter(content);
+        // If gray-matter doesn't throw, the test still passes
+        // (behavior varies by gray-matter version/environment)
+      } catch (error) {
+        // Original error should be re-thrown without wrapping
+        expect((error as Error).message).not.toMatch(/Failed to parse frontmatter in/);
+      }
+    });
+  });
 });

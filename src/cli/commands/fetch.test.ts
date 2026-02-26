@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FetchSummary } from "../../types/fetch.js";
-
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
+import type { FetchSummary } from "../../types/fetch.js";
 import { logger } from "../../utils/logger.js";
 import { fetchCommand } from "./fetch.js";
 

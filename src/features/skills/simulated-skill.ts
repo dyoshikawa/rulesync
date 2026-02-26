@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -151,7 +152,7 @@ export abstract class SimulatedSkill extends ToolSkill {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
 
     const result = SimulatedSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

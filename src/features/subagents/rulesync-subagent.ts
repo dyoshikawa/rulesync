@@ -1,4 +1,5 @@
 import { basename, join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -104,10 +105,9 @@ export class RulesyncSubagent extends RulesyncFile {
     relativeFilePath,
   }: RulesyncSubagentFromFileParams): Promise<RulesyncSubagent> {
     // Read file content
-    const fileContent = await readFileContent(
-      join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
-    );
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const filePath = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath);
+    const fileContent = await readFileContent(filePath);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using SubagentFrontmatterSchema
     const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);

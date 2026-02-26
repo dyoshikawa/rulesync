@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { optional, z } from "zod/mini";
 
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -142,7 +143,7 @@ export class OpenCodeCommand extends ToolCommand {
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     const result = OpenCodeCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

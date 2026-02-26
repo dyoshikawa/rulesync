@@ -59,10 +59,13 @@ export class AugmentcodeRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeRule> {
-    const fileContent = await readFileContent(
-      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+    const filePath = join(
+      baseDir,
+      this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeFilePath,
     );
-    const { body: content } = parseFrontmatter(fileContent);
+    const fileContent = await readFileContent(filePath);
+    const { body: content } = parseFrontmatter(fileContent, filePath);
 
     return new AugmentcodeRule({
       baseDir: baseDir,

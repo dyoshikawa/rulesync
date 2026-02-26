@@ -75,4 +75,17 @@ export abstract class ToolSubagent extends ToolFile {
 
     return false;
   }
+
+  protected static filterToolSpecificSection(
+    rawSection: Record<string, unknown>,
+    excludeFields: string[],
+  ): Record<string, unknown> {
+    const filtered: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawSection)) {
+      if (!excludeFields.includes(key)) {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  }
 }

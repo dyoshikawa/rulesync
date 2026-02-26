@@ -83,7 +83,7 @@ export class CodexcliCommand extends ToolCommand {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
-    const { body: content } = parseFrontmatter(fileContent);
+    const { body: content } = parseFrontmatter(fileContent, filePath);
 
     return new CodexcliCommand({
       baseDir: baseDir,

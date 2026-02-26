@@ -1,14 +1,13 @@
 import { join } from "node:path";
 
+import { readFileContent } from "../../utils/file.js";
+import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
-
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 
 export class GeminiCliIgnore extends ToolIgnore {

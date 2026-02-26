@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -147,7 +148,10 @@ export class ClaudecodeRule extends ToolRule {
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
-    const { frontmatter, body: content } = parseFrontmatter(fileContent);
+    const { frontmatter, body: content } = parseFrontmatter(
+      fileContent,
+      join(baseDir, relativePath),
+    );
 
     // Validate frontmatter
     const result = ClaudecodeRuleFrontmatterSchema.safeParse(frontmatter);

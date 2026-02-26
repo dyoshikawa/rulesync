@@ -1,4 +1,5 @@
 import { basename, join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
@@ -39,7 +40,11 @@ async function listCommands(): Promise<
     const commands = await Promise.all(
       mdFiles.map(async (file) => {
         try {
-          // Read the command file using RulesyncCommand
+          checkPathTraversal({
+            relativePath: file,
+            intendedRootDir: commandsDir,
+          });
+
           const command = await RulesyncCommand.fromFile({
             relativeFilePath: file,
           });

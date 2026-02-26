@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import * as smolToml from "smol-toml";
 import { z } from "zod/mini";
 
@@ -33,6 +34,20 @@ export class CodexCliSubagent extends ToolSubagent {
   private readonly body: string;
 
   constructor({ body, ...rest }: CodexCliSubagentParams) {
+    if (rest.validate !== false) {
+      try {
+        const parsed = smolToml.parse(body);
+        CodexCliSubagentTomlSchema.parse(parsed);
+      } catch (error) {
+        throw new Error(
+          `Invalid TOML in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
+    }
+
     super({
       ...rest,
     });
@@ -95,12 +110,11 @@ export class CodexCliSubagent extends ToolSubagent {
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const frontmatter = rulesyncSubagent.getFrontmatter();
     const rawSection: Record<string, unknown> = frontmatter.codexcli ?? {};
-    const {
-      name: _n,
-      description: _d,
-      developer_instructions: _di,
-      ...codexcliSection
-    } = rawSection;
+    const codexcliSection = this.filterToolSpecificSection(rawSection, [
+      "name",
+      "description",
+      "developer_instructions",
+    ]);
 
     // Build TOML object from rulesync frontmatter + codexcli section (tool-specific fields only)
     const tomlObj: CodexCliSubagentToml = {
@@ -155,7 +169,7 @@ export class CodexCliSubagent extends ToolSubagent {
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
-    return new CodexCliSubagent({
+    const subagent = new CodexCliSubagent({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -164,6 +178,17 @@ export class CodexCliSubagent extends ToolSubagent {
       validate,
       global,
     });
+
+    if (validate) {
+      const result = subagent.validate();
+      if (!result.success) {
+        throw new Error(
+          `Invalid TOML in ${filePath}: ${result.error instanceof Error ? result.error.message : String(result.error)}`,
+        );
+      }
+    }
+
+    return subagent;
   }
 
   static forDeletion({

@@ -1,9 +1,8 @@
-import type { Feature } from "./types/features.js";
-import type { ToolTarget } from "./types/tool-targets.js";
-
 import { ConfigResolver } from "./config/config-resolver.js";
 import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
 import { importFromTool as coreImportFromTool } from "./lib/import.js";
+import type { Feature } from "./types/features.js";
+import type { ToolTarget } from "./types/tool-targets.js";
 import { logger } from "./utils/logger.js";
 
 export type { Feature } from "./types/features.js";

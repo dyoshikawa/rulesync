@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { ValidationResult } from "../../types/ai-file.js";
@@ -341,7 +342,7 @@ export class AntigravityRule extends ToolRule {
       relativeFilePath,
     );
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body } = parseFrontmatter(fileContent);
+    const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
 
     let parsedFrontmatter: AntigravityRuleFrontmatter;
     if (validate) {

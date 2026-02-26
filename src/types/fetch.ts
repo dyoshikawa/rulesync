@@ -1,9 +1,8 @@
 import { z } from "zod/mini";
 
-import type { GitProvider } from "./git-provider.js";
-
 import { ALL_FEATURES_WITH_WILDCARD } from "./features.js";
 import { FetchTargetSchema } from "./fetch-targets.js";
+import type { GitProvider } from "./git-provider.js";
 
 /**
  * Conflict resolution strategies for fetch command
