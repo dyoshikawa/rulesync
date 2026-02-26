@@ -42,7 +42,8 @@ const OpencodeMcpServerSchema = z.union([
   OpencodeMcpRemoteServerSchema,
 ]);
 
-// Use looseObject to allow additional properties like model, provider, agent, etc.
+// Use looseObject to allow additional properties like model, provider, agent,
+// etc.
 const OpencodeConfigSchema = z.looseObject({
   $schema: z.optional(z.string()),
   mcp: z.optional(z.record(z.string(), OpencodeMcpServerSchema)),
