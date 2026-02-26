@@ -68,7 +68,7 @@ export abstract class SimulatedCommand extends ToolCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
     const claudecodeFrontmatter: SimulatedCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
     };
 
     const body = rulesyncCommand.getBody();

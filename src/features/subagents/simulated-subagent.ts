@@ -70,7 +70,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
 
     const simulatedFrontmatter: SimulatedSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
     };
 
     const body = rulesyncSubagent.getBody();

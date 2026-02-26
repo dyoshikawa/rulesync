@@ -87,7 +87,7 @@ export class CodexCliSubagent extends ToolSubagent {
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["codexcli"],
       name,
-      description: description ?? "",
+      description,
       // Only include codexcli section if there are fields
       ...(Object.keys(codexcliSection).length > 0 && { codexcli: codexcliSection }),
     };

@@ -120,7 +120,7 @@ export class CopilotCommand extends ToolCommand {
     const copilotFields = rulesyncFrontmatter.copilot ?? {};
 
     const copilotFrontmatter: CopilotCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       ...copilotFields,
     };
 

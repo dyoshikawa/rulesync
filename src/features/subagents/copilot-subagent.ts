@@ -120,7 +120,7 @@ export class CopilotSubagent extends ToolSubagent {
 
     const copilotFrontmatter: CopilotSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       ...copilotSection,
       ...(mergedTools.length > 0 && { tools: mergedTools }),
     };

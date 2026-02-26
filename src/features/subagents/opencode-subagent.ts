@@ -99,7 +99,7 @@ export class OpenCodeSubagent extends ToolSubagent {
 
     const opencodeFrontmatter: OpenCodeSubagentFrontmatter = {
       ...opencodeSection,
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       mode: "subagent",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     };

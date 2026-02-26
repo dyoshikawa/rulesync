@@ -58,7 +58,7 @@ export class GeminiCliCommand extends ToolCommand {
       // Preserve all fields including unknown ones (looseObject passthrough)
       return {
         ...result.data,
-        description: result.data.description || "",
+        description: result.data.description,
       };
     } catch (error) {
       throw new Error(
@@ -84,7 +84,7 @@ export class GeminiCliCommand extends ToolCommand {
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["geminicli"],
-      description: description ?? "",
+      description,
       // Preserve extra fields in geminicli section (excluding prompt which is the body)
       ...(Object.keys(restFields).length > 0 && { geminicli: restFields }),
     };
@@ -123,8 +123,10 @@ export class GeminiCliCommand extends ToolCommand {
     // Generate proper file content with TOML format
     // Note: TOML format only supports description and prompt fields
     // Extra fields from geminicli section are stored in the object but not serialized to TOML
-    const tomlContent = `description = "${geminiFrontmatter.description}"
-prompt = """
+    const descriptionLine = geminiFrontmatter.description
+      ? `description = "${geminiFrontmatter.description}"\n`
+      : "";
+    const tomlContent = `${descriptionLine}prompt = """
 ${geminiFrontmatter.prompt}
 """`;
 

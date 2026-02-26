@@ -100,7 +100,7 @@ export class OpenCodeCommand extends ToolCommand {
     const opencodeFields = rulesyncFrontmatter.opencode ?? {};
 
     const opencodeFrontmatter: OpenCodeCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       ...opencodeFields,
     };
 

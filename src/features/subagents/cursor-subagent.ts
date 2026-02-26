@@ -97,7 +97,7 @@ export class CursorSubagent extends ToolSubagent {
 
     const cursorFrontmatter: CursorSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       ...cursorSection,
     };
 

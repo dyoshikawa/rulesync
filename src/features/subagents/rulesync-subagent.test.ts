@@ -56,7 +56,7 @@ describe("RulesyncSubagentFrontmatterSchema", () => {
     };
 
     expect(() => RulesyncSubagentFrontmatterSchema.parse(missingName)).toThrow();
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
+    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingDescription)).not.toThrow();
   });
 
   it("should use default targets when omitted", () => {
@@ -149,22 +149,22 @@ describe("RulesyncSubagent", () => {
       expect(subagent.getFrontmatter().claudecode?.model).toBe("opus");
     });
 
-    it("should throw error with invalid frontmatter", () => {
-      const invalidFrontmatter = {
+    it("should not throw error for missing optional description", () => {
+      const frontmatterWithoutDescription = {
         targets: ["*"],
         name: "test-subagent",
-        // missing description
+        // missing description (now optional)
       };
 
       expect(() => {
         const _instance = new RulesyncSubagent({
           baseDir: ".",
           relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-          relativeFilePath: "invalid.md",
-          frontmatter: invalidFrontmatter as any,
+          relativeFilePath: "valid.md",
+          frontmatter: frontmatterWithoutDescription as any,
           body: "Test body",
         });
-      }).toThrow();
+      }).not.toThrow();
     });
 
     it("should skip validation when validate=false", () => {
@@ -298,23 +298,22 @@ describe("RulesyncSubagent", () => {
       expect(result.error).toBe(null);
     });
 
-    it("should return error for invalid frontmatter", () => {
+    it("should return success for missing optional description", () => {
       const subagent = new RulesyncSubagent({
         baseDir: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "invalid-validate.md",
+        relativeFilePath: "valid-validate.md",
         frontmatter: {
           targets: ["*"],
-          name: "invalid-subagent",
-          // missing description
+          name: "valid-subagent",
+          // missing description (now optional)
         } as any,
-        body: "Invalid body",
-        validate: false, // Skip validation in constructor for testing
+        body: "Valid body",
+        validate: false,
       });
 
       const result = subagent.validate();
-      expect(result.success).toBe(false);
-      expect(result.error).toBeInstanceOf(Error);
+      expect(result.success).toBe(true);
     });
   });
 
@@ -412,8 +411,7 @@ Nested content.`;
       const filePath = join(subagentsDir, "test-fromfile-invalid.md");
       const fileContent = `---
 targets: ["*"]
-name: invalid-subagent
-# missing description
+# missing name (required field)
 ---
 Invalid content.`;
 

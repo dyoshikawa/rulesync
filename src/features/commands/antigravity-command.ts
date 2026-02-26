@@ -155,7 +155,7 @@ export class AntigravityCommand extends ToolCommand {
     // But we DO need to update the body to include the specific workflow header.
     body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
 
-    const description = rulesyncFrontmatter.description;
+    const description = rulesyncFrontmatter.description ?? "";
 
     const antigravityFrontmatter: AntigravityCommandFrontmatter = {
       description,

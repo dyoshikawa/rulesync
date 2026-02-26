@@ -105,7 +105,7 @@ export class ClaudecodeCommand extends ToolCommand {
     const claudecodeFields = rulesyncFrontmatter.claudecode ?? {};
 
     const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       ...claudecodeFields,
     };
 

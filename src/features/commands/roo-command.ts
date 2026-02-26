@@ -104,7 +104,7 @@ export class RooCommand extends ToolCommand {
     const rooFields = rulesyncFrontmatter.roo ?? {};
 
     const rooFrontmatter: RooCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
+      description: rulesyncFrontmatter.description ?? "",
       ...rooFields,
     };
 
