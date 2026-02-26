@@ -1,5 +1,6 @@
-import { parse as parseJsonc } from "jsonc-parser";
 import { join } from "node:path";
+
+import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
 
 import { ValidationResult } from "../../types/ai-file.js";
