@@ -16,7 +16,7 @@ import {
 } from "./tool-command.js";
 
 export const OpenCodeCommandFrontmatterSchema = z.looseObject({
-  description: z.string(),
+  description: z.optional(z.string()),
   agent: optional(z.string()),
   subtask: optional(z.boolean()),
   model: optional(z.string()),

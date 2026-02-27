@@ -94,7 +94,7 @@ export class KiroSubagent extends ToolSubagent {
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["kiro"],
       name,
-      description: description ?? "",
+      description: description ?? undefined,
       // Only include kiro section if there are fields
       ...(Object.keys(kiroSection).length > 0 && { kiro: kiroSection }),
     };

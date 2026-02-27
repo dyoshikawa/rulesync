@@ -58,7 +58,7 @@ export class GeminiCliCommand extends ToolCommand {
       // Preserve all fields including unknown ones (looseObject passthrough)
       return {
         ...result.data,
-        description: result.data.description || "",
+        description: result.data.description,
       };
     } catch (error) {
       throw new Error(
@@ -84,7 +84,7 @@ export class GeminiCliCommand extends ToolCommand {
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["geminicli"],
-      description: description ?? "",
+      description: description,
       // Preserve extra fields in geminicli section (excluding prompt which is the body)
       ...(Object.keys(restFields).length > 0 && { geminicli: restFields }),
     };

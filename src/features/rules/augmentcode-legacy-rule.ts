@@ -31,7 +31,6 @@ export class AugmentcodeLegacyRule extends ToolRule {
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       root: this.isRoot(),
       targets: ["*"],
-      description: "",
       globs: this.isRoot() ? ["**/*"] : [],
     };
 

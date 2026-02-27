@@ -21,8 +21,7 @@ This is the body of the agentsmd command.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required description field
-invalid: true
+description: 123
 ---
 
 Body content`;
@@ -105,20 +104,18 @@ Body content`;
       expect(command).toBeInstanceOf(AgentsmdCommand);
     });
 
-    it("should throw error for invalid frontmatter when validation is enabled", () => {
-      expect(
-        () =>
-          new AgentsmdCommand({
-            baseDir: testDir,
-            relativeDirPath: ".agents/commands",
-            relativeFilePath: "invalid-command.md",
-            frontmatter: {
-              // Missing required description field
-            } as SimulatedCommandFrontmatter,
-            body: "Body content",
-            validate: true,
-          }),
-      ).toThrow();
+    it("should accept frontmatter without description (description is optional)", () => {
+      const command = new AgentsmdCommand({
+        baseDir: testDir,
+        relativeDirPath: ".agents/commands",
+        relativeFilePath: "no-desc-command.md",
+        frontmatter: {} as SimulatedCommandFrontmatter,
+        body: "Body content",
+        validate: true,
+      });
+
+      expect(command).toBeInstanceOf(AgentsmdCommand);
+      expect(command.getFrontmatter().description).toBeUndefined();
     });
   });
 
@@ -320,19 +317,20 @@ Body content`;
       ).rejects.toThrow();
     });
 
-    it("should handle file without frontmatter", async () => {
+    it("should handle file without frontmatter (description is optional)", async () => {
       const commandsDir = join(testDir, ".agents", "commands");
       const filePath = join(commandsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
-      await expect(
-        AgentsmdCommand.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "no-frontmatter.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
+      const command = await AgentsmdCommand.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "no-frontmatter.md",
+        validate: true,
+      });
+
+      expect(command).toBeInstanceOf(AgentsmdCommand);
+      expect(command.getFrontmatter().description).toBeUndefined();
     });
   });
 

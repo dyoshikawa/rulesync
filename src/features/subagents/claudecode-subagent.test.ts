@@ -53,11 +53,18 @@ describe("ClaudecodeSubagentFrontmatterSchema", () => {
     };
     expect(() => ClaudecodeSubagentFrontmatterSchema.parse(missingName)).toThrow();
 
-    // Missing description
-    const missingDescription = {
+    // Missing name (description is optional, so only name is required)
+    const missingBoth = {};
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(missingBoth)).toThrow();
+  });
+
+  it("should accept frontmatter without description (description is optional)", () => {
+    const frontmatter = {
       name: "test-agent",
     };
-    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
+    const result = ClaudecodeSubagentFrontmatterSchema.parse(frontmatter);
+    expect(result.description).toBeUndefined();
   });
 
   it("should reject invalid model values", () => {
@@ -836,10 +843,10 @@ describe("ClaudecodeSubagent", () => {
       ).rejects.toThrow("Invalid frontmatter");
     });
 
-    it("should throw error for missing required frontmatter fields", async () => {
+    it("should accept frontmatter without description (description is optional)", async () => {
       const incompleteFrontmatter = {
         name: "incomplete-agent",
-        // Missing description
+        // Missing description - now optional
       };
 
       const body = "Agent content";
@@ -850,13 +857,15 @@ describe("ClaudecodeSubagent", () => {
 
       await writeFileContent(filePath, fileContent);
 
-      await expect(
-        ClaudecodeSubagent.fromFile({
-          baseDir: testDir,
-          relativeFilePath: "incomplete-agent.md",
-          validate: true,
-        }),
-      ).rejects.toThrow("Invalid frontmatter");
+      const subagent = await ClaudecodeSubagent.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "incomplete-agent.md",
+        validate: true,
+      });
+
+      expect(subagent).toBeInstanceOf(ClaudecodeSubagent);
+      expect(subagent.getFrontmatter().name).toBe("incomplete-agent");
+      expect(subagent.getFrontmatter().description).toBeUndefined();
     });
 
     it("should trim body content", async () => {

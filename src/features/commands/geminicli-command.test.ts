@@ -75,7 +75,7 @@ prompt = "Unclosed string`;
 
       expect(command.getBody()).toBe("This is a test prompt without description.\n");
       expect(command.getFrontmatter()).toEqual({
-        description: "",
+        description: undefined,
         prompt: "This is a test prompt without description.\n",
       });
     });
@@ -134,7 +134,7 @@ prompt = "Unclosed string`;
       });
 
       const frontmatter = command.getFrontmatter() as GeminiCliCommandFrontmatter;
-      expect(frontmatter.description).toBe("");
+      expect(frontmatter.description).toBeUndefined();
       expect(frontmatter.prompt).toBe("This is a test prompt without description.\n");
     });
 
@@ -223,7 +223,7 @@ prompt = "Unclosed string`;
 
       expect(rulesyncCommand.getFrontmatter()).toEqual({
         targets: ["geminicli"],
-        description: "",
+        description: undefined,
       });
     });
   });

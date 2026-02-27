@@ -17,7 +17,7 @@ import {
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
-  description: z.string(),
+  description: z.optional(z.string()),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   "argument-hint": z.optional(z.string()),
   model: z.optional(z.string()),

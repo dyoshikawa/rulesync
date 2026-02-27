@@ -580,11 +580,14 @@ Roundtrip body`;
       }
     });
 
-    it("should reject frontmatter without description", () => {
-      const invalidFrontmatter = {};
-      const result = ClaudecodeCommandFrontmatterSchema.safeParse(invalidFrontmatter);
+    it("should accept frontmatter without description (description is optional)", () => {
+      const frontmatter = {};
+      const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.description).toBeUndefined();
+      }
     });
 
     it("should reject frontmatter with non-string description", () => {
