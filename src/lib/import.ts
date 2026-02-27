@@ -70,6 +70,7 @@ async function importRulesCore(params: { config: Config; tool: ToolTarget }): Pr
 
   const toolFiles = await rulesProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
+    logger.warn(`No rule files found for ${tool}. Skipping import.`);
     return 0;
   }
 
@@ -106,6 +107,7 @@ async function importIgnoreCore(params: { config: Config; tool: ToolTarget }): P
 
   const toolFiles = await ignoreProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
+    logger.warn(`No ignore files found for ${tool}. Skipping import.`);
     return 0;
   }
 
@@ -146,6 +148,7 @@ async function importMcpCore(params: { config: Config; tool: ToolTarget }): Prom
 
   const toolFiles = await mcpProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
+    logger.warn(`No MCP files found for ${tool}. Skipping import.`);
     return 0;
   }
 
@@ -182,6 +185,7 @@ async function importCommandsCore(params: { config: Config; tool: ToolTarget }):
 
   const toolFiles = await commandsProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
+    logger.warn(`No command files found for ${tool}. Skipping import.`);
     return 0;
   }
 
@@ -217,6 +221,7 @@ async function importSubagentsCore(params: { config: Config; tool: ToolTarget })
 
   const toolFiles = await subagentsProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
+    logger.warn(`No subagent files found for ${tool}. Skipping import.`);
     return 0;
   }
 
@@ -253,6 +258,7 @@ async function importSkillsCore(params: { config: Config; tool: ToolTarget }): P
 
   const toolDirs = await skillsProcessor.loadToolDirs();
   if (toolDirs.length === 0) {
+    logger.warn(`No skill directories found for ${tool}. Skipping import.`);
     return 0;
   }
 
@@ -294,6 +300,7 @@ async function importHooksCore(params: { config: Config; tool: ToolTarget }): Pr
 
   const toolFiles = await hooksProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
+    logger.warn(`No hooks files found for ${tool}. Skipping import.`);
     return 0;
   }
 
