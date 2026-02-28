@@ -10,6 +10,7 @@ import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
+import { logger } from "../utils/logger.js";
 import { checkRulesyncDirExists, generate } from "./generate.js";
 
 vi.mock("../features/rules/rules-processor.js");
@@ -819,6 +820,63 @@ describe("generate", () => {
       const result = await generate({ config: mockConfig as never });
 
       expect(result.hasDiff).toBe(true);
+    });
+  });
+
+  describe("unsupported target-feature warning", () => {
+    it("should warn when a target does not support an enabled feature", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      mockConfig.getTargets.mockReturnValue(["codexcli"]);
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Target 'codexcli' does not support the feature 'mcp'. Skipping.",
+      );
+    });
+
+    it("should not warn when the target supports the feature", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      mockConfig.getTargets.mockReturnValue(["claudecode"]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("does not support the feature"),
+      );
+    });
+
+    it("should not warn when the feature is not enabled for the unsupported target", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      mockConfig.getTargets.mockReturnValue(["codexcli"]);
+      mockConfig.getFeatures.mockReturnValue([]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("does not support the feature"),
+      );
+    });
+
+    it("should warn for each unsupported target-feature combination", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      mockConfig.getTargets.mockReturnValue(["codexcli", "cursor"]);
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      await generate({ config: mockConfig as never });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Target 'codexcli' does not support the feature 'mcp'. Skipping.",
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Target 'cursor' does not support the feature 'mcp'. Skipping.",
+      );
     });
   });
 });
