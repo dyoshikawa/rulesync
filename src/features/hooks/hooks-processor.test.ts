@@ -334,6 +334,56 @@ describe("HooksProcessor", () => {
 
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("prompt-type"));
     });
+
+    it("should log warning when matcher hooks exist and target does not support them", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", command: "lint.sh", matcher: "Write" },
+            { type: "command", command: "all-tools.sh" },
+          ],
+          postToolUse: [{ type: "command", command: "format.sh", matcher: "Edit" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "copilot" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped matcher hook(s) for copilot (not supported)"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("preToolUse"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("postToolUse"));
+    });
+
+    it("should not log matcher warning for targets that support matchers", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: "Write" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "opencode" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
@@ -367,9 +417,9 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, opencode, and factorydroid for project mode", () => {
+    it("should return cursor, claudecode, copilot, opencode, and factorydroid for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
-      expect(targets).toEqual(["cursor", "claudecode", "opencode", "factorydroid"]);
+      expect(targets).toEqual(["cursor", "claudecode", "copilot", "opencode", "factorydroid"]);
     });
 
     it("should return claudecode, opencode, and factorydroid for global mode", () => {
@@ -379,7 +429,7 @@ describe("HooksProcessor", () => {
 
     it("should exclude non-importable targets when importOnly is true", () => {
       const targets = HooksProcessor.getToolTargets({ global: false, importOnly: true });
-      expect(targets).toEqual(["cursor", "claudecode", "factorydroid"]);
+      expect(targets).toEqual(["cursor", "claudecode", "copilot", "factorydroid"]);
     });
 
     it("should exclude non-importable targets when importOnly is true in global mode", () => {

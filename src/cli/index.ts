@@ -15,7 +15,7 @@ import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand } from "./commands/update.js";
 
-const getVersion = () => "7.8.1";
+const getVersion = () => "7.10.0";
 
 const main = async () => {
   const program = new Command();
@@ -179,6 +179,9 @@ const main = async () => {
     .option(
       "-b, --base-dir <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
+      (value) => {
+        return value.split(",").map((p) => p.trim());
+      },
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
@@ -206,7 +209,7 @@ const main = async () => {
           verbose: options.verbose,
           silent: options.silent,
           delete: options.delete,
-          baseDirs: options.baseDirs,
+          baseDirs: options.baseDir,
           configPath: options.config,
           global: options.global,
           simulateCommands: options.simulateCommands,

@@ -62,7 +62,7 @@ describe("OpenCodeSubagent", () => {
     expect(rulesync.getBody()).toBe("Review the provided changes");
   });
 
-  it("should build OpenCode subagent from Rulesync subagent and force subagent mode", () => {
+  it("should build OpenCode subagent from Rulesync subagent and preserve mode", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       baseDir: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -72,7 +72,41 @@ describe("OpenCodeSubagent", () => {
         name: "docs-writer",
         description: "Writes documentation",
         opencode: {
-          mode: "primary", // should be overridden
+          mode: "primary", // should be preserved
+          model: "model-x",
+        },
+      },
+      body: "Document the APIs",
+      validate: false,
+    });
+
+    const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      global: true,
+      baseDir: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as OpenCodeSubagent;
+
+    expect(toolSubagent).toBeInstanceOf(OpenCodeSubagent);
+    expect(toolSubagent.getFrontmatter()).toEqual({
+      name: "docs-writer",
+      description: "Writes documentation",
+      model: "model-x",
+      mode: "primary",
+    });
+    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agent"));
+  });
+
+  it("should build OpenCode subagent with default mode when not specified", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      baseDir: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "docs-writer.md",
+      frontmatter: {
+        targets: ["opencode"],
+        name: "docs-writer",
+        description: "Writes documentation",
+        opencode: {
           model: "model-x",
         },
       },

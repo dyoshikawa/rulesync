@@ -408,7 +408,7 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
 
 async function generateSkillsCore(params: {
   config: Config;
-}): Promise<{ count: number; paths: string[]; skills: RulesyncSkill[]; hasDiff: boolean }> {
+}): Promise<FeatureGenerateResult & { skills: RulesyncSkill[] }> {
   const { config } = params;
 
   let totalCount = 0;

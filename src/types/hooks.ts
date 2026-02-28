@@ -64,7 +64,9 @@ export type HookEvent =
   | "afterTabFileEdit"
   | "permissionRequest"
   | "notification"
-  | "setup";
+  | "setup"
+  | "afterSubmitPrompt"
+  | "afterError";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -116,6 +118,16 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
 ];
 
+/** Hook events supported by Copilot. */
+export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "afterSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "afterError",
+];
+
 /** Hook events supported by Factory Droid. */
 export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -141,6 +153,7 @@ export const HooksConfigSchema = z.looseObject({
   hooks: hooksRecordSchema,
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
@@ -241,3 +254,22 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   afterShellExecution: "command.executed",
   permissionRequest: "permission.asked",
 };
+
+/**
+ * Map canonical camelCase event names to Copilot camelCase.
+ */
+export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  afterSubmitPrompt: "userPromptSubmitted",
+  preToolUse: "preToolUse",
+  postToolUse: "postToolUse",
+  afterError: "errorOccurred",
+};
+
+/**
+ * Map Copilot camelCase event names to canonical camelCase.
+ */
+export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_COPILOT_EVENT_NAMES).map(([k, v]) => [v, k]),
+);

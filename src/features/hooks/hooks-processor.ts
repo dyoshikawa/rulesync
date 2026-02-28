@@ -4,6 +4,7 @@ import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-path
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   CLAUDE_HOOK_EVENTS,
+  COPILOT_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
@@ -16,6 +17,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
@@ -27,7 +29,13 @@ import type {
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
-const hooksProcessorToolTargetTuple = ["cursor", "claudecode", "opencode", "factorydroid"] as const;
+const hooksProcessorToolTargetTuple = [
+  "cursor",
+  "claudecode",
+  "copilot",
+  "opencode",
+  "factorydroid",
+] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -46,9 +54,14 @@ type ToolHooksFactory = {
     };
     isDeletable?: (instance: ToolHooks) => boolean;
   };
-  meta: { supportsProject: boolean; supportsGlobal: boolean; supportsImport: boolean };
+  meta: {
+    supportsProject: boolean;
+    supportsGlobal: boolean;
+    supportsImport: boolean;
+  };
   supportedEvents: readonly HookEvent[];
   supportedHookTypes: readonly HookType[];
+  supportsMatcher: boolean;
 };
 
 const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
@@ -56,36 +69,70 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
     "cursor",
     {
       class: CursorHooks,
-      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
       supportedEvents: CURSOR_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeHooks,
-      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
       supportedEvents: CLAUDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "copilot",
+    {
+      class: CopilotHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: COPILOT_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: false,
     },
   ],
   [
     "opencode",
     {
       class: OpencodeHooks,
-      meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
     },
   ],
   [
     "factorydroid",
     {
       class: FactorydroidHooks,
-      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
       supportedEvents: FACTORYDROID_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
     },
   ],
 ]);
@@ -227,6 +274,24 @@ export class HooksProcessor extends FeatureProcessor {
       for (const [hookType, events] of unsupportedTypeToEvents) {
         logger.warn(
           `Skipped ${hookType}-type hook(s) for ${this.toolTarget} (not supported): ${Array.from(events).join(", ")}`,
+        );
+      }
+    }
+
+    // Warn about unsupported matcher
+    if (!factory.supportsMatcher) {
+      const eventsWithMatcher = new Set<string>();
+      for (const [event, defs] of Object.entries(effectiveHooks)) {
+        for (const def of defs) {
+          if (def.matcher) {
+            eventsWithMatcher.add(event);
+          }
+        }
+      }
+
+      if (eventsWithMatcher.size > 0) {
+        logger.warn(
+          `Skipped matcher hook(s) for ${this.toolTarget} (not supported): ${Array.from(eventsWithMatcher).join(", ")}`,
         );
       }
     }

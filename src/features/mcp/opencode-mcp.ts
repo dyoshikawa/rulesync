@@ -1,10 +1,11 @@
 import { join } from "node:path";
 
+import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -42,7 +43,8 @@ const OpencodeMcpServerSchema = z.union([
   OpencodeMcpRemoteServerSchema,
 ]);
 
-// Use looseObject to allow additional properties like model, provider, agent, etc.
+// Use looseObject to allow additional properties like model, provider, agent,
+// etc.
 const OpencodeConfigSchema = z.looseObject({
   $schema: z.optional(z.string()),
   mcp: z.optional(z.record(z.string(), OpencodeMcpServerSchema)),
@@ -193,7 +195,7 @@ export class OpencodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = OpencodeConfigSchema.parse(JSON.parse(this.fileContent || "{}"));
+    this.json = OpencodeConfigSchema.parse(parseJsonc(this.fileContent || "{}"));
   }
 
   getJson(): OpencodeConfig {
@@ -225,17 +227,32 @@ export class OpencodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<OpencodeMcp> {
-    const paths = this.getSettablePaths({ global });
-    const fileContent =
-      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
-      '{"mcp":{}}';
-    const json = JSON.parse(fileContent);
+    const basePaths = this.getSettablePaths({ global });
+    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+
+    let fileContent: string | null = null;
+    let relativeFilePath = "opencode.jsonc";
+
+    const jsoncPath = join(jsonDir, "opencode.jsonc");
+    const jsonPath = join(jsonDir, "opencode.json");
+
+    // Always try JSONC first (preferred format), then fall back to JSON
+    fileContent = await readFileContentOrNull(jsoncPath);
+    if (!fileContent) {
+      fileContent = await readFileContentOrNull(jsonPath);
+      if (fileContent) {
+        relativeFilePath = "opencode.json";
+      }
+    }
+
+    const fileContentToUse = fileContent ?? '{"mcp":{}}';
+    const json = parseJsonc(fileContentToUse);
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
     return new OpencodeMcp({
       baseDir,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
+      relativeDirPath: basePaths.relativeDirPath,
+      relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
@@ -247,13 +264,30 @@ export class OpencodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<OpencodeMcp> {
-    const paths = this.getSettablePaths({ global });
+    const basePaths = this.getSettablePaths({ global });
+    const jsonDir = join(baseDir, basePaths.relativeDirPath);
 
-    const fileContent = await readOrInitializeFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcp: {} }, null, 2),
-    );
-    const json = JSON.parse(fileContent);
+    let fileContent: string | null = null;
+    let relativeFilePath = "opencode.jsonc";
+
+    const jsoncPath = join(jsonDir, "opencode.jsonc");
+    const jsonPath = join(jsonDir, "opencode.json");
+
+    // Try JSONC first (preferred format), then fall back to JSON
+    fileContent = await readFileContentOrNull(jsoncPath);
+    if (!fileContent) {
+      fileContent = await readFileContentOrNull(jsonPath);
+      if (fileContent) {
+        relativeFilePath = "opencode.json";
+      }
+    }
+
+    // If neither exists, default to jsonc and empty mcp object
+    if (!fileContent) {
+      fileContent = JSON.stringify({ mcp: {} }, null, 2);
+    }
+
+    const json = parseJsonc(fileContent);
     const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
       rulesyncMcp.getMcpServers(),
     );
@@ -267,8 +301,8 @@ export class OpencodeMcp extends ToolMcp {
 
     return new OpencodeMcp({
       baseDir,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
+      relativeDirPath: basePaths.relativeDirPath,
+      relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
     });
