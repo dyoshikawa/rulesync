@@ -122,10 +122,9 @@ export async function resolveAndFetchSources(params: {
         allFetchedSkillNames.add(name);
       }
     } catch (error) {
+      logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints(error);
-      } else {
-        logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       }
     }
   }
@@ -188,7 +187,8 @@ async function fetchSource(params: {
   const parsed = parseSource(sourceEntry.source);
 
   if (parsed.provider === "gitlab") {
-    throw new Error("GitLab sources are not yet supported.");
+    logger.warn(`GitLab sources are not yet supported. Skipping "${sourceEntry.source}".`);
+    return { skillCount: 0, fetchedSkillNames: [], updatedLock: lock };
   }
 
   const sourceKey = sourceEntry.source;

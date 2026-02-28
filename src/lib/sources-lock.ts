@@ -153,22 +153,23 @@ export function computeSkillIntegrity(files: Array<{ path: string; content: stri
 export function normalizeSourceKey(source: string): string {
   let key = source;
 
-  // Strip common URL prefixes
-  for (const prefix of [
-    "https://www.github.com/",
-    "https://github.com/",
-    "http://www.github.com/",
-    "http://github.com/",
-  ]) {
-    if (key.toLowerCase().startsWith(prefix)) {
-      key = key.substring(prefix.length);
-      break;
+  // Strip URL or provider prefix for known git hosts
+  for (const host of ["github", "gitlab"]) {
+    for (const urlPrefix of [
+      `https://www.${host}.com/`,
+      `https://${host}.com/`,
+      `http://www.${host}.com/`,
+      `http://${host}.com/`,
+    ]) {
+      if (key.toLowerCase().startsWith(urlPrefix)) {
+        key = key.substring(urlPrefix.length);
+        break;
+      }
     }
-  }
-
-  // Strip provider prefix
-  if (key.startsWith("github:")) {
-    key = key.substring("github:".length);
+    const providerPrefix = `${host}:`;
+    if (key.startsWith(providerPrefix)) {
+      key = key.substring(providerPrefix.length);
+    }
   }
 
   // Remove trailing slashes
