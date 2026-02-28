@@ -72,6 +72,10 @@ export class CursorHooks extends ToolHooks {
       ...sharedHooks,
       ...config.cursor?.hooks,
     };
+    // Map canonical event names to Cursor event names.
+    // Currently an identity mapping (camelCase → camelCase), but this loop maintains
+    // architectural consistency with other tool converters (Claude, Factory Droid) and
+    // becomes essential if Cursor's event naming diverges from canonical in the future.
     const mappedHooks: HooksConfig["hooks"] = {};
     for (const [eventName, defs] of Object.entries(mergedHooks)) {
       const cursorEventName = CANONICAL_TO_CURSOR_EVENT_NAMES[eventName] ?? eventName;
@@ -97,6 +101,9 @@ export class CursorHooks extends ToolHooks {
     const content = this.getFileContent();
     const parsed: { version?: number; hooks?: HooksConfig["hooks"] } = JSON.parse(content);
     const cursorHooks = parsed.hooks ?? {};
+    // Map Cursor event names back to canonical event names.
+    // Currently identity but kept explicit for forward compatibility
+    // (see CANONICAL_TO_CURSOR_EVENT_NAMES in types/hooks.ts).
     const canonicalHooks: HooksConfig["hooks"] = {};
     for (const [cursorEventName, defs] of Object.entries(cursorHooks)) {
       const eventName = CURSOR_TO_CANONICAL_EVENT_NAMES[cursorEventName] ?? cursorEventName;

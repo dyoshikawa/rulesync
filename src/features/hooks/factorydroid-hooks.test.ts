@@ -176,6 +176,52 @@ describe("FactorydroidHooks", () => {
       expect(parsed.hooks.Notification[0].matcher).toBe("permission_prompt");
     });
 
+    it("should not leak Claude config hooks into Factory Droid output", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "shared.sh" }],
+        },
+        claudecode: {
+          hooks: {
+            sessionStart: [{ type: "command", command: "claude-only.sh" }],
+            notification: [{ command: "claude-notify.sh" }],
+          },
+        },
+        factorydroid: {
+          hooks: {
+            stop: [{ command: "factory-stop.sh" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = factorydroidHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      // Shared hooks should be present
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain("shared.sh");
+      // Factory Droid-specific override should be present
+      expect(parsed.hooks.Stop).toBeDefined();
+      // Claude-specific hooks must NOT leak into Factory Droid output
+      expect(JSON.stringify(parsed)).not.toContain("claude-only.sh");
+      expect(JSON.stringify(parsed)).not.toContain("claude-notify.sh");
+    });
+
     it("should throw error with descriptive message when existing settings.json contains invalid JSON", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), "invalid json {");
