@@ -44,6 +44,16 @@ export type CopilotRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 
 export type CopilotRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
+/**
+ * Rule generator for GitHub Copilot
+ *
+ * Generates instruction files based on rulesync rule content.
+ * Supports both root and non-root instruction files.
+ *
+ * Instruction file format:
+ * - {project}/.github/copilot-instructions.md (root: true, no frontmatter)
+ * - {project}/.github/instructions/*.instructions.md (root: false, with frontmatter)
+ */
 export class CopilotRule extends ToolRule {
   private readonly frontmatter: CopilotRuleFrontmatter;
   private readonly body: string;
@@ -192,7 +202,8 @@ export class CopilotRule extends ToolRule {
 
     if (isRoot) {
       const relativePath = join(paths.root.relativeDirPath, paths.root.relativeFilePath);
-      const fileContent = await readFileContent(join(baseDir, relativePath));
+      const filePath = join(baseDir, relativePath);
+      const fileContent = await readFileContent(filePath);
       // Root file: no frontmatter expected
       return new CopilotRule({
         baseDir: baseDir,
@@ -210,18 +221,16 @@ export class CopilotRule extends ToolRule {
     }
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const filePath = join(baseDir, relativePath);
+    const fileContent = await readFileContent(filePath);
 
-    const { frontmatter, body: content } = parseFrontmatter(
-      fileContent,
-      join(baseDir, relativePath),
-    );
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter using CopilotRuleFrontmatterSchema
     const result = CopilotRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${formatError(result.error)}`,
+        `Invalid frontmatter in ${filePath}: ${formatError(result.error)}`,
       );
     }
 

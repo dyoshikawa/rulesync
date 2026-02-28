@@ -147,17 +147,15 @@ export class ClaudecodeRule extends ToolRule {
     }
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
-    const { frontmatter, body: content } = parseFrontmatter(
-      fileContent,
-      join(baseDir, relativePath),
-    );
+    const filePath = join(baseDir, relativePath);
+    const fileContent = await readFileContent(filePath);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
     // Validate frontmatter
     const result = ClaudecodeRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid frontmatter in ${join(baseDir, relativePath)}: ${formatError(result.error)}`,
+        `Invalid frontmatter in ${filePath}: ${formatError(result.error)}`,
       );
     }
 
