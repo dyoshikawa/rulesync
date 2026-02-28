@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
+  "title": "Rulesync MCP Configuration",
+  "description": "Configuration file for MCP (Model Context Protocol) servers used by AI coding assistants",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "mcpServers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["stdio", "sse", "http"],
+            "description": "Transport type for the MCP server"
+          },
+          "command": {
+            "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+            "description": "Command to execute (for stdio type)"
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Arguments to pass to the command (for stdio type)"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL for the MCP server (for http/sse type)"
+          },
+          "httpUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "HTTP URL for the MCP server (alternative for http type)"
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Environment variables to pass to the server"
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "Whether this server is disabled"
+          },
+          "networkTimeout": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Network timeout in milliseconds"
+          },
+          "timeout": {
+            "type": "number",
+            "minimum": 0,
+            "description": "General timeout in milliseconds"
+          },
+          "trust": {
+            "type": "boolean",
+            "description": "Whether to trust this server without confirmation"
+          },
+          "cwd": {
+            "type": "string",
+            "description": "Working directory for the server process"
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["stdio", "sse", "http"],
+            "description": "Transport type (alternative to 'type' field)"
+          },
+          "alwaysAllow": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Tools that are always allowed without confirmation"
+          },
+          "tools": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of tools provided by this server"
+          },
+          "kiroAutoApprove": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Kiro-specific: tools to auto-approve"
+          },
+          "kiroAutoBlock": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Kiro-specific: tools to auto-block"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "HTTP headers to send with requests (for http/sse type)"
+          },
+          "enabledTools": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Subset of tools to enable from this server"
+          },
+          "disabledTools": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Tools to disable from this server"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": ["mcpServers"]
+}
