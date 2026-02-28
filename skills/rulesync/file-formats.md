@@ -146,7 +146,7 @@ Attention, again, you are just the planner, so though you can read any files and
 
 Example:
 
-````md
+```md
 ---
 name: example-skill # skill name
 description: >- # skill description
@@ -174,7 +174,7 @@ The skill can include:
 - Any relevant context
 
 Skills are directory-based and can include additional files alongside SKILL.md.
-````
+```
 
 ## `.goose/skills/*/SKILL.md`
 
