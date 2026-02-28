@@ -15,7 +15,7 @@ import {
 } from "./tool-command.js";
 
 export const SimulatedCommandFrontmatterSchema = z.object({
-  description: z.string(),
+  description: z.optional(z.string()),
 });
 
 export type SimulatedCommandFrontmatter = z.infer<typeof SimulatedCommandFrontmatterSchema>;

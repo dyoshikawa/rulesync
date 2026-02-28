@@ -50,13 +50,18 @@ describe("RulesyncSubagentFrontmatterSchema", () => {
       description: "A test subagent",
     };
 
+    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingName)).toThrow();
+  });
+
+  it("should accept frontmatter without description (description is optional)", () => {
     const missingDescription = {
       targets: ["*"],
       name: "test-subagent",
     };
 
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingName)).toThrow();
-    expect(() => RulesyncSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
+    const result = RulesyncSubagentFrontmatterSchema.safeParse(missingDescription);
+    expect(result.success).toBe(true);
+    expect(result.data?.description).toBeUndefined();
   });
 
   it("should use default targets when omitted", () => {
@@ -149,22 +154,22 @@ describe("RulesyncSubagent", () => {
       expect(subagent.getFrontmatter().claudecode?.model).toBe("opus");
     });
 
-    it("should throw error with invalid frontmatter", () => {
-      const invalidFrontmatter = {
+    it("should not throw for frontmatter without description (description is optional)", () => {
+      const frontmatterWithoutDescription = {
         targets: ["*"],
         name: "test-subagent",
-        // missing description
+        // no description
       };
 
       expect(() => {
         const _instance = new RulesyncSubagent({
           baseDir: ".",
           relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-          relativeFilePath: "invalid.md",
-          frontmatter: invalidFrontmatter as any,
+          relativeFilePath: "no-desc.md",
+          frontmatter: frontmatterWithoutDescription as any,
           body: "Test body",
         });
-      }).toThrow();
+      }).not.toThrow();
     });
 
     it("should skip validation when validate=false", () => {
@@ -298,23 +303,22 @@ describe("RulesyncSubagent", () => {
       expect(result.error).toBe(null);
     });
 
-    it("should return error for invalid frontmatter", () => {
+    it("should return success for frontmatter without description (description is optional)", () => {
       const subagent = new RulesyncSubagent({
         baseDir: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "invalid-validate.md",
+        relativeFilePath: "no-desc-validate.md",
         frontmatter: {
           targets: ["*"],
-          name: "invalid-subagent",
-          // missing description
+          name: "no-desc-subagent",
+          // no description
         } as any,
-        body: "Invalid body",
-        validate: false, // Skip validation in constructor for testing
+        body: "Body without description",
+        validate: false,
       });
 
       const result = subagent.validate();
-      expect(result.success).toBe(false);
-      expect(result.error).toBeInstanceOf(Error);
+      expect(result.success).toBe(true);
     });
   });
 
@@ -407,23 +411,23 @@ Nested content.`;
       expect(basename("test-fromfile-nested.md")).toBe("test-fromfile-nested.md");
     });
 
-    it("should throw error for invalid frontmatter in file", async () => {
+    it("should succeed for file without description (description is optional)", async () => {
       const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-      const filePath = join(subagentsDir, "test-fromfile-invalid.md");
+      const filePath = join(subagentsDir, "test-fromfile-no-desc.md");
       const fileContent = `---
 targets: ["*"]
-name: invalid-subagent
-# missing description
+name: no-desc-subagent
 ---
-Invalid content.`;
+Content without description.`;
 
       await writeFileContent(filePath, fileContent);
 
-      await expect(
-        RulesyncSubagent.fromFile({
-          relativeFilePath: "test-fromfile-invalid.md",
-        }),
-      ).rejects.toThrow("Invalid frontmatter in test-fromfile-invalid.md:");
+      const subagent = await RulesyncSubagent.fromFile({
+        relativeFilePath: "test-fromfile-no-desc.md",
+      });
+
+      expect(subagent.getFrontmatter().name).toBe("no-desc-subagent");
+      expect(subagent.getFrontmatter().description).toBeUndefined();
     });
 
     it("should throw error for non-existent file", async () => {
