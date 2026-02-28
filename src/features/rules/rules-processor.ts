@@ -832,34 +832,40 @@ export class RulesProcessor extends FeatureProcessor {
         global: this.global,
       });
 
+      const resolveRelativeDirPath = (filePath: string): string => {
+        const dirName = dirname(relative(this.baseDir, filePath));
+        return dirName === "" ? "." : dirName;
+      };
+
+      const findFilesWithFallback = async (
+        primaryGlob: string,
+        alternativeRoots: typeof settablePaths.alternativeRoots,
+        buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
+      ): Promise<string[]> => {
+        const primaryFilePaths = await findFilesByGlobs(primaryGlob);
+        if (primaryFilePaths.length > 0) {
+          return primaryFilePaths;
+        }
+        if (alternativeRoots) {
+          return findFilesByGlobs(alternativeRoots.map(buildAltGlob));
+        }
+        return [];
+      };
+
       const rootToolRules = await (async () => {
         if (!settablePaths.root) {
           return [];
         }
 
-        const primaryRootGlob = join(
-          this.baseDir,
-          settablePaths.root.relativeDirPath ?? ".",
-          settablePaths.root.relativeFilePath,
+        const uniqueRootFilePaths = await findFilesWithFallback(
+          join(
+            this.baseDir,
+            settablePaths.root.relativeDirPath ?? ".",
+            settablePaths.root.relativeFilePath,
+          ),
+          settablePaths.alternativeRoots,
+          (alt) => join(this.baseDir, alt.relativeDirPath, alt.relativeFilePath),
         );
-        const primaryRootFilePaths = await findFilesByGlobs(primaryRootGlob);
-
-        let uniqueRootFilePaths: string[];
-        if (primaryRootFilePaths.length > 0) {
-          uniqueRootFilePaths = primaryRootFilePaths;
-        } else if (settablePaths.alternativeRoots) {
-          const altGlobs = settablePaths.alternativeRoots.map((alt) =>
-            join(this.baseDir, alt.relativeDirPath, alt.relativeFilePath),
-          );
-          uniqueRootFilePaths = await findFilesByGlobs(altGlobs);
-        } else {
-          uniqueRootFilePaths = [];
-        }
-
-        const resolveRelativeDirPath = (filePath: string): string => {
-          const dirName = dirname(relative(this.baseDir, filePath));
-          return dirName === "" ? "." : dirName;
-        };
 
         if (forDeletion) {
           return uniqueRootFilePaths
@@ -901,35 +907,17 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
 
-        const primaryLocalGlob = join(
-          this.baseDir,
-          settablePaths.root.relativeDirPath ?? ".",
-          "CLAUDE.local.md",
+        const uniqueLocalRootFilePaths = await findFilesWithFallback(
+          join(this.baseDir, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+          settablePaths.alternativeRoots,
+          (alt) => join(this.baseDir, alt.relativeDirPath, "CLAUDE.local.md"),
         );
-        const primaryLocalFilePaths = await findFilesByGlobs(primaryLocalGlob);
-
-        let uniqueLocalRootFilePaths: string[];
-        if (primaryLocalFilePaths.length > 0) {
-          uniqueLocalRootFilePaths = primaryLocalFilePaths;
-        } else if (settablePaths.alternativeRoots) {
-          const altLocalGlobs = settablePaths.alternativeRoots.map((alt) =>
-            join(this.baseDir, alt.relativeDirPath, "CLAUDE.local.md"),
-          );
-          uniqueLocalRootFilePaths = await findFilesByGlobs(altLocalGlobs);
-        } else {
-          uniqueLocalRootFilePaths = [];
-        }
-
-        const resolveLocalDirPath = (filePath: string): string => {
-          const dirName = dirname(relative(this.baseDir, filePath));
-          return dirName === "" ? "." : dirName;
-        };
 
         return uniqueLocalRootFilePaths
           .map((filePath) =>
             factory.class.forDeletion({
               baseDir: this.baseDir,
-              relativeDirPath: resolveLocalDirPath(filePath),
+              relativeDirPath: resolveRelativeDirPath(filePath),
               relativeFilePath: basename(filePath),
               global: this.global,
             }),

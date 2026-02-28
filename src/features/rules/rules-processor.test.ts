@@ -737,6 +737,28 @@ Content that would fail parsing`;
       expect(filePaths).toContain("CLAUDE.md");
       expect(filePaths).toContain("CLAUDE.local.md");
     });
+
+    it("should include .claude/CLAUDE.local.md for deletion when only in .claude/ directory", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root from .claude");
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.local.md"), "# Local from .claude");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("CLAUDE.md");
+      expect(filePaths).toContain("CLAUDE.local.md");
+
+      const localFile = filesToDelete.find((f) => f.getRelativeFilePath() === "CLAUDE.local.md");
+      expect(localFile?.getRelativeDirPath()).toBe(".claude");
+    });
   });
 
   describe("getToolTargets with global: true", () => {
