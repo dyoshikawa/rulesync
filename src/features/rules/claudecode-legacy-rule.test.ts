@@ -304,6 +304,25 @@ describe("ClaudecodeLegacyRule", () => {
     });
   });
 
+  describe("getSettablePaths", () => {
+    it("should return alternativeRoots for project mode", () => {
+      const paths = ClaudecodeLegacyRule.getSettablePaths();
+
+      expect(paths.alternativeRoots).toEqual([
+        {
+          relativeDirPath: ".claude",
+          relativeFilePath: "CLAUDE.md",
+        },
+      ]);
+    });
+
+    it("should not return alternativeRoots for global mode", () => {
+      const paths = ClaudecodeLegacyRule.getSettablePaths({ global: true });
+
+      expect(paths).not.toHaveProperty("alternativeRoots");
+    });
+  });
+
   describe("getSettablePaths with global flag", () => {
     it("should return global-specific paths", () => {
       const paths = ClaudecodeLegacyRule.getSettablePaths({ global: true });
@@ -322,6 +341,27 @@ describe("ClaudecodeLegacyRule", () => {
 
       expect(globalPaths.root.relativeDirPath).not.toBe(regularPaths.root.relativeDirPath);
       expect(globalPaths.root.relativeFilePath).toBe(regularPaths.root.relativeFilePath);
+    });
+  });
+
+  describe("fromFile with relativeDirPath override", () => {
+    it("should load root file from .claude/CLAUDE.md with relativeDirPath override", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      const testContent = "# Claude Code Project from .claude dir";
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
+
+      const claudecodeLegacyRule = await ClaudecodeLegacyRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "CLAUDE.md",
+        relativeDirPath: ".claude",
+      });
+
+      expect(claudecodeLegacyRule.getRelativeDirPath()).toBe(".claude");
+      expect(claudecodeLegacyRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(claudecodeLegacyRule.getFileContent()).toBe(testContent);
+      expect(claudecodeLegacyRule.getFilePath()).toBe(join(testDir, ".claude/CLAUDE.md"));
+      expect(claudecodeLegacyRule.isRoot()).toBe(true);
     });
   });
 

@@ -1,4 +1,4 @@
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
@@ -837,20 +837,36 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
 
-        const rootFilePaths = await findFilesByGlobs(
-          join(
-            this.baseDir,
-            settablePaths.root.relativeDirPath ?? ".",
-            settablePaths.root.relativeFilePath,
-          ),
+        const primaryRootGlob = join(
+          this.baseDir,
+          settablePaths.root.relativeDirPath ?? ".",
+          settablePaths.root.relativeFilePath,
         );
+        const primaryRootFilePaths = await findFilesByGlobs(primaryRootGlob);
+
+        let uniqueRootFilePaths: string[];
+        if (primaryRootFilePaths.length > 0) {
+          uniqueRootFilePaths = primaryRootFilePaths;
+        } else if (settablePaths.alternativeRoots) {
+          const altGlobs = settablePaths.alternativeRoots.map((alt) =>
+            join(this.baseDir, alt.relativeDirPath, alt.relativeFilePath),
+          );
+          uniqueRootFilePaths = await findFilesByGlobs(altGlobs);
+        } else {
+          uniqueRootFilePaths = [];
+        }
+
+        const resolveRelativeDirPath = (filePath: string): string => {
+          const dirName = dirname(relative(this.baseDir, filePath));
+          return dirName === "" ? "." : dirName;
+        };
 
         if (forDeletion) {
-          return rootFilePaths
+          return uniqueRootFilePaths
             .map((filePath) =>
               factory.class.forDeletion({
                 baseDir: this.baseDir,
-                relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+                relativeDirPath: resolveRelativeDirPath(filePath),
                 relativeFilePath: basename(filePath),
                 global: this.global,
               }),
@@ -859,10 +875,11 @@ export class RulesProcessor extends FeatureProcessor {
         }
 
         return await Promise.all(
-          rootFilePaths.map((filePath) =>
+          uniqueRootFilePaths.map((filePath) =>
             factory.class.fromFile({
               baseDir: this.baseDir,
               relativeFilePath: basename(filePath),
+              relativeDirPath: resolveRelativeDirPath(filePath),
               global: this.global,
             }),
           ),
@@ -884,15 +901,35 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
 
-        const localRootFilePaths = await findFilesByGlobs(
-          join(this.baseDir, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+        const primaryLocalGlob = join(
+          this.baseDir,
+          settablePaths.root.relativeDirPath ?? ".",
+          "CLAUDE.local.md",
         );
+        const primaryLocalFilePaths = await findFilesByGlobs(primaryLocalGlob);
 
-        return localRootFilePaths
+        let uniqueLocalRootFilePaths: string[];
+        if (primaryLocalFilePaths.length > 0) {
+          uniqueLocalRootFilePaths = primaryLocalFilePaths;
+        } else if (settablePaths.alternativeRoots) {
+          const altLocalGlobs = settablePaths.alternativeRoots.map((alt) =>
+            join(this.baseDir, alt.relativeDirPath, "CLAUDE.local.md"),
+          );
+          uniqueLocalRootFilePaths = await findFilesByGlobs(altLocalGlobs);
+        } else {
+          uniqueLocalRootFilePaths = [];
+        }
+
+        const resolveLocalDirPath = (filePath: string): string => {
+          const dirName = dirname(relative(this.baseDir, filePath));
+          return dirName === "" ? "." : dirName;
+        };
+
+        return uniqueLocalRootFilePaths
           .map((filePath) =>
             factory.class.forDeletion({
               baseDir: this.baseDir,
-              relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+              relativeDirPath: resolveLocalDirPath(filePath),
               relativeFilePath: basename(filePath),
               global: this.global,
             }),

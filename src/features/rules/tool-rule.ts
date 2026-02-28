@@ -37,6 +37,10 @@ export type ToolRuleSettablePaths = {
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  alternativeRoots?: Array<{
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }>;
   nonRoot: {
     relativeDirPath: string;
   };
@@ -47,6 +51,10 @@ export type ToolRuleSettablePathsGlobal = {
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  alternativeRoots?: Array<{
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }>;
   nonRoot?: undefined;
 };
 

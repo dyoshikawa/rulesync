@@ -22,7 +22,9 @@ export type AiFileParams = {
 export type AiFileFromFileParams = Pick<
   AiFileParams,
   "baseDir" | "validate" | "relativeFilePath" | "global"
->;
+> & {
+  relativeDirPath?: string;
+};
 export abstract class AiFile {
   /**
    * @example "."

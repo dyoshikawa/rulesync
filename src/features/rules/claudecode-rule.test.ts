@@ -112,6 +112,17 @@ describe("ClaudecodeRule (Modular Rules)", () => {
       });
     });
 
+    it("should return alternativeRoots for project mode", () => {
+      const paths = ClaudecodeRule.getSettablePaths();
+
+      expect(paths.alternativeRoots).toEqual([
+        {
+          relativeDirPath: ".claude",
+          relativeFilePath: "CLAUDE.md",
+        },
+      ]);
+    });
+
     it("should return global paths for global mode", () => {
       const paths = ClaudecodeRule.getSettablePaths({ global: true });
 
@@ -121,9 +132,34 @@ describe("ClaudecodeRule (Modular Rules)", () => {
       });
       expect(paths).not.toHaveProperty("nonRoot");
     });
+
+    it("should not return alternativeRoots for global mode", () => {
+      const paths = ClaudecodeRule.getSettablePaths({ global: true });
+
+      expect(paths).not.toHaveProperty("alternativeRoots");
+    });
   });
 
   describe("fromFile", () => {
+    it("should create instance from root CLAUDE.md in .claude/ directory with relativeDirPath override", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      const testContent = "# Claude Code Project from .claude dir";
+      await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
+
+      const claudecodeRule = await ClaudecodeRule.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "CLAUDE.md",
+        relativeDirPath: ".claude",
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(claudecodeRule.getBody()).toBe(testContent);
+      expect(claudecodeRule.getFilePath()).toBe(join(testDir, ".claude/CLAUDE.md"));
+      expect(claudecodeRule.isRoot()).toBe(true);
+    });
+
     it("should create instance from root CLAUDE.md file", async () => {
       const testContent = "# Claude Code Project\n\nProject overview and instructions.";
       await writeFileContent(join(testDir, "CLAUDE.md"), testContent);

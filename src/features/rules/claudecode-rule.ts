@@ -39,6 +39,10 @@ export type ClaudecodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & 
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  alternativeRoots?: Array<{
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }>;
   nonRoot: {
     relativeDirPath: string;
   };
@@ -82,6 +86,12 @@ export class ClaudecodeRule extends ToolRule {
         relativeDirPath: ".",
         relativeFilePath: "CLAUDE.md",
       },
+      alternativeRoots: [
+        {
+          relativeDirPath: ".claude",
+          relativeFilePath: "CLAUDE.md",
+        },
+      ],
       nonRoot: {
         relativeDirPath: buildToolPath(".claude", "rules", excludeToolDir),
       },
@@ -122,18 +132,20 @@ export class ClaudecodeRule extends ToolRule {
     relativeFilePath,
     validate = true,
     global = false,
+    relativeDirPath: overrideDirPath,
   }: ToolRuleFromFileParams): Promise<ClaudecodeRule> {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
+      const rootDirPath = overrideDirPath ?? paths.root.relativeDirPath;
       const fileContent = await readFileContent(
-        join(baseDir, paths.root.relativeDirPath, paths.root.relativeFilePath),
+        join(baseDir, rootDirPath, paths.root.relativeFilePath),
       );
 
       return new ClaudecodeRule({
         baseDir,
-        relativeDirPath: paths.root.relativeDirPath,
+        relativeDirPath: rootDirPath,
         relativeFilePath: paths.root.relativeFilePath,
         frontmatter: {},
         body: fileContent.trim(),
