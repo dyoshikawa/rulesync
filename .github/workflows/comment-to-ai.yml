@@ -179,7 +179,7 @@ jobs:
                   - Call code-reviewer subagent to review the code changes in the PR.
                   - Call security-reviewer subagent to review the security issues the PR.
 
-                  Integrate and report the execution results from each subagent. Additionaly, please output PR number in the result so that the user can easily find the PR.
+                  Integrate and report the execution results from each subagent. Number each point (1, 2, 3...) for easy reference. Also include the PR number in the result so the user can easily find the PR.
                   ```
               2. Fix the code. Run `pnpm cicheck` to verify code quality. If the environment variable IS_UPSTREAM is true, perform 2-1. If false (fork repository), perform 2-2.
                 2-1. Commit and push the fix to this branch.
