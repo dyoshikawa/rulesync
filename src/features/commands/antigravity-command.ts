@@ -23,7 +23,7 @@ const AntigravityWorkflowFrontmatterSchema = z.looseObject({
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const AntigravityCommandFrontmatterSchema = z.looseObject({
-  description: z.string(),
+  description: z.optional(z.string()),
   // Support for workflow-specific configuration
   ...AntigravityWorkflowFrontmatterSchema.shape,
 });

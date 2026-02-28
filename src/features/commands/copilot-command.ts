@@ -18,7 +18,7 @@ import {
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const CopilotCommandFrontmatterSchema = z.looseObject({
   mode: z.optional(z.string()),
-  description: z.string(),
+  description: z.optional(z.string()),
 });
 
 export type CopilotCommandFrontmatter = z.infer<typeof CopilotCommandFrontmatterSchema>;

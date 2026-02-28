@@ -251,6 +251,22 @@ Body content.`;
       });
     });
 
+    it("should leave empty object when all nested values are null", () => {
+      const content = `---
+cursor:
+  description:
+  globs:
+---
+Body content.`;
+
+      const result = parseFrontmatter(content);
+
+      // When all nested values are null, the parent key remains as empty object
+      expect(result.frontmatter).toEqual({
+        cursor: {},
+      });
+    });
+
     it("should handle malformed YAML gracefully", () => {
       const content = `---
 title: "Valid quote"

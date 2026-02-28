@@ -449,12 +449,14 @@ Body content`;
       expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
 
-    it("should throw error for frontmatter without description", () => {
-      const invalidFrontmatter = {
+    it("should accept frontmatter without description (description is optional)", () => {
+      const frontmatter = {
         name: "Test Agent",
       };
 
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+      const result = SimulatedSubagentFrontmatterSchema.parse(frontmatter);
+      expect(result.name).toBe("Test Agent");
+      expect(result.description).toBeUndefined();
     });
 
     it("should throw error for frontmatter with invalid types", () => {

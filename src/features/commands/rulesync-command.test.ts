@@ -84,19 +84,18 @@ describe("RulesyncCommand", () => {
       expect(() => new RulesyncCommand(paramsWithInvalidData)).toThrow();
     });
 
-    it("should throw error for missing required frontmatter fields", () => {
-      const incompleteFrontmatter = {
+    it("should not throw for frontmatter without description (description is optional)", () => {
+      const frontmatterWithoutDescription = {
         targets: ["cursor"],
-        // Missing description
       };
 
-      const paramsWithIncompleteData: RulesyncCommandParams = {
+      const paramsWithoutDescription: RulesyncCommandParams = {
         ...validParams,
-        frontmatter: incompleteFrontmatter as any,
-        validate: true, // Enable validation
+        frontmatter: frontmatterWithoutDescription as any,
+        validate: true,
       };
 
-      expect(() => new RulesyncCommand(paramsWithIncompleteData)).toThrow();
+      expect(() => new RulesyncCommand(paramsWithoutDescription)).not.toThrow();
     });
 
     it("should generate correct file content from frontmatter and body", () => {
@@ -181,22 +180,20 @@ describe("RulesyncCommand", () => {
       expect(result.error).toBeDefined();
     });
 
-    it("should return failure for missing required fields", () => {
-      const incompleteFrontmatter = {
+    it("should return success for frontmatter without description (description is optional)", () => {
+      const frontmatterWithoutDescription = {
         targets: ["cursor"],
-        // Missing description
       };
 
       const command = new RulesyncCommand({
         ...validParams,
-        frontmatter: incompleteFrontmatter as any,
+        frontmatter: frontmatterWithoutDescription as any,
         validate: false,
       });
 
       const result = command.validate();
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
+      expect(result.success).toBe(true);
     });
   });
 
@@ -227,14 +224,15 @@ describe("RulesyncCommand", () => {
       expect(result.success).toBe(false);
     });
 
-    it("should reject missing description", () => {
-      const invalidData = {
+    it("should accept missing description (description is optional)", () => {
+      const data = {
         targets: ["cursor"],
       };
 
-      const result = RulesyncCommandFrontmatterSchema.safeParse(invalidData);
+      const result = RulesyncCommandFrontmatterSchema.safeParse(data);
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.data?.description).toBeUndefined();
     });
 
     it("should reject non-string description", () => {

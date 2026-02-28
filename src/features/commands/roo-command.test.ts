@@ -422,13 +422,17 @@ This file has invalid frontmatter`;
       }
     });
 
-    it("should reject frontmatter without description", () => {
-      const invalidFrontmatter = {
-        "argument-hint": "Missing description",
+    it("should accept frontmatter without description (description is optional)", () => {
+      const frontmatter = {
+        "argument-hint": "Has hint but no description",
       };
 
-      const result = RooCommandFrontmatterSchema.safeParse(invalidFrontmatter);
-      expect(result.success).toBe(false);
+      const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.description).toBeUndefined();
+        expect(result.data["argument-hint"]).toBe("Has hint but no description");
+      }
     });
 
     it("should reject frontmatter with invalid description type", () => {

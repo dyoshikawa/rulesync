@@ -19,7 +19,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 export const RulesyncSubagentFrontmatterSchema = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   name: z.string(),
-  description: z.string(),
+  description: z.optional(z.string()),
 });
 
 // Input type allows targets to be omitted (will use default value)
