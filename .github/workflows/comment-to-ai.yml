@@ -11,7 +11,8 @@ jobs:
       (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode')) &&
       (
           github.event.comment.user.login == 'dyoshikawa' ||
-          github.event.comment.user.login == 'cm-dyoshikawa'
+          github.event.comment.user.login == 'cm-dyoshikawa' ||
+          github.event.comment.user.login == 'dyoshikawa-claw'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -85,7 +86,8 @@ jobs:
       (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode')) &&
       (
           github.event.comment.user.login == 'dyoshikawa' ||
-          github.event.comment.user.login == 'cm-dyoshikawa'
+          github.event.comment.user.login == 'cm-dyoshikawa' ||
+          github.event.comment.user.login == 'dyoshikawa-claw'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 60
