@@ -824,10 +824,23 @@ describe("generate", () => {
   });
 
   describe("unsupported target-feature warning", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(logger, "warn");
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
     it("should warn when a target does not support an enabled feature", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
       mockConfig.getTargets.mockReturnValue(["codexcli"]);
-      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      // getFeatures(target) is called per-target; return "mcp" for codexcli
+      mockConfig.getFeatures.mockImplementation((target?: string) => {
+        if (target === "codexcli") return ["mcp"];
+        return [];
+      });
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       await generate({ config: mockConfig as never });
@@ -838,9 +851,11 @@ describe("generate", () => {
     });
 
     it("should not warn when the target supports the feature", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
       mockConfig.getTargets.mockReturnValue(["claudecode"]);
-      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getFeatures.mockImplementation((target?: string) => {
+        if (target === "claudecode") return ["rules"];
+        return [];
+      });
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       await generate({ config: mockConfig as never });
@@ -851,9 +866,9 @@ describe("generate", () => {
     });
 
     it("should not warn when the feature is not enabled for the unsupported target", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
       mockConfig.getTargets.mockReturnValue(["codexcli"]);
-      mockConfig.getFeatures.mockReturnValue([]);
+      // codexcli has no features enabled, so no warning even though it doesn't support mcp
+      mockConfig.getFeatures.mockImplementation(() => []);
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       await generate({ config: mockConfig as never });
@@ -864,9 +879,12 @@ describe("generate", () => {
     });
 
     it("should warn for each unsupported target-feature combination", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
       mockConfig.getTargets.mockReturnValue(["codexcli", "cursor"]);
-      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      // Both unsupported targets have mcp enabled
+      mockConfig.getFeatures.mockImplementation((target?: string) => {
+        if (target === "codexcli" || target === "cursor") return ["mcp"];
+        return [];
+      });
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
       await generate({ config: mockConfig as never });
