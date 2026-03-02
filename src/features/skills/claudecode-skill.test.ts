@@ -262,6 +262,48 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should convert to RulesyncSkill with model", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "model-skill",
+        description: "Skill with model",
+        model: "opus",
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "model-skill",
+        frontmatter,
+        body: "Model body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({ model: "opus" });
+    });
+
+    it("should convert to RulesyncSkill with both model and allowed-tools", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "full-skill",
+        description: "Full skill",
+        model: "haiku",
+        "allowed-tools": ["Bash"],
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "full-skill",
+        frontmatter,
+        body: "Full body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        model: "haiku",
+        "allowed-tools": ["Bash"],
+      });
+    });
+
     it("should preserve other files during conversion", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "test-skill",
@@ -329,6 +371,42 @@ describe("ClaudecodeSkill", () => {
       expect(frontmatter.name).toBe("restricted-skill");
       expect(frontmatter.description).toBe("Restricted skill");
       expect(frontmatter["allowed-tools"]).toEqual(["Bash", "Read"]);
+    });
+
+    it("should convert from RulesyncSkill with claudecode model", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "model-skill",
+        description: "Skill with model",
+        claudecode: { model: "sonnet" },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "model-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Model body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter().model).toBe("sonnet");
+    });
+
+    it("should convert from RulesyncSkill with both model and allowed-tools", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "full-skill",
+        description: "Full skill",
+        claudecode: { model: "haiku", "allowed-tools": ["Bash"] },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "full-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Full body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      const fm = claudecodeSkill.getFrontmatter();
+      expect(fm.model).toBe("haiku");
+      expect(fm["allowed-tools"]).toEqual(["Bash"]);
     });
 
     it("should set correct relativeDirPath", () => {
@@ -484,6 +562,28 @@ This skill has tool restrictions.`;
       });
 
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read", "Write"]);
+    });
+
+    it("should load skill with model", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "model-skill");
+      await ensureDir(skillDir);
+
+      const content = `---
+name: model-skill
+description: Skill with model
+model: sonnet
+---
+
+This skill uses a specific model.`;
+
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
+
+      const skill = await ClaudecodeSkill.fromDir({
+        baseDir: testDir,
+        dirName: "model-skill",
+      });
+
+      expect(skill.getFrontmatter().model).toBe("sonnet");
     });
 
     it("should load skill with other files", async () => {
@@ -643,6 +743,50 @@ Global skill content.`;
 
       const result = ClaudecodeSkillFrontmatterSchema.safeParse(invalidFrontmatter);
       expect(result.success).toBe(false);
+    });
+
+    it("should validate frontmatter with model field", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        model: "opus",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject non-string model value", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        model: 123,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("round-trip conversion", () => {
+    it("should preserve model through ClaudecodeSkill -> RulesyncSkill -> ClaudecodeSkill", () => {
+      const originalFrontmatter: ClaudecodeSkillFrontmatter = {
+        name: "round-trip-skill",
+        description: "Round trip test",
+        model: "sonnet",
+        "allowed-tools": ["Bash", "Read"],
+      };
+
+      const original = new ClaudecodeSkill({
+        dirName: "round-trip-skill",
+        frontmatter: originalFrontmatter,
+        body: "Round trip body",
+      });
+
+      const rulesyncSkill = original.toRulesyncSkill();
+      const restored = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      const restoredFm = restored.getFrontmatter();
+
+      expect(restoredFm.name).toBe("round-trip-skill");
+      expect(restoredFm.description).toBe("Round trip test");
+      expect(restoredFm.model).toBe("sonnet");
+      expect(restoredFm["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
   });
 });

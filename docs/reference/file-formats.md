@@ -157,6 +157,7 @@ description: >- # skill description
   A sample skill that demonstrates the skill format
 targets: ["*"] # * = all, or specific tools
 claudecode: # for claudecode-specific parameters
+  model: sonnet # opus, sonnet, haiku, or any string
   allowed-tools:
     - "Bash"
     - "Read"
