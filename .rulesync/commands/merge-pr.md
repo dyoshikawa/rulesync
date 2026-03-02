@@ -97,6 +97,7 @@ After merge, clean up local state for the head branch from Step 2 (`<branch-name
    ```bash
    git gtr rm <worktree-name>
    ```
+
    - `<worktree-name>` is the worktree name used by `git gtr` for that branch.
    - This removes both the worktree directory and the associated branch.
 3. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup:
