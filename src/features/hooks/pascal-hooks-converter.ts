@@ -108,7 +108,12 @@ export function pascalHooksToCanonical({
         const cmd = typeof h.command === "string" ? h.command : undefined;
         const command =
           typeof cmd === "string" && cmd.includes(`${converterConfig.projectDirVar}/`)
-            ? cmd.replace(new RegExp(`^\\${converterConfig.projectDirVar}\\/?`), "./")
+            ? cmd.replace(
+                new RegExp(
+                  `^${converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/?`,
+                ),
+                "./",
+              )
             : cmd;
         const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
         const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
