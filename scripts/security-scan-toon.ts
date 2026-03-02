@@ -37,6 +37,14 @@ designed for LLM prompts. Here is a quick reference for reading TOON:
       age: 30
   \`\`\`
 - Strings are unquoted unless they contain special characters, match boolean/null keywords, or resemble numbers.
+
+## Response Format
+
+Report each vulnerability as a JSON object with the following keys:
+- **severity**: One of "low", "medium", "high", "critical"
+- **reason**: A concise description of the vulnerability
+- **filePath**: The file path where the vulnerability was found
+- **line**: The line range (e.g., "L10", "L10-L11")
 `;
 
 const main = async (): Promise<void> => {
