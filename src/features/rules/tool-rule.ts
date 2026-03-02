@@ -37,6 +37,7 @@ export type ToolRuleSettablePaths = {
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  /** Fallback root paths tried when the primary root file is not found. Primary root always takes precedence. */
   alternativeRoots?: Array<{
     relativeDirPath: string;
     relativeFilePath: string;
