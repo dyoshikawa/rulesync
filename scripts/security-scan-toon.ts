@@ -32,25 +32,25 @@ const main = async (): Promise<void> => {
   const toonFiles = getToonFiles({ dir: baseDir });
 
   if (toonFiles.length === 0) {
-    console.log("No toon files found to scan. Skipping.");
+    // console.log("No toon files found to scan. Skipping.");
     return;
   }
 
-  console.log(`Found ${toonFiles.length} toon files to scan`);
+  // console.log(`Found ${toonFiles.length} toon files to scan`);
 
   const results = new Map<string, SecurityScanResult>();
   const errors: string[] = [];
 
   for (const toonPath of toonFiles) {
     const filename = basename(toonPath);
-    console.log(`Scanning ${filename}...`);
+    // console.log(`Scanning ${filename}...`);
 
     try {
       const toonContent = readFileSync(toonPath, "utf-8");
       const scanResult = await runSecurityScan({ client, toonContent, model, prompt });
 
       results.set(filename, scanResult);
-      console.log(`  Found ${scanResult.vulnerabilities.length} vulnerabilities`);
+      // console.log(`  Found ${scanResult.vulnerabilities.length} vulnerabilities`);
     } catch (error: unknown) {
       const message = `Failed to scan ${filename}: ${formatError(error)}`;
       console.error(message);
@@ -58,7 +58,7 @@ const main = async (): Promise<void> => {
     }
   }
 
-  console.log("All scans completed");
+  // console.log("All scans completed");
 
   if (results.size === 0) {
     throw new Error("All scans failed. No results to report.");
@@ -84,7 +84,7 @@ const main = async (): Promise<void> => {
     body: emailBody,
   });
 
-  console.log("Email sent successfully");
+  // console.log("Email sent successfully");
 };
 
 main().catch((error: unknown) => {
