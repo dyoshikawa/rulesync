@@ -206,7 +206,7 @@ describe("formatEmailBody", () => {
     expect(body).toContain("Found 1 vulnerability (high+)");
   });
 
-  it("should exclude low and medium vulnerabilities", () => {
+  it("should exclude toon sections with only low and medium vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
     results.set("b.toon", {
       vulnerabilities: [
@@ -227,8 +227,8 @@ describe("formatEmailBody", () => {
     });
 
     const body = formatEmailBody({ results });
-    expect(body).toContain("## b.toon");
-    expect(body).toContain("Found 0 vulnerabilities (high+)");
+    expect(body).not.toContain("## b.toon");
+    expect(body).not.toContain("Minor issues");
     expect(body).not.toContain("[low]");
     expect(body).not.toContain("[medium]");
   });
@@ -258,7 +258,7 @@ describe("formatEmailBody", () => {
     });
 
     const body = formatEmailBody({ results });
-    expect(body).toContain("## a.toon");
+    expect(body).not.toContain("## a.toon");
     expect(body).toContain("## b.toon");
     expect(body).toContain("[high] src/db.ts L42");
     expect(body).not.toContain("[low]");
