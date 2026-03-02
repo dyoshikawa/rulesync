@@ -56,10 +56,10 @@ jobs:
             exit 1
           fi
 
-          # Check 2: Open PR count (only on 'opened' event; skipped on synchronize/reopened to avoid
-          # false positives on existing PRs. Note: due to GitHub API indexing delays, rapid PR creation
-          # may occasionally bypass this check.)
-          if [ "$EVENT_ACTION" = "opened" ]; then
+          # Check 2: Open PR count (on 'opened' and 'reopened' events; skipped on synchronize
+          # since it's an update to an already-open PR. Note: due to GitHub API indexing delays,
+          # rapid PR creation may occasionally bypass this check.)
+          if [ "$EVENT_ACTION" = "opened" ] || [ "$EVENT_ACTION" = "reopened" ]; then
             OPEN_PR_COUNT=$(gh pr list --author "$PR_AUTHOR" --state open --json number --jq 'length')
             if [ "$OPEN_PR_COUNT" -gt "$MAX_OPEN_PRS" ]; then
               echo "Author $PR_AUTHOR has $OPEN_PR_COUNT open PRs (limit: $MAX_OPEN_PRS)."
