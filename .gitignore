@@ -262,6 +262,7 @@ docs/.vitepress/cache
 **/.github/prompts/
 **/.github/agents/
 **/.github/skills/
+**/.github/hooks/
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json

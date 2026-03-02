@@ -16,6 +16,8 @@ import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
+import type { Feature } from "../types/features.js";
+import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -109,6 +111,19 @@ async function processEmptyFeatureGeneration(params: {
   return { count: totalCount, paths: [], hasDiff };
 }
 
+function warnUnsupportedTargets(params: {
+  config: Config;
+  supportedTargets: ToolTarget[];
+  featureName: Feature;
+}): void {
+  const { config, supportedTargets, featureName } = params;
+  for (const target of config.getTargets()) {
+    if (!supportedTargets.includes(target) && config.getFeatures(target).includes(featureName)) {
+      logger.warn(`Target '${target}' does not support the feature '${featureName}'. Skipping.`);
+    }
+  }
+}
+
 /**
  * Check if .rulesync directory exists.
  */
@@ -170,10 +185,9 @@ async function generateRulesCore(params: {
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  const toolTargets = intersection(
-    config.getTargets(),
-    RulesProcessor.getToolTargets({ global: config.getGlobal() }),
-  );
+  const supportedTargets = RulesProcessor.getToolTargets({ global: config.getGlobal() });
+  const toolTargets = intersection(config.getTargets(), supportedTargets);
+  warnUnsupportedTargets({ config, supportedTargets, featureName: "rules" });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -214,6 +228,13 @@ async function generateRulesCore(params: {
 async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
+  const supportedIgnoreTargets = IgnoreProcessor.getToolTargets();
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedIgnoreTargets,
+    featureName: "ignore",
+  });
+
   if (config.getGlobal()) {
     return { count: 0, paths: [], hasDiff: false };
   }
@@ -222,7 +243,7 @@ async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGe
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  for (const toolTarget of intersection(config.getTargets(), IgnoreProcessor.getToolTargets())) {
+  for (const toolTarget of intersection(config.getTargets(), supportedIgnoreTargets)) {
     // Check if ignore feature is enabled for this specific target
     if (!config.getFeatures(toolTarget).includes("ignore")) {
       continue;
@@ -275,10 +296,9 @@ async function generateMcpCore(params: { config: Config }): Promise<FeatureGener
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  const toolTargets = intersection(
-    config.getTargets(),
-    McpProcessor.getToolTargets({ global: config.getGlobal() }),
-  );
+  const supportedMcpTargets = McpProcessor.getToolTargets({ global: config.getGlobal() });
+  const toolTargets = intersection(config.getTargets(), supportedMcpTargets);
+  warnUnsupportedTargets({ config, supportedTargets: supportedMcpTargets, featureName: "mcp" });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -319,13 +339,16 @@ async function generateCommandsCore(params: { config: Config }): Promise<Feature
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  const toolTargets = intersection(
-    config.getTargets(),
-    CommandsProcessor.getToolTargets({
-      global: config.getGlobal(),
-      includeSimulated: config.getSimulateCommands(),
-    }),
-  );
+  const supportedCommandsTargets = CommandsProcessor.getToolTargets({
+    global: config.getGlobal(),
+    includeSimulated: config.getSimulateCommands(),
+  });
+  const toolTargets = intersection(config.getTargets(), supportedCommandsTargets);
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedCommandsTargets,
+    featureName: "commands",
+  });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -366,13 +389,16 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  const toolTargets = intersection(
-    config.getTargets(),
-    SubagentsProcessor.getToolTargets({
-      global: config.getGlobal(),
-      includeSimulated: config.getSimulateSubagents(),
-    }),
-  );
+  const supportedSubagentsTargets = SubagentsProcessor.getToolTargets({
+    global: config.getGlobal(),
+    includeSimulated: config.getSimulateSubagents(),
+  });
+  const toolTargets = intersection(config.getTargets(), supportedSubagentsTargets);
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedSubagentsTargets,
+    featureName: "subagents",
+  });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -416,13 +442,16 @@ async function generateSkillsCore(params: {
   let hasDiff = false;
   const allSkills: RulesyncSkill[] = [];
 
-  const toolTargets = intersection(
-    config.getTargets(),
-    SkillsProcessor.getToolTargets({
-      global: config.getGlobal(),
-      includeSimulated: config.getSimulateSkills(),
-    }),
-  );
+  const supportedSkillsTargets = SkillsProcessor.getToolTargets({
+    global: config.getGlobal(),
+    includeSimulated: config.getSimulateSkills(),
+  });
+  const toolTargets = intersection(config.getTargets(), supportedSkillsTargets);
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedSkillsTargets,
+    featureName: "skills",
+  });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -470,10 +499,9 @@ async function generateHooksCore(params: { config: Config }): Promise<FeatureGen
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  const toolTargets = intersection(
-    config.getTargets(),
-    HooksProcessor.getToolTargets({ global: config.getGlobal() }),
-  );
+  const supportedHooksTargets = HooksProcessor.getToolTargets({ global: config.getGlobal() });
+  const toolTargets = intersection(config.getTargets(), supportedHooksTargets);
+  warnUnsupportedTargets({ config, supportedTargets: supportedHooksTargets, featureName: "hooks" });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {

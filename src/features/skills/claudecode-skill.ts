@@ -19,6 +19,7 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "allowed-tools": z.optional(z.array(z.string())),
+  model: z.optional(z.string()),
 });
 
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
@@ -116,15 +117,15 @@ export class ClaudecodeSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const claudecodeSection = {
+      ...(frontmatter["allowed-tools"] && { "allowed-tools": frontmatter["allowed-tools"] }),
+      ...(frontmatter.model && { model: frontmatter.model }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(frontmatter["allowed-tools"] && {
-        claudecode: {
-          "allowed-tools": frontmatter["allowed-tools"],
-        },
-      }),
+      ...(Object.keys(claudecodeSection).length > 0 && { claudecode: claudecodeSection }),
     };
 
     return new RulesyncSkill({
@@ -149,7 +150,12 @@ export class ClaudecodeSkill extends ToolSkill {
     const claudecodeFrontmatter: ClaudecodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      "allowed-tools": rulesyncFrontmatter.claudecode?.["allowed-tools"],
+      ...(rulesyncFrontmatter.claudecode?.["allowed-tools"] && {
+        "allowed-tools": rulesyncFrontmatter.claudecode["allowed-tools"],
+      }),
+      ...(rulesyncFrontmatter.claudecode?.model && {
+        model: rulesyncFrontmatter.claudecode.model,
+      }),
     };
 
     const settablePaths = ClaudecodeSkill.getSettablePaths({ global });

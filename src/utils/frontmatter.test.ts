@@ -356,12 +356,10 @@ const code = "preserved";
 
       const content = "any content";
 
-      // Must throw an error - test fails if no error is thrown
-      expect(() => parseFrontmatter(content)).toThrow();
-
       // Verify the error is re-thrown without file path wrapping
       try {
         parseFrontmatter(content);
+        expect.unreachable("should have thrown");
       } catch (error) {
         expect((error as Error).message).not.toMatch(/Failed to parse frontmatter in/);
         expect((error as Error).message).toBe("YAML parse error from mock");

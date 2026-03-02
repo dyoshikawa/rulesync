@@ -7,11 +7,10 @@ import { z } from "zod";
 export const SecurityScanResultSchema = z.object({
   vulnerabilities: z.array(
     z.object({
-      severity: z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]),
-      title: z.string(),
-      description: z.string(),
-      location: z.string().optional(),
-      recommendation: z.string().optional(),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+      reason: z.string(),
+      filePath: z.string(),
+      line: z.string(),
     }),
   ),
   summary: z.string(),
@@ -30,14 +29,14 @@ export const SECURITY_SCAN_JSON_SCHEMA = {
         properties: {
           severity: {
             type: "string",
-            enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            enum: ["low", "medium", "high", "critical"],
           },
-          title: { type: "string" },
-          description: { type: "string" },
-          location: { type: "string" },
-          recommendation: { type: "string" },
+          reason: { type: "string" },
+          filePath: { type: "string" },
+          line: { type: "string" },
         },
-        required: ["severity", "title", "description"],
+        required: ["severity", "reason", "filePath", "line"],
+        additionalProperties: false,
       },
     },
     summary: { type: "string" },
@@ -121,6 +120,8 @@ export const runSecurityScan = async ({
   return SecurityScanResultSchema.parse(JSON.parse(content));
 };
 
+const HIGH_SEVERITIES = new Set(["high", "critical"]);
+
 export const formatEmailBody = ({
   results,
 }: {
@@ -129,21 +130,17 @@ export const formatEmailBody = ({
   let body = "# Security Scan Report\n\n";
 
   for (const [filename, result] of results.entries()) {
+    const filtered = result.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity));
+
     body += `## ${filename}\n\n`;
     body += `${result.summary}\n`;
-    const vulnCount = result.vulnerabilities.length;
-    const vulnLabel = vulnCount === 1 ? "vulnerability" : "vulnerabilities";
-    body += `### Found ${vulnCount} ${vulnLabel}\n\n`;
+    const count = filtered.length;
+    const label = count === 1 ? "vulnerability" : "vulnerabilities";
+    body += `### Found ${count} ${label} (high+)\n\n`;
 
-    for (const vuln of result.vulnerabilities) {
-      body += `**[${vuln.severity}] ${vuln.title}**\n`;
-      if (vuln.location) {
-        body += `- Location: ${vuln.location}\n`;
-      }
-      body += `- Description: ${vuln.description}\n`;
-      if (vuln.recommendation) {
-        body += `- Recommendation: ${vuln.recommendation}\n`;
-      }
+    for (const vuln of filtered) {
+      body += `**[${vuln.severity}] ${vuln.filePath} ${vuln.line}**\n`;
+      body += `- Reason: ${vuln.reason}\n`;
       body += "\n";
     }
 
@@ -151,6 +148,17 @@ export const formatEmailBody = ({
   }
 
   return body;
+};
+
+export const countHighSeverityVulnerabilities = ({
+  results,
+}: {
+  results: Map<string, SecurityScanResult>;
+}): number => {
+  return [...results.values()].reduce(
+    (sum, r) => sum + r.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity)).length,
+    0,
+  );
 };
 
 export const sendEmail = async ({
