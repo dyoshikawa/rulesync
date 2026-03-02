@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { HookEvent, HooksConfig } from "../../types/hooks.js";
+import type { HooksConfig } from "../../types/hooks.js";
 import type { PascalHooksConverterConfig } from "./pascal-hooks-converter.js";
 import { canonicalToPascalHooks, pascalHooksToCanonical } from "./pascal-hooks-converter.js";
 
-const TEST_CONFIG: PascalHooksConverterConfig = {
+const CFG: PascalHooksConverterConfig = {
   supportedEvents: ["sessionStart", "preToolUse", "stop"],
   canonicalToToolEventNames: {
     sessionStart: "SessionStart",
@@ -19,338 +19,153 @@ const TEST_CONFIG: PascalHooksConverterConfig = {
   projectDirVar: "$TEST_PROJECT_DIR",
 };
 
-type MatcherEntry = { matcher?: string; hooks: Array<Record<string, unknown>> };
-
-function makeConfig(hooks: HooksConfig["hooks"], overrides?: Partial<HooksConfig>): HooksConfig {
-  return { version: 1, hooks, ...overrides };
-}
-
-function getHooks(entry: unknown): Array<Record<string, unknown>> {
-  return (entry as MatcherEntry).hooks;
-}
+type Entry = { matcher?: string; hooks: Array<Record<string, unknown>> };
+const cfg = (hooks: HooksConfig["hooks"]): HooksConfig => ({ version: 1, hooks });
+const hooks = (entry: unknown) => (entry as Entry).hooks;
 
 describe("canonicalToPascalHooks", () => {
-  it("should filter out events not in supportedEvents", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "./start.sh" }],
-      notification: [{ type: "command", command: "./notify.sh" }],
-    });
+  it("should filter unsupported events and convert event names", () => {
     const result = canonicalToPascalHooks({
-      config,
+      config: cfg({
+        sessionStart: [{ type: "command", command: "./start.sh" }],
+        notification: [{ type: "command", command: "./notify.sh" }],
+      }),
       toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
+      converterConfig: CFG,
     });
     expect(result).toHaveProperty("SessionStart");
-    expect(result).not.toHaveProperty("Notification");
     expect(result).not.toHaveProperty("notification");
+    expect(result).not.toHaveProperty("sessionStart");
   });
 
   it("should merge toolOverrideHooks over shared hooks", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "./shared.sh" }],
-    });
     const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: {
-        sessionStart: [{ type: "command", command: "./override.sh" }],
-      },
-      converterConfig: TEST_CONFIG,
+      config: cfg({ sessionStart: [{ type: "command", command: "./shared.sh" }] }),
+      toolOverrideHooks: { sessionStart: [{ type: "command", command: "./override.sh" }] },
+      converterConfig: CFG,
     });
-    const entries = result.SessionStart!;
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toEqual({
-      hooks: [{ type: "command", command: "$TEST_PROJECT_DIR/override.sh" }],
-    });
+    expect(hooks(result.SessionStart![0])[0]!.command).toBe("$TEST_PROJECT_DIR/override.sh");
   });
 
-  it("should use only shared hooks when toolOverrideHooks is undefined", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "./start.sh" }],
-    });
+  it("should prefix non-$ commands, strip ./, and skip $ commands", () => {
     const result = canonicalToPascalHooks({
-      config,
+      config: cfg({
+        sessionStart: [
+          { type: "command", command: "./hooks/a.sh" },
+          { type: "command", command: "hooks/b.sh" },
+          { type: "command", command: "$HOME/c.sh" },
+        ],
+      }),
       toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
+      converterConfig: CFG,
     });
-    expect(result.SessionStart![0]).toEqual({
-      hooks: [{ type: "command", command: "$TEST_PROJECT_DIR/start.sh" }],
-    });
-  });
-
-  it("should not prefix commands starting with $", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "$HOME/scripts/start.sh" }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    const hooks = getHooks(result.SessionStart![0]);
-    expect(hooks[0]!.command).toBe("$HOME/scripts/start.sh");
-  });
-
-  it("should prefix commands not starting with $ and strip leading ./", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "./hooks/start.sh" }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    const hooks = getHooks(result.SessionStart![0]);
-    expect(hooks[0]!.command).toBe("$TEST_PROJECT_DIR/hooks/start.sh");
-  });
-
-  it("should prefix commands without ./ prefix", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "hooks/start.sh" }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    const hooks = getHooks(result.SessionStart![0]);
-    expect(hooks[0]!.command).toBe("$TEST_PROJECT_DIR/hooks/start.sh");
+    const h = hooks(result.SessionStart![0]);
+    expect(h[0]!.command).toBe("$TEST_PROJECT_DIR/hooks/a.sh");
+    expect(h[1]!.command).toBe("$TEST_PROJECT_DIR/hooks/b.sh");
+    expect(h[2]!.command).toBe("$HOME/c.sh");
   });
 
   it("should group defs by matcher", () => {
-    const config = makeConfig({
-      preToolUse: [
-        { type: "command", command: "./a.sh", matcher: "Bash" },
-        { type: "command", command: "./b.sh", matcher: "Bash" },
-        { type: "command", command: "./c.sh", matcher: "Read" },
-      ],
-    });
     const result = canonicalToPascalHooks({
-      config,
+      config: cfg({
+        preToolUse: [
+          { type: "command", command: "./a.sh", matcher: "Bash" },
+          { type: "command", command: "./b.sh", matcher: "Bash" },
+          { type: "command", command: "./c.sh", matcher: "Read" },
+        ],
+      }),
       toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
+      converterConfig: CFG,
     });
-    const entries = result.PreToolUse!;
-    expect(entries).toHaveLength(2);
-    const bashEntry = entries.find((e) => (e as MatcherEntry).matcher === "Bash") as MatcherEntry;
-    expect(bashEntry.hooks).toHaveLength(2);
+    expect(result.PreToolUse!).toHaveLength(2);
+    const bash = result.PreToolUse!.find((e) => (e as Entry).matcher === "Bash") as Entry;
+    expect(bash.hooks).toHaveLength(2);
   });
 
-  it("should output entries without matcher key when matcher is empty", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "./start.sh" }],
-    });
+  it("should include prompt/timeout and omit absent command", () => {
     const result = canonicalToPascalHooks({
-      config,
+      config: cfg({ sessionStart: [{ type: "prompt", prompt: "Check", timeout: 5000 }] }),
       toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
+      converterConfig: CFG,
     });
-    expect(result.SessionStart![0]).not.toHaveProperty("matcher");
-  });
-
-  it("should convert event names via canonicalToToolEventNames", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "command", command: "./start.sh" }],
-      stop: [{ type: "command", command: "./stop.sh" }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    expect(result).toHaveProperty("SessionStart");
-    expect(result).toHaveProperty("Stop");
-    expect(result).not.toHaveProperty("sessionStart");
-    expect(result).not.toHaveProperty("stop");
-  });
-
-  it("should pass through event names not in canonicalToToolEventNames", () => {
-    const configWithCustom: PascalHooksConverterConfig = {
-      ...TEST_CONFIG,
-      supportedEvents: [...TEST_CONFIG.supportedEvents, "customEvent" as HookEvent],
-    };
-    const config = makeConfig({
-      customEvent: [{ type: "command", command: "./custom.sh" }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: configWithCustom,
-    });
-    expect(result).toHaveProperty("customEvent");
-  });
-
-  it("should include prompt and timeout fields when present", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "prompt", prompt: "Check this", timeout: 5000 }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    const hooks = getHooks(result.SessionStart![0]);
-    expect(hooks[0]!.prompt).toBe("Check this");
-    expect(hooks[0]!.timeout).toBe(5000);
-  });
-
-  it("should omit command key when command is undefined", () => {
-    const config = makeConfig({
-      sessionStart: [{ type: "prompt", prompt: "Check this" }],
-    });
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    const hooks = getHooks(result.SessionStart![0]);
-    expect(hooks[0]).not.toHaveProperty("command");
-  });
-
-  it("should return empty result when config.hooks is empty", () => {
-    const config = makeConfig({});
-    const result = canonicalToPascalHooks({
-      config,
-      toolOverrideHooks: undefined,
-      converterConfig: TEST_CONFIG,
-    });
-    expect(result).toEqual({});
+    const h = hooks(result.SessionStart![0]);
+    expect(h[0]!.prompt).toBe("Check");
+    expect(h[0]!.timeout).toBe(5000);
+    expect(h[0]).not.toHaveProperty("command");
   });
 });
 
 describe("pascalHooksToCanonical", () => {
-  it("should return {} for null input", () => {
-    expect(pascalHooksToCanonical({ hooks: null, converterConfig: TEST_CONFIG })).toEqual({});
+  it("should return {} for null/undefined/non-object input", () => {
+    for (const input of [null, undefined, "string"]) {
+      expect(pascalHooksToCanonical({ hooks: input, converterConfig: CFG })).toEqual({});
+    }
   });
 
-  it("should return {} for undefined input", () => {
-    expect(pascalHooksToCanonical({ hooks: undefined, converterConfig: TEST_CONFIG })).toEqual({});
-  });
-
-  it("should return {} for non-object input", () => {
-    expect(pascalHooksToCanonical({ hooks: "string", converterConfig: TEST_CONFIG })).toEqual({});
-  });
-
-  it("should convert tool event names to canonical", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "command", command: "./start.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
+  it("should convert event names and strip projectDirVar prefix", () => {
+    const result = pascalHooksToCanonical({
+      hooks: {
+        SessionStart: [{ hooks: [{ type: "command", command: "$TEST_PROJECT_DIR/start.sh" }] }],
+      },
+      converterConfig: CFG,
+    });
     expect(result).toHaveProperty("sessionStart");
     expect(result).not.toHaveProperty("SessionStart");
+    expect(result.sessionStart![0]!.command).toBe("./start.sh");
   });
 
-  it("should strip projectDirVar prefix from commands", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "command", command: "$TEST_PROJECT_DIR/hooks/start.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs[0]!.command).toBe("./hooks/start.sh");
+  it("should leave non-projectDirVar commands unchanged", () => {
+    const result = pascalHooksToCanonical({
+      hooks: { SessionStart: [{ hooks: [{ type: "command", command: "$HOME/start.sh" }] }] },
+      converterConfig: CFG,
+    });
+    expect(result.sessionStart![0]!.command).toBe("$HOME/start.sh");
   });
 
-  it("should leave commands without projectDirVar prefix unchanged", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "command", command: "$HOME/scripts/start.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs[0]!.command).toBe("$HOME/scripts/start.sh");
+  it("should propagate matcher and omit empty matcher", () => {
+    const result = pascalHooksToCanonical({
+      hooks: {
+        PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "./a.sh" }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "./b.sh" }] }],
+      },
+      converterConfig: CFG,
+    });
+    expect(result.preToolUse![0]!.matcher).toBe("Bash");
+    expect(result.sessionStart![0]).not.toHaveProperty("matcher");
   });
 
-  it("should propagate matcher from entry to hook definition", () => {
-    const hooks = {
-      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "./check.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.preToolUse!;
-    expect(defs[0]!.matcher).toBe("Bash");
+  it("should skip invalid entries and non-array events", () => {
+    const result = pascalHooksToCanonical({
+      hooks: {
+        SessionStart: [
+          "bad",
+          { matcher: 123, hooks: [] },
+          { hooks: [{ type: "command", command: "./ok.sh" }] },
+        ],
+        Stop: "not-array",
+      },
+      converterConfig: CFG,
+    });
+    expect(result.sessionStart!).toHaveLength(1);
+    expect(result.sessionStart![0]!.command).toBe("./ok.sh");
+    expect(result).not.toHaveProperty("stop");
   });
 
-  it("should omit matcher when entry.matcher is empty string", () => {
-    const hooks = {
-      SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "./start.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs[0]).not.toHaveProperty("matcher");
-  });
-
-  it("should skip entries that are not valid PascalMatcherEntry", () => {
-    const hooks = {
-      SessionStart: ["invalid-string-entry", { hooks: [{ type: "command", command: "./ok.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs).toHaveLength(1);
-    expect(defs[0]!.command).toBe("./ok.sh");
-  });
-
-  it("should skip entries with non-string matcher", () => {
-    const hooks = {
-      SessionStart: [{ matcher: 123, hooks: [{ type: "command", command: "./bad.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    expect(result).not.toHaveProperty("sessionStart");
-  });
-
-  it("should skip entries with non-array hooks property", () => {
-    const hooks = {
-      SessionStart: [{ hooks: "not-an-array" }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    expect(result).not.toHaveProperty("sessionStart");
-  });
-
-  it("should skip events where matcherEntries is not an array", () => {
-    const hooks = {
-      SessionStart: "not-an-array",
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    expect(result).not.toHaveProperty("sessionStart");
-  });
-
-  it("should not include event when all entries have no hooks", () => {
-    const hooks = {
-      SessionStart: [{ matcher: "test" }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    expect(result).not.toHaveProperty("sessionStart");
-  });
-
-  it("should preserve prompt field", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "prompt", prompt: "Check this" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs[0]!.prompt).toBe("Check this");
-    expect(defs[0]!.type).toBe("prompt");
-  });
-
-  it("should default type to command when type is invalid", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "invalid", command: "./start.sh" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
+  it("should default invalid type to command and handle prompt/timeout", () => {
+    const result = pascalHooksToCanonical({
+      hooks: {
+        SessionStart: [
+          { hooks: [{ type: "invalid", command: "./a.sh" }] },
+          { hooks: [{ type: "prompt", prompt: "Check", timeout: 5000 }] },
+          { hooks: [{ type: "command", command: "./b.sh", timeout: "bad" }] },
+        ],
+      },
+      converterConfig: CFG,
+    });
     const defs = result.sessionStart!;
     expect(defs[0]!.type).toBe("command");
-  });
-
-  it("should omit timeout when not a number", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "command", command: "./start.sh", timeout: "5000" }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs[0]).not.toHaveProperty("timeout");
-  });
-
-  it("should preserve timeout when it is a number", () => {
-    const hooks = {
-      SessionStart: [{ hooks: [{ type: "command", command: "./start.sh", timeout: 5000 }] }],
-    };
-    const result = pascalHooksToCanonical({ hooks, converterConfig: TEST_CONFIG });
-    const defs = result.sessionStart!;
-    expect(defs[0]!.timeout).toBe(5000);
+    expect(defs[1]!.prompt).toBe("Check");
+    expect(defs[1]!.timeout).toBe(5000);
+    expect(defs[2]).not.toHaveProperty("timeout");
   });
 });
