@@ -130,15 +130,15 @@ export const formatEmailBody = ({
   let body = "# Security Scan Report\n\n";
 
   for (const [filename, result] of results.entries()) {
-    const highVulns = result.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity));
+    const filtered = result.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity));
 
     body += `## ${filename}\n\n`;
     body += `${result.summary}\n`;
-    const vulnCount = highVulns.length;
-    const vulnLabel = vulnCount === 1 ? "vulnerability" : "vulnerabilities";
-    body += `### Found ${vulnCount} ${vulnLabel} (high+)\n\n`;
+    const count = filtered.length;
+    const label = count === 1 ? "vulnerability" : "vulnerabilities";
+    body += `### Found ${count} ${label} (high+)\n\n`;
 
-    for (const vuln of highVulns) {
+    for (const vuln of filtered) {
       body += `**[${vuln.severity}] ${vuln.filePath} ${vuln.line}**\n`;
       body += `- Reason: ${vuln.reason}\n`;
       body += "\n";
