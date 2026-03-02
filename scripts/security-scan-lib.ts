@@ -132,6 +132,10 @@ export const formatEmailBody = ({
   for (const [filename, result] of results.entries()) {
     const filtered = result.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity));
 
+    if (filtered.length === 0) {
+      continue;
+    }
+
     body += `## ${filename}\n\n`;
     body += `${result.summary}\n`;
     const count = filtered.length;
