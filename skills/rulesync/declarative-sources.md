@@ -1,6 +1,6 @@
 # Declarative Skill Sources
 
-Rulesync can fetch skills from external GitHub repositories using the `install` command. Instead of manually running `fetch` for each skill source, declare them in your `rulesync.jsonc` and run `rulesync install` to resolve and fetch them. Then `rulesync generate` picks them up as local curated skills. Typical workflow: `rulesync install && rulesync generate`.
+Rulesync can fetch skills from external repositories using the `install` command. Instead of manually running `fetch` for each skill source, declare them in your `rulesync.jsonc` and run `rulesync install` to resolve and fetch them. Then `rulesync generate` picks them up as local curated skills. Typical workflow: `rulesync install && rulesync generate`.
 
 ## Configuration
 
@@ -12,7 +12,7 @@ Add a `sources` array to your `rulesync.jsonc`:
   "targets": ["copilot", "claudecode"],
   "features": ["rules", "skills"],
   "sources": [
-    // Fetch all skills from a repository
+    // Fetch all skills from a GitHub repository (default transport)
     { "source": "owner/repo" },
 
     // Fetch only specific skills by name
@@ -20,16 +20,30 @@ Add a `sources` array to your `rulesync.jsonc`:
 
     // With ref pinning and subdirectory path (same syntax as fetch command)
     { "source": "owner/repo@v1.0.0:path/to/skills" },
+
+    // Git transport — works with any git remote (Azure DevOps, Bitbucket, etc.)
+    {
+      "source": "https://dev.azure.com/org/project/_git/repo",
+      "transport": "git",
+      "ref": "main",
+      "path": "exports/skills",
+    },
+
+    // Git transport with a local repository
+    { "source": "file:///path/to/local/repo", "transport": "git" },
   ],
 }
 ```
 
 Each entry in `sources` accepts:
 
-| Property | Type       | Description                                                                                                 |
-| -------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| `source` | `string`   | Repository source using the same format as the `fetch` command (`owner/repo`, `owner/repo@ref:path`, etc.). |
-| `skills` | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                  |
+| Property    | Type       | Description                                                                                                                      |
+| ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.               |
+| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                                       |
+| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                               |
+| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.  |
+| `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. For GitHub transport, use the `:path` source syntax. |
 
 ## How It Works
 
@@ -95,7 +109,7 @@ To update locked refs, run `rulesync install --update`.
 
 ## Authentication
 
-Source fetching uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits.
+GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.).
 
 ```bash
 # Using environment variable

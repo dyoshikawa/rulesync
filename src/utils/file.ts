@@ -163,6 +163,11 @@ export async function fileExists(filepath: string): Promise<boolean> {
   }
 }
 
+export async function getFileSize(filepath: string): Promise<number> {
+  const stats = await stat(filepath);
+  return stats.size;
+}
+
 export async function listDirectoryFiles(dir: string): Promise<string[]> {
   try {
     return await readdir(dir);

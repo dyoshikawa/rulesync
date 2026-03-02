@@ -1,4 +1,4 @@
-import { minLength, optional, z } from "zod/mini";
+import { minLength, optional, refine, z } from "zod/mini";
 
 import {
   ALL_FEATURES,
@@ -23,6 +23,14 @@ import {
 export const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
+  transport: optional(z.enum(["github", "git"])),
+  ref: optional(
+    z.string().check(
+      refine((v) => !v.startsWith("-"), 'ref must not start with "-"'),
+      refine((v) => !v.includes("\n") && !v.includes("\r"), "ref must not contain newlines"),
+    ),
+  ),
+  path: optional(z.string().check(refine((v) => !v.includes(".."), 'path must not contain ".."'))),
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
