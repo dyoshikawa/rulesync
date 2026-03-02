@@ -7,11 +7,10 @@ import { z } from "zod";
 export const SecurityScanResultSchema = z.object({
   vulnerabilities: z.array(
     z.object({
-      severity: z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]),
-      title: z.string(),
-      description: z.string(),
-      location: z.string().optional(),
-      recommendation: z.string().optional(),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+      reason: z.string(),
+      filePath: z.string(),
+      line: z.string(),
     }),
   ),
   summary: z.string(),
@@ -30,14 +29,14 @@ export const SECURITY_SCAN_JSON_SCHEMA = {
         properties: {
           severity: {
             type: "string",
-            enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            enum: ["low", "medium", "high", "critical"],
           },
-          title: { type: "string" },
-          description: { type: "string" },
-          location: { type: "string" },
-          recommendation: { type: "string" },
+          reason: { type: "string" },
+          filePath: { type: "string" },
+          line: { type: "string" },
         },
-        required: ["severity", "title", "description"],
+        required: ["severity", "reason", "filePath", "line"],
+        additionalProperties: false,
       },
     },
     summary: { type: "string" },
@@ -136,14 +135,8 @@ export const formatEmailBody = ({
     body += `### Found ${vulnCount} ${vulnLabel}\n\n`;
 
     for (const vuln of result.vulnerabilities) {
-      body += `**[${vuln.severity}] ${vuln.title}**\n`;
-      if (vuln.location) {
-        body += `- Location: ${vuln.location}\n`;
-      }
-      body += `- Description: ${vuln.description}\n`;
-      if (vuln.recommendation) {
-        body += `- Recommendation: ${vuln.recommendation}\n`;
-      }
+      body += `**[${vuln.severity}] ${vuln.filePath} ${vuln.line}**\n`;
+      body += `- Reason: ${vuln.reason}\n`;
       body += "\n";
     }
 

@@ -120,11 +120,10 @@ describe("SecurityScanResultSchema", () => {
     const input = {
       vulnerabilities: [
         {
-          severity: "HIGH",
-          title: "SQL Injection",
-          description: "User input is not sanitized",
-          location: "src/db.ts:42",
-          recommendation: "Use parameterized queries",
+          severity: "high",
+          reason: "User input is not sanitized",
+          filePath: "src/db.ts",
+          line: "L42",
         },
       ],
       summary: "Found 1 vulnerability",
@@ -142,13 +141,14 @@ describe("SecurityScanResultSchema", () => {
     expect(result).toEqual(input);
   });
 
-  it("should validate a result with optional fields omitted", () => {
+  it("should validate a result with line range", () => {
     const input = {
       vulnerabilities: [
         {
-          severity: "LOW",
-          title: "Info disclosure",
-          description: "Debug info exposed",
+          severity: "low",
+          reason: "Debug info exposed",
+          filePath: "src/debug.ts",
+          line: "L10-L11",
         },
       ],
       summary: "Found 1 vulnerability",
@@ -162,8 +162,9 @@ describe("SecurityScanResultSchema", () => {
       vulnerabilities: [
         {
           severity: "UNKNOWN",
-          title: "Test",
-          description: "Test",
+          reason: "Test",
+          filePath: "test.ts",
+          line: "L1",
         },
       ],
       summary: "Test",
@@ -178,11 +179,10 @@ describe("formatEmailBody", () => {
     results.set("app.toon", {
       vulnerabilities: [
         {
-          severity: "CRITICAL",
-          title: "RCE",
-          description: "Remote code execution",
-          location: "src/exec.ts:10",
-          recommendation: "Sanitize input",
+          severity: "critical",
+          reason: "Remote code execution via unsanitized input",
+          filePath: "src/exec.ts",
+          line: "L10",
         },
       ],
       summary: "Critical issue found",
@@ -192,10 +192,8 @@ describe("formatEmailBody", () => {
     expect(body).toContain("# Security Scan Report");
     expect(body).toContain("## app.toon");
     expect(body).toContain("Critical issue found");
-    expect(body).toContain("[CRITICAL] RCE");
-    expect(body).toContain("Location: src/exec.ts:10");
-    expect(body).toContain("Remote code execution");
-    expect(body).toContain("Sanitize input");
+    expect(body).toContain("[critical] src/exec.ts L10");
+    expect(body).toContain("Reason: Remote code execution via unsanitized input");
   });
 
   it("should format multiple files", () => {
@@ -207,9 +205,10 @@ describe("formatEmailBody", () => {
     results.set("b.toon", {
       vulnerabilities: [
         {
-          severity: "LOW",
-          title: "Minor issue",
-          description: "Not critical",
+          severity: "low",
+          reason: "Not critical",
+          filePath: "src/minor.ts",
+          line: "L5",
         },
       ],
       summary: "Minor issues",
@@ -235,9 +234,10 @@ describe("runSecurityScan", () => {
     const scanResult: SecurityScanResult = {
       vulnerabilities: [
         {
-          severity: "HIGH",
-          title: "XSS",
-          description: "Cross-site scripting",
+          severity: "high",
+          reason: "Cross-site scripting",
+          filePath: "src/render.ts",
+          line: "L15-L20",
         },
       ],
       summary: "Found XSS",

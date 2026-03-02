@@ -15,16 +15,49 @@ import {
   validateEnv,
 } from "./security-scan-lib.js";
 
+const TOON_FORMAT_DESCRIPTION = `\
+## About TOON Format
+
+The content below is encoded in TOON (Token-Oriented Object Notation), a compact data format \
+designed for LLM prompts. Here is a quick reference for reading TOON:
+
+- Key-value pairs use colon separation: \`name: Alice\`
+- Primitive arrays use bracket notation for length: \`colors[3]: red,green,blue\`
+- Tabular arrays declare fields in braces, then list rows:
+  \`\`\`
+  users[2]{id,name,role}:
+    1,Alice,admin
+    2,Bob,user
+  \`\`\`
+- Nesting is represented by indentation (similar to YAML):
+  \`\`\`
+  user:
+    id: 1
+    profile:
+      age: 30
+  \`\`\`
+- Strings are unquoted unless they contain special characters, match boolean/null keywords, or resemble numbers.
+
+## Response Format
+
+Report each vulnerability as a JSON object with the following keys:
+- **severity**: One of "low", "medium", "high", "critical"
+- **reason**: A concise description of the vulnerability
+- **filePath**: The file path where the vulnerability was found
+- **line**: The line range (e.g., "L10", "L10-L11")
+`;
+
 const main = async (): Promise<void> => {
   const env = validateEnv();
   const {
     openrouterApiKey,
     model,
-    securityScanPrompt: prompt,
+    securityScanPrompt,
     resendApiKey,
     resendFromEmail,
     securityScanRecipient,
   } = env;
+  const prompt = `${TOON_FORMAT_DESCRIPTION}\n${securityScanPrompt}`;
 
   const client = new OpenRouter({ apiKey: openrouterApiKey });
 
