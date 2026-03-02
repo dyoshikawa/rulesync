@@ -123,8 +123,11 @@ export class GeminiCliCommand extends ToolCommand {
     // Generate proper file content with TOML format
     // Note: TOML format only supports description and prompt fields
     // Extra fields from geminicli section are stored in the object but not serialized to TOML
-    const tomlContent = `description = "${geminiFrontmatter.description}"
-prompt = """
+    const descriptionLine =
+      geminiFrontmatter.description !== undefined
+        ? `description = "${geminiFrontmatter.description}"\n`
+        : "";
+    const tomlContent = `${descriptionLine}prompt = """
 ${geminiFrontmatter.prompt}
 """`;
 
