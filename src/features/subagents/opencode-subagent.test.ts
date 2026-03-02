@@ -131,6 +131,44 @@ describe("OpenCodeSubagent", () => {
     expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agent"));
   });
 
+  it("should preserve primary mode for OpenCode subagent", () => {
+    // Regression test for: opencode.mode was hardcoded to 'subagent' instead of being preserved
+    const rulesyncSubagent = new RulesyncSubagent({
+      baseDir: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "primary-agent.md",
+      frontmatter: {
+        targets: ["*"],
+        name: "primary-agent",
+        description: "A primary mode agent",
+        opencode: {
+          mode: "primary",
+          hidden: false,
+          tools: {
+            bash: true,
+            edit: true,
+          },
+        },
+      },
+      body: "Test body for primary agent",
+      validate: false,
+    });
+
+    const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      global: true,
+      baseDir: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as OpenCodeSubagent;
+
+    expect(toolSubagent.getFrontmatter().mode).toBe("primary");
+    expect(toolSubagent.getFrontmatter().name).toBe("primary-agent");
+    expect(toolSubagent.getFrontmatter().tools).toEqual({
+      bash: true,
+      edit: true,
+    });
+  });
+
   it("should load from file and validate frontmatter", async () => {
     const dirPath = join(testDir, ".opencode", "agent");
     const filePath = join(dirPath, "general.md");

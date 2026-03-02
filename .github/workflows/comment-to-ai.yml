@@ -27,6 +27,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Minimize triggering comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
+        run: |
+          set -euo pipefail
+          gh api graphql \
+            -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
+            -f id="${COMMENT_NODE_ID}" >/dev/null
+
       - name: Configure git
         run: |
           git config user.name dyoshikawa
@@ -101,6 +111,16 @@ jobs:
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
+
+      - name: Minimize triggering comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
+        run: |
+          set -euo pipefail
+          gh api graphql \
+            -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
+            -f id="${COMMENT_NODE_ID}" >/dev/null
 
       - name: Minimize old bot comments on PR
         env:

@@ -31,3 +31,4 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
   - This directory contains official skills that are distributed for users to install via the `rulesync fetch` command (e.g., `npx rulesync fetch dyoshikawa/rulesync --features skills`).
   - It is NOT the same as `.rulesync/skills/`, which holds the project's own skill definitions used during generation.
   - Do not modify the root `skills/` directory unless you intend to change the official skills distributed to users.
+- The contents of `docs/` and `skills/rulesync/` are automatically synchronized by `scripts/sync-skill-docs.ts`. Be aware that their content may overlap.

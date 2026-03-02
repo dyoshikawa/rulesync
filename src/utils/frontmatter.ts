@@ -1,5 +1,7 @@
 import matter from "gray-matter";
 
+import { formatError } from "./error.js";
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object") return false;
   const prototype = Object.getPrototypeOf(value);
@@ -73,10 +75,9 @@ export function parseFrontmatter(
     body = result.content;
   } catch (error) {
     if (filePath) {
-      throw new Error(
-        `Failed to parse frontmatter in ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      );
+      throw new Error(`Failed to parse frontmatter in ${filePath}: ${formatError(error)}`, {
+        cause: error,
+      });
     }
     throw error;
   }
