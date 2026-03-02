@@ -30,6 +30,8 @@ export const HookDefinitionSchema = z.looseObject({
   matcher: z.optional(safeString),
   prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),
+  name: z.optional(safeString),
+  description: z.optional(safeString),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -58,6 +60,7 @@ export type HookEvent =
   | "afterMCPExecution"
   | "beforeReadFile"
   | "afterFileEdit"
+  | "beforeAgentResponse"
   | "afterAgentResponse"
   | "afterAgentThought"
   | "beforeTabFileRead"
@@ -65,8 +68,8 @@ export type HookEvent =
   | "permissionRequest"
   | "notification"
   | "setup"
-  | "afterSubmitPrompt"
-  | "afterError";
+  | "afterError"
+  | "beforeToolSelection";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -122,7 +125,7 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
-  "afterSubmitPrompt",
+  "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
   "afterError",
@@ -143,6 +146,21 @@ export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
   "setup",
 ];
 
+/** Hook events supported by Gemini CLI. */
+export const GEMINICLI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "stop",
+  "beforeAgentResponse",
+  "afterAgentResponse",
+  "beforeToolSelection",
+  "preToolUse",
+  "postToolUse",
+  "preCompact",
+  "notification",
+];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -156,6 +174,7 @@ export const HooksConfigSchema = z.looseObject({
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -261,7 +280,7 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
 export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   sessionStart: "sessionStart",
   sessionEnd: "sessionEnd",
-  afterSubmitPrompt: "userPromptSubmitted",
+  beforeSubmitPrompt: "userPromptSubmitted",
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
   afterError: "errorOccurred",
@@ -272,4 +291,28 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
  */
 export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_COPILOT_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Gemini CLI PascalCase.
+ */
+export const CANONICAL_TO_GEMINICLI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  beforeSubmitPrompt: "BeforeAgent",
+  stop: "AfterAgent",
+  beforeAgentResponse: "BeforeModel",
+  afterAgentResponse: "AfterModel",
+  beforeToolSelection: "BeforeToolSelection",
+  preToolUse: "BeforeTool",
+  postToolUse: "AfterTool",
+  preCompact: "PreCompress",
+  notification: "Notification",
+};
+
+/**
+ * Map Gemini CLI PascalCase event names to canonical camelCase.
+ */
+export const GEMINICLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_GEMINICLI_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

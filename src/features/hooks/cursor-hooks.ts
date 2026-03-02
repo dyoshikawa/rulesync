@@ -79,7 +79,14 @@ export class CursorHooks extends ToolHooks {
     const mappedHooks: HooksConfig["hooks"] = {};
     for (const [eventName, defs] of Object.entries(mergedHooks)) {
       const cursorEventName = CANONICAL_TO_CURSOR_EVENT_NAMES[eventName] ?? eventName;
-      mappedHooks[cursorEventName] = defs;
+      mappedHooks[cursorEventName] = defs.map((def) => ({
+        ...(def.type !== undefined && def.type !== null && { type: def.type }),
+        ...(def.command !== undefined && def.command !== null && { command: def.command }),
+        ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
+        ...(def.loop_limit !== undefined && { loop_limit: def.loop_limit }),
+        ...(def.matcher !== undefined && def.matcher !== null && { matcher: def.matcher }),
+        ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
+      }));
     }
     const cursorConfig = {
       version: config.version ?? 1,

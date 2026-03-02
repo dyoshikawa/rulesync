@@ -63,6 +63,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
       expect(content).toContain("**/.github/agents/");
+      expect(content).toContain("**/.github/hooks/");
       expect(content).toContain("**/.github/prompts/");
       expect(content).toContain("**/.warp/");
       expect(content).toContain("**/.codex/memories/");
@@ -237,6 +238,7 @@ dist/`;
 **/.github/prompts/
 **/.github/agents/
 **/.github/skills/
+**/.github/hooks/
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
@@ -365,6 +367,7 @@ rulesync.local.jsonc
 **/.github/prompts/
 **/.github/agents/
 **/.github/skills/
+**/.github/hooks/
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json

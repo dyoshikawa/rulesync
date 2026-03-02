@@ -208,6 +208,22 @@ describe("sources-lock", () => {
     it("should handle combined transformations", () => {
       expect(normalizeSourceKey("https://github.com/ORG/Repo.git/")).toBe("org/repo");
     });
+
+    it("should strip https://gitlab.com/ prefix", () => {
+      expect(normalizeSourceKey("https://gitlab.com/org/repo")).toBe("org/repo");
+    });
+
+    it("should strip https://www.gitlab.com/ prefix", () => {
+      expect(normalizeSourceKey("https://www.gitlab.com/org/repo")).toBe("org/repo");
+    });
+
+    it("should strip http://gitlab.com/ prefix", () => {
+      expect(normalizeSourceKey("http://gitlab.com/org/repo")).toBe("org/repo");
+    });
+
+    it("should strip gitlab: prefix", () => {
+      expect(normalizeSourceKey("gitlab:org/repo")).toBe("org/repo");
+    });
   });
 
   describe("getLockedSource", () => {

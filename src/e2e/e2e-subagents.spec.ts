@@ -36,4 +36,38 @@ You are the planner. Analyze files and create a plan.
     expect(generatedContent).toContain("planner");
     expect(generatedContent).toContain("Analyze files and create a plan.");
   });
+
+  it("should preserve opencode.mode when generating OpenCode subagents", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a subagent with opencode.mode: primary
+    const subagentContent = `---
+name: primary-agent
+targets: ["*"]
+description: "A primary mode agent"
+opencode:
+  mode: primary
+  hidden: false
+  tools:
+    bash: true
+    edit: true
+---
+You are a primary agent. You appear in the Tab rotation.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "primary-agent.md"),
+      subagentContent,
+    );
+
+    // Execute: Generate subagents for opencode
+    await runGenerate({ target: "opencode", features: "subagents" });
+
+    // Verify that the mode is preserved as primary, not defaulting to subagent
+    const generatedContent = await readFileContent(
+      join(testDir, ".opencode", "agent", "primary-agent.md"),
+    );
+    expect(generatedContent).toContain("mode: primary");
+    expect(generatedContent).not.toContain("mode: subagent");
+    expect(generatedContent).toContain("A primary mode agent");
+  });
 });

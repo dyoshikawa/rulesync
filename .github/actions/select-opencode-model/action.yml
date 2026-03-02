@@ -34,4 +34,7 @@ runs:
         CLEANED="${CLEANED//codex/}"
         CLEANED="${CLEANED//glm/}"
         CLEANED="${CLEANED//kimi/}"
-        echo "cleaned_text=$CLEANED" >> $GITHUB_OUTPUT
+        EOF_MARKER=$(uuidgen)
+        echo "cleaned_text<<${EOF_MARKER}" >> $GITHUB_OUTPUT
+        echo "$CLEANED" >> $GITHUB_OUTPUT
+        echo "${EOF_MARKER}" >> $GITHUB_OUTPUT
