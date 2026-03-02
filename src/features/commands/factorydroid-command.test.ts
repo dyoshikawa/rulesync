@@ -20,8 +20,7 @@ This is the body of the factorydroid command.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required fields
-invalid: true
+description: 123
 ---
 
 Body content`;

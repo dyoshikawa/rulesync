@@ -122,7 +122,7 @@ describe("AugmentcodeLegacyRule", () => {
       const frontmatter = rulesyncRule.getFrontmatter();
       expect(frontmatter.root).toBe(false);
       expect(frontmatter.targets).toEqual(["*"]);
-      expect(frontmatter.description).toBe("");
+      expect(frontmatter.description).toBeUndefined();
       expect(frontmatter.globs).toEqual([]);
     });
 
@@ -146,7 +146,7 @@ describe("AugmentcodeLegacyRule", () => {
       const frontmatter = rulesyncRule.getFrontmatter();
       expect(frontmatter.root).toBe(true);
       expect(frontmatter.targets).toEqual(["*"]);
-      expect(frontmatter.description).toBe("");
+      expect(frontmatter.description).toBeUndefined();
       expect(frontmatter.globs).toEqual(["**/*"]);
     });
 

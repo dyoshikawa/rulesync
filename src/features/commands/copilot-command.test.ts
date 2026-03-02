@@ -25,8 +25,8 @@ This is the body of the copilot command.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required description field
-mode: agent
+mode: 123
+description: 456
 ---
 
 Body content`;
@@ -114,20 +114,18 @@ Body content`;
       expect(command).toBeInstanceOf(CopilotCommand);
     });
 
-    it("should throw error for invalid frontmatter when validation is enabled", () => {
-      expect(
-        () =>
-          new CopilotCommand({
-            baseDir: testDir,
-            relativeDirPath: join(".github", "prompts"),
-            relativeFilePath: "invalid-command.prompt.md",
-            frontmatter: {
-              // Missing required mode and description field
-            } as CopilotCommandFrontmatter,
-            body: "Body content",
-            validate: true,
-          }),
-      ).toThrow();
+    it("should accept frontmatter without description (description is optional)", () => {
+      const command = new CopilotCommand({
+        baseDir: testDir,
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "no-desc-command.prompt.md",
+        frontmatter: {} as CopilotCommandFrontmatter,
+        body: "Body content",
+        validate: true,
+      });
+
+      expect(command).toBeInstanceOf(CopilotCommand);
+      expect(command.getFrontmatter().description).toBeUndefined();
     });
   });
 
@@ -351,18 +349,19 @@ Body content`;
       ).rejects.toThrow();
     });
 
-    it("should handle file without frontmatter", async () => {
+    it("should handle file without frontmatter (description is optional)", async () => {
       const commandsDir = join(testDir, ".github", "prompts");
       const filePath = join(commandsDir, "no-frontmatter.prompt.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
-      await expect(
-        CopilotCommand.fromFile({
-          relativeFilePath: "no-frontmatter.prompt.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
+      const command = await CopilotCommand.fromFile({
+        relativeFilePath: "no-frontmatter.prompt.md",
+        validate: true,
+      });
+
+      expect(command).toBeInstanceOf(CopilotCommand);
+      expect(command.getFrontmatter().description).toBeUndefined();
     });
   });
 
@@ -426,12 +425,14 @@ Body content`;
       expect(result).toEqual(validFrontmatter);
     });
 
-    it("should throw error for frontmatter without description", () => {
-      const invalidFrontmatter = {
+    it("should accept frontmatter without description (description is optional)", () => {
+      const frontmatter = {
         mode: "agent",
       };
 
-      expect(() => CopilotCommandFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+      const result = CopilotCommandFrontmatterSchema.parse(frontmatter);
+      expect(result.mode).toBe("agent");
+      expect(result.description).toBeUndefined();
     });
 
     it("should validate frontmatter with any string mode (mode is optional string)", () => {

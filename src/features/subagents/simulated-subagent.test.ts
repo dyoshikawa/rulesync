@@ -301,13 +301,17 @@ Body content`;
       expect(result.success).toBe(false);
     });
 
-    it("should reject frontmatter without description", () => {
-      const invalidFrontmatter = {
+    it("should accept frontmatter without description (description is optional)", () => {
+      const frontmatter = {
         name: "Test Agent",
       };
 
-      const result = SimulatedSubagentFrontmatterSchema.safeParse(invalidFrontmatter);
-      expect(result.success).toBe(false);
+      const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.name).toBe("Test Agent");
+        expect(result.data.description).toBeUndefined();
+      }
     });
   });
 });

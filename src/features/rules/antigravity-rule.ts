@@ -145,7 +145,7 @@ type TriggerStrategy = {
   ): AntigravityRuleFrontmatter;
   exportRulesyncData(frontmatter: AntigravityRuleFrontmatter): {
     globs: string[];
-    description: string;
+    description?: string;
     antigravity: Record<string, unknown>;
   };
 };
@@ -164,7 +164,7 @@ const globStrategy: TriggerStrategy = {
   },
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: parseGlobsString(frontmatter.globs),
-    description: description || "",
+    description,
     antigravity: frontmatter,
   }),
 };
@@ -177,7 +177,7 @@ const manualStrategy: TriggerStrategy = {
   }),
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: [],
-    description: description || "",
+    description,
     antigravity: frontmatter,
   }),
 };
@@ -190,7 +190,7 @@ const alwaysOnStrategy: TriggerStrategy = {
   }),
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: ["**/*"],
-    description: description || "",
+    description,
     antigravity: frontmatter,
   }),
 };
@@ -204,7 +204,7 @@ const modelDecisionStrategy: TriggerStrategy = {
   }),
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: [],
-    description: description || "",
+    description,
     antigravity: frontmatter,
   }),
 };
@@ -225,7 +225,7 @@ const unknownStrategy: TriggerStrategy = {
   },
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : ["**/*"],
-    description: description || "",
+    description,
     antigravity: frontmatter,
   }),
 };
@@ -261,7 +261,7 @@ const inferenceStrategy: TriggerStrategy = {
   },
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : ["**/*"],
-    description: description || "",
+    description,
     antigravity: frontmatter,
   }),
 };
@@ -435,11 +435,10 @@ export class AntigravityRule extends ToolRule {
     // So we should find one. If not, fallback to empty array?
     let rulesyncData: {
       globs: string[];
-      description: string;
+      description?: string;
       antigravity: Record<string, unknown>;
     } = {
       globs: [],
-      description: "",
       antigravity: this.frontmatter,
     };
 

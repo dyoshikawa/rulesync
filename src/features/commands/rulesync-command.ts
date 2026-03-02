@@ -18,7 +18,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 // Tool-specific sections (e.g., claudecode:, copilot:) are preserved as additional keys
 export const RulesyncCommandFrontmatterSchema = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  description: z.string(),
+  description: z.optional(z.string()),
 });
 
 // Input type allows targets to be omitted (will use default value)

@@ -152,7 +152,7 @@ describe("CursorCommand", () => {
       expect(rulesyncCommand.getFileContent()).toContain("Test body content");
     });
 
-    it("should default description to empty string when not set", () => {
+    it("should propagate undefined description when not set", () => {
       const command = new CursorCommand({
         baseDir: testDir,
         relativeDirPath: ".cursor/commands",
@@ -163,7 +163,7 @@ describe("CursorCommand", () => {
       });
 
       const rulesyncCommand = command.toRulesyncCommand();
-      expect(rulesyncCommand.getFrontmatter().description).toBe("");
+      expect(rulesyncCommand.getFrontmatter().description).toBeUndefined();
     });
 
     it("should preserve handoffs in cursor section", () => {

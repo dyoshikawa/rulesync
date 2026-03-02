@@ -16,7 +16,7 @@ import {
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const RooCommandFrontmatterSchema = z.looseObject({
-  description: z.string(),
+  description: z.optional(z.string()),
   "argument-hint": optional(z.string()),
 });
 

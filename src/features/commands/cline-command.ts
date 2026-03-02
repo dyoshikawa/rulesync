@@ -30,7 +30,6 @@ export class ClineCommand extends ToolCommand {
   toRulesyncCommand(): RulesyncCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
-      description: "",
     };
 
     return new RulesyncCommand({

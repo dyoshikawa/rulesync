@@ -24,7 +24,6 @@ export class KiloCommand extends ToolCommand {
   toRulesyncCommand(): RulesyncCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
-      description: "",
     };
 
     return new RulesyncCommand({

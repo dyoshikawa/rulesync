@@ -16,7 +16,7 @@ import {
 
 export const SimulatedSubagentFrontmatterSchema = z.object({
   name: z.string(),
-  description: z.string(),
+  description: z.optional(z.string()),
 });
 
 export type SimulatedSubagentFrontmatter = z.infer<typeof SimulatedSubagentFrontmatterSchema>;

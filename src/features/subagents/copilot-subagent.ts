@@ -20,7 +20,7 @@ const REQUIRED_TOOL = "agent/runSubagent";
 
 const CopilotSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
-  description: z.string(),
+  description: z.optional(z.string()),
   tools: z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
