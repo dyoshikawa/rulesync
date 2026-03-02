@@ -28,7 +28,7 @@ export const HookDefinitionSchema = z.looseObject({
   type: z.optional(z.enum(["command", "prompt"])),
   timeout: z.optional(z.number()),
   matcher: z.optional(safeString),
-  prompt: z.optional(z.string()),
+  prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),
   name: z.optional(safeString),
   description: z.optional(safeString),

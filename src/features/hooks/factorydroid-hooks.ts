@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
-import type { HooksConfig } from "../../types/hooks.js";
 import {
   FACTORYDROID_HOOK_EVENTS,
   FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
@@ -11,6 +10,8 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
+import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -19,111 +20,12 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-/**
- * Convert canonical hooks config to Factory Droid format.
- * Factory Droid uses PascalCase event names and a matcher/hooks structure,
- * with $FACTORY_PROJECT_DIR as the project directory variable.
- */
-function canonicalToFactorydroidHooks(config: HooksConfig): Record<string, unknown[]> {
-  const supported: Set<string> = new Set(FACTORYDROID_HOOK_EVENTS);
-  const sharedHooks: HooksConfig["hooks"] = {};
-  for (const [event, defs] of Object.entries(config.hooks)) {
-    if (supported.has(event)) {
-      sharedHooks[event] = defs;
-    }
-  }
-  const effectiveHooks: HooksConfig["hooks"] = {
-    ...sharedHooks,
-    ...config.factorydroid?.hooks,
-  };
-  const result: Record<string, unknown[]> = {};
-  for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const pascalEventName = CANONICAL_TO_FACTORYDROID_EVENT_NAMES[eventName] ?? eventName;
-    const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
-    for (const def of definitions) {
-      const key = def.matcher ?? "";
-      const list = byMatcher.get(key);
-      if (list) list.push(def);
-      else byMatcher.set(key, [def]);
-    }
-    const entries: unknown[] = [];
-    for (const [matcherKey, defs] of byMatcher) {
-      const hooks = defs.map((def) => {
-        const command =
-          def.command !== undefined && def.command !== null && !def.command.startsWith("$")
-            ? `$FACTORY_PROJECT_DIR/${def.command.replace(/^\.\//, "")}`
-            : def.command;
-        return {
-          type: def.type ?? "command",
-          ...(command !== undefined && command !== null && { command }),
-          ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
-          ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
-        };
-      });
-      entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
-    }
-    result[pascalEventName] = entries;
-  }
-  return result;
-}
-
-type FactorydroidMatcherEntry = {
-  matcher?: string;
-  hooks?: Array<Record<string, unknown>>;
+const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+  supportedEvents: FACTORYDROID_HOOK_EVENTS,
+  canonicalToToolEventNames: CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
+  toolToCanonicalEventNames: FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
+  projectDirVar: "$FACTORY_PROJECT_DIR",
 };
-
-function isFactorydroidMatcherEntry(x: unknown): x is FactorydroidMatcherEntry {
-  if (x === null || typeof x !== "object") {
-    return false;
-  }
-  if ("matcher" in x && typeof x.matcher !== "string") {
-    return false;
-  }
-  if ("hooks" in x && !Array.isArray(x.hooks)) {
-    return false;
-  }
-  return true;
-}
-
-function factorydroidHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
-  if (hooks === null || hooks === undefined || typeof hooks !== "object") {
-    return {};
-  }
-  const canonical: HooksConfig["hooks"] = {};
-  for (const [pascalEventName, matcherEntries] of Object.entries(hooks)) {
-    const eventName = FACTORYDROID_TO_CANONICAL_EVENT_NAMES[pascalEventName] ?? pascalEventName;
-    if (!Array.isArray(matcherEntries)) continue;
-    const defs: HooksConfig["hooks"][string] = [];
-    for (const rawEntry of matcherEntries) {
-      if (!isFactorydroidMatcherEntry(rawEntry)) continue;
-      const entry = rawEntry;
-      const hookDefs = entry.hooks ?? [];
-      for (const h of hookDefs) {
-        const cmd = typeof h.command === "string" ? h.command : undefined;
-        const command =
-          typeof cmd === "string" && cmd.includes("$FACTORY_PROJECT_DIR/")
-            ? cmd.replace(/^\$FACTORY_PROJECT_DIR\/?/, "./")
-            : cmd;
-        const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
-        const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
-        const prompt = typeof h.prompt === "string" ? h.prompt : undefined;
-        defs.push({
-          type: hookType,
-          ...(command !== undefined && command !== null && { command }),
-          ...(timeout !== undefined && timeout !== null && { timeout }),
-          ...(prompt !== undefined && prompt !== null && { prompt }),
-          ...(entry.matcher !== undefined &&
-            entry.matcher !== null &&
-            entry.matcher !== "" && { matcher: entry.matcher }),
-        });
-      }
-    }
-    if (defs.length > 0) {
-      canonical[eventName] = defs;
-    }
-  }
-  return canonical;
-}
 
 export class FactorydroidHooks extends ToolHooks {
   constructor(params: AiFileParams) {
@@ -180,7 +82,11 @@ export class FactorydroidHooks extends ToolHooks {
       );
     }
     const config = rulesyncHooks.getJson();
-    const factorydroidHooks = canonicalToFactorydroidHooks(config);
+    const factorydroidHooks = canonicalToToolHooks({
+      config,
+      toolOverrideHooks: config.factorydroid?.hooks,
+      converterConfig: FACTORYDROID_CONVERTER_CONFIG,
+    });
     const merged = { ...settings, hooks: factorydroidHooks };
     const fileContent = JSON.stringify(merged, null, 2);
     return new FactorydroidHooks({
@@ -204,7 +110,10 @@ export class FactorydroidHooks extends ToolHooks {
         },
       );
     }
-    const hooks = factorydroidHooksToCanonical(settings.hooks);
+    const hooks = toolHooksToCanonical({
+      hooks: settings.hooks,
+      converterConfig: FACTORYDROID_CONVERTER_CONFIG,
+    });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
     });
