@@ -1,0 +1,81 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read # Default for pull_request events
+  pull-requests: write # Required for commenting and closing PRs
+
+jobs:
+  check-policy:
+    name: External Contributor Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check contributor policy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          EVENT_ACTION: ${{ github.event.action }}
+        run: |
+          set -euo pipefail
+
+          # Skip for repository members
+          if [ "$AUTHOR_ASSOCIATION" = "OWNER" ] || [ "$AUTHOR_ASSOCIATION" = "MEMBER" ] || [ "$AUTHOR_ASSOCIATION" = "COLLABORATOR" ]; then
+            echo "Author is $AUTHOR_ASSOCIATION — skipping policy checks."
+            exit 0
+          fi
+
+          MAX_ADDITIONS=400
+          MAX_OPEN_PRS=2
+
+          # Fetch up-to-date additions count from the API (event payload may be stale on synchronize)
+          PR_ADDITIONS=$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq '.additions')
+
+          # Check 1: Addition line count
+          if [ "$PR_ADDITIONS" -gt "$MAX_ADDITIONS" ]; then
+            echo "PR #$PR_NUMBER has $PR_ADDITIONS additions (limit: $MAX_ADDITIONS)."
+            COMMENT_BODY=$(cat <<EOF
+          Thank you for your contribution! Unfortunately, this PR has **${PR_ADDITIONS} added lines**, which exceeds the limit of **${MAX_ADDITIONS} lines** for external contributors.
+
+          Please split your changes into smaller PRs. See [CONTRIBUTING.md](https://github.com/${GH_REPO}/blob/main/CONTRIBUTING.md) for details.
+
+          This PR has been automatically closed.
+          EOF
+            )
+            gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
+            gh pr close "$PR_NUMBER"
+            echo "::error::PR exceeds the addition line limit for external contributors ($PR_ADDITIONS > $MAX_ADDITIONS)."
+            exit 1
+          fi
+
+          # Check 2: Open PR count (on 'opened' and 'reopened' events; skipped on synchronize
+          # since it's an update to an already-open PR. Note: due to GitHub API indexing delays,
+          # rapid PR creation may occasionally bypass this check.)
+          if [ "$EVENT_ACTION" = "opened" ] || [ "$EVENT_ACTION" = "reopened" ]; then
+            OPEN_PR_COUNT=$(gh pr list --author "$PR_AUTHOR" --state open --json number --jq 'length')
+            if [ "$OPEN_PR_COUNT" -gt "$MAX_OPEN_PRS" ]; then
+              echo "Author $PR_AUTHOR has $OPEN_PR_COUNT open PRs (limit: $MAX_OPEN_PRS)."
+              COMMENT_BODY=$(cat <<EOF
+          Thank you for your contribution! Unfortunately, you currently have **${OPEN_PR_COUNT} open PRs** (including this one), which exceeds the limit of **${MAX_OPEN_PRS}** for external contributors.
+
+          Please wait for an existing PR to be reviewed/merged, or close one before opening a new one. See [CONTRIBUTING.md](https://github.com/${GH_REPO}/blob/main/CONTRIBUTING.md) for details.
+
+          This PR has been automatically closed.
+          EOF
+            )
+              gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
+              gh pr close "$PR_NUMBER"
+              echo "::error::Author has too many open PRs ($OPEN_PR_COUNT > $MAX_OPEN_PRS)."
+              exit 1
+            fi
+          fi
+
+          echo "All policy checks passed."
