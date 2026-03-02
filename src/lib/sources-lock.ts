@@ -159,6 +159,10 @@ export function normalizeSourceKey(source: string): string {
     "https://github.com/",
     "http://www.github.com/",
     "http://github.com/",
+    "https://www.gitlab.com/",
+    "https://gitlab.com/",
+    "http://www.gitlab.com/",
+    "http://gitlab.com/",
   ]) {
     if (key.toLowerCase().startsWith(prefix)) {
       key = key.substring(prefix.length);
@@ -167,8 +171,11 @@ export function normalizeSourceKey(source: string): string {
   }
 
   // Strip provider prefix
-  if (key.startsWith("github:")) {
-    key = key.substring("github:".length);
+  for (const provider of ["github:", "gitlab:"]) {
+    if (key.startsWith(provider)) {
+      key = key.substring(provider.length);
+      break;
+    }
   }
 
   // Remove trailing slashes
