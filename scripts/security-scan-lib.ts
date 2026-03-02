@@ -120,6 +120,8 @@ export const runSecurityScan = async ({
   return SecurityScanResultSchema.parse(JSON.parse(content));
 };
 
+const HIGH_SEVERITIES = new Set(["high", "critical"]);
+
 export const formatEmailBody = ({
   results,
 }: {
@@ -128,13 +130,15 @@ export const formatEmailBody = ({
   let body = "# Security Scan Report\n\n";
 
   for (const [filename, result] of results.entries()) {
+    const filtered = result.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity));
+
     body += `## ${filename}\n\n`;
     body += `${result.summary}\n`;
-    const vulnCount = result.vulnerabilities.length;
-    const vulnLabel = vulnCount === 1 ? "vulnerability" : "vulnerabilities";
-    body += `### Found ${vulnCount} ${vulnLabel}\n\n`;
+    const count = filtered.length;
+    const label = count === 1 ? "vulnerability" : "vulnerabilities";
+    body += `### Found ${count} ${label} (high+)\n\n`;
 
-    for (const vuln of result.vulnerabilities) {
+    for (const vuln of filtered) {
       body += `**[${vuln.severity}] ${vuln.filePath} ${vuln.line}**\n`;
       body += `- Reason: ${vuln.reason}\n`;
       body += "\n";
@@ -144,6 +148,17 @@ export const formatEmailBody = ({
   }
 
   return body;
+};
+
+export const countHighSeverityVulnerabilities = ({
+  results,
+}: {
+  results: Map<string, SecurityScanResult>;
+}): number => {
+  return [...results.values()].reduce(
+    (sum, r) => sum + r.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity)).length,
+    0,
+  );
 };
 
 export const sendEmail = async ({
