@@ -102,11 +102,29 @@ const main = async (): Promise<void> => {
     console.warn(`${errors.length} file(s) failed to scan`);
   }
 
-  const totalHighVulnerabilities = countHighSeverityVulnerabilities({ results });
+  // Filter results to only include toon files with high+ severity vulnerabilities
+  const highSeverityResults = new Map<string, SecurityScanResult>();
+  for (const [filename, result] of results.entries()) {
+    const hasHighSeverity = result.vulnerabilities.some(
+      (v) => v.severity === "high" || v.severity === "critical",
+    );
+    if (hasHighSeverity) {
+      highSeverityResults.set(filename, result);
+    }
+  }
+
+  if (highSeverityResults.size === 0) {
+    console.log("No high+ severity vulnerabilities found. Skipping email notification.");
+    return;
+  }
+
+  const totalHighVulnerabilities = countHighSeverityVulnerabilities({
+    results: highSeverityResults,
+  });
   const date = new Date().toISOString().split("T")[0];
   const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
 
-  const emailBody = formatEmailBody({ results });
+  const emailBody = formatEmailBody({ results: highSeverityResults });
   await sendEmail({
     apiKey: resendApiKey,
     from: resendFromEmail,
