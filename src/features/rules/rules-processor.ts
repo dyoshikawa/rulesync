@@ -924,14 +924,19 @@ export class RulesProcessor extends FeatureProcessor {
         );
 
         return uniqueLocalRootFilePaths
-          .map((filePath) =>
-            factory.class.forDeletion({
+          .map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.baseDir,
+            });
+            return factory.class.forDeletion({
               baseDir: this.baseDir,
-              relativeDirPath: resolveRelativeDirPath(filePath),
+              relativeDirPath,
               relativeFilePath: basename(filePath),
               global: this.global,
-            }),
-          )
+            });
+          })
           .filter((rule) => rule.isDeletable());
       })();
       logger.debug(`Found ${localRootToolRules.length} local root tool rule files for deletion`);
