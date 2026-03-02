@@ -142,6 +142,9 @@ describe("importFromTool", () => {
       expect(result.rulesCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
       expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No rule files found for claudecode"),
+      );
     });
   });
 
@@ -203,6 +206,9 @@ describe("importFromTool", () => {
 
       expect(result.ignoreCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No ignore files found for claudecode"),
+      );
     });
   });
 
@@ -255,6 +261,9 @@ describe("importFromTool", () => {
 
       expect(result.mcpCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No MCP files found for claudecode"),
+      );
     });
   });
 
@@ -318,6 +327,9 @@ describe("importFromTool", () => {
 
       expect(result.commandsCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No command files found for claudecode"),
+      );
     });
   });
 
@@ -381,6 +393,9 @@ describe("importFromTool", () => {
 
       expect(result.subagentsCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No subagent files found for claudecode"),
+      );
     });
   });
 
@@ -433,6 +448,9 @@ describe("importFromTool", () => {
 
       expect(result.skillsCount).toBe(0);
       expect(mockProcessor.convertToolDirsToRulesyncDirs).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No skill directories found for claudecode"),
+      );
     });
   });
 
@@ -467,6 +485,28 @@ describe("importFromTool", () => {
         toolTarget: "claudecode",
         global: false,
       });
+    });
+
+    it("should return 0 when no tool files found", async () => {
+      mockConfig.getFeatures.mockReturnValue(["hooks"]);
+      vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn(),
+        writeAiFiles: vi.fn(),
+      };
+      vi.mocked(HooksProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as HooksProcessor;
+      });
+
+      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+
+      expect(result.hooksCount).toBe(0);
+      expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No hooks files found for claudecode"),
+      );
     });
 
     it("should return 0 hooks when feature is not enabled", async () => {
