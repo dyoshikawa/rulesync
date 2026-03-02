@@ -8,6 +8,7 @@ import { OpenRouter } from "@openrouter/sdk";
 import { formatError } from "../src/utils/error.js";
 import type { SecurityScanResult } from "./security-scan-lib.js";
 import {
+  countHighSeverityVulnerabilities,
   formatEmailBody,
   getToonFiles,
   runSecurityScan,
@@ -101,12 +102,9 @@ const main = async (): Promise<void> => {
     console.warn(`${errors.length} file(s) failed to scan`);
   }
 
-  const totalVulnerabilities = [...results.values()].reduce(
-    (sum, r) => sum + r.vulnerabilities.length,
-    0,
-  );
+  const totalHighVulnerabilities = countHighSeverityVulnerabilities({ results });
   const date = new Date().toISOString().split("T")[0];
-  const subject = `Security Scan Report - ${date} (${totalVulnerabilities} vulnerabilities found)`;
+  const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
 
   const emailBody = formatEmailBody({ results });
   await sendEmail({

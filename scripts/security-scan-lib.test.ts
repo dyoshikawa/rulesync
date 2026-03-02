@@ -7,6 +7,7 @@ import { setupTestDirectory } from "../src/test-utils/test-directories.js";
 import type { OpenRouterClient, SecurityScanResult } from "./security-scan-lib.js";
 import {
   SecurityScanResultSchema,
+  countHighSeverityVulnerabilities,
   formatEmailBody,
   getToonFiles,
   runSecurityScan,
@@ -174,7 +175,7 @@ describe("SecurityScanResultSchema", () => {
 });
 
 describe("formatEmailBody", () => {
-  it("should format results as markdown", () => {
+  it("should include only high and critical vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
     results.set("app.toon", {
       vulnerabilities: [
@@ -183,6 +184,12 @@ describe("formatEmailBody", () => {
           reason: "Remote code execution via unsanitized input",
           filePath: "src/exec.ts",
           line: "L10",
+        },
+        {
+          severity: "low",
+          reason: "Minor style issue",
+          filePath: "src/style.ts",
+          line: "L5",
         },
       ],
       summary: "Critical issue found",
@@ -194,14 +201,13 @@ describe("formatEmailBody", () => {
     expect(body).toContain("Critical issue found");
     expect(body).toContain("[critical] src/exec.ts L10");
     expect(body).toContain("Reason: Remote code execution via unsanitized input");
+    expect(body).not.toContain("[low]");
+    expect(body).not.toContain("Minor style issue");
+    expect(body).toContain("Found 1 vulnerability (high+)");
   });
 
-  it("should format multiple files", () => {
+  it("should exclude low and medium vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("a.toon", {
-      vulnerabilities: [],
-      summary: "Clean",
-    });
     results.set("b.toon", {
       vulnerabilities: [
         {
@@ -210,15 +216,52 @@ describe("formatEmailBody", () => {
           filePath: "src/minor.ts",
           line: "L5",
         },
+        {
+          severity: "medium",
+          reason: "Moderate issue",
+          filePath: "src/moderate.ts",
+          line: "L20",
+        },
       ],
       summary: "Minor issues",
     });
 
     const body = formatEmailBody({ results });
+    expect(body).toContain("## b.toon");
+    expect(body).toContain("Found 0 vulnerabilities (high+)");
+    expect(body).not.toContain("[low]");
+    expect(body).not.toContain("[medium]");
+  });
+
+  it("should format multiple files with mixed severities", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("a.toon", {
+      vulnerabilities: [],
+      summary: "Clean",
+    });
+    results.set("b.toon", {
+      vulnerabilities: [
+        {
+          severity: "high",
+          reason: "SQL injection",
+          filePath: "src/db.ts",
+          line: "L42",
+        },
+        {
+          severity: "low",
+          reason: "Not critical",
+          filePath: "src/minor.ts",
+          line: "L5",
+        },
+      ],
+      summary: "Issues found",
+    });
+
+    const body = formatEmailBody({ results });
     expect(body).toContain("## a.toon");
     expect(body).toContain("## b.toon");
-    expect(body).toContain("Found 0 vulnerabilities");
-    expect(body).toContain("Found 1 vulnerability");
+    expect(body).toContain("[high] src/db.ts L42");
+    expect(body).not.toContain("[low]");
   });
 
   it("should handle empty results map", () => {
@@ -226,6 +269,53 @@ describe("formatEmailBody", () => {
     const body = formatEmailBody({ results });
     expect(body).toContain("# Security Scan Report");
     expect(body).not.toContain("## ");
+  });
+});
+
+describe("countHighSeverityVulnerabilities", () => {
+  it("should count only high and critical vulnerabilities", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", {
+      vulnerabilities: [
+        { severity: "critical", reason: "RCE", filePath: "a.ts", line: "L1" },
+        { severity: "high", reason: "SQLi", filePath: "b.ts", line: "L2" },
+        { severity: "medium", reason: "XSS", filePath: "c.ts", line: "L3" },
+        { severity: "low", reason: "Info", filePath: "d.ts", line: "L4" },
+      ],
+      summary: "Mixed",
+    });
+
+    expect(countHighSeverityVulnerabilities({ results })).toBe(2);
+  });
+
+  it("should return 0 when no high severity vulnerabilities exist", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", {
+      vulnerabilities: [
+        { severity: "low", reason: "Info", filePath: "a.ts", line: "L1" },
+        { severity: "medium", reason: "XSS", filePath: "b.ts", line: "L2" },
+      ],
+      summary: "Minor",
+    });
+
+    expect(countHighSeverityVulnerabilities({ results })).toBe(0);
+  });
+
+  it("should count across multiple files", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("a.toon", {
+      vulnerabilities: [{ severity: "high", reason: "SQLi", filePath: "a.ts", line: "L1" }],
+      summary: "A",
+    });
+    results.set("b.toon", {
+      vulnerabilities: [
+        { severity: "critical", reason: "RCE", filePath: "b.ts", line: "L1" },
+        { severity: "low", reason: "Info", filePath: "c.ts", line: "L2" },
+      ],
+      summary: "B",
+    });
+
+    expect(countHighSeverityVulnerabilities({ results })).toBe(2);
   });
 });
 
