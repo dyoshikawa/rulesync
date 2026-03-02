@@ -417,24 +417,31 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, opencode, and factorydroid for project mode", () => {
+    it("should return cursor, claudecode, copilot, opencode, factorydroid, and geminicli for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
-      expect(targets).toEqual(["cursor", "claudecode", "copilot", "opencode", "factorydroid"]);
+      expect(targets).toEqual([
+        "cursor",
+        "claudecode",
+        "copilot",
+        "opencode",
+        "factorydroid",
+        "geminicli",
+      ]);
     });
 
-    it("should return claudecode, opencode, and factorydroid for global mode", () => {
+    it("should return claudecode, opencode, factorydroid, and geminicli for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["claudecode", "opencode", "factorydroid"]);
+      expect(targets).toEqual(["claudecode", "opencode", "factorydroid", "geminicli"]);
     });
 
     it("should exclude non-importable targets when importOnly is true", () => {
       const targets = HooksProcessor.getToolTargets({ global: false, importOnly: true });
-      expect(targets).toEqual(["cursor", "claudecode", "copilot", "factorydroid"]);
+      expect(targets).toEqual(["cursor", "claudecode", "copilot", "factorydroid", "geminicli"]);
     });
 
     it("should exclude non-importable targets when importOnly is true in global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true, importOnly: true });
-      expect(targets).toEqual(["claudecode", "factorydroid"]);
+      expect(targets).toEqual(["claudecode", "factorydroid", "geminicli"]);
     });
   });
 });

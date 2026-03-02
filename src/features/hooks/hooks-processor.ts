@@ -8,6 +8,7 @@ import {
   CURSOR_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
+  GEMINICLI_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -20,6 +21,7 @@ import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { GeminicliHooks } from "./geminicli-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
@@ -35,6 +37,7 @@ const hooksProcessorToolTargetTuple = [
   "copilot",
   "opencode",
   "factorydroid",
+  "geminicli",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -132,6 +135,16 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       },
       supportedEvents: FACTORYDROID_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "geminicli",
+    {
+      class: GeminicliHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: GEMINICLI_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],
