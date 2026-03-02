@@ -18,6 +18,10 @@ export type ClaudecodeLegacyRuleSettablePaths = Omit<ToolRuleSettablePaths, "roo
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  alternativeRoots?: Array<{
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }>;
   nonRoot: {
     relativeDirPath: string;
   };
@@ -57,6 +61,12 @@ export class ClaudecodeLegacyRule extends ToolRule {
         relativeDirPath: ".",
         relativeFilePath: "CLAUDE.md",
       },
+      alternativeRoots: [
+        {
+          relativeDirPath: ".claude",
+          relativeFilePath: "CLAUDE.md",
+        },
+      ],
       nonRoot: {
         relativeDirPath: buildToolPath(".claude", "memories", excludeToolDir),
       },
@@ -68,19 +78,20 @@ export class ClaudecodeLegacyRule extends ToolRule {
     relativeFilePath,
     validate = true,
     global = false,
+    relativeDirPath: overrideDirPath,
   }: ToolRuleFromFileParams): Promise<ClaudecodeLegacyRule> {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     if (isRoot) {
-      const relativePath = paths.root.relativeFilePath;
+      const rootDirPath = overrideDirPath ?? paths.root.relativeDirPath;
       const fileContent = await readFileContent(
-        join(baseDir, paths.root.relativeDirPath, relativePath),
+        join(baseDir, rootDirPath, paths.root.relativeFilePath),
       );
 
       return new ClaudecodeLegacyRule({
         baseDir,
-        relativeDirPath: paths.root.relativeDirPath,
+        relativeDirPath: rootDirPath,
         relativeFilePath: paths.root.relativeFilePath,
         fileContent,
         validate,

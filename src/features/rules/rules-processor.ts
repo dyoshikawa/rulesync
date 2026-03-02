@@ -1,4 +1,4 @@
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
@@ -832,40 +832,73 @@ export class RulesProcessor extends FeatureProcessor {
         global: this.global,
       });
 
+      const resolveRelativeDirPath = (filePath: string): string => {
+        const dirName = dirname(relative(this.baseDir, filePath));
+        return dirName === "" ? "." : dirName;
+      };
+
+      const findFilesWithFallback = async (
+        primaryGlob: string,
+        alternativeRoots: typeof settablePaths.alternativeRoots,
+        buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
+      ): Promise<string[]> => {
+        const primaryFilePaths = await findFilesByGlobs(primaryGlob);
+        if (primaryFilePaths.length > 0) {
+          return primaryFilePaths;
+        }
+        if (alternativeRoots) {
+          return findFilesByGlobs(alternativeRoots.map(buildAltGlob));
+        }
+        return [];
+      };
+
       const rootToolRules = await (async () => {
         if (!settablePaths.root) {
           return [];
         }
 
-        const rootFilePaths = await findFilesByGlobs(
+        const uniqueRootFilePaths = await findFilesWithFallback(
           join(
             this.baseDir,
             settablePaths.root.relativeDirPath ?? ".",
             settablePaths.root.relativeFilePath,
           ),
+          settablePaths.alternativeRoots,
+          (alt) => join(this.baseDir, alt.relativeDirPath, alt.relativeFilePath),
         );
 
         if (forDeletion) {
-          return rootFilePaths
-            .map((filePath) =>
-              factory.class.forDeletion({
+          return uniqueRootFilePaths
+            .map((filePath) => {
+              const relativeDirPath = resolveRelativeDirPath(filePath);
+              checkPathTraversal({
+                relativePath: relativeDirPath,
+                intendedRootDir: this.baseDir,
+              });
+              return factory.class.forDeletion({
                 baseDir: this.baseDir,
-                relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+                relativeDirPath,
                 relativeFilePath: basename(filePath),
                 global: this.global,
-              }),
-            )
+              });
+            })
             .filter((rule) => rule.isDeletable());
         }
 
         return await Promise.all(
-          rootFilePaths.map((filePath) =>
-            factory.class.fromFile({
+          uniqueRootFilePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.baseDir,
+            });
+            return factory.class.fromFile({
               baseDir: this.baseDir,
               relativeFilePath: basename(filePath),
+              relativeDirPath,
               global: this.global,
-            }),
-          ),
+            });
+          }),
         );
       })();
       logger.debug(`Found ${rootToolRules.length} root tool rule files`);
@@ -884,19 +917,26 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
 
-        const localRootFilePaths = await findFilesByGlobs(
+        const uniqueLocalRootFilePaths = await findFilesWithFallback(
           join(this.baseDir, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+          settablePaths.alternativeRoots,
+          (alt) => join(this.baseDir, alt.relativeDirPath, "CLAUDE.local.md"),
         );
 
-        return localRootFilePaths
-          .map((filePath) =>
-            factory.class.forDeletion({
+        return uniqueLocalRootFilePaths
+          .map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.baseDir,
+            });
+            return factory.class.forDeletion({
               baseDir: this.baseDir,
-              relativeDirPath: settablePaths.root?.relativeDirPath ?? ".",
+              relativeDirPath,
               relativeFilePath: basename(filePath),
               global: this.global,
-            }),
-          )
+            });
+          })
           .filter((rule) => rule.isDeletable());
       })();
       logger.debug(`Found ${localRootToolRules.length} local root tool rule files for deletion`);

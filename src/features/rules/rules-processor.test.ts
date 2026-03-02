@@ -515,6 +515,68 @@ describe("RulesProcessor", () => {
       expect(cursorPaths).toContain(join("frontend", "react-rule.mdc"));
       expect(claudecodePaths).toContain(join("backend", "api-rule.md"));
     });
+
+    it("should load CLAUDE.md from .claude/ directory when only .claude/CLAUDE.md exists", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Project from .claude dir");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const files = await processor.loadToolFiles();
+      const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
+
+      expect(rootFiles.length).toBe(1);
+      expect(rootFiles[0]?.getRelativeDirPath()).toBe(".claude");
+      expect(rootFiles[0]?.getFilePath()).toBe(join(testDir, ".claude", "CLAUDE.md"));
+    });
+
+    it("should prefer ./CLAUDE.md over .claude/CLAUDE.md when both exist", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root CLAUDE.md");
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# .claude/CLAUDE.md");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const files = await processor.loadToolFiles();
+      const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
+
+      expect(rootFiles.length).toBe(1);
+      expect(rootFiles[0]?.getRelativeDirPath()).toBe(".");
+    });
+
+    it("should load CLAUDE.md from .claude/ directory for claudecode-legacy", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Legacy from .claude dir");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode-legacy",
+      });
+
+      const files = await processor.loadToolFiles();
+      const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
+
+      expect(rootFiles.length).toBe(1);
+      expect(rootFiles[0]?.getRelativeDirPath()).toBe(".claude");
+    });
+
+    it("should return empty when neither ./CLAUDE.md nor .claude/CLAUDE.md exist", async () => {
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const files = await processor.loadToolFiles();
+      const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
+
+      expect(rootFiles.length).toBe(0);
+    });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
@@ -674,6 +736,45 @@ Content that would fail parsing`;
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
       expect(filePaths).toContain("CLAUDE.md");
       expect(filePaths).toContain("CLAUDE.local.md");
+    });
+
+    it("should include .claude/CLAUDE.local.md for deletion when only in .claude/ directory", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root from .claude");
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.local.md"), "# Local from .claude");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("CLAUDE.md");
+      expect(filePaths).toContain("CLAUDE.local.md");
+
+      const localFile = filesToDelete.find((f) => f.getRelativeFilePath() === "CLAUDE.local.md");
+      expect(localFile?.getRelativeDirPath()).toBe(".claude");
+    });
+
+    it("should prefer primary root CLAUDE.md over alternative when both exist", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Primary Root");
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Alternative Root");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(toolFiles[0]?.getRelativeDirPath()).toBe(".");
     });
   });
 
