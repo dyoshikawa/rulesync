@@ -94,12 +94,14 @@ After merge, clean up local state for the head branch from Step 2 (`<branch-name
    git worktree list --porcelain
    ```
 2. If a worktree is found for `<branch-name>`, remove it with:
+
    ```bash
    git gtr rm <worktree-name>
    ```
 
    - `<worktree-name>` is the worktree name used by `git gtr` for that branch.
    - This removes both the worktree directory and the associated branch.
+
 3. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup:
    ```bash
    git checkout main && git pull --prune && git branch -d <branch-name>
