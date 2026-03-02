@@ -85,12 +85,21 @@ After merging:
 1. Confirm the PR was successfully merged
 2. Display the merged PR number and title
 
-## Step 6: Clean Up Local Branch
+## Step 6: Clean Up Local Branch / Worktree
 
-If the local branch exists, please clean up the local branch. Execute:
+After merge, clean up local state for the head branch from Step 2 (`<branch-name>`):
 
-```bash
-git checkout main && git pull --prune && git branch -d <branch-name>
-```
-
-Where `<branch-name>` is the head branch name from Step 2 (e.g., `fix/rulesync-import-targets`).
+1. Detect whether `<branch-name>` is attached to a worktree:
+   ```bash
+   git worktree list --porcelain
+   ```
+2. If a worktree is found for `<branch-name>`, remove it with:
+   ```bash
+   git gtr rm <worktree-name>
+   ```
+   - `<worktree-name>` is the worktree name used by `git gtr` for that branch.
+   - This removes both the worktree directory and the associated branch.
+3. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup:
+   ```bash
+   git checkout main && git pull --prune && git branch -d <branch-name>
+   ```
