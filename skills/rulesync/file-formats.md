@@ -43,7 +43,7 @@ Hooks run scripts at lifecycle events (e.g. session start, before tool use). Eve
 - **Cursor:** `sessionStart`, `preToolUse`, `postToolUse`, `stop`, `sessionEnd`, `beforeSubmitPrompt`, `subagentStop`, `preCompact`, `afterFileEdit`, `afterShellExecution`, `postToolUseFailure`, `subagentStart`, `beforeShellExecution`, `beforeMCPExecution`, `afterMCPExecution`, `beforeReadFile`, `afterAgentResponse`, `afterAgentThought`, `beforeTabFileRead`, `afterTabFileEdit`
 - **Claude Code:** `sessionStart`, `preToolUse`, `postToolUse`, `stop`, `sessionEnd`, `beforeSubmitPrompt`, `subagentStop`, `preCompact`, `permissionRequest`, `notification`, `setup`
 - **OpenCode:** `sessionStart`, `preToolUse`, `postToolUse`, `stop`, `afterFileEdit`, `afterShellExecution`, `permissionRequest`
-- **GitHub Copilot:** `sessionStart`, `sessionEnd`, `afterSubmitPrompt`, `preToolUse`, `postToolUse`, `afterError`
+- **GitHub Copilot:** `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `postToolUse`, `afterError`
 - **Gemini CLI:** `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `stop`, `beforeAgentResponse`, `afterAgentResponse`, `beforeToolSelection`, `preToolUse`, `postToolUse`, `preCompact`, `notification`
 
 > **Note:** Rulesync implements OpenCode hooks as a plugin, so importing from OpenCode to rulesync is not supported. OpenCode only supports command-type hooks (not prompt-type).
@@ -157,6 +157,7 @@ description: >- # skill description
   A sample skill that demonstrates the skill format
 targets: ["*"] # * = all, or specific tools
 claudecode: # for claudecode-specific parameters
+  model: sonnet # opus, sonnet, haiku, or any string
   allowed-tools:
     - "Bash"
     - "Read"
