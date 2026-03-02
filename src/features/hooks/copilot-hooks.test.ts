@@ -47,7 +47,7 @@ describe("CopilotHooks", () => {
         hooks: {
           sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
           sessionEnd: [{ command: ".rulesync/hooks/session-end.sh" }],
-          afterSubmitPrompt: [{ command: ".rulesync/hooks/after-prompt.sh" }],
+          beforeSubmitPrompt: [{ command: ".rulesync/hooks/before-prompt.sh" }],
           preToolUse: [{ command: ".rulesync/hooks/pre-tool.sh" }],
           postToolUse: [{ command: ".rulesync/hooks/post-tool.sh" }],
           afterError: [{ command: ".rulesync/hooks/error.sh" }],
@@ -446,8 +446,8 @@ describe("CopilotHooks", () => {
       expect(json.hooks.sessionStart).toHaveLength(1);
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
       expect(json.hooks.sessionStart?.[0]?.timeout).toBe(30);
-      expect(json.hooks.afterSubmitPrompt).toHaveLength(1);
-      expect(json.hooks.afterSubmitPrompt?.[0]?.command).toBe("log-prompt.sh");
+      expect(json.hooks.beforeSubmitPrompt).toHaveLength(1);
+      expect(json.hooks.beforeSubmitPrompt?.[0]?.command).toBe("log-prompt.sh");
       expect(json.hooks.afterError).toHaveLength(1);
       expect(json.hooks.afterError?.[0]?.command).toBe("handle-error.sh");
     });

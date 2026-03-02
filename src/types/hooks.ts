@@ -68,7 +68,6 @@ export type HookEvent =
   | "permissionRequest"
   | "notification"
   | "setup"
-  | "afterSubmitPrompt"
   | "afterError"
   | "beforeToolSelection";
 
@@ -126,7 +125,7 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
-  "afterSubmitPrompt",
+  "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
   "afterError",
@@ -281,7 +280,7 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
 export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   sessionStart: "sessionStart",
   sessionEnd: "sessionEnd",
-  afterSubmitPrompt: "userPromptSubmitted",
+  beforeSubmitPrompt: "userPromptSubmitted",
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
   afterError: "errorOccurred",
