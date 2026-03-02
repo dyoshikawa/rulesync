@@ -9,9 +9,9 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import type { PascalHooksConverterConfig } from "./pascal-hooks-converter.js";
-import { canonicalToPascalHooks, pascalHooksToCanonical } from "./pascal-hooks-converter.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
+import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -20,7 +20,7 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-const FACTORYDROID_CONVERTER_CONFIG: PascalHooksConverterConfig = {
+const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: FACTORYDROID_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
   toolToCanonicalEventNames: FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
@@ -82,7 +82,7 @@ export class FactorydroidHooks extends ToolHooks {
       );
     }
     const config = rulesyncHooks.getJson();
-    const factorydroidHooks = canonicalToPascalHooks({
+    const factorydroidHooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.factorydroid?.hooks,
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
@@ -110,7 +110,7 @@ export class FactorydroidHooks extends ToolHooks {
         },
       );
     }
-    const hooks = pascalHooksToCanonical({
+    const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
     });

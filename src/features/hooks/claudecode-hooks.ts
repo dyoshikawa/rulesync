@@ -9,9 +9,9 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import type { PascalHooksConverterConfig } from "./pascal-hooks-converter.js";
-import { canonicalToPascalHooks, pascalHooksToCanonical } from "./pascal-hooks-converter.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
+import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -20,7 +20,7 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-const CLAUDE_CONVERTER_CONFIG: PascalHooksConverterConfig = {
+const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CLAUDE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CLAUDE_EVENT_NAMES,
   toolToCanonicalEventNames: CLAUDE_TO_CANONICAL_EVENT_NAMES,
@@ -84,7 +84,7 @@ export class ClaudecodeHooks extends ToolHooks {
       );
     }
     const config = rulesyncHooks.getJson();
-    const claudeHooks = canonicalToPascalHooks({
+    const claudeHooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.claudecode?.hooks,
       converterConfig: CLAUDE_CONVERTER_CONFIG,
@@ -112,7 +112,7 @@ export class ClaudecodeHooks extends ToolHooks {
         },
       );
     }
-    const hooks = pascalHooksToCanonical({
+    const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: CLAUDE_CONVERTER_CONFIG,
     });

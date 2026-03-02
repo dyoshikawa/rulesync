@@ -1,11 +1,11 @@
 import type { HookEvent, HooksConfig } from "../../types/hooks.js";
 
-type PascalMatcherEntry = {
+type ToolMatcherEntry = {
   matcher?: string;
   hooks?: Array<Record<string, unknown>>;
 };
 
-function isPascalMatcherEntry(x: unknown): x is PascalMatcherEntry {
+function isToolMatcherEntry(x: unknown): x is ToolMatcherEntry {
   if (x === null || typeof x !== "object") {
     return false;
   }
@@ -18,7 +18,7 @@ function isPascalMatcherEntry(x: unknown): x is PascalMatcherEntry {
   return true;
 }
 
-export type PascalHooksConverterConfig = {
+export type ToolHooksConverterConfig = {
   supportedEvents: readonly HookEvent[];
   canonicalToToolEventNames: Record<string, string>;
   toolToCanonicalEventNames: Record<string, string>;
@@ -26,18 +26,19 @@ export type PascalHooksConverterConfig = {
 };
 
 /**
- * Convert canonical hooks config to PascalCase tool format (shared by Claude and Factory Droid).
- * Filters to supported events, merges tool-specific overrides,
- * converts event names, prefixes commands, and groups by matcher.
+ * Convert canonical hooks config to tool-specific format (shared by Claude and Factory Droid).
+ * Uses explicit event name mapping tables rather than algorithmic case conversion,
+ * since tool event names may differ entirely from canonical names
+ * (e.g. beforeSubmitPrompt → UserPromptSubmit).
  */
-export function canonicalToPascalHooks({
+export function canonicalToToolHooks({
   config,
   toolOverrideHooks,
   converterConfig,
 }: {
   config: HooksConfig;
   toolOverrideHooks: HooksConfig["hooks"] | undefined;
-  converterConfig: PascalHooksConverterConfig;
+  converterConfig: ToolHooksConverterConfig;
 }): Record<string, unknown[]> {
   const supported: Set<string> = new Set(converterConfig.supportedEvents);
   const sharedHooks: HooksConfig["hooks"] = {};
@@ -52,7 +53,7 @@ export function canonicalToPascalHooks({
   };
   const result: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const pascalEventName = converterConfig.canonicalToToolEventNames[eventName] ?? eventName;
+    const toolEventName = converterConfig.canonicalToToolEventNames[eventName] ?? eventName;
     const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
     for (const def of definitions) {
       const key = def.matcher ?? "";
@@ -76,34 +77,33 @@ export function canonicalToPascalHooks({
       });
       entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
     }
-    result[pascalEventName] = entries;
+    result[toolEventName] = entries;
   }
   return result;
 }
 
 /**
- * Convert PascalCase tool hooks back to canonical format (shared by Claude and Factory Droid).
+ * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
  * Reverses event name mapping and strips project directory variable prefix from commands.
  */
-export function pascalHooksToCanonical({
+export function toolHooksToCanonical({
   hooks,
   converterConfig,
 }: {
   hooks: unknown;
-  converterConfig: PascalHooksConverterConfig;
+  converterConfig: ToolHooksConverterConfig;
 }): HooksConfig["hooks"] {
   if (hooks === null || hooks === undefined || typeof hooks !== "object") {
     return {};
   }
   const canonical: HooksConfig["hooks"] = {};
-  for (const [pascalEventName, matcherEntries] of Object.entries(hooks)) {
-    const eventName = converterConfig.toolToCanonicalEventNames[pascalEventName] ?? pascalEventName;
+  for (const [toolEventName, matcherEntries] of Object.entries(hooks)) {
+    const eventName = converterConfig.toolToCanonicalEventNames[toolEventName] ?? toolEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {
-      if (!isPascalMatcherEntry(rawEntry)) continue;
-      const entry = rawEntry;
-      const hookDefs = entry.hooks ?? [];
+      if (!isToolMatcherEntry(rawEntry)) continue;
+      const hookDefs = rawEntry.hooks ?? [];
       for (const h of hookDefs) {
         const cmd = typeof h.command === "string" ? h.command : undefined;
         const command =
@@ -123,9 +123,9 @@ export function pascalHooksToCanonical({
           ...(command !== undefined && command !== null && { command }),
           ...(timeout !== undefined && timeout !== null && { timeout }),
           ...(prompt !== undefined && prompt !== null && { prompt }),
-          ...(entry.matcher !== undefined &&
-            entry.matcher !== null &&
-            entry.matcher !== "" && { matcher: entry.matcher }),
+          ...(rawEntry.matcher !== undefined &&
+            rawEntry.matcher !== null &&
+            rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),
         });
       }
     }
