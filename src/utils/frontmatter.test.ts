@@ -356,7 +356,6 @@ const code = "preserved";
 
       const content = "any content";
 
-
       // Verify the error is re-thrown without file path wrapping
       try {
         parseFrontmatter(content);

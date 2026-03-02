@@ -75,10 +75,9 @@ export function parseFrontmatter(
     body = result.content;
   } catch (error) {
     if (filePath) {
-      throw new Error(
-        `Failed to parse frontmatter in ${filePath}: ${formatError(error)}`,
-        { cause: error },
-      );
+      throw new Error(`Failed to parse frontmatter in ${filePath}: ${formatError(error)}`, {
+        cause: error,
+      });
     }
     throw error;
   }

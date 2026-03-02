@@ -229,9 +229,7 @@ export class CopilotRule extends ToolRule {
     // Validate frontmatter using CopilotRuleFrontmatterSchema
     const result = CopilotRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(
-        `Invalid frontmatter in ${filePath}: ${formatError(result.error)}`,
-      );
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     return new CopilotRule({

@@ -154,9 +154,7 @@ export class ClaudecodeRule extends ToolRule {
     // Validate frontmatter
     const result = ClaudecodeRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(
-        `Invalid frontmatter in ${filePath}: ${formatError(result.error)}`,
-      );
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     return new ClaudecodeRule({
