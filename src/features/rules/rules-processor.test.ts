@@ -759,6 +759,23 @@ Content that would fail parsing`;
       const localFile = filesToDelete.find((f) => f.getRelativeFilePath() === "CLAUDE.local.md");
       expect(localFile?.getRelativeDirPath()).toBe(".claude");
     });
+
+    it("should prefer primary root CLAUDE.md over alternative when both exist", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Primary Root");
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Alternative Root");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
+      expect(toolFiles[0]?.getRelativeDirPath()).toBe(".");
+    });
   });
 
   describe("getToolTargets with global: true", () => {

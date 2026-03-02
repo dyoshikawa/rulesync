@@ -869,26 +869,36 @@ export class RulesProcessor extends FeatureProcessor {
 
         if (forDeletion) {
           return uniqueRootFilePaths
-            .map((filePath) =>
-              factory.class.forDeletion({
+            .map((filePath) => {
+              const relativeDirPath = resolveRelativeDirPath(filePath);
+              checkPathTraversal({
+                relativePath: relativeDirPath,
+                intendedRootDir: this.baseDir,
+              });
+              return factory.class.forDeletion({
                 baseDir: this.baseDir,
-                relativeDirPath: resolveRelativeDirPath(filePath),
+                relativeDirPath,
                 relativeFilePath: basename(filePath),
                 global: this.global,
-              }),
-            )
+              });
+            })
             .filter((rule) => rule.isDeletable());
         }
 
         return await Promise.all(
-          uniqueRootFilePaths.map((filePath) =>
-            factory.class.fromFile({
+          uniqueRootFilePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.baseDir,
+            });
+            return factory.class.fromFile({
               baseDir: this.baseDir,
               relativeFilePath: basename(filePath),
-              relativeDirPath: resolveRelativeDirPath(filePath),
+              relativeDirPath,
               global: this.global,
-            }),
-          ),
+            });
+          }),
         );
       })();
       logger.debug(`Found ${rootToolRules.length} root tool rule files`);
