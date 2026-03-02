@@ -76,7 +76,7 @@ export class CursorCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { description = "", ...restFields } = this.frontmatter;
+    const { description, ...restFields } = this.frontmatter;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
