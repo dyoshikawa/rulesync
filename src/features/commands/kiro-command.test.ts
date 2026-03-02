@@ -58,7 +58,7 @@ Step 1`;
       const rulesyncCommand = kiroCommand.toRulesyncCommand();
 
       expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
-      expect(rulesyncCommand.getFrontmatter()).toEqual({ targets: ["*"], description: "" });
+      expect(rulesyncCommand.getFrontmatter()).toEqual({ targets: ["*"] });
       expect(rulesyncCommand.getBody()).toBe(validContent);
       expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
     });
