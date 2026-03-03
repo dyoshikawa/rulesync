@@ -23,6 +23,11 @@ export type ToolHooksConverterConfig = {
   canonicalToToolEventNames: Record<string, string>;
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
+  /**
+   * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
+   * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
+   */
+  prefixDotRelativeCommandsOnly?: boolean;
 };
 
 /**
@@ -64,9 +69,17 @@ export function canonicalToToolHooks({
     const entries: unknown[] = [];
     for (const [matcherKey, defs] of byMatcher) {
       const hooks = defs.map((def) => {
+        const commandText = def.command;
+        const trimmedCommand =
+          typeof commandText === "string" ? commandText.trimStart() : undefined;
+        const shouldPrefix =
+          typeof trimmedCommand === "string" &&
+          !trimmedCommand.startsWith("$") &&
+          (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
+
         const command =
-          def.command !== undefined && def.command !== null && !def.command.startsWith("$")
-            ? `${converterConfig.projectDirVar}/${def.command.replace(/^\.\//, "")}`
+          shouldPrefix && typeof trimmedCommand === "string"
+            ? `${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}`
             : def.command;
         return {
           type: def.type ?? "command",

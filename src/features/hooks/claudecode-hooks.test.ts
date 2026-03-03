@@ -68,14 +68,17 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
-    it("should prefix non-absolute commands with $CLAUDE_PROJECT_DIR", async () => {
+    it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
         hooks: {
-          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+          sessionStart: [
+            { type: "command", command: ".rulesync/hooks/session-start.sh" },
+            { type: "command", command: "npx prettier --write ./src/hooks/format.ts" },
+          ],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -99,6 +102,7 @@ describe("ClaudecodeHooks", () => {
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$CLAUDE_PROJECT_DIR");
       expect(sessionStartEntry.hooks[0].command).toContain(".rulesync/hooks/session-start.sh");
+      expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src/hooks/format.ts");
     });
 
     it("should merge config.claudecode.hooks on top of shared hooks", async () => {

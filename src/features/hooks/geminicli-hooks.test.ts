@@ -55,10 +55,33 @@ describe("GeminicliHooks", () => {
       const parsed = JSON.parse(geminiHooks.getFileContent());
       expect(parsed.hooks).toBeDefined();
       expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("$GEMINI_PROJECT_DIR/echo start");
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("echo start");
       expect(parsed.hooks.SessionStart[0].hooks[0].name).toBe("Start Hook");
       expect(parsed.hooks.SessionStart[0].hooks[0].description).toBe("Runs on start");
       expect(parsed.hooks.UnsupportedEvent).toBeUndefined();
+    });
+
+    it("should prefix dot-relative commands with $GEMINI_PROJECT_DIR", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [{ command: "./hooks/start.sh" }],
+            },
+          }),
+        }),
+      );
+
+      const geminiHooks = await GeminicliHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(geminiHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+        "$GEMINI_PROJECT_DIR/hooks/start.sh",
+      );
     });
 
     it("should merge with existing settings.json", async () => {
@@ -119,10 +142,8 @@ describe("GeminicliHooks", () => {
       });
 
       const parsed = JSON.parse(geminiHooks.getFileContent());
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
-        "$GEMINI_PROJECT_DIR/echo override",
-      );
-      expect(parsed.hooks.SessionEnd[0].hooks[0].command).toBe("$GEMINI_PROJECT_DIR/echo end");
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("echo override");
+      expect(parsed.hooks.SessionEnd[0].hooks[0].command).toBe("echo end");
     });
   });
 
