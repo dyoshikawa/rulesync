@@ -105,6 +105,44 @@ describe("ClaudecodeHooks", () => {
       expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src/hooks/format.ts");
     });
 
+    it("should handle command prefixing edge cases", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [
+            { type: "command", command: "../script.sh" },
+            { type: "command", command: "  ./script.sh" },
+            { type: "command", command: "/usr/local/bin/script.sh" },
+            { type: "command", command: "" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      const hooks = parsed.hooks.SessionStart[0].hooks;
+      expect(hooks[0].command).toBe("$CLAUDE_PROJECT_DIR/../script.sh");
+      expect(hooks[1].command).toBe("$CLAUDE_PROJECT_DIR/script.sh");
+      expect(hooks[2].command).toBe("/usr/local/bin/script.sh");
+      expect(hooks[3].command).toBe("");
+    });
+
     it("should merge config.claudecode.hooks on top of shared hooks", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));

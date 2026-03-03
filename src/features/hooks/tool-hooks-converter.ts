@@ -1,4 +1,4 @@
-import type { HookEvent, HooksConfig } from "../../types/hooks.js";
+import type { HookDefinition, HookEvent, HooksConfig } from "../../types/hooks.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -26,8 +26,14 @@ export type ToolHooksConverterConfig = {
   /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
+   * When false or undefined (default), all non-variable commands that do not start with `$` are prefixed.
    */
   prefixDotRelativeCommandsOnly?: boolean;
+  /**
+   * Optional canonical hook fields to copy through to tool hook entries and back.
+   * Useful for tool-specific fields such as Gemini CLI's `name` and `description`.
+   */
+  passthroughHookFields?: readonly (keyof HookDefinition)[];
 };
 
 /**
@@ -77,15 +83,22 @@ export function canonicalToToolHooks({
           !trimmedCommand.startsWith("$") &&
           (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
 
-        const command =
-          shouldPrefix && typeof trimmedCommand === "string"
-            ? `${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}`
-            : def.command;
+        const command = shouldPrefix
+          ? `${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}`
+          : def.command;
+
+        const passthroughFields = Object.fromEntries(
+          (converterConfig.passthroughHookFields ?? [])
+            .map((field) => [field, def[field]])
+            .filter(([, value]) => value !== undefined && value !== null),
+        );
+
         return {
           type: def.type ?? "command",
           ...(command !== undefined && command !== null && { command }),
           ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
           ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
+          ...passthroughFields,
         };
       });
       entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
@@ -131,11 +144,17 @@ export function toolHooksToCanonical({
         const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
         const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
         const prompt = typeof h.prompt === "string" ? h.prompt : undefined;
+        const passthroughFields = Object.fromEntries(
+          (converterConfig.passthroughHookFields ?? [])
+            .map((field) => [field, h[field]])
+            .filter(([, value]) => value !== undefined && value !== null),
+        );
         defs.push({
           type: hookType,
           ...(command !== undefined && command !== null && { command }),
           ...(timeout !== undefined && timeout !== null && { timeout }),
           ...(prompt !== undefined && prompt !== null && { prompt }),
+          ...passthroughFields,
           ...(rawEntry.matcher !== undefined &&
             rawEntry.matcher !== null &&
             rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),

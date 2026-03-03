@@ -42,7 +42,10 @@ describe("FactorydroidHooks", () => {
       const config = {
         version: 1,
         hooks: {
-          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+          sessionStart: [
+            { type: "command", command: ".rulesync/hooks/session-start.sh" },
+            { type: "command", command: "npx prettier --write ./src" },
+          ],
           stop: [{ command: ".rulesync/hooks/audit.sh" }],
           afterFileEdit: [{ command: "format.sh" }],
         },
@@ -68,14 +71,17 @@ describe("FactorydroidHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
-    it("should prefix non-absolute commands with $FACTORY_PROJECT_DIR", async () => {
+    it("should only prefix dot-relative commands with $FACTORY_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
         hooks: {
-          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+          sessionStart: [
+            { type: "command", command: ".rulesync/hooks/session-start.sh" },
+            { type: "command", command: "npx prettier --write ./src" },
+          ],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -99,6 +105,7 @@ describe("FactorydroidHooks", () => {
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$FACTORY_PROJECT_DIR");
       expect(sessionStartEntry.hooks[0].command).toContain(".rulesync/hooks/session-start.sh");
+      expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src");
     });
 
     it("should not prefix commands that already start with $", async () => {
