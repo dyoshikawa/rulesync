@@ -93,16 +93,17 @@ After merge, clean up local state for the head branch from Step 2 (`<branch-name
    ```bash
    git worktree list --porcelain
    ```
-2. If a worktree is found for `<branch-name>`, remove it with:
+2. Parse the porcelain output by blocks. For the block where `branch` is `refs/heads/<branch-name>`, capture the corresponding `worktree <path>`.
+3. If a worktree is found for `<branch-name>`, remove it with:
 
    ```bash
-   git gtr rm <worktree-name>
+   git gtr rm "<worktree-name>"
    ```
 
-   - `<worktree-name>` is the worktree name used by `git gtr` for that branch.
+   - `<worktree-name>` is the `git gtr` name for that worktree, typically the basename of `<path>` from the porcelain output.
    - This removes both the worktree directory and the associated branch.
 
-3. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup:
+4. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup from any existing worktree (do not assume current dir is the main worktree):
    ```bash
-   git checkout main && git pull --prune && git branch -d <branch-name>
+   git -C "<worktree-path>" checkout "<base-branch>" && git -C "<worktree-path>" pull --prune && git -C "<worktree-path>" branch -d "<branch-name>"
    ```
