@@ -1,7 +1,7 @@
 name: PR Policy
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
     branches: [main]
 
@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      # Safety: do not check out or execute PR code in this job.
       - name: Check contributor policy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
