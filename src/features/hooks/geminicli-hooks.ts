@@ -51,9 +51,17 @@ function canonicalToGeminicliHooks(config: HooksConfig): Record<string, unknown[
     const entries: unknown[] = [];
     for (const [matcherKey, defs] of byMatcher) {
       const hooks = defs.map((def) => {
+        const commandText = def.command;
+        const trimmedCommand =
+          typeof commandText === "string" ? commandText.trimStart() : undefined;
+        const shouldPrefix =
+          typeof trimmedCommand === "string" &&
+          !trimmedCommand.startsWith("$") &&
+          trimmedCommand.startsWith(".");
+
         const command =
-          def.command !== undefined && def.command !== null && !def.command.startsWith("$")
-            ? `$GEMINI_PROJECT_DIR/${def.command.replace(/^\.\//, "")}`
+          shouldPrefix && typeof trimmedCommand === "string"
+            ? `$GEMINI_PROJECT_DIR/${trimmedCommand.replace(/^\.\//, "")}`
             : def.command;
         return {
           type: def.type ?? "command",

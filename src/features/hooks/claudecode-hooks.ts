@@ -25,6 +25,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   canonicalToToolEventNames: CANONICAL_TO_CLAUDE_EVENT_NAMES,
   toolToCanonicalEventNames: CLAUDE_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "$CLAUDE_PROJECT_DIR",
+  prefixDotRelativeCommandsOnly: true,
 };
 
 export class ClaudecodeHooks extends ToolHooks {
