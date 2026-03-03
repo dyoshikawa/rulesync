@@ -178,6 +178,7 @@ describe("JunieSubagent", () => {
 
       const junieSubagent = JunieSubagent.fromRulesyncSubagent({
         baseDir: testDir,
+        relativeDirPath: JunieSubagent.getSettablePaths().relativeDirPath,
         rulesyncSubagent,
         validate: true,
       }) as JunieSubagent;
@@ -205,7 +206,10 @@ describe("JunieSubagent", () => {
         body: "content",
       });
 
-      const junieSubagent = JunieSubagent.fromRulesyncSubagent({ rulesyncSubagent });
+      const junieSubagent = JunieSubagent.fromRulesyncSubagent({
+        rulesyncSubagent,
+        relativeDirPath: JunieSubagent.getSettablePaths().relativeDirPath,
+      });
 
       expect(junieSubagent.getBaseDir()).toBe(testDir);
     });

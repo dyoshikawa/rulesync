@@ -938,6 +938,7 @@ Second global content`;
           "cursor",
           "factorydroid",
           "geminicli",
+          "junie",
           "kiro",
           "opencode",
           "roo",
