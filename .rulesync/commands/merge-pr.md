@@ -87,13 +87,15 @@ After merging:
 
 ## Step 6: Clean Up Local Branch / Worktree
 
-After merge, clean up local state for the head branch from Step 2 (`<branch-name>`):
+After merge, clean up local state for the head branch from Step 2 (`<branch-name>`). Here, `<base-branch>` is the base branch name from Step 2 (`baseRefName`, e.g. `main`).
 
 1. Detect whether `<branch-name>` is attached to a worktree:
    ```bash
    git worktree list --porcelain
    ```
-2. Parse the porcelain output by blocks. For the block where `branch` is `refs/heads/<branch-name>`, capture the corresponding `worktree <path>`.
+2. Parse the porcelain output by blocks (entries are separated by a blank line):
+   - For the block where `branch` is `refs/heads/<branch-name>`, capture the corresponding `worktree <path>`.
+   - Also capture a fallback `<worktree-path>` from the first `worktree <path>` entry (this is the main worktree path in normal setups).
 3. If a worktree is found for `<branch-name>`, remove it with:
 
    ```bash
@@ -103,7 +105,7 @@ After merge, clean up local state for the head branch from Step 2 (`<branch-name
    - `<worktree-name>` is the `git gtr` name for that worktree, typically the basename of `<path>` from the porcelain output.
    - This removes both the worktree directory and the associated branch.
 
-4. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup from any existing worktree (do not assume current dir is the main worktree):
+4. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup from `<worktree-path>`:
    ```bash
    git -C "<worktree-path>" checkout "<base-branch>" && git -C "<worktree-path>" pull --prune && git -C "<worktree-path>" branch -d "<branch-name>"
    ```
