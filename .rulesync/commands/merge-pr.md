@@ -93,19 +93,31 @@ After merge, clean up local state for the head branch from Step 2 (`<branch-name
    ```bash
    git worktree list --porcelain
    ```
-2. Parse the porcelain output by blocks (entries are separated by a blank line):
-   - For the block where `branch` is `refs/heads/<branch-name>`, capture the corresponding `worktree <path>`.
-   - Also capture a fallback `<worktree-path>` from the first `worktree <path>` entry (this is the main worktree path in normal setups).
-3. If a worktree is found for `<branch-name>`, remove it with:
+2. Parse the porcelain output by blocks (entries are separated by a blank line).
+   - Only consider blocks that include a `branch` line (detached HEAD blocks have no `branch` line).
+   - If no block has `branch refs/heads/<branch-name>`, treat it as “no worktree found for the branch.”
+   - Capture a fallback `<worktree-path>` from the first `worktree <path>` entry.
+3. Validate inputs before using them in commands.
+   - `<branch-name>` and `<base-branch>` must be treated as literals: reject values that start with `-` or contain whitespace, `$`, backticks, quotes, backslashes, `;`, `&`, `|`, `<`, `>`, `(`, `)`, or newlines.
+   - `<worktree-path>` must come from porcelain output (not user input). Reject it if it contains `$`, backticks, or newlines.
+4. If a worktree is found for `<branch-name>`, capture its `worktree <path>` and resolve the matching `git gtr` name:
 
    ```bash
-   git gtr rm "<worktree-name>"
+   git gtr list --porcelain
    ```
 
-   - `<worktree-name>` is the `git gtr` name for that worktree, typically the basename of `<path>` from the porcelain output.
+   - `<worktree-name>` is the `name` field in the `git gtr` porcelain block whose `path` matches `<worktree-path>` (do not assume it is the basename).
+
+5. Before removal, if the current directory is inside `<worktree-path>`, move to a safe worktree (e.g., the main worktree root) so the target can be deleted.
+6. Remove the worktree:
+
+   ```bash
+   git gtr rm -- "<worktree-name>"
+   ```
+
    - This removes both the worktree directory and the associated branch.
 
-4. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup from `<worktree-path>`:
+7. If no worktree is associated with `<branch-name>`, fall back to normal branch cleanup from any existing worktree (do not assume current dir is the main worktree):
    ```bash
-   git -C "<worktree-path>" checkout "<base-branch>" && git -C "<worktree-path>" pull --prune && git -C "<worktree-path>" branch -d "<branch-name>"
+   git -C "<worktree-path>" checkout -- "<base-branch>" && git -C "<worktree-path>" pull --prune && git -C "<worktree-path>" branch -d -- "<branch-name>"
    ```
