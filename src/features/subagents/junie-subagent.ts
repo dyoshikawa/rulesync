@@ -16,7 +16,6 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const JunieSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
@@ -71,7 +70,6 @@ export class JunieSubagent extends ToolSubagent {
   toRulesyncSubagent(): RulesyncSubagent {
     const { name, description, ...restFields } = this.frontmatter;
 
-    // Build junie section with any extra fields
     const junieSection: Record<string, unknown> = {
       ...restFields,
     };
@@ -80,7 +78,6 @@ export class JunieSubagent extends ToolSubagent {
       targets: ["*"] as const,
       name,
       description,
-      // Only include junie section if there are fields
       ...(Object.keys(junieSection).length > 0 && { junie: junieSection }),
     };
 
