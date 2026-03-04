@@ -163,6 +163,7 @@ claudecode: # for claudecode-specific parameters
     - "Read"
     - "Write"
     - "Grep"
+  disable-model-invocation: true # (optional) disable model invocation for this skill
 codexcli: # for codexcli-specific parameters
   short-description: A brief user-facing description
 ---

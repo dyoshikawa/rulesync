@@ -1,12 +1,12 @@
 name: PR Policy
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened]
     branches: [main]
 
 permissions:
-  contents: read # Default for pull_request events
+  contents: read # Minimum required
   pull-requests: write # Required for commenting and closing PRs
 
 jobs:
@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      # Safety: do not check out or execute PR code in this job.
       - name: Check contributor policy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -33,7 +34,7 @@ jobs:
             exit 0
           fi
 
-          MAX_ADDITIONS=400
+          MAX_ADDITIONS=1000
           MAX_OPEN_PRS=2
 
           # Fetch up-to-date additions count from the API (event payload may be stale on synchronize)
@@ -47,11 +48,9 @@ jobs:
 
           Please split your changes into smaller PRs. See [CONTRIBUTING.md](https://github.com/${GH_REPO}/blob/main/CONTRIBUTING.md) for details.
 
-          This PR has been automatically closed.
           EOF
             )
             gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            gh pr close "$PR_NUMBER"
             echo "::error::PR exceeds the addition line limit for external contributors ($PR_ADDITIONS > $MAX_ADDITIONS)."
             exit 1
           fi
