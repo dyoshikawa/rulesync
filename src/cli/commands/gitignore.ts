@@ -72,6 +72,8 @@ const RULESYNC_IGNORE_ENTRIES = [
   // Junie
   "**/.junie/guidelines.md",
   "**/.junie/mcp.json",
+  "**/.junie/skills/",
+  "**/.junie/agents/",
   // Kilo Code
   "**/.kilocode/rules/",
   "**/.kilocode/skills/",
