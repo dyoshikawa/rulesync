@@ -32,6 +32,8 @@ export type ToolHooksConverterConfig = {
   /**
    * Optional canonical hook fields to copy through to tool hook entries and back.
    * Useful for tool-specific fields such as Gemini CLI's `name` and `description`.
+   * Note: `type`, `command`, `timeout`, `prompt`, and `matcher` are handled by the converter
+   * and should not be included here.
    */
   passthroughHookFields?: readonly (keyof HookDefinition)[];
 };

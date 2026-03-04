@@ -236,6 +236,71 @@ describe("GeminicliHooks", () => {
       expect(parsed.hooks.sessionStart).toBeUndefined();
       expect(parsed.hooks.sessionEnd).toBeUndefined();
     });
+
+    it("should ignore non-object hook entries in hooks array", () => {
+      const geminiHooks = new GeminicliHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              SessionStart: [
+                {
+                  hooks: [
+                    42, // Not an object
+                    { type: "command", command: "echo valid" },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = geminiHooks.toRulesyncHooks();
+      const parsed = rulesyncHooks.getJson();
+
+      expect(parsed.hooks.sessionStart).toHaveLength(2);
+      expect(parsed.hooks.sessionStart?.[0]?.command).toBeUndefined();
+      expect(parsed.hooks.sessionStart?.[1]?.command).toBe("echo valid");
+    });
+
+    it("should round-trip passthrough fields with dot-relative command prefixing", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [
+                {
+                  command: "./hooks/start.sh",
+                  name: "Start Hook",
+                  description: "Runs on session start",
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const geminiHooks = await GeminicliHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const geminiParsed = JSON.parse(geminiHooks.getFileContent());
+      const hook = geminiParsed.hooks.SessionStart[0].hooks[0];
+      expect(hook.command).toBe("$GEMINI_PROJECT_DIR/hooks/start.sh");
+      expect(hook.name).toBe("Start Hook");
+      expect(hook.description).toBe("Runs on session start");
+
+      const roundTripped = geminiHooks.toRulesyncHooks();
+      const canonicalParsed = roundTripped.getJson();
+      expect(canonicalParsed.hooks.sessionStart?.[0]).toEqual({
+        type: "command",
+        command: "./hooks/start.sh",
+        name: "Start Hook",
+        description: "Runs on session start",
+      });
+    });
   });
 
   describe("fromFile", () => {
