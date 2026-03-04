@@ -264,8 +264,7 @@ docs/.vitepress/cache
 **/.github/skills/
 **/.github/hooks/
 **/.vscode/mcp.json
-**/.junie/guidelines.md
-**/.junie/mcp.json
+**/.junie/
 **/.kilocode/rules/
 **/.kilocode/skills/
 **/.kilocode/workflows/
