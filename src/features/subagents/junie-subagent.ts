@@ -51,7 +51,10 @@ export class JunieSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+  static getSettablePaths(options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    if (options?.global) {
+      throw new Error("JunieSubagent does not support global mode.");
+    }
     return {
       relativeDirPath: join(".junie", "agents"),
     };

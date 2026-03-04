@@ -69,7 +69,10 @@ export class JunieSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
+    if (options?.global) {
+      throw new Error("JunieSkill does not support global mode.");
+    }
     return {
       relativeDirPath: join(".junie", "skills"),
     };

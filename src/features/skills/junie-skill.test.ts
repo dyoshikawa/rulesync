@@ -31,9 +31,10 @@ describe("JunieSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".junie", "skills"));
     });
 
-    it("should return .junie/skills as relativeDirPath for global mode", () => {
-      const paths = JunieSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".junie", "skills"));
+    it("should throw error when global mode is requested", () => {
+      expect(() => JunieSkill.getSettablePaths({ global: true })).toThrow(
+        "JunieSkill does not support global mode.",
+      );
     });
   });
 

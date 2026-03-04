@@ -20,7 +20,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Qwen Code          | qwencode     |  ✅   |   ✅   |          |          |           |        |       |
 | Kiro               | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |
 | Google Antigravity | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |
-| JetBrains Junie    | junie        |  ✅   |   ✅   |    ✅    |          |           |        |       |
+| JetBrains Junie    | junie        |  ✅   |   ✅   |    ✅    |          |    ✅     |   ✅   |       |
 | AugmentCode        | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |
 | Windsurf           | windsurf     |  ✅   |   ✅   |          |          |           |        |       |
 | Warp               | warp         |  ✅   |        |          |          |           |        |       |

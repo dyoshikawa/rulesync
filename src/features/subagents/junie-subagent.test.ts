@@ -64,10 +64,12 @@ describe("JunieSubagent", () => {
     expect(JunieSubagent.getSettablePaths()).toEqual({
       relativeDirPath: join(".junie", "agents"),
     });
+  });
 
-    expect(JunieSubagent.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: join(".junie", "agents"),
-    });
+  it("should throw error when global mode is requested in getSettablePaths", () => {
+    expect(() => JunieSubagent.getSettablePaths({ global: true })).toThrow(
+      "JunieSubagent does not support global mode.",
+    );
   });
 
   describe("constructor", () => {
