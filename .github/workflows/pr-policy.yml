@@ -47,11 +47,9 @@ jobs:
 
           Please split your changes into smaller PRs. See [CONTRIBUTING.md](https://github.com/${GH_REPO}/blob/main/CONTRIBUTING.md) for details.
 
-          This PR has been automatically closed.
           EOF
             )
             gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            gh pr close "$PR_NUMBER"
             echo "::error::PR exceeds the addition line limit for external contributors ($PR_ADDITIONS > $MAX_ADDITIONS)."
             exit 1
           fi
