@@ -192,6 +192,40 @@ describe("JunieSubagent", () => {
       expect(junieSubagent.getRelativeFilePath()).toBe("test-agent.md");
     });
 
+    it("should not allow junie section to overwrite top-level name and description", () => {
+      const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+        targets: ["junie"],
+        name: "rulesync-name",
+        description: "rulesync-description",
+        junie: {
+          name: "junie-name",
+          description: "junie-description",
+          // other fields should be preserved
+          extraField: "value",
+        },
+      };
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "body",
+      });
+
+      const junieSubagent = JunieSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: join(".junie", "agents"),
+        rulesyncSubagent,
+        validate: true,
+      }) as JunieSubagent;
+
+      const junieFrontmatter = junieSubagent.getFrontmatter();
+      expect(junieFrontmatter.name).toBe("rulesync-name");
+      expect(junieFrontmatter.description).toBe("rulesync-description");
+      expect((junieFrontmatter as any).extraField).toBe("value");
+    });
+
     it("should use default baseDir when not provided", () => {
       const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
         targets: ["junie"],

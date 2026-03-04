@@ -98,7 +98,10 @@ export class JunieSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const junieSection = rulesyncFrontmatter.junie ?? {};
+    const junieSection = this.filterToolSpecificSection(rulesyncFrontmatter.junie ?? {}, [
+      "name",
+      "description",
+    ]);
 
     const rawJunieFrontmatter = {
       name: rulesyncFrontmatter.name,

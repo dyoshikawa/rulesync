@@ -104,7 +104,10 @@ export class ClaudecodeSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const claudecodeSection = rulesyncFrontmatter.claudecode ?? {};
+    const claudecodeSection = this.filterToolSpecificSection(rulesyncFrontmatter.claudecode ?? {}, [
+      "name",
+      "description",
+    ]);
 
     // Build claudecode frontmatter from rulesync frontmatter + claudecode section
     const rawClaudecodeFrontmatter = {

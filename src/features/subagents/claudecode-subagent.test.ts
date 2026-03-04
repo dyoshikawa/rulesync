@@ -429,6 +429,39 @@ describe("ClaudecodeSubagent", () => {
       expect(claudecodeSubagent.getRelativeFilePath()).toBe("test-agent.md");
     });
 
+    it("should not allow claudecode section to overwrite top-level name and description", () => {
+      const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
+        targets: ["claudecode"],
+        name: "rulesync-name",
+        description: "rulesync-description",
+        claudecode: {
+          name: "claudecode-name",
+          description: "claudecode-description",
+          model: "opus",
+        },
+      };
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: rulesyncFrontmatter,
+        body: "body",
+      });
+
+      const claudecodeSubagent = ClaudecodeSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent,
+        validate: true,
+      }) as ClaudecodeSubagent;
+
+      const claudecodeFrontmatter = claudecodeSubagent.getFrontmatter();
+      expect(claudecodeFrontmatter.name).toBe("rulesync-name");
+      expect(claudecodeFrontmatter.description).toBe("rulesync-description");
+      expect(claudecodeFrontmatter.model).toBe("opus");
+    });
+
     it("should convert from RulesyncSubagent with model", () => {
       const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
         targets: ["claudecode"],
