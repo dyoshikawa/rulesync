@@ -16,28 +16,27 @@ import { RulesyncSubagent, type RulesyncSubagentFrontmatter } from "./rulesync-s
 describe("JunieSubagentFrontmatterSchema", () => {
   it("should accept valid frontmatter with required fields only", () => {
     const validFrontmatter = {
-      name: "test-agent",
       description: "A test agent",
     };
 
     expect(() => JunieSubagentFrontmatterSchema.parse(validFrontmatter)).not.toThrow();
   });
 
-  it("should accept valid frontmatter without description", () => {
+  it("should accept valid frontmatter without name", () => {
     const frontmatter = {
-      name: "test-agent",
+      description: "test-agent",
     };
 
     expect(() => JunieSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
     const result = JunieSubagentFrontmatterSchema.parse(frontmatter);
-    expect(result.description).toBeUndefined();
+    expect(result.name).toBeUndefined();
   });
 
-  it("should reject frontmatter missing name", () => {
-    const missingName = {
-      description: "A test agent",
+  it("should reject frontmatter missing description", () => {
+    const missingDescription = {
+      name: "A test agent",
     };
-    expect(() => JunieSubagentFrontmatterSchema.parse(missingName)).toThrow();
+    expect(() => JunieSubagentFrontmatterSchema.parse(missingDescription)).toThrow();
   });
 
   it("should reject non-string name", () => {
@@ -95,7 +94,7 @@ describe("JunieSubagent", () => {
     });
 
     it("should throw error with invalid frontmatter when validation enabled", () => {
-      const invalidFrontmatter = { name: 123, description: "desc" } as any;
+      const invalidFrontmatter = { description: 123 } as any;
 
       expect(() => {
         // oxlint-disable-next-line eslint/no-new
@@ -281,8 +280,8 @@ describe("JunieSubagent", () => {
       expect(subagent.getBaseDir()).toBe(testDir);
     });
 
-    it("should throw error for file with missing name", async () => {
-      const invalidFrontmatter = { description: "no name" };
+    it("should throw error for file with missing description", async () => {
+      const invalidFrontmatter = { name: "no description" };
       const fileContent = stringifyFrontmatter("body", invalidFrontmatter);
 
       const agentsDir = join(testDir, ".junie", "agents");

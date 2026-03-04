@@ -17,8 +17,8 @@ import {
 } from "./tool-subagent.js";
 
 export const JunieSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.optional(z.string()),
+  name: z.optional(z.string()),
+  description: z.string(),
 });
 
 export type JunieSubagentFrontmatter = z.infer<typeof JunieSubagentFrontmatterSchema>;
@@ -76,7 +76,7 @@ export class JunieSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name,
+      name: name ?? this.getRelativeFilePath().replace(/\.md$/, ""),
       description,
       ...(Object.keys(junieSection).length > 0 && { junie: junieSection }),
     };
