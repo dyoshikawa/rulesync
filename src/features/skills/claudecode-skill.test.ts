@@ -304,6 +304,48 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should convert to RulesyncSkill with disable-model-invocation true", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "no-invoke-skill",
+        description: "Skill with disabled invocation",
+        "disable-model-invocation": true,
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "no-invoke-skill",
+        frontmatter,
+        body: "No invoke body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        "disable-model-invocation": true,
+      });
+    });
+
+    it("should convert to RulesyncSkill with disable-model-invocation false", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "invoke-skill",
+        description: "Skill with explicit false",
+        "disable-model-invocation": false,
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "invoke-skill",
+        frontmatter,
+        body: "Invoke body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        "disable-model-invocation": false,
+      });
+    });
+
     it("should preserve other files during conversion", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "test-skill",
@@ -407,6 +449,40 @@ describe("ClaudecodeSkill", () => {
       const fm = claudecodeSkill.getFrontmatter();
       expect(fm.model).toBe("haiku");
       expect(fm["allowed-tools"]).toEqual(["Bash"]);
+    });
+
+    it("should convert from RulesyncSkill with disable-model-invocation", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "no-invoke-skill",
+        description: "Skill with disabled invocation",
+        claudecode: { "disable-model-invocation": true },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "no-invoke-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "No invoke body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should convert from RulesyncSkill with disable-model-invocation false", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "invoke-skill",
+        description: "Skill with explicit false",
+        claudecode: { "disable-model-invocation": false },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "invoke-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Invoke body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
     });
 
     it("should set correct relativeDirPath", () => {
@@ -754,6 +830,33 @@ Global skill content.`;
       expect(result.success).toBe(true);
     });
 
+    it("should validate frontmatter with disable-model-invocation true", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        "disable-model-invocation": true,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate frontmatter with disable-model-invocation false", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        "disable-model-invocation": false,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject non-boolean disable-model-invocation value", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        "disable-model-invocation": "yes",
+      });
+      expect(result.success).toBe(false);
+    });
+
     it("should reject non-string model value", () => {
       const result = ClaudecodeSkillFrontmatterSchema.safeParse({
         name: "test-skill",
@@ -765,6 +868,44 @@ Global skill content.`;
   });
 
   describe("round-trip conversion", () => {
+    it("should preserve disable-model-invocation through round-trip", () => {
+      const originalFrontmatter: ClaudecodeSkillFrontmatter = {
+        name: "round-trip-skill",
+        description: "Round trip test",
+        "disable-model-invocation": true,
+      };
+
+      const original = new ClaudecodeSkill({
+        dirName: "round-trip-skill",
+        frontmatter: originalFrontmatter,
+        body: "Round trip body",
+      });
+
+      const rulesyncSkill = original.toRulesyncSkill();
+      const restored = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(restored.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should preserve disable-model-invocation false through round-trip", () => {
+      const originalFrontmatter: ClaudecodeSkillFrontmatter = {
+        name: "round-trip-skill",
+        description: "Round trip test",
+        "disable-model-invocation": false,
+      };
+
+      const original = new ClaudecodeSkill({
+        dirName: "round-trip-skill",
+        frontmatter: originalFrontmatter,
+        body: "Round trip body",
+      });
+
+      const rulesyncSkill = original.toRulesyncSkill();
+      const restored = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(restored.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
     it("should preserve model through ClaudecodeSkill -> RulesyncSkill -> ClaudecodeSkill", () => {
       const originalFrontmatter: ClaudecodeSkillFrontmatter = {
         name: "round-trip-skill",

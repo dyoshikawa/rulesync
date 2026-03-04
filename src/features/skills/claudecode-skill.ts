@@ -20,6 +20,7 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   description: z.string(),
   "allowed-tools": z.optional(z.array(z.string())),
   model: z.optional(z.string()),
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
@@ -120,6 +121,9 @@ export class ClaudecodeSkill extends ToolSkill {
     const claudecodeSection = {
       ...(frontmatter["allowed-tools"] && { "allowed-tools": frontmatter["allowed-tools"] }),
       ...(frontmatter.model && { model: frontmatter.model }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -155,6 +159,9 @@ export class ClaudecodeSkill extends ToolSkill {
       }),
       ...(rulesyncFrontmatter.claudecode?.model && {
         model: rulesyncFrontmatter.claudecode.model,
+      }),
+      ...(rulesyncFrontmatter.claudecode?.["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": rulesyncFrontmatter.claudecode["disable-model-invocation"],
       }),
     };
 
