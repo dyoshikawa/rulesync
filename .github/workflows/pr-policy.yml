@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read # Default for pull_request events
+  contents: read # Minimum required
   pull-requests: write # Required for commenting and closing PRs
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
             exit 0
           fi
 
-          MAX_ADDITIONS=400
+          MAX_ADDITIONS=1000
           MAX_OPEN_PRS=2
 
           # Fetch up-to-date additions count from the API (event payload may be stale on synchronize)
