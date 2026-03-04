@@ -770,51 +770,66 @@ export class RulesProcessor extends FeatureProcessor {
       }),
     );
 
+    const factory = this.getFactory(this.toolTarget);
+
     const rootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().root);
 
-    // A root file should be only one
-    if (rootRules.length > 1) {
-      throw new Error(`Multiple root rulesync rules found: ${formatRulePaths(rootRules)}`);
+    // Filter roots to those targeting this tool
+    const targetedRootRules = rootRules.filter((rule) =>
+      factory.class.isTargetedByRulesyncRule(rule),
+    );
+
+    if (targetedRootRules.length > 1) {
+      throw new Error(
+        `Multiple root rulesync rules found for target '${this.toolTarget}': ${formatRulePaths(targetedRootRules)}`,
+      );
     }
 
-    if (rootRules.length === 0 && rulesyncRules.length > 0) {
+    if (targetedRootRules.length === 0 && rulesyncRules.length > 0) {
       logger.warn(
-        `No root rulesync rule file found. Consider adding 'root: true' to one of your rule files in ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+        `No root rulesync rule file found for target '${this.toolTarget}'. Consider adding 'root: true' to one of your rule files in ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
       );
     }
 
-    // Validation for localRoot
+    // Validation for localRoot — scoped to this tool's target
     const localRootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().localRoot);
+    const targetedLocalRootRules = localRootRules.filter((rule) =>
+      factory.class.isTargetedByRulesyncRule(rule),
+    );
 
-    if (localRootRules.length > 1) {
+    if (targetedLocalRootRules.length > 1) {
       throw new Error(
-        `Multiple localRoot rules found: ${formatRulePaths(localRootRules)}. Only one rule can have localRoot: true`,
+        `Multiple localRoot rules found for target '${this.toolTarget}': ${formatRulePaths(targetedLocalRootRules)}. Only one rule can have localRoot: true`,
       );
     }
 
-    if (localRootRules.length > 0 && rootRules.length === 0) {
+    if (targetedLocalRootRules.length > 0 && targetedRootRules.length === 0) {
       throw new Error(
-        `localRoot: true requires a root: true rule to exist (found in ${formatRulePaths(localRootRules)})`,
+        `localRoot: true requires a root: true rule to exist for target '${this.toolTarget}' (found in ${formatRulePaths(targetedLocalRootRules)})`,
       );
     }
 
-    // If global is true, return only the root rule
+    // In global mode, return only the root rule for this target
     if (this.global) {
-      const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
+      const nonRootRules = rulesyncRules.filter(
+        (rule) => !rule.getFrontmatter().root && !rule.getFrontmatter().localRoot,
+      );
       if (nonRootRules.length > 0) {
         logger.warn(
           `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${formatRulePaths(nonRootRules)}`,
         );
       }
-      if (localRootRules.length > 0) {
+      if (targetedLocalRootRules.length > 0) {
         logger.warn(
-          `${localRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${formatRulePaths(localRootRules)}`,
+          `${targetedLocalRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${formatRulePaths(targetedLocalRootRules)}`,
         );
       }
-      return rootRules;
+      return targetedRootRules;
     }
 
-    return rulesyncRules;
+    // In project mode, exclude root rules not targeting this tool
+    const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
+    return [...targetedRootRules, ...nonRootRules];
   }
 
   /**
