@@ -2,7 +2,7 @@ name: PR Policy
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened]
     branches: [main]
 
 permissions:
