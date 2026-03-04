@@ -493,8 +493,24 @@ async function fetchSourceViaGit(params: {
 
   const fetchedSkills: Record<string, LockedSkill> = {};
   for (const skillName of filteredNames) {
-    if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) continue;
-    if (localSkillNames.has(skillName) || alreadyFetchedSkillNames.has(skillName)) continue;
+    if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
+      logger.warn(
+        `Skipping skill with invalid name "${skillName}" from ${url}: contains path traversal characters.`,
+      );
+      continue;
+    }
+    if (localSkillNames.has(skillName)) {
+      logger.debug(
+        `Skipping remote skill "${skillName}" from ${url}: local skill takes precedence.`,
+      );
+      continue;
+    }
+    if (alreadyFetchedSkillNames.has(skillName)) {
+      logger.warn(
+        `Skipping duplicate skill "${skillName}" from ${url}: already fetched from another source.`,
+      );
+      continue;
+    }
 
     const files = skillFileMap.get(skillName) ?? [];
     const written: Array<{ path: string; content: string }> = [];

@@ -7,6 +7,7 @@ import {
   createTempDirectory,
   directoryExists,
   getFileSize,
+  isSymlink,
   listDirectoryFiles,
   readFileContent,
   removeTempDirectory,
@@ -16,14 +17,13 @@ import { logger } from "../utils/logger.js";
 const execFileAsync = promisify(execFile);
 
 const ALLOWED_URL_SCHEMES =
-  /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:.+)/;
+  /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+)/;
+
+const INSECURE_URL_SCHEMES = /^(git:\/\/|http:\/\/)/;
 
 export class GitClientError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-  ) {
-    super(message);
+  constructor(message: string, cause?: unknown) {
+    super(message, { cause });
     this.name = "GitClientError";
   }
 }
@@ -32,6 +32,11 @@ export function validateGitUrl(url: string): void {
   if (!ALLOWED_URL_SCHEMES.test(url)) {
     throw new GitClientError(
       `Unsupported or unsafe git URL: "${url}". Use https, ssh, git, or file schemes.`,
+    );
+  }
+  if (INSECURE_URL_SCHEMES.test(url)) {
+    logger.warn(
+      `URL "${url}" uses an unencrypted protocol. Consider using https:// or ssh:// instead.`,
     );
   }
 }
@@ -82,6 +87,11 @@ export async function resolveRefToSha(url: string, ref: string): Promise<string>
   }
 }
 
+/**
+ * Clone a repo at the given ref and return all files under skillsPath.
+ * The `ref` must be a branch or tag name (not a commit SHA) because
+ * `git clone --branch` does not accept raw SHAs.
+ */
 export async function fetchSkillFiles(params: {
   url: string;
   ref: string;
@@ -125,13 +135,18 @@ async function walkDirectory(
   depth: number = 0,
 ): Promise<Array<{ relativePath: string; content: string; size: number }>> {
   if (depth > MAX_WALK_DEPTH) {
-    logger.warn(`Skipping "${dir}": exceeds max directory depth of ${MAX_WALK_DEPTH}.`);
-    return [];
+    throw new GitClientError(
+      `Directory tree exceeds max depth of ${MAX_WALK_DEPTH}: "${dir}". Aborting to prevent resource exhaustion.`,
+    );
   }
   const results: Array<{ relativePath: string; content: string; size: number }> = [];
   for (const name of await listDirectoryFiles(dir)) {
     if (name === ".git") continue;
     const fullPath = join(dir, name);
+    if (await isSymlink(fullPath)) {
+      logger.warn(`Skipping symlink "${fullPath}".`);
+      continue;
+    }
     if (await directoryExists(fullPath)) {
       results.push(...(await walkDirectory(fullPath, baseDir, depth + 1)));
     } else {

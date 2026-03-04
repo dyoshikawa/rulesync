@@ -8,6 +8,7 @@ vi.mock("../utils/file.js", () => ({
   createTempDirectory: vi.fn(),
   removeTempDirectory: vi.fn(),
   directoryExists: vi.fn(),
+  isSymlink: vi.fn().mockResolvedValue(false),
   listDirectoryFiles: vi.fn(),
   getFileSize: vi.fn(),
   readFileContent: vi.fn(),
@@ -20,6 +21,7 @@ import {
   createTempDirectory,
   directoryExists,
   getFileSize,
+  isSymlink,
   listDirectoryFiles,
   readFileContent,
   removeTempDirectory,
@@ -65,6 +67,25 @@ describe("git-client", () => {
       ["@bare-at"],
     ])("rejects invalid URL: %s", (url) => {
       expect(() => validateGitUrl(url)).toThrow(GitClientError);
+    });
+
+    it("warns on insecure git:// protocol", () => {
+      validateGitUrl("git://example.com/repo.git");
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("unencrypted protocol"),
+      );
+    });
+
+    it("warns on insecure http:// protocol", () => {
+      validateGitUrl("http://example.com/repo.git");
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("unencrypted protocol"),
+      );
+    });
+
+    it("does not warn on https:// protocol", () => {
+      validateGitUrl("https://example.com/repo.git");
+      expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
     });
   });
 
@@ -218,7 +239,27 @@ describe("git-client", () => {
       expect(files[0]?.relativePath).toBe("file.md");
     });
 
-    it("warns and stops at max directory depth", async () => {
+    it("skips symlinks and warns", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("skills"));
+      vi.mocked(listDirectoryFiles).mockResolvedValue(["link", "file.md"]);
+      vi.mocked(isSymlink).mockImplementation(async (p: string) => p.endsWith("link"));
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: "skills",
+      });
+      expect(files).toHaveLength(1);
+      expect(files[0]?.relativePath).toBe("file.md");
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("symlink"));
+    });
+
+    it("throws GitClientError at max directory depth", async () => {
       mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
       vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
@@ -226,13 +267,20 @@ describe("git-client", () => {
       vi.mocked(directoryExists).mockResolvedValue(true);
       vi.mocked(listDirectoryFiles).mockResolvedValue(["nested"]);
 
-      const files = await fetchSkillFiles({
-        url: "https://example.com/repo.git",
-        ref: "main",
-        skillsPath: "skills",
-      });
-      expect(files).toEqual([]);
-      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("max directory"));
+      await expect(
+        fetchSkillFiles({
+          url: "https://example.com/repo.git",
+          ref: "main",
+          skillsPath: "skills",
+        }),
+      ).rejects.toThrow(GitClientError);
+      await expect(
+        fetchSkillFiles({
+          url: "https://example.com/repo.git",
+          ref: "main",
+          skillsPath: "skills",
+        }),
+      ).rejects.toThrow("max depth");
     });
   });
 });
