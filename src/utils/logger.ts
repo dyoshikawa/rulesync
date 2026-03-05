@@ -35,31 +35,31 @@ class Logger {
   }
 
   info(message: string, ...args: unknown[]): void {
-    if (isEnvTest || this._silent) return;
+    if (isEnvTest() || this._silent) return;
     this.console.info(message, ...args);
   }
 
   // Success (always shown unless silent)
   success(message: string, ...args: unknown[]): void {
-    if (isEnvTest || this._silent) return;
+    if (isEnvTest() || this._silent) return;
     this.console.success(message, ...args);
   }
 
   // Warning (always shown unless silent)
   warn(message: string, ...args: unknown[]): void {
-    if (isEnvTest || this._silent) return;
+    if (isEnvTest() || this._silent) return;
     this.console.warn(message, ...args);
   }
 
   // Error (always shown, even in silent mode)
   error(message: string, ...args: unknown[]): void {
-    if (isEnvTest) return;
+    if (isEnvTest()) return;
     this.console.error(message, ...args);
   }
 
   // Debug level (shown only in verbose mode)
   debug(message: string, ...args: unknown[]): void {
-    if (isEnvTest || this._silent) return;
+    if (isEnvTest() || this._silent) return;
     if (this._verbose) {
       this.console.info(message, ...args);
     }
