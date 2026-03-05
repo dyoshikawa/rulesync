@@ -19,7 +19,7 @@ describe("E2E: mcp", () => {
 
   it.each([
     { target: "claudecode", outputPath: ".mcp.json" },
-    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
@@ -93,9 +93,9 @@ describe("E2E: mcp (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
   it.each([
-    { target: "claudecode", outputPath: ".mcp.json" },
+    { target: "claudecode", outputPath: join(".claude", ".claude.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
-    { target: "opencode", outputPath: join(".opencode", "mcp.json") },
+    { target: "opencode", outputPath: join(".config", "opencode", "opencode.json") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -180,7 +180,7 @@ describe("E2E: mcp (global mode)", () => {
     });
 
     // Verify: root mcp content is present, non-root mcp content is absent
-    const generatedContent = await readFileContent(join(homeDir, ".mcp.json"));
+    const generatedContent = await readFileContent(join(homeDir, ".claude", ".claude.json"));
     expect(generatedContent).toContain("root-server");
     expect(generatedContent).not.toContain("non-root-server");
   });
