@@ -11,7 +11,7 @@ describe("E2E: subagents", () => {
 
   it.each([
     { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
-    { target: "copilot", outputPath: join(".github", "agents", "planner.md") },
+    { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -77,7 +77,7 @@ describe("E2E: subagents (global mode)", () => {
 
   it.each([
     { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
-    { target: "copilot", outputPath: join(".github", "agents", "planner.md") },
+    { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "opencode", outputPath: join(".opencode", "agent", "planner.md") },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

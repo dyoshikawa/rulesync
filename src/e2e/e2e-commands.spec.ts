@@ -11,7 +11,7 @@ describe("E2E: commands", () => {
 
   it.each([
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
-    { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
+    { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
     { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
@@ -47,7 +47,7 @@ describe("E2E: commands (global mode)", () => {
 
   it.each([
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
-    { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
+    { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "command", "review-pr.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

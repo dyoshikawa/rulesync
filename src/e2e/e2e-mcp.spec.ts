@@ -19,7 +19,7 @@ describe("E2E: mcp", () => {
 
   it.each([
     { target: "claudecode", outputPath: ".mcp.json" },
-    { target: "cursor", outputPath: join(".cursor", "mcp.json") },
+    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
@@ -94,7 +94,7 @@ describe("E2E: mcp (global mode)", () => {
 
   it.each([
     { target: "claudecode", outputPath: ".mcp.json" },
-    { target: "cursor", outputPath: join(".cursor", "mcp.json") },
+    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "opencode", outputPath: join(".opencode", "mcp.json") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
