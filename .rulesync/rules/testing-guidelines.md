@@ -82,4 +82,4 @@ globs: ["**/*.test.ts"]
 - When `NODE_ENV` is `test`:
   - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
     - When you want to log in test, use `console.log` and run `npx vitest run --silent=false` to see the logs.
-  - `getHomeDirectory()` in `src/utils/file.ts` throws an error to enforce explicit mocking.
+  - `getHomeDirectory()` in `src/utils/file.ts` throws an error to enforce explicit mocking, unless `HOME_DIR` environment variable is set (used by E2E tests to specify a pseudo-home directory for global mode testing).

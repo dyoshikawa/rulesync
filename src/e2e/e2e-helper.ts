@@ -43,18 +43,24 @@ export const rulesyncArgs = process.env.RULESYNC_CMD ? [] : [cliPath];
 export async function runGenerate({
   target,
   features,
+  global = false,
+  env,
 }: {
   target: string;
   features: string;
+  global?: boolean;
+  env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync(rulesyncCmd, [
+  const args = [
     ...rulesyncArgs,
     "generate",
     "--targets",
     target,
     "--features",
     features,
-  ]);
+    ...(global ? ["--global"] : []),
+  ];
+  return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }
 
 /**
@@ -83,5 +89,41 @@ export function useTestDirectory(): { getTestDir: () => string } {
 
   return {
     getTestDir: () => testDir,
+  };
+}
+
+/**
+ * Sets up two temporary directories for global mode e2e tests:
+ * - projectDir: working directory (contains .rulesync source files)
+ * - homeDir: simulated home directory (where global output is written)
+ *
+ * NOTE: Same serial execution requirements as useTestDirectory apply.
+ */
+export function useGlobalTestDirectories(): {
+  getProjectDir: () => string;
+  getHomeDir: () => string;
+} {
+  let projectDir = "";
+  let homeDir = "";
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
+  let cleanupProject: () => Promise<void> = async () => {};
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
+  let cleanupHome: () => Promise<void> = async () => {};
+
+  beforeEach(async () => {
+    ({ testDir: projectDir, cleanup: cleanupProject } = await setupTestDirectory());
+    ({ testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true }));
+    process.chdir(projectDir);
+  });
+
+  afterEach(async () => {
+    process.chdir(originalCwd);
+    await cleanupProject();
+    await cleanupHome();
+  });
+
+  return {
+    getProjectDir: () => projectDir,
+    getHomeDir: () => homeDir,
   };
 }
