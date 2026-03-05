@@ -1456,4 +1456,407 @@ targets: ["*"]
       );
     });
   });
+
+  describe("loadRulesyncFiles with per-target root rules", () => {
+    it("should allow two root rules with different targets", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "claude-root.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Claude Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "opencode-root.md"),
+        `---
+root: true
+targets: ["opencode"]
+---
+# OpenCode Root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      const rootRules = result.filter((r) => r instanceof RulesyncRule && r.getFrontmatter().root);
+      expect(rootRules).toHaveLength(1);
+      expect((rootRules[0] as RulesyncRule).getFrontmatter().targets).toEqual(["claudecode"]);
+    });
+
+    it("should throw when two root rules target the same tool", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root1.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Root 1`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root2.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Root 2`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
+        "Multiple root rulesync rules found for target 'claudecode'",
+      );
+    });
+
+    it("should throw when wildcard and specific target both match", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "wildcard-root.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Wildcard Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "claude-root.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Claude Root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
+        "Multiple root rulesync rules found for target 'claudecode'",
+      );
+    });
+
+    it("should allow wildcard root when queried for non-overlapping target", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "wildcard-root.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Wildcard Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "opencode-root.md"),
+        `---
+root: true
+targets: ["opencode"]
+---
+# OpenCode Root`,
+      );
+
+      // From claudecode's perspective, only the wildcard root matches
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      const rootRules = result.filter((r) => r instanceof RulesyncRule && r.getFrontmatter().root);
+      expect(rootRules).toHaveLength(1);
+      expect((rootRules[0] as RulesyncRule).getFrontmatter().targets).toEqual(["*"]);
+    });
+
+    it("should return only matching root in global mode with different targets", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "claude-root.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Claude Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "opencode-root.md"),
+        `---
+root: true
+targets: ["opencode"]
+---
+# OpenCode Root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(1);
+      expect((result[0] as RulesyncRule).getFrontmatter().targets).toEqual(["claudecode"]);
+    });
+
+    it("should warn with target name when no root matches specific target", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "opencode-root.md"),
+        `---
+root: true
+targets: ["opencode"]
+---
+# OpenCode Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["claudecode"]
+---
+# Non-root`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("No root rulesync rule file found for target 'claudecode'"),
+      );
+    });
+
+    it("should throw localRoot conflict only for matching target", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "local1.md"),
+        `---
+localRoot: true
+targets: ["claudecode"]
+---
+# Local 1`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "local2.md"),
+        `---
+localRoot: true
+targets: ["opencode"]
+---
+# Local 2`,
+      );
+
+      // claudecode sees only one localRoot targeting it — no error
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toBeDefined();
+    });
+
+    it("should return root and non-root rules in global mode for copilot (supports global nonRoot)", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["copilot"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["copilot"]
+---
+# Non-root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(2);
+      const rootRule = result.find((r) => (r as RulesyncRule).getFrontmatter().root);
+      const nonRootRule = result.find((r) => !(r as RulesyncRule).getFrontmatter().root);
+      expect(rootRule).toBeDefined();
+      expect(nonRootRule).toBeDefined();
+    });
+
+    it("should exclude non-root rules in global mode for claudecode (no global nonRoot support)", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["claudecode"]
+---
+# Non-root`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(1);
+      expect((result[0] as RulesyncRule).getFrontmatter().root).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
+      );
+    });
+
+    it("should filter non-root rules by target in global mode", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["copilot"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "copilot-nonroot.md"),
+        `---
+targets: ["copilot"]
+---
+# Copilot Non-root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "claude-nonroot.md"),
+        `---
+targets: ["claudecode"]
+---
+# Claude Non-root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      // Should include root + copilot non-root, but NOT claude non-root
+      expect(result).toHaveLength(2);
+      expect(
+        result.every((r) => {
+          const targets = (r as RulesyncRule).getFrontmatter().targets;
+          return !targets || targets.includes("copilot") || targets.includes("*");
+        }),
+      ).toBe(true);
+    });
+
+    it("should generate copilot global non-root files via round-trip", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["copilot"]
+---
+# Root Rule`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+        `---
+targets: ["copilot"]
+---
+# Detail Rule`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        global: true,
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(rulesyncFiles).toHaveLength(2);
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      expect(toolFiles.length).toBeGreaterThanOrEqual(1);
+
+      // Verify root file targets global copilot path
+      const rootToolFile = toolFiles.find(
+        (f) => f.getRelativeFilePath() === "copilot-instructions.md",
+      );
+      expect(rootToolFile).toBeDefined();
+      expect(rootToolFile?.getRelativeDirPath()).toBe(".copilot");
+
+      // Verify non-root file targets global copilot instructions directory
+      const nonRootToolFile = toolFiles.find(
+        (f) => f.getRelativeDirPath() === ".copilot/instructions",
+      );
+      expect(nonRootToolFile).toBeDefined();
+    });
+
+    it("should throw localRoot-requires-root scoped to target", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      // Root exists but only for opencode
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "opencode-root.md"),
+        `---
+root: true
+targets: ["opencode"]
+---
+# OpenCode Root`,
+      );
+      // localRoot targets claudecode, but no claudecode root exists
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "local.md"),
+        `---
+localRoot: true
+targets: ["claudecode"]
+---
+# Local without matching root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
+        "localRoot: true requires a root: true rule to exist for target 'claudecode'",
+      );
+    });
+  });
 });
