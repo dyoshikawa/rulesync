@@ -281,6 +281,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
           return null;
         }
         return factory.class.fromRulesyncSkill({
+          baseDir: this.baseDir,
           rulesyncSkill: rulesyncSkill,
           global: this.global,
         });

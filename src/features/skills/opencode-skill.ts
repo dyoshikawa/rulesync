@@ -127,6 +127,7 @@ export class OpenCodeSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -142,7 +143,7 @@ export class OpenCodeSkill extends ToolSkill {
     const settablePaths = OpenCodeSkill.getSettablePaths({ global });
 
     return new OpenCodeSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: opencodeFrontmatter,

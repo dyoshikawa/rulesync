@@ -7,6 +7,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
+  baseDir?: string;
   rulesyncSkill: RulesyncSkill;
   validate?: boolean;
   global?: boolean;

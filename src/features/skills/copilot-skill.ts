@@ -135,6 +135,7 @@ export class CopilotSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -149,7 +150,7 @@ export class CopilotSkill extends ToolSkill {
     };
 
     return new CopilotSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: copilotFrontmatter,

@@ -136,6 +136,7 @@ export class GeminiCliSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -149,7 +150,7 @@ export class GeminiCliSkill extends ToolSkill {
     };
 
     return new GeminiCliSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: geminiCliFrontmatter,
