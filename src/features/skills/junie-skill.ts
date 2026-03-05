@@ -105,6 +105,15 @@ export class JunieSkill extends ToolSkill {
       };
     }
 
+    if (result.data.name !== this.getDirName()) {
+      return {
+        success: false,
+        error: new Error(
+          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
+        ),
+      };
+    }
+
     return { success: true, error: null };
   }
 
@@ -144,7 +153,7 @@ export class JunieSkill extends ToolSkill {
     return new JunieSkill({
       baseDir: rulesyncSkill.getBaseDir(),
       relativeDirPath: settablePaths.relativeDirPath,
-      dirName: rulesyncSkill.getDirName(),
+      dirName: junieFrontmatter.name,
       frontmatter: junieFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
@@ -169,6 +178,18 @@ export class JunieSkill extends ToolSkill {
       const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
+      );
+    }
+
+    if (result.data.name !== loaded.dirName) {
+      const skillFilePath = join(
+        loaded.baseDir,
+        loaded.relativeDirPath,
+        loaded.dirName,
+        SKILL_FILE_NAME,
+      );
+      throw new Error(
+        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
       );
     }
 

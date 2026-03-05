@@ -45,7 +45,7 @@ describe("JunieSkill", () => {
         relativeDirPath: join(".junie", "skills"),
         dirName: "test-skill",
         frontmatter: {
-          name: "Test Skill",
+          name: "test-skill",
           description: "Test skill description",
         },
         body: "This is the body of the junie skill.",
@@ -55,9 +55,26 @@ describe("JunieSkill", () => {
       expect(skill).toBeInstanceOf(JunieSkill);
       expect(skill.getBody()).toBe("This is the body of the junie skill.");
       expect(skill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test skill description",
       });
+    });
+
+    it("should throw error when frontmatter name does not match dirName", () => {
+      expect(
+        () =>
+          new JunieSkill({
+            baseDir: testDir,
+            relativeDirPath: join(".junie", "skills"),
+            dirName: "test-skill",
+            frontmatter: {
+              name: "Different Name",
+              description: "Test skill description",
+            },
+            body: "This is the body of the junie skill.",
+            validate: true,
+          }),
+      ).toThrow(/frontmatter name \(Different Name\) must match directory name \(test-skill\)/);
     });
   });
 
@@ -66,7 +83,7 @@ describe("JunieSkill", () => {
       const skillDir = join(testDir, ".junie", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
-name: Test Skill
+name: test-skill
 description: Test skill description
 ---
 
@@ -81,9 +98,30 @@ This is the body of the junie skill.`;
       expect(skill).toBeInstanceOf(JunieSkill);
       expect(skill.getBody()).toBe("This is the body of the junie skill.");
       expect(skill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test skill description",
       });
+    });
+
+    it("should throw error when frontmatter name does not match dirName", async () => {
+      const skillDir = join(testDir, ".junie", "skills", "test-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Different Name
+description: Test skill description
+---
+
+This is the body of the junie skill.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      await expect(
+        JunieSkill.fromDir({
+          baseDir: testDir,
+          dirName: "test-skill",
+        }),
+      ).rejects.toThrow(
+        /Frontmatter name \(Different Name\) must match directory name \(test-skill\)/,
+      );
     });
 
     it("should throw error when SKILL.md not found", async () => {
@@ -104,9 +142,9 @@ This is the body of the junie skill.`;
       const rulesyncSkill = new RulesyncSkill({
         baseDir: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-        dirName: "test-skill",
+        dirName: "some-other-name",
         frontmatter: {
-          name: "Test Skill",
+          name: "test-skill",
           description: "Test skill description",
         },
         body: "Test body content",
@@ -119,9 +157,10 @@ This is the body of the junie skill.`;
       });
 
       expect(junieSkill).toBeInstanceOf(JunieSkill);
+      expect(junieSkill.getDirName()).toBe("test-skill");
       expect(junieSkill.getBody()).toBe("Test body content");
       expect(junieSkill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test skill description",
       });
     });
@@ -187,7 +226,7 @@ This is the body of the junie skill.`;
         relativeDirPath: join(".junie", "skills"),
         dirName: "test-skill",
         frontmatter: {
-          name: "Test Skill",
+          name: "test-skill",
           description: "Test description",
         },
         body: "Test body",
@@ -198,7 +237,7 @@ This is the body of the junie skill.`;
 
       expect(rulesyncSkill).toBeInstanceOf(RulesyncSkill);
       expect(rulesyncSkill.getFrontmatter()).toEqual({
-        name: "Test Skill",
+        name: "test-skill",
         description: "Test description",
         targets: ["*"],
       });
