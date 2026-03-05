@@ -35,6 +35,7 @@ import {
   resolveDefaultRef,
   resolveRefToSha,
   validateGitUrl,
+  validateRef,
 } from "./git-client.js";
 
 const SHA = "a".repeat(40);
@@ -86,6 +87,30 @@ describe("git-client", () => {
     it("does not warn on https:// protocol", () => {
       validateGitUrl("https://example.com/repo.git");
       expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
+    });
+
+    it("rejects URLs with control characters", () => {
+      expect(() => validateGitUrl("https://example.com/repo\x00.git")).toThrow(GitClientError);
+      expect(() => validateGitUrl("https://example.com/repo\x00.git")).toThrow(
+        "control character 0x00 at position 24",
+      );
+    });
+  });
+
+  describe("validateRef", () => {
+    it("accepts valid refs", () => {
+      expect(() => validateRef("main")).not.toThrow();
+      expect(() => validateRef("v1.0.0")).not.toThrow();
+      expect(() => validateRef("feature/branch")).not.toThrow();
+    });
+
+    it("rejects refs starting with dash", () => {
+      expect(() => validateRef("-malicious")).toThrow(GitClientError);
+    });
+
+    it("rejects refs with control characters", () => {
+      expect(() => validateRef("main\x00")).toThrow(GitClientError);
+      expect(() => validateRef("main\n")).toThrow("control character 0x0a at position 4");
     });
   });
 

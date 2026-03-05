@@ -16,10 +16,27 @@ import { logger } from "../utils/logger.js";
 
 const execFileAsync = promisify(execFile);
 
+/** Timeout for all git CLI operations (60 seconds). */
+const GIT_TIMEOUT_MS = 60_000;
+
 const ALLOWED_URL_SCHEMES =
   /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+)/;
 
 const INSECURE_URL_SCHEMES = /^(git:\/\/|http:\/\/)/;
+
+/**
+ * Check for control characters and return the position and hex code of the first one found.
+ * Returns null if no control characters are found.
+ */
+function findControlCharacter(value: string): { position: number; hex: string } | null {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) {
+      return { position: i, hex: `0x${code.toString(16).padStart(2, "0")}` };
+    }
+  }
+  return null;
+}
 
 export class GitClientError extends Error {
   constructor(message: string, cause?: unknown) {
@@ -29,6 +46,12 @@ export class GitClientError extends Error {
 }
 
 export function validateGitUrl(url: string): void {
+  const ctrl = findControlCharacter(url);
+  if (ctrl) {
+    throw new GitClientError(
+      `Git URL contains control character ${ctrl.hex} at position ${ctrl.position}`,
+    );
+  }
   if (!ALLOWED_URL_SCHEMES.test(url)) {
     throw new GitClientError(
       `Unsupported or unsafe git URL: "${url}". Use https, ssh, git, or file schemes.`,
@@ -41,12 +64,28 @@ export function validateGitUrl(url: string): void {
   }
 }
 
+/**
+ * Validate a ref string before passing to git commands.
+ * Rejects refs that start with "-" or contain control characters.
+ */
+export function validateRef(ref: string): void {
+  if (ref.startsWith("-")) {
+    throw new GitClientError(`Ref must not start with "-": "${ref}"`);
+  }
+  const ctrl = findControlCharacter(ref);
+  if (ctrl) {
+    throw new GitClientError(
+      `Ref contains control character ${ctrl.hex} at position ${ctrl.position}`,
+    );
+  }
+}
+
 let gitChecked = false;
 
 export async function checkGitAvailable(): Promise<void> {
   if (gitChecked) return;
   try {
-    await execFileAsync("git", ["--version"]);
+    await execFileAsync("git", ["--version"], { timeout: GIT_TIMEOUT_MS });
     gitChecked = true;
   } catch {
     throw new GitClientError("git is not installed or not found in PATH");
@@ -62,7 +101,9 @@ export async function resolveDefaultRef(url: string): Promise<{ ref: string; sha
   validateGitUrl(url);
   await checkGitAvailable();
   try {
-    const { stdout } = await execFileAsync("git", ["ls-remote", "--symref", "--", url, "HEAD"]);
+    const { stdout } = await execFileAsync("git", ["ls-remote", "--symref", "--", url, "HEAD"], {
+      timeout: GIT_TIMEOUT_MS,
+    });
     const ref = stdout.match(/^ref: refs\/heads\/(.+)\tHEAD$/m)?.[1];
     const sha = stdout.match(/^([0-9a-f]{40})\tHEAD$/m)?.[1];
     if (!ref || !sha) throw new GitClientError(`Could not parse default branch from: ${url}`);
@@ -75,9 +116,12 @@ export async function resolveDefaultRef(url: string): Promise<{ ref: string; sha
 
 export async function resolveRefToSha(url: string, ref: string): Promise<string> {
   validateGitUrl(url);
+  validateRef(ref);
   await checkGitAvailable();
   try {
-    const { stdout } = await execFileAsync("git", ["ls-remote", "--", url, ref]);
+    const { stdout } = await execFileAsync("git", ["ls-remote", "--", url, ref], {
+      timeout: GIT_TIMEOUT_MS,
+    });
     const sha = stdout.match(/^([0-9a-f]{40})\t/m)?.[1];
     if (!sha) throw new GitClientError(`Ref "${ref}" not found in ${url}`);
     return sha;
@@ -99,23 +143,30 @@ export async function fetchSkillFiles(params: {
 }): Promise<Array<{ relativePath: string; content: string; size: number }>> {
   const { url, ref, skillsPath } = params;
   validateGitUrl(url);
+  validateRef(ref);
   await checkGitAvailable();
   const tmpDir = await createTempDirectory("rulesync-git-");
   try {
-    await execFileAsync("git", [
-      "clone",
-      "--depth",
-      "1",
-      "--branch",
-      ref,
-      "--no-checkout",
-      "--filter=blob:none",
-      "--",
-      url,
-      tmpDir,
-    ]);
-    await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", skillsPath]);
-    await execFileAsync("git", ["-C", tmpDir, "checkout"]);
+    await execFileAsync(
+      "git",
+      [
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        ref,
+        "--no-checkout",
+        "--filter=blob:none",
+        "--",
+        url,
+        tmpDir,
+      ],
+      { timeout: GIT_TIMEOUT_MS },
+    );
+    await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", skillsPath], {
+      timeout: GIT_TIMEOUT_MS,
+    });
+    await execFileAsync("git", ["-C", tmpDir, "checkout"], { timeout: GIT_TIMEOUT_MS });
     const skillsDir = join(tmpDir, skillsPath);
     if (!(await directoryExists(skillsDir))) return [];
     return await walkDirectory(skillsDir, skillsDir);

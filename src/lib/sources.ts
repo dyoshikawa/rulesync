@@ -17,7 +17,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { fetchSkillFiles, resolveDefaultRef, resolveRefToSha } from "./git-client.js";
+import { fetchSkillFiles, resolveDefaultRef, resolveRefToSha, validateRef } from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
@@ -117,6 +117,7 @@ export async function resolveAndFetchSources(params: {
           localSkillNames,
           alreadyFetchedSkillNames: allFetchedSkillNames,
           updateSources: options.updateSources ?? false,
+          frozen: options.frozen ?? false,
         });
       } else {
         result = await fetchSource({
@@ -137,10 +138,10 @@ export async function resolveAndFetchSources(params: {
         allFetchedSkillNames.add(name);
       }
     } catch (error) {
+      logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints(error);
       }
-      logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
     }
   }
 
@@ -425,8 +426,10 @@ async function fetchSourceViaGit(params: {
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
   updateSources: boolean;
+  frozen: boolean;
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
-  const { sourceEntry, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources } = params;
+  const { sourceEntry, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources, frozen } =
+    params;
   let { lock } = params;
   const url = sourceEntry.source;
   const locked = getLockedSource(lock, url);
@@ -437,6 +440,10 @@ async function fetchSourceViaGit(params: {
   if (locked && !updateSources) {
     resolvedSha = locked.resolvedRef;
     requestedRef = locked.requestedRef;
+    // Validate locked ref before passing to git commands
+    if (requestedRef) {
+      validateRef(requestedRef);
+    }
   } else if (sourceEntry.ref) {
     requestedRef = sourceEntry.ref;
     resolvedSha = await resolveRefToSha(url, requestedRef);
@@ -455,7 +462,14 @@ async function fetchSourceViaGit(params: {
 
   // Resolve requestedRef lazily (deferred from locked path to avoid unnecessary network calls)
   if (!requestedRef) {
-    requestedRef = (await resolveDefaultRef(url)).ref;
+    if (frozen) {
+      throw new Error(
+        `Frozen install failed: lockfile entry for "${url}" is missing requestedRef. Run 'rulesync install' to update the lockfile.`,
+      );
+    }
+    const def = await resolveDefaultRef(url);
+    requestedRef = def.ref;
+    resolvedSha = def.sha;
   }
 
   const skillFilter = sourceEntry.skills ?? ["*"];

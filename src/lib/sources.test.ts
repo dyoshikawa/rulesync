@@ -73,6 +73,7 @@ vi.mock("./git-client.js", () => ({
     }
   },
   validateGitUrl: vi.fn(),
+  validateRef: vi.fn(),
   checkGitAvailable: vi.fn(),
   resetGitCheck: vi.fn(),
   resolveDefaultRef: vi.fn(),
