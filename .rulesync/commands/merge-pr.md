@@ -78,14 +78,24 @@ gh pr merge <pr_number> --admin --merge
 
 **Important**: Only merge ONE PR at a time. If multiple PRs are somehow specified, ask the user which single PR to merge.
 
-## Step 5: Report Result
+## Step 5: Comment on the PR
+
+After the merge succeeds, leave a thank-you comment mentioning the PR author:
+
+```bash
+gh pr comment <pr_number> --body "@<author_login> Thank you!"
+```
+
+Use the `author.login` value obtained in Step 2 for the mention.
+
+## Step 6: Report Result
 
 After merging:
 
 1. Confirm the PR was successfully merged
 2. Display the merged PR number and title
 
-## Step 6: Clean Up Local Branch
+## Step 7: Clean Up Local Branch
 
 If the local branch exists, please clean up the local branch. Execute:
 
