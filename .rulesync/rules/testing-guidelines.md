@@ -79,7 +79,8 @@ globs: ["**/*.test.ts"]
   - Exceptionally, in E2E testing, you can use process.chdir() to change the current working directory to the test directory because E2E tests are intended to simulate conditions that are as close as possible to real user operations.
 
 - In test, don't change dirs or files out of the project directory even though it's in global mode to make it easier to test some behavior and avoid polluting those.
+- `getHomeDirectory()` in `src/utils/file.ts` respects the `HOME_DIR` environment variable regardless of `NODE_ENV`. When `HOME_DIR` is set, it always returns that value. This is used by E2E tests to specify a pseudo-home directory for global mode testing.
 - When `NODE_ENV` is `test`:
   - All logs by `Logger` in `src/utils/logger.ts` are suppressed.
     - When you want to log in test, use `console.log` and run `npx vitest run --silent=false` to see the logs.
-  - `getHomeDirectory()` in `src/utils/file.ts` throws an error to enforce explicit mocking, unless `HOME_DIR` environment variable is set (used by E2E tests to specify a pseudo-home directory for global mode testing).
+  - `getHomeDirectory()` in `src/utils/file.ts` throws an error if `HOME_DIR` is not set, to enforce explicit mocking.
