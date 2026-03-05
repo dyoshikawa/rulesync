@@ -42,7 +42,11 @@ export type CopilotRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   };
 };
 
-export type CopilotRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
+export type CopilotRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 /**
  * Rule generator for GitHub Copilot
@@ -69,6 +73,9 @@ export class CopilotRule extends ToolRule {
         root: {
           relativeDirPath: buildToolPath(".copilot", ".", options.excludeToolDir),
           relativeFilePath: "copilot-instructions.md",
+        },
+        nonRoot: {
+          relativeDirPath: buildToolPath(".copilot", "instructions", options.excludeToolDir),
         },
       };
     }

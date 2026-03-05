@@ -176,7 +176,10 @@ describe("CopilotRule", () => {
         relativeDirPath: ".copilot",
         relativeFilePath: "copilot-instructions.md",
       });
-      expect(paths).not.toHaveProperty("nonRoot");
+      expect(paths).toHaveProperty("nonRoot");
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: ".copilot/instructions",
+      });
     });
 
     it("should have different paths than regular getSettablePaths", () => {

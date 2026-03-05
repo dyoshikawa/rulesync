@@ -809,12 +809,16 @@ export class RulesProcessor extends FeatureProcessor {
       );
     }
 
-    // In global mode, return only the root rule for this target
+    // In global mode, return root rule + non-root rules if the target supports global nonRoot
     if (this.global) {
+      const globalPaths = factory.class.getSettablePaths({ global: true });
+      const supportsGlobalNonRoot = "nonRoot" in globalPaths && globalPaths.nonRoot !== null;
+
       const nonRootRules = rulesyncRules.filter(
         (rule) => !rule.getFrontmatter().root && !rule.getFrontmatter().localRoot,
       );
-      if (nonRootRules.length > 0) {
+
+      if (nonRootRules.length > 0 && !supportsGlobalNonRoot) {
         logger.warn(
           `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${formatRulePaths(nonRootRules)}`,
         );
@@ -824,7 +828,7 @@ export class RulesProcessor extends FeatureProcessor {
           `${targetedLocalRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${formatRulePaths(targetedLocalRootRules)}`,
         );
       }
-      return targetedRootRules;
+      return supportsGlobalNonRoot ? [...targetedRootRules, ...nonRootRules] : targetedRootRules;
     }
 
     // In project mode, exclude root rules not targeting this tool
