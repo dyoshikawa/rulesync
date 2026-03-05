@@ -109,6 +109,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["github", "git"]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
           }
         },
         "required": ["source"],

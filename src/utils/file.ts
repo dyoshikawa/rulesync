@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
 
+import { formatError } from "./error.js";
 import { logger } from "./logger.js";
 import { isEnvTest } from "./vitest.js";
 
@@ -158,6 +159,26 @@ export async function fileExists(filepath: string): Promise<boolean> {
   try {
     await stat(filepath);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getFileSize(filepath: string): Promise<number> {
+  try {
+    const stats = await stat(filepath);
+    return stats.size;
+  } catch (error) {
+    throw new Error(`Failed to get file size for "${filepath}": ${formatError(error)}`, {
+      cause: error,
+    });
+  }
+}
+
+export async function isSymlink(filepath: string): Promise<boolean> {
+  try {
+    const stats = await lstat(filepath);
+    return stats.isSymbolicLink();
   } catch {
     return false;
   }

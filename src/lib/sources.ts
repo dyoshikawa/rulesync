@@ -17,6 +17,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { fetchSkillFiles, resolveDefaultRef, resolveRefToSha, validateRef } from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
@@ -106,15 +107,30 @@ export async function resolveAndFetchSources(params: {
 
   for (const sourceEntry of sources) {
     try {
-      const { skillCount, fetchedSkillNames, updatedLock } = await fetchSource({
-        sourceEntry,
-        client,
-        baseDir,
-        lock,
-        localSkillNames,
-        alreadyFetchedSkillNames: allFetchedSkillNames,
-        updateSources: options.updateSources ?? false,
-      });
+      const transport = sourceEntry.transport ?? "github";
+      let result: { skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock };
+      if (transport === "git") {
+        result = await fetchSourceViaGit({
+          sourceEntry,
+          baseDir,
+          lock,
+          localSkillNames,
+          alreadyFetchedSkillNames: allFetchedSkillNames,
+          updateSources: options.updateSources ?? false,
+          frozen: options.frozen ?? false,
+        });
+      } else {
+        result = await fetchSource({
+          sourceEntry,
+          client,
+          baseDir,
+          lock,
+          localSkillNames,
+          alreadyFetchedSkillNames: allFetchedSkillNames,
+          updateSources: options.updateSources ?? false,
+        });
+      }
+      const { skillCount, fetchedSkillNames, updatedLock } = result;
 
       lock = updatedLock;
       totalSkillCount += skillCount;
@@ -398,4 +414,158 @@ async function fetchSource(params: {
     fetchedSkillNames: fetchedNames,
     updatedLock: lock,
   };
+}
+
+/**
+ * Fetch skills from a single source using git CLI (works with any git remote).
+ */
+async function fetchSourceViaGit(params: {
+  sourceEntry: SourceEntry;
+  baseDir: string;
+  lock: SourcesLock;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+  updateSources: boolean;
+  frozen: boolean;
+}): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
+  const { sourceEntry, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources, frozen } =
+    params;
+  let { lock } = params;
+  const url = sourceEntry.source;
+  const locked = getLockedSource(lock, url);
+  const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
+
+  let resolvedSha: string;
+  let requestedRef: string | undefined;
+  if (locked && !updateSources) {
+    resolvedSha = locked.resolvedRef;
+    requestedRef = locked.requestedRef;
+    // Validate locked ref before passing to git commands
+    if (requestedRef) {
+      validateRef(requestedRef);
+    }
+  } else if (sourceEntry.ref) {
+    requestedRef = sourceEntry.ref;
+    resolvedSha = await resolveRefToSha(url, requestedRef);
+  } else {
+    const def = await resolveDefaultRef(url);
+    requestedRef = def.ref;
+    resolvedSha = def.sha;
+  }
+
+  const curatedDir = join(baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
+    if (await checkLockedSkillsExist(curatedDir, lockedSkillNames)) {
+      return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
+    }
+  }
+
+  // Resolve requestedRef lazily (deferred from locked path to avoid unnecessary network calls)
+  if (!requestedRef) {
+    if (frozen) {
+      throw new Error(
+        `Frozen install failed: lockfile entry for "${url}" is missing requestedRef. Run 'rulesync install' to update the lockfile.`,
+      );
+    }
+    const def = await resolveDefaultRef(url);
+    requestedRef = def.ref;
+    resolvedSha = def.sha;
+  }
+
+  const skillFilter = sourceEntry.skills ?? ["*"];
+  const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const remoteFiles = await fetchSkillFiles({
+    url,
+    ref: requestedRef,
+    skillsPath: sourceEntry.path ?? "skills",
+  });
+
+  // Group files by skill directory (first path component)
+  const skillFileMap = new Map<string, Array<{ relativePath: string; content: string }>>();
+  for (const file of remoteFiles) {
+    const idx = file.relativePath.indexOf("/");
+    if (idx === -1) continue;
+    const name = file.relativePath.substring(0, idx);
+    const inner = file.relativePath.substring(idx + 1);
+    const arr = skillFileMap.get(name) ?? [];
+    arr.push({ relativePath: inner, content: file.content });
+    skillFileMap.set(name, arr);
+  }
+
+  const allNames = [...skillFileMap.keys()];
+  const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
+
+  if (locked) {
+    const base = resolve(curatedDir);
+    for (const prev of lockedSkillNames) {
+      const dir = join(curatedDir, prev);
+      if (resolve(dir).startsWith(base + sep) && (await directoryExists(dir))) {
+        await removeDirectory(dir);
+      }
+    }
+  }
+
+  const fetchedSkills: Record<string, LockedSkill> = {};
+  for (const skillName of filteredNames) {
+    if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
+      logger.warn(
+        `Skipping skill with invalid name "${skillName}" from ${url}: contains path traversal characters.`,
+      );
+      continue;
+    }
+    if (localSkillNames.has(skillName)) {
+      logger.debug(
+        `Skipping remote skill "${skillName}" from ${url}: local skill takes precedence.`,
+      );
+      continue;
+    }
+    if (alreadyFetchedSkillNames.has(skillName)) {
+      logger.warn(
+        `Skipping duplicate skill "${skillName}" from ${url}: already fetched from another source.`,
+      );
+      continue;
+    }
+
+    const files = skillFileMap.get(skillName) ?? [];
+    const written: Array<{ path: string; content: string }> = [];
+    for (const file of files) {
+      checkPathTraversal({
+        relativePath: file.relativePath,
+        intendedRootDir: join(curatedDir, skillName),
+      });
+      await writeFileContent(join(curatedDir, skillName, file.relativePath), file.content);
+      written.push({ path: file.relativePath, content: file.content });
+    }
+
+    const integrity = computeSkillIntegrity(written);
+    const lockedSkillEntry = locked?.skills[skillName];
+    if (
+      lockedSkillEntry?.integrity &&
+      lockedSkillEntry.integrity !== integrity &&
+      resolvedSha === locked?.resolvedRef
+    ) {
+      logger.warn(`Integrity mismatch for skill "${skillName}" from ${url}.`);
+    }
+    fetchedSkills[skillName] = { integrity };
+  }
+
+  const fetchedNames = Object.keys(fetchedSkills);
+  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
+  if (locked) {
+    for (const [k, v] of Object.entries(locked.skills)) {
+      if (!(k in mergedSkills)) mergedSkills[k] = v;
+    }
+  }
+
+  lock = setLockedSource(lock, url, {
+    requestedRef,
+    resolvedRef: resolvedSha,
+    resolvedAt: new Date().toISOString(),
+    skills: mergedSkills,
+  });
+
+  logger.info(
+    `Fetched ${fetchedNames.length} skill(s) from ${url}: ${fetchedNames.join(", ") || "(none)"}`,
+  );
+  return { skillCount: fetchedNames.length, fetchedSkillNames: fetchedNames, updatedLock: lock };
 }

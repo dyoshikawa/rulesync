@@ -64,6 +64,23 @@ vi.mock("../utils/logger.js", () => ({
 
 const { logger } = await vi.importMock<typeof import("../utils/logger.js")>("../utils/logger.js");
 
+vi.mock("./git-client.js", () => ({
+  GitClientError: class GitClientError extends Error {
+    constructor(message: string, cause?: unknown) {
+      super(message);
+      this.name = "GitClientError";
+      this.cause = cause;
+    }
+  },
+  validateGitUrl: vi.fn(),
+  validateRef: vi.fn(),
+  checkGitAvailable: vi.fn(),
+  resetGitCheck: vi.fn(),
+  resolveDefaultRef: vi.fn(),
+  resolveRefToSha: vi.fn(),
+  fetchSkillFiles: vi.fn(),
+}));
+
 vi.mock("./sources-lock.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./sources-lock.js")>();
   return {
@@ -710,5 +727,47 @@ describe("resolveAndFetchSources", () => {
     expect(sourceEntry?.skills["local-skill"]).toBeDefined();
     // remote-skill should have been re-fetched with new integrity
     expect(sourceEntry?.skills["remote-skill"]).toBeDefined();
+  });
+
+  it("should fetch skills via git transport", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "abc123def456" });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "my-skill/SKILL.md", content: "# My Skill", size: 100 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      sources: [{ source: "https://dev.azure.com/org/project/_git/repo", transport: "git" }],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "my-skill", "SKILL.md"),
+      "# My Skill",
+    );
+  });
+
+  it("should use explicit ref and path for git transport", async () => {
+    const { resolveRefToSha, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveRefToSha).mockResolvedValue("def456abc789");
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "my-skill/SKILL.md", content: "# Custom Path", size: 50 },
+    ]);
+
+    await resolveAndFetchSources({
+      sources: [
+        { source: "file:///local/clone", transport: "git", ref: "develop", path: "exports/skills" },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(vi.mocked(resolveRefToSha)).toHaveBeenCalledWith("file:///local/clone", "develop");
+    expect(vi.mocked(fetchSkillFiles)).toHaveBeenCalledWith({
+      url: "file:///local/clone",
+      ref: "develop",
+      skillsPath: "exports/skills",
+    });
   });
 });

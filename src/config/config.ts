@@ -1,4 +1,6 @@
-import { minLength, optional, z } from "zod/mini";
+import { isAbsolute } from "node:path";
+
+import { minLength, optional, refine, z } from "zod/mini";
 
 import {
   ALL_FEATURES,
@@ -16,6 +18,14 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 
+function hasControlCharacters(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) return true;
+  }
+  return false;
+}
+
 /**
  * Schema for a single source entry in the sources array.
  * Declares an external repository from which skills can be fetched.
@@ -23,6 +33,20 @@ import {
 export const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
+  transport: optional(z.enum(["github", "git"])),
+  ref: optional(
+    z.string().check(
+      refine((v) => !v.startsWith("-"), 'ref must not start with "-"'),
+      refine((v) => !hasControlCharacters(v), "ref must not contain control characters"),
+    ),
+  ),
+  path: optional(
+    z.string().check(
+      refine((v) => !v.includes(".."), 'path must not contain ".."'),
+      refine((v) => !isAbsolute(v), "path must not be absolute"),
+      refine((v) => !hasControlCharacters(v), "path must not contain control characters"),
+    ),
+  ),
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
