@@ -81,7 +81,7 @@ This is a global test rule for E2E testing.
       target,
       features: "rules",
       global: true,
-      env: { NODE_ENV: "test", HOME_DIR: homeDir },
+      env: { HOME_DIR: homeDir },
     });
 
     // Verify that the output file was written to the home directory
@@ -125,7 +125,7 @@ globs: ["src/**/*"]
       target: "claudecode",
       features: "rules",
       global: true,
-      env: { NODE_ENV: "test", HOME_DIR: homeDir },
+      env: { HOME_DIR: homeDir },
     });
 
     // Verify: root rule content is present, non-root rule content is absent

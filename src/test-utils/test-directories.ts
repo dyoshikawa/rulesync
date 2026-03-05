@@ -25,5 +25,5 @@ export async function setupTestDirectory({ home }: { home: boolean } = { home: f
 }
 
 function randomString(length: number) {
-  return crypto.randomBytes(length).toString("base64").slice(0, length);
+  return crypto.randomBytes(length).toString("base64url").slice(0, length);
 }
