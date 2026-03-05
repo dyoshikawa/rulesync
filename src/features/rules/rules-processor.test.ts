@@ -1483,9 +1483,7 @@ targets: ["opencode"]
       });
 
       const result = await processor.loadRulesyncFiles();
-      const rootRules = result.filter(
-        (r) => r instanceof RulesyncRule && r.getFrontmatter().root,
-      );
+      const rootRules = result.filter((r) => r instanceof RulesyncRule && r.getFrontmatter().root);
       expect(rootRules).toHaveLength(1);
       expect((rootRules[0] as RulesyncRule).getFrontmatter().targets).toEqual(["claudecode"]);
     });
@@ -1574,9 +1572,7 @@ targets: ["opencode"]
       });
 
       const result = await processor.loadRulesyncFiles();
-      const rootRules = result.filter(
-        (r) => r instanceof RulesyncRule && r.getFrontmatter().root,
-      );
+      const rootRules = result.filter((r) => r instanceof RulesyncRule && r.getFrontmatter().root);
       expect(rootRules).toHaveLength(1);
       expect((rootRules[0] as RulesyncRule).getFrontmatter().targets).toEqual(["*"]);
     });
