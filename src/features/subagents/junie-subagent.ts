@@ -16,31 +16,25 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const ClaudecodeSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.optional(z.string()),
-  model: z.optional(z.string()),
-  tools: z.optional(z.union([z.string(), z.array(z.string())])),
-  permissionMode: z.optional(z.string()),
-  skills: z.optional(z.union([z.string(), z.array(z.string())])),
+export const JunieSubagentFrontmatterSchema = z.looseObject({
+  name: z.optional(z.string()),
+  description: z.string(),
 });
 
-export type ClaudecodeSubagentFrontmatter = z.infer<typeof ClaudecodeSubagentFrontmatterSchema>;
+export type JunieSubagentFrontmatter = z.infer<typeof JunieSubagentFrontmatterSchema>;
 
-export type ClaudecodeSubagentParams = {
-  frontmatter: ClaudecodeSubagentFrontmatter;
+export type JunieSubagentParams = {
+  frontmatter: JunieSubagentFrontmatter;
   body: string;
 } & AiFileParams;
 
-export class ClaudecodeSubagent extends ToolSubagent {
-  private readonly frontmatter: ClaudecodeSubagentFrontmatter;
+export class JunieSubagent extends ToolSubagent {
+  private readonly frontmatter: JunieSubagentFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: ClaudecodeSubagentParams) {
-    // Set properties before calling super to ensure they're available for validation
+  constructor({ frontmatter, body, ...rest }: JunieSubagentParams) {
     if (rest.validate !== false) {
-      const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
+      const result = JunieSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
           `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
@@ -56,13 +50,16 @@ export class ClaudecodeSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+  static getSettablePaths(options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    if (options?.global) {
+      throw new Error("JunieSubagent does not support global mode.");
+    }
     return {
-      relativeDirPath: join(".claude", "agents"),
+      relativeDirPath: join(".junie", "agents"),
     };
   }
 
-  getFrontmatter(): ClaudecodeSubagentFrontmatter {
+  getFrontmatter(): JunieSubagentFrontmatter {
     return this.frontmatter;
   }
 
@@ -71,24 +68,21 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, model, ...restFields } = this.frontmatter;
+    const { name, description, ...restFields } = this.frontmatter;
 
-    // Build claudecode section with known and unknown fields
-    const claudecodeSection: Record<string, unknown> = {
-      ...(model && { model }),
+    const junieSection: Record<string, unknown> = {
       ...restFields,
     };
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name,
+      name: name ?? this.getRelativeFilePath().replace(/\.md$/, ""),
       description,
-      // Only include claudecode section if there are fields
-      ...(Object.keys(claudecodeSection).length > 0 && { claudecode: claudecodeSection }),
+      ...(Object.keys(junieSection).length > 0 && { junie: junieSection }),
     };
 
     return new RulesyncSubagent({
-      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
+      baseDir: ".",
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -104,37 +98,33 @@ export class ClaudecodeSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const claudecodeSection = this.filterToolSpecificSection(rulesyncFrontmatter.claudecode ?? {}, [
+    const junieSection = this.filterToolSpecificSection(rulesyncFrontmatter.junie ?? {}, [
       "name",
       "description",
     ]);
 
-    // Build claudecode frontmatter from rulesync frontmatter + claudecode section
-    const rawClaudecodeFrontmatter = {
+    const rawJunieFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...claudecodeSection,
+      ...junieSection,
     };
 
-    // Validate with ClaudecodeSubagentFrontmatterSchema (validates model if present)
-    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(rawClaudecodeFrontmatter);
+    const result = JunieSubagentFrontmatterSchema.safeParse(rawJunieFrontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid claudecode subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
+        `Invalid junie subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
       );
     }
 
-    const claudecodeFrontmatter = result.data;
-
-    // Generate proper file content with Claude Code specific frontmatter
+    const junieFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
-    const fileContent = stringifyFrontmatter(body, claudecodeFrontmatter);
+    const fileContent = stringifyFrontmatter(body, junieFrontmatter);
 
     const paths = this.getSettablePaths({ global });
 
-    return new ClaudecodeSubagent({
-      baseDir: baseDir,
-      frontmatter: claudecodeFrontmatter,
+    return new JunieSubagent({
+      baseDir,
+      frontmatter: junieFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
@@ -144,12 +134,11 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
     if (!this.frontmatter) {
       return { success: true, error: null };
     }
 
-    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(this.frontmatter);
+    const result = JunieSubagentFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
     } else {
@@ -165,7 +154,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     return this.isTargetedByRulesyncSubagentDefault({
       rulesyncSubagent,
-      toolTarget: "claudecode",
+      toolTarget: "junie",
     });
   }
 
@@ -174,23 +163,21 @@ export class ClaudecodeSubagent extends ToolSubagent {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolSubagentFromFileParams): Promise<ClaudecodeSubagent> {
+  }: ToolSubagentFromFileParams): Promise<JunieSubagent> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
-    // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
-    // Validate frontmatter using ClaudecodeSubagentFrontmatterSchema
-    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(frontmatter);
+    const result = JunieSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new ClaudecodeSubagent({
-      baseDir: baseDir,
+    return new JunieSubagent({
+      baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: relativeFilePath,
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
       fileContent,
@@ -202,8 +189,8 @@ export class ClaudecodeSubagent extends ToolSubagent {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolSubagentForDeletionParams): ClaudecodeSubagent {
-    return new ClaudecodeSubagent({
+  }: ToolSubagentForDeletionParams): JunieSubagent {
+    return new JunieSubagent({
       baseDir,
       relativeDirPath,
       relativeFilePath,

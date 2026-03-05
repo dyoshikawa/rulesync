@@ -242,6 +242,8 @@ dist/`;
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
+**/.junie/skills/
+**/.junie/agents/
 **/.kilocode/rules/
 **/.kilocode/skills/
 **/.kilocode/workflows/
@@ -371,6 +373,8 @@ rulesync.local.jsonc
 **/.vscode/mcp.json
 **/.junie/guidelines.md
 **/.junie/mcp.json
+**/.junie/skills/
+**/.junie/agents/
 **/.kilocode/rules/
 **/.kilocode/skills/
 **/.kilocode/workflows/
