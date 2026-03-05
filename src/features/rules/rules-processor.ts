@@ -815,7 +815,10 @@ export class RulesProcessor extends FeatureProcessor {
       const supportsGlobalNonRoot = "nonRoot" in globalPaths && globalPaths.nonRoot !== null;
 
       const nonRootRules = rulesyncRules.filter(
-        (rule) => !rule.getFrontmatter().root && !rule.getFrontmatter().localRoot,
+        (rule) =>
+          !rule.getFrontmatter().root &&
+          !rule.getFrontmatter().localRoot &&
+          factory.class.isTargetedByRulesyncRule(rule),
       );
 
       if (nonRootRules.length > 0 && !supportsGlobalNonRoot) {
@@ -831,8 +834,10 @@ export class RulesProcessor extends FeatureProcessor {
       return supportsGlobalNonRoot ? [...targetedRootRules, ...nonRootRules] : targetedRootRules;
     }
 
-    // In project mode, exclude root rules not targeting this tool
-    const nonRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().root);
+    // In project mode, exclude root rules not targeting this tool and filter non-root by target
+    const nonRootRules = rulesyncRules.filter(
+      (rule) => !rule.getFrontmatter().root && factory.class.isTargetedByRulesyncRule(rule),
+    );
     return [...targetedRootRules, ...nonRootRules];
   }
 

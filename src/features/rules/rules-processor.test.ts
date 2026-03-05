@@ -1676,6 +1676,158 @@ targets: ["opencode"]
       expect(result).toBeDefined();
     });
 
+    it("should return root and non-root rules in global mode for copilot (supports global nonRoot)", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["copilot"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["copilot"]
+---
+# Non-root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(2);
+      const rootRule = result.find((r) => (r as RulesyncRule).getFrontmatter().root);
+      const nonRootRule = result.find((r) => !(r as RulesyncRule).getFrontmatter().root);
+      expect(rootRule).toBeDefined();
+      expect(nonRootRule).toBeDefined();
+    });
+
+    it("should exclude non-root rules in global mode for claudecode (no global nonRoot support)", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["claudecode"]
+---
+# Non-root`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(1);
+      expect((result[0] as RulesyncRule).getFrontmatter().root).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
+      );
+    });
+
+    it("should filter non-root rules by target in global mode", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["copilot"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "copilot-nonroot.md"),
+        `---
+targets: ["copilot"]
+---
+# Copilot Non-root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "claude-nonroot.md"),
+        `---
+targets: ["claudecode"]
+---
+# Claude Non-root`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      // Should include root + copilot non-root, but NOT claude non-root
+      expect(result).toHaveLength(2);
+      expect(
+        result.every((r) => {
+          const targets = (r as RulesyncRule).getFrontmatter().targets;
+          return !targets || targets.includes("copilot") || targets.includes("*");
+        }),
+      ).toBe(true);
+    });
+
+    it("should generate copilot global non-root files via round-trip", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["copilot"]
+---
+# Root Rule`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+        `---
+targets: ["copilot"]
+---
+# Detail Rule`,
+      );
+
+      const processor = new RulesProcessor({
+        baseDir: testDir,
+        toolTarget: "copilot",
+        global: true,
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(rulesyncFiles).toHaveLength(2);
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      expect(toolFiles.length).toBeGreaterThanOrEqual(1);
+
+      // Verify root file targets global copilot path
+      const rootToolFile = toolFiles.find(
+        (f) => f.getRelativeFilePath() === "copilot-instructions.md",
+      );
+      expect(rootToolFile).toBeDefined();
+      expect(rootToolFile?.getRelativeDirPath()).toBe(".copilot");
+
+      // Verify non-root file targets global copilot instructions directory
+      const nonRootToolFile = toolFiles.find(
+        (f) => f.getRelativeDirPath() === ".copilot/instructions",
+      );
+      expect(nonRootToolFile).toBeDefined();
+    });
+
     it("should throw localRoot-requires-root scoped to target", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       // Root exists but only for opencode
