@@ -6,14 +6,14 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | ------------------ | ------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: |
 | AGENTS.md          | agentsmd     |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |
 | AgentsSkills       | agentsskills |       |        |          |          |           |   ✅   |       |
-| Claude Code        | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
+| Claude Code        | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
 | Codex CLI          | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |    ✅     | ✅ 🌏  |       |
 | Gemini CLI         | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     | ✅ 🌏  | ✅ 🌏 |
 | GitHub Copilot     | copilot      | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |
-| Goose              | goose        | ✅ 🌏 |        |          |          |           |        |       |
+| Goose              | goose        | ✅ 🌏 |   ✅   |          |          |           |        |       |
 | Cursor             | cursor       |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
-| Factory Droid      | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |
-| OpenCode           | opencode     | ✅ 🌏 |        |  ✅ 🔧   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
+| Factory Droid      | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
+| OpenCode           | opencode     | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |
 | Cline              | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Kilo Code          | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |
 | Roo Code           | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |
