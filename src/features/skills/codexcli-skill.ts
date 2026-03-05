@@ -143,6 +143,7 @@ export class CodexCliSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -161,7 +162,7 @@ export class CodexCliSkill extends ToolSkill {
     };
 
     return new CodexCliSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: codexFrontmatter,

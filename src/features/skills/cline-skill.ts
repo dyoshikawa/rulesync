@@ -139,6 +139,7 @@ export class ClineSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -152,7 +153,7 @@ export class ClineSkill extends ToolSkill {
     };
 
     return new ClineSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: clineFrontmatter.name,
       frontmatter: clineFrontmatter,

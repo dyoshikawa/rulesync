@@ -145,6 +145,7 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -168,7 +169,7 @@ export class ClaudecodeSkill extends ToolSkill {
     const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
 
     return new ClaudecodeSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: claudecodeFrontmatter,

@@ -138,6 +138,7 @@ export class KiroSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -151,7 +152,7 @@ export class KiroSkill extends ToolSkill {
     };
 
     return new KiroSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: kiroFrontmatter,

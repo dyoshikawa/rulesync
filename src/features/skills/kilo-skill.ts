@@ -139,6 +139,7 @@ export class KiloSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -152,7 +153,7 @@ export class KiloSkill extends ToolSkill {
     };
 
     return new KiloSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: kiloFrontmatter.name,
       frontmatter: kiloFrontmatter,

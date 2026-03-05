@@ -138,6 +138,7 @@ export class AntigravitySkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -152,7 +153,7 @@ export class AntigravitySkill extends ToolSkill {
     const settablePaths = AntigravitySkill.getSettablePaths({ global });
 
     return new AntigravitySkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: antigravityFrontmatter,

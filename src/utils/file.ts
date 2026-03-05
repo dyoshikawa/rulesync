@@ -259,8 +259,15 @@ export async function removeFile(filepath: string): Promise<void> {
 }
 
 export function getHomeDirectory(): string {
-  if (isEnvTest) {
-    throw new Error("getHomeDirectory() must be mocked in test environment");
+  const homeDirFromEnv = process.env.HOME_DIR;
+  if (homeDirFromEnv) {
+    return homeDirFromEnv;
+  }
+
+  if (isEnvTest()) {
+    throw new Error(
+      "getHomeDirectory() must be mocked in test environment, or set HOME_DIR environment variable",
+    );
   }
 
   return os.homedir();

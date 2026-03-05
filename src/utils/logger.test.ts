@@ -16,7 +16,7 @@ vi.mock("consola", () => {
 
 // Mock vitest module
 vi.mock("./vitest.js", () => ({
-  isEnvTest: false,
+  isEnvTest: () => false,
 }));
 
 describe("Logger", () => {

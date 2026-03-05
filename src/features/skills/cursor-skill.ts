@@ -130,6 +130,7 @@ export class CursorSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -143,7 +144,7 @@ export class CursorSkill extends ToolSkill {
     };
 
     return new CursorSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: cursorFrontmatter,

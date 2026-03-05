@@ -115,6 +115,7 @@ export abstract class SimulatedSkill extends ToolSkill {
   }
 
   protected static fromRulesyncSkillDefault({
+    baseDir = process.cwd(),
     rulesyncSkill,
     validate = true,
   }: ToolSkillFromRulesyncSkillParams): SimulatedSkillParams {
@@ -127,7 +128,7 @@ export abstract class SimulatedSkill extends ToolSkill {
     };
 
     return {
-      baseDir: rulesyncSkill.getBaseDir(),
+      baseDir,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: simulatedFrontmatter,
