@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 60_000;
 
 const ALLOWED_URL_SCHEMES =
-  /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+)/;
+  /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/).+$|^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+$/;
 
 const INSECURE_URL_SCHEMES = /^(git:\/\/|http:\/\/)/;
 
