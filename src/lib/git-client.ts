@@ -13,6 +13,7 @@ import {
   removeTempDirectory,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { findControlCharacter } from "../utils/validation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -23,20 +24,6 @@ const ALLOWED_URL_SCHEMES =
   /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+)/;
 
 const INSECURE_URL_SCHEMES = /^(git:\/\/|http:\/\/)/;
-
-/**
- * Check for control characters and return the position and hex code of the first one found.
- * Returns null if no control characters are found.
- */
-function findControlCharacter(value: string): { position: number; hex: string } | null {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
-    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) {
-      return { position: i, hex: `0x${code.toString(16).padStart(2, "0")}` };
-    }
-  }
-  return null;
-}
 
 export class GitClientError extends Error {
   constructor(message: string, cause?: unknown) {
