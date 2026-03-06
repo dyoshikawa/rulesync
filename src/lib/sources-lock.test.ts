@@ -29,6 +29,8 @@ vi.mock("../utils/logger.js", () => ({
 
 const { logger } = await vi.importMock<typeof import("../utils/logger.js")>("../utils/logger.js");
 
+const VALID_SHA = "a".repeat(40);
+
 describe("sources-lock", () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -64,7 +66,7 @@ describe("sources-lock", () => {
         lockfileVersion: 1,
         sources: {
           "https://github.com/org/repo": {
-            resolvedRef: "abc123",
+            resolvedRef: VALID_SHA,
             skills: {
               "skill-a": { integrity: "sha256-abc" },
               "skill-b": { integrity: "sha256-def" },
@@ -78,7 +80,7 @@ describe("sources-lock", () => {
       const lock = await readLockFile({ baseDir: testDir });
 
       expect(lock.sources["https://github.com/org/repo"]).toEqual({
-        resolvedRef: "abc123",
+        resolvedRef: VALID_SHA,
         skills: {
           "skill-a": { integrity: "sha256-abc" },
           "skill-b": { integrity: "sha256-def" },
