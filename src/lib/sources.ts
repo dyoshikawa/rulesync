@@ -308,16 +308,20 @@ function buildLockUpdate(params: {
   locked: LockedSource | undefined;
   requestedRef: string | undefined;
   resolvedSha: string;
+  remoteSkillNames: string[];
 }): { updatedLock: SourcesLock; fetchedNames: string[] } {
-  const { lock, sourceKey, fetchedSkills, locked, requestedRef, resolvedSha } = params;
+  const { lock, sourceKey, fetchedSkills, locked, requestedRef, resolvedSha, remoteSkillNames } =
+    params;
   const fetchedNames = Object.keys(fetchedSkills);
 
-  // Merge newly fetched skills with existing locked skills that were skipped
-  // (due to local precedence, already-fetched, etc.) to prevent overwriting their entries
+  // Merge back locked skills that still exist in the remote but were skipped
+  // (due to local precedence, already-fetched, etc.). Skills no longer present
+  // in the remote (e.g. renamed or deleted upstream) are intentionally dropped.
+  const remoteSet = new Set(remoteSkillNames);
   const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
   if (locked) {
     for (const [skillName, skillEntry] of Object.entries(locked.skills)) {
-      if (!(skillName in mergedSkills)) {
+      if (!(skillName in mergedSkills) && remoteSet.has(skillName)) {
         mergedSkills[skillName] = skillEntry;
       }
     }
@@ -502,6 +506,7 @@ async function fetchSource(params: {
     locked,
     requestedRef,
     resolvedSha,
+    remoteSkillNames: filteredDirs.map((d) => d.name),
   });
 
   return {
@@ -617,6 +622,7 @@ async function fetchSourceViaGit(params: {
     locked,
     requestedRef,
     resolvedSha,
+    remoteSkillNames: filteredNames,
   });
   return {
     skillCount: result.fetchedNames.length,

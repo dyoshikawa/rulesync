@@ -953,4 +953,42 @@ describe("resolveAndFetchSources", () => {
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("not installed"));
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Hint"));
   });
+
+  it("should drop renamed/deleted skills from lockfile when upstream removes them", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+
+    // Lock has "old-skill" from a previous install
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://dev.azure.com/org/_git/repo": {
+          resolvedRef: "a".repeat(40),
+          requestedRef: "main",
+          skills: { "old-skill": { integrity: "sha256-old" } },
+        },
+      },
+    });
+
+    // Remote now has "new-skill" instead of "old-skill" (renamed upstream)
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "b".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "new-skill/SKILL.md", content: "renamed", size: 10 },
+    ]);
+
+    vi.mocked(directoryExists).mockResolvedValue(false);
+
+    await resolveAndFetchSources({
+      sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
+      baseDir: testDir,
+    });
+
+    // The lockfile should contain only "new-skill", not "old-skill"
+    const writeCalls = vi.mocked(writeLockFile).mock.calls;
+    expect(writeCalls).toHaveLength(1);
+    const writtenLock = writeCalls[0]![0].lock;
+    const sourceEntry = Object.values(writtenLock.sources)[0]!;
+    expect(sourceEntry.skills).toHaveProperty("new-skill");
+    expect(sourceEntry.skills).not.toHaveProperty("old-skill");
+  });
 });
