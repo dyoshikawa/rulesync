@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -82,7 +82,11 @@ export class CursorMcp extends ToolMcp {
     return this.json;
   }
 
-  static getSettablePaths(): ToolMcpSettablePaths {
+  override isDeletable(): boolean {
+    return !this.global;
+  }
+
+  static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
       relativeDirPath: ".cursor",
       relativeFilePath: "mcp.json",
@@ -92,47 +96,52 @@ export class CursorMcp extends ToolMcp {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
+    global = false,
   }: ToolMcpFromFileParams): Promise<CursorMcp> {
-    const fileContent = await readFileContent(
-      join(
-        baseDir,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
-    );
+    const paths = this.getSettablePaths({ global });
+    const fileContent =
+      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
+      '{"mcpServers":{}}';
+    const json = JSON.parse(fileContent);
+    const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new CursorMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: JSON.stringify(newJson, null, 2),
       validate,
+      global,
     });
   }
 
-  static fromRulesyncMcp({
+  static async fromRulesyncMcp({
     baseDir = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): CursorMcp {
-    const json = rulesyncMcp.getJson();
+    global = false,
+  }: ToolMcpFromRulesyncMcpParams): Promise<CursorMcp> {
+    const paths = this.getSettablePaths({ global });
 
-    // Convert Rulesync MCP format to Cursor MCP format
-    const mcpServers = isMcpServers(json.mcpServers) ? json.mcpServers : {};
+    const fileContent = await readOrInitializeFileContent(
+      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      JSON.stringify({ mcpServers: {} }, null, 2),
+    );
+    const json = JSON.parse(fileContent);
+
+    const rulesyncJson = rulesyncMcp.getJson();
+    const mcpServers = isMcpServers(rulesyncJson.mcpServers) ? rulesyncJson.mcpServers : {};
     const transformedServers = convertEnvToCursorFormat(mcpServers);
 
-    const cursorConfig = {
-      mcpServers: transformedServers,
-    };
-
-    const fileContent = JSON.stringify(cursorConfig, null, 2);
+    const cursorConfig = { ...json, mcpServers: transformedServers };
 
     return new CursorMcp({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: JSON.stringify(cursorConfig, null, 2),
       validate,
+      global,
     });
   }
 
@@ -162,6 +171,7 @@ export class CursorMcp extends ToolMcp {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolMcpForDeletionParams): CursorMcp {
     return new CursorMcp({
       baseDir,
@@ -169,6 +179,7 @@ export class CursorMcp extends ToolMcp {
       relativeFilePath,
       fileContent: "{}",
       validate: false,
+      global,
     });
   }
 }

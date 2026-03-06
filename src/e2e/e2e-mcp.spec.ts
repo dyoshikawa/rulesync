@@ -94,6 +94,7 @@ describe("E2E: mcp (global mode)", () => {
 
   it.each([
     { target: "claudecode", outputPath: join(".claude", ".claude.json") },
+    { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
