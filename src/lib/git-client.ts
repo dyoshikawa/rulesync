@@ -178,11 +178,17 @@ export async function fetchSkillFiles(params: {
 }
 
 const MAX_WALK_DEPTH = 20;
+const MAX_TOTAL_FILES = 10_000;
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100 MB
+
+/** Mutable context for tracking totals across recursive walkDirectory calls. */
+type WalkContext = { totalFiles: number; totalSize: number };
 
 async function walkDirectory(
   dir: string,
   baseDir: string,
   depth: number = 0,
+  ctx: WalkContext = { totalFiles: 0, totalSize: 0 },
 ): Promise<Array<{ relativePath: string; content: string; size: number }>> {
   if (depth > MAX_WALK_DEPTH) {
     throw new GitClientError(
@@ -198,7 +204,7 @@ async function walkDirectory(
       continue;
     }
     if (await directoryExists(fullPath)) {
-      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1)));
+      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1, ctx)));
     } else {
       const size = await getFileSize(fullPath);
       if (size > MAX_FILE_SIZE) {
@@ -206,6 +212,18 @@ async function walkDirectory(
           `Skipping file "${fullPath}" (${(size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
         );
         continue;
+      }
+      ctx.totalFiles++;
+      ctx.totalSize += size;
+      if (ctx.totalFiles > MAX_TOTAL_FILES) {
+        throw new GitClientError(
+          `Repository exceeds max file count of ${MAX_TOTAL_FILES}. Aborting to prevent resource exhaustion.`,
+        );
+      }
+      if (ctx.totalSize > MAX_TOTAL_SIZE) {
+        throw new GitClientError(
+          `Repository exceeds max total size of ${MAX_TOTAL_SIZE / 1024 / 1024}MB. Aborting to prevent resource exhaustion.`,
+        );
       }
       const content = await readFileContent(fullPath);
       results.push({ relativePath: relative(baseDir, fullPath), content, size });
