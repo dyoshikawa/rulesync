@@ -146,7 +146,7 @@ export class RulesyncMcp extends RulesyncFile {
     if (fields.length === 0) return this;
 
     const filteredServers = Object.fromEntries(
-      Object.entries(this.json.mcpServers).map(([name, config]) => [name, omit(config, fields)]),
+      Object.entries(this.json.mcpServers).map(([name, config]) => [name, omit(config, fields as (keyof typeof config)[])]),
     );
 
     return new RulesyncMcp({
