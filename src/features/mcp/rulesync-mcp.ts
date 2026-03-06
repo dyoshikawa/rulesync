@@ -148,9 +148,7 @@ export class RulesyncMcp extends RulesyncFile {
     const filteredServers = Object.fromEntries(
       Object.entries(this.json.mcpServers).map(([name, config]) => [
         name,
-        Object.fromEntries(
-          Object.entries(config).filter(([key]) => !fields.includes(key)),
-        ),
+        Object.fromEntries(Object.entries(config).filter(([key]) => !fields.includes(key))),
       ]),
     );
 
