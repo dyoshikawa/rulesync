@@ -6,7 +6,13 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
+import {
+  runGenerate,
+  rulesyncArgs,
+  rulesyncCmd,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
 
 describe("E2E: mcp", () => {
   const { getTestDir } = useTestDirectory();
@@ -80,5 +86,102 @@ describe("E2E: mcp", () => {
 
     // Verify that there were no actual errors (warnings are acceptable)
     expect(hasError, `MCP daemon produced errors: ${stderrOutput}`).toBe(false);
+  });
+});
+
+describe("E2E: mcp (global mode)", () => {
+  const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it.each([
+    { target: "claudecode", outputPath: join(".claude", ".claude.json") },
+    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
+  ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // Setup: Create .rulesync/mcp.json with root: true and a test MCP server
+    const mcpContent = JSON.stringify(
+      {
+        root: true,
+        mcpServers: {
+          "test-server": {
+            description: "Test MCP server",
+            type: "stdio",
+            command: "echo",
+            args: ["hello"],
+            env: {},
+          },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
+
+    // Execute: Generate mcp in global mode with HOME pointed to temp dir
+    await runGenerate({
+      target,
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Verify that the expected output file was generated and contains the server
+    const generatedContent = await readFileContent(join(homeDir, outputPath));
+    expect(generatedContent).toContain("test-server");
+  });
+
+  it("should ignore non-root mcp in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // Setup: Create a root mcp config and a non-root mcp config (legacy path)
+    const rootMcpContent = JSON.stringify(
+      {
+        root: true,
+        mcpServers: {
+          "root-server": {
+            description: "Root MCP server",
+            type: "stdio",
+            command: "echo",
+            args: ["root"],
+            env: {},
+          },
+        },
+      },
+      null,
+      2,
+    );
+    const nonRootMcpContent = JSON.stringify(
+      {
+        mcpServers: {
+          "non-root-server": {
+            description: "Non-root MCP server",
+            type: "stdio",
+            command: "echo",
+            args: ["non-root"],
+            env: {},
+          },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH), rootMcpContent);
+    await writeFileContent(join(projectDir, ".rulesync", ".mcp.json"), nonRootMcpContent);
+
+    // Execute: Generate mcp in global mode
+    await runGenerate({
+      target: "claudecode",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Verify: root mcp content is present, non-root mcp content is absent
+    const generatedContent = await readFileContent(join(homeDir, ".claude", ".claude.json"));
+    expect(generatedContent).toContain("root-server");
+    expect(generatedContent).not.toContain("non-root-server");
   });
 });
