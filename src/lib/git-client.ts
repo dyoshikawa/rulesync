@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
@@ -208,7 +208,7 @@ async function walkDirectory(
         continue;
       }
       const content = await readFileContent(fullPath);
-      results.push({ relativePath: fullPath.substring(baseDir.length + 1), content, size });
+      results.push({ relativePath: relative(baseDir, fullPath), content, size });
     }
   }
   return results;
