@@ -94,6 +94,7 @@ export async function resolveDefaultRef(url: string): Promise<{ ref: string; sha
     const ref = stdout.match(/^ref: refs\/heads\/(.+)\tHEAD$/m)?.[1];
     const sha = stdout.match(/^([0-9a-f]{40})\tHEAD$/m)?.[1];
     if (!ref || !sha) throw new GitClientError(`Could not parse default branch from: ${url}`);
+    validateRef(ref);
     return { ref, sha };
   } catch (error) {
     if (error instanceof GitClientError) throw error;
