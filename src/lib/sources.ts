@@ -183,9 +183,7 @@ function logGitClientHints(error: GitClientError): void {
   if (error.message.includes("not installed")) {
     logger.info("Hint: Install git and ensure it is available on your PATH.");
   } else {
-    logger.info(
-      "Hint: Check your git credentials (SSH keys, credential helper, or access token).",
-    );
+    logger.info("Hint: Check your git credentials (SSH keys, credential helper, or access token).");
   }
 }
 
@@ -360,7 +358,7 @@ async function fetchSource(params: {
 }> {
   const { sourceEntry, client, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources } =
     params;
-  let { lock } = params;
+  const { lock } = params;
 
   const parsed = parseSource(sourceEntry.source);
 
@@ -519,7 +517,7 @@ async function fetchSourceViaGit(params: {
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
   const { sourceEntry, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources, frozen } =
     params;
-  let { lock } = params;
+  const { lock } = params;
   const url = sourceEntry.source;
   const locked = getLockedSource(lock, url);
   const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
