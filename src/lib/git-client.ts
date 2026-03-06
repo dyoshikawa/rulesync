@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
@@ -132,6 +132,17 @@ export async function fetchSkillFiles(params: {
   const { url, ref, skillsPath } = params;
   validateGitUrl(url);
   validateRef(ref);
+  if (skillsPath.includes("..") || isAbsolute(skillsPath)) {
+    throw new GitClientError(
+      `Invalid skillsPath "${skillsPath}": must be a relative path without ".."`,
+    );
+  }
+  const ctrl = findControlCharacter(skillsPath);
+  if (ctrl) {
+    throw new GitClientError(
+      `skillsPath contains control character ${ctrl.hex} at position ${ctrl.position}`,
+    );
+  }
   await checkGitAvailable();
   const tmpDir = await createTempDirectory("rulesync-git-");
   try {

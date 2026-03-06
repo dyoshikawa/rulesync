@@ -197,6 +197,35 @@ describe("git-client", () => {
       expect(removeTempDirectory).toHaveBeenCalledWith("/tmp/test");
     });
 
+    it("rejects skillsPath with path traversal", async () => {
+      await expect(
+        fetchSkillFiles({ url: "https://example.com/repo.git", ref: "main", skillsPath: "../etc" }),
+      ).rejects.toThrow(GitClientError);
+      await expect(
+        fetchSkillFiles({ url: "https://example.com/repo.git", ref: "main", skillsPath: "../etc" }),
+      ).rejects.toThrow("must be a relative path");
+    });
+
+    it("rejects absolute skillsPath", async () => {
+      await expect(
+        fetchSkillFiles({
+          url: "https://example.com/repo.git",
+          ref: "main",
+          skillsPath: "/etc/passwd",
+        }),
+      ).rejects.toThrow(GitClientError);
+    });
+
+    it("rejects skillsPath with control characters", async () => {
+      await expect(
+        fetchSkillFiles({
+          url: "https://example.com/repo.git",
+          ref: "main",
+          skillsPath: "skills\x00",
+        }),
+      ).rejects.toThrow("control character");
+    });
+
     it("returns empty when skills dir missing", async () => {
       mockExecFileAsync.mockResolvedValue({ stdout: "" });
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
