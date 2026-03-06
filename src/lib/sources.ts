@@ -17,7 +17,13 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { fetchSkillFiles, resolveDefaultRef, resolveRefToSha, validateRef } from "./git-client.js";
+import {
+  GitClientError,
+  fetchSkillFiles,
+  resolveDefaultRef,
+  resolveRefToSha,
+  validateRef,
+} from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
@@ -142,6 +148,8 @@ export async function resolveAndFetchSources(params: {
       logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints(error);
+      } else if (error instanceof GitClientError) {
+        logGitClientHints(error);
       }
     }
   }
@@ -166,6 +174,19 @@ export async function resolveAndFetchSources(params: {
   }
 
   return { fetchedSkillCount: totalSkillCount, sourcesProcessed: sources.length };
+}
+
+/**
+ * Log contextual hints for GitClientError to help users troubleshoot.
+ */
+function logGitClientHints(error: GitClientError): void {
+  if (error.message.includes("not installed")) {
+    logger.info("Hint: Install git and ensure it is available on your PATH.");
+  } else {
+    logger.info(
+      "Hint: Check your git credentials (SSH keys, credential helper, or access token).",
+    );
+  }
 }
 
 /**
