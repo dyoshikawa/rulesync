@@ -770,4 +770,197 @@ describe("resolveAndFetchSources", () => {
       skillsPath: "exports/skills",
     });
   });
+
+  it("should error in frozen mode when git source lockfile entry lacks requestedRef", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://dev.azure.com/org/_git/repo": {
+          resolvedRef: "a".repeat(40),
+          skills: { "my-skill": { integrity: "sha256-x" } },
+        },
+      },
+    });
+
+    // Skill dir missing so SHA-match skip fails
+    vi.mocked(directoryExists).mockResolvedValue(false);
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
+      ],
+      baseDir: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("missing requestedRef"));
+  });
+
+  it("should skip re-fetch for git transport when locked SHA matches and skills exist", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const { fetchSkillFiles } = await import("./git-client.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://dev.azure.com/org/_git/repo": {
+          resolvedRef: "b".repeat(40),
+          requestedRef: "main",
+          skills: { "cached-skill": { integrity: "sha256-cached" } },
+        },
+      },
+    });
+
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      if (path === join(curatedDir, "cached-skill")) return true;
+      return false;
+    });
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(vi.mocked(fetchSkillFiles)).not.toHaveBeenCalled();
+  });
+
+  it("should apply skill filter for git transport", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "c".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "skill-a/SKILL.md", content: "A", size: 10 },
+      { relativePath: "skill-b/SKILL.md", content: "B", size: 10 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/repo",
+          transport: "git",
+          skills: ["skill-a"],
+        },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    const writeArgs = vi.mocked(writeFileContent).mock.calls.map((call) => call[0]);
+    expect(writeArgs.some((p) => p.includes("skill-a"))).toBe(true);
+    expect(writeArgs.some((p) => p.includes("skill-b"))).toBe(false);
+  });
+
+  it("should skip git transport skill when local skill takes precedence", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "d".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "local-skill/SKILL.md", content: "remote", size: 10 },
+    ]);
+
+    // local-skill exists locally
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      if (path.endsWith("skills")) return true;
+      return false;
+    });
+    vi.mocked(findFilesByGlobs).mockResolvedValue([
+      join(testDir, ".rulesync/skills/local-skill"),
+    ]);
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(writeFileContent).not.toHaveBeenCalled();
+  });
+
+  it("should skip duplicate git transport skill from later source", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "e".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "shared-skill/SKILL.md", content: "content", size: 10 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        { source: "https://dev.azure.com/org/_git/repo-a", transport: "git" },
+        { source: "https://dev.azure.com/org/_git/repo-b", transport: "git" },
+      ],
+      baseDir: testDir,
+    });
+
+    // First source fetches it, second source skips it
+    expect(result.fetchedSkillCount).toBe(1);
+  });
+
+  it("should warn on integrity mismatch for git transport skill", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const { fetchSkillFiles } = await import("./git-client.js");
+    const lockedSha = "f".repeat(40);
+
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://dev.azure.com/org/_git/repo": {
+          resolvedRef: lockedSha,
+          requestedRef: "main",
+          skills: { "my-skill": { integrity: "sha256-original" } },
+        },
+      },
+    });
+
+    // Skill dir missing so re-fetch is triggered
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "my-skill/SKILL.md", content: "tampered", size: 10 },
+    ]);
+
+    await resolveAndFetchSources({
+      sources: [
+        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
+  });
+
+  it("should handle GitClientError gracefully and continue processing", async () => {
+    const { GitClientError } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+
+    let callCount = 0;
+    vi.mocked(resolveDefaultRef).mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        throw new GitClientError("git is not installed or not found in PATH");
+      }
+      return { ref: "main", sha: "a".repeat(40) };
+    });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "good-skill/SKILL.md", content: "ok", size: 10 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      sources: [
+        { source: "https://dev.azure.com/org/_git/failing", transport: "git" },
+        { source: "https://dev.azure.com/org/_git/good", transport: "git" },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(result.sourcesProcessed).toBe(2);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("not installed"));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Hint"));
+  });
 });
