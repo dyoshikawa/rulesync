@@ -231,12 +231,13 @@ async function cleanPreviousCuratedSkills(
  * Check whether a skill should be skipped during fetching.
  * Returns true (with appropriate logging) if the skill should be skipped.
  */
-function shouldSkipSkill(
-  skillName: string,
-  sourceKey: string,
-  localSkillNames: Set<string>,
-  alreadyFetchedSkillNames: Set<string>,
-): boolean {
+function shouldSkipSkill(params: {
+  skillName: string;
+  sourceKey: string;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+}): boolean {
+  const { skillName, sourceKey, localSkillNames, alreadyFetchedSkillNames } = params;
   if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
     logger.warn(
       `Skipping skill with invalid name "${skillName}" from ${sourceKey}: contains path traversal characters.`,
@@ -441,7 +442,14 @@ async function fetchSource(params: {
   }
 
   for (const skillDir of filteredDirs) {
-    if (shouldSkipSkill(skillDir.name, sourceKey, localSkillNames, alreadyFetchedSkillNames)) {
+    if (
+      shouldSkipSkill({
+        skillName: skillDir.name,
+        sourceKey,
+        localSkillNames,
+        alreadyFetchedSkillNames,
+      })
+    ) {
       continue;
     }
 
@@ -588,7 +596,7 @@ async function fetchSourceViaGit(params: {
 
   const fetchedSkills: Record<string, LockedSkill> = {};
   for (const skillName of filteredNames) {
-    if (shouldSkipSkill(skillName, url, localSkillNames, alreadyFetchedSkillNames)) {
+    if (shouldSkipSkill({ skillName, sourceKey: url, localSkillNames, alreadyFetchedSkillNames })) {
       continue;
     }
 
