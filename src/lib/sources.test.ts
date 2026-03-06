@@ -788,9 +788,7 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(directoryExists).mockResolvedValue(false);
 
     const result = await resolveAndFetchSources({
-      sources: [
-        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
-      ],
+      sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
       options: { frozen: true },
     });
@@ -821,9 +819,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     const result = await resolveAndFetchSources({
-      sources: [
-        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
-      ],
+      sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
 
@@ -868,14 +864,10 @@ describe("resolveAndFetchSources", () => {
       if (path.endsWith("skills")) return true;
       return false;
     });
-    vi.mocked(findFilesByGlobs).mockResolvedValue([
-      join(testDir, ".rulesync/skills/local-skill"),
-    ]);
+    vi.mocked(findFilesByGlobs).mockResolvedValue([join(testDir, ".rulesync/skills/local-skill")]);
 
     const result = await resolveAndFetchSources({
-      sources: [
-        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
-      ],
+      sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
 
@@ -925,9 +917,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     await resolveAndFetchSources({
-      sources: [
-        { source: "https://dev.azure.com/org/_git/repo", transport: "git" },
-      ],
+      sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
 

@@ -132,7 +132,7 @@ export async function fetchSkillFiles(params: {
   const { url, ref, skillsPath } = params;
   validateGitUrl(url);
   validateRef(ref);
-  if (skillsPath.includes("..") || isAbsolute(skillsPath)) {
+  if (skillsPath.split(/[/\\]/).includes("..") || isAbsolute(skillsPath)) {
     throw new GitClientError(
       `Invalid skillsPath "${skillsPath}": must be a relative path without ".."`,
     );
@@ -215,12 +215,12 @@ async function walkDirectory(
       }
       ctx.totalFiles++;
       ctx.totalSize += size;
-      if (ctx.totalFiles > MAX_TOTAL_FILES) {
+      if (ctx.totalFiles >= MAX_TOTAL_FILES) {
         throw new GitClientError(
           `Repository exceeds max file count of ${MAX_TOTAL_FILES}. Aborting to prevent resource exhaustion.`,
         );
       }
-      if (ctx.totalSize > MAX_TOTAL_SIZE) {
+      if (ctx.totalSize >= MAX_TOTAL_SIZE) {
         throw new GitClientError(
           `Repository exceeds max total size of ${MAX_TOTAL_SIZE / 1024 / 1024}MB. Aborting to prevent resource exhaustion.`,
         );

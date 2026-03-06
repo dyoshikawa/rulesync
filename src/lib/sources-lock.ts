@@ -23,9 +23,9 @@ export type LockedSkill = z.infer<typeof LockedSkillSchema>;
  */
 export const LockedSourceSchema = z.object({
   requestedRef: optional(z.string()),
-  resolvedRef: z.string().check(
-    refine((v) => /^[0-9a-f]{40}$/.test(v), "resolvedRef must be a 40-character hex SHA"),
-  ),
+  resolvedRef: z
+    .string()
+    .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolvedRef must be a 40-character hex SHA")),
   resolvedAt: optional(z.string()),
   skills: z.record(z.string(), LockedSkillSchema),
 });
