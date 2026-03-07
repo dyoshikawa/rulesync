@@ -38,9 +38,7 @@ jobs:
             -f id="${COMMENT_NODE_ID}" >/dev/null
 
       - name: Configure git
-        run: |
-          git config user.name dyoshikawa
-          git config user.email dyoshikawa1993@gmail.com
+        uses: ./.github/actions/git-config
 
       - name: Setup mise
         uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3.6.2
@@ -152,9 +150,7 @@ jobs:
           echo "Minimized old bot comments: ${minimized}"
 
       - name: Configure git
-        run: |
-          git config user.name dyoshikawa
-          git config user.email dyoshikawa1993@gmail.com
+        uses: ./.github/actions/git-config
 
       - name: Setup mise
         uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3.6.2
