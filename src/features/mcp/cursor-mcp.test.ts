@@ -364,7 +364,7 @@ describe("CursorMcp", () => {
           relativeFilePath: "mcp.json",
           fileContent: invalidJsonContent,
         });
-      }).toThrow(SyntaxError);
+      }).toThrow("Failed to parse Cursor MCP config at .cursor/mcp.json");
     });
 
     it("should throw error for malformed JSON", () => {
@@ -376,7 +376,7 @@ describe("CursorMcp", () => {
           relativeFilePath: "mcp.json",
           fileContent: malformedJsonContent,
         });
-      }).toThrow(SyntaxError);
+      }).toThrow("Failed to parse Cursor MCP config at .cursor/mcp.json");
     });
 
     it("should handle non-object JSON content", () => {
@@ -756,7 +756,9 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, invalidJson);
 
-      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(
+        "Failed to parse Cursor MCP config at .cursor/mcp.json",
+      );
     });
 
     it("should handle empty file", async () => {
@@ -765,7 +767,9 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, "");
 
-      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(
+        "Failed to parse Cursor MCP config at .cursor/mcp.json",
+      );
     });
 
     it("should handle file with only whitespace", async () => {
@@ -774,7 +778,9 @@ describe("CursorMcp", () => {
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(mcpJsonPath, "   \n\t  \n  ");
 
-      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
+      await expect(CursorMcp.fromFile({ validate: true })).rejects.toThrow(
+        "Failed to parse Cursor MCP config at .cursor/mcp.json",
+      );
     });
 
     it("should create CursorMcp from file in global mode", async () => {
