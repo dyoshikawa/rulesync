@@ -109,18 +109,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Minimize triggering comment
+      - name: Minimize comments
         uses: ./.github/actions/minimize-comments
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           trigger_comment_node_id: ${{ github.event.comment.node_id }}
-
-      - name: Minimize old bot comments on PR
-        uses: ./.github/actions/minimize-comments
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
           owner: ${{ github.repository_owner }}
           repo: ${{ github.event.repository.name }}
           pr_number: ${{ github.event.issue.number }}

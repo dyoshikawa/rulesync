@@ -65,13 +65,9 @@ runs:
           while IFS=$'\t' read -r login node_id; do
             [ -z "${node_id}" ] && continue
             if should_minimize "${login}"; then
-              if gh api graphql \
+              gh api graphql \
                 -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
-                -f id="${node_id}" >/dev/null 2>&1; then
-                minimized=$((minimized + 1))
-              else
-                echo "::warning::Failed to minimize comment with node_id=${node_id}, continuing..."
-              fi
+                -f id="${node_id}" >/dev/null && minimized=$((minimized + 1))
             fi
           done
         }
