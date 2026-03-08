@@ -28,14 +28,11 @@ jobs:
           fetch-depth: 0
 
       - name: Minimize triggering comment
+        uses: ./.github/actions/minimize-comments
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
-        run: |
-          set -euo pipefail
-          gh api graphql \
-            -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
-            -f id="${COMMENT_NODE_ID}" >/dev/null
+        with:
+          trigger_comment_node_id: ${{ github.event.comment.node_id }}
 
       - name: Configure git
         uses: ./.github/actions/git-config
@@ -110,44 +107,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Minimize triggering comment
+      - name: Minimize comments
+        uses: ./.github/actions/minimize-comments
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
-        run: |
-          set -euo pipefail
-          gh api graphql \
-            -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
-            -f id="${COMMENT_NODE_ID}" >/dev/null
-
-      - name: Minimize old bot comments on PR
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.issue.number }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-        run: |
-          set -euo pipefail
-          minimized=0
-
-          minimize_node_ids() {
-            while IFS= read -r node_id; do
-              [ -z "${node_id}" ] && continue
-              gh api graphql \
-                -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
-                -f id="${node_id}" >/dev/null && minimized=$((minimized + 1))
-            done
-          }
-
-          gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/comments" \
-            -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .node_id' | minimize_node_ids
-
-          gh api --paginate "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
-            -H "Accept: application/vnd.github+json" \
-            --jq '.[] | select(.user.login == "opencode-agent" or .user.login == "opencode-agent[bot]" or .user.login == "github-actions" or .user.login == "github-actions[bot]") | .node_id' | minimize_node_ids
-
-          echo "Minimized old bot comments: ${minimized}"
+        with:
+          trigger_comment_node_id: ${{ github.event.comment.node_id }}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          pr_number: ${{ github.event.issue.number }}
 
       - name: Configure git
         uses: ./.github/actions/git-config
