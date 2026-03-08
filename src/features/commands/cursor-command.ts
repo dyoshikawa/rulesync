@@ -54,7 +54,7 @@ export class CursorCommand extends ToolCommand {
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
     });
 
     this.frontmatter = frontmatter;

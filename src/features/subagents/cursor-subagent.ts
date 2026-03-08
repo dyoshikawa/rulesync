@@ -102,7 +102,7 @@ export class CursorSubagent extends ToolSubagent {
     };
 
     const body = rulesyncSubagent.getBody();
-    const fileContent = stringifyFrontmatter(body, cursorFrontmatter);
+    const fileContent = stringifyFrontmatter(body, cursorFrontmatter, { avoidBlockScalars: true });
     const paths = this.getSettablePaths({ global });
 
     return new CursorSubagent({

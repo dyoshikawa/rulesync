@@ -265,7 +265,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     getFactory?: GetFactory;
     dryRun?: boolean;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, avoidBlockScalars: toolTarget === "cursor" });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(

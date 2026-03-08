@@ -16,10 +16,20 @@ import { ToolTarget } from "./tool-targets.js";
 export abstract class DirFeatureProcessor {
   protected readonly baseDir: string;
   protected readonly dryRun: boolean;
+  protected readonly avoidBlockScalars: boolean;
 
-  constructor({ baseDir = process.cwd(), dryRun = false }: { baseDir?: string; dryRun?: boolean }) {
+  constructor({
+    baseDir = process.cwd(),
+    dryRun = false,
+    avoidBlockScalars = false,
+  }: {
+    baseDir?: string;
+    dryRun?: boolean;
+    avoidBlockScalars?: boolean;
+  }) {
     this.baseDir = baseDir;
     this.dryRun = dryRun;
+    this.avoidBlockScalars = avoidBlockScalars;
   }
 
   abstract loadRulesyncDirs(): Promise<AiDir[]>;
@@ -61,7 +71,9 @@ export abstract class DirFeatureProcessor {
       let mainFileContent: string | undefined;
       if (mainFile) {
         const mainFilePath = join(dirPath, mainFile.name);
-        const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter);
+        const content = stringifyFrontmatter(mainFile.body, mainFile.frontmatter, {
+          avoidBlockScalars: this.avoidBlockScalars,
+        });
         mainFileContent = addTrailingNewline(content);
         const existingContent = await readFileContentOrNull(mainFilePath);
         if (existingContent !== mainFileContent) {
