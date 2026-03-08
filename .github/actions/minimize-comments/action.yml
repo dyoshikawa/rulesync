@@ -28,9 +28,11 @@ runs:
         COMMENT_NODE_ID: ${{ inputs.trigger_comment_node_id }}
       run: |
         set -euo pipefail
-        gh api graphql \
+        if ! gh api graphql \
           -f query='mutation($id:ID!){ minimizeComment(input:{subjectId:$id,classifier:OUTDATED}) { minimizedComment { isMinimized minimizedReason } } }' \
-          -f id="${COMMENT_NODE_ID}" >/dev/null
+          -f id="${COMMENT_NODE_ID}" >/dev/null 2>&1; then
+          echo "::warning::Failed to minimize triggering comment, continuing..."
+        fi
 
     - name: Minimize old bot comments
       if: inputs.owner != '' && inputs.repo != '' && inputs.pr_number != ''
@@ -50,6 +52,12 @@ runs:
         }
 
         mapfile -t BOT_LOGIN_LIST < <(normalize_logins "${BOT_LOGINS}")
+
+        # Early exit if no bot logins specified
+        if [ ${#BOT_LOGIN_LIST[@]} -eq 0 ]; then
+          echo "No bot logins specified, skipping minimization"
+          exit 0
+        fi
 
         should_minimize() {
           local login="$1"
