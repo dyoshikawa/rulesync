@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
@@ -691,9 +694,8 @@ describe("ClaudecodeMcp", () => {
       expect(rulesyncMcp.getFileContent()).toBe(
         JSON.stringify(
           {
-            $schema:
-              "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
             ...jsonData,
+            $schema: RULESYNC_MCP_SCHEMA_URL,
           },
           null,
           2,
@@ -731,8 +733,8 @@ describe("ClaudecodeMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         ...jsonData,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
       });
     });
 
@@ -749,8 +751,8 @@ describe("ClaudecodeMcp", () => {
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         ...jsonData,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
       });
     });
 
@@ -777,13 +779,13 @@ describe("ClaudecodeMcp", () => {
 
       const exportedJson = JSON.parse(rulesyncMcp.getFileContent());
       expect(exportedJson).toEqual({
-        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "test-server": {
             command: "node",
             args: ["server.js"],
           },
         },
+        $schema: RULESYNC_MCP_SCHEMA_URL,
       });
       expect((exportedJson as any).userSettings).toBeUndefined();
       expect((exportedJson as any).version).toBeUndefined();

@@ -4,6 +4,8 @@ import { ConfigFile } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_CONFIG_SCHEMA_URL,
+  RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_OVERVIEW_FILE_NAME,
 } from "../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../features/commands/rulesync-command.js";
@@ -50,8 +52,7 @@ async function createConfigFile(): Promise<InitFileResult> {
     path,
     JSON.stringify(
       {
-        $schema:
-          "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
         features: ["rules", "ignore", "mcp", "commands", "subagents", "skills", "hooks"],
         baseDirs: ["."],
@@ -114,7 +115,7 @@ globs: ["**/*"]
   const sampleMcpFile = {
     filename: "mcp.json",
     content: `{
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+  "$schema": "${RULESYNC_MCP_SCHEMA_URL}",
   "mcpServers": {
     "serena": {
       "type": "stdio",

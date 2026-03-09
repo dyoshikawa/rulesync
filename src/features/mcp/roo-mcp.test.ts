@@ -458,8 +458,8 @@ describe("RooMcp", () => {
       const rulesyncMcp = rooMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        $schema: RULESYNC_MCP_SCHEMA_URL,
         ...complexMcpContent,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
       });
     });
 
