@@ -124,6 +124,84 @@ describe("frontmatter utilities", () => {
       expect(result).toContain("- 42");
       expect(result).toContain("- true");
     });
+
+    it("should allow block scalars by default for long strings", () => {
+      const body = "Body content";
+      const longDescription =
+        "Use this agent when the user wants to commit current changes, push them, " +
+        "and create or update a pull request with an English summary for the repository " +
+        "including all changed files and their descriptions in a well-structured format";
+      const frontmatter = { name: "test", description: longDescription };
+
+      const result = stringifyFrontmatter(body, frontmatter);
+
+      expect(result).toContain(">-");
+
+      const parsed = parseFrontmatter(result);
+      expect(parsed.frontmatter.description).toBe(longDescription);
+    });
+
+    it("should preserve embedded newlines in strings by default", () => {
+      const body = "Body content";
+      const frontmatter = { description: "Line one\nLine two\nLine three" };
+
+      const result = stringifyFrontmatter(body, frontmatter);
+
+      expect(result).toContain("|-");
+
+      const parsed = parseFrontmatter(result);
+      expect(parsed.frontmatter.description).toBe("Line one\nLine two\nLine three");
+    });
+
+    describe("with avoidBlockScalars option", () => {
+      it("should not emit block scalar indicators for long strings", () => {
+        const body = "Body content";
+        const longDescription =
+          "Use this agent when the user wants to commit current changes, push them, " +
+          "and create or update a pull request with an English summary for the repository " +
+          "including all changed files and their descriptions in a well-structured format";
+        const frontmatter = { name: "test", description: longDescription };
+
+        const result = stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true });
+
+        expect(result).not.toContain(">-");
+        expect(result).not.toContain("|-");
+        expect(result).toContain(longDescription);
+
+        const parsed = parseFrontmatter(result);
+        expect(parsed.frontmatter.description).toBe(longDescription);
+      });
+
+      it("should collapse newlines in string values", () => {
+        const body = "Body content";
+        const frontmatter = {
+          description: "Line one\nLine two\nLine three",
+        };
+
+        const result = stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true });
+
+        expect(result).not.toContain("|-");
+        expect(result).not.toContain(">-");
+        expect(result).toContain("description: Line one Line two Line three");
+      });
+
+      it("should collapse newlines in nested string values", () => {
+        const body = "Body content";
+        const frontmatter = {
+          config: {
+            label: "First line\nSecond line",
+          },
+          items: ["item\nwith\nnewlines"],
+        };
+
+        const result = stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true });
+
+        expect(result).not.toContain("|-");
+        expect(result).not.toContain(">-");
+        expect(result).toContain("label: First line Second line");
+        expect(result).toContain("- item with newlines");
+      });
+    });
   });
 
   describe("parseFrontmatter", () => {
