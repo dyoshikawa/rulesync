@@ -34,7 +34,7 @@ const outputPath = join(process.cwd(), "config-schema.json");
 generateSchema(
   ConfigFileSchema,
   {
-    $id: "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+    $id: "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
     title: "Rulesync Configuration",
     description: "Configuration file for Rulesync CLI tool",
   },
@@ -45,7 +45,7 @@ const mcpOutputPath = join(process.cwd(), "mcp-schema.json");
 generateSchema(
   RulesyncMcpFileSchema,
   {
-    $id: "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
+    $id: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
     title: "Rulesync MCP Configuration",
     description: "MCP server configuration file for Rulesync CLI tool",
   },

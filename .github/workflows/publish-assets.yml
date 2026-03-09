@@ -55,6 +55,9 @@ jobs:
           sha256sum rulesync-* > SHA256SUMS
           cat SHA256SUMS
 
+      - name: Generate JSON Schemas
+        run: pnpm generate:schema
+
       - name: Generate repomix TOON variants
         run: bun scripts/generate-repomix-toon.ts
 
@@ -89,3 +92,5 @@ jobs:
             dist-bun/rulesync-windows-x64.exe
             dist-bun/SHA256SUMS
             repomix-toon.zip
+            config-schema.json
+            mcp-schema.json

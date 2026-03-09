@@ -334,7 +334,7 @@ describe("RulesyncMcp", () => {
         relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
           $schema:
-            "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
+            "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
           mcpServers: {
             "test-server": { command: "node" },
           },

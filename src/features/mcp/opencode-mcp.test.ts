@@ -1159,6 +1159,7 @@ describe("OpencodeMcp", () => {
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       // Should convert to standard format: type: "stdio", command: string, args: string[]
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           filesystem: {
             type: "stdio",
@@ -1197,6 +1198,7 @@ describe("OpencodeMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "complex-server": {
             type: "stdio",
@@ -1223,7 +1225,10 @@ describe("OpencodeMcp", () => {
 
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({ mcpServers: {} });
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: {},
+      });
     });
 
     it("should extract only mcp when converting to RulesyncMcp", () => {
@@ -1251,6 +1256,7 @@ describe("OpencodeMcp", () => {
 
       const exportedJson = JSON.parse(rulesyncMcp.getFileContent());
       expect(exportedJson).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "test-server": {
             type: "stdio",
@@ -1286,6 +1292,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "remote-server": {
             type: "sse",
@@ -1317,6 +1324,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "disabled-server": {
             type: "stdio",
@@ -1348,6 +1356,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "cwd-server": {
             type: "stdio",
@@ -1404,6 +1413,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "my-server": {
             type: "stdio",
@@ -1438,6 +1448,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "my-server": {
             type: "stdio",
@@ -1473,6 +1484,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "my-server": {
             type: "stdio",
@@ -1514,6 +1526,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "server-a": {
             type: "stdio",
@@ -1554,6 +1567,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "remote-server": {
             type: "sse",
@@ -1585,6 +1599,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "my-server": {
             type: "stdio",
@@ -1614,6 +1629,7 @@ describe("OpencodeMcp", () => {
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "my-server": {
             type: "stdio",

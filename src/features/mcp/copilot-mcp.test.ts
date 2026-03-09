@@ -354,7 +354,10 @@ describe("CopilotMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       // Output should have mcpServers key, not servers
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: inputServers,
+      });
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
@@ -384,7 +387,10 @@ describe("CopilotMcp", () => {
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: inputServers,
+      });
     });
 
     it("should handle empty servers object when converting", () => {
@@ -396,7 +402,10 @@ describe("CopilotMcp", () => {
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: {} });
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: {},
+      });
     });
 
     it("should handle missing servers key", () => {
@@ -408,7 +417,10 @@ describe("CopilotMcp", () => {
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: {} });
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: {},
+      });
     });
   });
 
@@ -521,7 +533,10 @@ describe("CopilotMcp", () => {
 
       // Step 2: Convert to RulesyncMcp (should have mcpServers key)
       const rulesyncMcp = originalCopilotMcp.toRulesyncMcp();
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: originalServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: originalServers,
+      });
 
       // Step 3: Create new CopilotMcp from RulesyncMcp (should have servers key again)
       const newCopilotMcp = CopilotMcp.fromRulesyncMcp({
@@ -565,7 +580,10 @@ describe("CopilotMcp", () => {
       // Convert to RulesyncMcp and back
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
       // RulesyncMcp should have mcpServers key
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: originalServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        mcpServers: originalServers,
+      });
 
       const newCopilotMcp = CopilotMcp.fromRulesyncMcp({
         baseDir: "/project",

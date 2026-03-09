@@ -9,7 +9,7 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 ```jsonc
 // rulesync.jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
   "targets": ["claudecode"],
   "features": ["rules"],
 }
@@ -22,7 +22,7 @@ Example:
 ```jsonc
 // rulesync.jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
 
   // List of tools to generate configurations for. You can specify "*" to generate all tools.
   "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
@@ -115,7 +115,7 @@ Example usage:
 ```jsonc
 // rulesync.local.jsonc (not committed to git)
 {
-  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
   // Override targets for local development
   "targets": ["claudecode"],
   // Enable verbose output for debugging

@@ -688,7 +688,17 @@ describe("ClaudecodeMcp", () => {
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData, null, 2));
+      expect(rulesyncMcp.getFileContent()).toBe(
+        JSON.stringify(
+          {
+            $schema:
+              "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+            ...jsonData,
+          },
+          null,
+          2,
+        ),
+      );
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
@@ -720,7 +730,10 @@ describe("ClaudecodeMcp", () => {
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...jsonData,
+      });
     });
 
     it("should handle empty mcpServers object when converting", () => {
@@ -735,7 +748,10 @@ describe("ClaudecodeMcp", () => {
 
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...jsonData,
+      });
     });
 
     it("should extract only mcpServers when converting to RulesyncMcp", () => {
@@ -761,6 +777,7 @@ describe("ClaudecodeMcp", () => {
 
       const exportedJson = JSON.parse(rulesyncMcp.getFileContent());
       expect(exportedJson).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
         mcpServers: {
           "test-server": {
             command: "node",

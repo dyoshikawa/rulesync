@@ -352,7 +352,11 @@ describe("ToolMcp", () => {
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
+      const expectedContent = {
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...jsonData,
+      };
+      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
@@ -394,7 +398,11 @@ describe("ToolMcp", () => {
 
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getFileContent()).toBe(originalJsonString);
+      const expectedContent = {
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...JSON.parse(originalJsonString),
+      };
+      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
     });
 
     it("should work with complex JSON structures", () => {
@@ -430,7 +438,11 @@ describe("ToolMcp", () => {
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe(testDir);
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(complexJsonData);
+      const expectedContent = {
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...complexJsonData,
+      };
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(expectedContent);
     });
   });
 
@@ -591,8 +603,11 @@ describe("ToolMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify data integrity
-      expect(newToolMcp.getJson()).toEqual(originalJsonData);
+      // Verify data integrity ($schema is injected by toRulesyncMcpDefault)
+      expect(newToolMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...originalJsonData,
+      });
       expect(newToolMcp.getBaseDir()).toBe(testDir);
     });
 
@@ -648,8 +663,11 @@ describe("ToolMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify all data is preserved
-      expect(newToolMcp.getJson()).toEqual(complexJsonData);
+      // Verify all data is preserved ($schema is injected by toRulesyncMcpDefault)
+      expect(newToolMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...complexJsonData,
+      });
       expect(newToolMcp.getBaseDir()).toBe(testDir);
     });
 
@@ -680,7 +698,10 @@ describe("ToolMcp", () => {
         rulesyncMcp,
       });
 
-      expect(newToolMcp.getJson()).toEqual(edgeCaseData);
+      expect(newToolMcp.getJson()).toEqual({
+        $schema: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+        ...edgeCaseData,
+      });
     });
   });
 });
