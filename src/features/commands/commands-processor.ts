@@ -18,6 +18,7 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
+import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
@@ -72,6 +73,7 @@ const commandsProcessorToolTargetTuple = [
   "cursor",
   "factorydroid",
   "geminicli",
+  "junie",
   "kilo",
   "kiro",
   "opencode",
@@ -215,6 +217,19 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "junie",
+    {
+      class: JunieCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],

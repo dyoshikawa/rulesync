@@ -11,6 +11,7 @@ import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
+import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
@@ -49,6 +50,11 @@ vi.mock("./claudecode-command.js", () => ({
 }));
 vi.mock("./geminicli-command.js", () => ({
   GeminiCliCommand: vi.fn().mockImplementation(function (config) {
+    return { ...config, isDeletable: () => true };
+  }),
+}));
+vi.mock("./junie-command.js", () => ({
+  JunieCommand: vi.fn().mockImplementation(function (config) {
     return { ...config, isDeletable: () => true };
   }),
 }));
@@ -109,6 +115,19 @@ vi.mocked(ClaudecodeCommand).getSettablePaths = vi.fn().mockImplementation((_opt
   relativeDirPath: join(".claude", "commands"),
 }));
 vi.mocked(ClaudecodeCommand).forDeletion = vi.fn().mockImplementation((params) => ({
+  ...params,
+  isDeletable: () => true,
+  getRelativeFilePath: () => params.relativeFilePath,
+}));
+
+// Set up static methods after mocking
+vi.mocked(JunieCommand).fromFile = vi.fn();
+vi.mocked(JunieCommand).fromRulesyncCommand = vi.fn();
+vi.mocked(JunieCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
+vi.mocked(JunieCommand).getSettablePaths = vi.fn().mockImplementation((_options = {}) => ({
+  relativeDirPath: join(".junie", "commands"),
+}));
+vi.mocked(JunieCommand).forDeletion = vi.fn().mockImplementation((params) => ({
   ...params,
   isDeletable: () => true,
   getRelativeFilePath: () => params.relativeFilePath,
@@ -1168,6 +1187,7 @@ describe("CommandsProcessor", () => {
           "copilot",
           "cursor",
           "geminicli",
+          "junie",
           "kilo",
           "kiro",
           "opencode",
@@ -1189,6 +1209,7 @@ describe("CommandsProcessor", () => {
           "cursor",
           "factorydroid",
           "geminicli",
+          "junie",
           "kilo",
           "kiro",
           "opencode",
@@ -1209,6 +1230,7 @@ describe("CommandsProcessor", () => {
           "cursor",
           "factorydroid",
           "geminicli",
+          "junie",
           "codexcli",
           "kilo",
           "opencode",
@@ -1244,6 +1266,7 @@ describe("CommandsProcessor", () => {
         "claudecode-legacy",
         "cline",
         "geminicli",
+        "junie",
         "kilo",
         "roo",
       ];
