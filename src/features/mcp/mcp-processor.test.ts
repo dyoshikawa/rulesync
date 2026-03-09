@@ -654,7 +654,7 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ servers: {} }),
       });
 
-      vi.mocked(CursorMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
+      vi.mocked(CursorMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
         baseDir: testDir,

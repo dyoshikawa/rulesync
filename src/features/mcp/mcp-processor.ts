@@ -149,7 +149,7 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: CursorMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
