@@ -1,0 +1,34 @@
+name: Actionlint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actionlint.*"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actionlint.*"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: Lint GitHub Actions Workflows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Install actionlint
+        run: bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.11
+
+      - name: Run actionlint
+        run: ./actionlint -color
