@@ -5,10 +5,8 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
-  execFileAsync,
   runGenerate,
-  rulesyncArgs,
-  rulesyncCmd,
+  runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
@@ -96,14 +94,7 @@ Break down tasks into steps.
     await writeFileContent(join(testDir, ".claude", "agents", "planner.md"), subagentContent);
 
     // Execute: Import claudecode subagents
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "claudecode",
-      "--features",
-      "subagents",
-    ]);
+    await runImport({ target: "claudecode", features: "subagents" });
 
     // Verify that the imported subagent file was created
     const importedContent = await readFileContent(

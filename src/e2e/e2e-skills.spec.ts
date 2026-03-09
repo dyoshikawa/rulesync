@@ -5,10 +5,8 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
-  execFileAsync,
   runGenerate,
-  rulesyncArgs,
-  rulesyncCmd,
+  runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
@@ -68,14 +66,7 @@ This is the test skill body content.`;
     );
 
     // Execute: Import claudecode skills
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "claudecode",
-      "--features",
-      "skills",
-    ]);
+    await runImport({ target: "claudecode", features: "skills" });
 
     // Verify that the imported skill file was created
     const importedContent = await readFileContent(

@@ -5,10 +5,8 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
-  execFileAsync,
   runGenerate,
-  rulesyncArgs,
-  rulesyncCmd,
+  runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
@@ -60,14 +58,7 @@ describe("E2E: commands (import)", () => {
     await writeFileContent(join(testDir, ".claude", "commands", "review-pr.md"), commandContent);
 
     // Execute: Import claudecode commands
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "claudecode",
-      "--features",
-      "commands",
-    ]);
+    await runImport({ target: "claudecode", features: "commands" });
 
     // Verify that the imported command file was created
     const importedContent = await readFileContent(

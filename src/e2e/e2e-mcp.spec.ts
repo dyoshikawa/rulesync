@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
-  execFileAsync,
   runGenerate,
+  runImport,
   rulesyncArgs,
   rulesyncCmd,
   useGlobalTestDirectories,
@@ -112,14 +112,7 @@ describe("E2E: mcp (import)", () => {
     await writeFileContent(join(testDir, ".mcp.json"), mcpContent);
 
     // Execute: Import claudecode mcp
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "claudecode",
-      "--features",
-      "mcp",
-    ]);
+    await runImport({ target: "claudecode", features: "mcp" });
 
     // Verify that the imported MCP file was created
     const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));

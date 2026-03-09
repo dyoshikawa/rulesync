@@ -8,10 +8,8 @@ import {
 } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
-  execFileAsync,
   runGenerate,
-  rulesyncArgs,
-  rulesyncCmd,
+  runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
@@ -70,14 +68,7 @@ This is a test project for E2E testing.
     await writeFileContent(claudeMdPath, claudeMdContent);
 
     // Execute: Import claudecode rules
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "claudecode",
-      "--features",
-      "rules",
-    ]);
+    await runImport({ target: "claudecode", features: "rules" });
 
     // Verify that the imported rule file was created
     // Note: The imported file keeps the original filename (CLAUDE.md), not overview.md

@@ -4,13 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import {
-  execFileAsync,
-  runGenerate,
-  rulesyncArgs,
-  rulesyncCmd,
-  useTestDirectory,
-} from "./e2e-helper.js";
+import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: ignore", () => {
   const { getTestDir } = useTestDirectory();
@@ -65,14 +59,7 @@ credentials/
     await writeFileContent(join(testDir, ".cursorignore"), ignoreContent);
 
     // Execute: Import cursor ignore
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "cursor",
-      "--features",
-      "ignore",
-    ]);
+    await runImport({ target: "cursor", features: "ignore" });
 
     // Verify that the imported ignore file was created
     const importedContent = await readFileContent(

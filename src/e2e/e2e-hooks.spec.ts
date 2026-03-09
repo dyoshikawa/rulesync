@@ -4,13 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import {
-  execFileAsync,
-  runGenerate,
-  rulesyncArgs,
-  rulesyncCmd,
-  useTestDirectory,
-} from "./e2e-helper.js";
+import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -92,14 +86,7 @@ describe("E2E: hooks (import)", () => {
     await writeFileContent(join(testDir, ".claude", "settings.json"), settingsContent);
 
     // Execute: Import claudecode hooks
-    await execFileAsync(rulesyncCmd, [
-      ...rulesyncArgs,
-      "import",
-      "--targets",
-      "claudecode",
-      "--features",
-      "hooks",
-    ]);
+    await runImport({ target: "claudecode", features: "hooks" });
 
     // Verify that the imported hooks file was created
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
