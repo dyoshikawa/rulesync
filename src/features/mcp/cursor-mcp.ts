@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -182,16 +181,8 @@ export class CursorMcp extends ToolMcp {
       mcpServers: transformedServers,
     };
 
-    return new RulesyncMcp({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: "rulesync.mcp.json",
-      fileContent: JSON.stringify(
-        { ...transformedJson, $schema: RULESYNC_MCP_SCHEMA_URL },
-        null,
-        2,
-      ),
-      validate: true,
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify(transformedJson, null, 2),
     });
   }
 

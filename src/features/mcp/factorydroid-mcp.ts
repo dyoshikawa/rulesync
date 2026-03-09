@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -79,13 +78,7 @@ export class FactorydroidMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return new RulesyncMcp({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: "rulesync.mcp.json",
-      fileContent: JSON.stringify({ ...this.json, $schema: RULESYNC_MCP_SCHEMA_URL }, null, 2),
-      validate: true,
-    });
+    return this.toRulesyncMcpDefault();
   }
 
   validate(): ValidationResult {

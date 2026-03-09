@@ -694,8 +694,8 @@ describe("ClaudecodeMcp", () => {
       expect(rulesyncMcp.getFileContent()).toBe(
         JSON.stringify(
           {
-            ...jsonData,
             $schema: RULESYNC_MCP_SCHEMA_URL,
+            ...jsonData,
           },
           null,
           2,
@@ -733,8 +733,8 @@ describe("ClaudecodeMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...jsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
       });
     });
 
@@ -751,8 +751,8 @@ describe("ClaudecodeMcp", () => {
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...jsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
       });
     });
 

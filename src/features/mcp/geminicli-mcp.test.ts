@@ -700,8 +700,8 @@ describe("GeminiCliMcp", () => {
       expect(rulesyncMcp.getFileContent()).toBe(
         JSON.stringify(
           {
-            ...jsonData,
             $schema: RULESYNC_MCP_SCHEMA_URL,
+            ...jsonData,
           },
           null,
           2,
@@ -739,8 +739,8 @@ describe("GeminiCliMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...jsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
       });
     });
 
@@ -757,8 +757,8 @@ describe("GeminiCliMcp", () => {
       const rulesyncMcp = geminiCliMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...jsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
       });
     });
 

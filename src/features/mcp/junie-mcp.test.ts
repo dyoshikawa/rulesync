@@ -99,8 +99,8 @@ describe("JunieMcp", () => {
       expect(rulesync.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesync.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rulesync.getFileContent())).toEqual({
-        ...JSON.parse(content),
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...JSON.parse(content),
       });
     });
   });

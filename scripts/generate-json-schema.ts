@@ -6,6 +6,10 @@ import * as z from "zod";
 
 // Import schemas directly from source - zod and zod/mini schemas are compatible in Zod v4
 import { ConfigFileSchema } from "../src/config/config.js";
+import {
+  RULESYNC_CONFIG_SCHEMA_URL,
+  RULESYNC_MCP_SCHEMA_URL,
+} from "../src/constants/rulesync-paths.js";
 import { RulesyncMcpFileSchema } from "../src/features/mcp/rulesync-mcp.js";
 
 type SchemaMeta = {
@@ -34,7 +38,7 @@ const outputPath = join(process.cwd(), "config-schema.json");
 generateSchema(
   ConfigFileSchema,
   {
-    $id: "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+    $id: RULESYNC_CONFIG_SCHEMA_URL,
     title: "Rulesync Configuration",
     description: "Configuration file for Rulesync CLI tool",
   },
@@ -45,7 +49,7 @@ const mcpOutputPath = join(process.cwd(), "mcp-schema.json");
 generateSchema(
   RulesyncMcpFileSchema,
   {
-    $id: "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+    $id: RULESYNC_MCP_SCHEMA_URL,
     title: "Rulesync MCP Configuration",
     description: "MCP server configuration file for Rulesync CLI tool",
   },

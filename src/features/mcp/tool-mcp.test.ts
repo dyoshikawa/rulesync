@@ -356,8 +356,8 @@ describe("ToolMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       const expectedContent = {
-        ...jsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
       };
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
@@ -402,8 +402,8 @@ describe("ToolMcp", () => {
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
       const expectedContent = {
-        ...JSON.parse(originalJsonString),
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...JSON.parse(originalJsonString),
       };
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
     });
@@ -442,8 +442,8 @@ describe("ToolMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe(testDir);
       const expectedContent = {
-        ...complexJsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexJsonData,
       };
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(expectedContent);
     });
@@ -608,8 +608,8 @@ describe("ToolMcp", () => {
 
       // Verify data integrity ($schema is injected by toRulesyncMcpDefault)
       expect(newToolMcp.getJson()).toEqual({
-        ...originalJsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...originalJsonData,
       });
       expect(newToolMcp.getBaseDir()).toBe(testDir);
     });
@@ -668,8 +668,8 @@ describe("ToolMcp", () => {
 
       // Verify all data is preserved ($schema is injected by toRulesyncMcpDefault)
       expect(newToolMcp.getJson()).toEqual({
-        ...complexJsonData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexJsonData,
       });
       expect(newToolMcp.getBaseDir()).toBe(testDir);
     });
@@ -702,8 +702,8 @@ describe("ToolMcp", () => {
       });
 
       expect(newToolMcp.getJson()).toEqual({
-        ...edgeCaseData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...edgeCaseData,
       });
     });
   });

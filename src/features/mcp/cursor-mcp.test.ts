@@ -1193,11 +1193,11 @@ describe("CursorMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".cursor");
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("rulesync.mcp.json");
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...cursorMcpData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...cursorMcpData,
       });
     });
 
@@ -1232,8 +1232,8 @@ describe("CursorMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe("/custom");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...complexData,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexData,
       });
     });
   });

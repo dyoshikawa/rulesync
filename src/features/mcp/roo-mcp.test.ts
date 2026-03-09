@@ -426,8 +426,8 @@ describe("RooMcp", () => {
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...mcpContent,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...mcpContent,
       });
     });
 
@@ -458,8 +458,8 @@ describe("RooMcp", () => {
       const rulesyncMcp = rooMcp.toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        ...complexMcpContent,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexMcpContent,
       });
     });
 

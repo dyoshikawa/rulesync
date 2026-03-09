@@ -149,8 +149,8 @@ describe("FactorydroidMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getJson()).toEqual({
-        ...validMcpConfig,
         $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...validMcpConfig,
       });
     });
   });

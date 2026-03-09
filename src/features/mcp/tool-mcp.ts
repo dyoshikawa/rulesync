@@ -62,10 +62,10 @@ export abstract class ToolMcp extends ToolFile {
     fileContent?: string;
   } = {}): RulesyncMcp {
     const content = fileContent ?? this.fileContent;
-    const json = JSON.parse(content);
+    const { $schema: _, ...json } = JSON.parse(content);
     const withSchema = {
-      ...json,
       $schema: RULESYNC_MCP_SCHEMA_URL,
+      ...json,
     };
     return new RulesyncMcp({
       baseDir: this.baseDir,
