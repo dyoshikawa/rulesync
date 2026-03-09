@@ -1,6 +1,6 @@
 import { z } from "zod/mini";
 
-export const McpServerSchema = z.object({
+export const McpServerSchema = z.looseObject({
   type: z.optional(z.enum(["stdio", "sse", "http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),

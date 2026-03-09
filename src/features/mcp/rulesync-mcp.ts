@@ -28,6 +28,11 @@ const RulesyncMcpConfigSchema = z.object({
 });
 type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
+export const RulesyncMcpFileSchema = z.looseObject({
+  $schema: z.optional(z.string()),
+  ...RulesyncMcpConfigSchema.shape,
+});
+
 export type RulesyncMcpParams = RulesyncFileParams;
 
 export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
@@ -73,7 +78,7 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
-    const result = RulesyncMcpConfigSchema.safeParse(this.json);
+    const result = RulesyncMcpFileSchema.safeParse(this.json);
     if (!result.success) {
       return { success: false, error: result.error };
     }
