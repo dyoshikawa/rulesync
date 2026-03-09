@@ -122,8 +122,7 @@ describe("E2E: mcp (import)", () => {
     ]);
 
     // Verify that the imported MCP file was created
-    // Note: The imported file keeps the original filename (.mcp.json), not mcp.json
-    const importedContent = await readFileContent(join(testDir, ".rulesync", ".mcp.json"));
+    const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("test-server");
   });
 });

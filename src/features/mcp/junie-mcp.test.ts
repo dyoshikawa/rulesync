@@ -94,7 +94,7 @@ describe("JunieMcp", () => {
       const rulesync = junie.toRulesyncMcp();
       expect(rulesync).toBeInstanceOf(RulesyncMcp);
       expect(rulesync.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesync.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesync.getRelativeFilePath()).toBe("mcp.json");
       expect(rulesync.getFileContent()).toBe(content);
     });
   });

@@ -354,7 +354,7 @@ describe("ToolMcp", () => {
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should preserve baseDir when creating RulesyncMcp", () => {
@@ -373,7 +373,7 @@ describe("ToolMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe(customDir);
       expect(rulesyncMcp.getFilePath()).toBe(
-        join(customDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json"),
+        join(customDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.json"),
       );
     });
 
@@ -446,7 +446,7 @@ describe("ToolMcp", () => {
     it("should throw error for abstract fromRulesyncMcp method", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
+        relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
@@ -472,7 +472,7 @@ describe("ToolMcp", () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: customDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
+        relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
           mcpServers: {
             "custom-server": {
@@ -505,7 +505,7 @@ describe("ToolMcp", () => {
       };
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
+        relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
 

@@ -356,7 +356,7 @@ describe("CopilotMcp", () => {
       // Output should have mcpServers key, not servers
       expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should preserve server data when converting to RulesyncMcp", () => {

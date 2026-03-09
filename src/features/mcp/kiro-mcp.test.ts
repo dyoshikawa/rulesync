@@ -83,7 +83,7 @@ describe("KiroMcp", () => {
 
       const rulesyncMcp = kiroMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getFilePath()).toBe(join(testDir, ".rulesync", ".mcp.json"));
+      expect(rulesyncMcp.getFilePath()).toBe(join(testDir, ".rulesync", "mcp.json"));
       expect(rulesyncMcp.getMcpServers()).toEqual({
         api: { command: "node", args: ["server.js"] },
       });
