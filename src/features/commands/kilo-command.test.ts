@@ -45,6 +45,47 @@ Step 1`;
     });
   });
 
+  describe("constructor", () => {
+    it("should create instance with valid content", () => {
+      const command = new KiloCommand({
+        baseDir: testDir,
+        relativeDirPath: ".kilocode/workflows",
+        relativeFilePath: "test.md",
+        fileContent: validContent,
+        validate: true,
+      });
+
+      expect(command).toBeInstanceOf(KiloCommand);
+      expect(command.getFileContent()).toBe(validContent);
+    });
+
+    it("should skip validation when validate is false", () => {
+      const command = new KiloCommand({
+        baseDir: testDir,
+        relativeDirPath: ".kilocode/workflows",
+        relativeFilePath: "test.md",
+        fileContent: validContent,
+        validate: false,
+      });
+
+      expect(command).toBeInstanceOf(KiloCommand);
+      expect(command.getFileContent()).toBe(validContent);
+    });
+  });
+
+  describe("getBody", () => {
+    it("should return the command body", () => {
+      const command = new KiloCommand({
+        baseDir: testDir,
+        relativeDirPath: ".kilocode/workflows",
+        relativeFilePath: "test.md",
+        fileContent: validContent,
+      });
+
+      expect(command.getBody()).toBe(validContent);
+    });
+  });
+
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand with default frontmatter", () => {
       const kiloCommand = new KiloCommand({
