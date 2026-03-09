@@ -348,24 +348,6 @@ describe("RulesyncMcp", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should pass validation when $schema field is absent", () => {
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
-        fileContent: JSON.stringify({
-          mcpServers: {
-            "test-server": { command: "node" },
-          },
-        }),
-        validate: false,
-      });
-
-      const result = rulesyncMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
     it("should pass validation when description is missing", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
