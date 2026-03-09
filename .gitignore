@@ -205,6 +205,10 @@ rulesync-deno
 
 bun.lock
 
+# Generated JSON Schemas (published as release assets)
+config-schema.json
+mcp-schema.json
+
 **/.agent/rules/
 **/.agent/skills/
 **/.agent/workflows/

@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClineMcp } from "./cline-mcp.js";
@@ -364,7 +367,16 @@ describe("ClineMcp", () => {
       const rulesyncMcp = clineMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
+      expect(rulesyncMcp.getFileContent()).toBe(
+        JSON.stringify(
+          {
+            $schema: RULESYNC_MCP_SCHEMA_URL,
+            ...jsonData,
+          },
+          null,
+          2,
+        ),
+      );
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
@@ -396,7 +408,10 @@ describe("ClineMcp", () => {
       const rulesyncMcp = clineMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
+      });
     });
 
     it("should handle empty mcpServers object when converting", () => {
@@ -411,7 +426,10 @@ describe("ClineMcp", () => {
 
       const rulesyncMcp = clineMcp.toRulesyncMcp();
 
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
+      });
     });
   });
 
@@ -529,8 +547,11 @@ describe("ClineMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify data integrity
-      expect(newClineMcp.getJson()).toEqual(originalJsonData);
+      // Verify data integrity ($schema is injected by toRulesyncMcpDefault)
+      expect(newClineMcp.getJson()).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...originalJsonData,
+      });
       expect(newClineMcp.getFilePath()).toBe(join(testDir, ".cline", "mcp.json"));
     });
 
@@ -576,8 +597,11 @@ describe("ClineMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify all data is preserved
-      expect(newClineMcp.getJson()).toEqual(complexJsonData);
+      // Verify all data is preserved ($schema is injected by toRulesyncMcpDefault)
+      expect(newClineMcp.getJson()).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexJsonData,
+      });
       expect(newClineMcp.getFilePath()).toBe("/project/.cline/mcp.json");
     });
   });

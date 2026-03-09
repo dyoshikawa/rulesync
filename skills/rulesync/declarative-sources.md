@@ -8,7 +8,7 @@ Add a `sources` array to your `rulesync.jsonc`:
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
   "targets": ["copilot", "claudecode"],
   "features": ["rules", "skills"],
   "sources": [

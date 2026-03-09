@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -333,8 +334,7 @@ describe("RulesyncMcp", () => {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
         fileContent: JSON.stringify({
-          $schema:
-            "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
+          $schema: RULESYNC_MCP_SCHEMA_URL,
           mcpServers: {
             "test-server": { command: "node" },
           },

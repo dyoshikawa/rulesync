@@ -181,12 +181,8 @@ export class CursorMcp extends ToolMcp {
       mcpServers: transformedServers,
     };
 
-    return new RulesyncMcp({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: "rulesync.mcp.json",
-      fileContent: JSON.stringify(transformedJson),
-      validate: true,
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify(transformedJson, null, 2),
     });
   }
 
