@@ -23,6 +23,12 @@ export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";
 export const RULESYNC_HOOKS_FILE_NAME = "hooks.json";
 
+// JSON Schema URLs (published as GitHub release assets)
+export const RULESYNC_CONFIG_SCHEMA_URL =
+  "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json";
+export const RULESYNC_MCP_SCHEMA_URL =
+  "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json";
+
 // Size limits
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 

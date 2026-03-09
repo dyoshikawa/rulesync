@@ -78,13 +78,7 @@ export class FactorydroidMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return new RulesyncMcp({
-      baseDir: this.baseDir,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: "rulesync.mcp.json",
-      fileContent: JSON.stringify(this.json),
-      validate: true,
-    });
+    return this.toRulesyncMcpDefault();
   }
 
   validate(): ValidationResult {

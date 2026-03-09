@@ -669,7 +669,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
 
       const json = JSON.parse(rulesyncMcp.getFileContent());
       expect((json.mcpServers as any)?.filesystem).toBeDefined();

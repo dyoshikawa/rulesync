@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, useTestDirectory } from "./e2e-helper.js";
+import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: ignore", () => {
   const { getTestDir } = useTestDirectory();
@@ -42,5 +42,30 @@ credentials/
         expect.arrayContaining([expect.stringContaining("tmp/")]),
       );
     }
+  });
+});
+
+describe("E2E: ignore (import)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should import cursor ignore", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a .cursorignore file
+    const ignoreContent = `tmp/
+credentials/
+*.secret
+`;
+    await writeFileContent(join(testDir, ".cursorignore"), ignoreContent);
+
+    // Execute: Import cursor ignore
+    await runImport({ target: "cursor", features: "ignore" });
+
+    // Verify that the imported ignore file was created
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+    );
+    expect(importedContent).toContain("tmp/");
+    expect(importedContent).toContain("credentials/");
   });
 });

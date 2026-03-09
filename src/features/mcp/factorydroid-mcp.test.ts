@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
@@ -147,7 +148,10 @@ describe("FactorydroidMcp", () => {
       const rulesyncMcp = mcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getJson()).toEqual(validMcpConfig);
+      expect(rulesyncMcp.getJson()).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...validMcpConfig,
+      });
     });
   });
 

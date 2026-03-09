@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CopilotMcp } from "./copilot-mcp.js";
@@ -354,9 +357,12 @@ describe("CopilotMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       // Output should have mcpServers key, not servers
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: inputServers,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should preserve server data when converting to RulesyncMcp", () => {
@@ -384,7 +390,10 @@ describe("CopilotMcp", () => {
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: inputServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: inputServers,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
     });
 
     it("should handle empty servers object when converting", () => {
@@ -396,7 +405,10 @@ describe("CopilotMcp", () => {
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: {} });
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: {},
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
     });
 
     it("should handle missing servers key", () => {
@@ -408,7 +420,10 @@ describe("CopilotMcp", () => {
 
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: {} });
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: {},
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
     });
   });
 
@@ -521,7 +536,10 @@ describe("CopilotMcp", () => {
 
       // Step 2: Convert to RulesyncMcp (should have mcpServers key)
       const rulesyncMcp = originalCopilotMcp.toRulesyncMcp();
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: originalServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: originalServers,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
 
       // Step 3: Create new CopilotMcp from RulesyncMcp (should have servers key again)
       const newCopilotMcp = CopilotMcp.fromRulesyncMcp({
@@ -565,7 +583,10 @@ describe("CopilotMcp", () => {
       // Convert to RulesyncMcp and back
       const rulesyncMcp = copilotMcp.toRulesyncMcp();
       // RulesyncMcp should have mcpServers key
-      expect(rulesyncMcp.getJson()).toEqual({ mcpServers: originalServers });
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: originalServers,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
 
       const newCopilotMcp = CopilotMcp.fromRulesyncMcp({
         baseDir: "/project",

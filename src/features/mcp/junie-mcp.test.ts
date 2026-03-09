@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { JunieMcp } from "./junie-mcp.js";
@@ -94,8 +97,11 @@ describe("JunieMcp", () => {
       const rulesync = junie.toRulesyncMcp();
       expect(rulesync).toBeInstanceOf(RulesyncMcp);
       expect(rulesync.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesync.getRelativeFilePath()).toBe(".mcp.json");
-      expect(rulesync.getFileContent()).toBe(content);
+      expect(rulesync.getRelativeFilePath()).toBe("mcp.json");
+      expect(JSON.parse(rulesync.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...JSON.parse(content),
+      });
     });
   });
 });

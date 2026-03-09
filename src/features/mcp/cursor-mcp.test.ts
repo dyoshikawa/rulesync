@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
@@ -1190,9 +1193,12 @@ describe("CursorMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(".cursor");
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("rulesync.mcp.json");
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(cursorMcpData));
+      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...cursorMcpData,
+      });
     });
 
     it("should convert complex CursorMcp to RulesyncMcp", () => {
@@ -1225,7 +1231,10 @@ describe("CursorMcp", () => {
       const rulesyncMcp = cursorMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/custom");
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(complexData));
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexData,
+      });
     });
   });
 
@@ -1480,6 +1489,7 @@ describe("CursorMcp", () => {
 
       expect(JSON.parse(backToRulesync.getFileContent())).toEqual({
         mcpServers: originalData.mcpServers,
+        $schema: RULESYNC_MCP_SCHEMA_URL,
       });
     });
   });

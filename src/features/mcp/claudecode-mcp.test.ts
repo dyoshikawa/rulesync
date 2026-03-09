@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
@@ -688,9 +691,18 @@ describe("ClaudecodeMcp", () => {
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData, null, 2));
+      expect(rulesyncMcp.getFileContent()).toBe(
+        JSON.stringify(
+          {
+            $schema: RULESYNC_MCP_SCHEMA_URL,
+            ...jsonData,
+          },
+          null,
+          2,
+        ),
+      );
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should preserve file content when converting to RulesyncMcp", () => {
@@ -720,7 +732,10 @@ describe("ClaudecodeMcp", () => {
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
+      });
     });
 
     it("should handle empty mcpServers object when converting", () => {
@@ -735,7 +750,10 @@ describe("ClaudecodeMcp", () => {
 
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(jsonData);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
+      });
     });
 
     it("should extract only mcpServers when converting to RulesyncMcp", () => {
@@ -767,6 +785,7 @@ describe("ClaudecodeMcp", () => {
             args: ["server.js"],
           },
         },
+        $schema: RULESYNC_MCP_SCHEMA_URL,
       });
       expect((exportedJson as any).userSettings).toBeUndefined();
       expect((exportedJson as any).version).toBeUndefined();

@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, useGlobalTestDirectories, useTestDirectory } from "./e2e-helper.js";
+import {
+  runGenerate,
+  runImport,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
 
 describe("E2E: commands", () => {
   const { getTestDir } = useTestDirectory();
@@ -39,6 +44,27 @@ Check the PR diff and provide feedback.
     } else {
       expect(generatedContent).toContain("Check the PR diff and provide feedback.");
     }
+  });
+});
+
+describe("E2E: commands (import)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should import claudecode commands", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a Claude Code command file
+    const commandContent = `Review the PR diff and provide feedback.`;
+    await writeFileContent(join(testDir, ".claude", "commands", "review-pr.md"), commandContent);
+
+    // Execute: Import claudecode commands
+    await runImport({ target: "claudecode", features: "commands" });
+
+    // Verify that the imported command file was created
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+    );
+    expect(importedContent).toContain("Review the PR diff and provide feedback.");
   });
 });
 

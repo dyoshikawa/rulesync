@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -421,8 +424,11 @@ describe("RooMcp", () => {
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(mcpContent);
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...mcpContent,
+      });
     });
 
     it("should preserve content when converting to RulesyncMcp", () => {
@@ -451,7 +457,10 @@ describe("RooMcp", () => {
 
       const rulesyncMcp = rooMcp.toRulesyncMcp();
 
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(complexMcpContent);
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexMcpContent,
+      });
     });
 
     it("should convert streamable-http type to http", () => {

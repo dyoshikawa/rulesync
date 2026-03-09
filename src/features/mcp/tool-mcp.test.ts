@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -352,9 +355,13 @@ describe("ToolMcp", () => {
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
+      const expectedContent = {
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...jsonData,
+      };
+      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should preserve baseDir when creating RulesyncMcp", () => {
@@ -373,7 +380,7 @@ describe("ToolMcp", () => {
 
       expect(rulesyncMcp.getBaseDir()).toBe(customDir);
       expect(rulesyncMcp.getFilePath()).toBe(
-        join(customDir, RULESYNC_RELATIVE_DIR_PATH, ".mcp.json"),
+        join(customDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.json"),
       );
     });
 
@@ -394,7 +401,11 @@ describe("ToolMcp", () => {
 
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getFileContent()).toBe(originalJsonString);
+      const expectedContent = {
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...JSON.parse(originalJsonString),
+      };
+      expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
     });
 
     it("should work with complex JSON structures", () => {
@@ -430,7 +441,11 @@ describe("ToolMcp", () => {
       const rulesyncMcp = toolMcp.toRulesyncMcp();
 
       expect(rulesyncMcp.getBaseDir()).toBe(testDir);
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(complexJsonData);
+      const expectedContent = {
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexJsonData,
+      };
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual(expectedContent);
     });
   });
 
@@ -446,7 +461,7 @@ describe("ToolMcp", () => {
     it("should throw error for abstract fromRulesyncMcp method", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
+        relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
@@ -472,7 +487,7 @@ describe("ToolMcp", () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: customDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
+        relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
           mcpServers: {
             "custom-server": {
@@ -505,7 +520,7 @@ describe("ToolMcp", () => {
       };
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
+        relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
 
@@ -591,8 +606,11 @@ describe("ToolMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify data integrity
-      expect(newToolMcp.getJson()).toEqual(originalJsonData);
+      // Verify data integrity ($schema is injected by toRulesyncMcpDefault)
+      expect(newToolMcp.getJson()).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...originalJsonData,
+      });
       expect(newToolMcp.getBaseDir()).toBe(testDir);
     });
 
@@ -648,8 +666,11 @@ describe("ToolMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify all data is preserved
-      expect(newToolMcp.getJson()).toEqual(complexJsonData);
+      // Verify all data is preserved ($schema is injected by toRulesyncMcpDefault)
+      expect(newToolMcp.getJson()).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...complexJsonData,
+      });
       expect(newToolMcp.getBaseDir()).toBe(testDir);
     });
 
@@ -680,7 +701,10 @@ describe("ToolMcp", () => {
         rulesyncMcp,
       });
 
-      expect(newToolMcp.getJson()).toEqual(edgeCaseData);
+      expect(newToolMcp.getJson()).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        ...edgeCaseData,
+      });
     });
   });
 });
