@@ -23,12 +23,12 @@ const RulesyncMcpServerSchema = z.extend(McpServerSchema, {
   exposed: z.optional(z.boolean()),
 });
 
-export const RulesyncMcpConfigSchema = z.object({
+const RulesyncMcpConfigSchema = z.object({
   mcpServers: z.record(z.string(), RulesyncMcpServerSchema),
 });
 type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
-export const RulesyncMcpFileSchema = z.object({
+export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...RulesyncMcpConfigSchema.shape,
 });

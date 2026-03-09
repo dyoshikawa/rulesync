@@ -155,12 +155,12 @@
             "type": "boolean"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": {}
       }
     }
   },
   "required": ["mcpServers"],
-  "additionalProperties": false,
+  "additionalProperties": {},
   "$id": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
   "title": "Rulesync MCP Configuration",
   "description": "MCP server configuration file for Rulesync CLI tool"
