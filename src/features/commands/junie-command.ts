@@ -52,6 +52,9 @@ export class JunieCommand extends ToolCommand {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
+    // JetBrains Junie (AI Assistant) currently stores commands in the project's .junie directory.
+    // If a future version of Junie introduces a global-scope directory (e.g., under user home),
+    // this method should branch based on the global option.
     return {
       relativeDirPath: join(".junie", "commands"),
     };

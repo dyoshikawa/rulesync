@@ -141,11 +141,31 @@ describe("JunieCommand", () => {
       expect(result.success).toBe(false);
       expect(result.error?.message).toMatch(/Invalid frontmatter/);
     });
+
+    it("should return success for frontmatter with extra fields", () => {
+      const command = new JunieCommand({
+        baseDir: testDir,
+        relativeDirPath: ".junie/commands",
+        relativeFilePath: "test.md",
+        frontmatter: { description: "Test", extra: "field" } as any,
+        body: "Body",
+        validate: false,
+      });
+
+      const result = command.validate();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
   });
 
   describe("getSettablePaths", () => {
     it("should return correct paths", () => {
       const paths = JunieCommand.getSettablePaths();
+      expect(paths.relativeDirPath).toBe(join(".junie", "commands"));
+    });
+
+    it("should return the same paths even if global is true", () => {
+      const paths = JunieCommand.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".junie", "commands"));
     });
   });
@@ -314,7 +334,7 @@ describe("JunieCommand", () => {
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test.md",
         fileContent: "",
-        frontmatter: { targets: ["claudecode"], description: "Test" },
+        frontmatter: { targets: ["other-tool"] as any, description: "Test" },
         body: "Body",
       });
 
@@ -347,6 +367,7 @@ describe("JunieCommand", () => {
       expect(command.getRelativeDirPath()).toBe(".junie/commands");
       expect(command.getRelativeFilePath()).toBe("test.md");
       expect(command.getBody()).toBe("");
+      expect(command.getFrontmatter()).toEqual({ description: "" });
     });
   });
 });
