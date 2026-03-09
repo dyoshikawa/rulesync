@@ -12,9 +12,30 @@ const generatedSchema = z.toJSONSchema(ConfigFileSchema, {
   reused: "ref",
 });
 
+// Add descriptions to source entry fields (zod/mini lacks .describe())
+// Round-trip through JSON to get a plain object we can mutate without type assertions
+const schemaObj = JSON.parse(JSON.stringify(generatedSchema));
+const sourceProps = schemaObj?.properties?.sources?.items?.properties;
+if (sourceProps) {
+  if (sourceProps.source)
+    sourceProps.source.description = "Repository identifier (e.g., 'org/repo' or a full URL).";
+  if (sourceProps.skills)
+    sourceProps.skills.description =
+      "Skill names to fetch. Omit to fetch all skills from the source.";
+  if (sourceProps.transport)
+    sourceProps.transport.description =
+      "Transport protocol for fetching skills. 'github' uses the GitHub REST API (default). 'git' uses the git CLI and works with any git remote.";
+  if (sourceProps.ref)
+    sourceProps.ref.description =
+      "Git ref (branch or tag) to fetch skills from. Defaults to the repository's default branch.";
+  if (sourceProps.path)
+    sourceProps.path.description =
+      "Path to the skills directory within the repository. Defaults to 'skills'.";
+}
+
 // Add JSON Schema meta properties (override Zod's default $schema with draft-07 for broader compatibility)
 const jsonSchema = {
-  ...generatedSchema,
+  ...schemaObj,
   $schema: "http://json-schema.org/draft-07/schema#",
   $id: "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/config-schema.json",
   title: "Rulesync Configuration",

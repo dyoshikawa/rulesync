@@ -102,23 +102,28 @@
         "properties": {
           "source": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Repository identifier (e.g., 'org/repo' or a full URL)."
           },
           "skills": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Skill names to fetch. Omit to fetch all skills from the source."
           },
           "transport": {
             "type": "string",
-            "enum": ["github", "git"]
+            "enum": ["github", "git"],
+            "description": "Transport protocol for fetching skills. 'github' uses the GitHub REST API (default). 'git' uses the git CLI and works with any git remote."
           },
           "ref": {
-            "type": "string"
+            "type": "string",
+            "description": "Git ref (branch or tag) to fetch skills from. Defaults to the repository's default branch."
           },
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Path to the skills directory within the repository. Defaults to 'skills'."
           }
         },
         "required": ["source"],

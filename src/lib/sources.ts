@@ -17,12 +17,19 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
-import { fetchSkillFiles, resolveDefaultRef, resolveRefToSha, validateRef } from "./git-client.js";
+import {
+  GitClientError,
+  fetchSkillFiles,
+  resolveDefaultRef,
+  resolveRefToSha,
+  validateRef,
+} from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
 import {
   type LockedSkill,
+  type LockedSource,
   type SourcesLock,
   computeSkillIntegrity,
   createEmptyLock,
@@ -141,6 +148,8 @@ export async function resolveAndFetchSources(params: {
       logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints(error);
+      } else if (error instanceof GitClientError) {
+        logGitClientHints(error);
       }
     }
   }
@@ -168,6 +177,17 @@ export async function resolveAndFetchSources(params: {
 }
 
 /**
+ * Log contextual hints for GitClientError to help users troubleshoot.
+ */
+function logGitClientHints(error: GitClientError): void {
+  if (error.message.includes("not installed")) {
+    logger.info("Hint: Install git and ensure it is available on your PATH.");
+  } else {
+    logger.info("Hint: Check your git credentials (SSH keys, credential helper, or access token).");
+  }
+}
+
+/**
  * Check if all locked skills exist on disk in the curated directory.
  */
 async function checkLockedSkillsExist(curatedDir: string, skillNames: string[]): Promise<boolean> {
@@ -180,8 +200,149 @@ async function checkLockedSkillsExist(curatedDir: string, skillNames: string[]):
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Shared helpers for fetchSource and fetchSourceViaGit
+// ---------------------------------------------------------------------------
+
 /**
- * Fetch skills from a single source entry.
+ * Remove previously curated skill directories for a source before re-fetching.
+ * Validates that each path resolves within the curated directory to prevent traversal.
+ */
+async function cleanPreviousCuratedSkills(
+  curatedDir: string,
+  lockedSkillNames: string[],
+): Promise<void> {
+  const resolvedCuratedDir = resolve(curatedDir);
+  for (const prevSkill of lockedSkillNames) {
+    const prevDir = join(curatedDir, prevSkill);
+    if (!resolve(prevDir).startsWith(resolvedCuratedDir + sep)) {
+      logger.warn(
+        `Skipping removal of "${prevSkill}": resolved path is outside the curated directory.`,
+      );
+      continue;
+    }
+    if (await directoryExists(prevDir)) {
+      await removeDirectory(prevDir);
+    }
+  }
+}
+
+/**
+ * Check whether a skill should be skipped during fetching.
+ * Returns true (with appropriate logging) if the skill should be skipped.
+ */
+function shouldSkipSkill(params: {
+  skillName: string;
+  sourceKey: string;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+}): boolean {
+  const { skillName, sourceKey, localSkillNames, alreadyFetchedSkillNames } = params;
+  if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
+    logger.warn(
+      `Skipping skill with invalid name "${skillName}" from ${sourceKey}: contains path traversal characters.`,
+    );
+    return true;
+  }
+  if (localSkillNames.has(skillName)) {
+    logger.debug(
+      `Skipping remote skill "${skillName}" from ${sourceKey}: local skill takes precedence.`,
+    );
+    return true;
+  }
+  if (alreadyFetchedSkillNames.has(skillName)) {
+    logger.warn(
+      `Skipping duplicate skill "${skillName}" from ${sourceKey}: already fetched from another source.`,
+    );
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Write skill files to disk, compute integrity, and check against the lockfile.
+ * Returns the computed LockedSkill entry.
+ */
+async function writeSkillAndComputeIntegrity(params: {
+  skillName: string;
+  files: Array<{ relativePath: string; content: string }>;
+  curatedDir: string;
+  locked: LockedSource | undefined;
+  resolvedSha: string;
+  sourceKey: string;
+}): Promise<LockedSkill> {
+  const { skillName, files, curatedDir, locked, resolvedSha, sourceKey } = params;
+  const written: Array<{ path: string; content: string }> = [];
+
+  for (const file of files) {
+    checkPathTraversal({
+      relativePath: file.relativePath,
+      intendedRootDir: join(curatedDir, skillName),
+    });
+    await writeFileContent(join(curatedDir, skillName, file.relativePath), file.content);
+    written.push({ path: file.relativePath, content: file.content });
+  }
+
+  const integrity = computeSkillIntegrity(written);
+  const lockedSkillEntry = locked?.skills[skillName];
+  if (
+    lockedSkillEntry?.integrity &&
+    lockedSkillEntry.integrity !== integrity &&
+    resolvedSha === locked?.resolvedRef
+  ) {
+    logger.warn(
+      `Integrity mismatch for skill "${skillName}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+    );
+  }
+
+  return { integrity };
+}
+
+/**
+ * Merge newly fetched skills with existing locked skills and update the lockfile.
+ */
+function buildLockUpdate(params: {
+  lock: SourcesLock;
+  sourceKey: string;
+  fetchedSkills: Record<string, LockedSkill>;
+  locked: LockedSource | undefined;
+  requestedRef: string | undefined;
+  resolvedSha: string;
+}): { updatedLock: SourcesLock; fetchedNames: string[] } {
+  const { lock, sourceKey, fetchedSkills, locked, requestedRef, resolvedSha } = params;
+  const fetchedNames = Object.keys(fetchedSkills);
+
+  // Merge newly fetched skills with existing locked skills that were skipped
+  // (due to local precedence, already-fetched, etc.) to prevent overwriting their entries
+  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
+  if (locked) {
+    for (const [skillName, skillEntry] of Object.entries(locked.skills)) {
+      if (!(skillName in mergedSkills)) {
+        mergedSkills[skillName] = skillEntry;
+      }
+    }
+  }
+
+  const updatedLock = setLockedSource(lock, sourceKey, {
+    requestedRef,
+    resolvedRef: resolvedSha,
+    resolvedAt: new Date().toISOString(),
+    skills: mergedSkills,
+  });
+
+  logger.info(
+    `Fetched ${fetchedNames.length} skill(s) from ${sourceKey}: ${fetchedNames.join(", ") || "(none)"}`,
+  );
+
+  return { updatedLock, fetchedNames };
+}
+
+// ---------------------------------------------------------------------------
+// Transport-specific fetch functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch skills from a single source entry via the GitHub REST API.
  */
 async function fetchSource(params: {
   sourceEntry: SourceEntry;
@@ -198,7 +359,7 @@ async function fetchSource(params: {
 }> {
   const { sourceEntry, client, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources } =
     params;
-  let { lock } = params;
+  const { lock } = params;
 
   const parsed = parseSource(sourceEntry.source);
 
@@ -276,50 +437,19 @@ async function fetchSource(params: {
   const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
   const fetchedSkills: Record<string, LockedSkill> = {};
 
-  // Clean previously curated skills for this source before re-fetching
   if (locked) {
-    const resolvedCuratedDir = resolve(curatedDir);
-    for (const prevSkill of lockedSkillNames) {
-      const prevDir = join(curatedDir, prevSkill);
-      // Verify the resolved path is within the curated directory to prevent traversal
-      if (!resolve(prevDir).startsWith(resolvedCuratedDir + sep)) {
-        logger.warn(
-          `Skipping removal of "${prevSkill}": resolved path is outside the curated directory.`,
-        );
-        continue;
-      }
-      if (await directoryExists(prevDir)) {
-        await removeDirectory(prevDir);
-      }
-    }
+    await cleanPreviousCuratedSkills(curatedDir, lockedSkillNames);
   }
 
   for (const skillDir of filteredDirs) {
-    // Validate skill directory name to prevent path traversal
     if (
-      skillDir.name.includes("..") ||
-      skillDir.name.includes("/") ||
-      skillDir.name.includes("\\")
+      shouldSkipSkill({
+        skillName: skillDir.name,
+        sourceKey,
+        localSkillNames,
+        alreadyFetchedSkillNames,
+      })
     ) {
-      logger.warn(
-        `Skipping skill with invalid name "${skillDir.name}" from ${sourceKey}: contains path traversal characters.`,
-      );
-      continue;
-    }
-
-    // Skip skills that exist locally (local takes precedence)
-    if (localSkillNames.has(skillDir.name)) {
-      logger.debug(
-        `Skipping remote skill "${skillDir.name}" from ${sourceKey}: local skill takes precedence.`,
-      );
-      continue;
-    }
-
-    // Skip skills already fetched from an earlier source (first-declared wins)
-    if (alreadyFetchedSkillNames.has(skillDir.name)) {
-      logger.warn(
-        `Skipping duplicate skill "${skillDir.name}" from ${sourceKey}: already fetched from another source.`,
-      );
       continue;
     }
 
@@ -344,75 +474,40 @@ async function fetchSource(params: {
       return true;
     });
 
-    // Fetch all file contents and compute integrity hash
-    const skillFiles: Array<{ path: string; content: string }> = [];
-
+    // Fetch all file contents
+    const skillFiles: Array<{ relativePath: string; content: string }> = [];
     for (const file of files) {
-      // Calculate relative path within the skill directory
       const relativeToSkill = file.path.substring(skillDir.path.length + 1);
-      const localFilePath = join(curatedDir, skillDir.name, relativeToSkill);
-
-      // Validate path to prevent traversal attacks
-      checkPathTraversal({
-        relativePath: relativeToSkill,
-        intendedRootDir: join(curatedDir, skillDir.name),
-      });
-
       const content = await withSemaphore(semaphore, () =>
         client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
       );
-      await writeFileContent(localFilePath, content);
-      skillFiles.push({ path: relativeToSkill, content });
+      skillFiles.push({ relativePath: relativeToSkill, content });
     }
 
-    const integrity = computeSkillIntegrity(skillFiles);
-
-    // Verify integrity against lockfile hash when available
-    const lockedSkillEntry = locked?.skills[skillDir.name];
-    if (
-      lockedSkillEntry &&
-      lockedSkillEntry.integrity &&
-      lockedSkillEntry.integrity !== integrity &&
-      resolvedSha === locked?.resolvedRef
-    ) {
-      logger.warn(
-        `Integrity mismatch for skill "${skillDir.name}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
-      );
-    }
-
-    fetchedSkills[skillDir.name] = { integrity };
+    fetchedSkills[skillDir.name] = await writeSkillAndComputeIntegrity({
+      skillName: skillDir.name,
+      files: skillFiles,
+      curatedDir,
+      locked,
+      resolvedSha,
+      sourceKey,
+    });
     logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);
   }
 
-  const fetchedNames = Object.keys(fetchedSkills);
-
-  // Merge newly fetched skills with existing locked skills that were skipped
-  // (due to local precedence, already-fetched, etc.) to prevent overwriting their entries
-  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
-  if (locked) {
-    for (const [skillName, skillEntry] of Object.entries(locked.skills)) {
-      if (!(skillName in mergedSkills)) {
-        mergedSkills[skillName] = skillEntry;
-      }
-    }
-  }
-
-  // Update lockfile entry
-  lock = setLockedSource(lock, sourceKey, {
+  const result = buildLockUpdate({
+    lock,
+    sourceKey,
+    fetchedSkills,
+    locked,
     requestedRef,
-    resolvedRef: resolvedSha,
-    resolvedAt: new Date().toISOString(),
-    skills: mergedSkills,
+    resolvedSha,
   });
 
-  logger.info(
-    `Fetched ${fetchedNames.length} skill(s) from ${sourceKey}: ${fetchedNames.join(", ") || "(none)"}`,
-  );
-
   return {
-    skillCount: fetchedNames.length,
-    fetchedSkillNames: fetchedNames,
-    updatedLock: lock,
+    skillCount: result.fetchedNames.length,
+    fetchedSkillNames: result.fetchedNames,
+    updatedLock: result.updatedLock,
   };
 }
 
@@ -430,7 +525,7 @@ async function fetchSourceViaGit(params: {
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
   const { sourceEntry, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources, frozen } =
     params;
-  let { lock } = params;
+  const { lock } = params;
   const url = sourceEntry.source;
   const locked = getLockedSource(lock, url);
   const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
@@ -496,76 +591,36 @@ async function fetchSourceViaGit(params: {
   const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
 
   if (locked) {
-    const base = resolve(curatedDir);
-    for (const prev of lockedSkillNames) {
-      const dir = join(curatedDir, prev);
-      if (resolve(dir).startsWith(base + sep) && (await directoryExists(dir))) {
-        await removeDirectory(dir);
-      }
-    }
+    await cleanPreviousCuratedSkills(curatedDir, lockedSkillNames);
   }
 
   const fetchedSkills: Record<string, LockedSkill> = {};
   for (const skillName of filteredNames) {
-    if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
-      logger.warn(
-        `Skipping skill with invalid name "${skillName}" from ${url}: contains path traversal characters.`,
-      );
-      continue;
-    }
-    if (localSkillNames.has(skillName)) {
-      logger.debug(
-        `Skipping remote skill "${skillName}" from ${url}: local skill takes precedence.`,
-      );
-      continue;
-    }
-    if (alreadyFetchedSkillNames.has(skillName)) {
-      logger.warn(
-        `Skipping duplicate skill "${skillName}" from ${url}: already fetched from another source.`,
-      );
+    if (shouldSkipSkill({ skillName, sourceKey: url, localSkillNames, alreadyFetchedSkillNames })) {
       continue;
     }
 
-    const files = skillFileMap.get(skillName) ?? [];
-    const written: Array<{ path: string; content: string }> = [];
-    for (const file of files) {
-      checkPathTraversal({
-        relativePath: file.relativePath,
-        intendedRootDir: join(curatedDir, skillName),
-      });
-      await writeFileContent(join(curatedDir, skillName, file.relativePath), file.content);
-      written.push({ path: file.relativePath, content: file.content });
-    }
-
-    const integrity = computeSkillIntegrity(written);
-    const lockedSkillEntry = locked?.skills[skillName];
-    if (
-      lockedSkillEntry?.integrity &&
-      lockedSkillEntry.integrity !== integrity &&
-      resolvedSha === locked?.resolvedRef
-    ) {
-      logger.warn(`Integrity mismatch for skill "${skillName}" from ${url}.`);
-    }
-    fetchedSkills[skillName] = { integrity };
+    fetchedSkills[skillName] = await writeSkillAndComputeIntegrity({
+      skillName,
+      files: skillFileMap.get(skillName) ?? [],
+      curatedDir,
+      locked,
+      resolvedSha,
+      sourceKey: url,
+    });
   }
 
-  const fetchedNames = Object.keys(fetchedSkills);
-  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
-  if (locked) {
-    for (const [k, v] of Object.entries(locked.skills)) {
-      if (!(k in mergedSkills)) mergedSkills[k] = v;
-    }
-  }
-
-  lock = setLockedSource(lock, url, {
+  const result = buildLockUpdate({
+    lock,
+    sourceKey: url,
+    fetchedSkills,
+    locked,
     requestedRef,
-    resolvedRef: resolvedSha,
-    resolvedAt: new Date().toISOString(),
-    skills: mergedSkills,
+    resolvedSha,
   });
-
-  logger.info(
-    `Fetched ${fetchedNames.length} skill(s) from ${url}: ${fetchedNames.join(", ") || "(none)"}`,
-  );
-  return { skillCount: fetchedNames.length, fetchedSkillNames: fetchedNames, updatedLock: lock };
+  return {
+    skillCount: result.fetchedNames.length,
+    fetchedSkillNames: result.fetchedNames,
+    updatedLock: result.updatedLock,
+  };
 }

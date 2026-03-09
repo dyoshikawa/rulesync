@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
@@ -13,6 +13,7 @@ import {
   removeTempDirectory,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
+import { findControlCharacter } from "../utils/validation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -20,23 +21,9 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 60_000;
 
 const ALLOWED_URL_SCHEMES =
-  /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+)/;
+  /^(https?:\/\/|ssh:\/\/|git:\/\/|file:\/\/\/).+$|^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9_.+/~-]+$/;
 
 const INSECURE_URL_SCHEMES = /^(git:\/\/|http:\/\/)/;
-
-/**
- * Check for control characters and return the position and hex code of the first one found.
- * Returns null if no control characters are found.
- */
-function findControlCharacter(value: string): { position: number; hex: string } | null {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
-    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) {
-      return { position: i, hex: `0x${code.toString(16).padStart(2, "0")}` };
-    }
-  }
-  return null;
-}
 
 export class GitClientError extends Error {
   constructor(message: string, cause?: unknown) {
@@ -107,6 +94,7 @@ export async function resolveDefaultRef(url: string): Promise<{ ref: string; sha
     const ref = stdout.match(/^ref: refs\/heads\/(.+)\tHEAD$/m)?.[1];
     const sha = stdout.match(/^([0-9a-f]{40})\tHEAD$/m)?.[1];
     if (!ref || !sha) throw new GitClientError(`Could not parse default branch from: ${url}`);
+    validateRef(ref);
     return { ref, sha };
   } catch (error) {
     if (error instanceof GitClientError) throw error;
@@ -144,6 +132,17 @@ export async function fetchSkillFiles(params: {
   const { url, ref, skillsPath } = params;
   validateGitUrl(url);
   validateRef(ref);
+  if (skillsPath.split(/[/\\]/).includes("..") || isAbsolute(skillsPath)) {
+    throw new GitClientError(
+      `Invalid skillsPath "${skillsPath}": must be a relative path without ".."`,
+    );
+  }
+  const ctrl = findControlCharacter(skillsPath);
+  if (ctrl) {
+    throw new GitClientError(
+      `skillsPath contains control character ${ctrl.hex} at position ${ctrl.position}`,
+    );
+  }
   await checkGitAvailable();
   const tmpDir = await createTempDirectory("rulesync-git-");
   try {
@@ -179,11 +178,17 @@ export async function fetchSkillFiles(params: {
 }
 
 const MAX_WALK_DEPTH = 20;
+const MAX_TOTAL_FILES = 10_000;
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100 MB
+
+/** Mutable context for tracking totals across recursive walkDirectory calls. */
+type WalkContext = { totalFiles: number; totalSize: number };
 
 async function walkDirectory(
   dir: string,
   baseDir: string,
   depth: number = 0,
+  ctx: WalkContext = { totalFiles: 0, totalSize: 0 },
 ): Promise<Array<{ relativePath: string; content: string; size: number }>> {
   if (depth > MAX_WALK_DEPTH) {
     throw new GitClientError(
@@ -199,7 +204,7 @@ async function walkDirectory(
       continue;
     }
     if (await directoryExists(fullPath)) {
-      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1)));
+      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1, ctx)));
     } else {
       const size = await getFileSize(fullPath);
       if (size > MAX_FILE_SIZE) {
@@ -208,8 +213,20 @@ async function walkDirectory(
         );
         continue;
       }
+      ctx.totalFiles++;
+      ctx.totalSize += size;
+      if (ctx.totalFiles >= MAX_TOTAL_FILES) {
+        throw new GitClientError(
+          `Repository exceeds max file count of ${MAX_TOTAL_FILES}. Aborting to prevent resource exhaustion.`,
+        );
+      }
+      if (ctx.totalSize >= MAX_TOTAL_SIZE) {
+        throw new GitClientError(
+          `Repository exceeds max total size of ${MAX_TOTAL_SIZE / 1024 / 1024}MB. Aborting to prevent resource exhaustion.`,
+        );
+      }
       const content = await readFileContent(fullPath);
-      results.push({ relativePath: fullPath.substring(baseDir.length + 1), content, size });
+      results.push({ relativePath: relative(baseDir, fullPath), content, size });
     }
   }
   return results;

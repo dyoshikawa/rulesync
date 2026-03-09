@@ -17,14 +17,7 @@ import {
   ToolTarget,
   ToolTargets,
 } from "../types/tool-targets.js";
-
-function hasControlCharacters(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
-    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) return true;
-  }
-  return false;
-}
+import { hasControlCharacters } from "../utils/validation.js";
 
 /**
  * Schema for a single source entry in the sources array.
