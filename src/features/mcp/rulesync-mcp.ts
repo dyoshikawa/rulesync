@@ -23,10 +23,15 @@ const RulesyncMcpServerSchema = z.extend(McpServerSchema, {
   exposed: z.optional(z.boolean()),
 });
 
-const RulesyncMcpConfigSchema = z.object({
+export const RulesyncMcpConfigSchema = z.object({
   mcpServers: z.record(z.string(), RulesyncMcpServerSchema),
 });
 type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
+
+export const RulesyncMcpFileSchema = z.object({
+  $schema: z.optional(z.string()),
+  ...RulesyncMcpConfigSchema.shape,
+});
 
 export type RulesyncMcpParams = RulesyncFileParams;
 
@@ -73,7 +78,7 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
-    const result = RulesyncMcpConfigSchema.safeParse(this.json);
+    const result = RulesyncMcpFileSchema.safeParse(this.json);
     if (!result.success) {
       return { success: false, error: result.error };
     }

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
   "mcpServers": {
     "serena": {
       "type": "stdio",

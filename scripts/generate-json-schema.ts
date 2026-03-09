@@ -1,10 +1,12 @@
+import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import * as z from "zod";
 
-// Import schema directly from source - zod and zod/mini schemas are compatible in Zod v4
+// Import schemas directly from source - zod and zod/mini schemas are compatible in Zod v4
 import { ConfigFileSchema } from "../src/config/config.js";
+import { RulesyncMcpFileSchema } from "../src/features/mcp/rulesync-mcp.js";
 
 // Generate JSON Schema from the source schema
 // Note: zod/mini schemas work with zod's toJSONSchema in Zod v4
@@ -50,3 +52,26 @@ writeFileSync(outputPath, JSON.stringify(jsonSchema, null, 2) + "\n");
 
 // oxlint-disable-next-line no-console
 console.log(`JSON Schema generated: ${outputPath}`);
+
+// Generate MCP JSON Schema
+const generatedMcpSchema = z.toJSONSchema(RulesyncMcpFileSchema, {
+  reused: "ref",
+});
+
+const mcpJsonSchema = {
+  ...generatedMcpSchema,
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://raw.githubusercontent.com/dyoshikawa/rulesync/refs/heads/main/mcp-schema.json",
+  title: "Rulesync MCP Configuration",
+  description: "MCP server configuration file for Rulesync CLI tool",
+};
+
+const mcpOutputPath = join(process.cwd(), "mcp-schema.json");
+
+writeFileSync(mcpOutputPath, JSON.stringify(mcpJsonSchema, null, 2) + "\n");
+
+// oxlint-disable-next-line no-console
+console.log(`MCP JSON Schema generated: ${mcpOutputPath}`);
+
+// Format generated schema files with oxfmt for consistent formatting
+execSync(`npx oxfmt ${outputPath} ${mcpOutputPath}`);
