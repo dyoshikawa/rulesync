@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, useTestDirectory } from "./e2e-helper.js";
+import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -59,5 +59,37 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.stop).toBeDefined();
       }
     }
+  });
+});
+
+describe("E2E: hooks (import)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should import claudecode hooks", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a Claude Code settings.json with hooks
+    const settingsContent = JSON.stringify(
+      {
+        hooks: {
+          SessionStart: [
+            {
+              matcher: "",
+              hooks: [{ type: "command", command: "echo session started" }],
+            },
+          ],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, ".claude", "settings.json"), settingsContent);
+
+    // Execute: Import claudecode hooks
+    await runImport({ target: "claudecode", features: "hooks" });
+
+    // Verify that the imported hooks file was created
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("sessionStart");
   });
 });

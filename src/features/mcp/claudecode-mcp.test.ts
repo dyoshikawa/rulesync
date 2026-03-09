@@ -690,7 +690,7 @@ describe("ClaudecodeMcp", () => {
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData, null, 2));
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
     it("should preserve file content when converting to RulesyncMcp", () => {

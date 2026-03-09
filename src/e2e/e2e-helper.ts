@@ -64,6 +64,20 @@ export async function runGenerate({
 }
 
 /**
+ * Runs the `rulesync import` command with the given target and feature.
+ */
+export async function runImport({
+  target,
+  features,
+}: {
+  target: string;
+  features: string;
+}): Promise<{ stdout: string; stderr: string }> {
+  const args = [...rulesyncArgs, "import", "--targets", target, "--features", features];
+  return execFileAsync(rulesyncCmd, args);
+}
+
+/**
  * Sets up a temporary test directory and provides lifecycle hooks for e2e tests.
  * Call within a describe block to register beforeEach/afterEach automatically.
  * Returns a getter for the testDir path (available after beforeEach runs).
