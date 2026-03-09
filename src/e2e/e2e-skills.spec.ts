@@ -4,7 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, useGlobalTestDirectories, useTestDirectory } from "./e2e-helper.js";
+import {
+  execFileAsync,
+  runGenerate,
+  rulesyncArgs,
+  rulesyncCmd,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
 
 describe("E2E: skills", () => {
   const { getTestDir } = useTestDirectory();
@@ -40,6 +47,41 @@ This is the test skill body content.
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("test skill body content");
+  });
+});
+
+describe("E2E: skills (import)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should import claudecode skills", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a Claude Code skill directory
+    const skillContent = `---
+name: test-skill
+description: "A test skill for E2E testing"
+---
+This is the test skill body content.`;
+    await writeFileContent(
+      join(testDir, ".claude", "skills", "test-skill", "SKILL.md"),
+      skillContent,
+    );
+
+    // Execute: Import claudecode skills
+    await execFileAsync(rulesyncCmd, [
+      ...rulesyncArgs,
+      "import",
+      "--targets",
+      "claudecode",
+      "--features",
+      "skills",
+    ]);
+
+    // Verify that the imported skill file was created
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+    );
+    expect(importedContent).toContain("test skill body content");
   });
 });
 

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  execFileAsync,
   runGenerate,
   rulesyncArgs,
   rulesyncCmd,
@@ -86,6 +87,44 @@ describe("E2E: mcp", () => {
 
     // Verify that there were no actual errors (warnings are acceptable)
     expect(hasError, `MCP daemon produced errors: ${stderrOutput}`).toBe(false);
+  });
+});
+
+describe("E2E: mcp (import)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should import claudecode mcp", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a .mcp.json file (claudecode's MCP config)
+    const mcpContent = JSON.stringify(
+      {
+        mcpServers: {
+          "test-server": {
+            command: "echo",
+            args: ["hello"],
+          },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, ".mcp.json"), mcpContent);
+
+    // Execute: Import claudecode mcp
+    await execFileAsync(rulesyncCmd, [
+      ...rulesyncArgs,
+      "import",
+      "--targets",
+      "claudecode",
+      "--features",
+      "mcp",
+    ]);
+
+    // Verify that the imported MCP file was created
+    // Note: The imported file keeps the original filename (.mcp.json), not mcp.json
+    const importedContent = await readFileContent(join(testDir, ".rulesync", ".mcp.json"));
+    expect(importedContent).toContain("test-server");
   });
 });
 

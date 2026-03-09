@@ -4,7 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, useGlobalTestDirectories, useTestDirectory } from "./e2e-helper.js";
+import {
+  execFileAsync,
+  runGenerate,
+  rulesyncArgs,
+  rulesyncCmd,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
 
 describe("E2E: subagents", () => {
   const { getTestDir } = useTestDirectory();
@@ -69,6 +76,40 @@ You are a primary agent. You appear in the Tab rotation.
     expect(generatedContent).toContain("mode: primary");
     expect(generatedContent).not.toContain("mode: subagent");
     expect(generatedContent).toContain("A primary mode agent");
+  });
+});
+
+describe("E2E: subagents (import)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should import claudecode subagents", async () => {
+    const testDir = getTestDir();
+
+    // Setup: Create a Claude Code agent file
+    const subagentContent = `---
+name: planner
+roleDefinition: You are the planner. Analyze files and create a plan.
+---
+# Instructions
+Break down tasks into steps.
+`;
+    await writeFileContent(join(testDir, ".claude", "agents", "planner.md"), subagentContent);
+
+    // Execute: Import claudecode subagents
+    await execFileAsync(rulesyncCmd, [
+      ...rulesyncArgs,
+      "import",
+      "--targets",
+      "claudecode",
+      "--features",
+      "subagents",
+    ]);
+
+    // Verify that the imported subagent file was created
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("planner");
   });
 });
 
