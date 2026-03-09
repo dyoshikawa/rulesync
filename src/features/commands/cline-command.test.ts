@@ -82,6 +82,32 @@ Step 1`;
 
       expect(command.getFileContent()).toBe("");
     });
+
+    it("should skip validation when validate is false", () => {
+      const command = new ClineCommand({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules/workflows",
+        relativeFilePath: "test.md",
+        fileContent: validContent,
+        validate: false,
+      });
+
+      expect(command).toBeInstanceOf(ClineCommand);
+      expect(command.getFileContent()).toBe(validContent);
+    });
+  });
+
+  describe("getBody", () => {
+    it("should return the command body", () => {
+      const command = new ClineCommand({
+        baseDir: testDir,
+        relativeDirPath: ".clinerules/workflows",
+        relativeFilePath: "test.md",
+        fileContent: validContent,
+      });
+
+      expect(command.getBody()).toBe(validContent);
+    });
   });
 
   describe("toRulesyncCommand", () => {
