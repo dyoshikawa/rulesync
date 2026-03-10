@@ -1,0 +1,27 @@
+# Build outputs
+bin/
+obj/
+
+# NuGet packages
+*.nupkg
+nupkgs/
+
+# User-specific files
+*.user
+*.suo
+
+# IDE
+.vscode/
+.idea/
+*.sln.iml
+
+# Test results
+TestResults/
+
+# Coverage
+coverage/
+*.coverage
+
+# Misc
+*.log
+*.tmp

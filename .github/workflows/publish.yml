@@ -8,6 +8,7 @@ on:
 permissions:
   id-token: write # Required for OIDC
   contents: write # Required for checking out code and editing release state
+  packages: write # Required for publishing to GitHub Packages
 
 jobs:
   publish:
@@ -32,14 +33,80 @@ jobs:
       - name: Publish to npm
         run: pnpm publish
 
-      - name: Publish target draft release
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Validate actor and extract tag
+        id: tag
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
+          # Validate github.actor format (prevent potential script injection)
+          if ! echo "$GITHUB_ACTOR" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$'; then
+            echo "::error::Invalid github.actor format: $GITHUB_ACTOR"
+            exit 1
+          fi
+
           TAG="${HEAD_BRANCH#release/}"
           if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Invalid release tag derived from branch: $HEAD_BRANCH"
             exit 1
           fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download NuGet package from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          mkdir -p nupkgs
+          gh release download "$TAG" --pattern "*.nupkg" --dir nupkgs
+
+      - name: Sign NuGet packages
+        env:
+          NUGET_CERTIFICATE: ${{ secrets.NUGET_SIGNING_CERTIFICATE }}
+          NUGET_CERTIFICATE_PASSWORD: ${{ secrets.NUGET_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          set +x  # Disable command echo to prevent leaking secrets
+          if [ -n "$NUGET_CERTIFICATE" ]; then
+            # Create secure temp directory with restricted permissions
+            CERT_DIR=$(mktemp -d)
+            chmod 700 "$CERT_DIR"
+            CERT_PATH="$CERT_DIR/certificate.pfx"
+            echo "$NUGET_CERTIFICATE" | base64 -d > "$CERT_PATH"
+            chmod 600 "$CERT_PATH"
+
+            for pkg in nupkgs/*.nupkg; do
+              dotnet nuget sign "$pkg" --certificate-path "$CERT_PATH" --certificate-password "$NUGET_CERTIFICATE_PASSWORD" --timestamper http://timestamp.digicert.com
+            done
+
+            # Secure cleanup
+            shred -u "$CERT_PATH" 2>/dev/null || rm -f "$CERT_PATH"
+            rmdir "$CERT_DIR"
+          else
+            echo "Warning: NUGET_SIGNING_CERTIFICATE not configured. Packages will be published unsigned."
+          fi
+
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          # Validate REPO_OWNER to prevent script injection
+          if ! echo "$REPO_OWNER" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$'; then
+            echo "::error::Invalid REPO_OWNER format: $REPO_OWNER"
+            exit 1
+          fi
+          dotnet nuget add source "https://nuget.pkg.github.com/${REPO_OWNER}/index.json" --name github --username "$GITHUB_ACTOR" --password "$GITHUB_TOKEN" --store-password-in-clear-text
+          dotnet nuget push nupkgs/*.nupkg --source github --skip-duplicate
+
+      - name: Publish target draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
           gh release edit "$TAG" --draft=false --latest

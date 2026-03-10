@@ -1,0 +1,131 @@
+#nullable enable
+
+using System;
+using RuleSync.Sdk;
+using Xunit;
+
+namespace RuleSync.Sdk.Tests;
+
+public class ResultTests
+{
+    [Fact]
+    public void Success_CreatesSuccessfulResult()
+    {
+        var result = Result<string>.Success("test");
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.IsFailure);
+        Assert.Equal("test", result.Value);
+    }
+
+    [Fact]
+    public void Failure_CreatesFailedResult()
+    {
+        var result = Result<string>.Failure("ERROR", "Something went wrong");
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Equal("ERROR", result.Error.Code);
+        Assert.Equal("Something went wrong", result.Error.Message);
+    }
+
+    [Fact]
+    public void Value_OnFailedResult_Throws()
+    {
+        var result = Result<string>.Failure("ERROR", "test");
+
+        Assert.Throws<InvalidOperationException>(() => result.Value);
+    }
+
+    [Fact]
+    public void Error_OnSuccessfulResult_Throws()
+    {
+        var result = Result<string>.Success("test");
+
+        Assert.Throws<InvalidOperationException>(() => result.Error);
+    }
+
+    [Fact]
+    public void Map_TransformsValueOnSuccess()
+    {
+        var result = Result<string>.Success("5");
+        var mapped = result.Map(x => (int.Parse(x) * 2).ToString());
+
+        Assert.True(mapped.IsSuccess);
+        Assert.Equal("10", mapped.Value);
+    }
+
+    [Fact]
+    public void Map_PreservesErrorOnFailure()
+    {
+        var result = Result<string>.Failure("ERROR", "test");
+        var mapped = result.Map(x => x.ToUpper());
+
+        Assert.True(mapped.IsFailure);
+        Assert.Equal("ERROR", mapped.Error.Code);
+    }
+
+    [Fact]
+    public void OnSuccess_ExecutesActionOnSuccess()
+    {
+        var result = Result<string>.Success("test");
+        var captured = string.Empty;
+
+        result.OnSuccess(v => captured = v);
+
+        Assert.Equal("test", captured);
+    }
+
+    [Fact]
+    public void OnSuccess_DoesNothingOnFailure()
+    {
+        var result = Result<string>.Failure("ERROR", "test");
+        var executed = false;
+
+        result.OnSuccess(_ => executed = true);
+
+        Assert.False(executed);
+    }
+
+    [Fact]
+    public void OnFailure_ExecutesActionOnFailure()
+    {
+        var result = Result<string>.Failure("CODE", "message");
+        var capturedCode = string.Empty;
+
+        result.OnFailure(e => capturedCode = e.Code);
+
+        Assert.Equal("CODE", capturedCode);
+    }
+
+    [Fact]
+    public void OnFailure_DoesNothingOnSuccess()
+    {
+        var result = Result<string>.Success("test");
+        var executed = false;
+
+        result.OnFailure(_ => executed = true);
+
+        Assert.False(executed);
+    }
+
+    [Fact]
+    public void RulesyncError_ToString_FormatsCorrectly()
+    {
+        var error = new RulesyncError("CODE", "message");
+
+        Assert.Equal("[CODE] message", error.ToString());
+    }
+
+    [Fact]
+    public void RulesyncError_Constructor_ThrowsOnNullCode()
+    {
+        Assert.Throws<ArgumentNullException>(() => new RulesyncError(null!, "message"));
+    }
+
+    [Fact]
+    public void RulesyncError_Constructor_ThrowsOnNullMessage()
+    {
+        Assert.Throws<ArgumentNullException>(() => new RulesyncError("CODE", null!));
+    }
+}

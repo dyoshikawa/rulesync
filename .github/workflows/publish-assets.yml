@@ -78,6 +78,23 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build .NET SDK
+        run: |
+          dotnet restore sdk/dotnet/RuleSync.Sdk.DotNet.sln
+          dotnet build sdk/dotnet/RuleSync.Sdk.DotNet.sln --configuration Release --no-restore
+
+      - name: Pack .NET SDK
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          dotnet pack sdk/dotnet/src/RuleSync.Sdk.DotNet/RuleSync.Sdk.DotNet.csproj --configuration Release --no-build --output ./nupkgs -p:Version="$VERSION"
+
       - name: Upload assets to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
@@ -94,3 +111,4 @@ jobs:
             repomix-toon.zip
             config-schema.json
             mcp-schema.json
+            nupkgs/*.nupkg

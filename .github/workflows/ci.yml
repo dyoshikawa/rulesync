@@ -63,3 +63,32 @@ jobs:
           test -f dist/index.cjs
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+
+  dotnet-sdk:
+    name: .NET SDK Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('sdk/dotnet/**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore sdk/dotnet/RuleSync.Sdk.DotNet.sln
+
+      - name: Build
+        run: dotnet build sdk/dotnet/RuleSync.Sdk.DotNet.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test sdk/dotnet/RuleSync.Sdk.DotNet.sln --configuration Release --no-build --verbosity normal

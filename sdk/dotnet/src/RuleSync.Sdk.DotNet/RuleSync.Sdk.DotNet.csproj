@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Multi-target for broad compatibility -->
+    <TargetFrameworks>netstandard2.1;net6.0;net8.0</TargetFrameworks>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Enable AOT compatibility for net8.0 -->
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
+    <EnableTrimAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">true</EnableTrimAnalyzer>
+
+    <!-- NuGet Package -->
+    <PackageId>RuleSync.Sdk.DotNet</PackageId>
+    <RootNamespace>RuleSync.Sdk</RootNamespace>
+    <AssemblyName>RuleSync.Sdk.DotNet</AssemblyName>
+    <Version>7.15.2</Version>
+    <Description>C# SDK for RuleSync - generate AI tool configurations programmatically</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/dyoshikawa/rulesync</RepositoryUrl>
+  </PropertyGroup>
+
+  <!-- Source Generator Reference -->
+  <ItemGroup>
+    <ProjectReference Include="../RuleSync.Sdk.DotNet.SourceGenerators/RuleSync.Sdk.DotNet.SourceGenerators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- System.Text.Json for all target frameworks -->
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+
+  <!-- IsExternalInit for netstandard2.1 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" />
+  </ItemGroup>
+
+  <!-- Include TypeScript files for source generation -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../../../src/types/features.ts" />
+    <AdditionalFiles Include="../../../../src/types/tool-targets.ts" />
+    <AdditionalFiles Include="../../../../src/lib/generate.ts" />
+    <AdditionalFiles Include="../../../../src/lib/import.ts" />
+    <AdditionalFiles Include="../../../../src/index.ts" />
+  </ItemGroup>
+
+  <!-- Enable source-generated files output for debugging -->
+  <PropertyGroup>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+</Project>
