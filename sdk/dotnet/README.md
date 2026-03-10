@@ -69,7 +69,7 @@ using var client = new RulesyncClient();
 // Generate configurations for specific targets
 var result = await client.GenerateAsync(new GenerateOptions
 {
-    Targets = new[] { ToolTarget.Claudecode, ToolTarget.Cursor },
+    Targets = new[] { ToolTarget.ClaudeCode, ToolTarget.Cursor },
     Features = new[] { Feature.Rules, Feature.Mcp }
 });
 

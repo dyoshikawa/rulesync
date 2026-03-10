@@ -149,6 +149,7 @@ public sealed class RulesyncClient : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     private void ThrowIfDisposed()
@@ -171,6 +172,20 @@ public sealed class RulesyncClient : IDisposable
                     throw new ArgumentException(
                         $"Invalid ToolTarget value: {target}.",
                         nameof(options.Targets));
+                }
+            }
+        }
+
+        // Validate Features enum values
+        if (options.Features?.Count > 0)
+        {
+            foreach (var feature in options.Features)
+            {
+                if (!Enum.IsDefined(typeof(Feature), feature))
+                {
+                    throw new ArgumentException(
+                        $"Invalid Feature value: {feature}.",
+                        nameof(options.Features));
                 }
             }
         }
@@ -367,28 +382,40 @@ public sealed class RulesyncClient : IDisposable
         process.OutputDataReceived += (sender, e) =>
         {
             if (e.Data == null) return;
-            var currentLength = Interlocked.Add(ref stdoutLength, 0);
-            if (currentLength < MaxOutputSize)
+            var dataLength = e.Data.Length + Environment.NewLine.Length;
+            // Atomic check-and-reserve: try to reserve space, only append if successful
+            var newLength = Interlocked.Add(ref stdoutLength, dataLength);
+            if (newLength <= MaxOutputSize + dataLength)
             {
                 lock (stdoutBuilder)
                 {
                     stdoutBuilder.AppendLine(e.Data);
                 }
-                Interlocked.Add(ref stdoutLength, e.Data.Length + Environment.NewLine.Length);
+            }
+            else
+            {
+                // Revert the reservation if over limit
+                Interlocked.Add(ref stdoutLength, -dataLength);
             }
         };
 
         process.ErrorDataReceived += (sender, e) =>
         {
             if (e.Data == null) return;
-            var currentLength = Interlocked.Add(ref stderrLength, 0);
-            if (currentLength < MaxOutputSize)
+            var dataLength = e.Data.Length + Environment.NewLine.Length;
+            // Atomic check-and-reserve: try to reserve space, only append if successful
+            var newLength = Interlocked.Add(ref stderrLength, dataLength);
+            if (newLength <= MaxOutputSize + dataLength)
             {
                 lock (stderrBuilder)
                 {
                     stderrBuilder.AppendLine(e.Data);
                 }
-                Interlocked.Add(ref stderrLength, e.Data.Length + Environment.NewLine.Length);
+            }
+            else
+            {
+                // Revert the reservation if over limit
+                Interlocked.Add(ref stderrLength, -dataLength);
             }
         };
 
@@ -407,6 +434,11 @@ public sealed class RulesyncClient : IDisposable
         {
             process.Kill();
             throw new TimeoutException($"Rulesync operation timed out after {_timeout.TotalSeconds} seconds.");
+        }
+        catch
+        {
+            process.Kill();
+            throw;
         }
 
         return new ProcessResult(

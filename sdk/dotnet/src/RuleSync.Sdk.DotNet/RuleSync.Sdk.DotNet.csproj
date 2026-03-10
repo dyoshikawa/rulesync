@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
 
-    <!-- Enable AOT compatibility for net8.0 -->
-    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
+    <!-- Enable trim analyzer for compatibility warnings -->
+    <!-- Note: Full Native AOT requires source-generated JSON serialization. This SDK uses reflection-based serialization with trim annotations. -->
     <EnableTrimAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">true</EnableTrimAnalyzer>
 
     <!-- NuGet Package -->
