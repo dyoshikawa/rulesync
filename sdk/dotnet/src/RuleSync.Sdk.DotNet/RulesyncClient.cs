@@ -53,10 +53,10 @@ public sealed class RulesyncClient : IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result of the generation operation</returns>
 #if NET6_0_OR_GREATER
-    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization requires unreferenced code")]
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization uses reflection which may require unreferenced code")]
 #endif
 #if NET7_0_OR_GREATER
-    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization requires dynamic code")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization uses reflection which requires dynamic code")]
 #endif
     public async ValueTask<Result<GenerateResult>> GenerateAsync(
         GenerateOptions? options = null,
@@ -102,10 +102,10 @@ public sealed class RulesyncClient : IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result of the import operation</returns>
 #if NET6_0_OR_GREATER
-    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization requires unreferenced code")]
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization uses reflection which may require unreferenced code")]
 #endif
 #if NET7_0_OR_GREATER
-    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization requires dynamic code")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization uses reflection which requires dynamic code")]
 #endif
     public async ValueTask<Result<ImportResult>> ImportAsync(
         ImportOptions options,
