@@ -238,7 +238,7 @@ public class ClientAsyncTests : IDisposable
 
             var results = await Task.WhenAll(tasks);
 
-            Assert.All(results, r => Assert.NotNull(r));
+            Assert.All(results, r => Assert.True(r.IsSuccess || r.IsFailure));
         }
         catch (TimeoutException)
         {
@@ -265,7 +265,7 @@ public class ClientAsyncTests : IDisposable
 
             var results = await Task.WhenAll(tasks);
 
-            Assert.All(results, r => Assert.NotNull(r));
+            Assert.All(results, r => Assert.True(r.IsSuccess || r.IsFailure));
         }
         catch (TimeoutException)
         {

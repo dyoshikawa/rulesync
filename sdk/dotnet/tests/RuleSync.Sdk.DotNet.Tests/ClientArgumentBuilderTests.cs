@@ -37,8 +37,7 @@ public class ClientArgumentBuilderTests
         var options = new GenerateOptions { Targets = allTargets };
 
         // Should not throw for valid enum values
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     #endregion
@@ -70,8 +69,7 @@ public class ClientArgumentBuilderTests
         var options = new GenerateOptions { Features = allFeatures };
 
         // Should not throw for valid enum values
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     #endregion
@@ -117,8 +115,7 @@ public class ClientArgumentBuilderTests
         var options = new ImportOptions { Target = validTarget };
 
         // Should not throw for valid targets
-        var task = client.ImportAsync(options);
-        Assert.NotNull(task);
+        _ = client.ImportAsync(options);
     }
 
     #endregion
@@ -133,8 +130,7 @@ public class ClientArgumentBuilderTests
         var options = new GenerateOptions { Verbose = true };
 
         // Just verify it doesn't throw
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -143,8 +139,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Silent = false };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -153,8 +148,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Delete = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -163,8 +157,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Global = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -173,8 +166,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { SimulateCommands = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -183,8 +175,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { SimulateSubagents = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -193,8 +184,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { SimulateSkills = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -203,8 +193,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { DryRun = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -213,8 +202,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Check = true };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     #endregion
@@ -227,8 +215,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { ConfigPath = "/path/to/config.js" };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -241,8 +228,7 @@ public class ClientArgumentBuilderTests
             ConfigPath = "/path/to/config.js"
         };
 
-        var task = client.ImportAsync(options);
-        Assert.NotNull(task);
+        _ = client.ImportAsync(options);
     }
 
     #endregion
@@ -259,8 +245,7 @@ public class ClientArgumentBuilderTests
             Features = new[] { Feature.Rules, Feature.Mcp }
         };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -273,8 +258,7 @@ public class ClientArgumentBuilderTests
             Features = new[] { Feature.Rules, Feature.Ignore, Feature.Mcp, Feature.Skills }
         };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -294,8 +278,7 @@ public class ClientArgumentBuilderTests
             Check = true
         };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -308,8 +291,7 @@ public class ClientArgumentBuilderTests
             Features = new[] { Feature.Rules, Feature.Ignore, Feature.Mcp }
         };
 
-        var task = client.ImportAsync(options);
-        Assert.NotNull(task);
+        _ = client.ImportAsync(options);
     }
 
     [Fact]
@@ -324,8 +306,7 @@ public class ClientArgumentBuilderTests
             Global = true
         };
 
-        var task = client.ImportAsync(options);
-        Assert.NotNull(task);
+        _ = client.ImportAsync(options);
     }
 
     #endregion
@@ -338,8 +319,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Targets = Array.Empty<ToolTarget>() };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -348,8 +328,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Features = Array.Empty<Feature>() };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -358,8 +337,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Targets = null };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -368,8 +346,7 @@ public class ClientArgumentBuilderTests
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Features = null };
 
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     [Fact]
@@ -382,8 +359,7 @@ public class ClientArgumentBuilderTests
             Features = Array.Empty<Feature>()
         };
 
-        var task = client.ImportAsync(options);
-        Assert.NotNull(task);
+        _ = client.ImportAsync(options);
     }
 
     [Fact]
@@ -396,8 +372,7 @@ public class ClientArgumentBuilderTests
             Features = null
         };
 
-        var task = client.ImportAsync(options);
-        Assert.NotNull(task);
+        _ = client.ImportAsync(options);
     }
 
     #endregion

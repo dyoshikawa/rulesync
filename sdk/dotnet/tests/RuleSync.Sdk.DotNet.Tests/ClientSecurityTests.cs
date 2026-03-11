@@ -147,8 +147,7 @@ public class ClientSecurityTests
 
         // The call itself validates the path synchronously before async execution
         // This should not throw because path normalization happens before the async call
-        var task = client.GenerateAsync(options);
-        Assert.NotNull(task);
+        _ = client.GenerateAsync(options);
     }
 
     #endregion
