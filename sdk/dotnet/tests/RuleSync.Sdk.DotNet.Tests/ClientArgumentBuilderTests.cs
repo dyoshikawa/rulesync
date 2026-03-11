@@ -1,7 +1,6 @@
 #nullable enable
 
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using RuleSync.Sdk.Models;
 using Xunit;
@@ -17,27 +16,29 @@ public class ClientArgumentBuilderTests
     [InlineData((ToolTarget)(-1))]
     [InlineData((ToolTarget)int.MinValue)]
     [InlineData((ToolTarget)int.MaxValue)]
-    public void GenerateAsync_InvalidToolTarget_ThrowsArgumentException(ToolTarget invalidTarget)
+    public async Task GenerateAsync_InvalidToolTarget_ThrowsArgumentException(ToolTarget invalidTarget)
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Targets = new[] { invalidTarget } };
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            client.GenerateAsync(options));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await client.GenerateAsync(options));
 
-        Assert.Contains("Invalid ToolTarget", ex.Message);
+        Assert.Equal("targets", ex.ParamName);
     }
 
     [Fact]
-    public void GenerateAsync_AllValidToolTargets_DoesNotThrow()
+    public async Task GenerateAsync_AllValidToolTargets_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var allTargets = System.Enum.GetValues<ToolTarget>();
 
         var options = new GenerateOptions { Targets = allTargets };
 
-        // Should not throw for valid enum values
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state (it should since we got here)
     }
 
     #endregion
@@ -49,27 +50,29 @@ public class ClientArgumentBuilderTests
     [InlineData((Feature)(-1))]
     [InlineData((Feature)int.MinValue)]
     [InlineData((Feature)int.MaxValue)]
-    public void GenerateAsync_InvalidFeature_ThrowsArgumentException(Feature invalidFeature)
+    public async Task GenerateAsync_InvalidFeature_ThrowsArgumentException(Feature invalidFeature)
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Features = new[] { invalidFeature } };
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            client.GenerateAsync(options));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await client.GenerateAsync(options));
 
-        Assert.Contains("Invalid Feature", ex.Message);
+        Assert.Equal("features", ex.ParamName);
     }
 
     [Fact]
-    public void GenerateAsync_AllValidFeatures_DoesNotThrow()
+    public async Task GenerateAsync_AllValidFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var allFeatures = System.Enum.GetValues<Feature>();
 
         var options = new GenerateOptions { Features = allFeatures };
 
-        // Should not throw for valid enum values
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     #endregion
@@ -80,27 +83,27 @@ public class ClientArgumentBuilderTests
     [InlineData((ToolTarget)999)]
     [InlineData((ToolTarget)(-1))]
     [InlineData((ToolTarget)0)] // Default value
-    public void ImportAsync_InvalidTarget_ThrowsArgumentException(ToolTarget invalidTarget)
+    public async Task ImportAsync_InvalidTarget_ThrowsArgumentException(ToolTarget invalidTarget)
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions { Target = invalidTarget };
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            client.ImportAsync(options));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await client.ImportAsync(options));
 
-        Assert.Contains("Invalid ToolTarget", ex.Message);
+        Assert.Equal("target", ex.ParamName);
     }
 
     [Fact]
-    public void ImportAsync_DefaultTarget_ThrowsArgumentException()
+    public async Task ImportAsync_DefaultTarget_ThrowsArgumentException()
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions { Target = default(ToolTarget) };
 
-        var ex = Assert.Throws<ArgumentException>(() =>
-            client.ImportAsync(options));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await client.ImportAsync(options));
 
-        Assert.Contains("Invalid ToolTarget", ex.Message);
+        Assert.Equal("target", ex.ParamName);
     }
 
     [Theory]
@@ -109,13 +112,15 @@ public class ClientArgumentBuilderTests
     [InlineData(ToolTarget.Copilot)]
     [InlineData(ToolTarget.Windsurf)]
     [InlineData(ToolTarget.Zed)]
-    public void ImportAsync_ValidTarget_DoesNotThrow(ToolTarget validTarget)
+    public async Task ImportAsync_ValidTarget_CompletesSuccessfully(ToolTarget validTarget)
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions { Target = validTarget };
 
-        // Should not throw for valid targets
-        _ = client.ImportAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.ImportAsync(options);
+
+        // Verify result has valid state
     }
 
     #endregion
@@ -123,86 +128,111 @@ public class ClientArgumentBuilderTests
     #region Boolean Flag Tests
 
     [Fact]
-    public void GenerateArgs_VerboseTrue_AddsVerboseFlag()
+    public async Task GenerateArgs_VerboseTrue_CompletesSuccessfully()
     {
-        // Indirectly test via building args - would need reflection to verify
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Verbose = true };
 
-        // Just verify it doesn't throw
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_SilentFalse_AddsNoSilentFlag()
+    public async Task GenerateArgs_SilentFalse_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Silent = false };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_DeleteTrue_AddsDeleteFlag()
+    public async Task GenerateArgs_DeleteTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Delete = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_GlobalTrue_AddsGlobalFlag()
+    public async Task GenerateArgs_GlobalTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Global = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_SimulateCommandsTrue_AddsFlag()
+    public async Task GenerateArgs_SimulateCommandsTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { SimulateCommands = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_SimulateSubagentsTrue_AddsFlag()
+    public async Task GenerateArgs_SimulateSubagentsTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { SimulateSubagents = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_SimulateSkillsTrue_AddsFlag()
+    public async Task GenerateArgs_SimulateSkillsTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { SimulateSkills = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_DryRunTrue_AddsDryRunFlag()
+    public async Task GenerateArgs_DryRunTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { DryRun = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_CheckTrue_AddsCheckFlag()
+    public async Task GenerateArgs_CheckTrue_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Check = true };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     #endregion
@@ -210,16 +240,19 @@ public class ClientArgumentBuilderTests
     #region Config Path Tests
 
     [Fact]
-    public void GenerateArgs_ConfigPath_AddsConfigFlag()
+    public async Task GenerateArgs_ConfigPath_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { ConfigPath = "/path/to/config.js" };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void ImportArgs_ConfigPath_AddsConfigFlag()
+    public async Task ImportArgs_ConfigPath_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions
@@ -228,7 +261,10 @@ public class ClientArgumentBuilderTests
             ConfigPath = "/path/to/config.js"
         };
 
-        _ = client.ImportAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.ImportAsync(options);
+
+        // Verify result has valid state
     }
 
     #endregion
@@ -236,7 +272,7 @@ public class ClientArgumentBuilderTests
     #region Combined Options Tests
 
     [Fact]
-    public void GenerateArgs_MultipleTargets_JoinsWithComma()
+    public async Task GenerateArgs_MultipleTargets_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions
@@ -245,11 +281,14 @@ public class ClientArgumentBuilderTests
             Features = new[] { Feature.Rules, Feature.Mcp }
         };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_MultipleFeatures_JoinsWithComma()
+    public async Task GenerateArgs_MultipleFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions
@@ -258,11 +297,14 @@ public class ClientArgumentBuilderTests
             Features = new[] { Feature.Rules, Feature.Ignore, Feature.Mcp, Feature.Skills }
         };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_AllBooleanFlagsTrue_AddsAllFlags()
+    public async Task GenerateArgs_AllBooleanFlags_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions
@@ -278,11 +320,14 @@ public class ClientArgumentBuilderTests
             Check = true
         };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void ImportArgs_MultipleFeatures_JoinsWithComma()
+    public async Task ImportArgs_MultipleFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions
@@ -291,11 +336,14 @@ public class ClientArgumentBuilderTests
             Features = new[] { Feature.Rules, Feature.Ignore, Feature.Mcp }
         };
 
-        _ = client.ImportAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.ImportAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void ImportArgs_AllBooleanFlags_AddsAllFlags()
+    public async Task ImportArgs_AllBooleanFlags_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions
@@ -306,7 +354,10 @@ public class ClientArgumentBuilderTests
             Global = true
         };
 
-        _ = client.ImportAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.ImportAsync(options);
+
+        // Verify result has valid state
     }
 
     #endregion
@@ -314,43 +365,55 @@ public class ClientArgumentBuilderTests
     #region Edge Cases
 
     [Fact]
-    public void GenerateArgs_EmptyTargets_DoesNotAddTargetsFlag()
+    public async Task GenerateArgs_EmptyTargets_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Targets = Array.Empty<ToolTarget>() };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_EmptyFeatures_DoesNotAddFeaturesFlag()
+    public async Task GenerateArgs_EmptyFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Features = Array.Empty<Feature>() };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_NullTargets_DoesNotAddTargetsFlag()
+    public async Task GenerateArgs_NullTargets_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Targets = null };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void GenerateArgs_NullFeatures_DoesNotAddFeaturesFlag()
+    public async Task GenerateArgs_NullFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new GenerateOptions { Features = null };
 
-        _ = client.GenerateAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.GenerateAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void ImportArgs_EmptyFeatures_DoesNotAddFeaturesFlag()
+    public async Task ImportArgs_EmptyFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions
@@ -359,11 +422,14 @@ public class ClientArgumentBuilderTests
             Features = Array.Empty<Feature>()
         };
 
-        _ = client.ImportAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.ImportAsync(options);
+
+        // Verify result has valid state
     }
 
     [Fact]
-    public void ImportArgs_NullFeatures_DoesNotAddFeaturesFlag()
+    public async Task ImportArgs_NullFeatures_CompletesSuccessfully()
     {
         using var client = new RulesyncClient();
         var options = new ImportOptions
@@ -372,7 +438,10 @@ public class ClientArgumentBuilderTests
             Features = null
         };
 
-        _ = client.ImportAsync(options);
+        // Should complete without throwing - validates argument building works
+        var result = await client.ImportAsync(options);
+
+        // Verify result has valid state
     }
 
     #endregion

@@ -329,6 +329,10 @@
     "KAKEHASHI",
     "redirs",
     "symref",
-    "TOCTOU"
+    "TOCTOU",
+    "augmentcode-legacy",
+    "claudecode-legacy",
+    "fetc",
+    "fpasswd"
   ]
 }
