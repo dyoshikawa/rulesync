@@ -15,17 +15,6 @@ rulesync mcp
 
 This starts an MCP server using stdio transport that AI agents can communicate with.
 
-### JSON Schema Support
-
-Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `.rulesync/mcp.json`:
-
-```json
-{
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
-  "mcpServers": {}
-}
-```
-
 ### Configuration
 
 Add the Rulesync MCP server to your `.rulesync/mcp.json`:
