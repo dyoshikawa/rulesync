@@ -189,6 +189,7 @@ Example:
 ```json
 {
   "mcpServers": {
+    "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
     "serena": {
       "description": "Code analysis and semantic search MCP server",
       "type": "stdio",
@@ -215,6 +216,17 @@ Example:
       "env": {}
     }
   }
+}
+```
+
+#### JSON Schema Support
+
+Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `.rulesync/mcp.json`:
+
+```json
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+  "mcpServers": {}
 }
 ```
 
