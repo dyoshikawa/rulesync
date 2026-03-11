@@ -1,27 +1,28 @@
-# Build outputs
+# .NET SDK generated files
 bin/
 obj/
 
-# NuGet packages
+# Test coverage reports
+coverage-report/
+TestResults/
+
+# NuGet
 *.nupkg
-nupkgs/
+*.snupkg
 
 # User-specific files
 *.user
+*.userosscache
 *.suo
+*.swp
+*.*~
 
-# IDE
+# IDEs
+.vs/
 .vscode/
 .idea/
-*.sln.iml
 
-# Test results
-TestResults/
-
-# Coverage
-coverage/
+# Coverage tools
 *.coverage
-
-# Misc
-*.log
-*.tmp
+*.coveragexml
+*.opencover.xml
