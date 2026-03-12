@@ -11,15 +11,23 @@ import { logger } from "../utils/logger.js";
 export const LOCKFILE_VERSION = 1;
 
 /**
- * Schema for a single locked skill entry with content integrity.
+ * Schema for a single locked item entry with content integrity.
+ * Used for skills, rules, commands, and subagents.
  */
-export const LockedSkillSchema = z.object({
+export const LockedItemSchema = z.object({
   integrity: z.string(),
 });
-export type LockedSkill = z.infer<typeof LockedSkillSchema>;
+export type LockedItem = z.infer<typeof LockedItemSchema>;
+
+/** @deprecated Use LockedItem instead. Kept for backward compatibility. */
+export const LockedSkillSchema = LockedItemSchema;
+/** @deprecated Use LockedItem instead. Kept for backward compatibility. */
+export type LockedSkill = LockedItem;
 
 /**
  * Schema for a single locked source entry.
+ * The `skills` field is required for backward compatibility.
+ * Other feature fields are optional and only present when those features are configured.
  */
 export const LockedSourceSchema = z.object({
   requestedRef: optional(z.string()),
@@ -27,7 +35,10 @@ export const LockedSourceSchema = z.object({
     .string()
     .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolvedRef must be a 40-character hex SHA")),
   resolvedAt: optional(z.string()),
-  skills: z.record(z.string(), LockedSkillSchema),
+  skills: z.record(z.string(), LockedItemSchema),
+  rules: optional(z.record(z.string(), LockedItemSchema)),
+  commands: optional(z.record(z.string(), LockedItemSchema)),
+  subagents: optional(z.record(z.string(), LockedItemSchema)),
 });
 export type LockedSource = z.infer<typeof LockedSourceSchema>;
 
@@ -132,10 +143,10 @@ export async function writeLockFile(params: { baseDir: string; lock: SourcesLock
 }
 
 /**
- * Compute a SHA-256 integrity hash for a skill's contents.
+ * Compute a SHA-256 integrity hash for an item's contents.
  * Takes a sorted list of [relativePath, content] pairs to produce a deterministic hash.
  */
-export function computeSkillIntegrity(files: Array<{ path: string; content: string }>): string {
+export function computeItemIntegrity(files: Array<{ path: string; content: string }>): string {
   const hash = createHash("sha256");
   // Sort by path for deterministic ordering
   const sorted = files.toSorted((a, b) => a.path.localeCompare(b.path));
@@ -236,4 +247,35 @@ export function setLockedSource(
  */
 export function getLockedSkillNames(entry: LockedSource): string[] {
   return Object.keys(entry.skills);
+}
+
+/** @deprecated Use computeItemIntegrity instead. */
+export const computeSkillIntegrity = computeItemIntegrity;
+
+/**
+ * Get the locked items for a given feature from a locked source entry.
+ */
+export function getLockedFeatureItems(
+  entry: LockedSource,
+  feature: string,
+): Record<string, LockedItem> {
+  switch (feature) {
+    case "skills":
+      return entry.skills;
+    case "rules":
+      return entry.rules ?? {};
+    case "commands":
+      return entry.commands ?? {};
+    case "subagents":
+      return entry.subagents ?? {};
+    default:
+      return {};
+  }
+}
+
+/**
+ * Get the item names for a given feature from a locked source entry.
+ */
+export function getLockedFeatureNames(entry: LockedSource, feature: string): string[] {
+  return Object.keys(getLockedFeatureItems(entry, feature));
 }
