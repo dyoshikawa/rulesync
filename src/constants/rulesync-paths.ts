@@ -17,6 +17,7 @@ export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   ".curated",
 );
+export const RULESYNC_SOURCES_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, ".sources");
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 
 // File names (without path)
