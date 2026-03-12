@@ -38,6 +38,7 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 3,
+        fetchedItemCount: 3,
         sourcesProcessed: 1,
       });
 
@@ -60,6 +61,7 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+        fetchedItemCount: 0,
         sourcesProcessed: 1,
       });
 
@@ -86,6 +88,7 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+        fetchedItemCount: 0,
         sourcesProcessed: 1,
       });
 
@@ -103,6 +106,7 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+        fetchedItemCount: 0,
         sourcesProcessed: 1,
       });
 
@@ -120,6 +124,7 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+        fetchedItemCount: 0,
         sourcesProcessed: 1,
       });
 

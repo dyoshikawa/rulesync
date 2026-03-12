@@ -141,9 +141,7 @@ type FileEntry = { relativePath: string; content: string; size: number };
  */
 function validateDirectoryPath(dirPath: string, label: string): void {
   if (dirPath.split(/[/\\]/).includes("..") || isAbsolute(dirPath)) {
-    throw new GitClientError(
-      `Invalid ${label} "${dirPath}": must be a relative path without ".."`,
-    );
+    throw new GitClientError(`Invalid ${label} "${dirPath}": must be a relative path without ".."`);
   }
   const ctrl = findControlCharacter(dirPath);
   if (ctrl) {

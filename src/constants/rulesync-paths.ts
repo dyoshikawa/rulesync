@@ -31,6 +31,22 @@ export const RULESYNC_REMOTE_SUBAGENTS_RELATIVE_DIR_PATH = join(
 );
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 
+// Feature to local directory mapping (the .rulesync/<feature> directory)
+export const FEATURE_LOCAL_DIR_PATHS: Record<string, string> = {
+  skills: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+  rules: RULESYNC_RULES_RELATIVE_DIR_PATH,
+  commands: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  subagents: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+};
+
+// Hidden subdirectory names used for remote items within each feature directory
+export const FEATURE_REMOTE_SUBDIR_NAMES: Record<string, string> = {
+  skills: ".curated",
+  rules: ".remote",
+  commands: ".remote",
+  subagents: ".remote",
+};
+
 // Feature to remote directory mapping for install/sources
 // Skills use ".curated" for backward compat; new features use ".remote"
 export const FEATURE_REMOTE_DIR_PATHS: Record<string, string> = {

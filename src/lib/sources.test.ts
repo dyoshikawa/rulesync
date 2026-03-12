@@ -79,6 +79,7 @@ vi.mock("./git-client.js", () => ({
   resolveDefaultRef: vi.fn(),
   resolveRefToSha: vi.fn(),
   fetchSkillFiles: vi.fn(),
+  fetchDirectoryFiles: vi.fn(),
 }));
 
 vi.mock("./sources-lock.js", async (importOriginal) => {
@@ -123,7 +124,7 @@ describe("resolveAndFetchSources", () => {
       baseDir: testDir,
     });
 
-    expect(result).toEqual({ fetchedSkillCount: 0, sourcesProcessed: 0 });
+    expect(result).toEqual({ fetchedSkillCount: 0, fetchedItemCount: 0, sourcesProcessed: 0 });
   });
 
   it("should skip fetching when skipSources is true", async () => {
@@ -133,7 +134,7 @@ describe("resolveAndFetchSources", () => {
       options: { skipSources: true },
     });
 
-    expect(result).toEqual({ fetchedSkillCount: 0, sourcesProcessed: 0 });
+    expect(result).toEqual({ fetchedSkillCount: 0, fetchedItemCount: 0, sourcesProcessed: 0 });
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
   });
 
@@ -616,7 +617,7 @@ describe("resolveAndFetchSources", () => {
       options: { frozen: true },
     });
 
-    expect(result).toEqual({ fetchedSkillCount: 1, sourcesProcessed: 1 });
+    expect(result).toEqual({ fetchedSkillCount: 1, fetchedItemCount: 1, sourcesProcessed: 1 });
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
     expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
     expect(writeLockFile).not.toHaveBeenCalled();
@@ -730,11 +731,11 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should fetch skills via git transport", async () => {
-    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "abc123def456" });
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "my-skill/SKILL.md", content: "# My Skill", size: 100 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [{ relativePath: "my-skill/SKILL.md", content: "# My Skill", size: 100 }],
+    });
 
     const result = await resolveAndFetchSources({
       sources: [{ source: "https://dev.azure.com/org/project/_git/repo", transport: "git" }],
@@ -750,11 +751,11 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should use explicit ref and path for git transport", async () => {
-    const { resolveRefToSha, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveRefToSha, fetchDirectoryFiles } = await import("./git-client.js");
     vi.mocked(resolveRefToSha).mockResolvedValue("def456abc789");
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "my-skill/SKILL.md", content: "# Custom Path", size: 50 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      "exports/skills": [{ relativePath: "my-skill/SKILL.md", content: "# Custom Path", size: 50 }],
+    });
 
     await resolveAndFetchSources({
       sources: [
@@ -764,10 +765,10 @@ describe("resolveAndFetchSources", () => {
     });
 
     expect(vi.mocked(resolveRefToSha)).toHaveBeenCalledWith("file:///local/clone", "develop");
-    expect(vi.mocked(fetchSkillFiles)).toHaveBeenCalledWith({
+    expect(vi.mocked(fetchDirectoryFiles)).toHaveBeenCalledWith({
       url: "file:///local/clone",
       ref: "develop",
-      skillsPath: "exports/skills",
+      paths: ["exports/skills"],
     });
   });
 
@@ -799,7 +800,7 @@ describe("resolveAndFetchSources", () => {
 
   it("should skip re-fetch for git transport when locked SHA matches and skills exist", async () => {
     const { readLockFile } = await import("./sources-lock.js");
-    const { fetchSkillFiles } = await import("./git-client.js");
+    const { fetchDirectoryFiles } = await import("./git-client.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
     vi.mocked(readLockFile).mockResolvedValue({
@@ -824,16 +825,18 @@ describe("resolveAndFetchSources", () => {
     });
 
     expect(result.fetchedSkillCount).toBe(0);
-    expect(vi.mocked(fetchSkillFiles)).not.toHaveBeenCalled();
+    expect(vi.mocked(fetchDirectoryFiles)).not.toHaveBeenCalled();
   });
 
   it("should apply skill filter for git transport", async () => {
-    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "c".repeat(40) });
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "skill-a/SKILL.md", content: "A", size: 10 },
-      { relativePath: "skill-b/SKILL.md", content: "B", size: 10 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [
+        { relativePath: "skill-a/SKILL.md", content: "A", size: 10 },
+        { relativePath: "skill-b/SKILL.md", content: "B", size: 10 },
+      ],
+    });
 
     const result = await resolveAndFetchSources({
       sources: [
@@ -853,11 +856,11 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should skip git transport skill when local skill takes precedence", async () => {
-    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "d".repeat(40) });
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "local-skill/SKILL.md", content: "remote", size: 10 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [{ relativePath: "local-skill/SKILL.md", content: "remote", size: 10 }],
+    });
 
     // local-skill exists locally
     vi.mocked(directoryExists).mockImplementation(async (path: string) => {
@@ -876,11 +879,11 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should skip duplicate git transport skill from later source", async () => {
-    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "e".repeat(40) });
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "shared-skill/SKILL.md", content: "content", size: 10 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [{ relativePath: "shared-skill/SKILL.md", content: "content", size: 10 }],
+    });
 
     const result = await resolveAndFetchSources({
       sources: [
@@ -896,7 +899,7 @@ describe("resolveAndFetchSources", () => {
 
   it("should warn on integrity mismatch for git transport skill", async () => {
     const { readLockFile } = await import("./sources-lock.js");
-    const { fetchSkillFiles } = await import("./git-client.js");
+    const { fetchDirectoryFiles } = await import("./git-client.js");
     const lockedSha = "f".repeat(40);
 
     vi.mocked(readLockFile).mockResolvedValue({
@@ -912,9 +915,9 @@ describe("resolveAndFetchSources", () => {
 
     // Skill dir missing so re-fetch is triggered
     vi.mocked(directoryExists).mockResolvedValue(false);
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "my-skill/SKILL.md", content: "tampered", size: 10 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [{ relativePath: "my-skill/SKILL.md", content: "tampered", size: 10 }],
+    });
 
     await resolveAndFetchSources({
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
@@ -926,7 +929,7 @@ describe("resolveAndFetchSources", () => {
 
   it("should handle GitClientError gracefully and continue processing", async () => {
     const { GitClientError } = await import("./git-client.js");
-    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
 
     let callCount = 0;
     vi.mocked(resolveDefaultRef).mockImplementation(async () => {
@@ -936,9 +939,9 @@ describe("resolveAndFetchSources", () => {
       }
       return { ref: "main", sha: "a".repeat(40) };
     });
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "good-skill/SKILL.md", content: "ok", size: 10 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [{ relativePath: "good-skill/SKILL.md", content: "ok", size: 10 }],
+    });
 
     const result = await resolveAndFetchSources({
       sources: [
@@ -956,7 +959,7 @@ describe("resolveAndFetchSources", () => {
 
   it("should drop renamed/deleted skills from lockfile when upstream removes them", async () => {
     const { readLockFile, writeLockFile } = await import("./sources-lock.js");
-    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
 
     // Lock has "old-skill" from a previous install
     vi.mocked(readLockFile).mockResolvedValue({
@@ -972,9 +975,9 @@ describe("resolveAndFetchSources", () => {
 
     // Remote now has "new-skill" instead of "old-skill" (renamed upstream)
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "b".repeat(40) });
-    vi.mocked(fetchSkillFiles).mockResolvedValue([
-      { relativePath: "new-skill/SKILL.md", content: "renamed", size: 10 },
-    ]);
+    vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+      skills: [{ relativePath: "new-skill/SKILL.md", content: "renamed", size: 10 }],
+    });
 
     vi.mocked(directoryExists).mockResolvedValue(false);
 
