@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
-import { Config, type ConfigParams } from "./config.js";
+import { Config, type ConfigParams, resolveSourceFeatures } from "./config.js";
 
 describe("Config", () => {
   const defaultConfig: ConfigParams = {
@@ -224,5 +225,30 @@ describe("Config", () => {
       });
       expect(objectConfig.hasPerTargetFeatures()).toBe(true);
     });
+  });
+});
+
+describe("resolveSourceFeatures", () => {
+  it("should return all features when features is omitted", () => {
+    const result = resolveSourceFeatures({ source: "owner/repo" });
+    expect(result).toEqual([...ALL_FEATURES]);
+  });
+
+  it("should return all features when features includes wildcard", () => {
+    const result = resolveSourceFeatures({ source: "owner/repo", features: ["*"] });
+    expect(result).toEqual([...ALL_FEATURES]);
+  });
+
+  it("should return only specified features", () => {
+    const result = resolveSourceFeatures({ source: "owner/repo", features: ["skills", "rules"] });
+    expect(result).toEqual(["skills", "rules"]);
+  });
+
+  it("should return all features when wildcard is mixed with others", () => {
+    const result = resolveSourceFeatures({
+      source: "owner/repo",
+      features: ["skills", "*"],
+    });
+    expect(result).toEqual([...ALL_FEATURES]);
   });
 });

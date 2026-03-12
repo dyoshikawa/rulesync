@@ -4,6 +4,7 @@ import { minLength, optional, refine, z } from "zod/mini";
 
 import {
   ALL_FEATURES,
+  ALL_FEATURES_WITH_WILDCARD,
   Feature,
   Features,
   PerTargetFeatures,
@@ -26,6 +27,7 @@ import { hasControlCharacters } from "../utils/validation.js";
 export const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
+  features: optional(z.array(z.enum(ALL_FEATURES_WITH_WILDCARD))),
   transport: optional(z.enum(["github", "git"])),
   ref: optional(
     z.string().check(
@@ -42,6 +44,17 @@ export const SourceEntrySchema = z.object({
   ),
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
+
+/**
+ * Resolve which features a source entry provides.
+ * When features is omitted or includes "*", returns all features.
+ */
+export function resolveSourceFeatures(entry: SourceEntry): Feature[] {
+  if (!entry.features || entry.features.includes("*")) {
+    return [...ALL_FEATURES];
+  }
+  return entry.features.filter((f): f is Feature => f !== "*");
+}
 
 export const ConfigParamsSchema = z.object({
   baseDirs: z.array(z.string()),
