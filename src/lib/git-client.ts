@@ -130,18 +130,47 @@ export async function fetchSkillFiles(params: {
   skillsPath: string;
 }): Promise<Array<{ relativePath: string; content: string; size: number }>> {
   const { url, ref, skillsPath } = params;
-  validateGitUrl(url);
-  validateRef(ref);
-  if (skillsPath.split(/[/\\]/).includes("..") || isAbsolute(skillsPath)) {
+  const result = await fetchDirectoryFiles({ url, ref, paths: [skillsPath] });
+  return result[skillsPath] ?? [];
+}
+
+type FileEntry = { relativePath: string; content: string; size: number };
+
+/**
+ * Validate a relative directory path for use in sparse-checkout.
+ */
+function validateDirectoryPath(dirPath: string, label: string): void {
+  if (dirPath.split(/[/\\]/).includes("..") || isAbsolute(dirPath)) {
     throw new GitClientError(
-      `Invalid skillsPath "${skillsPath}": must be a relative path without ".."`,
+      `Invalid ${label} "${dirPath}": must be a relative path without ".."`,
     );
   }
-  const ctrl = findControlCharacter(skillsPath);
+  const ctrl = findControlCharacter(dirPath);
   if (ctrl) {
     throw new GitClientError(
-      `skillsPath contains control character ${ctrl.hex} at position ${ctrl.position}`,
+      `${label} contains control character ${ctrl.hex} at position ${ctrl.position}`,
     );
+  }
+}
+
+/**
+ * Clone a repo at the given ref and return files under each requested path.
+ * Uses a single shallow clone with sparse-checkout for all paths at once.
+ * The `ref` must be a branch or tag name (not a commit SHA) because
+ * `git clone --branch` does not accept raw SHAs.
+ *
+ * Returns a record mapping each requested path to its file entries.
+ */
+export async function fetchDirectoryFiles(params: {
+  url: string;
+  ref: string;
+  paths: string[];
+}): Promise<Record<string, FileEntry[]>> {
+  const { url, ref, paths } = params;
+  validateGitUrl(url);
+  validateRef(ref);
+  for (const p of paths) {
+    validateDirectoryPath(p, "path");
   }
   await checkGitAvailable();
   const tmpDir = await createTempDirectory("rulesync-git-");
@@ -162,16 +191,24 @@ export async function fetchSkillFiles(params: {
       ],
       { timeout: GIT_TIMEOUT_MS },
     );
-    await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", skillsPath], {
+    await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", ...paths], {
       timeout: GIT_TIMEOUT_MS,
     });
     await execFileAsync("git", ["-C", tmpDir, "checkout"], { timeout: GIT_TIMEOUT_MS });
-    const skillsDir = join(tmpDir, skillsPath);
-    if (!(await directoryExists(skillsDir))) return [];
-    return await walkDirectory(skillsDir, skillsDir);
+
+    const result: Record<string, FileEntry[]> = {};
+    for (const dirPath of paths) {
+      const fullDir = join(tmpDir, dirPath);
+      if (await directoryExists(fullDir)) {
+        result[dirPath] = await walkDirectory(fullDir, fullDir);
+      } else {
+        result[dirPath] = [];
+      }
+    }
+    return result;
   } catch (error) {
     if (error instanceof GitClientError) throw error;
-    throw new GitClientError(`Failed to fetch skill files from ${url}`, error);
+    throw new GitClientError(`Failed to fetch files from ${url}`, error);
   } finally {
     await removeTempDirectory(tmpDir);
   }
