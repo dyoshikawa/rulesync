@@ -284,7 +284,7 @@ async function writeSkillAndComputeIntegrity(params: {
   }
 
   const integrity = computeSkillIntegrity(written);
-  const lockedSkillEntry = locked?.skills[skillName];
+  const lockedSkillEntry = locked?.files[`skills/${skillName}`];
   if (
     lockedSkillEntry?.integrity &&
     lockedSkillEntry.integrity !== integrity &&
@@ -314,15 +314,22 @@ function buildLockUpdate(params: {
     params;
   const fetchedNames = Object.keys(fetchedSkills);
 
-  // Merge back locked skills that still exist in the remote but were skipped
-  // (due to local precedence, already-fetched, etc.). Skills no longer present
-  // in the remote (e.g. renamed or deleted upstream) are intentionally dropped.
+  // Convert fetched skills to files record with skills/ prefix
   const remoteSet = new Set(remoteSkillNames);
-  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
+  const mergedFiles: Record<string, LockedSkill> = {};
+  for (const [name, entry] of Object.entries(fetchedSkills)) {
+    mergedFiles[`skills/${name}`] = entry;
+  }
+
+  // Merge back locked skill files that still exist in the remote but were skipped
   if (locked) {
-    for (const [skillName, skillEntry] of Object.entries(locked.skills)) {
-      if (!(skillName in mergedSkills) && remoteSet.has(skillName)) {
-        mergedSkills[skillName] = skillEntry;
+    for (const [filePath, fileEntry] of Object.entries(locked.files)) {
+      if (filePath.startsWith("skills/")) {
+        const skillName = filePath.substring("skills/".length).split("/")[0];
+        const fileKey = `skills/${skillName}`;
+        if (skillName && !(fileKey in mergedFiles) && remoteSet.has(skillName)) {
+          mergedFiles[filePath] = fileEntry;
+        }
       }
     }
   }
@@ -331,7 +338,7 @@ function buildLockUpdate(params: {
     requestedRef,
     resolvedRef: resolvedSha,
     resolvedAt: new Date().toISOString(),
-    skills: mergedSkills,
+    files: mergedFiles,
   });
 
   logger.info(

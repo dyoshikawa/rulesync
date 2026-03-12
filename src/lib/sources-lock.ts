@@ -8,18 +8,23 @@ import { fileExists, readFileContent, writeFileContent } from "../utils/file.js"
 import { logger } from "../utils/logger.js";
 
 /** Current lockfile format version. Bump when the schema changes. */
-export const LOCKFILE_VERSION = 1;
+export const LOCKFILE_VERSION = 2;
 
 /**
- * Schema for a single locked skill entry with content integrity.
+ * Schema for a single locked file entry with content integrity.
  */
-export const LockedSkillSchema = z.object({
+export const LockedFileSchema = z.object({
   integrity: z.string(),
 });
-export type LockedSkill = z.infer<typeof LockedSkillSchema>;
+export type LockedFile = z.infer<typeof LockedFileSchema>;
+
+/** @deprecated Use LockedFile instead. Kept for backward compatibility with sources.ts. */
+export type LockedSkill = LockedFile;
 
 /**
- * Schema for a single locked source entry.
+ * Schema for a single locked source entry (v2: per-file integrity).
+ * Keys in `files` are relative paths within the source cache
+ * (e.g. "skills/my-skill/SKILL.md", "rules/coding.md", "mcp.json").
  */
 export const LockedSourceSchema = z.object({
   requestedRef: optional(z.string()),
@@ -27,7 +32,7 @@ export const LockedSourceSchema = z.object({
     .string()
     .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolvedRef must be a 40-character hex SHA")),
   resolvedAt: optional(z.string()),
-  skills: z.record(z.string(), LockedSkillSchema),
+  files: z.record(z.string(), LockedFileSchema),
 });
 export type LockedSource = z.infer<typeof LockedSourceSchema>;
 
@@ -40,37 +45,69 @@ export const SourcesLockSchema = z.object({
 });
 export type SourcesLock = z.infer<typeof SourcesLockSchema>;
 
-/**
- * Schema for the legacy v0 lockfile format (skills as string array, no version field).
- */
-const LegacyLockedSourceSchema = z.object({
+// ---------------------------------------------------------------------------
+// Legacy schemas for migration
+// ---------------------------------------------------------------------------
+
+/** v0 lockfile: skills as string array, no version field. */
+const V0LockedSourceSchema = z.object({
   resolvedRef: z.string(),
   skills: z.array(z.string()),
 });
+const V0SourcesLockSchema = z.object({
+  sources: z.record(z.string(), V0LockedSourceSchema),
+});
 
-const LegacySourcesLockSchema = z.object({
-  sources: z.record(z.string(), LegacyLockedSourceSchema),
+/** v1 lockfile: skills as Record<string, { integrity }>, lockfileVersion present. */
+const V1LockedSourceSchema = z.object({
+  requestedRef: optional(z.string()),
+  resolvedRef: z.string(),
+  resolvedAt: optional(z.string()),
+  skills: z.record(z.string(), LockedFileSchema),
+});
+const V1SourcesLockSchema = z.object({
+  lockfileVersion: z.number(),
+  sources: z.record(z.string(), V1LockedSourceSchema),
 });
 
 /**
- * Migrate a legacy lockfile (string[] skills, no version) to the current format.
- * Skills get empty integrity since we can't compute it retroactively.
+ * Migrate v0 lockfile (string[] skills, no version) to v2.
+ * Skill names mapped to files["skills/{name}"] with empty integrity.
  */
-function migrateLegacyLock(legacy: z.infer<typeof LegacySourcesLockSchema>): SourcesLock {
+function migrateV0Lock(legacy: z.infer<typeof V0SourcesLockSchema>): SourcesLock {
   const sources: Record<string, LockedSource> = {};
   for (const [key, entry] of Object.entries(legacy.sources)) {
-    const skills: Record<string, LockedSkill> = {};
+    const files: Record<string, LockedFile> = {};
     for (const name of entry.skills) {
-      skills[name] = { integrity: "" };
+      files[`skills/${name}`] = { integrity: "" };
+    }
+    sources[key] = { resolvedRef: entry.resolvedRef, files };
+  }
+  logger.info(
+    "Migrated v0 sources lockfile to version 2. Run 'rulesync install --update' to populate integrity hashes.",
+  );
+  return { lockfileVersion: LOCKFILE_VERSION, sources };
+}
+
+/**
+ * Migrate v1 lockfile (skills record with integrity) to v2 (files record).
+ * Skill names mapped to files["skills/{name}"] preserving integrity.
+ */
+function migrateV1Lock(v1: z.infer<typeof V1SourcesLockSchema>): SourcesLock {
+  const sources: Record<string, LockedSource> = {};
+  for (const [key, entry] of Object.entries(v1.sources)) {
+    const files: Record<string, LockedFile> = {};
+    for (const [name, skill] of Object.entries(entry.skills)) {
+      files[`skills/${name}`] = { integrity: skill.integrity };
     }
     sources[key] = {
       resolvedRef: entry.resolvedRef,
-      skills,
+      requestedRef: entry.requestedRef,
+      resolvedAt: entry.resolvedAt,
+      files,
     };
   }
-  logger.info(
-    "Migrated legacy sources lockfile to version 1. Run 'rulesync install --update' to populate integrity hashes.",
-  );
+  logger.info("Migrated v1 sources lockfile to version 2.");
   return { lockfileVersion: LOCKFILE_VERSION, sources };
 }
 
@@ -97,16 +134,22 @@ export async function readLockFile(params: { baseDir: string }): Promise<Sources
     const content = await readFileContent(lockPath);
     const data = JSON.parse(content);
 
-    // Try current schema first
+    // Try current v2 schema first
     const result = SourcesLockSchema.safeParse(data);
-    if (result.success) {
+    if (result.success && result.data.lockfileVersion === 2) {
       return result.data;
     }
 
-    // Try legacy schema (no lockfileVersion, skills as string[])
-    const legacyResult = LegacySourcesLockSchema.safeParse(data);
-    if (legacyResult.success) {
-      return migrateLegacyLock(legacyResult.data);
+    // Try v1 schema (skills record with integrity, lockfileVersion present)
+    const v1Result = V1SourcesLockSchema.safeParse(data);
+    if (v1Result.success && v1Result.data.lockfileVersion === 1) {
+      return migrateV1Lock(v1Result.data);
+    }
+
+    // Try v0 schema (no lockfileVersion, skills as string[])
+    const v0Result = V0SourcesLockSchema.safeParse(data);
+    if (v0Result.success) {
+      return migrateV0Lock(v0Result.data);
     }
 
     logger.warn(
@@ -132,7 +175,7 @@ export async function writeLockFile(params: { baseDir: string; lock: SourcesLock
 }
 
 /**
- * Compute a SHA-256 integrity hash for a skill's contents.
+ * Compute a SHA-256 integrity hash for a skill directory's contents.
  * Takes a sorted list of [relativePath, content] pairs to produce a deterministic hash.
  */
 export function computeSkillIntegrity(files: Array<{ path: string; content: string }>): string {
@@ -145,6 +188,15 @@ export function computeSkillIntegrity(files: Array<{ path: string; content: stri
     hash.update(file.content);
     hash.update("\0");
   }
+  return `sha256-${hash.digest("hex")}`;
+}
+
+/**
+ * Compute a SHA-256 integrity hash for a single file's content.
+ */
+export function computeFileIntegrity(content: string): string {
+  const hash = createHash("sha256");
+  hash.update(content);
   return `sha256-${hash.digest("hex")}`;
 }
 
@@ -233,7 +285,25 @@ export function setLockedSource(
 
 /**
  * Get the skill names from a locked source entry.
+ * Extracts skill directory names from files keyed as "skills/{name}" or "skills/{name}/...".
  */
 export function getLockedSkillNames(entry: LockedSource): string[] {
-  return Object.keys(entry.skills);
+  const names = new Set<string>();
+  for (const filePath of Object.keys(entry.files)) {
+    if (filePath.startsWith("skills/")) {
+      const rest = filePath.substring("skills/".length);
+      const name = rest.split("/")[0];
+      if (name) {
+        names.add(name);
+      }
+    }
+  }
+  return [...names];
+}
+
+/**
+ * Get all locked file paths for a source entry.
+ */
+export function getLockedFiles(entry: LockedSource): Record<string, LockedFile> {
+  return entry.files;
 }

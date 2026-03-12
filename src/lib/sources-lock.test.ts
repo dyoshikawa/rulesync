@@ -7,8 +7,10 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
   LOCKFILE_VERSION,
+  computeFileIntegrity,
   computeSkillIntegrity,
   createEmptyLock,
+  getLockedFiles,
   getLockedSkillNames,
   getLockedSource,
   normalizeSourceKey,
@@ -39,7 +41,7 @@ describe("sources-lock", () => {
   describe("createEmptyLock", () => {
     it("should return an empty lock structure", () => {
       const lock = createEmptyLock();
-      expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
+      expect(lock).toEqual({ lockfileVersion: 2, sources: {} });
     });
   });
 
@@ -58,18 +60,19 @@ describe("sources-lock", () => {
 
     it("should return empty lock when file does not exist", async () => {
       const lock = await readLockFile({ baseDir: testDir });
-      expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
+      expect(lock).toEqual({ lockfileVersion: 2, sources: {} });
     });
 
-    it("should parse a valid lockfile", async () => {
+    it("should parse a valid v2 lockfile", async () => {
       const lockContent = JSON.stringify({
-        lockfileVersion: 1,
+        lockfileVersion: 2,
         sources: {
           "https://github.com/org/repo": {
             resolvedRef: VALID_SHA,
-            skills: {
-              "skill-a": { integrity: "sha256-abc" },
-              "skill-b": { integrity: "sha256-def" },
+            files: {
+              "skills/skill-a": { integrity: "sha256-abc" },
+              "skills/skill-b": { integrity: "sha256-def" },
+              "rules/coding.md": { integrity: "sha256-ghi" },
             },
           },
         },
@@ -81,9 +84,10 @@ describe("sources-lock", () => {
 
       expect(lock.sources["https://github.com/org/repo"]).toEqual({
         resolvedRef: VALID_SHA,
-        skills: {
-          "skill-a": { integrity: "sha256-abc" },
-          "skill-b": { integrity: "sha256-def" },
+        files: {
+          "skills/skill-a": { integrity: "sha256-abc" },
+          "skills/skill-b": { integrity: "sha256-def" },
+          "rules/coding.md": { integrity: "sha256-ghi" },
         },
       });
     });
@@ -92,7 +96,7 @@ describe("sources-lock", () => {
       await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), "not-json");
 
       const lock = await readLockFile({ baseDir: testDir });
-      expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
+      expect(lock).toEqual({ lockfileVersion: 2, sources: {} });
     });
 
     it("should return empty lock for invalid schema", async () => {
@@ -102,11 +106,11 @@ describe("sources-lock", () => {
       );
 
       const lock = await readLockFile({ baseDir: testDir });
-      expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
+      expect(lock).toEqual({ lockfileVersion: 2, sources: {} });
     });
 
-    it("should migrate legacy lockfile format", async () => {
-      const legacyContent = JSON.stringify({
+    it("should migrate v0 lockfile format", async () => {
+      const v0Content = JSON.stringify({
         sources: {
           "org/repo": {
             resolvedRef: "abc123",
@@ -115,27 +119,59 @@ describe("sources-lock", () => {
         },
       });
 
-      await writeFileContent(
-        join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
-        legacyContent,
-      );
+      await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), v0Content);
 
       const lock = await readLockFile({ baseDir: testDir });
 
       expect(lock).toEqual({
-        lockfileVersion: 1,
+        lockfileVersion: 2,
         sources: {
           "org/repo": {
             resolvedRef: "abc123",
-            skills: {
-              "skill-a": { integrity: "" },
-              "skill-b": { integrity: "" },
+            files: {
+              "skills/skill-a": { integrity: "" },
+              "skills/skill-b": { integrity: "" },
             },
           },
         },
       });
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining("Migrated legacy sources lockfile"),
+        expect.stringContaining("Migrated v0 sources lockfile"),
+      );
+    });
+
+    it("should migrate v1 lockfile format", async () => {
+      const v1Content = JSON.stringify({
+        lockfileVersion: 1,
+        sources: {
+          "org/repo": {
+            resolvedRef: VALID_SHA,
+            skills: {
+              "skill-a": { integrity: "sha256-abc" },
+              "skill-b": { integrity: "sha256-def" },
+            },
+          },
+        },
+      });
+
+      await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), v1Content);
+
+      const lock = await readLockFile({ baseDir: testDir });
+
+      expect(lock).toEqual({
+        lockfileVersion: 2,
+        sources: {
+          "org/repo": {
+            resolvedRef: VALID_SHA,
+            files: {
+              "skills/skill-a": { integrity: "sha256-abc" },
+              "skills/skill-b": { integrity: "sha256-def" },
+            },
+          },
+        },
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("Migrated v1 sources lockfile"),
       );
     });
   });
@@ -159,7 +195,7 @@ describe("sources-lock", () => {
         sources: {
           "https://github.com/org/repo": {
             resolvedRef: "abc123",
-            skills: { "skill-a": { integrity: "sha256-x" } },
+            files: { "skills/skill-a": { integrity: "sha256-x" } },
           },
         },
       };
@@ -235,7 +271,7 @@ describe("sources-lock", () => {
         sources: {
           "https://github.com/org/repo": {
             resolvedRef: "abc123",
-            skills: { "skill-a": { integrity: "sha256-x" } },
+            files: { "skills/skill-a": { integrity: "sha256-x" } },
           },
         },
       };
@@ -244,7 +280,7 @@ describe("sources-lock", () => {
 
       expect(result).toEqual({
         resolvedRef: "abc123",
-        skills: { "skill-a": { integrity: "sha256-x" } },
+        files: { "skills/skill-a": { integrity: "sha256-x" } },
       });
     });
 
@@ -262,7 +298,7 @@ describe("sources-lock", () => {
         sources: {
           "org/repo": {
             resolvedRef: "abc123",
-            skills: { "skill-a": { integrity: "sha256-x" } },
+            files: { "skills/skill-a": { integrity: "sha256-x" } },
           },
         },
       };
@@ -271,7 +307,7 @@ describe("sources-lock", () => {
       const result = getLockedSource(lock, "https://github.com/org/repo");
       expect(result).toEqual({
         resolvedRef: "abc123",
-        skills: { "skill-a": { integrity: "sha256-x" } },
+        files: { "skills/skill-a": { integrity: "sha256-x" } },
       });
     });
   });
@@ -282,12 +318,12 @@ describe("sources-lock", () => {
 
       const result = setLockedSource(lock, "https://github.com/org/repo", {
         resolvedRef: "abc123",
-        skills: { "skill-a": { integrity: "sha256-x" } },
+        files: { "skills/skill-a": { integrity: "sha256-x" } },
       });
 
       expect(result.sources["org/repo"]).toEqual({
         resolvedRef: "abc123",
-        skills: { "skill-a": { integrity: "sha256-x" } },
+        files: { "skills/skill-a": { integrity: "sha256-x" } },
       });
     });
 
@@ -297,24 +333,24 @@ describe("sources-lock", () => {
         sources: {
           "https://github.com/org/repo": {
             resolvedRef: "old-sha",
-            skills: { "skill-a": { integrity: "sha256-x" } },
+            files: { "skills/skill-a": { integrity: "sha256-x" } },
           },
         },
       };
 
       const result = setLockedSource(lock, "https://github.com/org/repo", {
         resolvedRef: "new-sha",
-        skills: {
-          "skill-a": { integrity: "sha256-x" },
-          "skill-b": { integrity: "sha256-y" },
+        files: {
+          "skills/skill-a": { integrity: "sha256-x" },
+          "skills/skill-b": { integrity: "sha256-y" },
         },
       });
 
       expect(result.sources["org/repo"]).toEqual({
         resolvedRef: "new-sha",
-        skills: {
-          "skill-a": { integrity: "sha256-x" },
-          "skill-b": { integrity: "sha256-y" },
+        files: {
+          "skills/skill-a": { integrity: "sha256-x" },
+          "skills/skill-b": { integrity: "sha256-y" },
         },
       });
     });
@@ -325,27 +361,27 @@ describe("sources-lock", () => {
         sources: {
           "https://github.com/org/repo": {
             resolvedRef: "old-sha",
-            skills: { "skill-a": { integrity: "sha256-x" } },
+            files: { "skills/skill-a": { integrity: "sha256-x" } },
           },
         },
       };
 
       const result = setLockedSource(lock, "org/repo", {
         resolvedRef: "new-sha",
-        skills: { "skill-b": { integrity: "sha256-y" } },
+        files: { "skills/skill-b": { integrity: "sha256-y" } },
       });
 
       // Old URL-format entry should be removed, replaced with normalized key
       expect(result.sources["https://github.com/org/repo"]).toBeUndefined();
       expect(result.sources["org/repo"]).toEqual({
         resolvedRef: "new-sha",
-        skills: { "skill-b": { integrity: "sha256-y" } },
+        files: { "skills/skill-b": { integrity: "sha256-y" } },
       });
     });
 
     it("should not mutate the original lock", () => {
       const lock = { lockfileVersion: LOCKFILE_VERSION, sources: {} };
-      const result = setLockedSource(lock, "key", { resolvedRef: "sha", skills: {} });
+      const result = setLockedSource(lock, "key", { resolvedRef: "sha", files: {} });
 
       expect(lock.sources).toEqual({});
       expect(result.sources["key"]).toBeDefined();
@@ -381,25 +417,76 @@ describe("sources-lock", () => {
   });
 
   describe("getLockedSkillNames", () => {
-    it("should return skill names from a locked source entry", () => {
+    it("should extract skill names from files keyed with skills/ prefix", () => {
       const entry = {
         resolvedRef: "sha",
-        skills: {
-          a: { integrity: "sha256-x" },
-          b: { integrity: "sha256-y" },
+        files: {
+          "skills/a": { integrity: "sha256-x" },
+          "skills/b": { integrity: "sha256-y" },
+          "rules/coding.md": { integrity: "sha256-z" },
         },
       };
 
       expect(getLockedSkillNames(entry)).toEqual(["a", "b"]);
     });
 
-    it("should return empty array for entry with no skills", () => {
+    it("should deduplicate skills with nested file paths", () => {
       const entry = {
         resolvedRef: "sha",
-        skills: {},
+        files: {
+          "skills/my-skill/SKILL.md": { integrity: "sha256-x" },
+          "skills/my-skill/README.md": { integrity: "sha256-y" },
+        },
+      };
+
+      expect(getLockedSkillNames(entry)).toEqual(["my-skill"]);
+    });
+
+    it("should return empty array for entry with no skill files", () => {
+      const entry = {
+        resolvedRef: "sha",
+        files: {
+          "rules/coding.md": { integrity: "sha256-z" },
+        },
       };
 
       expect(getLockedSkillNames(entry)).toEqual([]);
+    });
+
+    it("should return empty array for entry with no files", () => {
+      const entry = {
+        resolvedRef: "sha",
+        files: {},
+      };
+
+      expect(getLockedSkillNames(entry)).toEqual([]);
+    });
+  });
+
+  describe("getLockedFiles", () => {
+    it("should return all files from a locked source entry", () => {
+      const files = {
+        "skills/a": { integrity: "sha256-x" },
+        "rules/coding.md": { integrity: "sha256-y" },
+      };
+      const entry = { resolvedRef: "sha", files };
+
+      expect(getLockedFiles(entry)).toEqual(files);
+    });
+  });
+
+  describe("computeFileIntegrity", () => {
+    it("should return sha256-prefixed hash", () => {
+      const result = computeFileIntegrity("hello world");
+      expect(result).toMatch(/^sha256-[0-9a-f]+$/);
+    });
+
+    it("should produce different hash for different content", () => {
+      expect(computeFileIntegrity("hello")).not.toBe(computeFileIntegrity("world"));
+    });
+
+    it("should produce same hash for same content", () => {
+      expect(computeFileIntegrity("test")).toBe(computeFileIntegrity("test"));
     });
   });
 });

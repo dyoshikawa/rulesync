@@ -85,7 +85,7 @@ vi.mock("./sources-lock.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./sources-lock.js")>();
   return {
     ...actual,
-    readLockFile: vi.fn().mockResolvedValue({ lockfileVersion: 1, sources: {} }),
+    readLockFile: vi.fn().mockResolvedValue({ lockfileVersion: 2, sources: {} }),
     writeLockFile: vi.fn().mockResolvedValue(undefined),
   };
 });
@@ -143,13 +143,13 @@ describe("resolveAndFetchSources", () => {
 
     // Pre-existing lock with previously fetched skills
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://github.com/org/repo": {
           resolvedRef: "locked-sha",
-          skills: {
-            "old-skill-a": { integrity: "sha256-aaa" },
-            "old-skill-b": { integrity: "sha256-bbb" },
+          files: {
+            "skills/old-skill-a": { integrity: "sha256-aaa" },
+            "skills/old-skill-b": { integrity: "sha256-bbb" },
           },
         },
       },
@@ -183,11 +183,11 @@ describe("resolveAndFetchSources", () => {
 
     // Lock has a source with resolved SHA and skills
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://github.com/org/repo": {
           resolvedRef: "locked-sha-123",
-          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          files: { "skills/cached-skill": { integrity: "sha256-cached" } },
         },
       },
     });
@@ -349,11 +349,11 @@ describe("resolveAndFetchSources", () => {
 
     // Pre-existing lock has a different SHA for the same source
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://github.com/org/repo": {
           resolvedRef: "old-locked-sha-should-be-ignored",
-          skills: { "my-skill": { integrity: "sha256-xxx" } },
+          files: { "skills/my-skill": { integrity: "sha256-xxx" } },
         },
       },
     });
@@ -437,15 +437,15 @@ describe("resolveAndFetchSources", () => {
 
     // Pre-existing lock has entries for both a removed and a current source
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "org/old-removed-repo": {
           resolvedRef: "old-sha",
-          skills: { "old-skill": { integrity: "sha256-old" } },
+          files: { "skills/old-skill": { integrity: "sha256-old" } },
         },
         "org/new-repo": {
           resolvedRef: "existing-sha",
-          skills: { "kept-skill": { integrity: "sha256-kept" } },
+          files: { "skills/kept-skill": { integrity: "sha256-kept" } },
         },
       },
     });
@@ -475,11 +475,11 @@ describe("resolveAndFetchSources", () => {
 
     // Lock stored under normalized key
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "org/repo": {
           resolvedRef: "sha-123",
-          skills: { "my-skill": { integrity: "sha256-xxx" } },
+          files: { "skills/my-skill": { integrity: "sha256-xxx" } },
         },
       },
     });
@@ -538,7 +538,7 @@ describe("resolveAndFetchSources", () => {
   it("should throw when frozen and source not in lockfile", async () => {
     const { readLockFile } = await import("./sources-lock.js");
 
-    vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+    vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 2, sources: {} });
 
     await expect(
       resolveAndFetchSources({
@@ -555,11 +555,11 @@ describe("resolveAndFetchSources", () => {
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "org/repo": {
           resolvedRef: "sha-123",
-          skills: { "my-skill": { integrity: "sha256-xxx" } },
+          files: { "skills/my-skill": { integrity: "sha256-xxx" } },
         },
       },
     });
@@ -583,11 +583,11 @@ describe("resolveAndFetchSources", () => {
     const { readLockFile, writeLockFile } = await import("./sources-lock.js");
 
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "org/repo": {
           resolvedRef: "sha-123",
-          skills: { "missing-skill": { integrity: "sha256-xxx" } },
+          files: { "skills/missing-skill": { integrity: "sha256-xxx" } },
         },
       },
     });
@@ -627,11 +627,11 @@ describe("resolveAndFetchSources", () => {
 
     // Lock has a source with a specific integrity hash
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "org/repo": {
           resolvedRef: "locked-sha-123",
-          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+          files: { "skills/my-skill": { integrity: "sha256-old-hash" } },
         },
       },
     });
@@ -668,13 +668,13 @@ describe("resolveAndFetchSources", () => {
 
     // Lock has two skills for this source
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "org/repo": {
           resolvedRef: "locked-sha",
-          skills: {
-            "local-skill": { integrity: "sha256-local" },
-            "remote-skill": { integrity: "sha256-remote" },
+          files: {
+            "skills/local-skill": { integrity: "sha256-local" },
+            "skills/remote-skill": { integrity: "sha256-remote" },
           },
         },
       },
@@ -724,9 +724,9 @@ describe("resolveAndFetchSources", () => {
     const sourceEntry = writtenLock.sources["org/repo"];
     expect(sourceEntry).toBeDefined();
     // local-skill should be preserved from locked entry (it was skipped due to local precedence)
-    expect(sourceEntry?.skills["local-skill"]).toBeDefined();
+    expect(sourceEntry?.files["skills/local-skill"]).toBeDefined();
     // remote-skill should have been re-fetched with new integrity
-    expect(sourceEntry?.skills["remote-skill"]).toBeDefined();
+    expect(sourceEntry?.files["skills/remote-skill"]).toBeDefined();
   });
 
   it("should fetch skills via git transport", async () => {
@@ -775,11 +775,11 @@ describe("resolveAndFetchSources", () => {
     const { readLockFile } = await import("./sources-lock.js");
 
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://dev.azure.com/org/_git/repo": {
           resolvedRef: "a".repeat(40),
-          skills: { "my-skill": { integrity: "sha256-x" } },
+          files: { "skills/my-skill": { integrity: "sha256-x" } },
         },
       },
     });
@@ -803,12 +803,12 @@ describe("resolveAndFetchSources", () => {
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://dev.azure.com/org/_git/repo": {
           resolvedRef: "b".repeat(40),
           requestedRef: "main",
-          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          files: { "skills/cached-skill": { integrity: "sha256-cached" } },
         },
       },
     });
@@ -900,12 +900,12 @@ describe("resolveAndFetchSources", () => {
     const lockedSha = "f".repeat(40);
 
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://dev.azure.com/org/_git/repo": {
           resolvedRef: lockedSha,
           requestedRef: "main",
-          skills: { "my-skill": { integrity: "sha256-original" } },
+          files: { "skills/my-skill": { integrity: "sha256-original" } },
         },
       },
     });
@@ -960,12 +960,12 @@ describe("resolveAndFetchSources", () => {
 
     // Lock has "old-skill" from a previous install
     vi.mocked(readLockFile).mockResolvedValue({
-      lockfileVersion: 1,
+      lockfileVersion: 2,
       sources: {
         "https://dev.azure.com/org/_git/repo": {
           resolvedRef: "a".repeat(40),
           requestedRef: "main",
-          skills: { "old-skill": { integrity: "sha256-old" } },
+          files: { "skills/old-skill": { integrity: "sha256-old" } },
         },
       },
     });
@@ -988,7 +988,7 @@ describe("resolveAndFetchSources", () => {
     expect(writeCalls).toHaveLength(1);
     const writtenLock = writeCalls[0]![0].lock;
     const sourceEntry = Object.values(writtenLock.sources)[0]!;
-    expect(sourceEntry.skills).toHaveProperty("new-skill");
-    expect(sourceEntry.skills).not.toHaveProperty("old-skill");
+    expect(sourceEntry.files).toHaveProperty("skills/new-skill");
+    expect(sourceEntry.files).not.toHaveProperty("skills/old-skill");
   });
 });
