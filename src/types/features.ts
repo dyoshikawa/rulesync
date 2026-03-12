@@ -14,6 +14,15 @@ export const ALL_FEATURES = [
 
 export const ALL_FEATURES_WITH_WILDCARD = [...ALL_FEATURES, "*"] as const;
 
+/**
+ * Directory-based features that can be installed from declarative sources.
+ * File-based features (mcp, hooks, ignore) require merge strategies and are not yet supported.
+ */
+export const ALL_DIRECTORY_FEATURES = ["rules", "subagents", "commands", "skills"] as const;
+export const ALL_DIRECTORY_FEATURES_WITH_WILDCARD = [...ALL_DIRECTORY_FEATURES, "*"] as const;
+
+export type DirectoryFeature = (typeof ALL_DIRECTORY_FEATURES)[number];
+
 export const FeatureSchema = z.enum(ALL_FEATURES);
 
 export type Feature = z.infer<typeof FeatureSchema>;

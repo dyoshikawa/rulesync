@@ -17,7 +17,36 @@ export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   ".curated",
 );
+export const RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH = join(
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+  ".remote",
+);
+export const RULESYNC_REMOTE_COMMANDS_RELATIVE_DIR_PATH = join(
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  ".remote",
+);
+export const RULESYNC_REMOTE_SUBAGENTS_RELATIVE_DIR_PATH = join(
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+  ".remote",
+);
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
+
+// Feature to remote directory mapping for install/sources
+// Skills use ".curated" for backward compat; new features use ".remote"
+export const FEATURE_REMOTE_DIR_PATHS: Record<string, string> = {
+  skills: RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  rules: RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH,
+  commands: RULESYNC_REMOTE_COMMANDS_RELATIVE_DIR_PATH,
+  subagents: RULESYNC_REMOTE_SUBAGENTS_RELATIVE_DIR_PATH,
+};
+
+// Feature to source directory name mapping (the directory name within the remote repo)
+export const FEATURE_SOURCE_DIR_NAMES: Record<string, string> = {
+  skills: "skills",
+  rules: "rules",
+  commands: "commands",
+  subagents: "subagents",
+};
 
 // File names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";

@@ -3,7 +3,10 @@ import { isAbsolute } from "node:path";
 import { minLength, optional, refine, z } from "zod/mini";
 
 import {
+  ALL_DIRECTORY_FEATURES,
+  ALL_DIRECTORY_FEATURES_WITH_WILDCARD,
   ALL_FEATURES,
+  type DirectoryFeature,
   Feature,
   Features,
   PerTargetFeatures,
@@ -20,12 +23,22 @@ import {
 import { hasControlCharacters } from "../utils/validation.js";
 
 /**
+ * Schema for the features field on a source entry.
+ * Only directory-based features (rules, commands, subagents, skills) are supported.
+ * File-based features (mcp, hooks, ignore) require merge strategies and are not yet supported.
+ * Defaults to ["skills"] when not specified for backward compatibility.
+ */
+export const SourceFeaturesSchema = z.array(z.enum(ALL_DIRECTORY_FEATURES_WITH_WILDCARD));
+export type SourceFeatures = z.infer<typeof SourceFeaturesSchema>;
+
+/**
  * Schema for a single source entry in the sources array.
- * Declares an external repository from which skills can be fetched.
+ * Declares an external repository from which rulesync objects can be fetched.
  */
 export const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
+  features: optional(SourceFeaturesSchema),
   transport: optional(z.enum(["github", "git"])),
   ref: optional(
     z.string().check(
@@ -43,6 +56,22 @@ export const SourceEntrySchema = z.object({
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
+/**
+ * Resolve the effective directory features for a source entry.
+ * - Defaults to ["skills"] when not specified (backward compatibility)
+ * - Expands "*" to all directory-based features
+ */
+export function resolveSourceFeatures(entry: Pick<SourceEntry, "features">): DirectoryFeature[] {
+  const features = entry.features;
+  if (!features || features.length === 0) {
+    return ["skills"];
+  }
+  if (features.includes("*")) {
+    return [...ALL_DIRECTORY_FEATURES];
+  }
+  return features.filter((f): f is DirectoryFeature => f !== "*");
+}
+
 export const ConfigParamsSchema = z.object({
   baseDirs: z.array(z.string()),
   targets: RulesyncTargetsSchema,
@@ -57,7 +86,7 @@ export const ConfigParamsSchema = z.object({
   simulateSkills: optional(z.boolean()),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
-  // Declarative skill sources
+  // Declarative sources for remote rulesync objects
   sources: optional(z.array(SourceEntrySchema)),
 });
 export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
