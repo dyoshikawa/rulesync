@@ -30,7 +30,7 @@ export async function installCommand(options: InstallCommandOptions): Promise<vo
     return;
   }
 
-  logger.debug(`Installing skills from ${sources.length} source(s)...`);
+  logger.debug(`Installing from ${sources.length} source(s)...`);
 
   const result = await resolveAndFetchSources({
     sources,
@@ -42,11 +42,11 @@ export async function installCommand(options: InstallCommandOptions): Promise<vo
     },
   });
 
-  if (result.fetchedSkillCount > 0) {
+  if (result.fetchedFileCount > 0) {
     logger.success(
-      `Installed ${result.fetchedSkillCount} skill(s) from ${result.sourcesProcessed} source(s).`,
+      `Installed ${result.fetchedFileCount} file(s) from ${result.sourcesProcessed} source(s).`,
     );
   } else {
-    logger.success(`All skills up to date (${result.sourcesProcessed} source(s) checked).`);
+    logger.success(`All sources up to date (${result.sourcesProcessed} source(s) checked).`);
   }
 }

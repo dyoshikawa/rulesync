@@ -37,7 +37,7 @@ describe("installCommand", () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
-        fetchedSkillCount: 3,
+        fetchedFileCount: 3,
         sourcesProcessed: 1,
       });
 
@@ -52,20 +52,20 @@ describe("installCommand", () => {
           token: undefined,
         },
       });
-      expect(logger.success).toHaveBeenCalledWith("Installed 3 skill(s) from 1 source(s).");
+      expect(logger.success).toHaveBeenCalledWith("Installed 3 file(s) from 1 source(s).");
     });
 
     it("should report all up to date when no skills fetched", async () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
-        fetchedSkillCount: 0,
+        fetchedFileCount: 0,
         sourcesProcessed: 1,
       });
 
       await installCommand({});
 
-      expect(logger.success).toHaveBeenCalledWith("All skills up to date (1 source(s) checked).");
+      expect(logger.success).toHaveBeenCalledWith("All sources up to date (1 source(s) checked).");
     });
 
     it("should warn and return early when no sources defined", async () => {
@@ -85,7 +85,7 @@ describe("installCommand", () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
-        fetchedSkillCount: 0,
+        fetchedFileCount: 0,
         sourcesProcessed: 1,
       });
 
@@ -102,7 +102,7 @@ describe("installCommand", () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
-        fetchedSkillCount: 0,
+        fetchedFileCount: 0,
         sourcesProcessed: 1,
       });
 
@@ -119,7 +119,7 @@ describe("installCommand", () => {
       const sources: SourceEntry[] = [{ source: "owner/repo" }];
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
-        fetchedSkillCount: 0,
+        fetchedFileCount: 0,
         sourcesProcessed: 1,
       });
 

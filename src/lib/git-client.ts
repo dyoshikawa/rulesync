@@ -177,6 +177,73 @@ export async function fetchSkillFiles(params: {
   }
 }
 
+/**
+ * Clone a repo at the given ref and return all files under the specified paths.
+ * Used by the install command to populate the unified source cache.
+ * Accepts multiple paths for sparse checkout to fetch all feature directories at once.
+ */
+export async function fetchSourceCacheFiles(params: {
+  url: string;
+  ref: string;
+  paths: string[];
+  basePath?: string;
+}): Promise<Array<{ relativePath: string; content: string; size: number }>> {
+  const { url, ref, paths, basePath } = params;
+  if (paths.length === 0) return [];
+
+  validateGitUrl(url);
+  validateRef(ref);
+  for (const p of paths) {
+    if (p.split(/[/\\]/).includes("..") || isAbsolute(p)) {
+      throw new GitClientError(`Invalid path "${p}": must be a relative path without ".."`);
+    }
+    const ctrl = findControlCharacter(p);
+    if (ctrl) {
+      throw new GitClientError(
+        `Path contains control character ${ctrl.hex} at position ${ctrl.position}`,
+      );
+    }
+  }
+
+  await checkGitAvailable();
+  const tmpDir = await createTempDirectory("rulesync-git-");
+  try {
+    await execFileAsync(
+      "git",
+      [
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        ref,
+        "--no-checkout",
+        "--filter=blob:none",
+        "--",
+        url,
+        tmpDir,
+      ],
+      { timeout: GIT_TIMEOUT_MS },
+    );
+
+    // Sparse checkout all requested paths at once
+    const sparseArgs = paths.map((p) => (basePath ? join(basePath, p) : p));
+    await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", ...sparseArgs], {
+      timeout: GIT_TIMEOUT_MS,
+    });
+    await execFileAsync("git", ["-C", tmpDir, "checkout"], { timeout: GIT_TIMEOUT_MS });
+
+    // Walk from the base path (or repo root) and collect all files
+    const walkRoot = basePath ? join(tmpDir, basePath) : tmpDir;
+    if (!(await directoryExists(walkRoot))) return [];
+    return await walkDirectory(walkRoot, walkRoot);
+  } catch (error) {
+    if (error instanceof GitClientError) throw error;
+    throw new GitClientError(`Failed to fetch source cache files from ${url}`, error);
+  } finally {
+    await removeTempDirectory(tmpDir);
+  }
+}
+
 const MAX_WALK_DEPTH = 20;
 const MAX_TOTAL_FILES = 10_000;
 const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100 MB
