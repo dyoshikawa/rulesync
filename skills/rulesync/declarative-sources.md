@@ -43,14 +43,14 @@ Add a `sources` array to your `rulesync.jsonc`:
 
 Each entry in `sources` accepts:
 
-| Property    | Type       | Description                                                                                                                      |
-| ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.               |
-| `features`  | `string[]` | Features to fetch: `"skills"`, `"rules"`, `"commands"`, `"subagents"`, or `"*"` for all. Defaults to `["skills"]`.               |
-| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched. Only applies when `features` includes `"skills"`.     |
-| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                               |
-| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.  |
-| `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. For GitHub transport, use the `:path` source syntax. |
+| Property    | Type       | Description                                                                                                                                                                                                                                                                                      |
+| ----------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.                                                                                                                                                                               |
+| `features`  | `string[]` | Features to fetch: `"skills"`, `"rules"`, `"commands"`, `"subagents"`, or `"*"` for all. Defaults to `["skills"]`.                                                                                                                                                                               |
+| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched. Only applies when `features` includes `"skills"`.                                                                                                                                                                     |
+| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                                                                                                                                                                                               |
+| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.                                                                                                                                                                  |
+| `path`      | `string`   | Base path within the repository. When `features` is set, feature directories (e.g. `skills/`, `rules/`) are resolved under this path. Without `features`, treated as the skills directory directly. Defaults to the feature directory name. For GitHub transport, use the `:path` source syntax. |
 
 ## How It Works
 

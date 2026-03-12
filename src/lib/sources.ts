@@ -11,7 +11,7 @@ import {
   FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
 } from "../constants/rulesync-paths.js";
-import type { DirectoryFeature } from "../types/features.js";
+import { ALL_DIRECTORY_FEATURES, type DirectoryFeature } from "../types/features.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -223,16 +223,26 @@ type FetchResult = {
  */
 async function getLocalItemNames(baseDir: string): Promise<Record<string, Set<string>>> {
   const result: Record<string, Set<string>> = {};
-  for (const [feature, localDir] of Object.entries(FEATURE_LOCAL_DIR_PATHS)) {
+  for (const feature of ALL_DIRECTORY_FEATURES) {
+    const localDir = FEATURE_LOCAL_DIR_PATHS[feature];
     const fullDir = join(baseDir, localDir);
     const names = new Set<string>();
     if (await directoryExists(fullDir)) {
       const remoteDirName = FEATURE_REMOTE_SUBDIR_NAMES[feature];
-      const dirPaths = await findFilesByGlobs(join(fullDir, "*"), { type: "dir" });
-      for (const dirPath of dirPaths) {
-        const name = basename(dirPath);
-        if (name !== remoteDirName) {
-          names.add(name);
+      if (SUBDIRECTORY_ITEM_FEATURES.has(feature)) {
+        // Skills: each item is a subdirectory
+        const dirPaths = await findFilesByGlobs(join(fullDir, "*"), { type: "dir" });
+        for (const dirPath of dirPaths) {
+          const name = basename(dirPath);
+          if (name !== remoteDirName) {
+            names.add(name);
+          }
+        }
+      } else {
+        // File-based features (rules, commands, subagents): each item is a .md file
+        const filePaths = await findFilesByGlobs(join(fullDir, "*.md"));
+        for (const filePath of filePaths) {
+          names.add(basename(filePath));
         }
       }
     }
@@ -494,11 +504,7 @@ function buildLockUpdate(params: {
     totalCount += names.length;
 
     // Set the feature's items on the locked entry
-    if (feature === "skills") {
-      lockedEntry.skills = featureItems;
-    } else {
-      lockedEntry[feature] = featureItems;
-    }
+    lockedEntry[feature] = featureItems;
 
     if (names.length > 0) {
       logger.info(
@@ -511,6 +517,15 @@ function buildLockUpdate(params: {
   return { updatedLock, fetchedNames, totalCount };
 }
 
+/** Look up a feature key in a map, throwing if missing. */
+function requireFeaturePath(map: Record<string, string>, feature: string, mapName: string): string {
+  const value = map[feature];
+  if (value === undefined) {
+    throw new Error(`Unknown feature "${feature}" in ${mapName}`);
+  }
+  return value;
+}
+
 /**
  * Resolve the remote directory path for a feature within a source entry.
  * When the source has explicit features, path is a base directory.
@@ -521,7 +536,11 @@ function resolveRemoteFeaturePath(
   sourceEntry: SourceEntry,
   hasExplicitFeatures: boolean,
 ): string {
-  const sourceDirName = FEATURE_SOURCE_DIR_NAMES[feature] ?? feature;
+  const sourceDirName = requireFeaturePath(
+    FEATURE_SOURCE_DIR_NAMES,
+    feature,
+    "FEATURE_SOURCE_DIR_NAMES",
+  );
   if (hasExplicitFeatures) {
     // Features explicitly set: path is a base, feature dir is underneath
     const basePath = sourceEntry.path ?? "";
@@ -584,7 +603,10 @@ async function fetchSource(params: {
   if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
     let allExist = true;
     for (const feature of features) {
-      const remoteDir = join(baseDir, FEATURE_REMOTE_DIR_PATHS[feature] ?? "");
+      const remoteDir = join(
+        baseDir,
+        requireFeaturePath(FEATURE_REMOTE_DIR_PATHS, feature, "FEATURE_REMOTE_DIR_PATHS"),
+      );
       const lockedNames = getLockedFeatureNames(locked, feature);
       if (!(await checkLockedItemsExist(remoteDir, lockedNames, feature))) {
         allExist = false;
@@ -608,7 +630,10 @@ async function fetchSource(params: {
   const perFeatureRemoteNames: Record<string, string[]> = {};
 
   for (const feature of features) {
-    const remoteDir = join(baseDir, FEATURE_REMOTE_DIR_PATHS[feature] ?? "");
+    const remoteDir = join(
+      baseDir,
+      requireFeaturePath(FEATURE_REMOTE_DIR_PATHS, feature, "FEATURE_REMOTE_DIR_PATHS"),
+    );
     const featureLocalNames = localNames[feature] ?? new Set<string>();
     const featureAlreadyFetched = allFetchedNames[feature] ?? new Set<string>();
     const lockedItemNames = locked ? getLockedFeatureNames(locked, feature) : [];
@@ -721,8 +746,6 @@ async function fetchSource(params: {
           continue;
         }
 
-        if (fileEntry.name.includes("..") || fileEntry.name.includes("/")) continue;
-
         const content = await withSemaphore(semaphore, () =>
           client.getFileContent(parsed.owner, parsed.repo, fileEntry.path, ref),
         );
@@ -807,7 +830,10 @@ async function fetchSourceViaGit(params: {
   if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
     let allExist = true;
     for (const feature of features) {
-      const remoteDir = join(baseDir, FEATURE_REMOTE_DIR_PATHS[feature] ?? "");
+      const remoteDir = join(
+        baseDir,
+        requireFeaturePath(FEATURE_REMOTE_DIR_PATHS, feature, "FEATURE_REMOTE_DIR_PATHS"),
+      );
       const lockedNames = getLockedFeatureNames(locked, feature);
       if (!(await checkLockedItemsExist(remoteDir, lockedNames, feature))) {
         allExist = false;
@@ -858,7 +884,10 @@ async function fetchSourceViaGit(params: {
 
   for (const feature of features) {
     const featurePath = featurePathMap.get(feature) ?? "";
-    const remoteDir = join(baseDir, FEATURE_REMOTE_DIR_PATHS[feature] ?? "");
+    const remoteDir = join(
+      baseDir,
+      requireFeaturePath(FEATURE_REMOTE_DIR_PATHS, feature, "FEATURE_REMOTE_DIR_PATHS"),
+    );
     const featureLocalNames = localNames[feature] ?? new Set<string>();
     const featureAlreadyFetched = allFetchedNames[feature] ?? new Set<string>();
     const lockedItemNames = locked ? getLockedFeatureNames(locked, feature) : [];

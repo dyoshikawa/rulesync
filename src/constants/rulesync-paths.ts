@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import type { DirectoryFeature } from "../types/features.js";
+
 export const RULESYNC_CONFIG_RELATIVE_FILE_PATH = "rulesync.jsonc";
 export const RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH = "rulesync.local.jsonc";
 export const RULESYNC_RELATIVE_DIR_PATH = ".rulesync";
@@ -32,7 +34,7 @@ export const RULESYNC_REMOTE_SUBAGENTS_RELATIVE_DIR_PATH = join(
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 
 // Feature to local directory mapping (the .rulesync/<feature> directory)
-export const FEATURE_LOCAL_DIR_PATHS: Record<string, string> = {
+export const FEATURE_LOCAL_DIR_PATHS: Record<DirectoryFeature, string> = {
   skills: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   rules: RULESYNC_RULES_RELATIVE_DIR_PATH,
   commands: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -40,7 +42,7 @@ export const FEATURE_LOCAL_DIR_PATHS: Record<string, string> = {
 };
 
 // Hidden subdirectory names used for remote items within each feature directory
-export const FEATURE_REMOTE_SUBDIR_NAMES: Record<string, string> = {
+export const FEATURE_REMOTE_SUBDIR_NAMES: Record<DirectoryFeature, string> = {
   skills: ".curated",
   rules: ".remote",
   commands: ".remote",
@@ -49,7 +51,7 @@ export const FEATURE_REMOTE_SUBDIR_NAMES: Record<string, string> = {
 
 // Feature to remote directory mapping for install/sources
 // Skills use ".curated" for backward compat; new features use ".remote"
-export const FEATURE_REMOTE_DIR_PATHS: Record<string, string> = {
+export const FEATURE_REMOTE_DIR_PATHS: Record<DirectoryFeature, string> = {
   skills: RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   rules: RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH,
   commands: RULESYNC_REMOTE_COMMANDS_RELATIVE_DIR_PATH,
@@ -57,7 +59,7 @@ export const FEATURE_REMOTE_DIR_PATHS: Record<string, string> = {
 };
 
 // Feature to source directory name mapping (the directory name within the remote repo)
-export const FEATURE_SOURCE_DIR_NAMES: Record<string, string> = {
+export const FEATURE_SOURCE_DIR_NAMES: Record<DirectoryFeature, string> = {
   skills: "skills",
   rules: "rules",
   commands: "commands",
