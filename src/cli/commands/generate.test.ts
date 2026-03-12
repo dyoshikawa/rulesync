@@ -51,6 +51,7 @@ describe("generateCommand", () => {
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
+      getSources: vi.fn().mockReturnValue([]),
       getDryRun: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
@@ -210,6 +211,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -229,6 +231,7 @@ describe("generateCommand", () => {
         simulateSubagents: true,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -271,6 +274,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
@@ -281,6 +285,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -310,6 +315,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -376,6 +382,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -417,6 +424,7 @@ describe("generateCommand", () => {
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -431,6 +439,7 @@ describe("generateCommand", () => {
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
+        sourceCaches: [],
         dryRun: false,
       });
 
@@ -476,6 +485,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -518,6 +528,7 @@ describe("generateCommand", () => {
           baseDir: ".",
           toolTarget: "claudecode",
           global: true,
+          sourceCaches: [],
           dryRun: false,
         });
       });
@@ -538,6 +549,7 @@ describe("generateCommand", () => {
           baseDir: ".",
           toolTarget: "claudecode",
           global: true,
+          sourceCaches: [],
           dryRun: false,
         });
       });
@@ -560,6 +572,7 @@ describe("generateCommand", () => {
           baseDir: ".",
           toolTarget: "claudecode",
           global: true,
+          sourceCaches: [],
           dryRun: false,
         });
       });
@@ -754,6 +767,7 @@ describe("generateCommand", () => {
         simulateSubagents: true,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -801,6 +815,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
@@ -811,6 +826,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledWith({
@@ -821,6 +837,7 @@ describe("generateCommand", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
       expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
@@ -847,6 +864,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: true,
+        sourceCaches: [],
         dryRun: false,
       });
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith(
@@ -875,6 +893,7 @@ describe("generateCommand", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: true,
+        sourceCaches: [],
         dryRun: false,
       });
     });

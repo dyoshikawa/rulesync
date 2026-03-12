@@ -1,6 +1,12 @@
 import { z } from "zod/mini";
 
-import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_AIIGNORE_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
+import { mergeAiignore } from "../../lib/merge-strategies.js";
+import { type SourceCacheEntry, loadAndMergeTextFeature } from "../../lib/source-cache.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -91,16 +97,19 @@ const defaultGetFactory: GetFactory = (target) => {
 export class IgnoreProcessor extends FeatureProcessor {
   private readonly toolTarget: IgnoreProcessorToolTarget;
   private readonly getFactory: GetFactory;
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     getFactory = defaultGetFactory,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun });
@@ -112,6 +121,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.getFactory = getFactory;
+    this.sourceCaches = sourceCaches;
   }
 
   async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {
@@ -124,14 +134,40 @@ export class IgnoreProcessor extends FeatureProcessor {
    * Load and parse rulesync ignore files from .rulesync/ignore/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    // Load local .aiignore
+    let localIgnore: RulesyncIgnore | undefined;
     try {
-      return [await RulesyncIgnore.fromFile()];
-    } catch (error) {
-      logger.error(
-        `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
-      );
-      return [];
+      localIgnore = await RulesyncIgnore.fromFile();
+    } catch {
+      // No local .aiignore is fine
     }
+
+    // Merge with source caches
+    const localContent = localIgnore ? localIgnore.getFileContent() : undefined;
+    const merged = await loadAndMergeTextFeature({
+      sources: this.sourceCaches,
+      fileName: RULESYNC_AIIGNORE_FILE_NAME,
+      localContent,
+      mergeFn: mergeAiignore,
+    });
+
+    if (!merged) {
+      if (!localIgnore) return [];
+      return [localIgnore];
+    }
+
+    if (localIgnore && merged === localContent) {
+      return [localIgnore];
+    }
+
+    return [
+      new RulesyncIgnore({
+        baseDir: process.cwd(),
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
+        fileContent: merged,
+      }),
+    ];
   }
 
   /**

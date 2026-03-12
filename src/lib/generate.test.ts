@@ -74,6 +74,7 @@ describe("generate", () => {
     getSimulateCommands: ReturnType<typeof vi.fn>;
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
+    getSources: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
   };
 
@@ -89,6 +90,7 @@ describe("generate", () => {
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
+      getSources: vi.fn().mockReturnValue([]),
       isPreviewMode: vi.fn().mockReturnValue(false),
     };
 
@@ -166,6 +168,7 @@ describe("generate", () => {
         simulateSubagents: false,
         simulateSkills: false,
         skills: [],
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -347,6 +350,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -372,6 +376,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -409,6 +414,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });
@@ -457,6 +463,7 @@ describe("generate", () => {
         baseDir: ".",
         toolTarget: "claudecode",
         global: false,
+        sourceCaches: [],
         dryRun: false,
       });
     });

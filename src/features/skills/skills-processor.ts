@@ -1,8 +1,9 @@
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { z } from "zod/mini";
 
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { type SourceCacheEntry, loadDirItemsFromSources } from "../../lib/source-cache.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -251,18 +252,21 @@ export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun, avoidBlockScalars: toolTarget === "cursor" });
@@ -275,6 +279,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.getFactory = getFactory;
+    this.sourceCaches = sourceCaches;
   }
 
   async convertRulesyncDirsToToolDirs(rulesyncDirs: AiDir[]): Promise<AiDir[]> {
@@ -364,9 +369,31 @@ export class SkillsProcessor extends DirFeatureProcessor {
       );
     }
 
-    const allSkills = [...localSkills, ...curatedSkills];
+    // Load skills from source caches
+    const allKnownNames = new Set([
+      ...localSkillNames,
+      ...curatedSkills.map((s) => s.getDirName()),
+    ]);
+    const sourceItems = await loadDirItemsFromSources({
+      sources: this.sourceCaches,
+      featureDirName: "skills",
+      localNames: allKnownNames,
+    });
+
+    const sourceSkills = await Promise.all(
+      sourceItems.map((item) =>
+        RulesyncSkill.fromDir({
+          baseDir: dirname(dirname(item.path)),
+          relativeDirPath: "skills",
+          dirName: item.name,
+          global: this.global,
+        }),
+      ),
+    );
+
+    const allSkills = [...localSkills, ...curatedSkills, ...sourceSkills];
     logger.debug(
-      `Successfully loaded ${allSkills.length} rulesync skills (${localSkills.length} local, ${curatedSkills.length} curated)`,
+      `Successfully loaded ${allSkills.length} rulesync skills (${localSkills.length} local, ${curatedSkills.length} curated, ${sourceSkills.length} from sources)`,
     );
     return allSkills;
   }

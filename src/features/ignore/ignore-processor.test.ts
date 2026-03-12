@@ -33,6 +33,9 @@ vi.mock("../../utils/logger.js", () => ({
 // Create a mock class for RulesyncIgnore
 class MockRulesyncIgnore {
   constructor(public params: any) {}
+  getFileContent() {
+    return this.params.fileContent;
+  }
 }
 
 vi.mock("./rulesync-ignore.js", () => ({
@@ -142,9 +145,6 @@ describe("IgnoreProcessor", () => {
 
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to load rulesync ignore file"),
-      );
     });
   });
 

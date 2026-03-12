@@ -1,6 +1,11 @@
 import { z } from "zod/mini";
 
-import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
+import { mergeHooks } from "../../lib/merge-strategies.js";
+import { type SourceCacheEntry, loadAndMergeJsonFeature } from "../../lib/source-cache.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   CLAUDE_HOOK_EVENTS,
@@ -164,16 +169,19 @@ const hooksProcessorToolTargetsGlobalImportable: ToolTarget[] = [...toolHooksFac
 export class HooksProcessor extends FeatureProcessor {
   private readonly toolTarget: HooksProcessorToolTarget;
   private readonly global: boolean;
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun });
@@ -185,22 +193,48 @@ export class HooksProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.sourceCaches = sourceCaches;
   }
 
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    // Load local hooks.json
+    let localHooks: RulesyncHooks | undefined;
     try {
-      return [
-        await RulesyncHooks.fromFile({
-          baseDir: process.cwd(),
-          validate: true,
-        }),
-      ];
-    } catch (error) {
-      logger.error(
-        `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
-      );
-      return [];
+      localHooks = await RulesyncHooks.fromFile({
+        baseDir: process.cwd(),
+        validate: true,
+      });
+    } catch {
+      // No local hooks.json is fine
     }
+
+    // Merge with source caches
+    const localContent = localHooks ? localHooks.getJson() : undefined;
+    const merged = await loadAndMergeJsonFeature({
+      sources: this.sourceCaches,
+      fileName: "hooks.json",
+      localContent,
+      mergeFn: mergeHooks,
+    });
+
+    if (!merged) {
+      if (!localHooks) return [];
+      return [localHooks];
+    }
+
+    if (localHooks && merged === localContent) {
+      return [localHooks];
+    }
+
+    return [
+      new RulesyncHooks({
+        baseDir: process.cwd(),
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(merged, null, 2),
+        validate: true,
+      }),
+    ];
   }
 
   async loadToolFiles({ forDeletion = false }: { forDeletion?: boolean } = {}): Promise<

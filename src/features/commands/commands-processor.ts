@@ -2,12 +2,14 @@ import { basename, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { type SourceCacheEntry, loadFileItemsFromSources } from "../../lib/source-cache.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
+import { checkPathTraversal, findFilesByGlobs, readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCommand } from "./antigravity-command.js";
@@ -23,7 +25,7 @@ import { KiloCommand } from "./kilo-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
-import { RulesyncCommand } from "./rulesync-command.js";
+import { RulesyncCommand, RulesyncCommandFrontmatterSchema } from "./rulesync-command.js";
 import {
   ToolCommand,
   ToolCommandForDeletionParams,
@@ -325,18 +327,21 @@ export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun });
@@ -349,6 +354,7 @@ export class CommandsProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.getFactory = getFactory;
+    this.sourceCaches = sourceCaches;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -427,6 +433,45 @@ export class CommandsProcessor extends FeatureProcessor {
         RulesyncCommand.fromFile({ relativeFilePath: this.safeRelativePath(basePath, path) }),
       ),
     );
+
+    // Load commands from source caches
+    const localCommandNames = new Set(
+      rulesyncCommands.map((c) => basename(c.getRelativeFilePath())),
+    );
+    const sourceItems = await loadFileItemsFromSources({
+      sources: this.sourceCaches,
+      featureDirName: "commands",
+      globPattern: "**/*.md",
+      localNames: localCommandNames,
+    });
+
+    for (const item of sourceItems) {
+      try {
+        const content = await readFileContent(item.path);
+        const { frontmatter, body } = parseFrontmatter(content, item.path);
+        const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
+        if (!result.success) {
+          logger.warn(
+            `Skipping source command "${item.name}" from ${item.sourceKey}: invalid frontmatter.`,
+          );
+          continue;
+        }
+        rulesyncCommands.push(
+          new RulesyncCommand({
+            baseDir: process.cwd(),
+            relativeDirPath: basePath,
+            relativeFilePath: item.name,
+            frontmatter: { ...frontmatter, ...result.data },
+            body: body.trim(),
+            fileContent: content,
+          }),
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to load source command "${item.name}" from ${item.sourceKey}: ${formatError(error)}`,
+        );
+      }
+    }
 
     logger.debug(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
     return rulesyncCommands;

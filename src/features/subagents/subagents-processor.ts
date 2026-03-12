@@ -2,12 +2,19 @@ import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { type SourceCacheEntry, loadFileItemsFromSources } from "../../lib/source-cache.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import {
+  directoryExists,
+  findFilesByGlobs,
+  listDirectoryFiles,
+  readFileContent,
+} from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -20,7 +27,7 @@ import { JunieSubagent } from "./junie-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
-import { RulesyncSubagent } from "./rulesync-subagent.js";
+import { RulesyncSubagent, RulesyncSubagentFrontmatterSchema } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
@@ -204,18 +211,21 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun });
@@ -228,6 +238,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.getFactory = getFactory;
+    this.sourceCaches = sourceCaches;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -321,9 +332,45 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
     }
 
-    if (rulesyncSubagents.length === 0) {
+    if (rulesyncSubagents.length === 0 && this.sourceCaches.length === 0) {
       logger.debug(`No valid subagents found in ${subagentsDir}`);
       return [];
+    }
+
+    // Load subagents from source caches
+    const localNames = new Set(rulesyncSubagents.map((s) => basename(s.getRelativeFilePath())));
+    const sourceItems = await loadFileItemsFromSources({
+      sources: this.sourceCaches,
+      featureDirName: "subagents",
+      globPattern: "*.md",
+      localNames,
+    });
+
+    for (const item of sourceItems) {
+      try {
+        const content = await readFileContent(item.path);
+        const { frontmatter, body } = parseFrontmatter(content, item.path);
+        const result = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
+        if (!result.success) {
+          logger.warn(
+            `Skipping source subagent "${item.name}" from ${item.sourceKey}: invalid frontmatter.`,
+          );
+          continue;
+        }
+        rulesyncSubagents.push(
+          new RulesyncSubagent({
+            baseDir: process.cwd(),
+            relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+            relativeFilePath: item.name,
+            frontmatter: { ...frontmatter, ...result.data },
+            body: body.trim(),
+          }),
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to load source subagent "${item.name}" from ${item.sourceKey}: ${formatError(error)}`,
+        );
+      }
     }
 
     logger.debug(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);

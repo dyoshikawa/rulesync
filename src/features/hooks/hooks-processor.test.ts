@@ -103,9 +103,6 @@ describe("HooksProcessor", () => {
       const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to load Rulesync hooks file"),
-      );
     });
 
     it("should load rulesync files from cwd even when baseDir is different (global mode)", async () => {

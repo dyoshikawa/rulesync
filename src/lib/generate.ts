@@ -22,6 +22,7 @@ import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
+import { type SourceCacheEntry, getOrderedSourceCaches } from "./source-cache.js";
 
 export type GenerateResult = {
   rulesCount: number;
@@ -138,13 +139,23 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
 export async function generate(params: { config: Config }): Promise<GenerateResult> {
   const { config } = params;
 
-  const ignoreResult = await generateIgnoreCore({ config });
-  const mcpResult = await generateMcpCore({ config });
-  const commandsResult = await generateCommandsCore({ config });
-  const subagentsResult = await generateSubagentsCore({ config });
-  const skillsResult = await generateSkillsCore({ config });
-  const hooksResult = await generateHooksCore({ config });
-  const rulesResult = await generateRulesCore({ config, skills: skillsResult.skills });
+  // Resolve source caches once for all processors
+  const sourceCaches = await getOrderedSourceCaches({
+    baseDir: process.cwd(),
+    sources: config.getSources(),
+  });
+
+  const ignoreResult = await generateIgnoreCore({ config, sourceCaches });
+  const mcpResult = await generateMcpCore({ config, sourceCaches });
+  const commandsResult = await generateCommandsCore({ config, sourceCaches });
+  const subagentsResult = await generateSubagentsCore({ config, sourceCaches });
+  const skillsResult = await generateSkillsCore({ config, sourceCaches });
+  const hooksResult = await generateHooksCore({ config, sourceCaches });
+  const rulesResult = await generateRulesCore({
+    config,
+    sourceCaches,
+    skills: skillsResult.skills,
+  });
 
   const hasDiff =
     ignoreResult.hasDiff ||
@@ -177,9 +188,10 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
 
 async function generateRulesCore(params: {
   config: Config;
+  sourceCaches: SourceCacheEntry[];
   skills?: RulesyncSkill[];
 }): Promise<FeatureGenerateResult> {
-  const { config, skills } = params;
+  const { config, sourceCaches, skills } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -204,6 +216,7 @@ async function generateRulesCore(params: {
         simulateSubagents: config.getSimulateSubagents(),
         simulateSkills: config.getSimulateSkills(),
         skills: skills,
+        sourceCaches,
         dryRun: config.isPreviewMode(),
       });
 
@@ -225,8 +238,11 @@ async function generateRulesCore(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateIgnoreCore(params: {
+  config: Config;
+  sourceCaches: SourceCacheEntry[];
+}): Promise<FeatureGenerateResult> {
+  const { config, sourceCaches } = params;
 
   const supportedIgnoreTargets = IgnoreProcessor.getToolTargets();
   warnUnsupportedTargets({
@@ -254,6 +270,7 @@ async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGe
         const processor = new IgnoreProcessor({
           baseDir: baseDir === process.cwd() ? "." : baseDir,
           toolTarget,
+          sourceCaches,
           dryRun: config.isPreviewMode(),
         });
 
@@ -289,8 +306,11 @@ async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGe
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateMcpCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateMcpCore(params: {
+  config: Config;
+  sourceCaches: SourceCacheEntry[];
+}): Promise<FeatureGenerateResult> {
+  const { config, sourceCaches } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -311,6 +331,7 @@ async function generateMcpCore(params: { config: Config }): Promise<FeatureGener
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
+        sourceCaches,
         dryRun: config.isPreviewMode(),
       });
 
@@ -332,8 +353,11 @@ async function generateMcpCore(params: { config: Config }): Promise<FeatureGener
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateCommandsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateCommandsCore(params: {
+  config: Config;
+  sourceCaches: SourceCacheEntry[];
+}): Promise<FeatureGenerateResult> {
+  const { config, sourceCaches } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -361,6 +385,7 @@ async function generateCommandsCore(params: { config: Config }): Promise<Feature
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
+        sourceCaches,
         dryRun: config.isPreviewMode(),
       });
 
@@ -382,8 +407,11 @@ async function generateCommandsCore(params: { config: Config }): Promise<Feature
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateSubagentsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateSubagentsCore(params: {
+  config: Config;
+  sourceCaches: SourceCacheEntry[];
+}): Promise<FeatureGenerateResult> {
+  const { config, sourceCaches } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -411,6 +439,7 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
+        sourceCaches,
         dryRun: config.isPreviewMode(),
       });
 
@@ -434,8 +463,9 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
 
 async function generateSkillsCore(params: {
   config: Config;
+  sourceCaches: SourceCacheEntry[];
 }): Promise<FeatureGenerateResult & { skills: RulesyncSkill[] }> {
-  const { config } = params;
+  const { config, sourceCaches } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -464,6 +494,7 @@ async function generateSkillsCore(params: {
         baseDir: baseDir,
         toolTarget: toolTarget,
         global: config.getGlobal(),
+        sourceCaches,
         dryRun: config.isPreviewMode(),
       });
 
@@ -492,8 +523,11 @@ async function generateSkillsCore(params: {
   return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff };
 }
 
-async function generateHooksCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateHooksCore(params: {
+  config: Config;
+  sourceCaches: SourceCacheEntry[];
+}): Promise<FeatureGenerateResult> {
+  const { config, sourceCaches } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -514,6 +548,7 @@ async function generateHooksCore(params: { config: Config }): Promise<FeatureGen
         baseDir,
         toolTarget,
         global: config.getGlobal(),
+        sourceCaches,
         dryRun: config.isPreviewMode(),
       });
 

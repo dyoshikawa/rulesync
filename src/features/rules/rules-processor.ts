@@ -9,12 +9,14 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { type SourceCacheEntry, loadFileItemsFromSources } from "../../lib/source-cache.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
+import { checkPathTraversal, findFilesByGlobs, readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
@@ -48,7 +50,7 @@ import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
-import { RulesyncRule } from "./rulesync-rule.js";
+import { RulesyncRule, RulesyncRuleFrontmatterSchema } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
@@ -471,6 +473,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
@@ -481,6 +484,7 @@ export class RulesProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     skills,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
@@ -491,6 +495,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSkills?: boolean;
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun });
@@ -507,6 +512,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateSkills = simulateSkills;
     this.getFactory = getFactory;
     this.skills = skills;
+    this.sourceCaches = sourceCaches;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -769,6 +775,44 @@ export class RulesProcessor extends FeatureProcessor {
         });
       }),
     );
+
+    // Load rules from source caches
+    const localRuleNames = new Set(rulesyncRules.map((r) => basename(r.getRelativeFilePath())));
+    const sourceItems = await loadFileItemsFromSources({
+      sources: this.sourceCaches,
+      featureDirName: "rules",
+      globPattern: "**/*.md",
+      localNames: localRuleNames,
+    });
+
+    for (const item of sourceItems) {
+      try {
+        const content = await readFileContent(item.path);
+        const { frontmatter, body } = parseFrontmatter(content, item.path);
+        const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+        if (!result.success) {
+          logger.warn(
+            `Skipping source rule "${item.name}" from ${item.sourceKey}: invalid frontmatter.`,
+          );
+          continue;
+        }
+        // Source rules cannot be root or localRoot
+        const sourceFrontmatter = { ...result.data, root: undefined, localRoot: undefined };
+        rulesyncRules.push(
+          new RulesyncRule({
+            baseDir: process.cwd(),
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: item.name,
+            frontmatter: sourceFrontmatter,
+            body: body.trim(),
+          }),
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to load source rule "${item.name}" from ${item.sourceKey}: ${formatError(error)}`,
+        );
+      }
+    }
 
     const factory = this.getFactory(this.toolTarget);
 

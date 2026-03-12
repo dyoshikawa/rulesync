@@ -1,6 +1,11 @@
 import { z } from "zod/mini";
 
-import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
+import { mergeMcpServers } from "../../lib/merge-strategies.js";
+import { type SourceCacheEntry, loadAndMergeJsonFeature } from "../../lib/source-cache.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -20,6 +25,12 @@ import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+
+type McpJson = { mcpServers: Record<string, unknown>; [key: string]: unknown };
+
+function parseMcpJson(raw: string): McpJson {
+  return JSON.parse(raw);
+}
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -272,18 +283,21 @@ export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly sourceCaches: SourceCacheEntry[];
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
+    sourceCaches = [],
     dryRun = false,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
+    sourceCaches?: SourceCacheEntry[];
     dryRun?: boolean;
   }) {
     super({ baseDir, dryRun });
@@ -296,6 +310,7 @@ export class McpProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.getFactory = getFactory;
+    this.sourceCaches = sourceCaches;
   }
 
   /**
@@ -303,14 +318,43 @@ export class McpProcessor extends FeatureProcessor {
    * Load and parse rulesync MCP files from .rulesync/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    // Load local mcp.json
+    let localMcp: RulesyncMcp | undefined;
     try {
-      return [await RulesyncMcp.fromFile({})];
-    } catch (error) {
-      logger.error(
-        `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
-      );
-      return [];
+      localMcp = await RulesyncMcp.fromFile({});
+    } catch {
+      // No local mcp.json is fine
     }
+
+    // Merge with source caches
+    const localContent = localMcp ? localMcp.getJson() : undefined;
+
+    const merged = await loadAndMergeJsonFeature({
+      sources: this.sourceCaches,
+      fileName: "mcp.json",
+      localContent,
+      mergeFn: mergeMcpServers,
+      parseFn: parseMcpJson,
+    });
+
+    if (!merged) {
+      if (!localMcp) return [];
+      return [localMcp];
+    }
+
+    // If content was merged from sources, create a new RulesyncMcp with merged content
+    if (localMcp && merged === localContent) {
+      return [localMcp];
+    }
+
+    return [
+      new RulesyncMcp({
+        baseDir: process.cwd(),
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(merged, null, 2),
+      }),
+    ];
   }
 
   /**
