@@ -2,12 +2,22 @@ import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  RULESYNC_REMOTE_SUBAGENTS_RELATIVE_DIR_PATH,
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import {
+  directoryExists,
+  findFilesByGlobs,
+  listDirectoryFiles,
+  readFileContent,
+} from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -20,7 +30,7 @@ import { JunieSubagent } from "./junie-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
-import { RulesyncSubagent } from "./rulesync-subagent.js";
+import { RulesyncSubagent, RulesyncSubagentFrontmatterSchema } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   ToolSubagent,
@@ -290,19 +300,12 @@ export class SubagentsProcessor extends FeatureProcessor {
       return [];
     }
 
-    // Read all markdown files from the directory
+    // Read all markdown files from the directory (excluding .remote/)
     const entries = await listDirectoryFiles(subagentsDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
-    if (mdFiles.length === 0) {
-      logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
-      return [];
-    }
-
-    logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
-
-    // Parse all files and create RulesyncSubagent instances using fromFilePath
-    const rulesyncSubagents: RulesyncSubagent[] = [];
+    // Parse local subagent files
+    const localSubagents: RulesyncSubagent[] = [];
 
     for (const mdFile of mdFiles) {
       const filepath = join(subagentsDir, mdFile);
@@ -313,7 +316,7 @@ export class SubagentsProcessor extends FeatureProcessor {
           validate: true,
         });
 
-        rulesyncSubagents.push(rulesyncSubagent);
+        localSubagents.push(rulesyncSubagent);
         logger.debug(`Successfully loaded subagent: ${mdFile}`);
       } catch (error) {
         logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
@@ -321,12 +324,61 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
     }
 
+    // Load remote subagents from .remote/ subdirectory with local precedence
+    const remoteDir = join(process.cwd(), RULESYNC_REMOTE_SUBAGENTS_RELATIVE_DIR_PATH);
+    const remoteSubagents: RulesyncSubagent[] = [];
+
+    if (await directoryExists(remoteDir)) {
+      const remoteEntries = await listDirectoryFiles(remoteDir);
+      const remoteMdFiles = remoteEntries.filter((file) => file.endsWith(".md"));
+      const localNames = new Set(mdFiles);
+
+      for (const mdFile of remoteMdFiles) {
+        if (localNames.has(mdFile)) {
+          logger.debug(`Skipping remote subagent "${mdFile}": local subagent takes precedence.`);
+          continue;
+        }
+
+        const filepath = join(remoteDir, mdFile);
+
+        try {
+          const fileContent = await readFileContent(filepath);
+          const { frontmatter, body } = parseFrontmatter(fileContent, filepath);
+          const parseResult = RulesyncSubagentFrontmatterSchema.safeParse(frontmatter);
+          if (!parseResult.success) {
+            logger.warn(
+              `Invalid frontmatter in remote subagent ${filepath}: ${formatError(parseResult.error)}`,
+            );
+            continue;
+          }
+
+          remoteSubagents.push(
+            new RulesyncSubagent({
+              baseDir: process.cwd(),
+              relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+              relativeFilePath: mdFile,
+              frontmatter: parseResult.data,
+              body: body.trim(),
+            }),
+          );
+          logger.debug(`Successfully loaded remote subagent: ${mdFile}`);
+        } catch (error) {
+          logger.warn(`Failed to load remote subagent file ${filepath}: ${formatError(error)}`);
+          continue;
+        }
+      }
+    }
+
+    const rulesyncSubagents = [...localSubagents, ...remoteSubagents];
+
     if (rulesyncSubagents.length === 0) {
       logger.debug(`No valid subagents found in ${subagentsDir}`);
       return [];
     }
 
-    logger.debug(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
+    logger.debug(
+      `Successfully loaded ${rulesyncSubagents.length} rulesync subagents (${localSubagents.length} local, ${remoteSubagents.length} remote)`,
+    );
     return rulesyncSubagents;
   }
 

@@ -6,6 +6,7 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -14,7 +15,13 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
+import {
+  checkPathTraversal,
+  directoryExists,
+  findFilesByGlobs,
+  readFileContent,
+} from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
@@ -755,19 +762,62 @@ export class RulesProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const rulesyncBaseDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
-    const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
-    logger.debug(`Found ${files.length} rulesync files`);
-    const rulesyncRules = await Promise.all(
-      files.map((file) => {
+    const allFiles = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
+
+    // Partition: exclude .remote/ files from local set
+    const localFiles = allFiles.filter((file) => {
+      const rel = relative(rulesyncBaseDir, file);
+      return rel.split(/[/\\]/)[0] !== ".remote";
+    });
+
+    const localRulesyncRules = await Promise.all(
+      localFiles.map((file) => {
         const relativeFilePath = relative(rulesyncBaseDir, file);
         checkPathTraversal({
           relativePath: relativeFilePath,
           intendedRootDir: rulesyncBaseDir,
         });
-        return RulesyncRule.fromFile({
-          relativeFilePath,
-        });
+        return RulesyncRule.fromFile({ relativeFilePath });
       }),
+    );
+
+    // Load remote rules from .remote/ subdirectory with local precedence
+    const remoteDir = join(process.cwd(), RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH);
+    let remoteRulesyncRules: RulesyncRule[] = [];
+
+    if (await directoryExists(remoteDir)) {
+      const remoteFiles = await findFilesByGlobs(join(remoteDir, "**", "*.md"));
+      const localRelPaths = new Set(localFiles.map((f) => relative(rulesyncBaseDir, f)));
+
+      const nonConflicting = remoteFiles.filter((file) => {
+        const rel = relative(remoteDir, file);
+        if (localRelPaths.has(rel)) {
+          logger.debug(`Skipping remote rule "${rel}": local rule takes precedence.`);
+          return false;
+        }
+        return true;
+      });
+
+      remoteRulesyncRules = await Promise.all(
+        nonConflicting.map(async (file) => {
+          const relativeFilePath = relative(remoteDir, file);
+          checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: remoteDir });
+          const fileContent = await readFileContent(file);
+          const { frontmatter, body } = parseFrontmatter(fileContent, file);
+          return new RulesyncRule({
+            baseDir: process.cwd(),
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath,
+            frontmatter,
+            body: body.trim(),
+          });
+        }),
+      );
+    }
+
+    const rulesyncRules = [...localRulesyncRules, ...remoteRulesyncRules];
+    logger.debug(
+      `Found ${rulesyncRules.length} rulesync rules (${localRulesyncRules.length} local, ${remoteRulesyncRules.length} remote)`,
     );
 
     const factory = this.getFactory(this.toolTarget);

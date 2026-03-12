@@ -16,8 +16,10 @@ import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   directoryExists,
+  fileExists,
   findFilesByGlobs,
   removeDirectory,
+  removeFile,
   writeFileContent,
 } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
@@ -45,6 +47,12 @@ import {
   setLockedSource,
   writeLockFile,
 } from "./sources-lock.js";
+
+/**
+ * Features where each item is a subdirectory (e.g. skills/my-skill/SKILL.md).
+ * All other directory features are file-based (e.g. rules/my-rule.md).
+ */
+const SUBDIRECTORY_ITEM_FEATURES = new Set<string>(["skills"]);
 
 export type ResolveAndFetchSourcesOptions = {
   /** Force re-resolve all refs, ignoring the lockfile. */
@@ -247,36 +255,53 @@ function logGitClientHints(error: GitClientError): void {
 
 /**
  * Check if all locked items exist on disk in the remote directory.
+ * For subdirectory-item features (skills), checks for directories.
+ * For file-item features (rules, commands, subagents), checks for files.
  */
-async function checkLockedItemsExist(remoteDir: string, itemNames: string[]): Promise<boolean> {
+async function checkLockedItemsExist(
+  remoteDir: string,
+  itemNames: string[],
+  feature: string,
+): Promise<boolean> {
   if (itemNames.length === 0) return true;
+  const isSubdirFeature = SUBDIRECTORY_ITEM_FEATURES.has(feature);
   for (const name of itemNames) {
-    if (!(await directoryExists(join(remoteDir, name)))) {
-      return false;
-    }
+    const path = join(remoteDir, name);
+    const exists = isSubdirFeature ? await directoryExists(path) : await fileExists(path);
+    if (!exists) return false;
   }
   return true;
 }
 
 /**
- * Remove previously fetched remote item directories for a source before re-fetching.
+ * Remove previously fetched remote items for a source before re-fetching.
+ * For subdirectory-item features, removes directories.
+ * For file-item features, removes individual files.
  * Validates that each path resolves within the remote directory to prevent traversal.
  */
 async function cleanPreviousRemoteItems(
   remoteDir: string,
   lockedItemNames: string[],
+  feature: string,
 ): Promise<void> {
   const resolvedRemoteDir = resolve(remoteDir);
+  const isSubdirFeature = SUBDIRECTORY_ITEM_FEATURES.has(feature);
   for (const prevItem of lockedItemNames) {
-    const prevDir = join(remoteDir, prevItem);
-    if (!resolve(prevDir).startsWith(resolvedRemoteDir + sep)) {
+    const prevPath = join(remoteDir, prevItem);
+    if (!resolve(prevPath).startsWith(resolvedRemoteDir + sep)) {
       logger.warn(
         `Skipping removal of "${prevItem}": resolved path is outside the remote directory.`,
       );
       continue;
     }
-    if (await directoryExists(prevDir)) {
-      await removeDirectory(prevDir);
+    if (isSubdirFeature) {
+      if (await directoryExists(prevPath)) {
+        await removeDirectory(prevPath);
+      }
+    } else {
+      if (await fileExists(prevPath)) {
+        await removeFile(prevPath);
+      }
     }
   }
 }
@@ -349,6 +374,43 @@ async function writeItemAndComputeIntegrity(params: {
   ) {
     logger.warn(
       `Integrity mismatch for ${feature} "${itemName}" from ${sourceKey}: expected "${lockedEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+    );
+  }
+
+  return { integrity };
+}
+
+/**
+ * Write a single file item to disk, compute integrity, and check against the lockfile.
+ * Used for file-based features (rules, commands, subagents) where each file is its own item.
+ */
+async function writeFileItemAndComputeIntegrity(params: {
+  filePath: string;
+  content: string;
+  remoteDir: string;
+  feature: string;
+  locked: LockedSource | undefined;
+  resolvedSha: string;
+  sourceKey: string;
+}): Promise<LockedItem> {
+  const { filePath, content, remoteDir, feature, locked, resolvedSha, sourceKey } = params;
+
+  checkPathTraversal({
+    relativePath: filePath,
+    intendedRootDir: remoteDir,
+  });
+  await writeFileContent(join(remoteDir, filePath), content);
+
+  const integrity = computeItemIntegrity([{ path: filePath, content }]);
+  const lockedItems = locked ? getLockedFeatureItems(locked, feature) : {};
+  const lockedEntry = lockedItems[filePath];
+  if (
+    lockedEntry?.integrity &&
+    lockedEntry.integrity !== integrity &&
+    resolvedSha === locked?.resolvedRef
+  ) {
+    logger.warn(
+      `Integrity mismatch for ${feature} "${filePath}" from ${sourceKey}: expected "${lockedEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
     );
   }
 
@@ -521,7 +583,7 @@ async function fetchSource(params: {
     for (const feature of features) {
       const remoteDir = join(baseDir, FEATURE_REMOTE_DIR_PATHS[feature] ?? "");
       const lockedNames = getLockedFeatureNames(locked, feature);
-      if (!(await checkLockedItemsExist(remoteDir, lockedNames))) {
+      if (!(await checkLockedItemsExist(remoteDir, lockedNames, feature))) {
         allExist = false;
         break;
       }
@@ -547,22 +609,20 @@ async function fetchSource(params: {
     const featureLocalNames = localNames[feature] ?? new Set<string>();
     const featureAlreadyFetched = allFetchedNames[feature] ?? new Set<string>();
     const lockedItemNames = locked ? getLockedFeatureNames(locked, feature) : [];
+    const isSubdirFeature = SUBDIRECTORY_ITEM_FEATURES.has(feature);
 
     // Clean previous remote items
     if (locked) {
-      await cleanPreviousRemoteItems(remoteDir, lockedItemNames);
+      await cleanPreviousRemoteItems(remoteDir, lockedItemNames, feature);
     }
 
     // Determine the remote path for this feature
     const remotePath = resolveRemoteFeaturePath(feature, sourceEntry, hasExplicitFeatures);
 
     // List the feature directory in the remote repo
-    let remoteDirs: Array<{ name: string; path: string }>;
+    let entries: Array<{ name: string; path: string; type: string }>;
     try {
-      const entries = await client.listDirectory(parsed.owner, parsed.repo, remotePath, ref);
-      remoteDirs = entries
-        .filter((e) => e.type === "dir")
-        .map((e) => ({ name: e.name, path: e.path }));
+      entries = await client.listDirectory(parsed.owner, parsed.repo, remotePath, ref);
     } catch (error) {
       if (error instanceof GitHubClientError && error.statusCode === 404) {
         logger.debug(`No ${feature}/ directory found in ${sourceKey}. Skipping feature.`);
@@ -573,67 +633,108 @@ async function fetchSource(params: {
       throw error;
     }
 
-    // Apply name filter (only skills have a name filter currently)
-    const filteredDirs =
-      feature === "skills" && !isSkillWildcard
-        ? remoteDirs.filter((d) => skillFilter.includes(d.name))
-        : remoteDirs;
-
-    perFeatureRemoteNames[feature] = filteredDirs.map((d) => d.name);
     const fetchedItems: Record<string, LockedItem> = {};
 
-    for (const itemDir of filteredDirs) {
-      if (
-        shouldSkipItem({
+    if (isSubdirFeature) {
+      // Skills: each item is a directory
+      const remoteDirs = entries
+        .filter((e) => e.type === "dir")
+        .map((e) => ({ name: e.name, path: e.path }));
+
+      const filteredDirs =
+        feature === "skills" && !isSkillWildcard
+          ? remoteDirs.filter((d) => skillFilter.includes(d.name))
+          : remoteDirs;
+
+      perFeatureRemoteNames[feature] = filteredDirs.map((d) => d.name);
+
+      for (const itemDir of filteredDirs) {
+        if (
+          shouldSkipItem({
+            itemName: itemDir.name,
+            feature,
+            sourceKey,
+            localNames: featureLocalNames,
+            alreadyFetchedNames: featureAlreadyFetched,
+          })
+        ) {
+          continue;
+        }
+
+        const allFiles = await listDirectoryRecursive({
+          client,
+          owner: parsed.owner,
+          repo: parsed.repo,
+          path: itemDir.path,
+          ref,
+          semaphore,
+        });
+
+        const files = allFiles.filter((file) => {
+          if (file.size > MAX_FILE_SIZE) {
+            logger.warn(
+              `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+            );
+            return false;
+          }
+          return true;
+        });
+
+        const itemFiles: Array<{ relativePath: string; content: string }> = [];
+        for (const file of files) {
+          const relativeToItem = file.path.substring(itemDir.path.length + 1);
+          const content = await withSemaphore(semaphore, () =>
+            client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
+          );
+          itemFiles.push({ relativePath: relativeToItem, content });
+        }
+
+        fetchedItems[itemDir.name] = await writeItemAndComputeIntegrity({
           itemName: itemDir.name,
           feature,
+          files: itemFiles,
+          remoteDir,
+          locked,
+          resolvedSha,
           sourceKey,
-          localNames: featureLocalNames,
-          alreadyFetchedNames: featureAlreadyFetched,
-        })
-      ) {
-        continue;
+        });
+        logger.debug(`Fetched ${feature} "${itemDir.name}" from ${sourceKey}`);
       }
+    } else {
+      // Rules, commands, subagents: each file is its own item
+      const remoteFileEntries = entries.filter((e) => e.type === "file");
+      perFeatureRemoteNames[feature] = remoteFileEntries.map((f) => f.name);
 
-      // Recursively fetch all files in this item directory
-      const allFiles = await listDirectoryRecursive({
-        client,
-        owner: parsed.owner,
-        repo: parsed.repo,
-        path: itemDir.path,
-        ref,
-        semaphore,
-      });
-
-      const files = allFiles.filter((file) => {
-        if (file.size > MAX_FILE_SIZE) {
-          logger.warn(
-            `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
-          );
-          return false;
+      for (const fileEntry of remoteFileEntries) {
+        if (
+          shouldSkipItem({
+            itemName: fileEntry.name,
+            feature,
+            sourceKey,
+            localNames: featureLocalNames,
+            alreadyFetchedNames: featureAlreadyFetched,
+          })
+        ) {
+          continue;
         }
-        return true;
-      });
 
-      const itemFiles: Array<{ relativePath: string; content: string }> = [];
-      for (const file of files) {
-        const relativeToItem = file.path.substring(itemDir.path.length + 1);
+        if (fileEntry.name.includes("..") || fileEntry.name.includes("/")) continue;
+
         const content = await withSemaphore(semaphore, () =>
-          client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
+          client.getFileContent(parsed.owner, parsed.repo, fileEntry.path, ref),
         );
-        itemFiles.push({ relativePath: relativeToItem, content });
-      }
 
-      fetchedItems[itemDir.name] = await writeItemAndComputeIntegrity({
-        itemName: itemDir.name,
-        feature,
-        files: itemFiles,
-        remoteDir,
-        locked,
-        resolvedSha,
-        sourceKey,
-      });
-      logger.debug(`Fetched ${feature} "${itemDir.name}" from ${sourceKey}`);
+        fetchedItems[fileEntry.name] = await writeFileItemAndComputeIntegrity({
+          filePath: fileEntry.name,
+          content,
+          remoteDir,
+          feature,
+          locked,
+          resolvedSha,
+          sourceKey,
+        });
+        logger.debug(`Fetched ${feature} "${fileEntry.name}" from ${sourceKey}`);
+      }
     }
 
     perFeatureFetched[feature] = fetchedItems;
@@ -704,7 +805,7 @@ async function fetchSourceViaGit(params: {
     for (const feature of features) {
       const remoteDir = join(baseDir, FEATURE_REMOTE_DIR_PATHS[feature] ?? "");
       const lockedNames = getLockedFeatureNames(locked, feature);
-      if (!(await checkLockedItemsExist(remoteDir, lockedNames))) {
+      if (!(await checkLockedItemsExist(remoteDir, lockedNames, feature))) {
         allExist = false;
         break;
       }
@@ -758,55 +859,88 @@ async function fetchSourceViaGit(params: {
     const featureAlreadyFetched = allFetchedNames[feature] ?? new Set<string>();
     const lockedItemNames = locked ? getLockedFeatureNames(locked, feature) : [];
     const remoteFiles = filesByPath[featurePath] ?? [];
-
-    // Group files by item directory (first path component)
-    const itemFileMap = new Map<string, Array<{ relativePath: string; content: string }>>();
-    for (const file of remoteFiles) {
-      const idx = file.relativePath.indexOf("/");
-      if (idx === -1) continue;
-      const name = file.relativePath.substring(0, idx);
-      const inner = file.relativePath.substring(idx + 1);
-      const arr = itemFileMap.get(name) ?? [];
-      arr.push({ relativePath: inner, content: file.content });
-      itemFileMap.set(name, arr);
-    }
-
-    const allNames = [...itemFileMap.keys()];
-    const filteredNames =
-      feature === "skills" && !isSkillWildcard
-        ? allNames.filter((n) => skillFilter.includes(n))
-        : allNames;
-
-    perFeatureRemoteNames[feature] = filteredNames;
+    const isSubdirFeature = SUBDIRECTORY_ITEM_FEATURES.has(feature);
 
     // Clean previous remote items
     if (locked) {
-      await cleanPreviousRemoteItems(remoteDir, lockedItemNames);
+      await cleanPreviousRemoteItems(remoteDir, lockedItemNames, feature);
     }
 
     const fetchedItems: Record<string, LockedItem> = {};
-    for (const itemName of filteredNames) {
-      if (
-        shouldSkipItem({
-          itemName,
-          feature,
-          sourceKey: url,
-          localNames: featureLocalNames,
-          alreadyFetchedNames: featureAlreadyFetched,
-        })
-      ) {
-        continue;
+
+    if (isSubdirFeature) {
+      // Skills: group files by first path component (directory name)
+      const itemFileMap = new Map<string, Array<{ relativePath: string; content: string }>>();
+      for (const file of remoteFiles) {
+        const idx = file.relativePath.indexOf("/");
+        if (idx === -1) continue;
+        const name = file.relativePath.substring(0, idx);
+        const inner = file.relativePath.substring(idx + 1);
+        const arr = itemFileMap.get(name) ?? [];
+        arr.push({ relativePath: inner, content: file.content });
+        itemFileMap.set(name, arr);
       }
 
-      fetchedItems[itemName] = await writeItemAndComputeIntegrity({
-        itemName,
-        feature,
-        files: itemFileMap.get(itemName) ?? [],
-        remoteDir,
-        locked,
-        resolvedSha,
-        sourceKey: url,
-      });
+      const allNames = [...itemFileMap.keys()];
+      const filteredNames =
+        feature === "skills" && !isSkillWildcard
+          ? allNames.filter((n) => skillFilter.includes(n))
+          : allNames;
+
+      perFeatureRemoteNames[feature] = filteredNames;
+
+      for (const itemName of filteredNames) {
+        if (
+          shouldSkipItem({
+            itemName,
+            feature,
+            sourceKey: url,
+            localNames: featureLocalNames,
+            alreadyFetchedNames: featureAlreadyFetched,
+          })
+        ) {
+          continue;
+        }
+
+        fetchedItems[itemName] = await writeItemAndComputeIntegrity({
+          itemName,
+          feature,
+          files: itemFileMap.get(itemName) ?? [],
+          remoteDir,
+          locked,
+          resolvedSha,
+          sourceKey: url,
+        });
+      }
+    } else {
+      // Rules, commands, subagents: each file is its own item
+      const allFileNames = remoteFiles.map((f) => f.relativePath);
+      perFeatureRemoteNames[feature] = allFileNames;
+
+      for (const file of remoteFiles) {
+        const itemName = file.relativePath;
+        if (
+          shouldSkipItem({
+            itemName,
+            feature,
+            sourceKey: url,
+            localNames: featureLocalNames,
+            alreadyFetchedNames: featureAlreadyFetched,
+          })
+        ) {
+          continue;
+        }
+
+        fetchedItems[itemName] = await writeFileItemAndComputeIntegrity({
+          filePath: file.relativePath,
+          content: file.content,
+          remoteDir,
+          feature,
+          locked,
+          resolvedSha,
+          sourceKey: url,
+        });
+      }
     }
 
     perFeatureFetched[feature] = fetchedItems;
