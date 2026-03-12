@@ -2,12 +2,18 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_REMOTE_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   directoryExists,
+  fileExists,
   findFilesByGlobs,
   removeDirectory,
+  removeFile,
   writeFileContent,
 } from "../utils/file.js";
 import { resolveAndFetchSources } from "./sources.js";
@@ -46,8 +52,10 @@ vi.mock("../utils/file.js", async (importOriginal) => {
   return {
     ...actual,
     directoryExists: vi.fn(),
+    fileExists: vi.fn(),
     findFilesByGlobs: vi.fn(),
     removeDirectory: vi.fn(),
+    removeFile: vi.fn(),
     writeFileContent: vi.fn(),
   };
 });
@@ -106,10 +114,12 @@ describe("resolveAndFetchSources", () => {
       getFileContent: vi.fn().mockResolvedValue("file content"),
     };
 
-    // Default: no curated dir, no local skills
+    // Default: no curated/remote dirs, no local items
     vi.mocked(directoryExists).mockResolvedValue(false);
+    vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(findFilesByGlobs).mockResolvedValue([]);
     vi.mocked(removeDirectory).mockResolvedValue(undefined);
+    vi.mocked(removeFile).mockResolvedValue(undefined);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
   });
 
@@ -993,5 +1003,239 @@ describe("resolveAndFetchSources", () => {
     const sourceEntry = Object.values(writtenLock.sources)[0]!;
     expect(sourceEntry.skills).toHaveProperty("new-skill");
     expect(sourceEntry.skills).not.toHaveProperty("old-skill");
+  });
+
+  describe("multi-feature install (GitHub transport)", () => {
+    it("should fetch skills and rules from the same source", async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+          }
+          if (path === "skills/my-skill") {
+            return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 50 }];
+          }
+          if (path === "rules") {
+            return [
+              { name: "coding.md", path: "rules/coding.md", type: "file", size: 30 },
+              { name: "security.md", path: "rules/security.md", type: "file", size: 40 },
+            ];
+          }
+          return [];
+        },
+      );
+      mockClientInstance.getFileContent.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills/my-skill/SKILL.md") return "# Skill";
+          if (path === "rules/coding.md") return "# Coding Standards";
+          if (path === "rules/security.md") return "# Security";
+          return "";
+        },
+      );
+
+      const result = await resolveAndFetchSources({
+        sources: [{ source: "https://github.com/org/repo", features: ["skills", "rules"] }],
+        baseDir: testDir,
+      });
+
+      // 1 skill + 2 rules = 3 items
+      expect(result.fetchedItemCount).toBe(3);
+      expect(result.fetchedSkillCount).toBe(1);
+      expect(result.sourcesProcessed).toBe(1);
+
+      // Skill written to curated dir
+      expect(writeFileContent).toHaveBeenCalledWith(
+        join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "my-skill", "SKILL.md"),
+        "# Skill",
+      );
+      // Rules written to .remote dir
+      expect(writeFileContent).toHaveBeenCalledWith(
+        join(testDir, RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH, "coding.md"),
+        "# Coding Standards",
+      );
+      expect(writeFileContent).toHaveBeenCalledWith(
+        join(testDir, RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH, "security.md"),
+        "# Security",
+      );
+    });
+
+    it("should default to skills-only when features not specified", async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+          }
+          if (path === "skills/my-skill") {
+            return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 50 }];
+          }
+          return [];
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+
+      const result = await resolveAndFetchSources({
+        sources: [{ source: "https://github.com/org/repo" }],
+        baseDir: testDir,
+      });
+
+      expect(result.fetchedItemCount).toBe(1);
+      // listDirectory should only have been called for skills, not rules/commands/subagents
+      const listDirCalls = mockClientInstance.listDirectory.mock.calls;
+      const listedPaths = listDirCalls.map((call: any[]) => call[2]);
+      expect(listedPaths).not.toContain("rules");
+      expect(listedPaths).not.toContain("commands");
+      expect(listedPaths).not.toContain("subagents");
+    });
+
+    it("should track rules in lockfile alongside skills", async () => {
+      const { writeLockFile } = await import("./sources-lock.js");
+
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "rules") {
+            return [{ name: "my-rule.md", path: "rules/my-rule.md", type: "file", size: 30 }];
+          }
+          return [];
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("# My Rule");
+
+      await resolveAndFetchSources({
+        sources: [{ source: "https://github.com/org/repo", features: ["rules"] }],
+        baseDir: testDir,
+      });
+
+      const writeCalls = vi.mocked(writeLockFile).mock.calls;
+      expect(writeCalls).toHaveLength(1);
+      const writtenLock = writeCalls[0]![0].lock;
+      const sourceEntry = Object.values(writtenLock.sources)[0]!;
+      expect(sourceEntry.rules).toHaveProperty("my-rule.md");
+      expect(sourceEntry.rules!["my-rule.md"]).toHaveProperty("integrity");
+    });
+
+    it("should skip local rules when fetching remote rules", async () => {
+      // Local rule exists
+      vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+        if (path.endsWith("rules")) return true;
+        return false;
+      });
+      vi.mocked(findFilesByGlobs).mockImplementation(async (pattern: string | string[]) => {
+        const p = Array.isArray(pattern) ? pattern[0]! : pattern;
+        if (p.includes("rules")) return [join(testDir, ".rulesync/rules/existing-rule.md")];
+        return [];
+      });
+
+      // Remote has same rule name plus a new one
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "rules") {
+            return [
+              {
+                name: "existing-rule.md",
+                path: "rules/existing-rule.md",
+                type: "file",
+                size: 30,
+              },
+              { name: "new-rule.md", path: "rules/new-rule.md", type: "file", size: 40 },
+            ];
+          }
+          return [];
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("# New Rule");
+
+      const result = await resolveAndFetchSources({
+        sources: [{ source: "https://github.com/org/repo", features: ["rules"] }],
+        baseDir: testDir,
+      });
+
+      // Only the new rule should be fetched (existing-rule.md skipped due to local precedence)
+      expect(result.fetchedItemCount).toBe(1);
+      expect(writeFileContent).toHaveBeenCalledWith(
+        join(testDir, RULESYNC_REMOTE_RULES_RELATIVE_DIR_PATH, "new-rule.md"),
+        "# New Rule",
+      );
+    });
+  });
+
+  describe("multi-feature install (git transport)", () => {
+    it("should fetch skills and commands in a single clone", async () => {
+      const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
+
+      vi.mocked(resolveDefaultRef).mockResolvedValue({
+        ref: "main",
+        sha: "a".repeat(40),
+      });
+      vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+        skills: [{ relativePath: "my-skill/SKILL.md", content: "# Skill", size: 50 }],
+        commands: [{ relativePath: "deploy.md", content: "# Deploy", size: 30 }],
+      });
+
+      const result = await resolveAndFetchSources({
+        sources: [
+          {
+            source: "https://dev.azure.com/org/_git/repo",
+            transport: "git",
+            features: ["skills", "commands"],
+          },
+        ],
+        baseDir: testDir,
+      });
+
+      expect(result.fetchedItemCount).toBe(2);
+      expect(result.fetchedSkillCount).toBe(1);
+
+      // fetchDirectoryFiles should be called with both paths
+      expect(vi.mocked(fetchDirectoryFiles)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paths: expect.arrayContaining(["skills", "commands"]),
+        }),
+      );
+
+      // Skill written to curated dir
+      expect(writeFileContent).toHaveBeenCalledWith(
+        join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "my-skill", "SKILL.md"),
+        "# Skill",
+      );
+      // Command written to .remote dir
+      expect(writeFileContent).toHaveBeenCalledWith(
+        join(testDir, RULESYNC_REMOTE_COMMANDS_RELATIVE_DIR_PATH, "deploy.md"),
+        "# Deploy",
+      );
+    });
+
+    it("should handle wildcard features expanding to all directory features", async () => {
+      const { resolveDefaultRef, fetchDirectoryFiles } = await import("./git-client.js");
+
+      vi.mocked(resolveDefaultRef).mockResolvedValue({
+        ref: "main",
+        sha: "b".repeat(40),
+      });
+      vi.mocked(fetchDirectoryFiles).mockResolvedValue({
+        skills: [],
+        rules: [{ relativePath: "test-rule.md", content: "# Rule", size: 20 }],
+        commands: [],
+        subagents: [{ relativePath: "planner.md", content: "# Planner", size: 25 }],
+      });
+
+      const result = await resolveAndFetchSources({
+        sources: [
+          {
+            source: "https://dev.azure.com/org/_git/repo",
+            transport: "git",
+            features: ["*"],
+          },
+        ],
+        baseDir: testDir,
+      });
+
+      expect(result.fetchedItemCount).toBe(2);
+      // fetchDirectoryFiles should be called with all four feature paths
+      expect(vi.mocked(fetchDirectoryFiles)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paths: expect.arrayContaining(["skills", "rules", "commands", "subagents"]),
+        }),
+      );
+    });
   });
 });

@@ -124,6 +124,7 @@ export async function resolveAndFetchSources(params: {
   const localNames = await getLocalItemNames(baseDir);
 
   let totalItemCount = 0;
+  let totalSkillCount = 0;
   const allFetchedNames: Record<string, Set<string>> = {};
 
   for (const sourceEntry of sources) {
@@ -157,6 +158,7 @@ export async function resolveAndFetchSources(params: {
 
       lock = result.updatedLock;
       totalItemCount += result.itemCount;
+      totalSkillCount += result.skillCount;
       for (const [feature, names] of Object.entries(result.fetchedNames)) {
         const set = allFetchedNames[feature] ?? new Set<string>();
         for (const name of names) {
@@ -194,7 +196,7 @@ export async function resolveAndFetchSources(params: {
   }
 
   return {
-    fetchedSkillCount: totalItemCount,
+    fetchedSkillCount: totalSkillCount,
     fetchedItemCount: totalItemCount,
     sourcesProcessed: sources.length,
   };
@@ -206,6 +208,7 @@ export async function resolveAndFetchSources(params: {
 
 type FetchResult = {
   itemCount: number;
+  skillCount: number;
   fetchedNames: Record<string, string[]>;
   updatedLock: SourcesLock;
 };
@@ -553,7 +556,7 @@ async function fetchSource(params: {
 
   if (parsed.provider === "gitlab") {
     logger.warn(`GitLab sources are not yet supported. Skipping "${sourceEntry.source}".`);
-    return { itemCount: 0, fetchedNames: {}, updatedLock: lock };
+    return { itemCount: 0, skillCount: 0, fetchedNames: {}, updatedLock: lock };
   }
 
   const sourceKey = sourceEntry.source;
@@ -594,7 +597,7 @@ async function fetchSource(params: {
       for (const feature of features) {
         fetchedNames[feature] = getLockedFeatureNames(locked, feature);
       }
-      return { itemCount: 0, fetchedNames, updatedLock: lock };
+      return { itemCount: 0, skillCount: 0, fetchedNames, updatedLock: lock };
     }
   }
 
@@ -753,6 +756,7 @@ async function fetchSource(params: {
 
   return {
     itemCount: result.totalCount,
+    skillCount: Object.keys(perFeatureFetched["skills"] ?? {}).length,
     fetchedNames: result.fetchedNames,
     updatedLock: result.updatedLock,
   };
@@ -815,7 +819,7 @@ async function fetchSourceViaGit(params: {
       for (const feature of features) {
         fetchedNames[feature] = getLockedFeatureNames(locked, feature);
       }
-      return { itemCount: 0, fetchedNames, updatedLock: lock };
+      return { itemCount: 0, skillCount: 0, fetchedNames, updatedLock: lock };
     }
   }
 
@@ -959,6 +963,7 @@ async function fetchSourceViaGit(params: {
 
   return {
     itemCount: result.totalCount,
+    skillCount: Object.keys(perFeatureFetched["skills"] ?? {}).length,
     fetchedNames: result.fetchedNames,
     updatedLock: result.updatedLock,
   };
