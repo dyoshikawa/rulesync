@@ -80,6 +80,9 @@ rulesync install && rulesync generate
 # Add generated files to .gitignore
 rulesync gitignore
 
+# Add only specific tool entries to .gitignore
+rulesync gitignore --targets claudecode,copilot
+
 # Update rulesync to the latest version (single-binary installs)
 rulesync update
 
