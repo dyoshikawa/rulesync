@@ -41,7 +41,26 @@ const main = async () => {
   program
     .command("gitignore")
     .description("Add generated files to .gitignore")
-    .action(gitignoreCommand);
+    .option(
+      "-t, --targets <tools>",
+      "Comma-separated list of tools to include (e.g., 'claudecode,copilot' or '*' for all)",
+      (value) => {
+        return value.split(",").map((t) => t.trim());
+      },
+    )
+    .option(
+      "-f, --features <features>",
+      `Comma-separated list of features to include (${ALL_FEATURES.join(",")}) or '*' for all`,
+      (value) => {
+        return value.split(",").map((f) => f.trim());
+      },
+    )
+    .action(async (options) => {
+      await gitignoreCommand({
+        targets: options.targets,
+        features: options.features,
+      });
+    });
 
   program
     .command("fetch <source>")

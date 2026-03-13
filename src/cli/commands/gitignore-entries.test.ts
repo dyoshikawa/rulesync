@@ -1,0 +1,219 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  ALL_GITIGNORE_ENTRIES,
+  GITIGNORE_ENTRY_REGISTRY,
+  filterGitignoreEntries,
+} from "./gitignore-entries.js";
+
+describe("GITIGNORE_ENTRY_REGISTRY", () => {
+  it("should have no duplicate entries", () => {
+    const entries = GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.entry);
+    const unique = new Set(entries);
+    expect(entries.length).toBe(unique.size);
+  });
+});
+
+describe("ALL_GITIGNORE_ENTRIES", () => {
+  it("should contain all entries from the registry", () => {
+    expect(ALL_GITIGNORE_ENTRIES.length).toBe(GITIGNORE_ENTRY_REGISTRY.length);
+    for (const tag of GITIGNORE_ENTRY_REGISTRY) {
+      expect(ALL_GITIGNORE_ENTRIES).toContain(tag.entry);
+    }
+  });
+});
+
+describe("filterGitignoreEntries", () => {
+  it("should return all entries when no filters are specified", () => {
+    const result = filterGitignoreEntries();
+    expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
+  });
+
+  it("should return all entries when empty params are passed", () => {
+    const result = filterGitignoreEntries({});
+    expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
+  });
+
+  describe("target filtering", () => {
+    it("should return only matching target entries plus common entries", () => {
+      const result = filterGitignoreEntries({ targets: ["claudecode"] });
+
+      // Should include common entries
+      expect(result).toContain(".rulesync/skills/.curated/");
+      expect(result).toContain(".rulesync/rules/*.local.md");
+
+      // Should include claudecode entries
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/rules/");
+      expect(result).toContain("**/.claude/commands/");
+      expect(result).toContain("**/.mcp.json");
+
+      // Should NOT include other target entries
+      expect(result).not.toContain("**/.cursor/");
+      expect(result).not.toContain("**/.clinerules/");
+      expect(result).not.toContain("**/.github/instructions/");
+    });
+
+    it("should support multiple targets", () => {
+      const result = filterGitignoreEntries({ targets: ["claudecode", "copilot"] });
+
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.github/instructions/");
+      expect(result).not.toContain("**/.cursor/");
+    });
+
+    it("should return all entries when target is wildcard", () => {
+      const result = filterGitignoreEntries({ targets: ["*"] });
+      expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
+    });
+  });
+
+  describe("feature filtering", () => {
+    it("should return only matching feature entries plus general entries", () => {
+      const result = filterGitignoreEntries({ features: ["rules"] });
+
+      // Should include common/general entries
+      expect(result).toContain(".rulesync/skills/.curated/");
+
+      // Should include general entries for all targets
+      expect(result).toContain("**/.claude/memories/");
+      expect(result).toContain("**/.codex/memories/");
+
+      // Should include rules entries
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.cursor/");
+      expect(result).toContain("**/.github/instructions/");
+
+      // Should NOT include non-rules, non-general entries
+      expect(result).not.toContain("**/.claude/commands/");
+      expect(result).not.toContain("**/.cursorignore");
+      expect(result).not.toContain("**/.github/prompts/");
+    });
+
+    it("should support multiple features", () => {
+      const result = filterGitignoreEntries({ features: ["rules", "commands"] });
+
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/commands/");
+      expect(result).toContain("**/.github/prompts/");
+      expect(result).not.toContain("**/.cursorignore");
+    });
+
+    it("should return all entries when feature is wildcard", () => {
+      const result = filterGitignoreEntries({ features: ["*"] });
+      expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
+    });
+  });
+
+  describe("combined target + feature filtering", () => {
+    it("should apply both filters", () => {
+      const result = filterGitignoreEntries({
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+
+      // Common entries always included
+      expect(result).toContain(".rulesync/skills/.curated/");
+
+      // claudecode rules
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/rules/");
+
+      // claudecode general (always included for selected target)
+      expect(result).toContain("**/.claude/memories/");
+
+      // claudecode non-rules features should NOT be included
+      expect(result).not.toContain("**/.claude/commands/");
+      expect(result).not.toContain("**/.mcp.json");
+
+      // Other targets should NOT be included
+      expect(result).not.toContain("**/.cursor/");
+      expect(result).not.toContain("**/.github/instructions/");
+    });
+
+    it("should filter copilot with rules and commands", () => {
+      const result = filterGitignoreEntries({
+        targets: ["copilot"],
+        features: ["rules", "commands"],
+      });
+
+      expect(result).toContain("**/.github/copilot-instructions.md");
+      expect(result).toContain("**/.github/instructions/");
+      expect(result).toContain("**/.github/prompts/");
+      expect(result).not.toContain("**/.github/agents/");
+      expect(result).not.toContain("**/.vscode/mcp.json");
+      expect(result).not.toContain("**/CLAUDE.md");
+    });
+  });
+
+  describe("features as object format (per-target)", () => {
+    it("should apply per-target feature filtering", () => {
+      const result = filterGitignoreEntries({
+        features: {
+          claudecode: ["rules"],
+          copilot: ["commands"],
+        },
+      });
+
+      // claudecode rules
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/rules/");
+
+      // copilot commands
+      expect(result).toContain("**/.github/prompts/");
+
+      // copilot rules should be included (no restriction for copilot rules - targetFeatures not specified means all)
+      // Wait, copilot has ["commands"] so rules should NOT be included
+      expect(result).not.toContain("**/.github/copilot-instructions.md");
+
+      // claudecode commands should NOT be included
+      expect(result).not.toContain("**/.claude/commands/");
+
+      // Targets not in the object should include all features
+      expect(result).toContain("**/.cursor/");
+      expect(result).toContain("**/.cursorignore");
+    });
+
+    it("should support wildcard in per-target features", () => {
+      const result = filterGitignoreEntries({
+        features: {
+          claudecode: ["*"],
+          copilot: ["rules"],
+        },
+      });
+
+      // claudecode all features
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/commands/");
+      expect(result).toContain("**/.mcp.json");
+
+      // copilot rules only
+      expect(result).toContain("**/.github/copilot-instructions.md");
+      expect(result).not.toContain("**/.github/prompts/");
+    });
+
+    it("should combine with target filtering", () => {
+      const result = filterGitignoreEntries({
+        targets: ["claudecode", "copilot"],
+        features: {
+          claudecode: ["rules"],
+          copilot: ["commands"],
+        },
+      });
+
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).not.toContain("**/.claude/commands/");
+      expect(result).toContain("**/.github/prompts/");
+      expect(result).not.toContain("**/.github/copilot-instructions.md");
+      expect(result).not.toContain("**/.cursor/");
+    });
+  });
+
+  describe("deduplication", () => {
+    it("should not contain duplicate entries in the result", () => {
+      const result = filterGitignoreEntries();
+      const unique = new Set(result);
+      expect(result.length).toBe(unique.size);
+    });
+  });
+});
