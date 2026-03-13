@@ -342,7 +342,7 @@ export class McpProcessor extends FeatureProcessor {
       return [localMcp];
     }
 
-    // If content was merged from sources, create a new RulesyncMcp with merged content
+    // loadAndMergeJsonFeature returns localContent by reference when no sources contribute
     if (localMcp && merged === localContent) {
       return [localMcp];
     }

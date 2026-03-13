@@ -67,7 +67,7 @@ const FILE_FEATURES: Record<Feature, string> = {
 /** Map a feature to its remote path(s) relative to the source root. */
 function featureToRemotePath(feature: Feature): string {
   if (DIRECTORY_FEATURES.includes(feature)) {
-    return feature === "skills" ? "skills" : feature;
+    return feature;
   }
   return FILE_FEATURES[feature];
 }

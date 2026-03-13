@@ -22,7 +22,7 @@ import { hasControlCharacters } from "../utils/validation.js";
 
 /**
  * Schema for a single source entry in the sources array.
- * Declares an external repository from which skills can be fetched.
+ * Declares an external repository from which features can be fetched.
  */
 export const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),

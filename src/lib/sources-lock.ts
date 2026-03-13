@@ -18,9 +18,6 @@ export const LockedFileSchema = z.object({
 });
 export type LockedFile = z.infer<typeof LockedFileSchema>;
 
-/** @deprecated Use LockedFile instead. Kept for backward compatibility with sources.ts. */
-export type LockedSkill = LockedFile;
-
 /**
  * Schema for a single locked source entry (v2: per-file integrity).
  * Keys in `files` are relative paths within the source cache

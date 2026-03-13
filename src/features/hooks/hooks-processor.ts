@@ -222,6 +222,7 @@ export class HooksProcessor extends FeatureProcessor {
       return [localHooks];
     }
 
+    // loadAndMergeJsonFeature returns localContent by reference when no sources contribute
     if (localHooks && merged === localContent) {
       return [localHooks];
     }

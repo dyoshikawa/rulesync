@@ -139,7 +139,8 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
 export async function generate(params: { config: Config }): Promise<GenerateResult> {
   const { config } = params;
 
-  // Resolve source caches once for all processors
+  // Resolve source caches once for all processors.
+  // Source caches are always resolved from the project root (process.cwd()), not per-baseDir.
   const sourceCaches = await getOrderedSourceCaches({
     baseDir: process.cwd(),
     sources: config.getSources(),

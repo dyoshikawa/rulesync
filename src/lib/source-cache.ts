@@ -2,6 +2,7 @@ import { basename, join } from "node:path";
 
 import type { SourceEntry } from "../config/config.js";
 import { RULESYNC_SOURCES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { formatError } from "../utils/error.js";
 import { directoryExists, fileExists, findFilesByGlobs, readFileContent } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { normalizeSourceKey } from "./sources-lock.js";
@@ -175,7 +176,7 @@ export async function loadAndMergeJsonFeature<T>(params: {
       logger.debug(`Merged ${fileName} from source ${source.sourceKey}`);
     } catch (error) {
       logger.warn(
-        `Failed to parse ${fileName} from source ${source.sourceKey}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to parse ${fileName} from source ${source.sourceKey}: ${formatError(error)}`,
       );
     }
   }
@@ -211,7 +212,7 @@ export async function loadAndMergeTextFeature(params: {
       logger.debug(`Merged ${fileName} from source ${source.sourceKey}`);
     } catch (error) {
       logger.warn(
-        `Failed to read ${fileName} from source ${source.sourceKey}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to read ${fileName} from source ${source.sourceKey}: ${formatError(error)}`,
       );
     }
   }

@@ -156,6 +156,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       return [localIgnore];
     }
 
+    // loadAndMergeTextFeature returns localContent by reference when no sources contribute
     if (localIgnore && merged === localContent) {
       return [localIgnore];
     }
