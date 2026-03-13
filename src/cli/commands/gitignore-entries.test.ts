@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
 import { logger } from "../../utils/logger.js";
 import {
   ALL_GITIGNORE_ENTRIES,
@@ -7,11 +8,34 @@ import {
   filterGitignoreEntries,
 } from "./gitignore-entries.js";
 
+// These targets intentionally have no gitignore entries because they either
+// don't generate files (e.g., agentsskills) or share paths with their
+// non-legacy counterparts (e.g., augmentcode-legacy → augmentcode).
+const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
+  "agentsskills",
+  "antigravity",
+  "augmentcode-legacy",
+  "claudecode-legacy",
+  "windsurf",
+  "zed",
+]);
+
 describe("GITIGNORE_ENTRY_REGISTRY", () => {
   it("should have no duplicate entries", () => {
     const entries = GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.entry);
     const unique = new Set(entries);
     expect(entries.length).toBe(unique.size);
+  });
+
+  it("should cover all tool targets except intentionally excluded ones", () => {
+    const registeredTargets = new Set(GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.target));
+    for (const target of ALL_TOOL_TARGETS) {
+      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) {
+        expect(registeredTargets).not.toContain(target);
+      } else {
+        expect(registeredTargets).toContain(target);
+      }
+    }
   });
 });
 

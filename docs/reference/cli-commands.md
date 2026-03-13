@@ -48,6 +48,12 @@ rulesync install && rulesync generate
 # Add generated files to .gitignore
 rulesync gitignore
 
+# Add only specific tool entries to .gitignore
+rulesync gitignore --targets claudecode,copilot
+
+# Add only specific feature entries to .gitignore
+rulesync gitignore --targets copilot --features rules,commands
+
 # Update rulesync to the latest version (single-binary installs)
 rulesync update
 
@@ -57,6 +63,39 @@ rulesync update --check
 # Force update even if already at latest version
 rulesync update --force
 ```
+
+## Gitignore Command
+
+The `gitignore` command adds generated AI tool configuration files to `.gitignore`. By default, it includes entries for all supported tools and features. You can optionally filter the output to include only specific tools or features.
+
+### Options
+
+| Option                      | Description                                                                                          | Default   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- | --------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools to include (e.g., `claudecode,copilot` or `*` for all)                 | `*` (all) |
+| `--features, -f <features>` | Comma-separated list of features to include (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all) |
+
+### Examples
+
+```bash
+# Add all entries (default)
+rulesync gitignore
+
+# Add entries for Claude Code only
+rulesync gitignore --targets claudecode
+
+# Add entries for multiple tools
+rulesync gitignore --targets claudecode,copilot,cursor
+
+# Add only rules and commands entries for Copilot
+rulesync gitignore --targets copilot --features rules,commands
+```
+
+### Behavior
+
+- **Common entries** (e.g., `.rulesync/skills/.curated/`, `rulesync.local.jsonc`) are always included regardless of filters.
+- **General entries** (e.g., memories, settings) are always included when their target is selected.
+- When re-running, all previously generated rulesync entries are removed before writing the new filtered set.
 
 ## Fetch Command
 
