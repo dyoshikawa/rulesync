@@ -44,7 +44,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Cline
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },
-  { target: "cline", feature: "rules", entry: "**/.clinerules/workflows/" },
+  { target: "cline", feature: "commands", entry: "**/.clinerules/workflows/" },
   { target: "cline", feature: "ignore", entry: "**/.clineignore" },
   { target: "cline", feature: "mcp", entry: "**/.cline/mcp.json" },
 
@@ -98,7 +98,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Kilo Code
   { target: "kilo", feature: "rules", entry: "**/.kilocode/rules/" },
   { target: "kilo", feature: "skills", entry: "**/.kilocode/skills/" },
-  { target: "kilo", feature: "skills", entry: "**/.kilocode/workflows/" },
+  { target: "kilo", feature: "commands", entry: "**/.kilocode/workflows/" },
   { target: "kilo", feature: "mcp", entry: "**/.kilocode/mcp.json" },
   { target: "kilo", feature: "ignore", entry: "**/.kilocodeignore" },
 
@@ -170,6 +170,10 @@ const isFeatureSelected = (
   }
 
   // Object format: per-target features
+  // NOTE: Unlike Config.getFeatures(target) which returns [] for missing keys,
+  // gitignore intentionally treats missing keys as "no restriction" (include all features).
+  // This is because gitignore filtering is additive — users specify which targets to restrict,
+  // and unmentioned targets should default to including all their entries.
   if (target === "common") return true;
   const targetFeatures = features[target];
   if (!targetFeatures) return true;

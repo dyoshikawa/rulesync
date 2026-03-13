@@ -163,8 +163,7 @@ describe("filterGitignoreEntries", () => {
       // copilot commands
       expect(result).toContain("**/.github/prompts/");
 
-      // copilot rules should be included (no restriction for copilot rules - targetFeatures not specified means all)
-      // Wait, copilot has ["commands"] so rules should NOT be included
+      // copilot has ["commands"] so copilot rules should NOT be included
       expect(result).not.toContain("**/.github/copilot-instructions.md");
 
       // claudecode commands should NOT be included

@@ -45,14 +45,20 @@ const main = async () => {
       "-t, --targets <tools>",
       "Comma-separated list of tools to include (e.g., 'claudecode,copilot' or '*' for all)",
       (value) => {
-        return value.split(",").map((t) => t.trim());
+        return value
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
       },
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to include (${ALL_FEATURES.join(",")}) or '*' for all`,
       (value) => {
-        return value.split(",").map((f) => f.trim());
+        return value
+          .split(",")
+          .map((f) => f.trim())
+          .filter(Boolean);
       },
     )
     .action(async (options) => {
