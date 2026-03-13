@@ -1,6 +1,7 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
-import { logger } from "../../utils/logger.js";
+import { CLIError, ErrorCodes } from "../../types/json-output.js";
+import { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
@@ -8,13 +9,16 @@ export type GenerateOptions = ConfigResolverResolveParams;
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
  */
-function logFeatureResult(params: {
-  count: number;
-  paths: string[];
-  featureName: string;
-  isPreview: boolean;
-  modePrefix: string;
-}): void {
+function logFeatureResult(
+  logger: Logger,
+  params: {
+    count: number;
+    paths: string[];
+    featureName: string;
+    isPreview: boolean;
+    modePrefix: string;
+  },
+): void {
   const { count, paths, featureName, isPreview, modePrefix } = params;
   if (count > 0) {
     if (isPreview) {
@@ -28,7 +32,7 @@ function logFeatureResult(params: {
   }
 }
 
-export async function generateCommand(options: GenerateOptions): Promise<void> {
+export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
 
   logger.configure({
@@ -44,8 +48,10 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   logger.debug("Generating files...");
 
   if (!(await checkRulesyncDirExists({ baseDir: process.cwd() }))) {
-    logger.error("❌ .rulesync directory not found. Run 'rulesync init' first.");
-    process.exit(1);
+    throw new CLIError(
+      ".rulesync directory not found. Run 'rulesync init' first.",
+      ErrorCodes.RULESYNC_DIR_NOT_FOUND,
+    );
   }
 
   logger.debug(`Base directories: ${config.getBaseDirs().join(", ")}`);
@@ -76,57 +82,47 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   const result = await generate({ config });
 
-  logFeatureResult({
-    count: result.ignoreCount,
-    paths: result.ignorePaths,
-    featureName: "ignore file(s)",
-    isPreview,
-    modePrefix,
-  });
-  logFeatureResult({
-    count: result.mcpCount,
-    paths: result.mcpPaths,
-    featureName: "MCP configuration(s)",
-    isPreview,
-    modePrefix,
-  });
-  logFeatureResult({
-    count: result.commandsCount,
-    paths: result.commandsPaths,
-    featureName: "command(s)",
-    isPreview,
-    modePrefix,
-  });
-  logFeatureResult({
-    count: result.subagentsCount,
-    paths: result.subagentsPaths,
-    featureName: "subagent(s)",
-    isPreview,
-    modePrefix,
-  });
-  logFeatureResult({
-    count: result.skillsCount,
-    paths: result.skillsPaths,
-    featureName: "skill(s)",
-    isPreview,
-    modePrefix,
-  });
-  logFeatureResult({
-    count: result.hooksCount,
-    paths: result.hooksPaths,
-    featureName: "hooks file(s)",
-    isPreview,
-    modePrefix,
-  });
-  logFeatureResult({
-    count: result.rulesCount,
-    paths: result.rulesPaths,
-    featureName: "rule(s)",
-    isPreview,
-    modePrefix,
-  });
-
   const totalGenerated = calculateTotalCount(result);
+
+  // Log feature results and capture data for JSON mode
+  const featureResults = {
+    ignore: { count: result.ignoreCount, paths: result.ignorePaths },
+    mcp: { count: result.mcpCount, paths: result.mcpPaths },
+    commands: { count: result.commandsCount, paths: result.commandsPaths },
+    subagents: { count: result.subagentsCount, paths: result.subagentsPaths },
+    skills: { count: result.skillsCount, paths: result.skillsPaths },
+    hooks: { count: result.hooksCount, paths: result.hooksPaths },
+    rules: { count: result.rulesCount, paths: result.rulesPaths },
+  };
+
+  // Map feature keys to human-readable labels with pluralization
+  const featureLabels: Record<string, (count: number) => string> = {
+    rules: (count) => `${count === 1 ? "rule" : "rules"}`,
+    ignore: (count) => `${count === 1 ? "ignore file" : "ignore files"}`,
+    mcp: (count) => `${count === 1 ? "MCP file" : "MCP files"}`,
+    commands: (count) => `${count === 1 ? "command" : "commands"}`,
+    subagents: (count) => `${count === 1 ? "subagent" : "subagents"}`,
+    skills: (count) => `${count === 1 ? "skill" : "skills"}`,
+    hooks: (count) => `${count === 1 ? "hooks file" : "hooks files"}`,
+  };
+
+  for (const [feature, data] of Object.entries(featureResults)) {
+    logFeatureResult(logger, {
+      count: data.count,
+      paths: data.paths,
+      featureName: featureLabels[feature]?.(data.count) ?? feature,
+      isPreview,
+      modePrefix,
+    });
+  }
+
+  // Capture JSON data if in JSON mode
+  if (logger.jsonMode) {
+    logger.captureData("features", featureResults);
+    logger.captureData("totalFiles", totalGenerated);
+    logger.captureData("hasDiff", result.hasDiff);
+    logger.captureData("skills", result.skills ?? []);
+  }
 
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");
@@ -152,8 +148,10 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   // Handle --check mode exit code
   if (check) {
     if (result.hasDiff) {
-      logger.error("❌ Files are not up to date. Run 'rulesync generate' to update.");
-      process.exit(1);
+      throw new CLIError(
+        "Files are not up to date. Run 'rulesync generate' to update.",
+        ErrorCodes.GENERATION_FAILED,
+      );
     } else {
       logger.success("✓ All files are up to date.");
     }

@@ -1,12 +1,12 @@
 import { FastMCP } from "fastmcp";
 
 import { rulesyncTool } from "../../mcp/tools.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 
 /**
  * MCP command that starts the MCP server
  */
-export async function mcpCommand({ version }: { version: string }): Promise<void> {
+export async function mcpCommand(logger: Logger, { version }: { version: string }): Promise<void> {
   const server = new FastMCP({
     name: "Rulesync MCP Server",
     // eslint-disable-next-line no-type-assertion/no-type-assertion

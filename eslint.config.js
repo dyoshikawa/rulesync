@@ -114,5 +114,13 @@ export default defineConfig([
     },
   },
 
+  {
+    // CLI entry point uses type assertions for command options
+    files: ["src/cli/index.ts"],
+    rules: {
+      "no-type-assertion/no-type-assertion": "off",
+    },
+  },
+
   ...oxlint.buildFromOxlintConfigFile("./.oxlintrc.json"),
 ]);
