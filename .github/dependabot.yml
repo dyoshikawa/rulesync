@@ -24,6 +24,13 @@ updates:
       - "cm-dyoshikawa"
     allow:
       - dependency-type: "all"
+    ignore:
+      - dependency-name: "@eslint/js"
+        versions:
+          - ">=10.0.0 <11.0.0"
+      - dependency-name: "eslint"
+        versions:
+          - ">=10.0.0 <11.0.0"
 
   # Automatic updates for GitHub Actions
   - package-ecosystem: "github-actions"
