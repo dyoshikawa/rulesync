@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../../utils/logger.js";
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
@@ -206,6 +207,56 @@ describe("filterGitignoreEntries", () => {
       expect(result).toContain("**/.github/prompts/");
       expect(result).not.toContain("**/.github/copilot-instructions.md");
       expect(result).not.toContain("**/.cursor/");
+    });
+  });
+
+  describe("validation warnings", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(logger, "warn");
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it("should warn when an invalid target is provided", () => {
+      filterGitignoreEntries({ targets: ["unknown-target"] });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unknown target 'unknown-target'"),
+      );
+    });
+
+    it("should warn for each invalid target", () => {
+      filterGitignoreEntries({ targets: ["claudecode", "foo", "bar"] });
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown target 'foo'"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown target 'bar'"));
+    });
+
+    it("should not warn for valid targets", () => {
+      filterGitignoreEntries({ targets: ["claudecode", "copilot", "*"] });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should warn when an invalid feature is provided (array format)", () => {
+      filterGitignoreEntries({ features: ["rules", "unknown-feat" as any] });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unknown feature 'unknown-feat'"),
+      );
+    });
+
+    it("should warn when an invalid feature is provided (object format)", () => {
+      filterGitignoreEntries({ features: { claudecode: ["rules", "unknown-feat" as any] } });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unknown feature 'unknown-feat'"),
+      );
+    });
+
+    it("should not warn for valid features", () => {
+      filterGitignoreEntries({ features: ["rules", "commands", "*"] });
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 

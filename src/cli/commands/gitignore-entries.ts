@@ -1,6 +1,11 @@
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import type { Feature, RulesyncFeatures } from "../../types/features.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
+import {
+  ALL_FEATURES_WITH_WILDCARD,
+  type Feature,
+  type RulesyncFeatures,
+} from "../../types/features.js";
+import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
+import { logger } from "../../utils/logger.js";
 
 export type GitignoreEntryTag = {
   readonly target: ToolTarget | "common";
@@ -172,8 +177,50 @@ const isFeatureSelected = (
   return targetFeatures.includes(feature);
 };
 
+const warnInvalidTargets = (targets: ReadonlyArray<string>): void => {
+  const validTargets = new Set<string>(ALL_TOOL_TARGETS_WITH_WILDCARD);
+  for (const target of targets) {
+    if (!validTargets.has(target)) {
+      logger.warn(
+        `Unknown target '${target}'. Valid targets: ${ALL_TOOL_TARGETS_WITH_WILDCARD.join(", ")}`,
+      );
+    }
+  }
+};
+
+const warnInvalidFeatures = (features: RulesyncFeatures): void => {
+  const validFeatures = new Set<string>(ALL_FEATURES_WITH_WILDCARD);
+  if (Array.isArray(features)) {
+    for (const feature of features) {
+      if (!validFeatures.has(feature)) {
+        logger.warn(
+          `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
+        );
+      }
+    }
+  } else {
+    for (const targetFeatures of Object.values(features)) {
+      if (!targetFeatures) continue;
+      for (const feature of targetFeatures) {
+        if (!validFeatures.has(feature)) {
+          logger.warn(
+            `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
+          );
+        }
+      }
+    }
+  }
+};
+
 export const filterGitignoreEntries = (params?: FilterGitignoreEntriesParams): string[] => {
   const { targets, features } = params ?? {};
+
+  if (targets && targets.length > 0) {
+    warnInvalidTargets(targets);
+  }
+  if (features) {
+    warnInvalidFeatures(features);
+  }
 
   const seen = new Set<string>();
   const result: string[] = [];
