@@ -213,6 +213,28 @@ describe("loadFileItemsFromSources", () => {
     expect(result[0]!.name).toBe("remote.md");
   });
 
+  it("should let local rules override source rules of the same name", async () => {
+    const cacheA = join(testDir, "source-a");
+    await ensureDir(join(cacheA, "rules"));
+    await writeFileContent(
+      join(cacheA, "rules", "coding-standards.md"),
+      "# Remote coding standards",
+    );
+    await writeFileContent(join(cacheA, "rules", "security.md"), "# Remote security");
+
+    const sources: SourceCacheEntry[] = [{ sourceKey: "source-a", cachePath: cacheA }];
+    const result = await loadFileItemsFromSources({
+      sources,
+      featureDirName: "rules",
+      globPattern: "*.md",
+      localNames: new Set(["coding-standards.md"]),
+    });
+
+    // Only security.md should be loaded; coding-standards.md is overridden by local
+    expect(result).toHaveLength(1);
+    expect(result[0]!.name).toBe("security.md");
+  });
+
   it("should apply first-source-wins for duplicate file names", async () => {
     const cacheA = join(testDir, "source-a");
     const cacheB = join(testDir, "source-b");
@@ -274,6 +296,68 @@ describe("loadAndMergeJsonFeature", () => {
     });
 
     expect(result).toEqual({ servers: { local: 0, a: 1, b: 2 } });
+  });
+
+  it("should give first-source-wins for overlapping MCP server names", async () => {
+    const cacheA = join(testDir, "source-a");
+    const cacheB = join(testDir, "source-b");
+    await ensureDir(cacheA);
+    await ensureDir(cacheB);
+    await writeFileContent(
+      cacheA + "/mcp.json",
+      JSON.stringify({ mcpServers: { shared: { command: "from-a" }, unique_a: { command: "a" } } }),
+    );
+    await writeFileContent(
+      cacheB + "/mcp.json",
+      JSON.stringify({ mcpServers: { shared: { command: "from-b" }, unique_b: { command: "b" } } }),
+    );
+
+    const sources: SourceCacheEntry[] = [
+      { sourceKey: "source-a", cachePath: cacheA },
+      { sourceKey: "source-b", cachePath: cacheB },
+    ];
+
+    type McpJson = { mcpServers: Record<string, { command: string }> };
+    const result = await loadAndMergeJsonFeature<McpJson>({
+      sources,
+      fileName: "mcp.json",
+      localContent: undefined,
+      mergeFn: (base, overlay) => ({
+        mcpServers: { ...overlay.mcpServers, ...base.mcpServers },
+      }),
+    });
+
+    // source-a wins for "shared" since it is declared first
+    expect(result!.mcpServers["shared"]!.command).toBe("from-a");
+    expect(result!.mcpServers["unique_a"]!.command).toBe("a");
+    expect(result!.mcpServers["unique_b"]!.command).toBe("b");
+  });
+
+  it("should let local MCP content override all source servers on conflict", async () => {
+    const cacheA = join(testDir, "source-a");
+    await ensureDir(cacheA);
+    await writeFileContent(
+      cacheA + "/mcp.json",
+      JSON.stringify({
+        mcpServers: { overlap: { command: "remote" }, remote_only: { command: "r" } },
+      }),
+    );
+
+    const sources: SourceCacheEntry[] = [{ sourceKey: "source-a", cachePath: cacheA }];
+    type McpJson = { mcpServers: Record<string, { command: string }> };
+    const result = await loadAndMergeJsonFeature<McpJson>({
+      sources,
+      fileName: "mcp.json",
+      localContent: { mcpServers: { overlap: { command: "local" } } },
+      mergeFn: (base, overlay) => ({
+        mcpServers: { ...overlay.mcpServers, ...base.mcpServers },
+      }),
+    });
+
+    // Local "overlap" wins over remote
+    expect(result!.mcpServers["overlap"]!.command).toBe("local");
+    // Remote-only server is still included
+    expect(result!.mcpServers["remote_only"]!.command).toBe("r");
   });
 
   it("should return undefined when no sources and no local content", async () => {

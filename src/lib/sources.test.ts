@@ -934,6 +934,64 @@ describe("resolveAndFetchSources", () => {
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Hint"));
   });
 
+  it("should fetch skills, rules, and mcp.json from a single source into .sources/", async () => {
+    const { listDirectoryRecursive, withSemaphore } = await import("./github-utils.js");
+    vi.mocked(withSemaphore).mockImplementation(async (_sem: any, fn: () => any) => fn());
+    const { GitHubClientError } = await import("./github-client.js");
+
+    // Remote has skills, rules, and mcp.json; other features return 404
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "rules") {
+          return [{ name: "coding.md", path: "rules/coding.md", type: "file" }];
+        }
+        throw new GitHubClientError("Not Found", 404);
+      },
+    );
+    vi.mocked(listDirectoryRecursive).mockResolvedValue([
+      {
+        name: "SKILL.md",
+        path: "skills/my-skill/SKILL.md",
+        type: "file",
+        size: 50,
+        sha: "abc",
+        download_url: null,
+      },
+    ]);
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills/my-skill/SKILL.md") return "# My Skill";
+        if (path === "rules/coding.md") return "# Coding Rules";
+        if (path === ".rulesync/mcp.json" || path === "mcp.json")
+          return JSON.stringify({ mcpServers: { s1: { command: "cmd" } } });
+        throw new GitHubClientError("Not Found", 404);
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      sources: [{ source: "https://github.com/org/multi-feature" }],
+      baseDir: testDir,
+    });
+
+    expect(result.sourcesProcessed).toBe(1);
+    expect(result.fetchedFileCount).toBeGreaterThanOrEqual(2);
+
+    const sourceCacheDir = join(testDir, RULESYNC_SOURCES_RELATIVE_DIR_PATH, "org--multi-feature");
+    // Verify skill was written
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(sourceCacheDir, "skills", "my-skill", "SKILL.md"),
+      "# My Skill",
+    );
+    // Verify rule was written
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(sourceCacheDir, "rules", "coding.md"),
+      "# Coding Rules",
+    );
+  });
+
   it("should drop renamed/deleted files from lockfile when upstream removes them", async () => {
     const { readLockFile, writeLockFile } = await import("./sources-lock.js");
     const { resolveDefaultRef, fetchSourceCacheFiles } = await import("./git-client.js");

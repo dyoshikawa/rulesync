@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
@@ -427,6 +430,66 @@ This is skill content`;
       expect(rulesyncDirs[0]).toBeInstanceOf(RulesyncSkill);
       const rulesyncSkill = rulesyncDirs[0] as RulesyncSkill;
       expect(rulesyncSkill.getFrontmatter().name).toBe("skill-1");
+    });
+
+    it("should load skills from legacy .curated/ directory (backward compat)", async () => {
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(curatedDir);
+
+      const skillDir = join(curatedDir, "curated-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---
+name: curated-skill
+description: A curated skill
+---
+Curated skill content`,
+      );
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      expect(rulesyncDirs[0]).toBeInstanceOf(RulesyncSkill);
+      const skill = rulesyncDirs[0] as RulesyncSkill;
+      expect(skill.getFrontmatter().name).toBe("curated-skill");
+    });
+
+    it("should let local skills override curated skills with the same name", async () => {
+      // Create local skill
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+      const localDir = join(skillsDir, "my-skill");
+      await ensureDir(localDir);
+      await writeFileContent(
+        join(localDir, "SKILL.md"),
+        `---
+name: my-skill
+description: Local version
+---
+Local content`,
+      );
+
+      // Create curated skill with the same name
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(curatedDir);
+      const curatedSkillDir = join(curatedDir, "my-skill");
+      await ensureDir(curatedSkillDir);
+      await writeFileContent(
+        join(curatedSkillDir, "SKILL.md"),
+        `---
+name: my-skill
+description: Curated version
+---
+Curated content`,
+      );
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      // Only the local skill should be loaded, curated is skipped
+      expect(rulesyncDirs).toHaveLength(1);
+      const skill = rulesyncDirs[0] as RulesyncSkill;
+      expect(skill.getFrontmatter().description).toBe("Local version");
     });
   });
 
