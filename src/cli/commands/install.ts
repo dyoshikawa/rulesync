@@ -15,11 +15,6 @@ export async function installCommand(
   logger: Logger,
   options: InstallCommandOptions,
 ): Promise<void> {
-  logger.configure({
-    verbose: options.verbose ?? false,
-    silent: options.silent ?? false,
-  });
-
   const config = await ConfigResolver.resolve({
     configPath: options.configPath,
     verbose: options.verbose,

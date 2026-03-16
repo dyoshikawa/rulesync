@@ -6,7 +6,7 @@ import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
-import { Logger } from "../../utils/logger.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { ImportOptions } from "./import.js";
 import { importCommand } from "./import.js";
 
@@ -20,7 +20,7 @@ vi.mock("../../features/commands/commands-processor.js");
 
 describe("importCommand", () => {
   let mockConfig: any;
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
     // Setup default mock config
@@ -35,17 +35,7 @@ describe("importCommand", () => {
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
 
-    // Setup logger mock
-    mockLogger = {
-      configure: vi.fn(),
-      error: vi.fn(),
-      success: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
 
     // Setup processor mocks with default return values
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
@@ -357,7 +347,6 @@ describe("importCommand", () => {
 
       await importCommand(mockLogger, options);
 
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
       expect(mockLogger.success).toHaveBeenCalledWith(expect.stringContaining("Imported"));
     });
 
@@ -407,8 +396,6 @@ describe("importCommand", () => {
 
       await importCommand(mockLogger, options);
 
-      // Only the configure call should have been made, no success messages
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
       expect(mockLogger.success).not.toHaveBeenCalled();
     });
   });
