@@ -874,6 +874,36 @@ describe("resolveAndFetchSources", () => {
     expect(writeArgs.some((p) => p.includes("skill-b"))).toBe(false);
   });
 
+  it("should not write files outside requested features for git transport", async () => {
+    const { resolveDefaultRef, fetchSourceCacheFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+
+    // Simulate sparse checkout returning extra files outside the requested feature
+    // (e.g. mcp.json sitting alongside subagents/ under the basePath)
+    vi.mocked(fetchSourceCacheFiles).mockResolvedValue([
+      { relativePath: "subagents/reviewer.md", content: "# Reviewer", size: 50 },
+      { relativePath: "mcp.json", content: '{"mcpServers":{}}', size: 20 },
+    ]);
+
+    await resolveAndFetchSources({
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/repo",
+          transport: "git",
+          features: ["subagents"],
+          path: ".rulesync",
+        },
+      ],
+      baseDir: testDir,
+    });
+
+    const writeArgs = vi.mocked(writeFileContent).mock.calls.map((call) => call[0]);
+    // subagents/reviewer.md should be written
+    expect(writeArgs.some((p) => p.includes("subagents") && p.includes("reviewer.md"))).toBe(true);
+    // mcp.json should NOT be written since "mcp" is not in the features list
+    expect(writeArgs.some((p) => p.endsWith("mcp.json"))).toBe(false);
+  });
+
   it("should warn on integrity mismatch for git transport file", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const { fetchSourceCacheFiles } = await import("./git-client.js");

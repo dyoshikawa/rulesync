@@ -64,6 +64,22 @@ const FILE_FEATURES: Record<Feature, string> = {
   subagents: "",
 };
 
+/**
+ * Check if a relative path belongs to any of the requested features.
+ * Used to filter out files that sparse checkout may include from sibling
+ * directories when the basePath is a parent of multiple feature dirs.
+ */
+function isPathInFeatures(relativePath: string, features: Feature[]): boolean {
+  for (const feature of features) {
+    if (DIRECTORY_FEATURES.includes(feature)) {
+      if (relativePath.startsWith(feature + "/")) return true;
+    } else {
+      if (relativePath === FILE_FEATURES[feature]) return true;
+    }
+  }
+  return false;
+}
+
 /** Map a feature to its remote path(s) relative to the source root. */
 function featureToRemotePath(feature: Feature): string {
   if (DIRECTORY_FEATURES.includes(feature)) {
@@ -521,6 +537,12 @@ async function fetchSourceViaGit(params: {
   const isSkillWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
 
   for (const file of remoteFiles) {
+    // Filter out files that don't belong to the requested features.
+    // Sparse checkout from a basePath may include sibling files.
+    if (!isPathInFeatures(file.relativePath, features)) {
+      continue;
+    }
+
     // Apply skill filter for skills
     if (file.relativePath.startsWith("skills/")) {
       const parts = file.relativePath.split("/");
