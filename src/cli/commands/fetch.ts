@@ -11,12 +11,6 @@ export type FetchCommandOptions = FetchOptions & {
 export async function fetchCommand(logger: Logger, options: FetchCommandOptions): Promise<void> {
   const { source, ...fetchOptions } = options;
 
-  // Configure logger early for error messages
-  logger.configure({
-    verbose: fetchOptions.verbose ?? false,
-    silent: fetchOptions.silent ?? false,
-  });
-
   logger.debug(`Fetching files from ${source}...`);
 
   try {

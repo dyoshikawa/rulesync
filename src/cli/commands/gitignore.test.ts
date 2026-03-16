@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import { Logger } from "../../utils/logger.js";
+import { createMockLogger } from "./__test__/mock-logger.js";
 import { filterGitignoreEntries } from "./gitignore-entries.js";
 import { gitignoreCommand } from "./gitignore.js";
 
@@ -14,21 +14,12 @@ vi.mock("../../utils/file.js");
 
 describe("gitignoreCommand", () => {
   const mockGitignorePath = "/workspace/.gitignore";
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
     vi.spyOn(process, "cwd").mockReturnValue("/workspace");
 
-    mockLogger = {
-      info: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      configure: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
 
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(readFileContent).mockResolvedValue("");

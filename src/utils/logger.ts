@@ -8,6 +8,7 @@ export class Logger {
   private _verbose = false;
   private _silent = false;
   private _jsonMode = false;
+  private _jsonOutputDone = false;
   private _commandName = "";
   private _jsonData: Record<string, unknown> = {};
   private console = consola.withDefaults({
@@ -46,6 +47,7 @@ export class Logger {
    */
   setJsonMode(enabled: boolean, command: string): void {
     this._jsonMode = enabled;
+    this._jsonOutputDone = false;
     this._commandName = command;
     if (enabled) {
       this._jsonData = {};
@@ -82,7 +84,8 @@ export class Logger {
     success: boolean,
     error?: { code: string; message: string; stack?: string; details?: unknown },
   ): void {
-    if (!this._jsonMode) return;
+    if (!this._jsonMode || this._jsonOutputDone) return;
+    this._jsonOutputDone = true;
 
     const output: JsonOutput = {
       success,
