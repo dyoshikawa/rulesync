@@ -342,6 +342,53 @@ describe("CopilotCliMcp", () => {
         },
       });
     });
+
+    it("should throw error when server has no command", async () => {
+      const inputMcpServers = {
+        "no-command-server": {
+          // No command provided
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      await expect(
+        CopilotCliMcp.fromRulesyncMcp({
+          rulesyncMcp,
+        })
+      ).rejects.toThrow('MCP server "no-command-server" is missing a command');
+    });
+
+    it("should handle command as array and merge remaining elements into args", async () => {
+      const inputMcpServers = {
+        "array-command-server": {
+          command: ["npx", "-y", "@anthropic-ai/mcp-server-filesystem"],
+          args: ["/workspace"],
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      const copilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+      });
+
+      expect(copilotCliMcp.getJson()).toEqual({
+        mcpServers: {
+          "array-command-server": {
+            type: "stdio",
+            command: "npx",
+            args: ["-y", "@anthropic-ai/mcp-server-filesystem", "/workspace"],
+          },
+        },
+      });
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -579,7 +626,7 @@ describe("CopilotCliMcp", () => {
       expect(newCopilotCliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
     });
 
-    it("should maintain data consistency across transformations", () => {
+    it("should maintain data consistency across transformations", async () => {
       const originalServers = {
         "primary-server": {
           type: "stdio" as const,
@@ -602,20 +649,25 @@ describe("CopilotCliMcp", () => {
 
       // Create CopilotCliMcp
       const copilotCliMcp = new CopilotCliMcp({
-        baseDir: "/project",
+        baseDir: testDir,
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: originalServers }),
       });
 
-      // Convert to RulesyncMcp and back
+      // Convert to RulesyncMcp
       const rulesyncMcp = copilotCliMcp.toRulesyncMcp();
       // RulesyncMcp should not have type field
       expect(rulesyncMcp.getJson().mcpServers["primary-server"]).not.toHaveProperty("type");
 
-      // Create new CopilotCliMcp from RulesyncMcp
-      // Note: fromRulesyncMcp is async, so we need to handle it properly
-      // For this test, we'll verify the conversion logic separately
+      // Create new CopilotCliMcp from RulesyncMcp (round-trip)
+      const roundTrippedMcp = await CopilotCliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      // Verify data integrity - type field is restored and all data preserved
+      expect(roundTrippedMcp.getJson()).toEqual({ mcpServers: originalServers });
     });
   });
 });

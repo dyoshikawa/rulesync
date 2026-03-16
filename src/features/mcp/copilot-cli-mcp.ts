@@ -29,6 +29,7 @@ type CopilotCliMcpConfig = {
 /**
  * Adds "type": "stdio" to each MCP server config if not present.
  * GitHub Copilot CLI requires the "type" field for each server.
+ * @throws Error if a server doesn't have a command (Copilot CLI stdio servers require a command)
  */
 function addTypeField(mcpServers: McpServers): CopilotCliMcpConfig["mcpServers"] {
   const result: CopilotCliMcpConfig["mcpServers"] = {};
@@ -37,10 +38,32 @@ function addTypeField(mcpServers: McpServers): CopilotCliMcpConfig["mcpServers"]
     // Parse and validate the server config
     const parsed = McpServerSchema.parse(server);
 
+    // Copilot CLI stdio servers require a non-empty command
+    if (!parsed.command) {
+      throw new Error(
+        `MCP server "${name}" is missing a command. GitHub Copilot CLI stdio servers require a non-empty command.`
+      );
+    }
+
+    // Handle command as string or array
+    let command: string;
+    let args: string[] | undefined;
+
+    if (typeof parsed.command === "string") {
+      command = parsed.command;
+      args = parsed.args;
+    } else {
+      // command is an array: first element is command, rest are args
+      const [cmd, ...cmdArgs] = parsed.command;
+      command = cmd;
+      // Merge command array args with existing args
+      args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
+    }
+
     result[name] = {
       type: "stdio",
-      command: typeof parsed.command === "string" ? parsed.command : parsed.command?.[0] ?? "",
-      ...(parsed.args && { args: parsed.args }),
+      command,
+      ...(args && { args }),
       ...(parsed.env && { env: parsed.env }),
     };
   }
