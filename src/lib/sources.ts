@@ -1,4 +1,4 @@
-import { join, resolve, sep } from "node:path";
+import { join, posix, resolve, sep } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
@@ -360,17 +360,17 @@ async function fetchSourceViaGitHub(params: {
   const isSkillWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
 
   for (const feature of features) {
+    // Use posix.join for remote repo paths (GitHub API always uses forward slashes)
     const remotePath = basePath
-      ? join(basePath, featureToRemotePath(feature))
+      ? posix.join(basePath, featureToRemotePath(feature))
       : featureToRemotePath(feature);
 
     if (DIRECTORY_FEATURES.includes(feature)) {
-      // Directory feature: list and fetch subdirectories/files
+      // Directory feature: recursively list and fetch files
       try {
-        const entries = await client.listDirectory(parsed.owner, parsed.repo, remotePath, ref);
-
         if (feature === "skills") {
-          // Skills: each entry is a subdirectory
+          // Skills: list top-level to find skill subdirectories, then recurse each
+          const entries = await client.listDirectory(parsed.owner, parsed.repo, remotePath, ref);
           const skillDirs = entries
             .filter((e) => e.type === "dir")
             .filter((d) => isSkillWildcard || skillFilter.includes(d.name));
@@ -395,7 +395,7 @@ async function fetchSourceViaGitHub(params: {
               const content = await withSemaphore(semaphore, () =>
                 client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
               );
-              const relPath = join(
+              const relPath = posix.join(
                 "skills",
                 skillDir.name,
                 file.path.substring(skillDir.path.length + 1),
@@ -412,17 +412,27 @@ async function fetchSourceViaGitHub(params: {
             }
           }
         } else {
-          // rules/commands/subagents: each entry is a file
-          const fileEntries = entries.filter((e) => e.type === "file");
-          for (const fileEntry of fileEntries) {
-            if (fileEntry.size && fileEntry.size > MAX_FILE_SIZE) {
-              logger.warn(`Skipping file "${fileEntry.path}" (exceeds size limit).`);
+          // rules/commands/subagents: recursively list all files
+          const allFiles = await listDirectoryRecursive({
+            client,
+            owner: parsed.owner,
+            repo: parsed.repo,
+            path: remotePath,
+            ref,
+            semaphore,
+          });
+
+          for (const file of allFiles) {
+            if (file.size > MAX_FILE_SIZE) {
+              logger.warn(
+                `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds limit).`,
+              );
               continue;
             }
             const content = await withSemaphore(semaphore, () =>
-              client.getFileContent(parsed.owner, parsed.repo, fileEntry.path, ref),
+              client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
             );
-            const relPath = join(feature, fileEntry.name);
+            const relPath = posix.join(feature, file.path.substring(remotePath.length + 1));
             const result = await writeAndTrackFile({
               cachePath,
               relativePath: relPath,

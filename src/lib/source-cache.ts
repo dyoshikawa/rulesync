@@ -226,6 +226,6 @@ export async function loadAndMergeTextFeature(params: {
  */
 export async function listSourceCacheFiles(cachePath: string): Promise<string[]> {
   if (!(await directoryExists(cachePath))) return [];
-  const files = await findFilesByGlobs(join(cachePath, "**", "*"));
+  const files = await findFilesByGlobs(join(cachePath, "**", "*"), { type: "file" });
   return files.map((f) => f.substring(cachePath.length + 1));
 }

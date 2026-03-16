@@ -42,6 +42,13 @@ function isZodErrorLike(error: unknown): error is {
   );
 }
 
+/**
+ * Check if an error is a file-not-found (ENOENT) error from the filesystem.
+ */
+export function isFileNotFoundError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
 export function formatError(error: unknown): string {
   // Check for ZodError by duck typing (handles both zod and zod/mini)
   if (error instanceof ZodError || isZodErrorLike(error)) {

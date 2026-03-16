@@ -1042,16 +1042,33 @@ describe("resolveAndFetchSources", () => {
         throw new GitHubClientError("Not Found", 404);
       },
     );
-    vi.mocked(listDirectoryRecursive).mockResolvedValue([
-      {
-        name: "SKILL.md",
-        path: "skills/my-skill/SKILL.md",
-        type: "file",
-        size: 50,
-        sha: "abc",
-        download_url: null,
-      },
-    ]);
+    vi.mocked(listDirectoryRecursive).mockImplementation(async (params: any) => {
+      if (params.path === "skills/my-skill") {
+        return [
+          {
+            name: "SKILL.md",
+            path: "skills/my-skill/SKILL.md",
+            type: "file",
+            size: 50,
+            sha: "abc",
+            download_url: null,
+          },
+        ];
+      }
+      if (params.path === "rules") {
+        return [
+          {
+            name: "coding.md",
+            path: "rules/coding.md",
+            type: "file",
+            size: 30,
+            sha: "def",
+            download_url: null,
+          },
+        ];
+      }
+      return [];
+    });
     mockClientInstance.getFileContent.mockImplementation(
       async (_owner: string, _repo: string, path: string) => {
         if (path === "skills/my-skill/SKILL.md") return "# My Skill";

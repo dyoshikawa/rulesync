@@ -11,7 +11,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
-import { formatError } from "../../utils/error.js";
+import { formatError, isFileNotFoundError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -138,8 +138,10 @@ export class IgnoreProcessor extends FeatureProcessor {
     let localIgnore: RulesyncIgnore | undefined;
     try {
       localIgnore = await RulesyncIgnore.fromFile();
-    } catch {
-      // No local .aiignore is fine
+    } catch (error) {
+      if (!isFileNotFoundError(error)) {
+        logger.warn(`Failed to load local .aiignore: ${formatError(error)}`);
+      }
     }
 
     // Merge with source caches

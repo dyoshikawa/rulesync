@@ -26,6 +26,7 @@ import { WindsurfIgnore } from "./windsurf-ignore.js";
 vi.mock("../../utils/logger.js", () => ({
   logger: {
     debug: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));

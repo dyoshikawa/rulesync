@@ -20,7 +20,7 @@ import {
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import { formatError } from "../../utils/error.js";
+import { formatError, isFileNotFoundError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
@@ -204,8 +204,10 @@ export class HooksProcessor extends FeatureProcessor {
         baseDir: process.cwd(),
         validate: true,
       });
-    } catch {
-      // No local hooks.json is fine
+    } catch (error) {
+      if (!isFileNotFoundError(error)) {
+        logger.warn(`Failed to load local hooks.json: ${formatError(error)}`);
+      }
     }
 
     // Merge with source caches

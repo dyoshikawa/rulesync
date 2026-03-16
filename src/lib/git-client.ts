@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, posix, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
@@ -225,8 +225,8 @@ export async function fetchSourceCacheFiles(params: {
       { timeout: GIT_TIMEOUT_MS },
     );
 
-    // Sparse checkout all requested paths at once
-    const sparseArgs = paths.map((p) => (basePath ? join(basePath, p) : p));
+    // Sparse checkout all requested paths at once (git patterns use forward slashes)
+    const sparseArgs = paths.map((p) => (basePath ? posix.join(basePath, p) : p));
     await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", ...sparseArgs], {
       timeout: GIT_TIMEOUT_MS,
     });
@@ -293,7 +293,12 @@ async function walkDirectory(
         );
       }
       const content = await readFileContent(fullPath);
-      results.push({ relativePath: relative(baseDir, fullPath), content, size });
+      // Normalize to forward slashes for consistent lockfile keys across platforms
+      results.push({
+        relativePath: relative(baseDir, fullPath).replaceAll("\\", "/"),
+        content,
+        size,
+      });
     }
   }
   return results;

@@ -10,7 +10,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
-import { formatError } from "../../utils/error.js";
+import { formatError, isFileNotFoundError } from "../../utils/error.js";
 import { logger } from "../../utils/logger.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
@@ -25,12 +25,6 @@ import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
-
-type McpJson = { mcpServers: Record<string, unknown>; [key: string]: unknown };
-
-function parseMcpJson(raw: string): McpJson {
-  return JSON.parse(raw);
-}
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -38,6 +32,12 @@ import {
   ToolMcpFromRulesyncMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+
+type McpJson = { mcpServers: Record<string, unknown>; [key: string]: unknown };
+
+function parseMcpJson(raw: string): McpJson {
+  return JSON.parse(raw);
+}
 
 /**
  * Supported tool targets for McpProcessor.
@@ -322,8 +322,10 @@ export class McpProcessor extends FeatureProcessor {
     let localMcp: RulesyncMcp | undefined;
     try {
       localMcp = await RulesyncMcp.fromFile({});
-    } catch {
-      // No local mcp.json is fine
+    } catch (error) {
+      if (!isFileNotFoundError(error)) {
+        logger.warn(`Failed to load local mcp.json: ${formatError(error)}`);
+      }
     }
 
     // Merge with source caches
