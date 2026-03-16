@@ -9,7 +9,7 @@ import {
   getNpmUpgradeInstructions,
   performBinaryUpdate,
 } from "../../lib/update.js";
-import { Logger } from "../../utils/logger.js";
+import { createMockLogger } from "./__test__/mock-logger.js";
 import { updateCommand } from "./update.js";
 
 vi.mock("../../lib/update.js", async (importOriginal) => {
@@ -32,24 +32,10 @@ vi.mock("../../lib/github-client.js", async (importOriginal) => {
 });
 
 describe("updateCommand", () => {
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
-    mockLogger = {
-      configure: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-      setJsonMode: vi.fn(),
-      getJsonData: vi.fn(),
-      outputJson: vi.fn(),
-      verbose: false,
-      silent: false,
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
   });
 
   afterEach(() => {
@@ -184,17 +170,6 @@ describe("updateCommand", () => {
       vi.mocked(performBinaryUpdate).mockRejectedValue(new Error("Network error"));
 
       await expect(updateCommand(mockLogger, "1.0.0", {})).rejects.toThrow("Network error");
-    });
-  });
-
-  describe("logger configuration", () => {
-    it("should configure logger with verbose and silent options", async () => {
-      vi.mocked(detectExecutionEnvironment).mockReturnValue("npm");
-      vi.mocked(getNpmUpgradeInstructions).mockReturnValue("instructions");
-
-      await updateCommand(mockLogger, "1.0.0", { verbose: true, silent: true });
-
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: true });
     });
   });
 });

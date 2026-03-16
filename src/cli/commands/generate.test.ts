@@ -8,7 +8,7 @@ import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
-import { Logger } from "../../utils/logger.js";
+import { createMockLogger } from "./__test__/mock-logger.js";
 import type { GenerateOptions } from "./generate.js";
 import { generateCommand } from "./generate.js";
 
@@ -28,7 +28,7 @@ describe("generateCommand", () => {
   let mockExit: any;
   let mockConfig: any;
   let mockProcessorInstance: any;
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
     // Mock process.cwd to return a consistent value
@@ -59,17 +59,7 @@ describe("generateCommand", () => {
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    // Setup logger mock
-    mockLogger = {
-      configure: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
 
     // Setup intersection mock to return the first array by default
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));
@@ -143,22 +133,12 @@ describe("generateCommand", () => {
   });
 
   describe("initial setup", () => {
-    it("should resolve config and configure logger", async () => {
+    it("should resolve config", async () => {
       const options: GenerateOptions = { verbose: true };
 
       await generateCommand(mockLogger, options);
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
-    });
-
-    it("should configure verbose logging when config has verbose enabled", async () => {
-      mockConfig.getVerbose.mockReturnValue(true);
-      const options: GenerateOptions = {};
-
-      await generateCommand(mockLogger, options);
-
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
     });
 
     it("should log generating files message", async () => {

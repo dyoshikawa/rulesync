@@ -22,7 +22,7 @@ import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
-import { Logger } from "../../utils/logger.js";
+import { createMockLogger } from "./__test__/mock-logger.js";
 import { initCommand } from "./init.js";
 
 // Mock dependencies
@@ -36,20 +36,10 @@ vi.mock("../../features/skills/rulesync-skill.js");
 vi.mock("../../features/subagents/rulesync-subagent.js");
 
 describe("initCommand", () => {
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
-    // Setup logger mock
-    mockLogger = {
-      info: vi.fn(),
-      debug: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      configure: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
 
     // Setup file utility mocks
     vi.mocked(ensureDir).mockResolvedValue(undefined);

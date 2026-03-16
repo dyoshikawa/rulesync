@@ -35,11 +35,6 @@ function logFeatureResult(
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
 
-  logger.configure({
-    verbose: config.getVerbose(),
-    silent: config.getSilent(),
-  });
-
   const check = config.getCheck();
 
   const isPreview = config.isPreviewMode();
