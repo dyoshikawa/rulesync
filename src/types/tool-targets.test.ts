@@ -22,6 +22,7 @@ describe("tool targets", () => {
         "cline",
         "codexcli",
         "copilot",
+        "copilot-cli",
         "cursor",
         "factorydroid",
         "geminicli",

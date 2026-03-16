@@ -89,6 +89,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "copilot", feature: "hooks", entry: "**/.github/hooks/" },
   { target: "copilot", feature: "mcp", entry: "**/.vscode/mcp.json" },
 
+  // GitHub Copilot CLI
+  { target: "copilot-cli", feature: "mcp", entry: "**/.copilot/mcp-config.json" },
+
   // Junie
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },
   { target: "junie", feature: "mcp", entry: "**/.junie/mcp.json" },

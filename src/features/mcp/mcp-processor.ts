@@ -10,6 +10,7 @@ import { logger } from "../../utils/logger.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
+import { CopilotCliMcp } from "./copilot-cli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
@@ -38,6 +39,7 @@ const mcpProcessorToolTargetTuple = [
   "cline",
   "codexcli",
   "copilot",
+  "copilot-cli",
   "cursor",
   "factorydroid",
   "geminicli",
@@ -138,6 +140,18 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       meta: {
         supportsProject: true,
         supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "copilot-cli",
+    {
+      class: CopilotCliMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
