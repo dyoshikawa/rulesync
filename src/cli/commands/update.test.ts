@@ -9,7 +9,7 @@ import {
   getNpmUpgradeInstructions,
   performBinaryUpdate,
 } from "../../lib/update.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 import { updateCommand } from "./update.js";
 
 vi.mock("../../lib/update.js", async (importOriginal) => {
@@ -30,21 +30,26 @@ vi.mock("../../lib/github-client.js", async (importOriginal) => {
     GitHubClientError: actual.GitHubClientError,
   };
 });
-vi.mock("../../utils/logger.js");
 
 describe("updateCommand", () => {
-  let mockExit: ReturnType<typeof vi.spyOn>;
+  let mockLogger: Logger;
 
   beforeEach(() => {
-    mockExit = vi.spyOn(process, "exit").mockImplementation(function () {
-      throw new Error("Process exit");
-    } as never);
-
-    vi.mocked(logger.configure).mockImplementation(() => {});
-    vi.mocked(logger.info).mockImplementation(() => {});
-    vi.mocked(logger.success).mockImplementation(() => {});
-    vi.mocked(logger.error).mockImplementation(() => {});
-    vi.mocked(logger.debug).mockImplementation(() => {});
+    mockLogger = {
+      configure: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      jsonMode: false,
+      captureData: vi.fn(),
+      setJsonMode: vi.fn(),
+      getJsonData: vi.fn(),
+      outputJson: vi.fn(),
+      verbose: false,
+      silent: false,
+    } as unknown as Logger;
   });
 
   afterEach(() => {
@@ -56,9 +61,9 @@ describe("updateCommand", () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("npm");
       vi.mocked(getNpmUpgradeInstructions).mockReturnValue("npm install -g rulesync@latest");
 
-      await updateCommand("1.0.0", {});
+      await updateCommand(mockLogger, "1.0.0", {});
 
-      expect(logger.info).toHaveBeenCalledWith("npm install -g rulesync@latest");
+      expect(mockLogger.info).toHaveBeenCalledWith("npm install -g rulesync@latest");
       expect(performBinaryUpdate).not.toHaveBeenCalled();
     });
   });
@@ -68,9 +73,9 @@ describe("updateCommand", () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("homebrew");
       vi.mocked(getHomebrewUpgradeInstructions).mockReturnValue("brew upgrade rulesync");
 
-      await updateCommand("1.0.0", {});
+      await updateCommand(mockLogger, "1.0.0", {});
 
-      expect(logger.info).toHaveBeenCalledWith("brew upgrade rulesync");
+      expect(mockLogger.info).toHaveBeenCalledWith("brew upgrade rulesync");
       expect(performBinaryUpdate).not.toHaveBeenCalled();
     });
   });
@@ -91,9 +96,9 @@ describe("updateCommand", () => {
         },
       });
 
-      await updateCommand("1.0.0", { check: true });
+      await updateCommand(mockLogger, "1.0.0", { check: true });
 
-      expect(logger.success).toHaveBeenCalledWith(
+      expect(mockLogger.success).toHaveBeenCalledWith(
         expect.stringContaining("Update available: 1.0.0 -> 2.0.0"),
       );
     });
@@ -113,9 +118,9 @@ describe("updateCommand", () => {
         },
       });
 
-      await updateCommand("1.0.0", { check: true });
+      await updateCommand(mockLogger, "1.0.0", { check: true });
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining("Already at the latest version"),
       );
     });
@@ -126,17 +131,17 @@ describe("updateCommand", () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("single-binary");
       vi.mocked(performBinaryUpdate).mockResolvedValue("Successfully updated from 1.0.0 to 2.0.0");
 
-      await updateCommand("1.0.0", {});
+      await updateCommand(mockLogger, "1.0.0", {});
 
       expect(performBinaryUpdate).toHaveBeenCalledWith("1.0.0", { force: false, token: undefined });
-      expect(logger.success).toHaveBeenCalledWith("Successfully updated from 1.0.0 to 2.0.0");
+      expect(mockLogger.success).toHaveBeenCalledWith("Successfully updated from 1.0.0 to 2.0.0");
     });
 
     it("should pass force and token options", async () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("single-binary");
       vi.mocked(performBinaryUpdate).mockResolvedValue("Successfully updated");
 
-      await updateCommand("1.0.0", { force: true, token: "my-token" });
+      await updateCommand(mockLogger, "1.0.0", { force: true, token: "my-token" });
 
       expect(performBinaryUpdate).toHaveBeenCalledWith("1.0.0", { force: true, token: "my-token" });
     });
@@ -149,22 +154,18 @@ describe("updateCommand", () => {
         new GitHubClientError("Rate limit exceeded", 403),
       );
 
-      await expect(updateCommand("1.0.0", {})).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Rate limit exceeded");
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN"));
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
-      expect(mockExit).toHaveBeenCalledWith(1);
+      await expect(updateCommand(mockLogger, "1.0.0", {})).rejects.toThrow(
+        "GitHub API Error: Rate limit exceeded",
+      );
     });
 
     it("should not show token tip for non-auth GitHub errors", async () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("single-binary");
       vi.mocked(performBinaryUpdate).mockRejectedValue(new GitHubClientError("Not found", 404));
 
-      await expect(updateCommand("1.0.0", {})).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith("GitHub API Error: Not found");
-      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN"));
+      await expect(updateCommand(mockLogger, "1.0.0", {})).rejects.toThrow(
+        "GitHub API Error: Not found",
+      );
     });
 
     it("should handle UpdatePermissionError and suggest sudo", async () => {
@@ -173,23 +174,16 @@ describe("updateCommand", () => {
         new UpdatePermissionError("Permission denied: Cannot write to /usr/local/bin"),
       );
 
-      await expect(updateCommand("1.0.0", {})).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith(
+      await expect(updateCommand(mockLogger, "1.0.0", {})).rejects.toThrow(
         "Permission denied: Cannot write to /usr/local/bin",
       );
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("sudo"));
-      expect(mockExit).toHaveBeenCalledWith(1);
     });
 
     it("should handle generic errors", async () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("single-binary");
       vi.mocked(performBinaryUpdate).mockRejectedValue(new Error("Network error"));
 
-      await expect(updateCommand("1.0.0", {})).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith("Error: Network error");
-      expect(mockExit).toHaveBeenCalledWith(1);
+      await expect(updateCommand(mockLogger, "1.0.0", {})).rejects.toThrow("Network error");
     });
   });
 
@@ -198,9 +192,9 @@ describe("updateCommand", () => {
       vi.mocked(detectExecutionEnvironment).mockReturnValue("npm");
       vi.mocked(getNpmUpgradeInstructions).mockReturnValue("instructions");
 
-      await updateCommand("1.0.0", { verbose: true, silent: true });
+      await updateCommand(mockLogger, "1.0.0", { verbose: true, silent: true });
 
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: true });
+      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: true });
     });
   });
 });

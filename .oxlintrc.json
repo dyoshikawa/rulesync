@@ -35,6 +35,18 @@
         "typescript/no-explicit-any": "off",
         "no-console": "error"
       }
+    },
+    {
+      "files": ["src/utils/logger.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["src/cli/index.ts"],
+      "rules": {
+        "no-console": "off"
+      }
     }
   ]
 }

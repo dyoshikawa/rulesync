@@ -8,7 +8,7 @@ import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { fileExists } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 import type { GenerateOptions } from "./generate.js";
 import { generateCommand } from "./generate.js";
 
@@ -20,7 +20,6 @@ vi.mock("../../features/mcp/mcp-processor.js");
 vi.mock("../../features/subagents/subagents-processor.js");
 vi.mock("../../features/commands/commands-processor.js");
 vi.mock("../../utils/file.js");
-vi.mock("../../utils/logger.js");
 vi.mock("es-toolkit", () => ({
   intersection: vi.fn(),
 }));
@@ -29,6 +28,7 @@ describe("generateCommand", () => {
   let mockExit: any;
   let mockConfig: any;
   let mockProcessorInstance: any;
+  let mockLogger: Logger;
 
   beforeEach(() => {
     // Mock process.cwd to return a consistent value
@@ -59,13 +59,17 @@ describe("generateCommand", () => {
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    // Setup logger mocks
-    vi.mocked(logger.configure).mockImplementation(() => {});
-    vi.mocked(logger.info).mockImplementation(() => {});
-    vi.mocked(logger.debug).mockImplementation(() => {});
-    vi.mocked(logger.error).mockImplementation(() => {});
-    vi.mocked(logger.success).mockImplementation(() => {});
-    vi.mocked(logger.warn).mockImplementation(() => {});
+    // Setup logger mock
+    mockLogger = {
+      configure: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
+      jsonMode: false,
+      captureData: vi.fn(),
+    } as unknown as Logger;
 
     // Setup intersection mock to return the first array by default
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));
@@ -142,49 +146,47 @@ describe("generateCommand", () => {
     it("should resolve config and configure logger", async () => {
       const options: GenerateOptions = { verbose: true };
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
+      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
     });
 
     it("should configure verbose logging when config has verbose enabled", async () => {
       mockConfig.getVerbose.mockReturnValue(true);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
     });
 
     it("should log generating files message", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating files...");
     });
   });
 
   describe("rulesync directory check", () => {
-    it("should exit with error when .rulesync directory does not exist", async () => {
+    it("should throw error when .rulesync directory does not exist", async () => {
       vi.mocked(fileExists).mockResolvedValue(false);
       const options: GenerateOptions = {};
 
-      await expect(generateCommand(options)).rejects.toThrow("Process exit");
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow(
+        ".rulesync directory not found",
+      );
 
       expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
-      expect(logger.error).toHaveBeenCalledWith(
-        "❌ .rulesync directory not found. Run 'rulesync init' first.",
-      );
-      expect(mockExit).toHaveBeenCalledWith(1);
     });
 
     it("should continue when .rulesync directory exists", async () => {
       vi.mocked(fileExists).mockResolvedValue(true);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
       expect(mockExit).not.toHaveBeenCalled();
@@ -199,9 +201,9 @@ describe("generateCommand", () => {
     it("should generate rule files when rules feature is enabled", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating rule files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating rule files...");
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         global: false,
@@ -219,7 +221,7 @@ describe("generateCommand", () => {
       mockConfig.getSimulateSubagents.mockReturnValue(true);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -251,7 +253,7 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeOrphanAiFiles).toHaveBeenCalled();
@@ -261,7 +263,7 @@ describe("generateCommand", () => {
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir1",
@@ -289,7 +291,7 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue([]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).not.toHaveBeenCalled();
     });
@@ -303,9 +305,9 @@ describe("generateCommand", () => {
     it("should generate MCP files when mcp feature is enabled", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating MCP files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating MCP files...");
       expect(McpProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -319,7 +321,7 @@ describe("generateCommand", () => {
       vi.mocked(intersection).mockReturnValue(["claudecode", "cursor"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(intersection).toHaveBeenCalledWith(
         ["claudecode", "cursor", "unsupported"],
@@ -345,7 +347,7 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeOrphanAiFiles).toHaveBeenCalled();
@@ -355,7 +357,7 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue([]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(McpProcessor).not.toHaveBeenCalled();
     });
@@ -369,9 +371,9 @@ describe("generateCommand", () => {
     it("should generate command files when commands feature is enabled", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating command files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating command files...");
       expect(CommandsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -384,7 +386,7 @@ describe("generateCommand", () => {
       mockConfig.getSimulateCommands.mockReturnValue(true);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
         global: false,
@@ -396,7 +398,7 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue([]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(CommandsProcessor).not.toHaveBeenCalled();
     });
@@ -411,9 +413,9 @@ describe("generateCommand", () => {
     it("should generate ignore files when ignore feature is enabled", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating ignore files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating ignore files...");
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -426,7 +428,7 @@ describe("generateCommand", () => {
       mockConfig.getBaseDirs.mockReturnValue(["/current/working/dir"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -444,17 +446,17 @@ describe("generateCommand", () => {
       const options: GenerateOptions = {};
 
       // Should not throw, errors are caught and processing continues
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       // Should still complete without error
-      expect(logger.info).toHaveBeenCalledWith("✓ All files are up to date (ignore)");
+      expect(mockLogger.info).toHaveBeenCalledWith("✓ All files are up to date (ignore)");
     });
 
     it("should skip ignore files when no rulesync files found", async () => {
       mockProcessorInstance.loadRulesyncFiles.mockResolvedValue([]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(mockProcessorInstance.convertRulesyncFilesToToolFiles).not.toHaveBeenCalled();
       expect(mockProcessorInstance.writeAiFiles).not.toHaveBeenCalled();
@@ -469,9 +471,9 @@ describe("generateCommand", () => {
     it("should generate subagent files when subagents feature is enabled", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating subagent files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating subagent files...");
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
         toolTarget: "claudecode",
@@ -484,7 +486,7 @@ describe("generateCommand", () => {
       mockConfig.getSimulateSubagents.mockReturnValue(true);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({
         global: false,
@@ -501,7 +503,7 @@ describe("generateCommand", () => {
         vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
-        await generateCommand(options);
+        await generateCommand(mockLogger, options);
 
         expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith(
           expect.objectContaining({ global: true }),
@@ -512,7 +514,7 @@ describe("generateCommand", () => {
         vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
-        await generateCommand(options);
+        await generateCommand(mockLogger, options);
 
         expect(SubagentsProcessor).toHaveBeenCalledWith({
           baseDir: ".",
@@ -528,7 +530,7 @@ describe("generateCommand", () => {
         vi.mocked(intersection).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
-        await generateCommand(options);
+        await generateCommand(mockLogger, options);
 
         expect(intersection).toHaveBeenCalledWith(
           ["claudecode", "copilot", "cursor"],
@@ -549,7 +551,7 @@ describe("generateCommand", () => {
         vi.mocked(intersection).mockReturnValue(["claudecode"]);
         const options: GenerateOptions = {};
 
-        await generateCommand(options);
+        await generateCommand(mockLogger, options);
 
         // Should use getToolTargets with global: true instead of includeSimulated
         expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith(
@@ -583,9 +585,9 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.info).toHaveBeenCalledWith("✓ All files are up to date (rules)");
+      expect(mockLogger.info).toHaveBeenCalledWith("✓ All files are up to date (rules)");
     });
 
     it("should show success message with correct totals", async () => {
@@ -626,9 +628,9 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.success).toHaveBeenCalledWith(
+      expect(mockLogger.success).toHaveBeenCalledWith(
         "🎉 All done! Written 6 file(s) total (2 rules + 3 MCP files + 1 commands)",
       );
     });
@@ -641,9 +643,9 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.success).toHaveBeenCalledWith(
+      expect(mockLogger.success).toHaveBeenCalledWith(
         "🎉 All done! Written 5 file(s) total (1 rules + 1 ignore files + 1 MCP files + 1 commands + 1 subagents)",
       );
     });
@@ -652,9 +654,9 @@ describe("generateCommand", () => {
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Base directories: dir1, dir2");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Base directories: dir1, dir2");
     });
 
     it("should log success for each processor type", async () => {
@@ -674,9 +676,9 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.success).toHaveBeenCalledWith("Written 3 rule(s)");
+      expect(mockLogger.success).toHaveBeenCalledWith("Written 3 rules");
     });
   });
 
@@ -685,14 +687,14 @@ describe("generateCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockRejectedValue(new Error("Config error"));
       const options: GenerateOptions = {};
 
-      await expect(generateCommand(options)).rejects.toThrow("Config error");
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow("Config error");
     });
 
     it("should handle file existence check errors", async () => {
       vi.mocked(fileExists).mockRejectedValue(new Error("File system error"));
       const options: GenerateOptions = {};
 
-      await expect(generateCommand(options)).rejects.toThrow("File system error");
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow("File system error");
     });
 
     it("should handle processor instantiation errors", async () => {
@@ -702,7 +704,7 @@ describe("generateCommand", () => {
       });
       const options: GenerateOptions = {};
 
-      await expect(generateCommand(options)).rejects.toThrow("Processor error");
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow("Processor error");
     });
   });
 
@@ -719,7 +721,7 @@ describe("generateCommand", () => {
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       // Should check .rulesync in process.cwd(), not in baseDirs[0] (which is /home/user in global mode)
       expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
@@ -731,7 +733,7 @@ describe("generateCommand", () => {
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
     });
@@ -744,7 +746,7 @@ describe("generateCommand", () => {
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -778,7 +780,7 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(customMockInstance.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(customMockInstance.removeOrphanAiFiles).toHaveBeenCalled();
@@ -791,7 +793,7 @@ describe("generateCommand", () => {
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: "dir1",
@@ -831,9 +833,9 @@ describe("generateCommand", () => {
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["codexcli"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.debug).toHaveBeenCalledWith("Generating MCP files...");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Generating MCP files...");
       // McpProcessor should not be called because intersection of targets is empty
       expect(McpProcessor).not.toHaveBeenCalled();
     });
@@ -841,7 +843,7 @@ describe("generateCommand", () => {
     it("should generate commands in global mode for supported tools", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(CommandsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -857,7 +859,7 @@ describe("generateCommand", () => {
     it("should skip ignore generation in global mode", async () => {
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(IgnoreProcessor).not.toHaveBeenCalled();
     });
@@ -869,7 +871,7 @@ describe("generateCommand", () => {
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -898,9 +900,11 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Written 5 file(s) total (5 rules)");
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "🎉 All done! Written 5 file(s) total (5 rules)",
+      );
     });
 
     it("should only process rules, commands, mcp, and subagents when global mode is enabled with multiple features", async () => {
@@ -956,14 +960,14 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledTimes(2); // Once for claudecode, once for codexcli
       expect(CommandsProcessor).toHaveBeenCalledTimes(1); // Once for claudecode
       expect(McpProcessor).toHaveBeenCalledTimes(1); // Once for codexcli in global mode
       expect(SubagentsProcessor).toHaveBeenCalledTimes(1); // Once for claudecode
       expect(IgnoreProcessor).not.toHaveBeenCalled();
-      expect(logger.success).toHaveBeenCalledWith(
+      expect(mockLogger.success).toHaveBeenCalledWith(
         "🎉 All done! Written 15 file(s) total (6 rules + 3 MCP files + 3 commands + 3 subagents)",
       );
     });
@@ -992,10 +996,12 @@ describe("generateCommand", () => {
 
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
-      expect(logger.success).toHaveBeenCalledWith("Written 2 rule(s)");
-      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Written 2 file(s) total (2 rules)");
+      expect(mockLogger.success).toHaveBeenCalledWith("Written 2 rules");
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "🎉 All done! Written 2 file(s) total (2 rules)",
+      );
     });
 
     it("should handle multiple targets and base directories", async () => {
@@ -1007,13 +1013,15 @@ describe("generateCommand", () => {
       mockProcessorInstance.writeAiFiles.mockResolvedValue({ count: 1, paths: [] });
       const options: GenerateOptions = {};
 
-      await generateCommand(options);
+      await generateCommand(mockLogger, options);
 
       // Should create processors for each combination of base dir and target
       expect(RulesProcessor).toHaveBeenCalledTimes(4); // 2 dirs × 2 targets
       // Total count is 4 (1 per processor)
-      expect(logger.success).toHaveBeenCalledWith("Written 4 rule(s)");
-      expect(logger.success).toHaveBeenCalledWith("🎉 All done! Written 4 file(s) total (4 rules)");
+      expect(mockLogger.success).toHaveBeenCalledWith("Written 4 rules");
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "🎉 All done! Written 4 file(s) total (4 rules)",
+      );
     });
   });
 });

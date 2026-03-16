@@ -1,19 +1,18 @@
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { importFromTool } from "../../lib/import.js";
-import { logger } from "../../utils/logger.js";
+import { CLIError, ErrorCodes } from "../../types/json-output.js";
+import { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
 
-export async function importCommand(options: ImportOptions): Promise<void> {
+export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {
   if (!options.targets) {
-    logger.error("No tools found in --targets");
-    process.exit(1);
+    throw new CLIError("No tools found in --targets", ErrorCodes.IMPORT_FAILED);
   }
 
   if (options.targets.length > 1) {
-    logger.error("Only one tool can be imported at a time");
-    process.exit(1);
+    throw new CLIError("Only one tool can be imported at a time", ErrorCodes.IMPORT_FAILED);
   }
 
   const config = await ConfigResolver.resolve(options);
@@ -37,6 +36,21 @@ export async function importCommand(options: ImportOptions): Promise<void> {
     const enabledFeatures = config.getFeatures().join(", ");
     logger.warn(`No files imported for enabled features: ${enabledFeatures}`);
     return;
+  }
+
+  // Capture JSON data if in JSON mode
+  if (logger.jsonMode) {
+    logger.captureData("tool", tool);
+    logger.captureData("features", {
+      rules: { count: result.rulesCount },
+      ignore: { count: result.ignoreCount },
+      mcp: { count: result.mcpCount },
+      commands: { count: result.commandsCount },
+      subagents: { count: result.subagentsCount },
+      skills: { count: result.skillsCount },
+      hooks: { count: result.hooksCount },
+    });
+    logger.captureData("totalFiles", totalImported);
   }
 
   const parts = [];

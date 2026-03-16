@@ -1,6 +1,6 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 
 export type InstallCommandOptions = {
   update?: boolean;
@@ -11,7 +11,10 @@ export type InstallCommandOptions = {
   silent?: boolean;
 };
 
-export async function installCommand(options: InstallCommandOptions): Promise<void> {
+export async function installCommand(
+  logger: Logger,
+  options: InstallCommandOptions,
+): Promise<void> {
   logger.configure({
     verbose: options.verbose ?? false,
     silent: options.silent ?? false,
@@ -41,6 +44,12 @@ export async function installCommand(options: InstallCommandOptions): Promise<vo
       token: options.token,
     },
   });
+
+  // Capture JSON data if in JSON mode
+  if (logger.jsonMode) {
+    logger.captureData("sourcesProcessed", result.sourcesProcessed);
+    logger.captureData("skillsFetched", result.fetchedSkillCount);
+  }
 
   if (result.fetchedSkillCount > 0) {
     logger.success(

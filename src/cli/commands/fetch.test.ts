@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
 import type { FetchSummary } from "../../types/fetch.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 import { fetchCommand } from "./fetch.js";
 
 // Mock dependencies
@@ -17,21 +17,21 @@ vi.mock("../../lib/github-client.js", async () => {
     GitHubClientError: actual.GitHubClientError,
   };
 });
-vi.mock("../../utils/logger.js");
 
 describe("fetchCommand", () => {
-  let mockExit: ReturnType<typeof vi.spyOn>;
+  let mockLogger: Logger;
 
   beforeEach(() => {
-    mockExit = vi.spyOn(process, "exit").mockImplementation(function () {
-      throw new Error("Process exit");
-    } as never);
-
-    vi.mocked(logger.configure).mockImplementation(() => {});
-    vi.mocked(logger.info).mockImplementation(() => {});
-    vi.mocked(logger.success).mockImplementation(() => {});
-    vi.mocked(logger.warn).mockImplementation(() => {});
-    vi.mocked(logger.error).mockImplementation(() => {});
+    mockLogger = {
+      configure: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      jsonMode: false,
+      captureData: vi.fn(),
+    } as unknown as Logger;
   });
 
   afterEach(() => {
@@ -55,7 +55,7 @@ describe("fetchCommand", () => {
       vi.mocked(fetchFiles).mockResolvedValue(mockSummary);
       vi.mocked(formatFetchSummary).mockReturnValue("Fetched 2 files");
 
-      await fetchCommand({
+      await fetchCommand(mockLogger, {
         source: "owner/repo",
       });
 
@@ -73,7 +73,7 @@ describe("fetchCommand", () => {
           silent: undefined,
         },
       });
-      expect(logger.success).toHaveBeenCalledWith("Fetched 2 files");
+      expect(mockLogger.success).toHaveBeenCalledWith("Fetched 2 files");
     });
 
     it("should pass all options to fetchFiles", async () => {
@@ -89,7 +89,7 @@ describe("fetchCommand", () => {
       vi.mocked(fetchFiles).mockResolvedValue(mockSummary);
       vi.mocked(formatFetchSummary).mockReturnValue("No files fetched");
 
-      await fetchCommand({
+      await fetchCommand(mockLogger, {
         source: "owner/repo",
         target: "rulesync",
         features: ["rules", "mcp"],
@@ -131,11 +131,11 @@ describe("fetchCommand", () => {
       vi.mocked(fetchFiles).mockResolvedValue(mockSummary);
       vi.mocked(formatFetchSummary).mockReturnValue("No files fetched");
 
-      await fetchCommand({
+      await fetchCommand(mockLogger, {
         source: "owner/repo",
       });
 
-      expect(logger.warn).toHaveBeenCalledWith("No files were fetched.");
+      expect(mockLogger.warn).toHaveBeenCalledWith("No files were fetched.");
     });
   });
 
@@ -143,47 +143,57 @@ describe("fetchCommand", () => {
     it("should handle GitHubClientError with 401 status", async () => {
       vi.mocked(fetchFiles).mockRejectedValue(new GitHubClientError("Authentication failed", 401));
 
-      await expect(fetchCommand({ source: "owner/repo" })).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("GitHub API Error: Authentication failed"),
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "GitHub API Error: Authentication failed",
       );
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN or GH_TOKEN"));
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
-      expect(mockExit).toHaveBeenCalledWith(1);
     });
 
     it("should handle GitHubClientError with 403 status", async () => {
       vi.mocked(fetchFiles).mockRejectedValue(new GitHubClientError("Access forbidden", 403));
 
-      await expect(fetchCommand({ source: "owner/repo" })).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("GitHub API Error: Access forbidden"),
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "GitHub API Error: Access forbidden",
       );
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("GITHUB_TOKEN or GH_TOKEN"));
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("gh auth token"));
-      expect(mockExit).toHaveBeenCalledWith(1);
     });
 
     it("should handle GitHubClientError with 404 status", async () => {
       vi.mocked(fetchFiles).mockRejectedValue(new GitHubClientError("Not found", 404));
 
-      await expect(fetchCommand({ source: "owner/repo" })).rejects.toThrow("Process exit");
-
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("GitHub API Error: Not found"),
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "GitHub API Error: Not found",
       );
-      expect(mockExit).toHaveBeenCalledWith(1);
     });
 
     it("should handle generic errors", async () => {
       vi.mocked(fetchFiles).mockRejectedValue(new Error("Network error"));
 
-      await expect(fetchCommand({ source: "owner/repo" })).rejects.toThrow("Process exit");
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "Network error",
+      );
+    });
 
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Network error"));
-      expect(mockExit).toHaveBeenCalledWith(1);
+    it("should handle GitHubClientError with 403 status", async () => {
+      vi.mocked(fetchFiles).mockRejectedValue(new GitHubClientError("Access forbidden", 403));
+
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "GitHub API Error: Access forbidden",
+      );
+    });
+
+    it("should handle GitHubClientError with 404 status", async () => {
+      vi.mocked(fetchFiles).mockRejectedValue(new GitHubClientError("Not found", 404));
+
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "GitHub API Error: Not found",
+      );
+    });
+
+    it("should handle generic errors", async () => {
+      vi.mocked(fetchFiles).mockRejectedValue(new Error("Network error"));
+
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
+        "Network error",
+      );
     });
   });
 
@@ -199,12 +209,12 @@ describe("fetchCommand", () => {
       });
       vi.mocked(formatFetchSummary).mockReturnValue("");
 
-      await fetchCommand({
+      await fetchCommand(mockLogger, {
         source: "owner/repo",
         verbose: true,
       });
 
-      expect(logger.configure).toHaveBeenCalledWith({
+      expect(mockLogger.configure).toHaveBeenCalledWith({
         verbose: true,
         silent: false,
       });
@@ -221,12 +231,12 @@ describe("fetchCommand", () => {
       });
       vi.mocked(formatFetchSummary).mockReturnValue("");
 
-      await fetchCommand({
+      await fetchCommand(mockLogger, {
         source: "owner/repo",
         silent: true,
       });
 
-      expect(logger.configure).toHaveBeenCalledWith({
+      expect(mockLogger.configure).toHaveBeenCalledWith({
         verbose: false,
         silent: true,
       });

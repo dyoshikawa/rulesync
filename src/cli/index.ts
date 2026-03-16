@@ -2,45 +2,81 @@
 
 import { Command } from "commander";
 
-import { ANNOUNCEMENT } from "../constants/announcements.js";
-import { ALL_FEATURES } from "../types/features.js";
+import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
+import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
-import { logger } from "../utils/logger.js";
+import { createLogger, Logger } from "../utils/logger.js";
 import { fetchCommand } from "./commands/fetch.js";
-import { generateCommand } from "./commands/generate.js";
+import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
-import { importCommand } from "./commands/import.js";
+import { importCommand, ImportOptions } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
-import { updateCommand } from "./commands/update.js";
+import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 
 const getVersion = () => "7.18.2";
+
+// Extract wrapper function for command handlers
+function wrapCommand(
+  name: string,
+  errorCode: string,
+  handler: (logger: Logger, options: unknown, globalOpts: Record<string, unknown>) => Promise<void>,
+) {
+  return async (...args: unknown[]) => {
+    // Commander passes variable args based on command signature:
+    // - No positional: (options, command)
+    // - With positional: (arg1, arg2, ..., options, command)
+    // The last two are always (options, command)
+    const command = args[args.length - 1] as Command;
+    const options = args[args.length - 2] as Record<string, unknown>;
+    const globalOpts = command.parent?.opts() ?? {};
+    const logger = createLogger(getVersion());
+    logger.setJsonMode(globalOpts.json, name);
+    logger.configure({
+      verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
+      silent: Boolean(globalOpts.silent) || Boolean(options.silent),
+    });
+
+    try {
+      await handler(logger, options, globalOpts);
+      if (globalOpts.json) {
+        logger.outputJson(true);
+      }
+    } catch (error) {
+      logger.error(formatError(error), errorCode);
+      process.exit(1);
+    }
+  };
+}
 
 const main = async () => {
   const program = new Command();
 
   const version = getVersion();
 
-  program.hook("postAction", () => {
-    if (ANNOUNCEMENT.length > 0) {
-      logger.info(ANNOUNCEMENT);
-    }
-  });
-
   program
     .name("rulesync")
     .description("Unified AI rules management CLI tool")
-    .version(version, "-v, --version", "Show version");
+    .version(version, "-v, --version", "Show version")
+    .option("-j, --json", "Output results as JSON");
 
   program
     .command("init")
     .description("Initialize rulesync in current directory")
-    .action(initCommand);
+    .option("-j, --json", "Output results as JSON")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(
+      wrapCommand("init", "INIT_FAILED", async (logger) => {
+        await initCommand(logger);
+      }),
+    );
 
   program
     .command("gitignore")
     .description("Add generated files to .gitignore")
+    .option("-j, --json", "Output results as JSON")
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to include (e.g., 'claudecode,copilot' or '*' for all)",
@@ -61,12 +97,16 @@ const main = async () => {
           .filter(Boolean);
       },
     )
-    .action(async (options) => {
-      await gitignoreCommand({
-        targets: options.targets,
-        features: options.features,
-      });
-    });
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(
+      wrapCommand("gitignore", "GITIGNORE_FAILED", async (logger, options) => {
+        await gitignoreCommand(logger, {
+          targets: (options as { targets?: string[] }).targets,
+          features: (options as { features?: RulesyncFeatures }).features,
+        });
+      }),
+    );
 
   program
     .command("fetch <source>")
@@ -78,9 +118,7 @@ const main = async () => {
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => {
-        return value.split(",").map((f) => f.trim());
-      },
+      (value) => value.split(",").map((f) => f.trim()),
     )
     .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")
     .option("-p, --path <path>", "Subdirectory path within the repository")
@@ -92,20 +130,15 @@ const main = async () => {
     .option("--token <token>", "Git provider token for private repositories")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
-    .action(async (source, options) => {
-      await fetchCommand({
-        source,
-        target: options.target,
-        features: options.features,
-        ref: options.ref,
-        path: options.path,
-        output: options.output,
-        conflict: options.conflict,
-        token: options.token,
-        verbose: options.verbose,
-        silent: options.silent,
-      });
-    });
+    .action(
+      wrapCommand("fetch", "FETCH_FAILED", async (logger, options, _globalOpts) => {
+        // Fetch command has positional argument <source> passed as first arg
+        // options here is the second-to-last arg in the original call
+        // We need to extract source from the beginning
+        const opts = options as FetchOptions & { source: string };
+        await fetchCommand(logger, opts);
+      }),
+    );
 
   program
     .command("import")
@@ -113,47 +146,30 @@ const main = async () => {
     .option(
       "-t, --targets <tool>",
       "Tool to import from (e.g., 'copilot', 'cursor', 'cline')",
-      (value) => {
-        return value.split(",").map((t) => t.trim());
-      },
+      (value) => value.split(",").map((t) => t.trim()),
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to import (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => {
-        return value.split(",").map((f) => f.trim());
-      },
+      (value) => value.split(",").map((f) => f.trim()),
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .option("-g, --global", "Import for global(user scope) configuration files")
-    .action(async (options) => {
-      try {
-        await importCommand({
-          targets: options.targets,
-          features: options.features,
-          verbose: options.verbose,
-          silent: options.silent,
-          configPath: options.config,
-          global: options.global,
-        });
-      } catch (error) {
-        logger.error(formatError(error));
-        process.exit(1);
-      }
-    });
+    .action(
+      wrapCommand("import", "IMPORT_FAILED", async (logger, options) => {
+        await importCommand(logger, options as ImportOptions);
+      }),
+    );
 
   program
     .command("mcp")
     .description("Start MCP server for rulesync")
-    .action(async () => {
-      try {
-        await mcpCommand({ version });
-      } catch (error) {
-        logger.error(formatError(error));
-        process.exit(1);
-      }
-    });
+    .action(
+      wrapCommand("mcp", "MCP_FAILED", async (logger, _options) => {
+        await mcpCommand(logger, { version });
+      }),
+    );
 
   program
     .command("install")
@@ -167,21 +183,18 @@ const main = async () => {
     .option("-c, --config <path>", "Path to configuration file")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
-    .action(async (options) => {
-      try {
-        await installCommand({
-          update: options.update,
-          frozen: options.frozen,
-          token: options.token,
-          configPath: options.config,
-          verbose: options.verbose,
-          silent: options.silent,
+    .action(
+      wrapCommand("install", "INSTALL_FAILED", async (logger, options) => {
+        await installCommand(logger, {
+          update: (options as { update?: boolean }).update,
+          frozen: (options as { frozen?: boolean }).frozen,
+          token: (options as { token?: string }).token,
+          configPath: (options as { config?: string }).config,
+          verbose: (options as { verbose?: boolean }).verbose,
+          silent: (options as { silent?: boolean }).silent,
         });
-      } catch (error) {
-        logger.error(formatError(error));
-        process.exit(1);
-      }
-    });
+      }),
+    );
 
   program
     .command("generate")
@@ -189,24 +202,18 @@ const main = async () => {
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
-      (value) => {
-        return value.split(",").map((t) => t.trim());
-      },
+      (value) => value.split(",").map((t) => t.trim()),
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to generate (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => {
-        return value.split(",").map((f) => f.trim());
-      },
+      (value) => value.split(",").map((f) => f.trim()),
     )
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
       "-b, --base-dir <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
-      (value) => {
-        return value.split(",").map((p) => p.trim());
-      },
+      (value) => value.split(",").map((p) => p.trim()),
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
@@ -226,28 +233,11 @@ const main = async () => {
     )
     .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
-    .action(async (options) => {
-      try {
-        await generateCommand({
-          targets: options.targets,
-          features: options.features,
-          verbose: options.verbose,
-          silent: options.silent,
-          delete: options.delete,
-          baseDirs: options.baseDir,
-          configPath: options.config,
-          global: options.global,
-          simulateCommands: options.simulateCommands,
-          simulateSubagents: options.simulateSubagents,
-          simulateSkills: options.simulateSkills,
-          dryRun: options.dryRun,
-          check: options.check,
-        });
-      } catch (error) {
-        logger.error(formatError(error));
-        process.exit(1);
-      }
-    });
+    .action(
+      wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
+        await generateCommand(logger, options as GenerateOptions);
+      }),
+    );
 
   program
     .command("update")
@@ -257,20 +247,16 @@ const main = async () => {
     .option("--token <token>", "GitHub token for API access")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
-    .action(async (options) => {
-      await updateCommand(version, {
-        check: options.check,
-        force: options.force,
-        token: options.token,
-        verbose: options.verbose,
-        silent: options.silent,
-      });
-    });
+    .action(
+      wrapCommand("update", "UPDATE_FAILED", async (logger, options) => {
+        await updateCommand(logger, version, options as UpdateCommandOptions);
+      }),
+    );
 
   program.parse();
 };
 
 main().catch((error) => {
-  logger.error(formatError(error));
+  console.error(formatError(error));
   process.exit(1);
 });

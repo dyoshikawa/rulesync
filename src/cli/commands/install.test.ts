@@ -4,13 +4,12 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import type { SourceEntry } from "../../config/config.js";
 import { Config } from "../../config/config.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 import { installCommand } from "./install.js";
 
 // Mock dependencies
 vi.mock("../../config/config-resolver.js");
 vi.mock("../../lib/sources.js");
-vi.mock("../../utils/logger.js");
 
 function createMockConfig(sources: SourceEntry[]): Config {
   return {
@@ -19,13 +18,19 @@ function createMockConfig(sources: SourceEntry[]): Config {
 }
 
 describe("installCommand", () => {
+  let mockLogger: Logger;
+
   beforeEach(() => {
-    vi.mocked(logger.configure).mockImplementation(() => {});
-    vi.mocked(logger.info).mockImplementation(() => {});
-    vi.mocked(logger.success).mockImplementation(() => {});
-    vi.mocked(logger.warn).mockImplementation(() => {});
-    vi.mocked(logger.error).mockImplementation(() => {});
-    vi.mocked(logger.debug).mockImplementation(() => {});
+    mockLogger = {
+      configure: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      jsonMode: false,
+      captureData: vi.fn(),
+    } as unknown as Logger;
   });
 
   afterEach(() => {
@@ -41,7 +46,7 @@ describe("installCommand", () => {
         sourcesProcessed: 1,
       });
 
-      await installCommand({});
+      await installCommand(mockLogger, {});
 
       expect(resolveAndFetchSources).toHaveBeenCalledWith({
         sources,
@@ -52,7 +57,7 @@ describe("installCommand", () => {
           token: undefined,
         },
       });
-      expect(logger.success).toHaveBeenCalledWith("Installed 3 skill(s) from 1 source(s).");
+      expect(mockLogger.success).toHaveBeenCalledWith("Installed 3 skill(s) from 1 source(s).");
     });
 
     it("should report all up to date when no skills fetched", async () => {
@@ -63,17 +68,19 @@ describe("installCommand", () => {
         sourcesProcessed: 1,
       });
 
-      await installCommand({});
+      await installCommand(mockLogger, {});
 
-      expect(logger.success).toHaveBeenCalledWith("All skills up to date (1 source(s) checked).");
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "All skills up to date (1 source(s) checked).",
+      );
     });
 
     it("should warn and return early when no sources defined", async () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
 
-      await installCommand({});
+      await installCommand(mockLogger, {});
 
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "No sources defined in configuration. Nothing to install.",
       );
       expect(resolveAndFetchSources).not.toHaveBeenCalled();
@@ -89,7 +96,7 @@ describe("installCommand", () => {
         sourcesProcessed: 1,
       });
 
-      await installCommand({ update: true });
+      await installCommand(mockLogger, { update: true });
 
       expect(resolveAndFetchSources).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -106,7 +113,7 @@ describe("installCommand", () => {
         sourcesProcessed: 1,
       });
 
-      await installCommand({ frozen: true });
+      await installCommand(mockLogger, { frozen: true });
 
       expect(resolveAndFetchSources).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -123,7 +130,7 @@ describe("installCommand", () => {
         sourcesProcessed: 1,
       });
 
-      await installCommand({ token: "my-token" });
+      await installCommand(mockLogger, { token: "my-token" });
 
       expect(resolveAndFetchSources).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -141,7 +148,7 @@ describe("installCommand", () => {
         new Error("Frozen install failed: lockfile is missing entries"),
       );
 
-      await expect(installCommand({ frozen: true })).rejects.toThrow(
+      await expect(installCommand(mockLogger, { frozen: true })).rejects.toThrow(
         "Frozen install failed: lockfile is missing entries",
       );
     });
@@ -151,7 +158,7 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockRejectedValue(new Error("Network error"));
 
-      await expect(installCommand({})).rejects.toThrow("Network error");
+      await expect(installCommand(mockLogger, {})).rejects.toThrow("Network error");
     });
   });
 
@@ -159,9 +166,9 @@ describe("installCommand", () => {
     it("should configure logger with verbose mode", async () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
 
-      await installCommand({ verbose: true });
+      await installCommand(mockLogger, { verbose: true });
 
-      expect(logger.configure).toHaveBeenCalledWith({
+      expect(mockLogger.configure).toHaveBeenCalledWith({
         verbose: true,
         silent: false,
       });
@@ -170,9 +177,9 @@ describe("installCommand", () => {
     it("should configure logger with silent mode", async () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
 
-      await installCommand({ silent: true });
+      await installCommand(mockLogger, { silent: true });
 
-      expect(logger.configure).toHaveBeenCalledWith({
+      expect(mockLogger.configure).toHaveBeenCalledWith({
         verbose: false,
         silent: true,
       });

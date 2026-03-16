@@ -1,4 +1,4 @@
-import { GitHubClientError, logGitHubAuthHints } from "../../lib/github-client.js";
+import { GitHubClientError } from "../../lib/github-client.js";
 import {
   UpdatePermissionError,
   checkForUpdate,
@@ -7,8 +7,8 @@ import {
   getNpmUpgradeInstructions,
   performBinaryUpdate,
 } from "../../lib/update.js";
-import { formatError } from "../../utils/error.js";
-import { logger } from "../../utils/logger.js";
+import { CLIError, ErrorCodes } from "../../types/json-output.js";
+import { Logger } from "../../utils/logger.js";
 
 /**
  * Update command options
@@ -25,6 +25,7 @@ export type UpdateCommandOptions = {
  * Update command handler
  */
 export async function updateCommand(
+  logger: Logger,
   currentVersion: string,
   options: UpdateCommandOptions,
 ): Promise<void> {
@@ -52,6 +53,19 @@ export async function updateCommand(
       logger.info("Checking for updates...");
       const updateCheck = await checkForUpdate(currentVersion, token);
 
+      // Capture JSON data if in JSON mode
+      if (logger.jsonMode) {
+        logger.captureData("currentVersion", updateCheck.currentVersion);
+        logger.captureData("latestVersion", updateCheck.latestVersion);
+        logger.captureData("updateAvailable", updateCheck.hasUpdate);
+        logger.captureData(
+          "message",
+          updateCheck.hasUpdate
+            ? `Update available: ${updateCheck.currentVersion} -> ${updateCheck.latestVersion}`
+            : `Already at the latest version (${updateCheck.currentVersion})`,
+        );
+      }
+
       if (updateCheck.hasUpdate) {
         logger.success(
           `Update available: ${updateCheck.currentVersion} -> ${updateCheck.latestVersion}`,
@@ -68,13 +82,21 @@ export async function updateCommand(
     logger.success(message);
   } catch (error) {
     if (error instanceof GitHubClientError) {
-      logGitHubAuthHints(error);
+      // Include auth hints in error message for JSON mode
+      const authHint =
+        error.statusCode === 401 || error.statusCode === 403
+          ? " Tip: Set GITHUB_TOKEN or GH_TOKEN environment variable, or use `GITHUB_TOKEN=$(gh auth token) rulesync update ...`"
+          : "";
+      throw new CLIError(
+        `GitHub API Error: ${error.message}.${authHint}`,
+        ErrorCodes.UPDATE_FAILED,
+      );
     } else if (error instanceof UpdatePermissionError) {
-      logger.error(error.message);
-      logger.info("Tip: Run with elevated privileges (e.g., sudo rulesync update)");
-    } else {
-      logger.error(formatError(error));
+      throw new CLIError(
+        `${error.message} Tip: Run with elevated privileges (e.g., sudo rulesync update)`,
+        ErrorCodes.UPDATE_FAILED,
+      );
     }
-    process.exit(1);
+    throw error;
   }
 }

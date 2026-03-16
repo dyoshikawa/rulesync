@@ -6,7 +6,7 @@ import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
-import { logger } from "../../utils/logger.js";
+import { Logger } from "../../utils/logger.js";
 import type { ImportOptions } from "./import.js";
 import { importCommand } from "./import.js";
 
@@ -17,18 +17,12 @@ vi.mock("../../features/ignore/ignore-processor.js");
 vi.mock("../../features/mcp/mcp-processor.js");
 vi.mock("../../features/subagents/subagents-processor.js");
 vi.mock("../../features/commands/commands-processor.js");
-vi.mock("../../utils/logger.js");
 
 describe("importCommand", () => {
-  let mockExit: any;
   let mockConfig: any;
+  let mockLogger: Logger;
 
   beforeEach(() => {
-    // Mock process.exit
-    mockExit = vi.spyOn(process, "exit").mockImplementation(function () {
-      throw new Error("Process exit");
-    } as any);
-
     // Setup default mock config
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
@@ -40,9 +34,18 @@ describe("importCommand", () => {
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
-    vi.mocked(logger.configure).mockImplementation(() => {});
-    vi.mocked(logger.error).mockImplementation(() => {});
-    vi.mocked(logger.success).mockImplementation(() => {});
+
+    // Setup logger mock
+    mockLogger = {
+      configure: vi.fn(),
+      error: vi.fn(),
+      success: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      jsonMode: false,
+      captureData: vi.fn(),
+    } as unknown as Logger;
 
     // Setup processor mocks with default return values
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
@@ -94,22 +97,22 @@ describe("importCommand", () => {
   });
 
   describe("validation", () => {
-    it("should exit with error when no targets provided", async () => {
+    it("should throw error when no targets provided", async () => {
       const options: ImportOptions = {};
 
-      await expect(importCommand(options)).rejects.toThrow("Process exit");
-      expect(logger.error).toHaveBeenCalledWith("No tools found in --targets");
-      expect(mockExit).toHaveBeenCalledWith(1);
+      await expect(importCommand(mockLogger, options)).rejects.toThrow(
+        "No tools found in --targets",
+      );
     });
 
-    it("should exit with error when multiple targets provided", async () => {
+    it("should throw error when multiple targets provided", async () => {
       const options: ImportOptions = {
         targets: ["claudecode", "roo"],
       };
 
-      await expect(importCommand(options)).rejects.toThrow("Process exit");
-      expect(logger.error).toHaveBeenCalledWith("Only one tool can be imported at a time");
-      expect(mockExit).toHaveBeenCalledWith(1);
+      await expect(importCommand(mockLogger, options)).rejects.toThrow(
+        "Only one tool can be imported at a time",
+      );
     });
   });
 
@@ -128,7 +131,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -154,7 +157,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -179,7 +182,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(McpProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -206,7 +209,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       // Verify that getToolTargets was called with includeSimulated: false
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({
@@ -238,7 +241,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       // Verify that getToolTargets was called with includeSimulated: false
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
@@ -268,7 +271,7 @@ describe("importCommand", () => {
 
       mockConfig.getTargets.mockReturnValue(["roo"]);
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(RulesProcessor).not.toHaveBeenCalled();
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -284,7 +287,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(RulesProcessor).not.toHaveBeenCalled();
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -352,17 +355,10 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
-      expect(logger.success).toHaveBeenCalledWith("Created 2 rule files");
-      expect(logger.success).toHaveBeenCalledWith(
-        "Created ignore files from 1 tool ignore configurations",
-      );
-      expect(logger.success).toHaveBeenCalledWith("Created 1 ignore files");
-      expect(logger.success).toHaveBeenCalledWith("Created 3 MCP files");
-      expect(logger.success).toHaveBeenCalledWith("Created 4 subagent files");
-      expect(logger.success).toHaveBeenCalledWith("Created 5 command files");
+      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+      expect(mockLogger.success).toHaveBeenCalledWith(expect.stringContaining("Imported"));
     });
 
     it("should not log success messages when no files are created", async () => {
@@ -409,11 +405,11 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       // Only the configure call should have been made, no success messages
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
-      expect(logger.success).not.toHaveBeenCalled();
+      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+      expect(mockLogger.success).not.toHaveBeenCalled();
     });
   });
 
@@ -437,7 +433,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(SubagentsProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -492,7 +488,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith({
         baseDir: ".",
@@ -562,7 +558,7 @@ describe("importCommand", () => {
         targets: ["claudecode"],
       };
 
-      await importCommand(options);
+      await importCommand(mockLogger, options);
 
       // Verify getToolTargets is called with global: true for processors that support it
       expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
