@@ -16,7 +16,7 @@ import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 
-const getVersion = () => "7.18.2";
+const getVersion = () => "7.19.0";
 
 // Extract wrapper function for command handlers
 function wrapCommand(
