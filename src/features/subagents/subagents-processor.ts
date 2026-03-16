@@ -294,46 +294,36 @@ export class SubagentsProcessor extends FeatureProcessor {
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const subagentsDir = join(process.cwd(), RulesyncSubagent.getSettablePaths().relativeDirPath);
 
-    // Check if directory exists
-    const dirExists = await directoryExists(subagentsDir);
-    if (!dirExists) {
-      logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
-      return [];
-    }
-
-    // Read all markdown files from the directory
-    const entries = await listDirectoryFiles(subagentsDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
-
-    if (mdFiles.length === 0) {
-      logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
-      return [];
-    }
-
-    logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
-
-    // Parse all files and create RulesyncSubagent instances using fromFilePath
+    // Load local subagents from the project directory
     const rulesyncSubagents: RulesyncSubagent[] = [];
 
-    for (const mdFile of mdFiles) {
-      const filepath = join(subagentsDir, mdFile);
+    const dirExists = await directoryExists(subagentsDir);
+    if (dirExists) {
+      const entries = await listDirectoryFiles(subagentsDir);
+      const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
-      try {
-        const rulesyncSubagent = await RulesyncSubagent.fromFile({
-          relativeFilePath: mdFile,
-          validate: true,
-        });
+      logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
 
-        rulesyncSubagents.push(rulesyncSubagent);
-        logger.debug(`Successfully loaded subagent: ${mdFile}`);
-      } catch (error) {
-        logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
-        continue;
+      for (const mdFile of mdFiles) {
+        const filepath = join(subagentsDir, mdFile);
+
+        try {
+          const rulesyncSubagent = await RulesyncSubagent.fromFile({
+            relativeFilePath: mdFile,
+            validate: true,
+          });
+
+          rulesyncSubagents.push(rulesyncSubagent);
+          logger.debug(`Successfully loaded subagent: ${mdFile}`);
+        } catch (error) {
+          logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
+          continue;
+        }
       }
     }
 
     if (rulesyncSubagents.length === 0 && this.sourceCaches.length === 0) {
-      logger.debug(`No valid subagents found in ${subagentsDir}`);
+      logger.debug(`No subagents found locally or in source caches`);
       return [];
     }
 
