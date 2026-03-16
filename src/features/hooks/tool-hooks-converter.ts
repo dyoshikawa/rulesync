@@ -1,4 +1,5 @@
 import type { HookEvent, HooksConfig } from "../../types/hooks.js";
+import { logger } from "../../utils/logger.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -28,6 +29,11 @@ export type ToolHooksConverterConfig = {
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
    */
   prefixDotRelativeCommandsOnly?: boolean;
+  /**
+   * Events that do not support the `matcher` field. Any matcher defined on these events
+   * will be silently dropped with a warning during export.
+   */
+  noMatcherEvents?: ReadonlySet<string>;
 };
 
 /**
@@ -67,7 +73,13 @@ export function canonicalToToolHooks({
       else byMatcher.set(key, [def]);
     }
     const entries: unknown[] = [];
+    const isNoMatcherEvent = converterConfig.noMatcherEvents?.has(eventName) ?? false;
     for (const [matcherKey, defs] of byMatcher) {
+      if (isNoMatcherEvent && matcherKey) {
+        logger.warn(
+          `matcher "${matcherKey}" on "${eventName}" hook will be ignored — this event does not support matchers`,
+        );
+      }
       const hooks = defs.map((def) => {
         const commandText = def.command;
         const trimmedCommand =
@@ -88,7 +100,8 @@ export function canonicalToToolHooks({
           ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
         };
       });
-      entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
+      const includeMatcher = matcherKey && !isNoMatcherEvent;
+      entries.push(includeMatcher ? { matcher: matcherKey, hooks } : { hooks });
     }
     result[toolEventName] = entries;
   }
@@ -98,6 +111,11 @@ export function canonicalToToolHooks({
 /**
  * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
  * Reverses event name mapping and strips project directory variable prefix from commands.
+ *
+ * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
+ * matchers on these events, so stripping is unnecessary on import. If a manually edited config
+ * includes a matcher on such an event, it will be preserved in canonical format but dropped
+ * on the next export (with a warning).
  */
 export function toolHooksToCanonical({
   hooks,

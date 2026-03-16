@@ -69,7 +69,9 @@ export type HookEvent =
   | "notification"
   | "setup"
   | "afterError"
-  | "beforeToolSelection";
+  | "beforeToolSelection"
+  | "worktreeCreate"
+  | "worktreeRemove";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -108,6 +110,8 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
   "notification",
   "setup",
+  "worktreeCreate",
+  "worktreeRemove",
 ];
 
 /** Hook events supported by OpenCode. */
@@ -194,6 +198,8 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   permissionRequest: "PermissionRequest",
   notification: "Notification",
   setup: "Setup",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
 };
 
 /**
