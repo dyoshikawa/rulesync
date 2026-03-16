@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SOURCES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { directoryExists, ensureDir, removeDirectory, writeFileContent } from "../utils/file.js";
+import {
+  directoryExists,
+  ensureDir,
+  listDirectoryFiles,
+  removeDirectory,
+  writeFileContent,
+} from "../utils/file.js";
 import { resolveAndFetchSources } from "./sources.js";
 
 let mockClientInstance: any;
@@ -42,6 +48,7 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     ...actual,
     directoryExists: vi.fn(),
     ensureDir: vi.fn(),
+    listDirectoryFiles: vi.fn().mockResolvedValue([]),
     removeDirectory: vi.fn(),
     writeFileContent: vi.fn(),
     checkPathTraversal: actual.checkPathTraversal,
@@ -520,6 +527,43 @@ describe("resolveAndFetchSources", () => {
     expect(writtenLock.sources["org/old-removed-repo"]).toBeUndefined();
     // The current source should be preserved (normalized key)
     expect(writtenLock.sources["org/new-repo"]).toBeDefined();
+  });
+
+  it("should remove orphaned source cache directories for removed sources", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const sourcesDir = join(testDir, RULESYNC_SOURCES_RELATIVE_DIR_PATH);
+    const currentCacheDir = join(sourcesDir, "org--current-repo");
+
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 2,
+      sources: {
+        "org/current-repo": {
+          resolvedRef: "sha-123",
+          files: { "skills/my-skill/SKILL.md": { integrity: "sha256-x" } },
+        },
+      },
+    });
+
+    // Source cache exists on disk for SHA-match skip
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      if (path === currentCacheDir) return true;
+      if (path === sourcesDir) return true;
+      return false;
+    });
+
+    // .sources/ contains both the current source dir and an orphaned one
+    vi.mocked(listDirectoryFiles).mockResolvedValue(["org--current-repo", "org--removed-repo"]);
+
+    await resolveAndFetchSources({
+      sources: [{ source: "org/current-repo" }],
+      baseDir: testDir,
+    });
+
+    // The orphaned directory should be removed
+    expect(removeDirectory).toHaveBeenCalledWith(join(sourcesDir, "org--removed-repo"));
+    // The current source directory should NOT be removed
+    const removeCalls = vi.mocked(removeDirectory).mock.calls.map((c) => c[0]);
+    expect(removeCalls).not.toContain(join(sourcesDir, "org--current-repo"));
   });
 
   it("should not prune current sources even when config uses different URL format than lock key", async () => {

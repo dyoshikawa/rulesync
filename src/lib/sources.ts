@@ -17,6 +17,7 @@ import {
   checkPathTraversal,
   directoryExists,
   ensureDir,
+  listDirectoryFiles,
   removeDirectory,
   writeFileContent,
 } from "../utils/file.js";
@@ -201,6 +202,19 @@ export async function resolveAndFetchSources(params: {
     }
   }
   lock = { lockfileVersion: lock.lockfileVersion, sources: prunedSources };
+
+  // Remove orphaned source cache directories
+  const sourcesDir = join(baseDir, RULESYNC_SOURCES_RELATIVE_DIR_PATH);
+  if (await directoryExists(sourcesDir)) {
+    const expectedDirNames = new Set(sources.map((s) => sourceKeyToDirName(s.source)));
+    const existingDirs = await listDirectoryFiles(sourcesDir);
+    for (const dirName of existingDirs) {
+      if (!expectedDirNames.has(dirName)) {
+        logger.debug(`Removing orphaned source cache directory: ${dirName}`);
+        await removeDirectory(join(sourcesDir, dirName));
+      }
+    }
+  }
 
   // Only write lockfile if it has changed (and not in frozen mode)
   if (!options.frozen && JSON.stringify(lock) !== originalLockJson) {
