@@ -41,6 +41,12 @@ describe("sourceKeyToDirName", () => {
   it("should handle keys without slashes", () => {
     expect(sourceKeyToDirName("single-segment")).toBe("single-segment");
   });
+
+  it("should normalize Azure DevOps URLs to org--project--repo", () => {
+    expect(sourceKeyToDirName("https://user@dev.azure.com/org/project/_git/repo")).toBe(
+      "org--project--repo",
+    );
+  });
 });
 
 describe("getOrderedSourceCaches", () => {

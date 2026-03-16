@@ -221,6 +221,15 @@ export function normalizeSourceKey(source: string): string {
     }
   }
 
+  // Normalize Azure DevOps URLs to org/project/repo
+  // Matches: https://[user@]dev.azure.com/org/project/_git/repo
+  const adoMatch = key.match(
+    /^https?:\/\/(?:[^@]+@)?dev\.azure\.com\/([^/]+)\/([^/]+)\/_git\/([^/]+?)(?:\.git)?(?:\/.*)?$/i,
+  );
+  if (adoMatch) {
+    key = `${adoMatch[1]}/${adoMatch[2]}/${adoMatch[3]}`;
+  }
+
   // Strip provider prefix
   for (const provider of ["github:", "gitlab:"]) {
     if (key.startsWith(provider)) {

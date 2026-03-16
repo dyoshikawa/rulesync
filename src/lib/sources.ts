@@ -454,6 +454,12 @@ async function fetchSourceViaGitHub(params: {
   }
 
   const fileCount = Object.keys(files).length;
+
+  // Remove empty cache directory to avoid leftover noise
+  if (fileCount === 0) {
+    await removeDirectory(cachePath);
+  }
+
   const updatedLock = setLockedSource(lock, sourceKey, {
     requestedRef,
     resolvedRef: resolvedSha,
@@ -564,6 +570,12 @@ async function fetchSourceViaGit(params: {
   }
 
   const fileCount = Object.keys(files).length;
+
+  // Remove empty cache directory to avoid leftover noise
+  if (fileCount === 0) {
+    await removeDirectory(cachePath);
+  }
+
   const updatedLock = setLockedSource(lock, url, {
     requestedRef,
     resolvedRef: resolvedSha,

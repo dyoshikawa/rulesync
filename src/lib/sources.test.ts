@@ -342,6 +342,23 @@ describe("resolveAndFetchSources", () => {
     expect(result.sourcesProcessed).toBe(1);
   });
 
+  it("should remove empty cache directory when no files are fetched", async () => {
+    const { GitHubClientError } = await import("./github-client.js");
+    // All features return 404
+    mockClientInstance.listDirectory.mockRejectedValue(new GitHubClientError("Not Found", 404));
+    mockClientInstance.getFileContent.mockRejectedValue(new GitHubClientError("Not Found", 404));
+
+    await resolveAndFetchSources({
+      sources: [{ source: "https://github.com/org/empty-repo" }],
+      baseDir: testDir,
+    });
+
+    const sourceCacheDir = join(testDir, RULESYNC_SOURCES_RELATIVE_DIR_PATH, "org--empty-repo");
+    // ensureDir was called (cleanSourceCache creates it), then removeDirectory cleans it up
+    expect(ensureDir).toHaveBeenCalledWith(sourceCacheDir);
+    expect(removeDirectory).toHaveBeenCalledWith(sourceCacheDir);
+  });
+
   it("should re-resolve refs when updateSources is true", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const { GitHubClientError } = await import("./github-client.js");

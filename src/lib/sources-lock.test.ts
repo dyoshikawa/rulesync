@@ -262,6 +262,24 @@ describe("sources-lock", () => {
     it("should strip gitlab: prefix", () => {
       expect(normalizeSourceKey("gitlab:org/repo")).toBe("org/repo");
     });
+
+    it("should normalize Azure DevOps URL to org/project/repo", () => {
+      expect(normalizeSourceKey("https://dev.azure.com/org/project/_git/repo")).toBe(
+        "org/project/repo",
+      );
+    });
+
+    it("should normalize Azure DevOps URL with user prefix", () => {
+      expect(normalizeSourceKey("https://user@dev.azure.com/org/project/_git/repo")).toBe(
+        "org/project/repo",
+      );
+    });
+
+    it("should normalize Azure DevOps URL with .git suffix", () => {
+      expect(normalizeSourceKey("https://dev.azure.com/org/project/_git/repo.git")).toBe(
+        "org/project/repo",
+      );
+    });
   });
 
   describe("getLockedSource", () => {
