@@ -21,8 +21,8 @@ import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
-import { createMockLogger } from "./__test__/mock-logger.js";
 import { initCommand } from "./init.js";
 
 // Mock dependencies

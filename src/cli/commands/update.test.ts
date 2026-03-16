@@ -9,7 +9,7 @@ import {
   getNpmUpgradeInstructions,
   performBinaryUpdate,
 } from "../../lib/update.js";
-import { createMockLogger } from "./__test__/mock-logger.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { updateCommand } from "./update.js";
 
 vi.mock("../../lib/update.js", async (importOriginal) => {

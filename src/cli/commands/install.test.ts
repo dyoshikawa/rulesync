@@ -4,7 +4,7 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import type { SourceEntry } from "../../config/config.js";
 import { Config } from "../../config/config.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
-import { createMockLogger } from "./__test__/mock-logger.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { installCommand } from "./install.js";
 
 // Mock dependencies

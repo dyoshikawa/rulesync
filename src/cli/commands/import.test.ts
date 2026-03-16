@@ -6,7 +6,7 @@ import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
-import { createMockLogger } from "./__test__/mock-logger.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { ImportOptions } from "./import.js";
 import { importCommand } from "./import.js";
 

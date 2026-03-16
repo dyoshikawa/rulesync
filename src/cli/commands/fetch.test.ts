@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { FetchSummary } from "../../types/fetch.js";
-import { createMockLogger } from "./__test__/mock-logger.js";
 import { fetchCommand } from "./fetch.js";
 
 // Mock dependencies

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import { createMockLogger } from "./__test__/mock-logger.js";
 import { filterGitignoreEntries } from "./gitignore-entries.js";
 import { gitignoreCommand } from "./gitignore.js";
 
@@ -249,9 +249,9 @@ dist/`;
 
       await gitignoreCommand(mockLogger);
 
-      const allInfoCalls = vi.mocked(mockLogger.info).mock.calls.map((call) => call[0]);
+      const allInfoCalls = vi.mocked(mockLogger.info).mock.calls.map((call: unknown[]) => call[0]);
       const antigravityMessages = allInfoCalls.filter(
-        (msg) => typeof msg === "string" && msg.includes("Antigravity"),
+        (msg: unknown) => typeof msg === "string" && msg.includes("Antigravity"),
       );
       expect(antigravityMessages).toHaveLength(0);
     });

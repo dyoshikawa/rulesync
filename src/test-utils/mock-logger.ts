@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import { Logger } from "../../../utils/logger.js";
+import { Logger } from "../utils/logger.js";
 
 export function createMockLogger(): Logger {
   return {
