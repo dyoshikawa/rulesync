@@ -4,9 +4,8 @@ import { Command } from "commander";
 
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
-import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger, JsonLogger, Logger } from "../utils/logger.js";
+import { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
@@ -16,10 +15,10 @@ import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
+import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
 const getVersion = () => "7.20.0";
 
-// Extract wrapper function for command handlers
 function wrapCommand(
   name: string,
   errorCode: string,
@@ -30,35 +29,7 @@ function wrapCommand(
     positionalArgs: unknown[],
   ) => Promise<void>,
 ) {
-  return async (...args: unknown[]) => {
-    // Commander passes variable args based on command signature:
-    // - No positional: (options, command)
-    // - With positional: (arg1, arg2, ..., options, command)
-    // The last two are always (options, command)
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const command = args[args.length - 1] as Command;
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const options = args[args.length - 2] as Record<string, unknown>;
-    const positionalArgs = args.slice(0, -2);
-    const globalOpts = command.parent?.opts() ?? {};
-    const logger: Logger = globalOpts.json
-      ? new JsonLogger({ command: name, version: getVersion() })
-      : new ConsoleLogger();
-    logger.configure({
-      verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
-      silent: Boolean(globalOpts.silent) || Boolean(options.silent),
-    });
-
-    try {
-      await handler(logger, options, globalOpts, positionalArgs);
-      logger.outputJson(true);
-    } catch (error) {
-      const code = error instanceof CLIError ? error.code : errorCode;
-      const errorArg = error instanceof Error ? error : formatError(error);
-      logger.error(errorArg, code);
-      process.exit(error instanceof CLIError ? error.exitCode : 1);
-    }
-  };
+  return _wrapCommand({ name, errorCode, handler, getVersion });
 }
 
 const main = async () => {
