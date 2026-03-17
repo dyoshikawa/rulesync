@@ -7,18 +7,26 @@ import type { GenerateResult } from "./lib/generate.js";
 import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
 import type { ImportResult } from "./lib/import.js";
 import { importFromTool as coreImportFromTool } from "./lib/import.js";
-import { logger } from "./utils/logger.js";
+import { ConsoleLogger } from "./utils/logger.js";
 
 vi.mock("./config/config-resolver.js");
 vi.mock("./lib/generate.js");
 vi.mock("./lib/import.js");
 vi.mock("./utils/logger.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./utils/logger.js")>();
+  const MockConsoleLogger = vi.fn().mockImplementation(function () {
+    return {
+      configure: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+  });
   return {
     ...actual,
-    logger: {
-      configure: vi.fn(),
-    },
+    ConsoleLogger: MockConsoleLogger,
   };
 });
 
@@ -70,13 +78,13 @@ describe("generate", () => {
   it("should default silent to true", async () => {
     await generate();
 
-    expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: true });
+    expect(ConsoleLogger).toHaveBeenCalledWith({ verbose: false, silent: true });
   });
 
   it("should allow overriding silent to false", async () => {
     await generate({ silent: false });
 
-    expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
+    expect(ConsoleLogger).toHaveBeenCalledWith({ verbose: false, silent: false });
   });
 
   it("should pass options to ConfigResolver.resolve", async () => {
@@ -106,7 +114,7 @@ describe("generate", () => {
   it("should call core generate and return result", async () => {
     const result = await generate();
 
-    expect(coreGenerate).toHaveBeenCalledWith({ config: mockConfig });
+    expect(coreGenerate).toHaveBeenCalledWith(expect.objectContaining({ config: mockConfig }));
     expect(result).toEqual(mockGenerateResult);
   });
 });
@@ -115,7 +123,7 @@ describe("importFromTool", () => {
   it("should default silent to true", async () => {
     await importFromTool({ target: "claudecode" });
 
-    expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: true });
+    expect(ConsoleLogger).toHaveBeenCalledWith({ verbose: false, silent: true });
   });
 
   it("should wrap target in array for ConfigResolver", async () => {
@@ -131,7 +139,9 @@ describe("importFromTool", () => {
   it("should call core importFromTool with correct tool", async () => {
     const result = await importFromTool({ target: "claudecode" });
 
-    expect(coreImportFromTool).toHaveBeenCalledWith({ config: mockConfig, tool: "claudecode" });
+    expect(coreImportFromTool).toHaveBeenCalledWith(
+      expect.objectContaining({ config: mockConfig, tool: "claudecode" }),
+    );
     expect(result).toEqual(mockImportResult);
   });
 

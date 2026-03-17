@@ -5,7 +5,7 @@ import {
   type RulesyncFeatures,
 } from "../../types/features.js";
 import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 export type GitignoreEntryTag = {
   readonly target: ToolTarget | "common";
@@ -181,24 +181,24 @@ const isFeatureSelected = (
   return targetFeatures.includes(feature);
 };
 
-const warnInvalidTargets = (targets: ReadonlyArray<string>): void => {
+const warnInvalidTargets = (targets: ReadonlyArray<string>, logger?: Logger): void => {
   const validTargets = new Set<string>(ALL_TOOL_TARGETS_WITH_WILDCARD);
   for (const target of targets) {
     if (!validTargets.has(target)) {
-      logger.warn(
+      logger?.warn(
         `Unknown target '${target}'. Valid targets: ${ALL_TOOL_TARGETS_WITH_WILDCARD.join(", ")}`,
       );
     }
   }
 };
 
-const warnInvalidFeatures = (features: RulesyncFeatures): void => {
+const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void => {
   const validFeatures = new Set<string>(ALL_FEATURES_WITH_WILDCARD);
   const warned = new Set<string>();
   const warnOnce = (feature: string): void => {
     if (!validFeatures.has(feature) && !warned.has(feature)) {
       warned.add(feature);
-      logger.warn(
+      logger?.warn(
         `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
       );
     }
@@ -217,14 +217,16 @@ const warnInvalidFeatures = (features: RulesyncFeatures): void => {
   }
 };
 
-export const filterGitignoreEntries = (params?: FilterGitignoreEntriesParams): string[] => {
-  const { targets, features } = params ?? {};
+export const filterGitignoreEntries = (
+  params?: FilterGitignoreEntriesParams & { logger?: Logger },
+): string[] => {
+  const { targets, features, logger } = params ?? {};
 
   if (targets && targets.length > 0) {
-    warnInvalidTargets(targets);
+    warnInvalidTargets(targets, logger);
   }
   if (features) {
-    warnInvalidFeatures(features);
+    warnInvalidFeatures(features, logger);
   }
 
   const seen = new Set<string>();

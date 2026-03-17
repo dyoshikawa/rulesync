@@ -39,15 +39,17 @@ describe("installCommand", () => {
 
       await installCommand(mockLogger, {});
 
-      expect(resolveAndFetchSources).toHaveBeenCalledWith({
-        sources,
-        baseDir: process.cwd(),
-        options: {
-          updateSources: undefined,
-          frozen: undefined,
-          token: undefined,
-        },
-      });
+      expect(resolveAndFetchSources).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sources,
+          baseDir: process.cwd(),
+          options: {
+            updateSources: undefined,
+            frozen: undefined,
+            token: undefined,
+          },
+        }),
+      );
       expect(mockLogger.success).toHaveBeenCalledWith("Installed 3 skill(s) from 1 source(s).");
     });
 

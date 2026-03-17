@@ -1,6 +1,6 @@
 import { type Mock, vi } from "vitest";
 
-import { Logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 
 export type MockLogger = {
   [K in keyof Logger]: Logger[K] extends (...args: infer A) => infer R

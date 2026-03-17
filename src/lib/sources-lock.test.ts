@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
@@ -17,17 +18,7 @@ import {
   writeLockFile,
 } from "./sources-lock.js";
 
-vi.mock("../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}));
-
-const { logger } = await vi.importMock<typeof import("../utils/logger.js")>("../utils/logger.js");
+const logger = createMockLogger();
 
 const VALID_SHA = "a".repeat(40);
 
@@ -57,7 +48,7 @@ describe("sources-lock", () => {
     });
 
     it("should return empty lock when file does not exist", async () => {
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -77,7 +68,7 @@ describe("sources-lock", () => {
 
       await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), lockContent);
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
 
       expect(lock.sources["https://github.com/org/repo"]).toEqual({
         resolvedRef: VALID_SHA,
@@ -91,7 +82,7 @@ describe("sources-lock", () => {
     it("should return empty lock for invalid JSON", async () => {
       await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), "not-json");
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -101,7 +92,7 @@ describe("sources-lock", () => {
         JSON.stringify({ wrong: "shape" }),
       );
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -120,7 +111,7 @@ describe("sources-lock", () => {
         legacyContent,
       );
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
 
       expect(lock).toEqual({
         lockfileVersion: 1,
@@ -164,7 +155,7 @@ describe("sources-lock", () => {
         },
       };
 
-      await writeLockFile({ baseDir: testDir, lock });
+      await writeLockFile({ logger, baseDir: testDir, lock });
 
       const expectedPath = join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
       const written = await readFileContent(expectedPath);

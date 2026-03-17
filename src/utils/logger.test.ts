@@ -1,11 +1,60 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Logger } from "./logger.js";
 import { ConsoleLogger, JsonLogger } from "./logger.js";
 
 // Mock vitest module
 vi.mock("./vitest.js", () => ({
   isEnvTest: () => false,
 }));
+
+describe.each([
+  { name: "ConsoleLogger", createLogger: () => new ConsoleLogger() as Logger },
+  {
+    name: "JsonLogger",
+    createLogger: () => new JsonLogger({ command: "test", version: "1.0.0" }) as Logger,
+  },
+])("$name configure()", ({ createLogger }) => {
+  let logger: Logger;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    logger = createLogger();
+  });
+
+  it("should set verbose and silent flags", () => {
+    logger.configure({ verbose: true, silent: false });
+    expect(logger.verbose).toBe(true);
+    expect(logger.silent).toBe(false);
+
+    logger.configure({ verbose: false, silent: true });
+    expect(logger.verbose).toBe(false);
+    expect(logger.silent).toBe(true);
+  });
+
+  it("should not warn when only one flag is enabled", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logger.configure({ verbose: true, silent: false });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockClear();
+
+    logger.configure({ verbose: false, silent: true });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it("should not warn when both flags are disabled", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logger.configure({ verbose: false, silent: false });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+});
 
 describe("ConsoleLogger", () => {
   let logger: ConsoleLogger;
@@ -16,16 +65,6 @@ describe("ConsoleLogger", () => {
   });
 
   describe("configure()", () => {
-    it("should set verbose and silent flags", () => {
-      logger.configure({ verbose: true, silent: false });
-      expect(logger.verbose).toBe(true);
-      expect(logger.silent).toBe(false);
-
-      logger.configure({ verbose: false, silent: true });
-      expect(logger.verbose).toBe(false);
-      expect(logger.silent).toBe(true);
-    });
-
     it("should warn when both verbose and silent are enabled", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -34,29 +73,6 @@ describe("ConsoleLogger", () => {
       expect(warnSpy).toHaveBeenCalledWith(
         "Both --verbose and --silent specified; --silent takes precedence",
       );
-
-      warnSpy.mockRestore();
-    });
-
-    it("should not warn when only one flag is enabled", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      logger.configure({ verbose: true, silent: false });
-      expect(warnSpy).not.toHaveBeenCalled();
-
-      warnSpy.mockClear();
-
-      logger.configure({ verbose: false, silent: true });
-      expect(warnSpy).not.toHaveBeenCalled();
-
-      warnSpy.mockRestore();
-    });
-
-    it("should not warn when both flags are disabled", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      logger.configure({ verbose: false, silent: false });
-      expect(warnSpy).not.toHaveBeenCalled();
 
       warnSpy.mockRestore();
     });
@@ -260,24 +276,12 @@ describe("JsonLogger", () => {
   });
 
   describe("configure()", () => {
-    it("should set verbose and silent flags", () => {
-      logger.configure({ verbose: true, silent: false });
-      expect(logger.verbose).toBe(true);
-      expect(logger.silent).toBe(false);
-
-      logger.configure({ verbose: false, silent: true });
-      expect(logger.verbose).toBe(false);
-      expect(logger.silent).toBe(true);
-    });
-
-    it("should warn when both verbose and silent are enabled", () => {
+    it("should NOT warn when both verbose and silent are enabled (JSON mode suppresses warning)", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        "Both --verbose and --silent specified; --silent takes precedence",
-      );
+      expect(warnSpy).not.toHaveBeenCalled();
 
       // Silent should take precedence
       expect(logger.verbose).toBe(false);

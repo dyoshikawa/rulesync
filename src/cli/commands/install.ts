@@ -1,6 +1,6 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 export type InstallCommandOptions = {
   update?: boolean;
@@ -38,6 +38,7 @@ export async function installCommand(
       frozen: options.frozen,
       token: options.token,
     },
+    logger,
   });
 
   // Capture JSON data if in JSON mode

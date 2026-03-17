@@ -1,5 +1,5 @@
 import type { HookEvent, HooksConfig } from "../../types/hooks.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -46,10 +46,12 @@ export function canonicalToToolHooks({
   config,
   toolOverrideHooks,
   converterConfig,
+  logger,
 }: {
   config: HooksConfig;
   toolOverrideHooks: HooksConfig["hooks"] | undefined;
   converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
 }): Record<string, unknown[]> {
   const supported: Set<string> = new Set(converterConfig.supportedEvents);
   const sharedHooks: HooksConfig["hooks"] = {};
@@ -76,7 +78,7 @@ export function canonicalToToolHooks({
     const isNoMatcherEvent = converterConfig.noMatcherEvents?.has(eventName) ?? false;
     for (const [matcherKey, defs] of byMatcher) {
       if (isNoMatcherEvent && matcherKey) {
-        logger.warn(
+        logger?.warn(
           `matcher "${matcherKey}" on "${eventName}" hook will be ignored — this event does not support matchers`,
         );
       }

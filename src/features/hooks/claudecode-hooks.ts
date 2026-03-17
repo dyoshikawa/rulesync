@@ -9,6 +9,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -71,7 +72,11 @@ export class ClaudecodeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
-  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<ClaudecodeHooks> {
+    logger,
+  }: ToolHooksFromRulesyncHooksParams & {
+    global?: boolean;
+    logger?: Logger;
+  }): Promise<ClaudecodeHooks> {
     const paths = ClaudecodeHooks.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readOrInitializeFileContent(
@@ -92,6 +97,7 @@ export class ClaudecodeHooks extends ToolHooks {
       config,
       toolOverrideHooks: config.claudecode?.hooks,
       converterConfig: CLAUDE_CONVERTER_CONFIG,
+      logger,
     });
     const merged = { ...settings, hooks: claudeHooks };
     const fileContent = JSON.stringify(merged, null, 2);

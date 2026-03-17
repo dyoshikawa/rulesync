@@ -8,7 +8,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCommand } from "./antigravity-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
@@ -332,14 +332,16 @@ export class CommandsProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -372,7 +374,7 @@ export class CommandsProcessor extends FeatureProcessor {
           const flattenedPath = commandToConvert.getRelativeFilePath();
           const firstOrigin = flattenedPathOrigins.get(flattenedPath);
           if (firstOrigin && firstOrigin !== originalRelativePath) {
-            logger.warn(
+            this.logger.warn(
               `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". Only the last processed command will be used.`,
             );
           } else if (!firstOrigin) {
@@ -428,7 +430,7 @@ export class CommandsProcessor extends FeatureProcessor {
       ),
     );
 
-    logger.debug(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
+    this.logger.debug(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
     return rulesyncCommands;
   }
 
@@ -462,7 +464,9 @@ export class CommandsProcessor extends FeatureProcessor {
         )
         .filter((cmd) => cmd.isDeletable());
 
-      logger.debug(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
+      this.logger.debug(
+        `Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`,
+      );
       return toolCommands;
     }
 
@@ -476,7 +480,9 @@ export class CommandsProcessor extends FeatureProcessor {
       ),
     );
 
-    logger.debug(`Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`);
+    this.logger.debug(
+      `Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`,
+    );
     return toolCommands;
   }
 

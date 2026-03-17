@@ -5,7 +5,7 @@ import { optional, refine, z } from "zod/mini";
 
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 
 /** Current lockfile format version. Bump when the schema changes. */
 export const LOCKFILE_VERSION = 1;
@@ -56,7 +56,11 @@ const LegacySourcesLockSchema = z.object({
  * Migrate a legacy lockfile (string[] skills, no version) to the current format.
  * Skills get empty integrity since we can't compute it retroactively.
  */
-function migrateLegacyLock(legacy: z.infer<typeof LegacySourcesLockSchema>): SourcesLock {
+function migrateLegacyLock(params: {
+  legacy: z.infer<typeof LegacySourcesLockSchema>;
+  logger: Logger;
+}): SourcesLock {
+  const { legacy, logger } = params;
   const sources: Record<string, LockedSource> = {};
   for (const [key, entry] of Object.entries(legacy.sources)) {
     const skills: Record<string, LockedSkill> = {};
@@ -85,7 +89,11 @@ export function createEmptyLock(): SourcesLock {
  * Read the lockfile from disk.
  * @returns The parsed lockfile, or an empty lockfile if it doesn't exist or is invalid.
  */
-export async function readLockFile(params: { baseDir: string }): Promise<SourcesLock> {
+export async function readLockFile(params: {
+  baseDir: string;
+  logger: Logger;
+}): Promise<SourcesLock> {
+  const { logger } = params;
   const lockPath = join(params.baseDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
 
   if (!(await fileExists(lockPath))) {
@@ -106,7 +114,7 @@ export async function readLockFile(params: { baseDir: string }): Promise<Sources
     // Try legacy schema (no lockfileVersion, skills as string[])
     const legacyResult = LegacySourcesLockSchema.safeParse(data);
     if (legacyResult.success) {
-      return migrateLegacyLock(legacyResult.data);
+      return migrateLegacyLock({ legacy: legacyResult.data, logger });
     }
 
     logger.warn(
@@ -124,7 +132,12 @@ export async function readLockFile(params: { baseDir: string }): Promise<Sources
 /**
  * Write the lockfile to disk.
  */
-export async function writeLockFile(params: { baseDir: string; lock: SourcesLock }): Promise<void> {
+export async function writeLockFile(params: {
+  baseDir: string;
+  lock: SourcesLock;
+  logger: Logger;
+}): Promise<void> {
+  const { logger } = params;
   const lockPath = join(params.baseDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
   const content = JSON.stringify(params.lock, null, 2) + "\n";
   await writeFileContent(lockPath, content);

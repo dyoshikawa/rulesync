@@ -8,7 +8,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { ToolTarget } from "./tool-targets.js";
@@ -17,19 +17,23 @@ export abstract class DirFeatureProcessor {
   protected readonly baseDir: string;
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
+  protected readonly logger: Logger;
 
   constructor({
     baseDir = process.cwd(),
     dryRun = false,
     avoidBlockScalars = false,
+    logger,
   }: {
     baseDir?: string;
     dryRun?: boolean;
     avoidBlockScalars?: boolean;
+    logger: Logger;
   }) {
     this.baseDir = baseDir;
     this.dryRun = dryRun;
     this.avoidBlockScalars = avoidBlockScalars;
+    this.logger = logger;
   }
 
   abstract loadRulesyncDirs(): Promise<AiDir[]>;
@@ -102,13 +106,15 @@ export abstract class DirFeatureProcessor {
 
       const relativeDir = aiDir.getRelativePathFromCwd();
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
+        this.logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
         if (mainFile) {
-          logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
+          this.logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
           changedPaths.push(join(relativeDir, mainFile.name));
         }
         for (const file of otherFiles) {
-          logger.info(`[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`);
+          this.logger.info(
+            `[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`,
+          );
           changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
       } else {
@@ -159,7 +165,7 @@ export abstract class DirFeatureProcessor {
     for (const aiDir of orphanDirs) {
       const dirPath = aiDir.getDirPath();
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
+        this.logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
       } else {
         await removeDirectory(dirPath);
       }

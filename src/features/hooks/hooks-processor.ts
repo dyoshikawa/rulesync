@@ -16,7 +16,7 @@ import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
@@ -170,13 +170,15 @@ export class HooksProcessor extends FeatureProcessor {
     toolTarget,
     global = false,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = HooksProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -196,7 +198,7 @@ export class HooksProcessor extends FeatureProcessor {
         }),
       ];
     } catch (error) {
-      logger.error(
+      this.logger.error(
         `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       return [];
@@ -219,7 +221,7 @@ export class HooksProcessor extends FeatureProcessor {
           global: this.global,
         });
         const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
-        logger.debug(
+        this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
         );
         return list;
@@ -230,14 +232,14 @@ export class HooksProcessor extends FeatureProcessor {
         validate: true,
         global: this.global,
       });
-      logger.debug(`Successfully loaded 1 ${this.toolTarget} hooks file`);
+      this.logger.debug(`Successfully loaded 1 ${this.toolTarget} hooks file`);
       return [toolHooks];
     } catch (error) {
       const msg = `Failed to load hooks files for tool target: ${this.toolTarget}: ${formatError(error)}`;
       if (error instanceof Error && error.message.includes("no such file or directory")) {
-        logger.debug(msg);
+        this.logger.debug(msg);
       } else {
-        logger.error(msg);
+        this.logger.error(msg);
       }
       return [];
     }
@@ -263,7 +265,7 @@ export class HooksProcessor extends FeatureProcessor {
       const configEventNames = new Set<string>(Object.keys(effectiveHooks));
       const skipped = [...configEventNames].filter((e) => !supportedEvents.has(e));
       if (skipped.length > 0) {
-        logger.warn(
+        this.logger.warn(
           `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
         );
       }
@@ -285,7 +287,7 @@ export class HooksProcessor extends FeatureProcessor {
       }
 
       for (const [hookType, events] of unsupportedTypeToEvents) {
-        logger.warn(
+        this.logger.warn(
           `Skipped ${hookType}-type hook(s) for ${this.toolTarget} (not supported): ${Array.from(events).join(", ")}`,
         );
       }
@@ -303,7 +305,7 @@ export class HooksProcessor extends FeatureProcessor {
       }
 
       if (eventsWithMatcher.size > 0) {
-        logger.warn(
+        this.logger.warn(
           `Skipped matcher hook(s) for ${this.toolTarget} (not supported): ${Array.from(eventsWithMatcher).join(", ")}`,
         );
       }

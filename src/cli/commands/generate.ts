@@ -1,7 +1,7 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
@@ -75,7 +75,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     logger.debug("Generating rule files...");
   }
 
-  const result = await generate({ config });
+  const result = await generate({ config, logger });
 
   const totalGenerated = calculateTotalCount(result);
 

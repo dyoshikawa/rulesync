@@ -50,20 +50,22 @@ describe("fetchCommand", () => {
         source: "owner/repo",
       });
 
-      expect(fetchFiles).toHaveBeenCalledWith({
-        source: "owner/repo",
-        options: {
-          target: undefined,
-          features: undefined,
-          ref: undefined,
-          path: undefined,
-          output: undefined,
-          conflict: undefined,
-          token: undefined,
-          verbose: undefined,
-          silent: undefined,
-        },
-      });
+      expect(fetchFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "owner/repo",
+          options: {
+            target: undefined,
+            features: undefined,
+            ref: undefined,
+            path: undefined,
+            output: undefined,
+            conflict: undefined,
+            token: undefined,
+            verbose: undefined,
+            silent: undefined,
+          },
+        }),
+      );
       expect(mockLogger.success).toHaveBeenCalledWith("Fetched 2 files");
     });
 
@@ -93,20 +95,22 @@ describe("fetchCommand", () => {
         silent: false,
       });
 
-      expect(fetchFiles).toHaveBeenCalledWith({
-        source: "owner/repo",
-        options: {
-          target: "rulesync",
-          features: ["rules", "mcp"],
-          ref: "develop",
-          path: "packages/shared",
-          output: "custom-output",
-          conflict: "skip",
-          token: "my-token",
-          verbose: true,
-          silent: false,
-        },
-      });
+      expect(fetchFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "owner/repo",
+          options: {
+            target: "rulesync",
+            features: ["rules", "mcp"],
+            ref: "develop",
+            path: "packages/shared",
+            output: "custom-output",
+            conflict: "skip",
+            token: "my-token",
+            verbose: true,
+            silent: false,
+          },
+        }),
+      );
     });
 
     it("should warn when no files were fetched", async () => {

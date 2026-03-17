@@ -6,7 +6,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
@@ -97,13 +97,15 @@ export class IgnoreProcessor extends FeatureProcessor {
     toolTarget,
     getFactory = defaultGetFactory,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -127,7 +129,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     try {
       return [await RulesyncIgnore.fromFile()];
     } catch (error) {
-      logger.error(
+      this.logger.error(
         `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       return [];
@@ -163,9 +165,9 @@ export class IgnoreProcessor extends FeatureProcessor {
     } catch (error) {
       const errorMessage = `Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`;
       if (error instanceof Error && error.message.includes("no such file or directory")) {
-        logger.debug(errorMessage);
+        this.logger.debug(errorMessage);
       } else {
-        logger.error(errorMessage);
+        this.logger.error(errorMessage);
       }
       return [];
     }

@@ -17,7 +17,9 @@ import {
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import { ConsoleLogger } from "../utils/logger.js";
+
+const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 const maxRuleSizeBytes = 1024 * 1024; // 1MB
 const maxRulesCount = 1000;

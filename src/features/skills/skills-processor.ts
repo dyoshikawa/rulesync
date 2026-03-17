@@ -8,7 +8,7 @@ import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
@@ -258,14 +258,16 @@ export class SkillsProcessor extends DirFeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun, avoidBlockScalars: toolTarget === "cursor" });
+    super({ baseDir, dryRun, avoidBlockScalars: toolTarget === "cursor", logger });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -307,7 +309,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     for (const toolSkill of toolSkills) {
       // Skip simulated skills as they cannot be converted back
       if (toolSkill instanceof SimulatedSkill) {
-        logger.debug(`Skipping simulated skill conversion: ${toolSkill.getDirPath()}`);
+        this.logger.debug(`Skipping simulated skill conversion: ${toolSkill.getDirPath()}`);
         continue;
       }
       rulesyncSkills.push(toolSkill.toRulesyncSkill());
@@ -345,7 +347,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       // Filter out curated skills that conflict with local skills (local wins)
       const nonConflicting = curatedDirNames.filter((name) => {
         if (localSkillNames.has(name)) {
-          logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
+          this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
           return false;
         }
         return true;
@@ -365,7 +367,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     }
 
     const allSkills = [...localSkills, ...curatedSkills];
-    logger.debug(
+    this.logger.debug(
       `Successfully loaded ${allSkills.length} rulesync skills (${localSkills.length} local, ${curatedSkills.length} curated)`,
     );
     return allSkills;
@@ -393,7 +395,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ),
     );
 
-    logger.debug(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
+    this.logger.debug(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
     return toolSkills;
   }
 
@@ -414,7 +416,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }),
     );
 
-    logger.debug(
+    this.logger.debug(
       `Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills for deletion`,
     );
     return toolSkills;

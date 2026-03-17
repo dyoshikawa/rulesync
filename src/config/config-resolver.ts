@@ -6,7 +6,6 @@ import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
-import { formatError } from "../utils/error.js";
 import {
   fileExists,
   getHomeDirectory,
@@ -14,7 +13,6 @@ import {
   resolvePath,
   validateBaseDir,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
 import {
   Config,
   ConfigFile,
@@ -54,18 +52,13 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   if (!(await fileExists(filePath))) {
     return {};
   }
-  try {
-    const fileContent = await readFileContent(filePath);
-    const jsonData = parseJsonc(fileContent);
-    // Parse with ConfigFileSchema to allow $schema property, then extract config params
-    const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
-    // Exclude $schema from config params
-    const { $schema: _schema, ...configParams } = parsed;
-    return configParams;
-  } catch (error) {
-    logger.error(`Failed to load config file "${filePath}": ${formatError(error)}`);
-    throw error;
-  }
+  const fileContent = await readFileContent(filePath);
+  const jsonData = parseJsonc(fileContent);
+  // Parse with ConfigFileSchema to allow $schema property, then extract config params
+  const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
+  // Exclude $schema from config params
+  const { $schema: _schema, ...configParams } = parsed;
+  return configParams;
 };
 
 const mergeConfigs = (

@@ -33,6 +33,11 @@ abstract class BaseLogger {
   protected _verbose = false;
   protected _silent = false;
 
+  constructor({ verbose = false, silent = false }: { verbose?: boolean; silent?: boolean } = {}) {
+    this._silent = silent;
+    this._verbose = verbose && !silent;
+  }
+
   get verbose(): boolean {
     return this._verbose;
   }
@@ -45,11 +50,15 @@ abstract class BaseLogger {
     if (verbose && silent) {
       this._silent = false;
       if (!isEnvTest()) {
-        console.warn("Both --verbose and --silent specified; --silent takes precedence");
+        this.onConflictingFlags();
       }
     }
     this._silent = silent;
     this._verbose = verbose && !silent;
+  }
+
+  protected onConflictingFlags(): void {
+    console.warn("Both --verbose and --silent specified; --silent takes precedence");
   }
 }
 
@@ -92,6 +101,7 @@ export class ConsoleLogger extends BaseLogger implements Logger {
     console.warn(message, ...args);
   }
 
+  // Errors are always emitted, even in silent mode
   error(message: string | Error, _code?: string, ...args: unknown[]): void {
     if (isEnvTest()) return;
     const errorMessage = message instanceof Error ? message.message : message;
@@ -99,10 +109,8 @@ export class ConsoleLogger extends BaseLogger implements Logger {
   }
 
   debug(message: string, ...args: unknown[]): void {
-    if (this.isSuppressed()) return;
-    if (this._verbose) {
-      console.log(message, ...args);
-    }
+    if (!this._verbose || this.isSuppressed()) return;
+    console.log(message, ...args);
   }
 }
 
@@ -117,10 +125,25 @@ export class JsonLogger extends BaseLogger implements Logger {
   private readonly _commandName: string;
   private readonly _version: string;
 
-  constructor({ command, version }: { command: string; version: string }) {
-    super();
+  constructor({
+    command,
+    version,
+    verbose = false,
+    silent = false,
+  }: {
+    command: string;
+    version: string;
+    verbose?: boolean;
+    silent?: boolean;
+  }) {
+    super({ verbose, silent });
     this._commandName = command;
     this._version = version;
+  }
+
+  // Suppress raw console.warn in JSON mode to avoid non-JSON text on stderr
+  protected override onConflictingFlags(): void {
+    // No-op: conflicting flags warning is silently ignored in JSON mode
   }
 
   get jsonMode(): boolean {
@@ -202,6 +225,3 @@ export class JsonLogger extends BaseLogger implements Logger {
     // Suppress console output in JSON mode
   }
 }
-
-/** @deprecated Use `new ConsoleLogger()` or `new JsonLogger()` for new code */
-export const logger: Logger = new ConsoleLogger();

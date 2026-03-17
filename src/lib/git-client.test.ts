@@ -13,10 +13,7 @@ vi.mock("../utils/file.js", () => ({
   getFileSize: vi.fn(),
   readFileContent: vi.fn(),
 }));
-vi.mock("../utils/logger.js", () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import {
   createTempDirectory,
   directoryExists,
@@ -26,7 +23,6 @@ import {
   readFileContent,
   removeTempDirectory,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
 import {
   GitClientError,
   checkGitAvailable,
@@ -37,6 +33,8 @@ import {
   validateGitUrl,
   validateRef,
 } from "./git-client.js";
+
+const logger = createMockLogger();
 
 const SHA = "a".repeat(40);
 
@@ -71,21 +69,21 @@ describe("git-client", () => {
     });
 
     it("warns on insecure git:// protocol", () => {
-      validateGitUrl("git://example.com/repo.git");
+      validateGitUrl("git://example.com/repo.git", { logger });
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
         expect.stringContaining("unencrypted protocol"),
       );
     });
 
     it("warns on insecure http:// protocol", () => {
-      validateGitUrl("http://example.com/repo.git");
+      validateGitUrl("http://example.com/repo.git", { logger });
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
         expect.stringContaining("unencrypted protocol"),
       );
     });
 
     it("does not warn on https:// protocol", () => {
-      validateGitUrl("https://example.com/repo.git");
+      validateGitUrl("https://example.com/repo.git", { logger });
       expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
     });
 
@@ -307,6 +305,7 @@ describe("git-client", () => {
         url: "https://example.com/repo.git",
         ref: "main",
         skillsPath: "skills",
+        logger,
       });
       expect(files).toHaveLength(1);
       expect(files[0]?.relativePath).toBe("file.md");

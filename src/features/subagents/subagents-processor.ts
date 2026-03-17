@@ -8,7 +8,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
@@ -211,14 +211,16 @@ export class SubagentsProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -264,7 +266,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     for (const toolSubagent of toolSubagents) {
       // Skip simulated subagents as they can't be converted back to rulesync
       if (toolSubagent instanceof SimulatedSubagent) {
-        logger.debug(
+        this.logger.debug(
           `Skipping simulated subagent conversion: ${toolSubagent.getRelativeFilePath()}`,
         );
         continue;
@@ -286,7 +288,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);
     if (!dirExists) {
-      logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
+      this.logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
       return [];
     }
 
@@ -295,11 +297,11 @@ export class SubagentsProcessor extends FeatureProcessor {
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {
-      logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
+      this.logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
       return [];
     }
 
-    logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
+    this.logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
 
     // Parse all files and create RulesyncSubagent instances using fromFilePath
     const rulesyncSubagents: RulesyncSubagent[] = [];
@@ -314,19 +316,19 @@ export class SubagentsProcessor extends FeatureProcessor {
         });
 
         rulesyncSubagents.push(rulesyncSubagent);
-        logger.debug(`Successfully loaded subagent: ${mdFile}`);
+        this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
       } catch (error) {
-        logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
+        this.logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
         continue;
       }
     }
 
     if (rulesyncSubagents.length === 0) {
-      logger.debug(`No valid subagents found in ${subagentsDir}`);
+      this.logger.debug(`No valid subagents found in ${subagentsDir}`);
       return [];
     }
 
-    logger.debug(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
+    this.logger.debug(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
     return rulesyncSubagents;
   }
 
@@ -358,7 +360,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         )
         .filter((subagent) => subagent.isDeletable());
 
-      logger.debug(
+      this.logger.debug(
         `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
       );
       return toolSubagents;
@@ -374,7 +376,9 @@ export class SubagentsProcessor extends FeatureProcessor {
       ),
     );
 
-    logger.debug(`Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`);
+    this.logger.debug(
+      `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
+    );
     return toolSubagents;
   }
 
