@@ -1,8 +1,7 @@
 ---
-description: "When you write any code, must follow these guidelines."
-applyTo: "**/*.ts"
+description: 'When you write any code, must follow these guidelines.'
+applyTo: '**/*.ts'
 ---
-
 # Coding Guidelines
 
 - If the arguments are multiple, you should use object as the argument.

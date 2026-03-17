@@ -19,4 +19,3 @@ Integrate and report the execution results from each subagent. Additionaly, plea
 
 - Assign a severity level to each finding: low, mid, high, or critical.
 - Assign a sequential number to each finding (e.g., #1, #2, #3, ...).
-- If all findings are low severity only, consider the PR mergeable and state so in the report.

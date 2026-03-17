@@ -1,7 +1,6 @@
 ---
-description: "When you add or change features, must follow these guidelines."
+description: 'When you add or change features, must follow these guidelines.'
 ---
-
 # Guidelines for Adding or Modifying Features
 
 - Check whether `rules-processor.ts` needs an updated Additional Convention, especially values within `additionalConvention`. For example, if you remove support for Cursor's Skill feature simulation, remove `skills: { skillClass: CursorSkill }` within convention entry for Cursor.
