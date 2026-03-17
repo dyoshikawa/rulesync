@@ -193,6 +193,16 @@ describe("ConsoleLogger", () => {
 
       errorSpy.mockRestore();
     });
+
+    it("should extract message from Error objects", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      logger.error(new Error("error object message"));
+
+      expect(errorSpy).toHaveBeenCalledWith("error object message");
+
+      errorSpy.mockRestore();
+    });
   });
 
   describe("precedence", () => {
@@ -246,7 +256,40 @@ describe("JsonLogger", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    logger = new JsonLogger("test", "1.0.0");
+    logger = new JsonLogger({ command: "test", version: "1.0.0" });
+  });
+
+  describe("configure()", () => {
+    it("should set verbose and silent flags", () => {
+      logger.configure({ verbose: true, silent: false });
+      expect(logger.verbose).toBe(true);
+      expect(logger.silent).toBe(false);
+
+      logger.configure({ verbose: false, silent: true });
+      expect(logger.verbose).toBe(false);
+      expect(logger.silent).toBe(true);
+    });
+
+    it("should not emit visible warning when both verbose and silent are enabled (warn is a no-op in JSON mode)", () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      logger.configure({ verbose: true, silent: true });
+
+      // No console output should be produced
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+
+      // Silent should take precedence
+      expect(logger.verbose).toBe(false);
+      expect(logger.silent).toBe(true);
+
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
   });
 
   describe("jsonMode", () => {

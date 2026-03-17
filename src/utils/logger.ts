@@ -23,11 +23,11 @@ export type Logger = {
 };
 
 /**
- * ConsoleLogger - human-readable terminal output
+ * Base class for shared verbose/silent state and configuration logic
  */
-export class ConsoleLogger implements Logger {
-  private _verbose = false;
-  private _silent = false;
+abstract class BaseLogger {
+  protected _verbose = false;
+  protected _silent = false;
 
   get verbose(): boolean {
     return this._verbose;
@@ -37,10 +37,6 @@ export class ConsoleLogger implements Logger {
     return this._silent;
   }
 
-  get jsonMode(): boolean {
-    return false;
-  }
-
   configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
     if (verbose && silent) {
       this._silent = false;
@@ -48,6 +44,17 @@ export class ConsoleLogger implements Logger {
     }
     this._silent = silent;
     this._verbose = verbose && !silent;
+  }
+
+  abstract warn(message: string, ...args: unknown[]): void;
+}
+
+/**
+ * ConsoleLogger - human-readable terminal output
+ */
+export class ConsoleLogger extends BaseLogger implements Logger {
+  get jsonMode(): boolean {
+    return false;
   }
 
   captureData(_key: string, _value: unknown): void {
@@ -96,33 +103,25 @@ export class ConsoleLogger implements Logger {
 
 /**
  * JsonLogger - structured JSON output to stdout/stderr
+ *
+ * All console output methods (info, success, warn, debug) are no-ops.
+ * The warn method in BaseLogger.configure() is also a no-op here,
+ * so conflicting --verbose/--silent flags produce no visible warning in JSON mode.
  */
-export class JsonLogger implements Logger {
-  private _verbose = false;
-  private _silent = false;
+export class JsonLogger extends BaseLogger implements Logger {
   private _jsonOutputDone = false;
   private _jsonData: Record<string, unknown> = {};
+  private _commandName: string;
+  private _version: string;
 
-  constructor(
-    private _commandName: string,
-    private _version: string,
-  ) {}
-
-  get verbose(): boolean {
-    return this._verbose;
-  }
-
-  get silent(): boolean {
-    return this._silent;
+  constructor({ command, version }: { command: string; version: string }) {
+    super();
+    this._commandName = command;
+    this._version = version;
   }
 
   get jsonMode(): boolean {
     return true;
-  }
-
-  configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
-    this._silent = silent;
-    this._verbose = verbose && !silent;
   }
 
   captureData(key: string, value: unknown): void {
@@ -209,10 +208,15 @@ export function createConsoleLogger(): ConsoleLogger {
   return new ConsoleLogger();
 }
 
-export function createJsonLogger(command: string, version: string): JsonLogger {
-  return new JsonLogger(command, version);
+export function createJsonLogger({
+  command,
+  version,
+}: {
+  command: string;
+  version: string;
+}): JsonLogger {
+  return new JsonLogger({ command, version });
 }
 
-// Backwards-compatible singleton instance for non-DI usage
-// @deprecated Use createConsoleLogger() or createJsonLogger() for new code
+/** @deprecated Use createConsoleLogger() or createJsonLogger() for new code */
 export const logger: Logger = new ConsoleLogger();

@@ -41,7 +41,7 @@ function wrapCommand(
     const positionalArgs = args.slice(0, -2);
     const globalOpts = command.parent?.opts() ?? {};
     const logger: Logger = globalOpts.json
-      ? createJsonLogger(name, getVersion())
+      ? createJsonLogger({ command: name, version: getVersion() })
       : createConsoleLogger();
     logger.configure({
       verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
