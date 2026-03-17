@@ -1,0 +1,252 @@
+import { join } from "node:path";
+
+import { uniq } from "es-toolkit";
+
+import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { PermissionAction, PermissionEntry } from "../../types/permissions.js";
+import {
+  CANONICAL_TO_CLAUDE_TOOL_NAMES,
+  CLAUDE_TO_CANONICAL_TOOL_NAMES,
+  joinPattern,
+  splitPattern,
+} from "../../types/permissions.js";
+import { formatError } from "../../utils/error.js";
+import { fileExists, readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
+import type { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  ToolPermissions,
+  type ToolPermissionsForDeletionParams,
+  type ToolPermissionsFromFileParams,
+  type ToolPermissionsFromRulesyncPermissionsParams,
+  type ToolPermissionsSettablePaths,
+} from "./tool-permissions.js";
+
+type ClaudeSettingsPermissions = {
+  allow?: string[];
+  ask?: string[];
+  deny?: string[];
+};
+
+type ClaudeSettingsJson = Record<string, unknown> & {
+  permissions?: ClaudeSettingsPermissions;
+};
+
+/**
+ * Convert a canonical tool name to Claude Code PascalCase name.
+ * If the tool name starts with "mcp__", it's kept as-is (MCP tool).
+ */
+function toClaudeToolName(canonicalTool: string): string {
+  if (canonicalTool.startsWith("mcp__")) {
+    return canonicalTool;
+  }
+  return CANONICAL_TO_CLAUDE_TOOL_NAMES[canonicalTool] ?? canonicalTool;
+}
+
+/**
+ * Convert a Claude Code tool name back to canonical.
+ */
+function fromClaudeToolName(claudeTool: string): string {
+  if (claudeTool.startsWith("mcp__")) {
+    return claudeTool;
+  }
+  return CLAUDE_TO_CANONICAL_TOOL_NAMES[claudeTool] ?? claudeTool.toLowerCase();
+}
+
+/**
+ * Format a permission entry for Claude Code: "ToolName(pattern)"
+ */
+function formatClaudePermission(entry: PermissionEntry): string {
+  const toolName = toClaudeToolName(entry.tool);
+  const joined = joinPattern(entry.tool, entry.pattern);
+  return `${toolName}(${joined})`;
+}
+
+/**
+ * Parse a Claude permission string like "Bash(npm *)" back to canonical entry.
+ */
+function parseClaudePermission(
+  permission: string,
+  action: PermissionAction,
+): PermissionEntry | null {
+  const match = permission.match(/^([^(]+)\((.+)\)$/);
+  if (!match) return null;
+
+  // eslint-disable-next-line no-type-assertion/no-type-assertion
+  const claudeTool = match[1]!;
+  // eslint-disable-next-line no-type-assertion/no-type-assertion
+  const patternStr = match[2]!;
+  const canonicalTool = fromClaudeToolName(claudeTool);
+
+  return {
+    tool: canonicalTool,
+    pattern: splitPattern(canonicalTool, patternStr),
+    action,
+  };
+}
+
+/**
+ * Check if a permission string is a Read() pattern (from the ignore feature).
+ */
+function isReadPattern(permission: string): boolean {
+  return permission.startsWith("Read(") && permission.endsWith(")");
+}
+
+export class ClaudecodePermissions extends ToolPermissions {
+  constructor(params: AiFileParams) {
+    super({
+      ...params,
+      fileContent: params.fileContent ?? "{}",
+    });
+  }
+
+  override isDeletable(): boolean {
+    return false;
+  }
+
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
+    return { relativeDirPath: ".claude", relativeFilePath: "settings.json" };
+  }
+
+  static async fromFile({
+    baseDir = process.cwd(),
+    validate = true,
+  }: ToolPermissionsFromFileParams): Promise<ClaudecodePermissions> {
+    const paths = ClaudecodePermissions.getSettablePaths();
+    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+
+    let fileContent = "{}";
+    if (await fileExists(filePath)) {
+      fileContent = await readFileContent(filePath);
+    }
+
+    return new ClaudecodePermissions({
+      baseDir,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent,
+      validate,
+    });
+  }
+
+  static async fromRulesyncPermissions({
+    baseDir = process.cwd(),
+    rulesyncPermissions,
+    validate = true,
+  }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ClaudecodePermissions> {
+    const paths = ClaudecodePermissions.getSettablePaths();
+    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readOrInitializeFileContent(
+      filePath,
+      JSON.stringify({}, null, 2),
+    );
+    let settings: ClaudeSettingsJson;
+    try {
+      settings = JSON.parse(existingContent);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse existing Claude settings at ${filePath}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
+
+    const config = rulesyncPermissions.getJson();
+    const entries = config.permissions;
+
+    // Group entries by action
+    const grouped: Record<PermissionAction, string[]> = {
+      allow: [],
+      ask: [],
+      deny: [],
+    };
+
+    for (const entry of entries) {
+      const formatted = formatClaudePermission(entry);
+      grouped[entry.action].push(formatted);
+    }
+
+    // Build new permissions, preserving Read() entries from the ignore feature in deny
+    const existingPermissions = settings.permissions ?? {};
+    const existingDenies = existingPermissions.deny ?? [];
+
+    // Preserve Read() patterns in deny that came from the ignore feature
+    // (i.e., Read() patterns that are NOT generated by permissions)
+    const permissionsDenyReadPatterns = new Set(grouped.deny.filter((p) => isReadPattern(p)));
+    const preservedIgnoreReads = existingDenies.filter(
+      (deny) => isReadPattern(deny) && !permissionsDenyReadPatterns.has(deny),
+    );
+
+    const newPermissions: ClaudeSettingsPermissions = {};
+    if (grouped.allow.length > 0) {
+      newPermissions.allow = uniq(grouped.allow.toSorted());
+    }
+    if (grouped.ask.length > 0) {
+      newPermissions.ask = uniq(grouped.ask.toSorted());
+    }
+
+    const allDenies = uniq([...preservedIgnoreReads, ...grouped.deny].toSorted());
+    if (allDenies.length > 0) {
+      newPermissions.deny = allDenies;
+    }
+
+    const merged: ClaudeSettingsJson = {
+      ...settings,
+      permissions: newPermissions,
+    };
+    const fileContent = JSON.stringify(merged, null, 2);
+
+    return new ClaudecodePermissions({
+      baseDir,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent,
+      validate,
+    });
+  }
+
+  toRulesyncPermissions(): RulesyncPermissions {
+    let settings: ClaudeSettingsJson;
+    try {
+      settings = JSON.parse(this.getFileContent());
+    } catch (error) {
+      throw new Error(
+        `Failed to parse Claude permissions content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
+
+    const permissions = settings.permissions ?? {};
+    const entries: PermissionEntry[] = [];
+
+    for (const action of ["allow", "ask", "deny"] as const) {
+      const items = permissions[action] ?? [];
+      for (const item of items) {
+        const entry = parseClaudePermission(item, action);
+        if (entry) {
+          entries.push(entry);
+        }
+      }
+    }
+
+    return this.toRulesyncPermissionsDefault({
+      fileContent: JSON.stringify({ permissions: entries }, null, 2),
+    });
+  }
+
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+
+  static forDeletion({
+    baseDir = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolPermissionsForDeletionParams): ClaudecodePermissions {
+    return new ClaudecodePermissions({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: JSON.stringify({}, null, 2),
+      validate: false,
+    });
+  }
+}

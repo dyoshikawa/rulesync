@@ -3,6 +3,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
@@ -17,6 +18,7 @@ export type ImportResult = {
   subagentsCount: number;
   skillsCount: number;
   hooksCount: number;
+  permissionsCount: number;
 };
 
 /**
@@ -35,6 +37,7 @@ export async function importFromTool(params: {
   const subagentsCount = await importSubagentsCore({ config, tool });
   const skillsCount = await importSkillsCore({ config, tool });
   const hooksCount = await importHooksCore({ config, tool });
+  const permissionsCount = await importPermissionsCore({ config, tool });
 
   return {
     rulesCount,
@@ -44,6 +47,7 @@ export async function importFromTool(params: {
     subagentsCount,
     skillsCount,
     hooksCount,
+    permissionsCount,
   };
 }
 
@@ -309,6 +313,49 @@ async function importHooksCore(params: { config: Config; tool: ToolTarget }): Pr
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} hooks file(s)`);
+  }
+
+  return writtenCount;
+}
+
+async function importPermissionsCore(params: {
+  config: Config;
+  tool: ToolTarget;
+}): Promise<number> {
+  const { config, tool } = params;
+
+  if (!config.getFeatures(tool).includes("permissions")) {
+    return 0;
+  }
+
+  const allTargets = PermissionsProcessor.getToolTargets();
+  const importableTargets = PermissionsProcessor.getToolTargets({ importOnly: true });
+
+  if (!allTargets.includes(tool)) {
+    return 0;
+  }
+
+  if (!importableTargets.includes(tool)) {
+    logger.warn(`Import is not supported for ${tool} permissions. Skipping.`);
+    return 0;
+  }
+
+  const permissionsProcessor = new PermissionsProcessor({
+    baseDir: config.getBaseDirs()[0] ?? ".",
+    toolTarget: tool,
+  });
+
+  const toolFiles = await permissionsProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    logger.warn(`No permissions files found for ${tool}. Skipping import.`);
+    return 0;
+  }
+
+  const rulesyncFiles = await permissionsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const { count: writtenCount } = await permissionsProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} permissions file(s)`);
   }
 
   return writtenCount;

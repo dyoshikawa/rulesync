@@ -43,6 +43,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
       subagents: { count: result.subagentsCount },
       skills: { count: result.skillsCount },
       hooks: { count: result.hooksCount },
+      permissions: { count: result.permissionsCount },
     });
     logger.captureData("totalFiles", totalImported);
   }
@@ -55,6 +56,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
+  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
 
   logger.success(`Imported ${totalImported} file(s) total (${parts.join(" + ")})`);
 }

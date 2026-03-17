@@ -108,6 +108,7 @@ function buildSuccessResponse(params: {
       subagentsCount: generateResult.subagentsCount,
       skillsCount: generateResult.skillsCount,
       hooksCount: generateResult.hooksCount,
+      permissionsCount: generateResult.permissionsCount,
       totalCount,
     },
     config: {
