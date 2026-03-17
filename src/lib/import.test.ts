@@ -7,7 +7,9 @@ import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { logger } from "../utils/logger.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+
+const logger = createMockLogger();
 import { importFromTool } from "./import.js";
 
 vi.mock("../features/rules/rules-processor.js");
@@ -17,15 +19,6 @@ vi.mock("../features/subagents/subagents-processor.js");
 vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/skills/skills-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
-vi.mock("../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    success: vi.fn(),
-  },
-}));
 
 describe("importFromTool", () => {
   let mockConfig: {

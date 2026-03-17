@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { findFilesByGlobs } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+
+const logger = createMockLogger();
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
@@ -34,13 +36,6 @@ vi.mock("../../utils/file.js", async (importOriginal) => {
     findFilesByGlobs: vi.fn(),
   };
 });
-vi.mock("../../utils/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
 // Mock RulesyncCommand after importing it
 vi.mock("./rulesync-command.js");
 vi.mock("./claudecode-command.js", () => ({

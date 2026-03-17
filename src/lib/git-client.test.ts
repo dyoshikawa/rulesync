@@ -13,10 +13,7 @@ vi.mock("../utils/file.js", () => ({
   getFileSize: vi.fn(),
   readFileContent: vi.fn(),
 }));
-vi.mock("../utils/logger.js", () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import {
   createTempDirectory,
   directoryExists,
@@ -26,7 +23,8 @@ import {
   readFileContent,
   removeTempDirectory,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+
+const logger = createMockLogger();
 import {
   GitClientError,
   checkGitAvailable,

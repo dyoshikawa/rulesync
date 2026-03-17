@@ -33,6 +33,11 @@ abstract class BaseLogger {
   protected _verbose = false;
   protected _silent = false;
 
+  constructor({ verbose = false, silent = false }: { verbose?: boolean; silent?: boolean } = {}) {
+    this._silent = silent;
+    this._verbose = verbose && !silent;
+  }
+
   get verbose(): boolean {
     return this._verbose;
   }
@@ -120,8 +125,18 @@ export class JsonLogger extends BaseLogger implements Logger {
   private readonly _commandName: string;
   private readonly _version: string;
 
-  constructor({ command, version }: { command: string; version: string }) {
-    super();
+  constructor({
+    command,
+    version,
+    verbose = false,
+    silent = false,
+  }: {
+    command: string;
+    version: string;
+    verbose?: boolean;
+    silent?: boolean;
+  }) {
+    super({ verbose, silent });
     this._commandName = command;
     this._version = version;
   }
@@ -210,6 +225,3 @@ export class JsonLogger extends BaseLogger implements Logger {
     // Suppress console output in JSON mode
   }
 }
-
-/** @deprecated Use `new ConsoleLogger()` or `new JsonLogger()` for new code */
-export const logger: Logger = new ConsoleLogger();

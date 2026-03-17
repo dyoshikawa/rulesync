@@ -6,9 +6,11 @@ import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+
+const logger = createMockLogger();
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
@@ -22,13 +24,6 @@ import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
-
-vi.mock("../../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-  },
-}));
 
 // Create a mock class for RulesyncIgnore
 class MockRulesyncIgnore {

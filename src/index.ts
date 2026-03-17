@@ -3,7 +3,7 @@ import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate
 import { importFromTool as coreImportFromTool } from "./lib/import.js";
 import type { Feature } from "./types/features.js";
 import type { ToolTarget } from "./types/tool-targets.js";
-import { logger } from "./utils/logger.js";
+import { ConsoleLogger } from "./utils/logger.js";
 
 export type { Feature } from "./types/features.js";
 export type { ToolTarget } from "./types/tool-targets.js";
@@ -39,7 +39,7 @@ export type ImportOptions = {
 
 export async function generate(options: GenerateOptions = {}) {
   const { silent = true, verbose = false, ...rest } = options;
-  logger.configure({ verbose, silent });
+  const logger = new ConsoleLogger({ verbose, silent });
 
   const config = await ConfigResolver.resolve({
     ...rest,
@@ -58,7 +58,7 @@ export async function generate(options: GenerateOptions = {}) {
 
 export async function importFromTool(options: ImportOptions) {
   const { target, silent = true, verbose = false, ...rest } = options;
-  logger.configure({ verbose, silent });
+  const logger = new ConsoleLogger({ verbose, silent });
 
   const config = await ConfigResolver.resolve({
     ...rest,

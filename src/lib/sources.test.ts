@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import {
   directoryExists,
   findFilesByGlobs,
@@ -52,17 +53,7 @@ vi.mock("../utils/file.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}));
-
-const { logger } = await vi.importMock<typeof import("../utils/logger.js")>("../utils/logger.js");
+const logger = createMockLogger();
 
 vi.mock("./git-client.js", () => ({
   GitClientError: class GitClientError extends Error {

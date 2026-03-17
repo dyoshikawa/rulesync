@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
   LOCKFILE_VERSION,
@@ -17,17 +18,7 @@ import {
   writeLockFile,
 } from "./sources-lock.js";
 
-vi.mock("../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}));
-
-const { logger } = await vi.importMock<typeof import("../utils/logger.js")>("../utils/logger.js");
+const logger = createMockLogger();
 
 const VALID_SHA = "a".repeat(40);
 

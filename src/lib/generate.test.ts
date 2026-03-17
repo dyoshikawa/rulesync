@@ -11,8 +11,9 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
 import { checkRulesyncDirExists, generate } from "./generate.js";
+
+const logger = createMockLogger();
 
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");
