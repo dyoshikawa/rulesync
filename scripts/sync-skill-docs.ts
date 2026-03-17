@@ -24,33 +24,36 @@ export function removeVitepressSyntax(content: string): string {
   let result = content;
 
   // Convert ::: details <title> blocks: bump internal headings by one level,
-  // then convert the details marker itself to #### <title>
+  // then convert the details marker itself to #### <title>.
+  // Process admonitions inside details first (tip/warning/info/danger) so that
+  // the outer details closing ::: is not consumed by a nested block.
   result = result.replace(
     /^::: details (.+)$([\s\S]*?)^:::$/gm,
     (_, title: string, body: string) => {
+      // Remove nested admonition markers (opening ::: <kind> and closing :::)
+      let processed = body;
+      for (const kind of ["tip", "warning", "info", "danger"] as const) {
+        const label = kind.charAt(0).toUpperCase() + kind.slice(1);
+        processed = processed.replace(
+          new RegExp(`^::: ${kind}(?: (.+))?$`, "gm"),
+          (__, nestedTitle?: string) => `> **${nestedTitle ?? label}:**`,
+        );
+      }
+      processed = processed.replace(/^:::$/gm, "");
       // Bump headings inside the block by one level (### → ####, ## → ###, etc.)
-      const bumpedBody = body.replace(/^(#{2,5}) /gm, "$1# ");
-      return `#### ${title}${bumpedBody}`;
+      processed = processed.replace(/^(#{2,5}) /gm, "$1# ");
+      return `#### ${title}${processed}`;
     },
   );
 
   // Convert ::: tip/warning/info/danger to blockquote-style headings
-  result = result.replace(
-    /^::: tip(?: (.+))?$/gm,
-    (_, title?: string) => `> **${title ?? "Tip"}:**`,
-  );
-  result = result.replace(
-    /^::: warning(?: (.+))?$/gm,
-    (_, title?: string) => `> **${title ?? "Warning"}:**`,
-  );
-  result = result.replace(
-    /^::: info(?: (.+))?$/gm,
-    (_, title?: string) => `> **${title ?? "Info"}:**`,
-  );
-  result = result.replace(
-    /^::: danger(?: (.+))?$/gm,
-    (_, title?: string) => `> **${title ?? "Danger"}:**`,
-  );
+  for (const kind of ["tip", "warning", "info", "danger"] as const) {
+    const label = kind.charAt(0).toUpperCase() + kind.slice(1);
+    result = result.replace(
+      new RegExp(`^::: ${kind}(?: (.+))?$`, "gm"),
+      (_, title?: string) => `> **${title ?? label}:**`,
+    );
+  }
 
   // Remove closing :::
   result = result.replace(/^:::$/gm, "");
@@ -67,6 +70,20 @@ function isSidebarItemArray(value: unknown): value is SidebarItem[] {
   if (!Array.isArray(value) || value.length === 0) return false;
   const first: unknown = value[0];
   return typeof first === "object" && first !== null && "text" in first;
+}
+
+function assertNoFileNameCollision(
+  seenFileNames: Map<string, string>,
+  fileName: string,
+  link: string,
+): void {
+  const existing = seenFileNames.get(fileName);
+  if (existing) {
+    throw new Error(
+      `Filename collision: "${fileName}" from "${link}" conflicts with "${existing}"`,
+    );
+  }
+  seenFileNames.set(fileName, link);
 }
 
 function main(): void {
@@ -96,13 +113,7 @@ function main(): void {
       for (const item of entry.items) {
         if (!item.link) continue;
         const fileName = `${basename(item.link)}.md`;
-        const existing = seenFileNames.get(fileName);
-        if (existing) {
-          throw new Error(
-            `Filename collision: "${fileName}" from "${item.link}" conflicts with "${existing}"`,
-          );
-        }
-        seenFileNames.set(fileName, item.link);
+        assertNoFileNameCollision(seenFileNames, fileName, item.link);
         const docPath = join(DOCS_DIR, `${item.link}.md`);
         const content = readFileSync(docPath, "utf-8");
         const cleaned = removeVitepressSyntax(content);
@@ -114,13 +125,7 @@ function main(): void {
       // Standalone item
       tocLines.push("");
       const fileName = `${basename(entry.link)}.md`;
-      const existing = seenFileNames.get(fileName);
-      if (existing) {
-        throw new Error(
-          `Filename collision: "${fileName}" from "${entry.link}" conflicts with "${existing}"`,
-        );
-      }
-      seenFileNames.set(fileName, entry.link);
+      assertNoFileNameCollision(seenFileNames, fileName, entry.link);
       const docPath = join(DOCS_DIR, `${entry.link}.md`);
       const content = readFileSync(docPath, "utf-8");
       const cleaned = removeVitepressSyntax(content);

@@ -76,4 +76,21 @@ describe("removeVitepressSyntax", () => {
     expect(result).toContain("### H2 Inside");
     expect(result).toContain("#### H3 Inside");
   });
+
+  it("handles nested admonition inside details block", () => {
+    const input = [
+      "::: details Outer",
+      "::: tip",
+      "Inner tip content",
+      ":::",
+      "More content after tip",
+      ":::",
+    ].join("\n");
+
+    const result = removeVitepressSyntax(input);
+    expect(result).toContain("#### Outer");
+    expect(result).toContain("> **Tip:**");
+    expect(result).toContain("More content after tip");
+    expect(result).not.toContain(":::");
+  });
 });
