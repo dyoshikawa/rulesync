@@ -194,23 +194,24 @@ const warnInvalidTargets = (targets: ReadonlyArray<string>): void => {
 
 const warnInvalidFeatures = (features: RulesyncFeatures): void => {
   const validFeatures = new Set<string>(ALL_FEATURES_WITH_WILDCARD);
+  const warned = new Set<string>();
+  const warnOnce = (feature: string): void => {
+    if (!validFeatures.has(feature) && !warned.has(feature)) {
+      warned.add(feature);
+      logger.warn(
+        `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
+      );
+    }
+  };
   if (Array.isArray(features)) {
     for (const feature of features) {
-      if (!validFeatures.has(feature)) {
-        logger.warn(
-          `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
-        );
-      }
+      warnOnce(feature);
     }
   } else {
     for (const targetFeatures of Object.values(features)) {
       if (!targetFeatures) continue;
       for (const feature of targetFeatures) {
-        if (!validFeatures.has(feature)) {
-          logger.warn(
-            `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
-          );
-        }
+        warnOnce(feature);
       }
     }
   }
