@@ -54,7 +54,7 @@
     "dev": "tsx src/cli/index.ts",
     "docs:build": "vitepress build docs",
     "docs:dev": "vitepress dev docs",
-    "docs:preview": "vitepress serve docs",
+    "docs:preview": "vitepress preview docs",
     "eslint": "eslint . --max-warnings 0 --cache",
     "eslint:fix": "eslint . --fix --max-warnings 0 --cache",
     "fix": "pnpm run fmt && pnpm run oxlint:fix && pnpm run eslint:fix",
