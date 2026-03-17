@@ -145,16 +145,17 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  // IMPORTANT: generateIgnoreCore must run before generatePermissionsCore.
+  // generateIgnoreCore must run before generatePermissionsCore.
   // Both features write to .claude/settings.json's permissions.deny key.
   // The permissions feature preserves Read() entries written by the ignore feature.
+  // This dependency is enforced by requiring ignoreResult as a parameter.
   const ignoreResult = await generateIgnoreCore({ config, logger });
   const mcpResult = await generateMcpCore({ config, logger });
   const commandsResult = await generateCommandsCore({ config, logger });
   const subagentsResult = await generateSubagentsCore({ config, logger });
   const skillsResult = await generateSkillsCore({ config, logger });
   const hooksResult = await generateHooksCore({ config, logger });
-  const permissionsResult = await generatePermissionsCore({ config, logger });
+  const permissionsResult = await generatePermissionsCore({ config, logger, ignoreResult });
   const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 
   const hasDiff =
@@ -598,6 +599,9 @@ async function generateHooksCore(params: {
 async function generatePermissionsCore(params: {
   config: Config;
   logger: Logger;
+  /** Required to enforce that ignore generation has completed before permissions generation.
+   * Both features write to .claude/settings.json's permissions.deny key. */
+  ignoreResult: FeatureGenerateResult;
 }): Promise<FeatureGenerateResult> {
   const { config } = params;
 
