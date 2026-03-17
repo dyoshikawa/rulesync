@@ -141,16 +141,17 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
 export async function generate(params: { config: Config }): Promise<GenerateResult> {
   const { config } = params;
 
-  // IMPORTANT: generateIgnoreCore must run before generatePermissionsCore.
+  // generateIgnoreCore must run before generatePermissionsCore.
   // Both features write to .claude/settings.json's permissions.deny key.
   // The permissions feature preserves Read() entries written by the ignore feature.
+  // This dependency is enforced by requiring ignoreResult as a parameter.
   const ignoreResult = await generateIgnoreCore({ config });
   const mcpResult = await generateMcpCore({ config });
   const commandsResult = await generateCommandsCore({ config });
   const subagentsResult = await generateSubagentsCore({ config });
   const skillsResult = await generateSkillsCore({ config });
   const hooksResult = await generateHooksCore({ config });
-  const permissionsResult = await generatePermissionsCore({ config });
+  const permissionsResult = await generatePermissionsCore({ config, ignoreResult });
   const rulesResult = await generateRulesCore({ config, skills: skillsResult.skills });
 
   const hasDiff =
@@ -553,7 +554,12 @@ async function generateHooksCore(params: { config: Config }): Promise<FeatureGen
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generatePermissionsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
+async function generatePermissionsCore(params: {
+  config: Config;
+  /** Required to enforce that ignore generation has completed before permissions generation.
+   * Both features write to .claude/settings.json's permissions.deny key. */
+  ignoreResult: FeatureGenerateResult;
+}): Promise<FeatureGenerateResult> {
   const { config } = params;
 
   let totalCount = 0;
