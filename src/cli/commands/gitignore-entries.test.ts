@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
-
-const logger = createMockLogger();
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
   filterGitignoreEntries,
 } from "./gitignore-entries.js";
+
+const logger = createMockLogger();
 
 // These targets intentionally have no gitignore entries because they either
 // don't generate files (e.g., agentsskills) or share paths with their
@@ -289,6 +289,7 @@ describe("filterGitignoreEntries", () => {
 
     it("should deduplicate warnings for the same invalid feature across targets (object format)", () => {
       filterGitignoreEntries({
+        logger,
         features: {
           claudecode: ["bogus" as any],
           copilot: ["bogus" as any],

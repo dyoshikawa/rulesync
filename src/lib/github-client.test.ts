@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
+import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 
 const logger = createMockLogger();
-import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 
 describe("GitHubClient", () => {
   let originalEnv: NodeJS.ProcessEnv;

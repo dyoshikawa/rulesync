@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CopilotHooks } from "./copilot-hooks.js";
@@ -475,6 +476,7 @@ describe("CopilotHooks", () => {
 
     it("should use bash when both bash and powershell are present on non-Windows", async () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      const logger = createMockLogger();
 
       const copilotHooks = new CopilotHooks({
         baseDir: testDir,
@@ -491,13 +493,17 @@ describe("CopilotHooks", () => {
         validate: false,
       });
 
-      const rulesyncHooks = copilotHooks.toRulesyncHooks();
+      const rulesyncHooks = copilotHooks.toRulesyncHooks({ logger });
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        "Copilot hook has both bash and powershell commands; using bash and ignoring powershell on this platform.",
+      );
     });
 
     it("should use powershell when both bash and powershell are present on Windows", () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+      const logger = createMockLogger();
 
       const copilotHooks = new CopilotHooks({
         baseDir: testDir,
@@ -514,9 +520,12 @@ describe("CopilotHooks", () => {
         validate: false,
       });
 
-      const rulesyncHooks = copilotHooks.toRulesyncHooks();
+      const rulesyncHooks = copilotHooks.toRulesyncHooks({ logger });
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("Write-Output start");
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        "Copilot hook has both bash and powershell commands; using powershell and ignoring bash on this platform.",
+      );
     });
 
     it("should handle empty hooks", () => {

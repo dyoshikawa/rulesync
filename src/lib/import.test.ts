@@ -8,9 +8,9 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
+import { importFromTool } from "./import.js";
 
 const logger = createMockLogger();
-import { importFromTool } from "./import.js";
 
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");

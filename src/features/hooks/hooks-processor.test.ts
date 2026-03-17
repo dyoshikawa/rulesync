@@ -7,13 +7,13 @@ import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-
-const logger = createMockLogger();
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { HooksProcessor } from "./hooks-processor.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
+
+const logger = createMockLogger();
 
 describe("HooksProcessor", () => {
   let testDir: string;

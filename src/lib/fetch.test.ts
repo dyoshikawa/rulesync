@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
-
-const logger = createMockLogger();
 import { fetchFiles, formatFetchSummary } from "./fetch.js";
 import { parseSource } from "./source-parser.js";
+
+const logger = createMockLogger();
 
 let mockClientInstance: any;
 

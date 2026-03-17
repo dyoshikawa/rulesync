@@ -124,10 +124,7 @@ function resolveImportCommand(entry: CopilotHookEntry, logger?: Logger): string 
  * Extract hooks from Copilot hooks JSON into canonical format.
  * Copilot format: { version: 1, hooks: { eventName: [...hookEntries] } }
  */
-function copilotHooksToCanonical(
-  copilotHooks: unknown,
-  canonicalLogger?: Logger,
-): HooksConfig["hooks"] {
+function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksConfig["hooks"] {
   if (copilotHooks === null || copilotHooks === undefined || typeof copilotHooks !== "object") {
     return {};
   }
@@ -141,7 +138,7 @@ function copilotHooksToCanonical(
       const parseResult = CopilotHookEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
       const entry = parseResult.data;
-      const command = resolveImportCommand(entry, canonicalLogger);
+      const command = resolveImportCommand(entry, logger);
       const timeout = entry.timeoutSec;
 
       defs.push({
@@ -209,7 +206,7 @@ export class CopilotHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks(options?: { logger?: Logger }): RulesyncHooks {
     let parsed: { version?: number; hooks?: unknown };
     try {
       parsed = JSON.parse(this.getFileContent());
@@ -221,7 +218,7 @@ export class CopilotHooks extends ToolHooks {
         },
       );
     }
-    const hooks = copilotHooksToCanonical(parsed.hooks);
+    const hooks = copilotHooksToCanonical(parsed.hooks, options?.logger);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
     });

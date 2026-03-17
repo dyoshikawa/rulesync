@@ -9,8 +9,6 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
-
-const logger = createMockLogger();
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
@@ -24,6 +22,8 @@ import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
+
+const logger = createMockLogger();
 
 // Create a mock class for RulesyncIgnore
 class MockRulesyncIgnore {

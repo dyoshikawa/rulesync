@@ -6,8 +6,6 @@ import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-pa
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { findFilesByGlobs } from "../../utils/file.js";
-
-const logger = createMockLogger();
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
@@ -19,6 +17,8 @@ import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
+
+const logger = createMockLogger();
 
 /**
  * Creates a mock getFactory that throws an error for unsupported tool targets.

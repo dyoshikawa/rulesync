@@ -23,8 +23,6 @@ import {
   readFileContent,
   removeTempDirectory,
 } from "../utils/file.js";
-
-const logger = createMockLogger();
 import {
   GitClientError,
   checkGitAvailable,
@@ -35,6 +33,8 @@ import {
   validateGitUrl,
   validateRef,
 } from "./git-client.js";
+
+const logger = createMockLogger();
 
 const SHA = "a".repeat(40);
 

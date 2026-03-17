@@ -5,7 +5,6 @@ import { Command } from "commander";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger, JsonLogger } from "../utils/logger.js";
 import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { fetchCommand } from "./commands/fetch.js";

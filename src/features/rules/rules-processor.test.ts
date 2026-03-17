@@ -6,8 +6,6 @@ import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
-
-const logger = createMockLogger();
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
@@ -18,6 +16,8 @@ import { OpenCodeRule } from "./opencode-rule.js";
 import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { WarpRule } from "./warp-rule.js";
+
+const logger = createMockLogger();
 
 describe("RulesProcessor", () => {
   let testDir: string;
