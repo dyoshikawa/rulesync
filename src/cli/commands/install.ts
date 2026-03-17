@@ -38,6 +38,7 @@ export async function installCommand(
       frozen: options.frozen,
       token: options.token,
     },
+    logger,
   });
 
   // Capture JSON data if in JSON mode

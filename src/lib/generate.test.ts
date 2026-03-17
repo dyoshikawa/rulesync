@@ -9,6 +9,7 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
 import { logger } from "../utils/logger.js";
 import { checkRulesyncDirExists, generate } from "./generate.js";
@@ -155,25 +156,27 @@ describe("generate", () => {
     it("should generate rules when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.rulesCount).toBe(1);
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
     });
 
     it("should return 0 rules when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.rulesCount).toBe(0);
       expect(RulesProcessor).not.toHaveBeenCalled();
@@ -200,7 +203,7 @@ describe("generate", () => {
         return mockSkillsProcessor as unknown as SkillsProcessor;
       });
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -226,7 +229,7 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(mockProcessor.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
       expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith(existingFiles, generatedFiles);
@@ -251,7 +254,7 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       // removeOrphanAiFiles is called with both lists, the actual filtering happens inside
       expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith(existingFiles, generatedFiles);
@@ -265,7 +268,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.rulesCount).toBe(2);
       expect(RulesProcessor).toHaveBeenCalledTimes(2);
@@ -278,7 +281,7 @@ describe("generate", () => {
     it("should generate ignore files when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(1);
       expect(IgnoreProcessor).toHaveBeenCalled();
@@ -287,7 +290,7 @@ describe("generate", () => {
     it("should return 0 ignore files when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -297,7 +300,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       mockConfig.getGlobal.mockReturnValue(true);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -309,7 +312,7 @@ describe("generate", () => {
         throw new Error("Test error");
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(0);
     });
@@ -328,7 +331,7 @@ describe("generate", () => {
         return mockProcessor as unknown as IgnoreProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(0);
       expect(mockProcessor.convertRulesyncFilesToToolFiles).not.toHaveBeenCalled();
@@ -340,21 +343,23 @@ describe("generate", () => {
     it("should generate MCP files when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.mcpCount).toBe(1);
-      expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should return 0 MCP files when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.mcpCount).toBe(0);
       expect(McpProcessor).not.toHaveBeenCalled();
@@ -365,21 +370,23 @@ describe("generate", () => {
     it("should generate commands when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.commandsCount).toBe(1);
-      expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should return 0 commands when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.commandsCount).toBe(0);
       expect(CommandsProcessor).not.toHaveBeenCalled();
@@ -389,7 +396,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
       mockConfig.getSimulateCommands.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
         global: false,
@@ -402,21 +409,23 @@ describe("generate", () => {
     it("should generate subagents when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.subagentsCount).toBe(1);
-      expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should return 0 subagents when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.subagentsCount).toBe(0);
       expect(SubagentsProcessor).not.toHaveBeenCalled();
@@ -426,7 +435,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
       mockConfig.getSimulateSubagents.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({
         global: false,
@@ -450,21 +459,23 @@ describe("generate", () => {
         return mockSkillsProcessor as unknown as SkillsProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.skillsCount).toBe(1);
-      expect(SkillsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(SkillsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should return 0 skills when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.skillsCount).toBe(0);
       expect(result.skills).toEqual([]);
@@ -492,7 +503,7 @@ describe("generate", () => {
         return mockSkillsProcessor as unknown as SkillsProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.skills).toContain(mockSkill);
     });
@@ -514,7 +525,7 @@ describe("generate", () => {
         return mockSkillsProcessor as unknown as SkillsProcessor;
       });
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(mockSkillsProcessor.loadToolDirsToDelete).toHaveBeenCalled();
       expect(mockSkillsProcessor.removeOrphanAiDirs).toHaveBeenCalledWith(
@@ -551,7 +562,7 @@ describe("generate", () => {
         return mockSkillsProcessor as unknown as SkillsProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.rulesCount).toBe(1);
       expect(result.ignoreCount).toBe(1);
@@ -565,7 +576,7 @@ describe("generate", () => {
     it("should return empty result when no features are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.rulesCount).toBe(0);
       expect(result.ignoreCount).toBe(0);
@@ -586,7 +597,7 @@ describe("generate", () => {
     it("should pass global flag to processors", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -598,7 +609,7 @@ describe("generate", () => {
     it("should use getToolTargets with global: true", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
     });
@@ -609,7 +620,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -622,7 +633,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -635,7 +646,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -648,7 +659,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -661,7 +672,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -674,7 +685,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(SkillsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -687,7 +698,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["hooks"]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      await generate({ config: mockConfig as never });
+      await generate({ logger, config: mockConfig as never });
 
       expect(HooksProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -700,7 +711,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue([]);
       mockConfig.isPreviewMode.mockReturnValue(true);
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.hasDiff).toBe(false);
     });
@@ -723,7 +734,7 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.hasDiff).toBe(false);
       expect(result.rulesCount).toBe(0);
@@ -747,7 +758,7 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.hasDiff).toBe(true);
       expect(result.rulesCount).toBe(1);
@@ -771,7 +782,7 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.hasDiff).toBe(true);
     });
@@ -794,7 +805,7 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.hasDiff).toBe(false);
     });
@@ -817,23 +828,13 @@ describe("generate", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.hasDiff).toBe(true);
     });
   });
 
   describe("unsupported target-feature warning", () => {
-    let warnSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-      warnSpy = vi.spyOn(logger, "warn");
-    });
-
-    afterEach(() => {
-      warnSpy.mockRestore();
-    });
-
     it("should warn when a target does not support an enabled feature", async () => {
       mockConfig.getTargets.mockReturnValue(["codexcli"]);
       // getFeatures(target) is called per-target; return "mcp" for codexcli
@@ -843,9 +844,10 @@ describe("generate", () => {
       });
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
-      await generate({ config: mockConfig as never });
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
 
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "Target 'codexcli' does not support the feature 'mcp'. Skipping.",
       );
     });
@@ -858,9 +860,10 @@ describe("generate", () => {
       });
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
-      await generate({ config: mockConfig as never });
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
 
-      expect(warnSpy).not.toHaveBeenCalledWith(
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining("does not support the feature"),
       );
     });
@@ -871,9 +874,10 @@ describe("generate", () => {
       mockConfig.getFeatures.mockImplementation(() => []);
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
-      await generate({ config: mockConfig as never });
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
 
-      expect(warnSpy).not.toHaveBeenCalledWith(
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining("does not support the feature"),
       );
     });
@@ -887,12 +891,13 @@ describe("generate", () => {
       });
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
-      await generate({ config: mockConfig as never });
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
 
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "Target 'codexcli' does not support the feature 'mcp'. Skipping.",
       );
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "Target 'cursor' does not support the feature 'mcp'. Skipping.",
       );
     });

@@ -36,7 +36,7 @@ import {
   removeTempDirectory,
   writeFileContent,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
 import { parseSource } from "./source-parser.js";
@@ -135,8 +135,9 @@ async function convertFetchedFilesToRulesync(params: {
   outputDir: string;
   target: ToolTarget;
   features: Feature[];
+  logger: Logger;
 }): Promise<FeatureConversionResult> {
-  const { tempDir, outputDir, target, features } = params;
+  const { tempDir, outputDir, target, features, logger } = params;
   const convertedPaths: string[] = [];
 
   // Feature conversion configurations
@@ -150,38 +151,38 @@ async function convertFetchedFilesToRulesync(params: {
       feature: "rules",
       getTargets: () => RulesProcessor.getToolTargets({ global: false }),
       createProcessor: () =>
-        new RulesProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+        new RulesProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "commands",
       getTargets: () =>
         CommandsProcessor.getToolTargets({ global: false, includeSimulated: false }),
       createProcessor: () =>
-        new CommandsProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+        new CommandsProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "subagents",
       getTargets: () =>
         SubagentsProcessor.getToolTargets({ global: false, includeSimulated: false }),
       createProcessor: () =>
-        new SubagentsProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+        new SubagentsProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "ignore",
       getTargets: () => IgnoreProcessor.getToolTargets(),
-      createProcessor: () => new IgnoreProcessor({ baseDir: tempDir, toolTarget: target }),
+      createProcessor: () => new IgnoreProcessor({ baseDir: tempDir, toolTarget: target, logger }),
     },
     {
       feature: "mcp",
       getTargets: () => McpProcessor.getToolTargets({ global: false }),
       createProcessor: () =>
-        new McpProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+        new McpProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "hooks",
       getTargets: () => HooksProcessor.getToolTargets({ global: false }),
       createProcessor: () =>
-        new HooksProcessor({ baseDir: tempDir, toolTarget: target, global: false }),
+        new HooksProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
     },
   ];
 
@@ -254,6 +255,7 @@ export type FetchParams = {
   source: string;
   options?: FetchOptions;
   baseDir?: string;
+  logger: Logger;
 };
 
 /**
@@ -265,7 +267,7 @@ export type FetchParams = {
  * converted to rulesync format, and written to the output directory.
  */
 export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
-  const { source, options = {}, baseDir = process.cwd() } = params;
+  const { source, options = {}, baseDir = process.cwd(), logger } = params;
 
   // Parse source
   const parsed = parseSource(source);
@@ -321,6 +323,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       outputDir,
       baseDir,
       conflictStrategy,
+      logger,
     });
   }
 
@@ -336,6 +339,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     ref,
     enabledFeatures,
     semaphore,
+    logger,
   });
 
   if (filesToFetch.length === 0) {
@@ -412,8 +416,9 @@ async function collectFeatureFiles(params: {
   ref: string;
   enabledFeatures: Feature[];
   semaphore: Semaphore;
+  logger: Logger;
 }): Promise<Array<{ remotePath: string; relativePath: string; size: number }>> {
-  const { client, owner, repo, basePath, ref, enabledFeatures, semaphore } = params;
+  const { client, owner, repo, basePath, ref, enabledFeatures, semaphore, logger } = params;
 
   // Cache directory listing results to avoid duplicate API calls
   // File-based features (ignore, mcp, hooks) all list the same basePath directory
@@ -517,6 +522,7 @@ async function fetchAndConvertToolFiles(params: {
   outputDir: string;
   baseDir: string;
   conflictStrategy: ConflictStrategy;
+  logger: Logger;
 }): Promise<FetchSummary> {
   const {
     client,
@@ -528,6 +534,7 @@ async function fetchAndConvertToolFiles(params: {
     outputDir,
     baseDir,
     conflictStrategy: _conflictStrategy,
+    logger,
   } = params;
 
   // Create a unique temporary directory
@@ -548,6 +555,7 @@ async function fetchAndConvertToolFiles(params: {
       ref,
       enabledFeatures,
       semaphore,
+      logger,
     });
 
     if (filesToFetch.length === 0) {
@@ -597,6 +605,7 @@ async function fetchAndConvertToolFiles(params: {
       outputDir: outputBasePath,
       target,
       features: enabledFeatures,
+      logger,
     });
 
     // Build results based on conversion with actual file paths

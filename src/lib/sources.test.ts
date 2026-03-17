@@ -118,16 +118,14 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should return zero counts with empty sources", async () => {
-    const result = await resolveAndFetchSources({
-      sources: [],
-      baseDir: testDir,
-    });
+    const result = await resolveAndFetchSources({ logger, sources: [], baseDir: testDir });
 
     expect(result).toEqual({ fetchedSkillCount: 0, sourcesProcessed: 0 });
   });
 
   it("should skip fetching when skipSources is true", async () => {
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
       options: { skipSources: true },
@@ -167,6 +165,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.listDirectory.mockResolvedValue([]);
 
     await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -199,6 +198,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -228,6 +228,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("# My Skill\nContent here.");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -263,6 +264,7 @@ describe("resolveAndFetchSources", () => {
     );
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -290,6 +292,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo", skills: ["skill-a"] }],
       baseDir: testDir,
     });
@@ -319,6 +322,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [
         { source: "https://github.com/org/repo-a" },
         { source: "https://github.com/org/repo-b" },
@@ -335,6 +339,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.listDirectory.mockRejectedValue(new GitHubClientError("Not Found", 404));
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -373,6 +378,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
       options: { updateSources: true },
@@ -409,6 +415,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [
         { source: "https://github.com/org/failing-repo" },
         { source: "https://github.com/org/good-repo" },
@@ -423,6 +430,7 @@ describe("resolveAndFetchSources", () => {
 
   it("should handle GitLab source gracefully", async () => {
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "gitlab:org/repo" }],
       baseDir: testDir,
     });
@@ -457,6 +465,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/new-repo" }],
       baseDir: testDir,
     });
@@ -491,6 +500,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     await resolveAndFetchSources({
+      logger,
       // Config uses full URL but lock has normalized key
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
@@ -524,6 +534,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -542,6 +553,7 @@ describe("resolveAndFetchSources", () => {
 
     await expect(
       resolveAndFetchSources({
+        logger,
         sources: [{ source: "https://github.com/org/repo" }],
         baseDir: testDir,
         options: { frozen: true },
@@ -570,6 +582,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
       options: { frozen: true },
@@ -611,6 +624,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("locked skill content");
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
       options: { frozen: true },
@@ -655,6 +669,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("tampered content");
 
     await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -713,6 +728,7 @@ describe("resolveAndFetchSources", () => {
     mockClientInstance.getFileContent.mockResolvedValue("content");
 
     await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://github.com/org/repo" }],
       baseDir: testDir,
     });
@@ -737,6 +753,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://dev.azure.com/org/project/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
@@ -757,6 +774,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     await resolveAndFetchSources({
+      logger,
       sources: [
         { source: "file:///local/clone", transport: "git", ref: "develop", path: "exports/skills" },
       ],
@@ -788,6 +806,7 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(directoryExists).mockResolvedValue(false);
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
       options: { frozen: true },
@@ -819,6 +838,7 @@ describe("resolveAndFetchSources", () => {
     });
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
@@ -836,6 +856,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [
         {
           source: "https://dev.azure.com/org/_git/repo",
@@ -867,6 +888,7 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(findFilesByGlobs).mockResolvedValue([join(testDir, ".rulesync/skills/local-skill")]);
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
@@ -883,6 +905,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [
         { source: "https://dev.azure.com/org/_git/repo-a", transport: "git" },
         { source: "https://dev.azure.com/org/_git/repo-b", transport: "git" },
@@ -917,6 +940,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });
@@ -941,6 +965,7 @@ describe("resolveAndFetchSources", () => {
     ]);
 
     const result = await resolveAndFetchSources({
+      logger,
       sources: [
         { source: "https://dev.azure.com/org/_git/failing", transport: "git" },
         { source: "https://dev.azure.com/org/_git/good", transport: "git" },
@@ -979,6 +1004,7 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(directoryExists).mockResolvedValue(false);
 
     await resolveAndFetchSources({
+      logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
       baseDir: testDir,
     });

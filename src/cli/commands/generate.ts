@@ -75,7 +75,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     logger.debug("Generating rule files...");
   }
 
-  const result = await generate({ config });
+  const result = await generate({ config, logger });
 
   const totalGenerated = calculateTotalCount(result);
 

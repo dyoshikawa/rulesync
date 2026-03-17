@@ -57,7 +57,7 @@ describe("sources-lock", () => {
     });
 
     it("should return empty lock when file does not exist", async () => {
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -77,7 +77,7 @@ describe("sources-lock", () => {
 
       await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), lockContent);
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
 
       expect(lock.sources["https://github.com/org/repo"]).toEqual({
         resolvedRef: VALID_SHA,
@@ -91,7 +91,7 @@ describe("sources-lock", () => {
     it("should return empty lock for invalid JSON", async () => {
       await writeFileContent(join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH), "not-json");
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -101,7 +101,7 @@ describe("sources-lock", () => {
         JSON.stringify({ wrong: "shape" }),
       );
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
     });
 
@@ -120,7 +120,7 @@ describe("sources-lock", () => {
         legacyContent,
       );
 
-      const lock = await readLockFile({ baseDir: testDir });
+      const lock = await readLockFile({ logger, baseDir: testDir });
 
       expect(lock).toEqual({
         lockfileVersion: 1,
@@ -164,7 +164,7 @@ describe("sources-lock", () => {
         },
       };
 
-      await writeLockFile({ baseDir: testDir, lock });
+      await writeLockFile({ logger, baseDir: testDir, lock });
 
       const expectedPath = join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
       const written = await readFileContent(expectedPath);

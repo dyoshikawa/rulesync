@@ -53,7 +53,7 @@ export async function generate(options: GenerateOptions = {}) {
     }
   }
 
-  return coreGenerate({ config });
+  return coreGenerate({ config, logger });
 }
 
 export async function importFromTool(options: ImportOptions) {
@@ -67,5 +67,5 @@ export async function importFromTool(options: ImportOptions) {
     silent,
   });
 
-  return coreImportFromTool({ config, tool: target });
+  return coreImportFromTool({ config, tool: target, logger });
 }

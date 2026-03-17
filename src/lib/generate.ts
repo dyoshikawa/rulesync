@@ -20,7 +20,7 @@ import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 
 export type GenerateResult = {
@@ -115,8 +115,9 @@ function warnUnsupportedTargets(params: {
   config: Config;
   supportedTargets: ToolTarget[];
   featureName: Feature;
+  logger: Logger;
 }): void {
-  const { config, supportedTargets, featureName } = params;
+  const { config, supportedTargets, featureName, logger } = params;
   for (const target of config.getTargets()) {
     if (!supportedTargets.includes(target) && config.getFeatures(target).includes(featureName)) {
       logger.warn(`Target '${target}' does not support the feature '${featureName}'. Skipping.`);
@@ -135,16 +136,19 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
  * Generate configuration files for AI tools.
  * @throws Error if generation fails
  */
-export async function generate(params: { config: Config }): Promise<GenerateResult> {
-  const { config } = params;
+export async function generate(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<GenerateResult> {
+  const { config, logger } = params;
 
-  const ignoreResult = await generateIgnoreCore({ config });
-  const mcpResult = await generateMcpCore({ config });
-  const commandsResult = await generateCommandsCore({ config });
-  const subagentsResult = await generateSubagentsCore({ config });
-  const skillsResult = await generateSkillsCore({ config });
-  const hooksResult = await generateHooksCore({ config });
-  const rulesResult = await generateRulesCore({ config, skills: skillsResult.skills });
+  const ignoreResult = await generateIgnoreCore({ config, logger });
+  const mcpResult = await generateMcpCore({ config, logger });
+  const commandsResult = await generateCommandsCore({ config, logger });
+  const subagentsResult = await generateSubagentsCore({ config, logger });
+  const skillsResult = await generateSkillsCore({ config, logger });
+  const hooksResult = await generateHooksCore({ config, logger });
+  const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 
   const hasDiff =
     ignoreResult.hasDiff ||
@@ -177,9 +181,10 @@ export async function generate(params: { config: Config }): Promise<GenerateResu
 
 async function generateRulesCore(params: {
   config: Config;
+  logger: Logger;
   skills?: RulesyncSkill[];
 }): Promise<FeatureGenerateResult> {
-  const { config, skills } = params;
+  const { config, logger, skills } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -187,7 +192,7 @@ async function generateRulesCore(params: {
 
   const supportedTargets = RulesProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedTargets);
-  warnUnsupportedTargets({ config, supportedTargets, featureName: "rules" });
+  warnUnsupportedTargets({ config, supportedTargets, featureName: "rules", logger });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -205,6 +210,7 @@ async function generateRulesCore(params: {
         simulateSkills: config.getSimulateSkills(),
         skills: skills,
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -225,14 +231,18 @@ async function generateRulesCore(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateIgnoreCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
 
   const supportedIgnoreTargets = IgnoreProcessor.getToolTargets();
   warnUnsupportedTargets({
     config,
     supportedTargets: supportedIgnoreTargets,
     featureName: "ignore",
+    logger,
   });
 
   if (config.getGlobal()) {
@@ -255,6 +265,7 @@ async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGe
           baseDir: baseDir === process.cwd() ? "." : baseDir,
           toolTarget,
           dryRun: config.isPreviewMode(),
+          logger,
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -289,8 +300,11 @@ async function generateIgnoreCore(params: { config: Config }): Promise<FeatureGe
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateMcpCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateMcpCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -298,7 +312,12 @@ async function generateMcpCore(params: { config: Config }): Promise<FeatureGener
 
   const supportedMcpTargets = McpProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedMcpTargets);
-  warnUnsupportedTargets({ config, supportedTargets: supportedMcpTargets, featureName: "mcp" });
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedMcpTargets,
+    featureName: "mcp",
+    logger,
+  });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -312,6 +331,7 @@ async function generateMcpCore(params: { config: Config }): Promise<FeatureGener
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -332,8 +352,11 @@ async function generateMcpCore(params: { config: Config }): Promise<FeatureGener
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateCommandsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateCommandsCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -348,6 +371,7 @@ async function generateCommandsCore(params: { config: Config }): Promise<Feature
     config,
     supportedTargets: supportedCommandsTargets,
     featureName: "commands",
+    logger,
   });
 
   for (const baseDir of config.getBaseDirs()) {
@@ -362,6 +386,7 @@ async function generateCommandsCore(params: { config: Config }): Promise<Feature
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -382,8 +407,11 @@ async function generateCommandsCore(params: { config: Config }): Promise<Feature
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-async function generateSubagentsCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateSubagentsCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -398,6 +426,7 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
     config,
     supportedTargets: supportedSubagentsTargets,
     featureName: "subagents",
+    logger,
   });
 
   for (const baseDir of config.getBaseDirs()) {
@@ -412,6 +441,7 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -434,8 +464,9 @@ async function generateSubagentsCore(params: { config: Config }): Promise<Featur
 
 async function generateSkillsCore(params: {
   config: Config;
+  logger: Logger;
 }): Promise<FeatureGenerateResult & { skills: RulesyncSkill[] }> {
-  const { config } = params;
+  const { config, logger } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -451,6 +482,7 @@ async function generateSkillsCore(params: {
     config,
     supportedTargets: supportedSkillsTargets,
     featureName: "skills",
+    logger,
   });
 
   for (const baseDir of config.getBaseDirs()) {
@@ -465,6 +497,7 @@ async function generateSkillsCore(params: {
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncDirs = await processor.loadRulesyncDirs();
@@ -492,8 +525,11 @@ async function generateSkillsCore(params: {
   return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff };
 }
 
-async function generateHooksCore(params: { config: Config }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+async function generateHooksCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -501,7 +537,12 @@ async function generateHooksCore(params: { config: Config }): Promise<FeatureGen
 
   const supportedHooksTargets = HooksProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedHooksTargets);
-  warnUnsupportedTargets({ config, supportedTargets: supportedHooksTargets, featureName: "hooks" });
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedHooksTargets,
+    featureName: "hooks",
+    logger,
+  });
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
@@ -515,6 +556,7 @@ async function generateHooksCore(params: { config: Config }): Promise<FeatureGen
         toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();

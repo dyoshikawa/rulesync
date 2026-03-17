@@ -60,18 +60,13 @@ describe("IgnoreProcessor", () => {
 
   describe("constructor", () => {
     it("should create instance with default baseDir", () => {
-      const processor = new IgnoreProcessor({
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, toolTarget: "cursor" });
 
       expect(processor).toBeInstanceOf(IgnoreProcessor);
     });
 
     it("should create instance with custom baseDir", () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       expect(processor).toBeInstanceOf(IgnoreProcessor);
     });
@@ -79,6 +74,7 @@ describe("IgnoreProcessor", () => {
     it("should validate toolTarget parameter", () => {
       expect(() => {
         const _instance = new IgnoreProcessor({
+          logger,
           baseDir: testDir,
           toolTarget: "invalid-target" as any,
         });
@@ -102,10 +98,7 @@ describe("IgnoreProcessor", () => {
 
       for (const target of validTargets) {
         expect(() => {
-          const _instance = new IgnoreProcessor({
-            baseDir: testDir,
-            toolTarget: target,
-          });
+          const _instance = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: target });
         }).not.toThrow();
       }
     });
@@ -122,10 +115,7 @@ describe("IgnoreProcessor", () => {
 
       (RulesyncIgnoreMock as any).fromFile.mockResolvedValue(mockRulesyncIgnore as any);
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(1);
@@ -135,10 +125,7 @@ describe("IgnoreProcessor", () => {
     it("should return empty array when no rulesync ignore file exists", async () => {
       (RulesyncIgnoreMock as any).fromFile.mockRejectedValue(new Error("File not found"));
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
@@ -153,10 +140,7 @@ describe("IgnoreProcessor", () => {
       // Create .cursorignore file
       await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(1);
@@ -164,10 +148,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should return empty array when no tool files exist", async () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(0);
@@ -182,6 +163,7 @@ describe("IgnoreProcessor", () => {
       await writeFileContent(join(testDir, ".augmentignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "augmentcode",
       });
@@ -194,10 +176,7 @@ describe("IgnoreProcessor", () => {
     it("should load ClineIgnore for cline target", async () => {
       await writeFileContent(join(testDir, ".clineignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cline",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cline" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -207,10 +186,7 @@ describe("IgnoreProcessor", () => {
     it("should load CursorIgnore for cursor target", async () => {
       await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -220,10 +196,7 @@ describe("IgnoreProcessor", () => {
     it("should load GeminiCliIgnore for geminicli target", async () => {
       await writeFileContent(join(testDir, ".geminiignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "geminicli",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "geminicli" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -233,10 +206,7 @@ describe("IgnoreProcessor", () => {
     it("should load JunieIgnore for junie target", async () => {
       await writeFileContent(join(testDir, ".aiignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "junie",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "junie" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -246,10 +216,7 @@ describe("IgnoreProcessor", () => {
     it("should load KiroIgnore for kiro target", async () => {
       await writeFileContent(join(testDir, ".aiignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "kiro",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "kiro" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -259,10 +226,7 @@ describe("IgnoreProcessor", () => {
     it("should load QwencodeIgnore for qwencode target", async () => {
       await writeFileContent(join(testDir, ".geminiignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "qwencode",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "qwencode" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -272,10 +236,7 @@ describe("IgnoreProcessor", () => {
     it("should load RooIgnore for roo target", async () => {
       await writeFileContent(join(testDir, ".rooignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "roo",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "roo" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -285,10 +246,7 @@ describe("IgnoreProcessor", () => {
     it("should load WindsurfIgnore for windsurf target", async () => {
       await writeFileContent(join(testDir, ".codeiumignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "windsurf",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "windsurf" });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
@@ -296,10 +254,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should throw error for unsupported tool target", async () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       // Mock the toolTarget property to an unsupported value
       (processor as any).toolTarget = "unsupported";
@@ -335,10 +290,7 @@ describe("IgnoreProcessor", () => {
       ] as const;
 
       for (const target of targets) {
-        const processor = new IgnoreProcessor({
-          baseDir: testDir,
-          toolTarget: target,
-        });
+        const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: target });
 
         const toolFiles = await processor.convertRulesyncFilesToToolFiles([mockRulesyncIgnore]);
         expect(toolFiles).toHaveLength(1);
@@ -347,10 +299,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should throw error when no rulesync ignore found", async () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
         "No .rulesync/.aiignore found.",
@@ -367,10 +316,7 @@ describe("IgnoreProcessor", () => {
         getFileContent: () => "*.log\nnode_modules/",
       });
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       // Mock the toolTarget property to an unsupported value
       (processor as any).toolTarget = "unsupported";
@@ -394,10 +340,7 @@ describe("IgnoreProcessor", () => {
       const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
       vi.spyOn(cursorIgnore, "toRulesyncIgnore").mockReturnValue(mockRulesyncIgnore);
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([cursorIgnore]);
       expect(rulesyncFiles).toHaveLength(1);
@@ -409,10 +352,7 @@ describe("IgnoreProcessor", () => {
         getFilePath: () => "/path/to/file",
       } as any;
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([mockFile]);
       expect(rulesyncFiles).toHaveLength(0);
@@ -430,10 +370,7 @@ describe("IgnoreProcessor", () => {
         getFileContent: () => "*.log\nnode_modules/",
       });
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       // Mock the writeAiFiles method
       const writeAiFilesSpy = vi.spyOn(processor as any, "writeAiFiles");
@@ -484,10 +421,7 @@ describe("IgnoreProcessor", () => {
         }),
       );
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       // Load all tool files (should include ClaudecodeIgnore)
       const allFiles = await processor.loadToolFiles();
@@ -511,6 +445,7 @@ describe("IgnoreProcessor", () => {
       );
 
       const processor = new IgnoreProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode-legacy",
       });
@@ -527,10 +462,7 @@ describe("IgnoreProcessor", () => {
     it("should return deletable files with correct paths", async () => {
       await writeFileContent(join(testDir, ".cursorignore"), "*.log\nnode_modules/");
 
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
@@ -542,10 +474,7 @@ describe("IgnoreProcessor", () => {
 
     it("should return instance for standard path even when file does not exist on disk", async () => {
       // No file created on disk
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
@@ -558,10 +487,7 @@ describe("IgnoreProcessor", () => {
 
   describe("writeAiFiles with trailing newlines", () => {
     it("should write ignore files with exactly one trailing newline", async () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       // Create a mock CursorIgnore file
       const mockCursorIgnore = new CursorIgnore({
@@ -587,10 +513,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should handle files already ending with newline", async () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "cline",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cline" });
 
       // Create a mock ClineIgnore file with trailing newline
       const mockClineIgnore = new ClineIgnore({
@@ -612,10 +535,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should handle files with multiple trailing newlines", async () => {
-      const processor = new IgnoreProcessor({
-        baseDir: testDir,
-        toolTarget: "windsurf",
-      });
+      const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "windsurf" });
 
       // Create a mock WindsurfIgnore file with multiple trailing newlines
       const mockWindsurfIgnore = new WindsurfIgnore({

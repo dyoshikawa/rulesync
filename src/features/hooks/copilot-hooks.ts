@@ -13,7 +13,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -101,14 +101,14 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
  * - If both are present, use `powershell` on Windows, `bash` otherwise,
  *   and log a warning that the other value was ignored.
  */
-function resolveImportCommand(entry: CopilotHookEntry): string | undefined {
+function resolveImportCommand(entry: CopilotHookEntry, logger?: Logger): string | undefined {
   const hasBash = typeof entry.bash === "string";
   const hasPowershell = typeof entry.powershell === "string";
   if (hasBash && hasPowershell) {
     const isWindows = process.platform === "win32";
     const chosen = isWindows ? "powershell" : "bash";
     const ignored = isWindows ? "bash" : "powershell";
-    logger.warn(
+    logger?.warn(
       `Copilot hook has both bash and powershell commands; using ${chosen} and ignoring ${ignored} on this platform.`,
     );
     return isWindows ? entry.powershell : entry.bash;
@@ -124,7 +124,10 @@ function resolveImportCommand(entry: CopilotHookEntry): string | undefined {
  * Extract hooks from Copilot hooks JSON into canonical format.
  * Copilot format: { version: 1, hooks: { eventName: [...hookEntries] } }
  */
-function copilotHooksToCanonical(copilotHooks: unknown): HooksConfig["hooks"] {
+function copilotHooksToCanonical(
+  copilotHooks: unknown,
+  canonicalLogger?: Logger,
+): HooksConfig["hooks"] {
   if (copilotHooks === null || copilotHooks === undefined || typeof copilotHooks !== "object") {
     return {};
   }
@@ -138,7 +141,7 @@ function copilotHooksToCanonical(copilotHooks: unknown): HooksConfig["hooks"] {
       const parseResult = CopilotHookEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
       const entry = parseResult.data;
-      const command = resolveImportCommand(entry);
+      const command = resolveImportCommand(entry, canonicalLogger);
       const timeout = entry.timeoutSec;
 
       defs.push({

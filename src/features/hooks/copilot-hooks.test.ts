@@ -475,13 +475,6 @@ describe("CopilotHooks", () => {
 
     it("should use bash when both bash and powershell are present on non-Windows", async () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("linux");
-      const warnCalls: string[] = [];
-      vi.spyOn(await import("../../utils/logger.js"), "logger", "get").mockReturnValue({
-        warn: (msg: string) => warnCalls.push(msg),
-        info: vi.fn(),
-        debug: vi.fn(),
-        error: vi.fn(),
-      } as never);
 
       const copilotHooks = new CopilotHooks({
         baseDir: testDir,
@@ -501,20 +494,10 @@ describe("CopilotHooks", () => {
       const rulesyncHooks = copilotHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
-      expect(warnCalls.some((msg) => msg.includes("bash") && msg.includes("powershell"))).toBe(
-        true,
-      );
     });
 
-    it("should use powershell when both bash and powershell are present on Windows", async () => {
+    it("should use powershell when both bash and powershell are present on Windows", () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("win32");
-      const warnCalls: string[] = [];
-      vi.spyOn(await import("../../utils/logger.js"), "logger", "get").mockReturnValue({
-        warn: (msg: string) => warnCalls.push(msg),
-        info: vi.fn(),
-        debug: vi.fn(),
-        error: vi.fn(),
-      } as never);
 
       const copilotHooks = new CopilotHooks({
         baseDir: testDir,
@@ -534,9 +517,6 @@ describe("CopilotHooks", () => {
       const rulesyncHooks = copilotHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("Write-Output start");
-      expect(warnCalls.some((msg) => msg.includes("bash") && msg.includes("powershell"))).toBe(
-        true,
-      );
     });
 
     it("should handle empty hooks", () => {

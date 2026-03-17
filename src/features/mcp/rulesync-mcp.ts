@@ -13,7 +13,7 @@ import {
 } from "../../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
 // Note: targets defaults to ["*"] when omitted (applied during filtering, not at parse time)
@@ -85,7 +85,10 @@ export class RulesyncMcp extends RulesyncFile {
     return { success: true, error: null };
   }
 
-  static async fromFile({ validate = true }: RulesyncMcpFromFileParams): Promise<RulesyncMcp> {
+  static async fromFile({
+    validate = true,
+    logger,
+  }: RulesyncMcpFromFileParams & { logger?: Logger }): Promise<RulesyncMcp> {
     const baseDir = process.cwd();
     const paths = this.getSettablePaths();
     const recommendedPath = join(
@@ -109,7 +112,7 @@ export class RulesyncMcp extends RulesyncFile {
 
     // Fall back to legacy path
     if (await fileExists(legacyPath)) {
-      logger.warn(
+      logger?.warn(
         `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
       );
       const fileContent = await readFileContent(legacyPath);

@@ -15,7 +15,7 @@ import {
   GitHubRepoInfoSchema,
 } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 
 /**
  * Error class for GitHub API errors
@@ -34,7 +34,8 @@ export class GitHubClientError extends Error {
 /**
  * Log GitHub auth error hints for 401/403 responses.
  */
-export function logGitHubAuthHints(error: GitHubClientError): void {
+export function logGitHubAuthHints(params: { error: GitHubClientError; logger: Logger }): void {
+  const { error, logger } = params;
   logger.error(`GitHub API Error: ${error.message}`);
   if (error.statusCode === 401 || error.statusCode === 403) {
     logger.info(

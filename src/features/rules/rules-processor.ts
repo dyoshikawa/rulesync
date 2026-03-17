@@ -15,7 +15,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { FactorydroidCommand } from "../commands/factorydroid-command.js";
@@ -482,6 +482,7 @@ export class RulesProcessor extends FeatureProcessor {
     getFactory = defaultGetFactory,
     skills,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
@@ -492,8 +493,9 @@ export class RulesProcessor extends FeatureProcessor {
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -756,7 +758,7 @@ export class RulesProcessor extends FeatureProcessor {
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const rulesyncBaseDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
     const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
-    logger.debug(`Found ${files.length} rulesync files`);
+    this.logger.debug(`Found ${files.length} rulesync files`);
     const rulesyncRules = await Promise.all(
       files.map((file) => {
         const relativeFilePath = relative(rulesyncBaseDir, file);
@@ -786,7 +788,7 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     if (targetedRootRules.length === 0 && rulesyncRules.length > 0) {
-      logger.warn(
+      this.logger.warn(
         `No root rulesync rule file found for target '${this.toolTarget}'. Consider adding 'root: true' to one of your rule files in ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
       );
     }
@@ -822,12 +824,12 @@ export class RulesProcessor extends FeatureProcessor {
       );
 
       if (nonRootRules.length > 0 && !supportsGlobalNonRoot) {
-        logger.warn(
+        this.logger.warn(
           `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${formatRulePaths(nonRootRules)}`,
         );
       }
       if (targetedLocalRootRules.length > 0) {
-        logger.warn(
+        this.logger.warn(
           `${targetedLocalRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${formatRulePaths(targetedLocalRootRules)}`,
         );
       }
@@ -925,7 +927,7 @@ export class RulesProcessor extends FeatureProcessor {
           }),
         );
       })();
-      logger.debug(`Found ${rootToolRules.length} root tool rule files`);
+      this.logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
       // Load CLAUDE.local.md files for deletion (claudecode and claudecode-legacy only)
       const localRootToolRules = await (async () => {
@@ -963,7 +965,9 @@ export class RulesProcessor extends FeatureProcessor {
           })
           .filter((rule) => rule.isDeletable());
       })();
-      logger.debug(`Found ${localRootToolRules.length} local root tool rule files for deletion`);
+      this.logger.debug(
+        `Found ${localRootToolRules.length} local root tool rule files for deletion`,
+      );
 
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
@@ -1008,11 +1012,11 @@ export class RulesProcessor extends FeatureProcessor {
           }),
         );
       })();
-      logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
+      this.logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
       return [...rootToolRules, ...localRootToolRules, ...nonRootToolRules];
     } catch (error) {
-      logger.error(`Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`);
+      this.logger.error(`Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`);
       return [];
     }
   }

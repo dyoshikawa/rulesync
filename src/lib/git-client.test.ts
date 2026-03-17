@@ -71,21 +71,21 @@ describe("git-client", () => {
     });
 
     it("warns on insecure git:// protocol", () => {
-      validateGitUrl("git://example.com/repo.git");
+      validateGitUrl("git://example.com/repo.git", { logger });
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
         expect.stringContaining("unencrypted protocol"),
       );
     });
 
     it("warns on insecure http:// protocol", () => {
-      validateGitUrl("http://example.com/repo.git");
+      validateGitUrl("http://example.com/repo.git", { logger });
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
         expect.stringContaining("unencrypted protocol"),
       );
     });
 
     it("does not warn on https:// protocol", () => {
-      validateGitUrl("https://example.com/repo.git");
+      validateGitUrl("https://example.com/repo.git", { logger });
       expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
     });
 
@@ -307,6 +307,7 @@ describe("git-client", () => {
         url: "https://example.com/repo.git",
         ref: "main",
         skillsPath: "skills",
+        logger,
       });
       expect(files).toHaveLength(1);
       expect(files[0]?.relativePath).toBe("file.md");

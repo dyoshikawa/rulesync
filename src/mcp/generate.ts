@@ -6,6 +6,7 @@ import { checkRulesyncDirExists, generate, type GenerateResult } from "../lib/ge
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
+import { logger } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
@@ -79,7 +80,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       silent: true,
     });
 
-    const generateResult = await generate({ config });
+    const generateResult = await generate({ config, logger });
 
     return buildSuccessResponse({ generateResult, config });
   } catch (error) {

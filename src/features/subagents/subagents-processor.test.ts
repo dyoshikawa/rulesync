@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -45,6 +46,7 @@ describe("SubagentsProcessor", () => {
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -54,6 +56,7 @@ describe("SubagentsProcessor", () => {
 
     it("should use default baseDir when not provided", () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         toolTarget: "claudecode",
       });
 
@@ -63,6 +66,7 @@ describe("SubagentsProcessor", () => {
     it("should validate tool target with schema", () => {
       expect(() => {
         const _processor = new SubagentsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "invalid" as SubagentsProcessorToolTarget,
         });
@@ -73,6 +77,7 @@ describe("SubagentsProcessor", () => {
       for (const toolTarget of subagentsProcessorToolTargets) {
         expect(() => {
           const _processor = new SubagentsProcessor({
+            logger: createMockLogger(),
             baseDir: testDir,
             toolTarget,
           });
@@ -86,6 +91,7 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -123,6 +129,7 @@ describe("SubagentsProcessor", () => {
 
     it("should convert with global flag when processor is in global mode", async () => {
       const globalProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -167,6 +174,7 @@ describe("SubagentsProcessor", () => {
 
     it("should throw error for unsupported tool target", async () => {
       const unsupportedProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         getFactory: createMockGetFactoryThatThrowsUnsupported,
@@ -188,6 +196,7 @@ describe("SubagentsProcessor", () => {
 
     it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
       const copilotProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -213,6 +222,7 @@ describe("SubagentsProcessor", () => {
 
     it("should convert RulesyncSubagent to CursorSubagent for cursor target", async () => {
       const cursorProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "cursor",
       });
@@ -238,6 +248,7 @@ describe("SubagentsProcessor", () => {
 
     it("should convert RulesyncSubagent to CodexCliSubagent for codexcli target", async () => {
       const codexcliProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "codexcli",
       });
@@ -263,6 +274,7 @@ describe("SubagentsProcessor", () => {
 
     it("should convert RulesyncSubagent to OpenCodeSubagent for opencode target", async () => {
       const opencodeProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "opencode",
       });
@@ -293,6 +305,7 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -415,6 +428,7 @@ Claude content`,
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -536,6 +550,7 @@ Global agent content`;
       await ensureDir(differentBaseDir);
 
       const globalProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: differentBaseDir,
         toolTarget: "claudecode",
         global: true,
@@ -553,6 +568,7 @@ Global agent content`;
   describe("loadToolFiles", () => {
     it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -562,6 +578,7 @@ Global agent content`;
 
     it("should delegate to loadCopilotSubagents for copilot target", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -571,6 +588,7 @@ Global agent content`;
 
     it("should delegate to loadCursorSubagents for cursor target", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "cursor",
       });
@@ -580,6 +598,7 @@ Global agent content`;
 
     it("should delegate to loadCodexCliSubagents for codexcli target", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "codexcli",
       });
@@ -589,6 +608,7 @@ Global agent content`;
 
     it("should throw error for unsupported tool target", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         getFactory: createMockGetFactoryThatThrowsUnsupported,
@@ -605,6 +625,7 @@ Global agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -639,6 +660,7 @@ Copilot agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "cursor",
       });
@@ -673,6 +695,7 @@ Cursor agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "codexcli",
       });
@@ -703,6 +726,7 @@ Cursor agent content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -772,6 +796,7 @@ Second content`;
     describe("global mode", () => {
       it("should use global paths when global=true", async () => {
         const globalProcessor = new SubagentsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
@@ -800,6 +825,7 @@ Global agent content`;
 
       it("should return empty array when global agents directory does not exist", async () => {
         const globalProcessor = new SubagentsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
@@ -811,6 +837,7 @@ Global agent content`;
 
       it("should load multiple global subagent files", async () => {
         const globalProcessor = new SubagentsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
@@ -973,6 +1000,7 @@ Second global content`;
   describe("inheritance from FeatureProcessor", () => {
     it("should extend FeatureProcessor", () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -991,6 +1019,7 @@ Second global content`;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -1045,6 +1074,7 @@ Valid content`,
   describe("loadToolFiles with forDeletion: true", () => {
     it("should return files with correct paths for deletion", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -1080,6 +1110,7 @@ Test agent content`;
 
       for (const target of targets) {
         const processor = new SubagentsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: target,
         });
@@ -1093,6 +1124,7 @@ Test agent content`;
 
     it("should return empty array when no files exist", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -1103,6 +1135,7 @@ Test agent content`;
 
     it("should handle multiple files correctly", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -1133,6 +1166,7 @@ Second agent`;
 
     it("should succeed even when file has broken frontmatter", async () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });

@@ -22,7 +22,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
 
   logger.debug(`Importing files from ${tool}...`);
 
-  const result = await importFromTool({ config, tool });
+  const result = await importFromTool({ config, tool, logger });
 
   const totalImported = calculateTotalCount(result);
 

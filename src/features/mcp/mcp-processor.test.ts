@@ -4,6 +4,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
@@ -120,6 +121,7 @@ describe("McpProcessor", () => {
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -128,9 +130,7 @@ describe("McpProcessor", () => {
     });
 
     it("should create instance with default baseDir", () => {
-      const processor = new McpProcessor({
-        toolTarget: "cursor",
-      });
+      const processor = new McpProcessor({ logger: createMockLogger(), toolTarget: "cursor" });
 
       expect(processor).toBeInstanceOf(McpProcessor);
     });
@@ -138,6 +138,7 @@ describe("McpProcessor", () => {
     it("should throw error with invalid tool target", () => {
       expect(() => {
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "invalid" as McpProcessorToolTarget,
         });
@@ -158,6 +159,7 @@ describe("McpProcessor", () => {
       vi.mocked(RulesyncMcp.fromFile).mockResolvedValue(mockRulesyncMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -173,6 +175,7 @@ describe("McpProcessor", () => {
       vi.mocked(RulesyncMcp.fromFile).mockRejectedValue(new Error("File not found"));
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -196,6 +199,7 @@ describe("McpProcessor", () => {
         vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
         });
@@ -222,6 +226,7 @@ describe("McpProcessor", () => {
         vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode-legacy",
         });
@@ -248,6 +253,7 @@ describe("McpProcessor", () => {
         vi.mocked(ClaudecodeMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
@@ -277,6 +283,7 @@ describe("McpProcessor", () => {
         vi.mocked(ClineMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "cline",
         });
@@ -305,6 +312,7 @@ describe("McpProcessor", () => {
         vi.mocked(CopilotMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "copilot",
         });
@@ -333,6 +341,7 @@ describe("McpProcessor", () => {
         vi.mocked(CursorMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "cursor",
         });
@@ -361,6 +370,7 @@ describe("McpProcessor", () => {
         vi.mocked(GeminiCliMcp.fromFile).mockReturnValue(Promise.resolve(mockMcp));
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "geminicli",
         });
@@ -387,6 +397,7 @@ describe("McpProcessor", () => {
         vi.mocked(GeminiCliMcp.fromFile).mockReturnValue(Promise.resolve(mockMcp));
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "geminicli",
           global: true,
@@ -414,6 +425,7 @@ describe("McpProcessor", () => {
         vi.mocked(CodexcliMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "codexcli",
           global: true,
@@ -432,6 +444,7 @@ describe("McpProcessor", () => {
 
       it("should throw error when used in local mode", async () => {
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "codexcli",
           global: false,
@@ -459,6 +472,7 @@ describe("McpProcessor", () => {
         vi.mocked(RooMcp.fromFile).mockResolvedValue(mockMcp);
 
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "roo",
         });
@@ -479,6 +493,7 @@ describe("McpProcessor", () => {
       vi.mocked(CopilotMcp.fromFile).mockRejectedValue(new Error("File not found"));
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -491,6 +506,7 @@ describe("McpProcessor", () => {
     it("should return empty array when unsupported tool target in catch block", async () => {
       // Create a processor with a valid toolTarget
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -524,6 +540,7 @@ describe("McpProcessor", () => {
       vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -557,6 +574,7 @@ describe("McpProcessor", () => {
       vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -591,6 +609,7 @@ describe("McpProcessor", () => {
       vi.mocked(ClineMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "cline",
       });
@@ -624,6 +643,7 @@ describe("McpProcessor", () => {
       vi.mocked(CopilotMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -657,6 +677,7 @@ describe("McpProcessor", () => {
       vi.mocked(CursorMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "cursor",
       });
@@ -690,6 +711,7 @@ describe("McpProcessor", () => {
       vi.mocked(GeminiCliMcp.fromRulesyncMcp).mockReturnValue(Promise.resolve(mockToolMcp));
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "geminicli",
       });
@@ -723,6 +745,7 @@ describe("McpProcessor", () => {
       vi.mocked(GeminiCliMcp.fromRulesyncMcp).mockReturnValue(Promise.resolve(mockToolMcp));
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "geminicli",
         global: true,
@@ -755,6 +778,7 @@ describe("McpProcessor", () => {
       vi.mocked(CodexcliMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "codexcli",
         global: true,
@@ -789,6 +813,7 @@ describe("McpProcessor", () => {
       vi.mocked(RooMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "roo",
       });
@@ -806,6 +831,7 @@ describe("McpProcessor", () => {
 
     it("should throw error when no RulesyncMcp found", async () => {
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -824,6 +850,7 @@ describe("McpProcessor", () => {
       });
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -847,6 +874,7 @@ describe("McpProcessor", () => {
       vi.mocked(ClaudecodeMcp.fromRulesyncMcp).mockResolvedValue({} as any);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -870,6 +898,7 @@ describe("McpProcessor", () => {
       vi.mocked(CodexcliMcp.fromRulesyncMcp).mockResolvedValue({} as any);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "codexcli",
         global: true,
@@ -892,6 +921,7 @@ describe("McpProcessor", () => {
       vi.mocked(OpencodeMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "opencode",
       });
@@ -905,6 +935,7 @@ describe("McpProcessor", () => {
   describe("convertToolFilesToRulesyncFiles", () => {
     it("should return empty array when no tool files provided", async () => {
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -954,6 +985,7 @@ describe("McpProcessor", () => {
   describe("loadToolFiles with forDeletion: true", () => {
     it("should return deletable files only", async () => {
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -980,6 +1012,7 @@ describe("McpProcessor", () => {
       ];
       for (const target of targets) {
         const processor = new McpProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: target,
         });
@@ -993,6 +1026,7 @@ describe("McpProcessor", () => {
 
     it("should handle errors gracefully", async () => {
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "copilot",
       });
@@ -1017,6 +1051,7 @@ describe("McpProcessor", () => {
       );
 
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -1030,6 +1065,7 @@ describe("McpProcessor", () => {
 
     it("should not filter out deletable files in local mode", async () => {
       const processor = new McpProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         global: false,

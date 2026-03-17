@@ -17,6 +17,7 @@ export async function fetchCommand(logger: Logger, options: FetchCommandOptions)
     const summary = await fetchFiles({
       source,
       options: fetchOptions,
+      logger,
     });
 
     // Capture JSON data if in JSON mode

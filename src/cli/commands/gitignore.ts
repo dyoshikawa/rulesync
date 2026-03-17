@@ -92,6 +92,7 @@ export const gitignoreCommand = async (
   const filteredEntries = filterGitignoreEntries({
     targets: options?.targets,
     features: options?.features,
+    logger,
   });
 
   // Compute which filtered entries already exist in the file

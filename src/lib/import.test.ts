@@ -96,20 +96,30 @@ describe("importFromTool", () => {
     it("should import rules when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.rulesCount).toBe(1);
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
     });
 
     it("should return 0 rules when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.rulesCount).toBe(0);
       expect(RulesProcessor).not.toHaveBeenCalled();
@@ -119,7 +129,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["cursor"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.rulesCount).toBe(0);
       expect(RulesProcessor).not.toHaveBeenCalled();
@@ -137,7 +151,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as RulesProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.rulesCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
@@ -152,19 +170,29 @@ describe("importFromTool", () => {
     it("should import ignore files when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(1);
-      expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-      });
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+        }),
+      );
     });
 
     it("should return 0 ignore files when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -174,7 +202,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       mockConfig.getGlobal.mockReturnValue(true);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -184,7 +216,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["cursor"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
@@ -202,7 +238,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as IgnoreProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
@@ -216,20 +256,30 @@ describe("importFromTool", () => {
     it("should import MCP files when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.mcpCount).toBe(1);
-      expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-      });
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
     });
 
     it("should return 0 MCP files when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.mcpCount).toBe(0);
       expect(McpProcessor).not.toHaveBeenCalled();
@@ -239,7 +289,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
       vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["cursor"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.mcpCount).toBe(0);
       expect(McpProcessor).not.toHaveBeenCalled();
@@ -257,7 +311,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as McpProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.mcpCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
@@ -271,20 +329,30 @@ describe("importFromTool", () => {
     it("should import commands when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.commandsCount).toBe(1);
-      expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-      });
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
     });
 
     it("should return 0 commands when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.commandsCount).toBe(0);
       expect(CommandsProcessor).not.toHaveBeenCalled();
@@ -293,7 +361,7 @@ describe("importFromTool", () => {
     it("should call getToolTargets with includeSimulated: false", async () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
 
-      await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith({
         global: false,
@@ -305,7 +373,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
       vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["cursor"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.commandsCount).toBe(0);
       expect(CommandsProcessor).not.toHaveBeenCalled();
@@ -323,7 +395,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as CommandsProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.commandsCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
@@ -337,20 +413,30 @@ describe("importFromTool", () => {
     it("should import subagents when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.subagentsCount).toBe(1);
-      expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-      });
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
     });
 
     it("should return 0 subagents when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.subagentsCount).toBe(0);
       expect(SubagentsProcessor).not.toHaveBeenCalled();
@@ -359,7 +445,7 @@ describe("importFromTool", () => {
     it("should call getToolTargets with includeSimulated: false", async () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
 
-      await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(SubagentsProcessor.getToolTargets).toHaveBeenCalledWith({
         global: false,
@@ -371,7 +457,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
       vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["cursor"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.subagentsCount).toBe(0);
       expect(SubagentsProcessor).not.toHaveBeenCalled();
@@ -389,7 +479,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as SubagentsProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.subagentsCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
@@ -403,20 +497,30 @@ describe("importFromTool", () => {
     it("should import skills when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.skillsCount).toBe(1);
-      expect(SkillsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-      });
+      expect(SkillsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
     });
 
     it("should return 0 skills when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.skillsCount).toBe(0);
       expect(SkillsProcessor).not.toHaveBeenCalled();
@@ -426,7 +530,11 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
       vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["cursor"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.skillsCount).toBe(0);
       expect(SkillsProcessor).not.toHaveBeenCalled();
@@ -444,7 +552,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as SkillsProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.skillsCount).toBe(0);
       expect(mockProcessor.convertToolDirsToRulesyncDirs).not.toHaveBeenCalled();
@@ -465,7 +577,11 @@ describe("importFromTool", () => {
         return ["cursor", "claudecode", "opencode"];
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "opencode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "opencode",
+      });
 
       expect(result.hooksCount).toBe(0);
       expect(logger.warn).toHaveBeenCalledWith(
@@ -477,14 +593,20 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["hooks"]);
       vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.hooksCount).toBe(1);
-      expect(HooksProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-      });
+      expect(HooksProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
     });
 
     it("should return 0 when no tool files found", async () => {
@@ -500,7 +622,11 @@ describe("importFromTool", () => {
         return mockProcessor as unknown as HooksProcessor;
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.hooksCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
@@ -512,7 +638,11 @@ describe("importFromTool", () => {
     it("should return 0 hooks when feature is not enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.hooksCount).toBe(0);
     });
@@ -529,7 +659,11 @@ describe("importFromTool", () => {
         "skills",
       ]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.rulesCount).toBe(1);
       expect(result.ignoreCount).toBe(1);
@@ -543,7 +677,11 @@ describe("importFromTool", () => {
     it("should return empty result when no features are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.rulesCount).toBe(0);
       expect(result.ignoreCount).toBe(0);
@@ -563,7 +701,7 @@ describe("importFromTool", () => {
     it("should pass global flag to processors", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
-      await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -575,7 +713,7 @@ describe("importFromTool", () => {
     it("should use getToolTargets with global: true", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
-      await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
     });
@@ -586,7 +724,7 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue(["/custom/path", "/other/path"]);
 
-      await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -599,7 +737,7 @@ describe("importFromTool", () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue([]);
 
-      await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({

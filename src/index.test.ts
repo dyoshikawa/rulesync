@@ -106,7 +106,7 @@ describe("generate", () => {
   it("should call core generate and return result", async () => {
     const result = await generate();
 
-    expect(coreGenerate).toHaveBeenCalledWith({ config: mockConfig });
+    expect(coreGenerate).toHaveBeenCalledWith(expect.objectContaining({ config: mockConfig }));
     expect(result).toEqual(mockGenerateResult);
   });
 });
@@ -131,7 +131,9 @@ describe("importFromTool", () => {
   it("should call core importFromTool with correct tool", async () => {
     const result = await importFromTool({ target: "claudecode" });
 
-    expect(coreImportFromTool).toHaveBeenCalledWith({ config: mockConfig, tool: "claudecode" });
+    expect(coreImportFromTool).toHaveBeenCalledWith(
+      expect.objectContaining({ config: mockConfig, tool: "claudecode" }),
+    );
     expect(result).toEqual(mockImportResult);
   });
 
