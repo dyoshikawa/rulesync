@@ -1,38 +1,33 @@
-import { consola } from "consola";
-
 import { ErrorCodes, JsonOutput } from "../types/json-output.js";
 import { isEnvTest } from "./vitest.js";
 
-// Logger class - create instances per context instead of singleton
-export class Logger {
+/**
+ * Logger interface - defines the contract for all logger implementations
+ */
+export type Logger = {
+  configure(options: { verbose: boolean; silent: boolean }): void;
+  readonly verbose: boolean;
+  readonly silent: boolean;
+  readonly jsonMode: boolean;
+  captureData(key: string, value: unknown): void;
+  getJsonData(): Record<string, unknown>;
+  outputJson(
+    success: boolean,
+    error?: { code: string; message: string; stack?: string; details?: unknown },
+  ): void;
+  info(message: string, ...args: unknown[]): void;
+  success(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string | Error, code?: string, ...args: unknown[]): void;
+  debug(message: string, ...args: unknown[]): void;
+};
+
+/**
+ * ConsoleLogger - human-readable terminal output
+ */
+export class ConsoleLogger implements Logger {
   private _verbose = false;
   private _silent = false;
-  private _jsonMode = false;
-  private _jsonOutputDone = false;
-  private _commandName = "";
-  private _jsonData: Record<string, unknown> = {};
-  private console = consola.withDefaults({
-    tag: "rulesync",
-  });
-
-  /**
-   * Create a new Logger instance
-   */
-  constructor(private _version: string = "0.0.0") {}
-
-  /**
-   * Configure logger with verbose and silent mode settings.
-   * Handles conflicting flags where silent takes precedence.
-   */
-  configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
-    if (verbose && silent) {
-      // Temporarily disable silent to show this warning
-      this._silent = false;
-      this.warn("Both --verbose and --silent specified; --silent takes precedence");
-    }
-    this._silent = silent;
-    this._verbose = verbose && !silent;
-  }
 
   get verbose(): boolean {
     return this._verbose;
@@ -42,49 +37,107 @@ export class Logger {
     return this._silent;
   }
 
-  /**
-   * Enable JSON output mode
-   */
-  setJsonMode(enabled: boolean, command: string): void {
-    this._jsonMode = enabled;
-    this._jsonOutputDone = false;
-    this._commandName = command;
-    if (enabled) {
-      this._jsonData = {};
-    }
-  }
-
-  /**
-   * Check if JSON mode is enabled
-   */
   get jsonMode(): boolean {
-    return this._jsonMode;
+    return false;
   }
 
-  /**
-   * Capture data for JSON output
-   */
-  captureData(key: string, value: unknown): void {
-    if (this._jsonMode) {
-      this._jsonData[key] = value;
+  configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
+    if (verbose && silent) {
+      this._silent = false;
+      this.warn("Both --verbose and --silent specified; --silent takes precedence");
+    }
+    this._silent = silent;
+    this._verbose = verbose && !silent;
+  }
+
+  captureData(_key: string, _value: unknown): void {
+    // No-op for console logger
+  }
+
+  getJsonData(): Record<string, unknown> {
+    return {};
+  }
+
+  outputJson(
+    _success: boolean,
+    _error?: { code: string; message: string; stack?: string; details?: unknown },
+  ): void {
+    // No-op for console logger
+  }
+
+  info(message: string, ...args: unknown[]): void {
+    if (isEnvTest() || this._silent) return;
+    console.log(message, ...args);
+  }
+
+  success(message: string, ...args: unknown[]): void {
+    if (isEnvTest() || this._silent) return;
+    console.log(message, ...args);
+  }
+
+  warn(message: string, ...args: unknown[]): void {
+    if (isEnvTest() || this._silent) return;
+    console.warn(message, ...args);
+  }
+
+  error(message: string | Error, _code?: string, ...args: unknown[]): void {
+    if (isEnvTest()) return;
+    const errorMessage = message instanceof Error ? message.message : message;
+    console.error(errorMessage, ...args);
+  }
+
+  debug(message: string, ...args: unknown[]): void {
+    if (isEnvTest() || this._silent) return;
+    if (this._verbose) {
+      console.log(message, ...args);
     }
   }
+}
 
-  /**
-   * Get captured JSON data
-   */
+/**
+ * JsonLogger - structured JSON output to stdout/stderr
+ */
+export class JsonLogger implements Logger {
+  private _verbose = false;
+  private _silent = false;
+  private _jsonOutputDone = false;
+  private _jsonData: Record<string, unknown> = {};
+
+  constructor(
+    private _commandName: string,
+    private _version: string,
+  ) {}
+
+  get verbose(): boolean {
+    return this._verbose;
+  }
+
+  get silent(): boolean {
+    return this._silent;
+  }
+
+  get jsonMode(): boolean {
+    return true;
+  }
+
+  configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
+    this._silent = silent;
+    this._verbose = verbose && !silent;
+  }
+
+  captureData(key: string, value: unknown): void {
+    this._jsonData[key] = value;
+  }
+
   getJsonData(): Record<string, unknown> {
     return { ...this._jsonData };
   }
 
-  /**
-   * Output final JSON result
-   */
   outputJson(
     success: boolean,
     error?: { code: string; message: string; stack?: string; details?: unknown },
   ): void {
-    if (!this._jsonMode || this._jsonOutputDone) return;
+    if (this._jsonOutputDone) return;
     this._jsonOutputDone = true;
 
     const output: JsonOutput = {
@@ -118,67 +171,48 @@ export class Logger {
     }
   }
 
-  info(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
-    if (this._jsonMode) return;
-    this.console.info(message, ...args);
+  info(_message: string, ..._args: unknown[]): void {
+    // Suppress console output in JSON mode
   }
 
-  success(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
-    if (this._jsonMode) return;
-    this.console.success(message, ...args);
+  success(_message: string, ..._args: unknown[]): void {
+    // Suppress console output in JSON mode
   }
 
-  warn(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
-    if (this._jsonMode) return;
-    this.console.warn(message, ...args);
+  warn(_message: string, ..._args: unknown[]): void {
+    // Suppress console output in JSON mode
   }
 
-  error(message: string | Error, code?: string, ...args: unknown[]): void {
+  error(message: string | Error, code?: string, ..._args: unknown[]): void {
     if (isEnvTest()) return;
 
     const errorMessage = message instanceof Error ? message.message : message;
+    const errorInfo: { code: string; message: string; stack?: string } = {
+      code: code || ErrorCodes.UNKNOWN_ERROR,
+      message: errorMessage,
+    };
 
-    if (this._jsonMode) {
-      const errorInfo: { code: string; message: string; stack?: string } = {
-        code: code || ErrorCodes.UNKNOWN_ERROR,
-        message: errorMessage,
-      };
-
-      if (this._verbose && message instanceof Error && message.stack) {
-        errorInfo.stack = message.stack;
-      }
-
-      this.outputJson(false, errorInfo);
-    } else {
-      this.console.error(errorMessage, ...args);
+    if (this._verbose && message instanceof Error && message.stack) {
+      errorInfo.stack = message.stack;
     }
+
+    this.outputJson(false, errorInfo);
   }
 
-  debug(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
-    if (this._jsonMode) return;
-    if (this._verbose) {
-      this.console.info(message, ...args);
-    }
-  }
-
-  /**
-   * Get the internal console instance (for testing only)
-   * @internal
-   */
-  _getConsole(): typeof consola {
-    return this.console;
+  debug(_message: string, ..._args: unknown[]): void {
+    // Suppress console output in JSON mode
   }
 }
 
-// Factory function to create loggers - use this instead of singleton
-export function createLogger(version: string): Logger {
-  return new Logger(version);
+// Factory functions
+export function createConsoleLogger(): ConsoleLogger {
+  return new ConsoleLogger();
 }
 
-// Backwards-compatible singleton instance
-// @deprecated Use createLogger() for new code
-export const logger = new Logger("0.0.0");
+export function createJsonLogger(command: string, version: string): JsonLogger {
+  return new JsonLogger(command, version);
+}
+
+// Backwards-compatible singleton instance for non-DI usage
+// @deprecated Use createConsoleLogger() or createJsonLogger() for new code
+export const logger: Logger = new ConsoleLogger();
