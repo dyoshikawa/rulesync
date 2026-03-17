@@ -86,7 +86,6 @@
     "@toon-format/toon": "2.1.0",
     "@valibot/to-json-schema": "1.5.0",
     "commander": "14.0.3",
-    "consola": "3.4.2",
     "effect": "3.19.19",
     "es-toolkit": "1.45.1",
     "fastmcp": "3.34.0",

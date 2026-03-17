@@ -13,9 +13,8 @@ export function createMockLogger(): Logger {
     verbose: false,
     silent: false,
     jsonMode: false,
-    setJsonMode: vi.fn(),
     captureData: vi.fn(),
     getJsonData: vi.fn().mockReturnValue({}),
     outputJson: vi.fn(),
-  } as unknown as Logger;
+  };
 }
