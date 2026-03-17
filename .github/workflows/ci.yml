@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore: &paths-ignore
       - "docs/**"
+      - "!docs/.vitepress/config.ts"
       - "images/**"
       - ".devcontainer/**"
       - "LICENSE"

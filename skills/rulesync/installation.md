@@ -27,9 +27,9 @@ Options:
 - Install specific version: `curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash -s -- v6.4.0`
 - Custom directory: `RULESYNC_HOME=~/.local curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash`
 
-### Manual installation (requires sudo)
+#### Manual installation (requires sudo)
 
-### Linux (x64)
+#### Linux (x64)
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-x64 -o rulesync && \
@@ -37,7 +37,7 @@ curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync
   sudo mv rulesync /usr/local/bin/
 ```
 
-### Linux (ARM64)
+#### Linux (ARM64)
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-linux-arm64 -o rulesync && \
@@ -45,7 +45,7 @@ curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync
   sudo mv rulesync /usr/local/bin/
 ```
 
-### macOS (Apple Silicon)
+#### macOS (Apple Silicon)
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-arm64 -o rulesync && \
@@ -53,7 +53,7 @@ curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync
   sudo mv rulesync /usr/local/bin/
 ```
 
-### macOS (Intel)
+#### macOS (Intel)
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-darwin-x64 -o rulesync && \
@@ -61,7 +61,7 @@ curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync
   sudo mv rulesync /usr/local/bin/
 ```
 
-### Windows (x64)
+#### Windows (x64)
 
 ```powershell
 Invoke-WebRequest -Uri "https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync-windows-x64.exe" -OutFile "rulesync.exe"; `
@@ -75,7 +75,7 @@ curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/rulesync
   mv rulesync.exe /path/to/your/bin/
 ```
 
-### Verify checksums
+#### Verify checksums
 
 ```bash
 curl -L https://github.com/dyoshikawa/rulesync/releases/latest/download/SHA256SUMS -o SHA256SUMS

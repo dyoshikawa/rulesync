@@ -20,11 +20,19 @@ type SidebarItem = {
   items?: SidebarItem[];
 };
 
-function removeVitepressSyntax(content: string): string {
+export function removeVitepressSyntax(content: string): string {
   let result = content;
 
-  // Convert ::: details <title> to ### <title>
-  result = result.replace(/^::: details (.+)$/gm, "### $1");
+  // Convert ::: details <title> blocks: bump internal headings by one level,
+  // then convert the details marker itself to #### <title>
+  result = result.replace(
+    /^::: details (.+)$([\s\S]*?)^:::$/gm,
+    (_, title: string, body: string) => {
+      // Bump headings inside the block by one level (### → ####, ## → ###, etc.)
+      const bumpedBody = body.replace(/^(#{2,5}) /gm, "$1# ");
+      return `#### ${title}${bumpedBody}`;
+    },
+  );
 
   // Convert ::: tip/warning/info/danger to blockquote-style headings
   result = result.replace(
@@ -53,8 +61,12 @@ function removeVitepressSyntax(content: string): string {
   return result;
 }
 
+// Shallow type guard: checks that value is an array and the first element has
+// a `text` property, which is the minimal shape of SidebarItem[].
 function isSidebarItemArray(value: unknown): value is SidebarItem[] {
-  return Array.isArray(value);
+  if (!Array.isArray(value) || value.length === 0) return false;
+  const first: unknown = value[0];
+  return typeof first === "object" && first !== null && "text" in first;
 }
 
 function main(): void {
@@ -71,6 +83,9 @@ function main(): void {
     }
   }
 
+  // Collect all file names to detect collisions from different sections
+  const seenFileNames = new Map<string, string>();
+
   const tocLines: string[] = [];
   let fileCount = 0;
 
@@ -81,6 +96,13 @@ function main(): void {
       for (const item of entry.items) {
         if (!item.link) continue;
         const fileName = `${basename(item.link)}.md`;
+        const existing = seenFileNames.get(fileName);
+        if (existing) {
+          throw new Error(
+            `Filename collision: "${fileName}" from "${item.link}" conflicts with "${existing}"`,
+          );
+        }
+        seenFileNames.set(fileName, item.link);
         const docPath = join(DOCS_DIR, `${item.link}.md`);
         const content = readFileSync(docPath, "utf-8");
         const cleaned = removeVitepressSyntax(content);
@@ -92,6 +114,13 @@ function main(): void {
       // Standalone item
       tocLines.push("");
       const fileName = `${basename(entry.link)}.md`;
+      const existing = seenFileNames.get(fileName);
+      if (existing) {
+        throw new Error(
+          `Filename collision: "${fileName}" from "${entry.link}" conflicts with "${existing}"`,
+        );
+      }
+      seenFileNames.set(fileName, entry.link);
       const docPath = join(DOCS_DIR, `${entry.link}.md`);
       const content = readFileSync(docPath, "utf-8");
       const cleaned = removeVitepressSyntax(content);
