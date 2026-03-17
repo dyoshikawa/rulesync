@@ -1,8 +1,14 @@
-import { vi } from "vitest";
+import { type Mock, vi } from "vitest";
 
 import { Logger } from "../utils/logger.js";
 
-export function createMockLogger(): Logger {
+export type MockLogger = {
+  [K in keyof Logger]: Logger[K] extends (...args: infer A) => infer R
+    ? Mock<(...args: A) => R>
+    : Logger[K];
+};
+
+export function createMockLogger(): MockLogger {
   return {
     configure: vi.fn(),
     info: vi.fn(),
@@ -16,5 +22,5 @@ export function createMockLogger(): Logger {
     captureData: vi.fn(),
     getJsonData: vi.fn().mockReturnValue({}),
     outputJson: vi.fn(),
-  };
+  } satisfies Logger;
 }
