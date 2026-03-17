@@ -1,7 +1,7 @@
 import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import { importFromTool } from "../../lib/import.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;

@@ -8,7 +8,7 @@ import {
   performBinaryUpdate,
 } from "../../lib/update.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 /**
  * Update command options

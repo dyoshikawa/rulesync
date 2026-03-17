@@ -270,14 +270,12 @@ describe("JsonLogger", () => {
       expect(logger.silent).toBe(true);
     });
 
-    it("should warn when both verbose and silent are enabled", () => {
+    it("should NOT warn when both verbose and silent are enabled (JSON mode suppresses warning)", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        "Both --verbose and --silent specified; --silent takes precedence",
-      );
+      expect(warnSpy).not.toHaveBeenCalled();
 
       // Silent should take precedence
       expect(logger.verbose).toBe(false);

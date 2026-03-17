@@ -2,7 +2,7 @@ import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
 import type { FetchOptions } from "../../types/fetch.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 export type FetchCommandOptions = FetchOptions & {
   source: string;

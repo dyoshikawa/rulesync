@@ -1,7 +1,7 @@
 import { FastMCP } from "fastmcp";
 
 import { rulesyncTool } from "../../mcp/tools.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 /**
  * MCP command that starts the MCP server
