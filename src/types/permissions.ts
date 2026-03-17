@@ -4,7 +4,7 @@ export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
 export const PermissionEntrySchema = z.looseObject({
-  tool: z.string(),
+  tool: z.string().check(z.regex(/^[a-zA-Z0-9_]+$/)),
   pattern: z.array(z.string()),
   action: PermissionActionSchema,
 });
@@ -32,16 +32,8 @@ export const CLAUDE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fro
   Object.entries(CANONICAL_TO_CLAUDE_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
 
-// Canonical tool name → OpenCode lowercase name
-export const CANONICAL_TO_OPENCODE_TOOL_NAMES: Record<string, string> = {
-  bash: "bash",
-  read: "read",
-  edit: "edit",
-  write: "write",
-  webfetch: "webfetch",
-  grep: "grep",
-  glob: "glob",
-};
+// OpenCode uses lowercase tool names identical to canonical names.
+// No mapping is needed; the canonical name is used directly.
 
 /**
  * Join pattern segments for bash tool (space-separated)

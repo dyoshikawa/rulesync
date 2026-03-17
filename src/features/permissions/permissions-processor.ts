@@ -25,13 +25,6 @@ export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTar
 
 export const PermissionsProcessorToolTargetSchema = z.enum(permissionsProcessorToolTargetTuple);
 
-// Which canonical tool names each target supports
-const SUPPORTED_TOOLS: Record<PermissionsProcessorToolTarget, ReadonlySet<string> | null> = {
-  claudecode: null, // null = all tools supported
-  opencode: null,
-  codexcli: new Set(["bash"]),
-};
-
 type ToolPermissionsFactory = {
   class: {
     fromRulesyncPermissions(
@@ -177,23 +170,6 @@ export class PermissionsProcessor extends FeatureProcessor {
 
     const factory = toolPermissionsFactories.get(this.toolTarget);
     if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-
-    // Warn about unsupported tools for this target
-    const supportedTools = SUPPORTED_TOOLS[this.toolTarget];
-    if (supportedTools) {
-      const config = rulesyncPermissions.getJson();
-      const skippedTools = new Set<string>();
-      for (const entry of config.permissions) {
-        if (!supportedTools.has(entry.tool)) {
-          skippedTools.add(entry.tool);
-        }
-      }
-      if (skippedTools.size > 0) {
-        logger.warn(
-          `Skipped permission tool(s) for ${this.toolTarget} (not supported): ${[...skippedTools].join(", ")}`,
-        );
-      }
-    }
 
     const toolPermissions = await factory.class.fromRulesyncPermissions({
       baseDir: this.baseDir,

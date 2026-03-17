@@ -145,6 +145,9 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
+  // IMPORTANT: generateIgnoreCore must run before generatePermissionsCore.
+  // Both features write to .claude/settings.json's permissions.deny key.
+  // The permissions feature preserves Read() entries written by the ignore feature.
   const ignoreResult = await generateIgnoreCore({ config, logger });
   const mcpResult = await generateMcpCore({ config, logger });
   const commandsResult = await generateCommandsCore({ config, logger });

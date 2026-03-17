@@ -103,7 +103,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     subagents: (count) => `${count === 1 ? "subagent" : "subagents"}`,
     skills: (count) => `${count === 1 ? "skill" : "skills"}`,
     hooks: (count) => `${count === 1 ? "hooks file" : "hooks files"}`,
-    permissions: (count) => `${count === 1 ? "permissions file" : "permissions files"}`,
+    permissions: (count) => `${count === 1 ? "permission file" : "permission files"}`,
   };
 
   for (const [feature, data] of Object.entries(featureResults)) {
