@@ -1,6 +1,13 @@
 import { ErrorCodes, JsonOutput } from "../types/json-output.js";
 import { isEnvTest } from "./vitest.js";
 
+export type JsonErrorInfo = {
+  code: string;
+  message: string;
+  stack?: string;
+  details?: unknown;
+};
+
 /**
  * Logger interface - defines the contract for all logger implementations
  */
@@ -11,10 +18,7 @@ export type Logger = {
   readonly jsonMode: boolean;
   captureData(key: string, value: unknown): void;
   getJsonData(): Record<string, unknown>;
-  outputJson(
-    success: boolean,
-    error?: { code: string; message: string; stack?: string; details?: unknown },
-  ): void;
+  outputJson(success: boolean, error?: JsonErrorInfo): void;
   info(message: string, ...args: unknown[]): void;
   success(message: string, ...args: unknown[]): void;
   warn(message: string, ...args: unknown[]): void;
@@ -40,19 +44,23 @@ abstract class BaseLogger {
   configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
     if (verbose && silent) {
       this._silent = false;
-      this.warn("Both --verbose and --silent specified; --silent takes precedence");
+      if (!isEnvTest()) {
+        console.warn("Both --verbose and --silent specified; --silent takes precedence");
+      }
     }
     this._silent = silent;
     this._verbose = verbose && !silent;
   }
-
-  abstract warn(message: string, ...args: unknown[]): void;
 }
 
 /**
  * ConsoleLogger - human-readable terminal output
  */
 export class ConsoleLogger extends BaseLogger implements Logger {
+  private isSuppressed(): boolean {
+    return isEnvTest() || this._silent;
+  }
+
   get jsonMode(): boolean {
     return false;
   }
@@ -65,25 +73,22 @@ export class ConsoleLogger extends BaseLogger implements Logger {
     return {};
   }
 
-  outputJson(
-    _success: boolean,
-    _error?: { code: string; message: string; stack?: string; details?: unknown },
-  ): void {
+  outputJson(_success: boolean, _error?: JsonErrorInfo): void {
     // No-op for console logger
   }
 
   info(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
+    if (this.isSuppressed()) return;
     console.log(message, ...args);
   }
 
   success(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
+    if (this.isSuppressed()) return;
     console.log(message, ...args);
   }
 
   warn(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
+    if (this.isSuppressed()) return;
     console.warn(message, ...args);
   }
 
@@ -94,7 +99,7 @@ export class ConsoleLogger extends BaseLogger implements Logger {
   }
 
   debug(message: string, ...args: unknown[]): void {
-    if (isEnvTest() || this._silent) return;
+    if (this.isSuppressed()) return;
     if (this._verbose) {
       console.log(message, ...args);
     }
@@ -105,14 +110,12 @@ export class ConsoleLogger extends BaseLogger implements Logger {
  * JsonLogger - structured JSON output to stdout/stderr
  *
  * All console output methods (info, success, warn, debug) are no-ops.
- * The warn method in BaseLogger.configure() is also a no-op here,
- * so conflicting --verbose/--silent flags produce no visible warning in JSON mode.
  */
 export class JsonLogger extends BaseLogger implements Logger {
   private _jsonOutputDone = false;
   private _jsonData: Record<string, unknown> = {};
-  private _commandName: string;
-  private _version: string;
+  private readonly _commandName: string;
+  private readonly _version: string;
 
   constructor({ command, version }: { command: string; version: string }) {
     super();
@@ -132,10 +135,7 @@ export class JsonLogger extends BaseLogger implements Logger {
     return { ...this._jsonData };
   }
 
-  outputJson(
-    success: boolean,
-    error?: { code: string; message: string; stack?: string; details?: unknown },
-  ): void {
+  outputJson(success: boolean, error?: JsonErrorInfo): void {
     if (this._jsonOutputDone) return;
     this._jsonOutputDone = true;
 
@@ -186,7 +186,7 @@ export class JsonLogger extends BaseLogger implements Logger {
     if (isEnvTest()) return;
 
     const errorMessage = message instanceof Error ? message.message : message;
-    const errorInfo: { code: string; message: string; stack?: string } = {
+    const errorInfo: JsonErrorInfo = {
       code: code || ErrorCodes.UNKNOWN_ERROR,
       message: errorMessage,
     };
@@ -203,20 +203,5 @@ export class JsonLogger extends BaseLogger implements Logger {
   }
 }
 
-// Factory functions
-export function createConsoleLogger(): ConsoleLogger {
-  return new ConsoleLogger();
-}
-
-export function createJsonLogger({
-  command,
-  version,
-}: {
-  command: string;
-  version: string;
-}): JsonLogger {
-  return new JsonLogger({ command, version });
-}
-
-/** @deprecated Use createConsoleLogger() or createJsonLogger() for new code */
+/** @deprecated Use `new ConsoleLogger()` or `new JsonLogger()` for new code */
 export const logger: Logger = new ConsoleLogger();

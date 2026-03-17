@@ -6,7 +6,7 @@ import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
-import { createConsoleLogger, createJsonLogger, Logger } from "../utils/logger.js";
+import { ConsoleLogger, JsonLogger, Logger } from "../utils/logger.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
@@ -41,8 +41,8 @@ function wrapCommand(
     const positionalArgs = args.slice(0, -2);
     const globalOpts = command.parent?.opts() ?? {};
     const logger: Logger = globalOpts.json
-      ? createJsonLogger({ command: name, version: getVersion() })
-      : createConsoleLogger();
+      ? new JsonLogger({ command: name, version: getVersion() })
+      : new ConsoleLogger();
     logger.configure({
       verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
       silent: Boolean(globalOpts.silent) || Boolean(options.silent),

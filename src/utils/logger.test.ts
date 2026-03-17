@@ -270,25 +270,20 @@ describe("JsonLogger", () => {
       expect(logger.silent).toBe(true);
     });
 
-    it("should not emit visible warning when both verbose and silent are enabled (warn is a no-op in JSON mode)", () => {
-      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    it("should warn when both verbose and silent are enabled", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
 
-      // No console output should be produced
-      expect(logSpy).not.toHaveBeenCalled();
-      expect(warnSpy).not.toHaveBeenCalled();
-      expect(errorSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Both --verbose and --silent specified; --silent takes precedence",
+      );
 
       // Silent should take precedence
       expect(logger.verbose).toBe(false);
       expect(logger.silent).toBe(true);
 
-      logSpy.mockRestore();
       warnSpy.mockRestore();
-      errorSpy.mockRestore();
     });
   });
 
