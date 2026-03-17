@@ -281,6 +281,17 @@ describe("filterGitignoreEntries", () => {
       filterGitignoreEntries({ features: ["rules", "commands", "*"] });
       expect(warnSpy).not.toHaveBeenCalled();
     });
+
+    it("should deduplicate warnings for the same invalid feature across targets (object format)", () => {
+      filterGitignoreEntries({
+        features: {
+          claudecode: ["bogus" as any],
+          copilot: ["bogus" as any],
+        },
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown feature 'bogus'"));
+    });
   });
 
   describe("deduplication", () => {

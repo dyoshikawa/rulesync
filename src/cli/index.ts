@@ -7,6 +7,7 @@ import { FetchOptions } from "../types/fetch.js";
 import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
 import { ConsoleLogger, JsonLogger, Logger } from "../utils/logger.js";
+import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
@@ -88,22 +89,12 @@ const main = async () => {
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to include (e.g., 'claudecode,copilot' or '*' for all)",
-      (value) => {
-        return value
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean);
-      },
+      parseCommaSeparatedList,
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to include (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => {
-        return value
-          .split(",")
-          .map((f) => f.trim())
-          .filter(Boolean);
-      },
+      parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
@@ -128,7 +119,7 @@ const main = async () => {
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => value.split(",").map((f) => f.trim()),
+      parseCommaSeparatedList,
     )
     .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")
     .option("-p, --path <path>", "Subdirectory path within the repository")
@@ -155,12 +146,12 @@ const main = async () => {
     .option(
       "-t, --targets <tool>",
       "Tool to import from (e.g., 'copilot', 'cursor', 'cline')",
-      (value) => value.split(",").map((t) => t.trim()),
+      parseCommaSeparatedList,
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to import (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => value.split(",").map((f) => f.trim()),
+      parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
@@ -218,18 +209,18 @@ const main = async () => {
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
-      (value) => value.split(",").map((t) => t.trim()),
+      parseCommaSeparatedList,
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to generate (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => value.split(",").map((f) => f.trim()),
+      parseCommaSeparatedList,
     )
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
       "-b, --base-dir <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
-      (value) => value.split(",").map((p) => p.trim()),
+      parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
