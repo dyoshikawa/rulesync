@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -76,7 +77,6 @@ describe("CodexcliPermissions", () => {
       expect(content).toContain("prefix_rules");
 
       // Parse to verify structure
-      const smolToml = await import("smol-toml");
       const parsed = smolToml.parse(content);
       const rules = parsed.rules as {
         prefix_rules: Array<{ pattern: Array<{ token: string }>; decision: string }>;
@@ -124,7 +124,6 @@ describe("CodexcliPermissions", () => {
         rulesyncPermissions,
       });
 
-      const smolToml = await import("smol-toml");
       const parsed = smolToml.parse(result.getFileContent());
       const rules = parsed.rules as {
         prefix_rules: Array<{ pattern: Array<{ token: string }>; decision: string }>;
@@ -157,7 +156,6 @@ describe("CodexcliPermissions", () => {
         rulesyncPermissions,
       });
 
-      const smolToml = await import("smol-toml");
       const parsed = smolToml.parse(result.getFileContent());
       expect(parsed.mcp_servers).toBeDefined();
       expect(parsed.rules).toBeDefined();
@@ -166,7 +164,6 @@ describe("CodexcliPermissions", () => {
 
   describe("toRulesyncPermissions", () => {
     it("should convert Codex prefix_rules back to canonical", async () => {
-      const smolToml = await import("smol-toml");
       const toml = smolToml.stringify({
         rules: {
           prefix_rules: [

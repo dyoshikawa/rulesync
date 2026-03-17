@@ -4,11 +4,7 @@ import { parse as parseJsonc } from "jsonc-parser";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionEntry } from "../../types/permissions.js";
-import {
-  CANONICAL_TO_OPENCODE_TOOL_NAMES,
-  joinPattern,
-  splitPattern,
-} from "../../types/permissions.js";
+import { joinPattern, splitPattern } from "../../types/permissions.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -26,17 +22,32 @@ type OpencodeConfig = Record<string, unknown> & {
   permission?: OpencodePermission;
 };
 
-// Reverse mapping: OpenCode tool name → canonical
-const OPENCODE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_OPENCODE_TOOL_NAMES).map(([k, v]) => [v, k]),
-);
+// OpenCode uses lowercase tool names identical to canonical names.
+// No mapping needed; canonical names are used directly.
 
-function toOpencodeToolName(canonicalTool: string): string {
-  return CANONICAL_TO_OPENCODE_TOOL_NAMES[canonicalTool] ?? canonicalTool;
-}
+/**
+ * Resolve the OpenCode config file, preferring .jsonc over .json.
+ * Returns the file content and the relative file path that was found.
+ */
+async function resolveOpencodeConfigFile(
+  baseDir: string,
+  basePaths: ToolPermissionsSettablePaths,
+): Promise<{ fileContent: string | null; relativeFilePath: string }> {
+  const jsonDir = join(baseDir, basePaths.relativeDirPath);
+  const jsoncPath = join(jsonDir, "opencode.jsonc");
+  const jsonPath = join(jsonDir, "opencode.json");
 
-function fromOpencodeToolName(opencodeTool: string): string {
-  return OPENCODE_TO_CANONICAL_TOOL_NAMES[opencodeTool] ?? opencodeTool;
+  const jsoncContent = await readFileContentOrNull(jsoncPath);
+  if (jsoncContent) {
+    return { fileContent: jsoncContent, relativeFilePath: "opencode.jsonc" };
+  }
+
+  const jsonContent = await readFileContentOrNull(jsonPath);
+  if (jsonContent) {
+    return { fileContent: jsonContent, relativeFilePath: "opencode.json" };
+  }
+
+  return { fileContent: null, relativeFilePath: "opencode.jsonc" };
 }
 
 export class OpencodePermissions extends ToolPermissions {
@@ -60,29 +71,13 @@ export class OpencodePermissions extends ToolPermissions {
     validate = true,
   }: ToolPermissionsFromFileParams): Promise<OpencodePermissions> {
     const basePaths = this.getSettablePaths();
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
-
-    let fileContent: string | null = null;
-    let relativeFilePath = "opencode.jsonc";
-
-    const jsoncPath = join(jsonDir, "opencode.jsonc");
-    const jsonPath = join(jsonDir, "opencode.json");
-
-    fileContent = await readFileContentOrNull(jsoncPath);
-    if (!fileContent) {
-      fileContent = await readFileContentOrNull(jsonPath);
-      if (fileContent) {
-        relativeFilePath = "opencode.json";
-      }
-    }
-
-    const fileContentToUse = fileContent ?? "{}";
+    const { fileContent, relativeFilePath } = await resolveOpencodeConfigFile(baseDir, basePaths);
 
     return new OpencodePermissions({
       baseDir,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
-      fileContent: fileContentToUse,
+      fileContent: fileContent ?? "{}",
       validate,
     });
   }
@@ -93,25 +88,12 @@ export class OpencodePermissions extends ToolPermissions {
     validate = true,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<OpencodePermissions> {
     const basePaths = this.getSettablePaths();
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const { fileContent: existingContent, relativeFilePath } = await resolveOpencodeConfigFile(
+      baseDir,
+      basePaths,
+    );
 
-    let fileContent: string | null = null;
-    let relativeFilePath = "opencode.jsonc";
-
-    const jsoncPath = join(jsonDir, "opencode.jsonc");
-    const jsonPath = join(jsonDir, "opencode.json");
-
-    fileContent = await readFileContentOrNull(jsoncPath);
-    if (!fileContent) {
-      fileContent = await readFileContentOrNull(jsonPath);
-      if (fileContent) {
-        relativeFilePath = "opencode.json";
-      }
-    }
-
-    if (!fileContent) {
-      fileContent = JSON.stringify({}, null, 2);
-    }
+    const fileContent = existingContent ?? JSON.stringify({}, null, 2);
 
     const json: OpencodeConfig = parseJsonc(fileContent) ?? {};
 
@@ -120,7 +102,7 @@ export class OpencodePermissions extends ToolPermissions {
     const permission: OpencodePermission = {};
 
     for (const entry of config.permissions) {
-      const toolName = toOpencodeToolName(entry.tool);
+      const toolName = entry.tool;
       if (!permission[toolName]) {
         permission[toolName] = {};
       }
@@ -148,11 +130,10 @@ export class OpencodePermissions extends ToolPermissions {
     const entries: PermissionEntry[] = [];
 
     for (const [toolName, patterns] of Object.entries(permission)) {
-      const canonicalTool = fromOpencodeToolName(toolName);
       for (const [pattern, action] of Object.entries(patterns)) {
         entries.push({
-          tool: canonicalTool,
-          pattern: splitPattern(canonicalTool, pattern),
+          tool: toolName,
+          pattern: splitPattern(toolName, pattern),
           action,
         });
       }

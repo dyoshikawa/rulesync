@@ -141,6 +141,9 @@ export async function checkRulesyncDirExists(params: { baseDir: string }): Promi
 export async function generate(params: { config: Config }): Promise<GenerateResult> {
   const { config } = params;
 
+  // IMPORTANT: generateIgnoreCore must run before generatePermissionsCore.
+  // Both features write to .claude/settings.json's permissions.deny key.
+  // The permissions feature preserves Read() entries written by the ignore feature.
   const ignoreResult = await generateIgnoreCore({ config });
   const mcpResult = await generateMcpCore({ config });
   const commandsResult = await generateCommandsCore({ config });

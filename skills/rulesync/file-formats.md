@@ -254,6 +254,51 @@ You can control which individual tools from an MCP server are enabled or disable
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
+## `.rulesync/permissions.json`
+
+Permissions define tool-level access controls (allow/ask/deny) for AI coding tools. Each entry specifies a tool, a pattern, and an action.
+
+- **Supported targets:** Claude Code (`claudecode`), OpenCode (`opencode`), Codex CLI (`codexcli`)
+- Codex CLI only supports `bash` tool permissions; non-bash entries are skipped with a warning.
+
+Example:
+
+```json
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "permissions": [
+    { "tool": "bash", "pattern": ["npm", "*"], "action": "allow" },
+    { "tool": "bash", "pattern": ["rm", "-rf", "*"], "action": "deny" },
+    { "tool": "read", "pattern": ["*", ".env"], "action": "ask" },
+    { "tool": "read", "pattern": ["src", "**"], "action": "allow" },
+    { "tool": "edit", "pattern": ["src", "**"], "action": "allow" }
+  ]
+}
+```
+
+**Fields:**
+
+- `tool`: Canonical tool name (`bash`, `read`, `edit`, `write`, `webfetch`, `grep`, `glob`, or MCP tool names with `mcp__` prefix)
+- `pattern`: Array of pattern segments. For `bash`, segments are space-separated (e.g., `["npm", "*"]` → `npm *`). For file path tools, segments are `/`-separated (e.g., `["src", "**"]` → `src/**`).
+- `action`: One of `allow`, `ask`, or `deny`
+
+**Tool-specific output:**
+
+- **Claude Code** (`.claude/settings.json`): Stored as `{ "permissions": { "allow": ["Bash(npm *)"], "deny": ["Bash(rm -rf *)"] } }` with PascalCase tool names
+- **OpenCode** (`opencode.json`): Stored as `{ "permission": { "bash": { "npm *": "allow" } } }` with lowercase tool names
+- **Codex CLI** (`.codex/config.toml`): Stored as TOML `rules.prefix_rules` with action mappings (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
+
+#### JSON Schema Support
+
+Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `.rulesync/permissions.json`:
+
+```json
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "permissions": []
+}
+```
+
 ## `.rulesync/.aiignore` or `.rulesyncignore`
 
 Rulesync supports a single ignore list that can live in either location below:
