@@ -93,6 +93,57 @@ describe("RulesyncPermissions", () => {
           }),
       ).toThrow();
     });
+
+    it("should reject empty tool", () => {
+      const config = {
+        permissions: [{ tool: "", pattern: ["npm"], action: "allow" }],
+      };
+
+      expect(
+        () =>
+          new RulesyncPermissions({
+            baseDir: testDir,
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify(config),
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should reject empty pattern array", () => {
+      const config = {
+        permissions: [{ tool: "bash", pattern: [], action: "allow" }],
+      };
+
+      expect(
+        () =>
+          new RulesyncPermissions({
+            baseDir: testDir,
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify(config),
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should reject empty pattern segment", () => {
+      const config = {
+        permissions: [{ tool: "bash", pattern: [""], action: "allow" }],
+      };
+
+      expect(
+        () =>
+          new RulesyncPermissions({
+            baseDir: testDir,
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify(config),
+            validate: true,
+          }),
+      ).toThrow();
+    });
   });
 
   describe("getJson", () => {

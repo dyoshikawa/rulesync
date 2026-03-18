@@ -4,8 +4,12 @@ export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
 export const PermissionEntrySchema = z.looseObject({
-  tool: z.string().check(z.regex(/^[a-zA-Z0-9_]+$/)),
-  pattern: z.array(z.string().check(z.regex(/^[^()]*$/))),
+  tool: z.string().check(z.minLength(1, "tool must be non-empty"), z.regex(/^[a-zA-Z0-9_]+$/)),
+  pattern: z
+    .array(
+      z.string().check(z.minLength(1, "pattern segment must be non-empty"), z.regex(/^[^()]*$/)),
+    )
+    .check(z.minLength(1, "pattern must be non-empty")),
   action: PermissionActionSchema,
 });
 export type PermissionEntry = z.infer<typeof PermissionEntrySchema>;

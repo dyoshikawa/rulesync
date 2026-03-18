@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_]+$"
+          },
+          "pattern": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "action": {
+            "type": "string",
+            "enum": ["allow", "ask", "deny"]
+          }
+        },
+        "required": ["tool", "pattern", "action"],
+        "additionalProperties": {}
+      }
+    }
+  },
+  "required": ["permissions"],
+  "additionalProperties": {},
+  "$defs": {
+    "__schema0": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^()]*$"
+    }
+  },
+  "$id": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "title": "Rulesync Permissions Configuration",
+  "description": "Permissions configuration file for Rulesync CLI tool"
+}
