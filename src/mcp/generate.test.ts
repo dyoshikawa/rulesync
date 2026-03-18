@@ -170,6 +170,28 @@ targets: ["agentsmd"]
       expect(result.config?.features.length).toBeGreaterThan(1);
     });
 
+    it("should skip claudecode permissions when ignore is also enabled", async () => {
+      const rulesyncDir = join(testDir, ".rulesync");
+      await ensureDir(rulesyncDir);
+      await ensureDir(join(rulesyncDir, "rules"));
+
+      await writeFileContent(
+        join(rulesyncDir, "rules/overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Overview`,
+      );
+
+      const result = await executeGenerate({
+        targets: ["claudecode"],
+        features: ["ignore", "permissions"],
+      });
+
+      expect(result.success).toBe(true);
+    });
+
     it("should return generation counts in result", async () => {
       const rulesyncDir = join(testDir, ".rulesync");
       await ensureDir(rulesyncDir);

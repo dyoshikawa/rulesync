@@ -29,6 +29,7 @@ describe("importFromTool", () => {
     getBaseDirs: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
+    hasPerTargetFeatures: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -38,6 +39,7 @@ describe("importFromTool", () => {
       getBaseDirs: vi.fn().mockReturnValue(["."]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getGlobal: vi.fn().mockReturnValue(false),
+      hasPerTargetFeatures: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -254,13 +256,31 @@ describe("importFromTool", () => {
   describe("claudecode ignore and permissions conflict", () => {
     it("should warn and skip permissions when importing both ignore and permissions", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore", "permissions"]);
+      mockConfig.hasPerTargetFeatures.mockReturnValue(true);
 
       const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
 
       expect(result.ignoreCount).toBe(1);
       expect(result.permissionsCount).toBe(0);
       expect(logger.warn).toHaveBeenCalledWith(
-        "Claude Code ignore and permissions cannot be imported together. Skipping permissions to continue. Run them separately to preserve both; combined import is not lossless.",
+        "Claude Code ignore and permissions cannot be imported together. Skipping permissions for Claude Code. Run them separately to preserve both; combined import is not lossless.",
+      );
+    });
+
+    it("should skip only claudecode permissions with per-target features", async () => {
+      mockConfig.getFeatures.mockImplementation((target?: string) => {
+        if (target === "claudecode") return ["ignore", "permissions"];
+        if (target === "opencode") return ["permissions"];
+        return [];
+      });
+      mockConfig.hasPerTargetFeatures.mockReturnValue(true);
+
+      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(result.permissionsCount).toBe(0);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Claude Code ignore and permissions cannot be imported together. Skipping permissions for Claude Code. Run them separately to preserve both; combined import is not lossless.",
       );
     });
   });

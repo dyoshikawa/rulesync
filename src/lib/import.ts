@@ -31,10 +31,14 @@ export async function importFromTool(params: {
 }): Promise<ImportResult> {
   const { config, tool, logger } = params;
 
-  const { skipPermissions } = resolveClaudecodeIgnorePermissionsConflict({ config, tool, logger });
+  const { skipIgnore, skipPermissions } = resolveClaudecodeIgnorePermissionsConflict({
+    config,
+    tool,
+    logger,
+  });
 
   const rulesCount = await importRulesCore({ config, tool, logger });
-  const ignoreCount = await importIgnoreCore({ config, tool, logger });
+  const ignoreCount = skipIgnore ? 0 : await importIgnoreCore({ config, tool, logger });
   const mcpCount = await importMcpCore({ config, tool, logger });
   const commandsCount = await importCommandsCore({ config, tool, logger });
   const subagentsCount = await importSubagentsCore({ config, tool, logger });
@@ -59,21 +63,28 @@ function resolveClaudecodeIgnorePermissionsConflict(params: {
   tool: ToolTarget;
   logger: Logger;
 }): {
+  skipIgnore: boolean;
   skipPermissions: boolean;
 } {
   const { config, tool, logger } = params;
   if (tool !== "claudecode") {
-    return { skipPermissions: false };
+    return { skipIgnore: false, skipPermissions: false };
   }
 
-  const features = config.getFeatures("claudecode");
-  if (features.includes("ignore") && features.includes("permissions")) {
+  const claudecodeFeatures = config.getFeatures("claudecode");
+  const hasClaudecodeIgnore = claudecodeFeatures.includes("ignore");
+  const hasClaudecodePermissions = claudecodeFeatures.includes("permissions");
+  if (hasClaudecodeIgnore && hasClaudecodePermissions) {
+    const hasPerTargetFeatures = config.hasPerTargetFeatures();
+    const skipIgnore = !hasPerTargetFeatures;
     logger.warn(
-      "Claude Code ignore and permissions cannot be imported together. Skipping permissions to continue. Run them separately to preserve both; combined import is not lossless.",
+      hasPerTargetFeatures
+        ? "Claude Code ignore and permissions cannot be imported together. Skipping permissions for Claude Code. Run them separately to preserve both; combined import is not lossless."
+        : "Claude Code ignore and permissions cannot be imported together. Skipping permissions for Claude Code to continue. Run them separately to preserve both; combined import is not lossless.",
     );
-    return { skipPermissions: true };
+    return { skipIgnore, skipPermissions: true };
   }
-  return { skipPermissions: false };
+  return { skipIgnore: false, skipPermissions: false };
 }
 
 async function importRulesCore(params: {

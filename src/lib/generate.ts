@@ -145,13 +145,20 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  const { skipPermissionsTargets } = resolveClaudecodeIgnorePermissionsConflict({ config, logger });
+  const { skipIgnoreTargets, skipPermissionsTargets } = resolveClaudecodeIgnorePermissionsConflict({
+    config,
+    logger,
+  });
 
   // generateIgnoreCore must run before generatePermissionsCore.
   // Both features write to .claude/settings.json's permissions.deny key.
   // The permissions feature preserves Read() entries written by the ignore feature.
   // This dependency is enforced by requiring ignoreResult as a parameter.
-  const ignoreResult = await generateIgnoreCore({ config, logger });
+  const ignoreResult = await generateIgnoreCore({
+    config,
+    logger,
+    skipTargets: skipIgnoreTargets,
+  });
   const mcpResult = await generateMcpCore({ config, logger });
   const commandsResult = await generateCommandsCore({ config, logger });
   const subagentsResult = await generateSubagentsCore({ config, logger });
@@ -198,21 +205,28 @@ export async function generate(params: {
 }
 
 function resolveClaudecodeIgnorePermissionsConflict(params: { config: Config; logger: Logger }): {
+  skipIgnoreTargets: ToolTarget[];
   skipPermissionsTargets: ToolTarget[];
 } {
   const { config, logger } = params;
   if (!config.getTargets().includes("claudecode")) {
-    return { skipPermissionsTargets: [] };
+    return { skipIgnoreTargets: [], skipPermissionsTargets: [] };
   }
 
-  const features = config.getFeatures("claudecode");
-  if (features.includes("ignore") && features.includes("permissions")) {
+  const claudecodeFeatures = config.getFeatures("claudecode");
+  const hasClaudecodeIgnore = claudecodeFeatures.includes("ignore");
+  const hasClaudecodePermissions = claudecodeFeatures.includes("permissions");
+  if (hasClaudecodeIgnore && hasClaudecodePermissions) {
+    const hasPerTargetFeatures = config.hasPerTargetFeatures();
+    const skipIgnoreTargets: ToolTarget[] = hasPerTargetFeatures ? [] : ["claudecode"];
     logger.warn(
-      "Claude Code ignore and permissions cannot be generated together. Skipping permissions to continue. Run them separately to preserve both; combined generation is not lossless.",
+      hasPerTargetFeatures
+        ? "Claude Code ignore and permissions cannot be generated together. Skipping permissions for Claude Code. Run them separately to preserve both; combined generation is not lossless."
+        : "Claude Code ignore and permissions cannot be generated together. Skipping permissions for Claude Code to continue. Run them separately to preserve both; combined generation is not lossless.",
     );
-    return { skipPermissionsTargets: ["claudecode"] };
+    return { skipIgnoreTargets, skipPermissionsTargets: ["claudecode"] };
   }
-  return { skipPermissionsTargets: [] };
+  return { skipIgnoreTargets: [], skipPermissionsTargets: [] };
 }
 
 async function generateRulesCore(params: {
@@ -270,8 +284,9 @@ async function generateRulesCore(params: {
 async function generateIgnoreCore(params: {
   config: Config;
   logger: Logger;
+  skipTargets?: ToolTarget[];
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, skipTargets = [] } = params;
 
   const supportedIgnoreTargets = IgnoreProcessor.getToolTargets();
   warnUnsupportedTargets({
@@ -295,6 +310,9 @@ async function generateIgnoreCore(params: {
       continue;
     }
 
+    if (skipTargets.includes(toolTarget)) {
+      continue;
+    }
     for (const baseDir of config.getBaseDirs()) {
       try {
         const processor = new IgnoreProcessor({
