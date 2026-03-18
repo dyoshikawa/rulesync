@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { McpServerSchema, McpServers } from "../../types/mcp.js";
+import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
