@@ -53,7 +53,7 @@ describe("CodexcliPermissions", () => {
 
       const config = {
         permissions: {
-          bash: { "rm -rf *": "deny", "npm *": "allow", "git push": "ask" },
+          bash: { "rm -rf *": "deny", "npm *": "allow", "git push": "ask", "*": "ask" },
         },
       };
 
@@ -79,7 +79,7 @@ describe("CodexcliPermissions", () => {
       const rules = parsed.rules as {
         prefix_rules: Array<{ pattern: Array<{ token: string }>; decision: string }>;
       };
-      expect(rules.prefix_rules).toHaveLength(3);
+      expect(rules.prefix_rules).toHaveLength(4);
 
       // Check that trailing "*" is omitted (prefix matching)
       const rmRule = rules.prefix_rules.find((r) => r.decision === "forbidden");
@@ -95,6 +95,10 @@ describe("CodexcliPermissions", () => {
       const gitRule = rules.prefix_rules.find((r) => r.pattern[0]?.token === "git");
       expect(gitRule).toBeDefined();
       expect(gitRule!.decision).toBe("prompt");
+
+      const wildcardRule = rules.prefix_rules.find((r) => r.pattern[0]?.token === "*");
+      expect(wildcardRule).toBeDefined();
+      expect(wildcardRule!.pattern).toEqual([{ token: "*" }]);
     });
 
     it("should skip non-bash entries and warn", async () => {

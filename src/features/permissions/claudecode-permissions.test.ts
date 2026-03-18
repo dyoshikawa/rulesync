@@ -148,6 +148,47 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
+    it("should preserve existing manual allow and ask entries", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          permissions: {
+            allow: ["Bash(npm ci *)"],
+            ask: ["Read(secrets/**)"],
+            deny: ["Bash(rm -rf *)"],
+          },
+        }),
+      );
+
+      const config = {
+        permissions: {
+          bash: { "npm *": "allow" },
+          read: { "src/**": "allow" },
+        },
+      };
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const result = await ClaudecodePermissions.fromRulesyncPermissions({
+        baseDir: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = JSON.parse(result.getFileContent());
+      expect(parsed.permissions.allow).toEqual(
+        expect.arrayContaining(["Bash(npm *)", "Read(src/**)", "Bash(npm ci *)"]),
+      );
+      expect(parsed.permissions.ask).toEqual(expect.arrayContaining(["Read(secrets/**)"]));
+      expect(parsed.permissions.deny).toEqual(["Bash(rm -rf *)"]);
+    });
+
     it("should create settings.json if it does not exist", async () => {
       const config = {
         permissions: {

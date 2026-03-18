@@ -136,9 +136,48 @@ describe("OpencodePermissions", () => {
       const parsed = JSON.parse(result.getFileContent());
       expect(parsed.existing).toBe("jsonc");
     });
+
+    it("should throw when existing config JSONC is invalid", async () => {
+      await writeFileContent(join(testDir, "opencode.jsonc"), "{");
+
+      const config = {
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
+      };
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      await expect(
+        OpencodePermissions.fromRulesyncPermissions({
+          baseDir: testDir,
+          rulesyncPermissions,
+        }),
+      ).rejects.toThrow(/Failed to parse existing OpenCode config/);
+    });
   });
 
   describe("toRulesyncPermissions", () => {
+    it("should throw when OpenCode config JSONC is invalid", () => {
+      const instance = new OpencodePermissions({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: "{",
+        validate: false,
+      });
+
+      expect(() => instance.toRulesyncPermissions()).toThrow(
+        /Failed to parse OpenCode permissions content/,
+      );
+    });
+
     it("should convert OpenCode format back to canonical", () => {
       const opencodeConfig = {
         permission: {

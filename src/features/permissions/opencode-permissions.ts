@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { parse as parseJsonc } from "jsonc-parser";
+import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
@@ -9,6 +9,7 @@ import {
   entriesToPermissionsMap,
   permissionsMapToEntries,
 } from "../../types/permissions.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -96,7 +97,18 @@ export class OpencodePermissions extends ToolPermissions {
 
     const fileContent = existingContent ?? JSON.stringify({}, null, 2);
 
-    const json: OpencodeConfig = parseJsonc(fileContent) ?? {};
+    const parseErrors: ParseError[] = [];
+    const jsonResult = parseJsonc(fileContent, parseErrors, { disallowComments: false });
+    if (parseErrors.length > 0 || !jsonResult || typeof jsonResult !== "object") {
+      throw new Error(
+        `Failed to parse existing OpenCode config at ${join(
+          baseDir,
+          basePaths.relativeDirPath,
+          relativeFilePath,
+        )}: ${formatError(new Error("Invalid JSONC content"))}`,
+      );
+    }
+    const json: OpencodeConfig = jsonResult;
 
     // Convert canonical → OpenCode format
     const config = rulesyncPermissions.getJson();
@@ -117,7 +129,17 @@ export class OpencodePermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const json: OpencodeConfig = parseJsonc(this.getFileContent()) ?? {};
+    const parseErrors: ParseError[] = [];
+    const jsonResult = parseJsonc(this.getFileContent(), parseErrors, { disallowComments: false });
+    if (parseErrors.length > 0 || !jsonResult || typeof jsonResult !== "object") {
+      throw new Error(
+        `Failed to parse OpenCode permissions content in ${join(
+          this.getRelativeDirPath(),
+          this.getRelativeFilePath(),
+        )}: ${formatError(new Error("Invalid JSONC content"))}`,
+      );
+    }
+    const json: OpencodeConfig = jsonResult;
     const permission = json.permission ?? {};
     const entries = permissionsMapToEntries(permission);
 

@@ -114,7 +114,7 @@ export class CodexcliPermissions extends ToolPermissions {
     const prefixRules: CodexPrefixRule[] = bashEntries.map((entry) => {
       // Omit trailing "*" tokens (prefix matching in Codex)
       const tokens = [...entry.pattern];
-      while (tokens.length > 0 && tokens[tokens.length - 1] === "*") {
+      while (tokens.length > 1 && tokens[tokens.length - 1] === "*") {
         tokens.pop();
       }
 
