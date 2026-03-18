@@ -32,7 +32,7 @@ describe("CopilotcliMcp", () => {
           filesystem: {
             type: "stdio",
             command: "npx",
-            args: ["-y", "@anthropic-ai/mcp-server-filesystem", "/workspace"],
+            args: ["-y", "@anthropic-ai/mcp-server-filesystem", join(testDir, "workspace")],
           },
         },
       });
@@ -55,7 +55,7 @@ describe("CopilotcliMcp", () => {
       });
 
       const copilotCliMcp = new CopilotcliMcp({
-        baseDir: "/custom/path",
+        baseDir: join(testDir, "custom"),
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: validJsonContent,
@@ -267,7 +267,7 @@ describe("CopilotcliMcp", () => {
           command: "python",
           args: ["server.py"],
           env: {
-            PYTHONPATH: "/custom/path",
+            PYTHONPATH: join(testDir, "custom"),
           },
         },
       };
@@ -277,8 +277,9 @@ describe("CopilotcliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
+      const targetDir = join(testDir, "target");
       const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
-        baseDir: "/target/dir",
+        baseDir: targetDir,
         rulesyncMcp,
       });
 
@@ -290,7 +291,7 @@ describe("CopilotcliMcp", () => {
             command: "python",
             args: ["server.py"],
             env: {
-              PYTHONPATH: "/custom/path",
+              PYTHONPATH: join(testDir, "custom"),
             },
           },
         },
@@ -366,7 +367,7 @@ describe("CopilotcliMcp", () => {
       const inputMcpServers = {
         "array-command-server": {
           command: ["npx", "-y", "@anthropic-ai/mcp-server-filesystem"],
-          args: ["/workspace"],
+          args: [join(testDir, "workspace")],
         },
       };
       const rulesyncMcp = new RulesyncMcp({
@@ -384,7 +385,7 @@ describe("CopilotcliMcp", () => {
           "array-command-server": {
             type: "stdio",
             command: "npx",
-            args: ["-y", "@anthropic-ai/mcp-server-filesystem", "/workspace"],
+            args: ["-y", "@anthropic-ai/mcp-server-filesystem", join(testDir, "workspace")],
           },
         },
       });
@@ -397,7 +398,7 @@ describe("CopilotcliMcp", () => {
         filesystem: {
           type: "stdio" as const,
           command: "npx",
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+          args: ["-y", "@modelcontextprotocol/server-filesystem", join(testDir, "tmp")],
         },
       };
       const copilotCliMcp = new CopilotcliMcp({
@@ -414,7 +415,7 @@ describe("CopilotcliMcp", () => {
         mcpServers: {
           filesystem: {
             command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+            args: ["-y", "@modelcontextprotocol/server-filesystem", join(testDir, "tmp")],
           },
         },
         $schema: RULESYNC_MCP_SCHEMA_URL,
@@ -441,7 +442,7 @@ describe("CopilotcliMcp", () => {
         },
       };
       const copilotCliMcp = new CopilotcliMcp({
-        baseDir: "/test/dir",
+        baseDir: join(testDir, "test"),
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
@@ -449,7 +450,7 @@ describe("CopilotcliMcp", () => {
 
       const rulesyncMcp = copilotCliMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getBaseDir()).toBe(join(testDir, "test"));
       expect(rulesyncMcp.getJson()).toEqual({
         mcpServers: {
           "complex-server": {
@@ -642,7 +643,7 @@ describe("CopilotcliMcp", () => {
           command: "python",
           args: ["secondary.py", "--workers", "4"],
           env: {
-            PYTHONPATH: "/app/lib",
+            PYTHONPATH: join(testDir, "app/lib"),
           },
         },
       };
