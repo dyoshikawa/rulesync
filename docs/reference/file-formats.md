@@ -261,6 +261,7 @@ Permissions define tool-level access controls (allow/ask/deny) for AI coding too
 - **Supported targets:** Claude Code (`claudecode`), OpenCode (`opencode`), Codex CLI (`codexcli`)
 - Codex CLI permissions are generate-only (import is not supported).
 - Codex CLI only supports `bash` tool permissions; non-bash entries are skipped with a warning.
+- Claude Code ignore and permissions cannot be generated or imported together. Run them in separate operations.
 
 Example:
 

@@ -9,6 +9,8 @@ rulesync init
 # Import existing configurations (to .rulesync/rules/ by default)
 rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
 
+Note: Claude Code ignore and permissions cannot be imported together. Run them in separate operations.
+
 # Fetch configurations from a Git repository
 rulesync fetch owner/repo
 rulesync fetch owner/repo@v1.0.0 --features rules,commands
@@ -29,6 +31,8 @@ rulesync generate --targets copilot,cursor,codexcli --features commands,subagent
 
 # Dry run: show changes without writing files
 rulesync generate --dry-run --targets claudecode --features rules
+
+Note: Claude Code ignore and permissions cannot be generated together. Run them in separate operations.
 
 # Check if files are up to date (for CI/CD pipelines)
 rulesync generate --check --targets "*" --features "*"

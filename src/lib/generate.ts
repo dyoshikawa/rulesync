@@ -145,6 +145,8 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
+  validateClaudecodeIgnorePermissionsConflict({ config });
+
   // generateIgnoreCore must run before generatePermissionsCore.
   // Both features write to .claude/settings.json's permissions.deny key.
   // The permissions feature preserves Read() entries written by the ignore feature.
@@ -188,6 +190,20 @@ export async function generate(params: {
     skills: skillsResult.skills,
     hasDiff,
   };
+}
+
+function validateClaudecodeIgnorePermissionsConflict(params: { config: Config }): void {
+  const { config } = params;
+  if (!config.getTargets().includes("claudecode")) {
+    return;
+  }
+
+  const features = config.getFeatures("claudecode");
+  if (features.includes("ignore") && features.includes("permissions")) {
+    throw new Error(
+      "Claude Code ignore and permissions cannot be generated together. Run them in separate operations.",
+    );
+  }
 }
 
 async function generateRulesCore(params: {

@@ -272,9 +272,10 @@ This is a test rule file.
         features: ["*"],
       });
 
-      expect(result.success).toBe(true);
-      // Wildcard should expand to multiple features
-      expect(result.config?.features.length).toBeGreaterThan(1);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(
+        "Claude Code ignore and permissions cannot be imported together. Run them in separate operations.",
+      );
     });
   });
 

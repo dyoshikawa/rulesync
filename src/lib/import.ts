@@ -31,6 +31,8 @@ export async function importFromTool(params: {
 }): Promise<ImportResult> {
   const { config, tool, logger } = params;
 
+  validateClaudecodeIgnorePermissionsConflict({ config, tool });
+
   const rulesCount = await importRulesCore({ config, tool, logger });
   const ignoreCount = await importIgnoreCore({ config, tool, logger });
   const mcpCount = await importMcpCore({ config, tool, logger });
@@ -50,6 +52,23 @@ export async function importFromTool(params: {
     hooksCount,
     permissionsCount,
   };
+}
+
+function validateClaudecodeIgnorePermissionsConflict(params: {
+  config: Config;
+  tool: ToolTarget;
+}): void {
+  const { config, tool } = params;
+  if (tool !== "claudecode") {
+    return;
+  }
+
+  const features = config.getFeatures("claudecode");
+  if (features.includes("ignore") && features.includes("permissions")) {
+    throw new Error(
+      "Claude Code ignore and permissions cannot be imported together. Run them in separate operations.",
+    );
+  }
 }
 
 async function importRulesCore(params: {

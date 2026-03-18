@@ -5,6 +5,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
@@ -18,6 +19,7 @@ const logger = createMockLogger();
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");
 vi.mock("../features/mcp/mcp-processor.js");
+vi.mock("../features/permissions/permissions-processor.js");
 vi.mock("../features/subagents/subagents-processor.js");
 vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
@@ -102,6 +104,7 @@ describe("generate", () => {
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -134,6 +137,9 @@ describe("generate", () => {
     });
     vi.mocked(McpProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as McpProcessor;
+    });
+    vi.mocked(PermissionsProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as PermissionsProcessor;
     });
     vi.mocked(SubagentsProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as SubagentsProcessor;
@@ -275,6 +281,22 @@ describe("generate", () => {
       expect(RulesProcessor).toHaveBeenCalledTimes(2);
       expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ baseDir: "dir1" }));
       expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ baseDir: "dir2" }));
+    });
+  });
+
+  describe("claudecode ignore and permissions conflict", () => {
+    it("should throw when generating ignore and permissions together", async () => {
+      mockConfig.getTargets.mockReturnValue(["claudecode"]);
+      mockConfig.getFeatures.mockImplementation((target?: string) => {
+        if (target === "claudecode") {
+          return ["ignore", "permissions"];
+        }
+        return ["ignore", "permissions"];
+      });
+
+      await expect(generate({ config: mockConfig as never })).rejects.toThrow(
+        "Claude Code ignore and permissions cannot be generated together. Run them in separate operations.",
+      );
     });
   });
 
