@@ -51,13 +51,11 @@ describe("ClaudecodePermissions", () => {
       await writeFileContent(join(testDir, ".claude", "settings.json"), "{}");
 
       const config = {
-        permissions: [
-          { tool: "bash", pattern: ["npm", "*"], action: "allow" },
-          { tool: "bash", pattern: ["rm", "-rf", "*"], action: "deny" },
-          { tool: "read", pattern: ["src", "**"], action: "allow" },
-          { tool: "read", pattern: ["*", ".env"], action: "ask" },
-          { tool: "edit", pattern: ["src", "**"], action: "allow" },
-        ],
+        permissions: {
+          bash: { "npm *": "allow", "rm -rf *": "deny" },
+          read: { "src/**": "allow", "*/.env": "ask" },
+          edit: { "src/**": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -89,7 +87,9 @@ describe("ClaudecodePermissions", () => {
       );
 
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -123,7 +123,9 @@ describe("ClaudecodePermissions", () => {
       );
 
       const config = {
-        permissions: [{ tool: "bash", pattern: ["rm", "-rf", "*"], action: "deny" }],
+        permissions: {
+          bash: { "rm -rf *": "deny" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -148,7 +150,9 @@ describe("ClaudecodePermissions", () => {
 
     it("should create settings.json if it does not exist", async () => {
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -173,7 +177,9 @@ describe("ClaudecodePermissions", () => {
       await writeFileContent(join(testDir, ".claude", "settings.json"), "{}");
 
       const config = {
-        permissions: [{ tool: "mcp__serena__search", pattern: ["**"], action: "allow" }],
+        permissions: {
+          mcp__serena__search: { "**": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({

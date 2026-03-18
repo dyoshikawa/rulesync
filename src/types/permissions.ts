@@ -14,11 +14,31 @@ export const PermissionEntrySchema = z.looseObject({
 });
 export type PermissionEntry = z.infer<typeof PermissionEntrySchema>;
 
-export const PermissionsConfigSchema = z.looseObject({
+export const PermissionPatternSchema = z
+  .string()
+  .check(
+    z.minLength(1, "pattern must be non-empty"),
+    z.regex(/^[^()]*$/),
+    z.regex(/\S/, "pattern must contain a non-space character"),
+  );
+
+export const PermissionsMapSchema = z.record(
+  z.string().check(z.minLength(1, "tool must be non-empty"), z.regex(/^[a-zA-Z0-9_]+$/)),
+  z.record(PermissionPatternSchema, PermissionActionSchema),
+);
+
+export const PermissionsExternalConfigSchema = z.looseObject({
   $schema: z.optional(z.string()),
-  permissions: z.array(PermissionEntrySchema),
+  permissions: PermissionsMapSchema,
 });
-export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
+export type PermissionsExternalConfig = z.infer<typeof PermissionsExternalConfigSchema>;
+
+export type PermissionsMap = z.infer<typeof PermissionsMapSchema>;
+
+export type PermissionsConfig = {
+  $schema?: string;
+  permissions: PermissionEntry[];
+};
 
 // Canonical tool name → Claude Code PascalCase name
 export const CANONICAL_TO_CLAUDE_TOOL_NAMES: Record<string, string> = {
@@ -85,4 +105,48 @@ export function splitPattern(tool: string, joined: string): string[] {
     return splitPatternForBash(joined);
   }
   return splitPatternForPath(joined);
+}
+
+export function permissionsMapToEntries(permissions: PermissionsMap): PermissionEntry[] {
+  const entries: PermissionEntry[] = [];
+
+  for (const [tool, patterns] of Object.entries(permissions)) {
+    for (const [pattern, action] of Object.entries(patterns)) {
+      entries.push({
+        tool,
+        pattern: splitPattern(tool, pattern),
+        action,
+      });
+    }
+  }
+
+  return entries;
+}
+
+export function entriesToPermissionsMap(entries: PermissionEntry[]): PermissionsMap {
+  const permissions: PermissionsMap = {};
+
+  for (const entry of entries) {
+    const joined = joinPattern(entry.tool, entry.pattern);
+    const toolPermissions = permissions[entry.tool] ?? {};
+    toolPermissions[joined] = entry.action;
+    permissions[entry.tool] = toolPermissions;
+  }
+
+  return permissions;
+}
+
+export function buildRulesyncPermissionsFileContent({
+  entries,
+  schema,
+}: {
+  entries: PermissionEntry[];
+  schema?: string;
+}): string {
+  const config: PermissionsExternalConfig = {
+    ...(schema ? { $schema: schema } : {}),
+    permissions: entriesToPermissionsMap(entries),
+  };
+
+  return JSON.stringify(config, null, 2);
 }

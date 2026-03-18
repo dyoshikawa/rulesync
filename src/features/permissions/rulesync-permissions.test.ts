@@ -34,10 +34,10 @@ describe("RulesyncPermissions", () => {
   describe("fromFile", () => {
     it("should load and parse a valid permissions file", async () => {
       const config = {
-        permissions: [
-          { tool: "bash", pattern: ["npm", "*"], action: "allow" },
-          { tool: "read", pattern: ["src", "**"], action: "allow" },
-        ],
+        permissions: {
+          bash: { "npm *": "allow" },
+          read: { "src/**": "allow" },
+        },
       };
 
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
@@ -50,7 +50,12 @@ describe("RulesyncPermissions", () => {
         baseDir: testDir,
       });
 
-      expect(rulesyncPermissions.getJson()).toEqual(config);
+      expect(rulesyncPermissions.getJson().permissions).toEqual(
+        expect.arrayContaining([
+          { tool: "bash", pattern: ["npm", "*"], action: "allow" },
+          { tool: "read", pattern: ["src", "**"], action: "allow" },
+        ]),
+      );
     });
 
     it("should throw if file does not exist", async () => {
@@ -63,7 +68,9 @@ describe("RulesyncPermissions", () => {
   describe("validate", () => {
     it("should validate a correct permissions config", () => {
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
       };
 
       const instance = new RulesyncPermissions({
@@ -74,12 +81,27 @@ describe("RulesyncPermissions", () => {
         validate: true,
       });
 
-      expect(instance.getJson()).toEqual(config);
+      expect(instance.getJson().permissions).toEqual([
+        { tool: "bash", pattern: ["npm", "*"], action: "allow" },
+      ]);
+      expect(instance.getFileContent()).toEqual(
+        JSON.stringify(
+          {
+            permissions: {
+              bash: { "npm *": "allow" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
     });
 
     it("should reject invalid action values", () => {
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm"], action: "invalid" }],
+        permissions: {
+          bash: { npm: "invalid" },
+        },
       };
 
       expect(
@@ -96,7 +118,9 @@ describe("RulesyncPermissions", () => {
 
     it("should reject empty tool", () => {
       const config = {
-        permissions: [{ tool: "", pattern: ["npm"], action: "allow" }],
+        permissions: {
+          "": { npm: "allow" },
+        },
       };
 
       expect(
@@ -111,26 +135,38 @@ describe("RulesyncPermissions", () => {
       ).toThrow();
     });
 
-    it("should reject empty pattern array", () => {
+    it("should allow empty tool permissions", () => {
       const config = {
-        permissions: [{ tool: "bash", pattern: [], action: "allow" }],
+        permissions: {
+          bash: {},
+        },
       };
 
-      expect(
-        () =>
-          new RulesyncPermissions({
-            baseDir: testDir,
-            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-            relativeFilePath: "permissions.json",
-            fileContent: JSON.stringify(config),
-            validate: true,
-          }),
-      ).toThrow();
+      const instance = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: true,
+      });
+
+      expect(instance.getJson()).toEqual({ permissions: [] });
+      expect(instance.getFileContent()).toEqual(
+        JSON.stringify(
+          {
+            permissions: {},
+          },
+          null,
+          2,
+        ),
+      );
     });
 
     it("should reject empty pattern segment", () => {
       const config = {
-        permissions: [{ tool: "bash", pattern: [""], action: "allow" }],
+        permissions: {
+          bash: { "": "allow" },
+        },
       };
 
       expect(
@@ -149,10 +185,10 @@ describe("RulesyncPermissions", () => {
   describe("getJson", () => {
     it("should return the parsed JSON content", () => {
       const config = {
-        permissions: [
-          { tool: "bash", pattern: ["rm", "-rf", "*"], action: "deny" },
-          { tool: "read", pattern: ["*", ".env"], action: "ask" },
-        ],
+        permissions: {
+          bash: { "rm -rf *": "deny" },
+          read: { "*/.env": "ask" },
+        },
       };
 
       const instance = new RulesyncPermissions({
@@ -163,9 +199,12 @@ describe("RulesyncPermissions", () => {
         validate: false,
       });
 
-      expect(instance.getJson().permissions).toHaveLength(2);
-      expect(instance.getJson().permissions[0]!.tool).toBe("bash");
-      expect(instance.getJson().permissions[1]!.action).toBe("ask");
+      expect(instance.getJson().permissions).toEqual(
+        expect.arrayContaining([
+          { tool: "bash", pattern: ["rm", "-rf", "*"], action: "deny" },
+          { tool: "read", pattern: ["*", ".env"], action: "ask" },
+        ]),
+      );
     });
   });
 });

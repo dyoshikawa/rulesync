@@ -4,6 +4,7 @@ import * as smolToml from "smol-toml";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionEntry } from "../../types/permissions.js";
+import { buildRulesyncPermissionsFileContent } from "../../types/permissions.js";
 import { readOrInitializeFileContent } from "../../utils/file.js";
 import { logger } from "../../utils/logger.js";
 import type { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -168,7 +169,7 @@ export class CodexcliPermissions extends ToolPermissions {
     }
 
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permissions: entries }, null, 2),
+      fileContent: buildRulesyncPermissionsFileContent({ entries }),
     });
   }
 

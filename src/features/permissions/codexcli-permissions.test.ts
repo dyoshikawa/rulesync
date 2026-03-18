@@ -52,11 +52,9 @@ describe("CodexcliPermissions", () => {
       await writeFileContent(join(testDir, ".codex", "config.toml"), "");
 
       const config = {
-        permissions: [
-          { tool: "bash", pattern: ["rm", "-rf", "*"], action: "deny" },
-          { tool: "bash", pattern: ["npm", "*"], action: "allow" },
-          { tool: "bash", pattern: ["git", "push"], action: "ask" },
-        ],
+        permissions: {
+          bash: { "rm -rf *": "deny", "npm *": "allow", "git push": "ask" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -104,11 +102,11 @@ describe("CodexcliPermissions", () => {
       await writeFileContent(join(testDir, ".codex", "config.toml"), "");
 
       const config = {
-        permissions: [
-          { tool: "bash", pattern: ["npm", "*"], action: "allow" },
-          { tool: "read", pattern: ["src", "**"], action: "allow" },
-          { tool: "edit", pattern: ["src", "**"], action: "allow" },
-        ],
+        permissions: {
+          bash: { "npm *": "allow" },
+          read: { "src/**": "allow" },
+          edit: { "src/**": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -140,7 +138,9 @@ describe("CodexcliPermissions", () => {
       );
 
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({

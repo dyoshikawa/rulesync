@@ -7,6 +7,7 @@ import type { PermissionAction, PermissionEntry } from "../../types/permissions.
 import {
   CANONICAL_TO_CLAUDE_TOOL_NAMES,
   CLAUDE_TO_CANONICAL_TOOL_NAMES,
+  buildRulesyncPermissionsFileContent,
   joinPattern,
   splitPattern,
 } from "../../types/permissions.js";
@@ -70,11 +71,8 @@ function parseClaudePermission(
 ): PermissionEntry | null {
   const match = permission.match(/^([^(]+)\((.+)\)$/);
   if (!match) return null;
-
-  // eslint-disable-next-line no-type-assertion/no-type-assertion
-  const claudeTool = match[1]!;
-  // eslint-disable-next-line no-type-assertion/no-type-assertion
-  const patternStr = match[2]!;
+  const [, claudeTool, patternStr] = match;
+  if (!claudeTool || !patternStr) return null;
   const canonicalTool = fromClaudeToolName(claudeTool);
 
   return {
@@ -228,7 +226,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     }
 
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permissions: entries }, null, 2),
+      fileContent: buildRulesyncPermissionsFileContent({ entries }),
     });
   }
 

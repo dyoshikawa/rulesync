@@ -256,7 +256,7 @@ You can control which individual tools from an MCP server are enabled or disable
 
 ## `.rulesync/permissions.json`
 
-Permissions define tool-level access controls (allow/ask/deny) for AI coding tools. Each entry specifies a tool, a pattern, and an action.
+Permissions define tool-level access controls (allow/ask/deny) for AI coding tools. Permissions are grouped by tool name and list patterns with actions.
 
 - **Supported targets:** Claude Code (`claudecode`), OpenCode (`opencode`), Codex CLI (`codexcli`)
 - Codex CLI permissions are generate-only (import is not supported).
@@ -268,21 +268,28 @@ Example:
 ```json
 {
   "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
-  "permissions": [
-    { "tool": "bash", "pattern": ["npm", "*"], "action": "allow" },
-    { "tool": "bash", "pattern": ["rm", "-rf", "*"], "action": "deny" },
-    { "tool": "read", "pattern": ["*", ".env"], "action": "ask" },
-    { "tool": "read", "pattern": ["src", "**"], "action": "allow" },
-    { "tool": "edit", "pattern": ["src", "**"], "action": "allow" }
-  ]
+  "permissions": {
+    "bash": {
+      "npm *": "allow",
+      "rm -rf *": "deny"
+    },
+    "read": {
+      "*/.env": "ask",
+      "src/**": "allow"
+    },
+    "edit": {
+      "src/**": "allow"
+    }
+  }
 }
 ```
 
 **Fields:**
 
-- `tool`: Canonical tool name (`bash`, `read`, `edit`, `write`, `webfetch`, `grep`, `glob`, or MCP tool names with `mcp__` prefix)
-- `pattern`: Array of pattern segments. For `bash`, segments are space-separated (e.g., `["npm", "*"]` → `npm *`). For file path tools, segments are `/`-separated (e.g., `["src", "**"]` → `src/**`).
-- `action`: One of `allow`, `ask`, or `deny`
+- `permissions`: Object of tool names to pattern/action mappings.
+- `tool` (key): Canonical tool name (`bash`, `read`, `edit`, `write`, `webfetch`, `grep`, `glob`, or MCP tool names with `mcp__` prefix)
+- `pattern` (key): Joined pattern string (must include a non-space character). For `bash`, tokens are space-separated (e.g., `"npm *"`). For file path tools, tokens are `/`-separated (e.g., `"src/**"`).
+- `action` (value): One of `allow`, `ask`, or `deny`
 
 **Tool-specific output:**
 
@@ -297,7 +304,7 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 ```json
 {
   "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
-  "permissions": []
+  "permissions": {}
 }
 ```
 

@@ -3,8 +3,12 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionEntry } from "../../types/permissions.js";
-import { joinPattern, splitPattern } from "../../types/permissions.js";
+import type { PermissionAction } from "../../types/permissions.js";
+import {
+  buildRulesyncPermissionsFileContent,
+  entriesToPermissionsMap,
+  permissionsMapToEntries,
+} from "../../types/permissions.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -15,11 +19,8 @@ import {
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 
-// OpenCode permission format: { tool: { pattern: action } }
-type OpencodePermission = Record<string, Record<string, PermissionAction>>;
-
 type OpencodeConfig = Record<string, unknown> & {
-  permission?: OpencodePermission;
+  permission?: Record<string, Record<string, PermissionAction>>;
 };
 
 // OpenCode uses lowercase tool names identical to canonical names.
@@ -99,16 +100,7 @@ export class OpencodePermissions extends ToolPermissions {
 
     // Convert canonical → OpenCode format
     const config = rulesyncPermissions.getJson();
-    const permission: OpencodePermission = {};
-
-    for (const entry of config.permissions) {
-      const toolName = entry.tool;
-      if (!permission[toolName]) {
-        permission[toolName] = {};
-      }
-      const joined = joinPattern(entry.tool, entry.pattern);
-      permission[toolName][joined] = entry.action;
-    }
+    const permission = entriesToPermissionsMap(config.permissions);
 
     const newJson = {
       ...json,
@@ -127,20 +119,10 @@ export class OpencodePermissions extends ToolPermissions {
   toRulesyncPermissions(): RulesyncPermissions {
     const json: OpencodeConfig = parseJsonc(this.getFileContent()) ?? {};
     const permission = json.permission ?? {};
-    const entries: PermissionEntry[] = [];
-
-    for (const [toolName, patterns] of Object.entries(permission)) {
-      for (const [pattern, action] of Object.entries(patterns)) {
-        entries.push({
-          tool: toolName,
-          pattern: splitPattern(toolName, pattern),
-          action,
-        });
-      }
-    }
+    const entries = permissionsMapToEntries(permission);
 
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permissions: entries }, null, 2),
+      fileContent: buildRulesyncPermissionsFileContent({ entries }),
     });
   }
 

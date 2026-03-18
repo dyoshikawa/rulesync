@@ -5,7 +5,13 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
-import { type PermissionsConfig, PermissionsConfigSchema } from "../../types/permissions.js";
+import {
+  type PermissionsConfig,
+  PermissionsExternalConfigSchema,
+  buildRulesyncPermissionsFileContent,
+  entriesToPermissionsMap,
+  permissionsMapToEntries,
+} from "../../types/permissions.js";
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
@@ -23,7 +29,7 @@ export type RulesyncPermissionsSettablePaths = {
 };
 
 // Re-export for JSON schema generation
-export { PermissionsConfigSchema as RulesyncPermissionsFileSchema };
+export { PermissionsExternalConfigSchema as RulesyncPermissionsFileSchema };
 
 export class RulesyncPermissions extends RulesyncFile {
   private readonly json: PermissionsConfig;
@@ -31,7 +37,12 @@ export class RulesyncPermissions extends RulesyncFile {
   constructor(params: RulesyncPermissionsParams) {
     super({ ...params });
 
-    this.json = JSON.parse(this.fileContent);
+    const parsed = JSON.parse(this.fileContent);
+    const entries = permissionsMapToEntries(parsed.permissions ?? {});
+    this.json = {
+      ...(parsed.$schema ? { $schema: parsed.$schema } : {}),
+      permissions: entries,
+    };
     if (params.validate) {
       const result = this.validate();
       if (!result.success) {
@@ -48,7 +59,7 @@ export class RulesyncPermissions extends RulesyncFile {
   }
 
   validate(): ValidationResult {
-    const result = PermissionsConfigSchema.safeParse(this.json);
+    const result = PermissionsExternalConfigSchema.safeParse(JSON.parse(this.fileContent));
     if (!result.success) {
       return { success: false, error: result.error };
     }
@@ -78,5 +89,26 @@ export class RulesyncPermissions extends RulesyncFile {
 
   getJson(): PermissionsConfig {
     return this.json;
+  }
+
+  toFileContent(): string {
+    return buildRulesyncPermissionsFileContent({
+      entries: this.json.permissions,
+      schema: this.json.$schema,
+    });
+  }
+
+  toExternalJson(): {
+    $schema?: string;
+    permissions: Record<string, Record<string, "allow" | "ask" | "deny">>;
+  } {
+    return {
+      ...(this.json.$schema ? { $schema: this.json.$schema } : {}),
+      permissions: entriesToPermissionsMap(this.json.permissions),
+    };
+  }
+
+  override getFileContent(): string {
+    return this.toFileContent();
   }
 }

@@ -66,7 +66,9 @@ describe("PermissionsProcessor", () => {
       await writeFileContent(
         join(testDir, RULESYNC_RELATIVE_DIR_PATH, "permissions.json"),
         JSON.stringify({
-          permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+          permissions: {
+            bash: { "npm *": "allow" },
+          },
         }),
       );
 
@@ -96,7 +98,9 @@ describe("PermissionsProcessor", () => {
       await writeFileContent(
         join(testDir, RULESYNC_RELATIVE_DIR_PATH, "permissions.json"),
         JSON.stringify({
-          permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+          permissions: {
+            bash: { "npm *": "allow" },
+          },
         }),
       );
 
@@ -118,7 +122,9 @@ describe("PermissionsProcessor", () => {
       await writeFileContent(
         join(testDir, RULESYNC_RELATIVE_DIR_PATH, "permissions.json"),
         JSON.stringify({
-          permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+          permissions: {
+            bash: { "npm *": "allow" },
+          },
         }),
       );
 
@@ -140,10 +146,10 @@ describe("PermissionsProcessor", () => {
       await writeFileContent(
         join(testDir, RULESYNC_RELATIVE_DIR_PATH, "permissions.json"),
         JSON.stringify({
-          permissions: [
-            { tool: "bash", pattern: ["npm", "*"], action: "allow" },
-            { tool: "read", pattern: ["src", "**"], action: "allow" },
-          ],
+          permissions: {
+            bash: { "npm *": "allow" },
+            read: { "src/**": "allow" },
+          },
         }),
       );
 

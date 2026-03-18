@@ -48,13 +48,11 @@ describe("OpencodePermissions", () => {
   describe("fromRulesyncPermissions", () => {
     it("should convert canonical format to OpenCode format", async () => {
       const config = {
-        permissions: [
-          { tool: "bash", pattern: ["npm", "*"], action: "allow" },
-          { tool: "bash", pattern: ["rm", "-rf", "*"], action: "deny" },
-          { tool: "read", pattern: ["*", ".env"], action: "ask" },
-          { tool: "read", pattern: ["src", "**"], action: "allow" },
-          { tool: "edit", pattern: ["src", "**"], action: "allow" },
-        ],
+        permissions: {
+          bash: { "npm *": "allow", "rm -rf *": "deny" },
+          read: { "*/.env": "ask", "src/**": "allow" },
+          edit: { "src/**": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -85,7 +83,9 @@ describe("OpencodePermissions", () => {
       );
 
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -115,7 +115,9 @@ describe("OpencodePermissions", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ existing: "json" }));
 
       const config = {
-        permissions: [{ tool: "bash", pattern: ["npm", "*"], action: "allow" }],
+        permissions: {
+          bash: { "npm *": "allow" },
+        },
       };
 
       const rulesyncPermissions = new RulesyncPermissions({
