@@ -13,9 +13,9 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export type CopilotCliMcpParams = ToolMcpParams;
+export type CopilotcliMcpParams = ToolMcpParams;
 
-type CopilotCliMcpConfig = {
+type CopilotcliMcpConfig = {
   mcpServers?: {
     [key: string]: {
       type: "stdio";
@@ -31,8 +31,8 @@ type CopilotCliMcpConfig = {
  * GitHub Copilot CLI requires the "type" field for each server.
  * @throws Error if a server doesn't have a command (Copilot CLI stdio servers require a command)
  */
-function addTypeField(mcpServers: McpServers): CopilotCliMcpConfig["mcpServers"] {
-  const result: CopilotCliMcpConfig["mcpServers"] = {};
+function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"] {
+  const result: CopilotcliMcpConfig["mcpServers"] = {};
 
   for (const [name, server] of Object.entries(mcpServers)) {
     // Parse and validate the server config
@@ -41,7 +41,7 @@ function addTypeField(mcpServers: McpServers): CopilotCliMcpConfig["mcpServers"]
     // Copilot CLI stdio servers require a non-empty command
     if (!parsed.command) {
       throw new Error(
-        `MCP server "${name}" is missing a command. GitHub Copilot CLI stdio servers require a non-empty command.`
+        `MCP server "${name}" is missing a command. GitHub Copilot CLI stdio servers require a non-empty command.`,
       );
     }
 
@@ -55,6 +55,9 @@ function addTypeField(mcpServers: McpServers): CopilotCliMcpConfig["mcpServers"]
     } else {
       // command is an array: first element is command, rest are args
       const [cmd, ...cmdArgs] = parsed.command;
+      if (!cmd) {
+        throw new Error(`MCP server "${name}" has an empty command array.`);
+      }
       command = cmd;
       // Merge command array args with existing args
       args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
@@ -74,7 +77,7 @@ function addTypeField(mcpServers: McpServers): CopilotCliMcpConfig["mcpServers"]
 /**
  * Removes the "type" field when converting back to rulesync format.
  */
-function removeTypeField(config: CopilotCliMcpConfig): McpServers {
+function removeTypeField(config: CopilotcliMcpConfig): McpServers {
   const result: McpServers = {};
 
   for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
@@ -85,15 +88,15 @@ function removeTypeField(config: CopilotCliMcpConfig): McpServers {
   return result;
 }
 
-export class CopilotCliMcp extends ToolMcp {
-  private readonly json: CopilotCliMcpConfig;
+export class CopilotcliMcp extends ToolMcp {
+  private readonly json: CopilotcliMcpConfig;
 
   constructor(params: ToolMcpParams) {
     super(params);
     this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
   }
 
-  getJson(): CopilotCliMcpConfig {
+  getJson(): CopilotcliMcpConfig {
     return this.json;
   }
 
@@ -123,7 +126,7 @@ export class CopilotCliMcp extends ToolMcp {
     baseDir = process.cwd(),
     validate = true,
     global = false,
-  }: ToolMcpFromFileParams): Promise<CopilotCliMcp> {
+  }: ToolMcpFromFileParams): Promise<CopilotcliMcp> {
     const paths = this.getSettablePaths({ global });
     const fileContent =
       (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
@@ -131,7 +134,7 @@ export class CopilotCliMcp extends ToolMcp {
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
-    return new CopilotCliMcp({
+    return new CopilotcliMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -146,7 +149,7 @@ export class CopilotCliMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
-  }: ToolMcpFromRulesyncMcpParams): Promise<CopilotCliMcp> {
+  }: ToolMcpFromRulesyncMcpParams): Promise<CopilotcliMcp> {
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
@@ -159,7 +162,7 @@ export class CopilotCliMcp extends ToolMcp {
     const copilotCliMcpServers = addTypeField(rulesyncMcp.getMcpServers());
     const mcpJson = { ...json, mcpServers: copilotCliMcpServers };
 
-    return new CopilotCliMcp({
+    return new CopilotcliMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -186,8 +189,8 @@ export class CopilotCliMcp extends ToolMcp {
     relativeDirPath,
     relativeFilePath,
     global = false,
-  }: ToolMcpForDeletionParams): CopilotCliMcp {
-    return new CopilotCliMcp({
+  }: ToolMcpForDeletionParams): CopilotcliMcp {
+    return new CopilotcliMcp({
       baseDir,
       relativeDirPath,
       relativeFilePath,

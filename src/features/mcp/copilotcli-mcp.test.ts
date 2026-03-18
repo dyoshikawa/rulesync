@@ -11,7 +11,7 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CopilotCliMcp } from "./copilotcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
-describe("CopilotCliMcp", () => {
+describe("CopilotcliMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -37,13 +37,13 @@ describe("CopilotCliMcp", () => {
         },
       });
 
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: validJsonContent,
       });
 
-      expect(copilotCliMcp).toBeInstanceOf(CopilotCliMcp);
+      expect(copilotCliMcp).toBeInstanceOf(CopilotcliMcp);
       expect(copilotCliMcp.getRelativeDirPath()).toBe(".copilot");
       expect(copilotCliMcp.getRelativeFilePath()).toBe("mcp-config.json");
       expect(copilotCliMcp.getFileContent()).toBe(validJsonContent);
@@ -54,7 +54,7 @@ describe("CopilotCliMcp", () => {
         mcpServers: {},
       });
 
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         baseDir: "/custom/path",
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
@@ -82,7 +82,7 @@ describe("CopilotCliMcp", () => {
       };
       const validJsonContent = JSON.stringify(jsonData);
 
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: validJsonContent,
@@ -94,7 +94,7 @@ describe("CopilotCliMcp", () => {
     it("should handle empty JSON object", () => {
       const emptyJsonContent = JSON.stringify({});
 
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: emptyJsonContent,
@@ -107,7 +107,7 @@ describe("CopilotCliMcp", () => {
       const invalidJsonContent = "{ invalid json }";
 
       expect(() => {
-        const _instance = new CopilotCliMcp({
+        const _instance = new CopilotcliMcp({
           relativeDirPath: ".copilot",
           relativeFilePath: "mcp-config.json",
           fileContent: invalidJsonContent,
@@ -118,21 +118,21 @@ describe("CopilotCliMcp", () => {
 
   describe("getSettablePaths", () => {
     it("should return correct paths for project mode", () => {
-      const paths = CopilotCliMcp.getSettablePaths({ global: false });
+      const paths = CopilotcliMcp.getSettablePaths({ global: false });
 
       expect(paths.relativeDirPath).toBe(".copilot");
       expect(paths.relativeFilePath).toBe("mcp-config.json");
     });
 
     it("should return correct paths for global mode", () => {
-      const paths = CopilotCliMcp.getSettablePaths({ global: true });
+      const paths = CopilotcliMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(".copilot");
       expect(paths.relativeFilePath).toBe("mcp-config.json");
     });
 
     it("should return correct paths when global is not specified", () => {
-      const paths = CopilotCliMcp.getSettablePaths();
+      const paths = CopilotcliMcp.getSettablePaths();
 
       expect(paths.relativeDirPath).toBe(".copilot");
       expect(paths.relativeFilePath).toBe("mcp-config.json");
@@ -158,11 +158,11 @@ describe("CopilotCliMcp", () => {
         JSON.stringify(jsonData, null, 2),
       );
 
-      const copilotCliMcp = await CopilotCliMcp.fromFile({
+      const copilotCliMcp = await CopilotcliMcp.fromFile({
         baseDir: testDir,
       });
 
-      expect(copilotCliMcp).toBeInstanceOf(CopilotCliMcp);
+      expect(copilotCliMcp).toBeInstanceOf(CopilotcliMcp);
       expect(copilotCliMcp.getJson()).toEqual(jsonData);
       expect(copilotCliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
     });
@@ -183,7 +183,7 @@ describe("CopilotCliMcp", () => {
       };
       await writeFileContent(join(copilotDir, "mcp-config.json"), JSON.stringify(jsonData));
 
-      const copilotCliMcp = await CopilotCliMcp.fromFile({
+      const copilotCliMcp = await CopilotcliMcp.fromFile({
         baseDir: customDir,
       });
 
@@ -192,7 +192,7 @@ describe("CopilotCliMcp", () => {
     });
 
     it("should return default empty config if file does not exist", async () => {
-      const copilotCliMcp = await CopilotCliMcp.fromFile({
+      const copilotCliMcp = await CopilotcliMcp.fromFile({
         baseDir: testDir,
       });
 
@@ -217,7 +217,7 @@ describe("CopilotCliMcp", () => {
         JSON.stringify(jsonData, null, 2),
       );
 
-      const copilotCliMcp = await CopilotCliMcp.fromFile({
+      const copilotCliMcp = await CopilotcliMcp.fromFile({
         baseDir: testDir,
         global: true,
       });
@@ -242,11 +242,11 @@ describe("CopilotCliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      const copilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
         rulesyncMcp,
       });
 
-      expect(copilotCliMcp).toBeInstanceOf(CopilotCliMcp);
+      expect(copilotCliMcp).toBeInstanceOf(CopilotcliMcp);
       // Output should have mcpServers key with type field added
       expect(copilotCliMcp.getJson()).toEqual({
         mcpServers: {
@@ -277,7 +277,7 @@ describe("CopilotCliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      const copilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
         baseDir: "/target/dir",
         rulesyncMcp,
       });
@@ -304,7 +304,7 @@ describe("CopilotCliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
-      const copilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
         rulesyncMcp,
       });
 
@@ -324,7 +324,7 @@ describe("CopilotCliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      const copilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
         baseDir: testDir,
         rulesyncMcp,
         global: true,
@@ -356,9 +356,9 @@ describe("CopilotCliMcp", () => {
       });
 
       await expect(
-        CopilotCliMcp.fromRulesyncMcp({
+        CopilotcliMcp.fromRulesyncMcp({
           rulesyncMcp,
-        })
+        }),
       ).rejects.toThrow('MCP server "no-command-server" is missing a command');
     });
 
@@ -375,7 +375,7 @@ describe("CopilotCliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      const copilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
         rulesyncMcp,
       });
 
@@ -400,7 +400,7 @@ describe("CopilotCliMcp", () => {
           args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
         },
       };
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
@@ -440,7 +440,7 @@ describe("CopilotCliMcp", () => {
           args: ["another-server.py"],
         },
       };
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         baseDir: "/test/dir",
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
@@ -470,7 +470,7 @@ describe("CopilotCliMcp", () => {
     });
 
     it("should handle empty mcpServers object when converting", () => {
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -485,7 +485,7 @@ describe("CopilotCliMcp", () => {
     });
 
     it("should handle missing mcpServers key", () => {
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({}),
@@ -511,7 +511,7 @@ describe("CopilotCliMcp", () => {
           },
         },
       };
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify(jsonData),
@@ -527,7 +527,7 @@ describe("CopilotCliMcp", () => {
 
   describe("isDeletable", () => {
     it("should return true for project mode", () => {
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -538,7 +538,7 @@ describe("CopilotCliMcp", () => {
     });
 
     it("should return false for global mode", () => {
-      const copilotCliMcp = new CopilotCliMcp({
+      const copilotCliMcp = new CopilotcliMcp({
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -551,18 +551,18 @@ describe("CopilotCliMcp", () => {
 
   describe("forDeletion", () => {
     it("should create instance for deletion", () => {
-      const copilotCliMcp = CopilotCliMcp.forDeletion({
+      const copilotCliMcp = CopilotcliMcp.forDeletion({
         baseDir: testDir,
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
       });
 
-      expect(copilotCliMcp).toBeInstanceOf(CopilotCliMcp);
+      expect(copilotCliMcp).toBeInstanceOf(CopilotcliMcp);
       expect(copilotCliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
     });
 
     it("should create instance for deletion with global mode", () => {
-      const copilotCliMcp = CopilotCliMcp.forDeletion({
+      const copilotCliMcp = CopilotcliMcp.forDeletion({
         baseDir: testDir,
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
@@ -595,13 +595,13 @@ describe("CopilotCliMcp", () => {
       );
 
       // Step 1: Load from file
-      const originalCopilotCliMcp = await CopilotCliMcp.fromFile({
+      const originalCopilotcliMcp = await CopilotcliMcp.fromFile({
         baseDir: testDir,
       });
-      expect(originalCopilotCliMcp.getJson()).toEqual({ mcpServers: originalServers });
+      expect(originalCopilotcliMcp.getJson()).toEqual({ mcpServers: originalServers });
 
       // Step 2: Convert to RulesyncMcp (should remove type field)
-      const rulesyncMcp = originalCopilotCliMcp.toRulesyncMcp();
+      const rulesyncMcp = originalCopilotcliMcp.toRulesyncMcp();
       expect(rulesyncMcp.getJson()).toEqual({
         mcpServers: {
           "workflow-server": {
@@ -615,15 +615,15 @@ describe("CopilotCliMcp", () => {
         $schema: RULESYNC_MCP_SCHEMA_URL,
       });
 
-      // Step 3: Create new CopilotCliMcp from RulesyncMcp (should add type field)
-      const newCopilotCliMcp = await CopilotCliMcp.fromRulesyncMcp({
+      // Step 3: Create new CopilotcliMcp from RulesyncMcp (should add type field)
+      const newCopilotcliMcp = await CopilotcliMcp.fromRulesyncMcp({
         baseDir: testDir,
         rulesyncMcp,
       });
 
       // Verify data integrity - type field is restored
-      expect(newCopilotCliMcp.getJson()).toEqual({ mcpServers: originalServers });
-      expect(newCopilotCliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
+      expect(newCopilotcliMcp.getJson()).toEqual({ mcpServers: originalServers });
+      expect(newCopilotcliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
     });
 
     it("should maintain data consistency across transformations", async () => {
@@ -647,8 +647,8 @@ describe("CopilotCliMcp", () => {
         },
       };
 
-      // Create CopilotCliMcp
-      const copilotCliMcp = new CopilotCliMcp({
+      // Create CopilotcliMcp
+      const copilotCliMcp = new CopilotcliMcp({
         baseDir: testDir,
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
@@ -660,8 +660,8 @@ describe("CopilotCliMcp", () => {
       // RulesyncMcp should not have type field
       expect(rulesyncMcp.getJson().mcpServers["primary-server"]).not.toHaveProperty("type");
 
-      // Create new CopilotCliMcp from RulesyncMcp (round-trip)
-      const roundTrippedMcp = await CopilotCliMcp.fromRulesyncMcp({
+      // Create new CopilotcliMcp from RulesyncMcp (round-trip)
+      const roundTrippedMcp = await CopilotcliMcp.fromRulesyncMcp({
         baseDir: testDir,
         rulesyncMcp,
       });
