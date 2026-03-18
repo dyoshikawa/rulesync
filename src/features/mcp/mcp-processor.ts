@@ -39,7 +39,7 @@ const mcpProcessorToolTargetTuple = [
   "cline",
   "codexcli",
   "copilot",
-  "copilot-cli",
+  "copilotcli",
   "cursor",
   "factorydroid",
   "geminicli",
@@ -146,7 +146,7 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     },
   ],
   [
-    "copilot-cli",
+    "copilotcli",
     {
       class: CopilotCliMcp,
       meta: {
