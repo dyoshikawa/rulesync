@@ -285,7 +285,8 @@ describe("generate", () => {
   });
 
   describe("claudecode ignore and permissions conflict", () => {
-    it("should throw when generating ignore and permissions together", async () => {
+    it("should warn and skip permissions when generating ignore and permissions together", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
       mockConfig.getTargets.mockReturnValue(["claudecode"]);
       mockConfig.getFeatures.mockImplementation((target?: string) => {
         if (target === "claudecode") {
@@ -294,9 +295,14 @@ describe("generate", () => {
         return ["ignore", "permissions"];
       });
 
-      await expect(generate({ config: mockConfig as never })).rejects.toThrow(
-        "Claude Code ignore and permissions cannot be generated together. Run them in separate operations.",
+      const result = await generate({ config: mockConfig as never });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(result.permissionsCount).toBe(0);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Claude Code ignore and permissions cannot be generated together. Skipping permissions to continue. Run them separately to preserve both; combined generation is not lossless.",
       );
+      warnSpy.mockRestore();
     });
   });
 

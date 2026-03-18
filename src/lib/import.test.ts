@@ -252,13 +252,15 @@ describe("importFromTool", () => {
   });
 
   describe("claudecode ignore and permissions conflict", () => {
-    it("should throw when importing both ignore and permissions for claudecode", async () => {
+    it("should warn and skip permissions when importing both ignore and permissions", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore", "permissions"]);
 
-      await expect(
-        importFromTool({ config: mockConfig as never, tool: "claudecode" }),
-      ).rejects.toThrow(
-        "Claude Code ignore and permissions cannot be imported together. Run them in separate operations.",
+      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(result.permissionsCount).toBe(0);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Claude Code ignore and permissions cannot be imported together. Skipping permissions to continue. Run them separately to preserve both; combined import is not lossless.",
       );
     });
   });

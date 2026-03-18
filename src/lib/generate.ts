@@ -145,7 +145,7 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  validateClaudecodeIgnorePermissionsConflict({ config });
+  const { skipPermissionsTargets } = resolveClaudecodeIgnorePermissionsConflict({ config, logger });
 
   // generateIgnoreCore must run before generatePermissionsCore.
   // Both features write to .claude/settings.json's permissions.deny key.
@@ -157,7 +157,12 @@ export async function generate(params: {
   const subagentsResult = await generateSubagentsCore({ config, logger });
   const skillsResult = await generateSkillsCore({ config, logger });
   const hooksResult = await generateHooksCore({ config, logger });
-  const permissionsResult = await generatePermissionsCore({ config, logger, ignoreResult });
+  const permissionsResult = await generatePermissionsCore({
+    config,
+    logger,
+    ignoreResult,
+    skipTargets: skipPermissionsTargets,
+  });
   const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 
   const hasDiff =
@@ -192,18 +197,22 @@ export async function generate(params: {
   };
 }
 
-function validateClaudecodeIgnorePermissionsConflict(params: { config: Config }): void {
-  const { config } = params;
+function resolveClaudecodeIgnorePermissionsConflict(params: { config: Config; logger: Logger }): {
+  skipPermissionsTargets: ToolTarget[];
+} {
+  const { config, logger } = params;
   if (!config.getTargets().includes("claudecode")) {
-    return;
+    return { skipPermissionsTargets: [] };
   }
 
   const features = config.getFeatures("claudecode");
   if (features.includes("ignore") && features.includes("permissions")) {
-    throw new Error(
-      "Claude Code ignore and permissions cannot be generated together. Run them in separate operations.",
+    logger.warn(
+      "Claude Code ignore and permissions cannot be generated together. Skipping permissions to continue. Run them separately to preserve both; combined generation is not lossless.",
     );
+    return { skipPermissionsTargets: ["claudecode"] };
   }
+  return { skipPermissionsTargets: [] };
 }
 
 async function generateRulesCore(params: {
@@ -618,8 +627,9 @@ async function generatePermissionsCore(params: {
   /** Required to enforce that ignore generation has completed before permissions generation.
    * Both features write to .claude/settings.json's permissions.deny key. */
   ignoreResult: FeatureGenerateResult;
+  skipTargets?: ToolTarget[];
 }): Promise<FeatureGenerateResult> {
-  const { config } = params;
+  const { config, skipTargets = [] } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -638,6 +648,9 @@ async function generatePermissionsCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
+      if (skipTargets.includes(toolTarget)) {
+        continue;
+      }
       if (!config.getFeatures(toolTarget).includes("permissions")) {
         continue;
       }

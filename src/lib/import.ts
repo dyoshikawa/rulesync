@@ -31,7 +31,7 @@ export async function importFromTool(params: {
 }): Promise<ImportResult> {
   const { config, tool, logger } = params;
 
-  validateClaudecodeIgnorePermissionsConflict({ config, tool });
+  const { skipPermissions } = resolveClaudecodeIgnorePermissionsConflict({ config, tool, logger });
 
   const rulesCount = await importRulesCore({ config, tool, logger });
   const ignoreCount = await importIgnoreCore({ config, tool, logger });
@@ -40,7 +40,7 @@ export async function importFromTool(params: {
   const subagentsCount = await importSubagentsCore({ config, tool, logger });
   const skillsCount = await importSkillsCore({ config, tool, logger });
   const hooksCount = await importHooksCore({ config, tool, logger });
-  const permissionsCount = await importPermissionsCore({ config, tool, logger });
+  const permissionsCount = skipPermissions ? 0 : await importPermissionsCore({ config, tool, logger });
 
   return {
     rulesCount,
@@ -54,21 +54,26 @@ export async function importFromTool(params: {
   };
 }
 
-function validateClaudecodeIgnorePermissionsConflict(params: {
+function resolveClaudecodeIgnorePermissionsConflict(params: {
   config: Config;
   tool: ToolTarget;
-}): void {
-  const { config, tool } = params;
+  logger: Logger;
+}): {
+  skipPermissions: boolean;
+} {
+  const { config, tool, logger } = params;
   if (tool !== "claudecode") {
-    return;
+    return { skipPermissions: false };
   }
 
   const features = config.getFeatures("claudecode");
   if (features.includes("ignore") && features.includes("permissions")) {
-    throw new Error(
-      "Claude Code ignore and permissions cannot be imported together. Run them in separate operations.",
+    logger.warn(
+      "Claude Code ignore and permissions cannot be imported together. Skipping permissions to continue. Run them separately to preserve both; combined import is not lossless.",
     );
+    return { skipPermissions: true };
   }
+  return { skipPermissions: false };
 }
 
 async function importRulesCore(params: {
