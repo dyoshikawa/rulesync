@@ -180,6 +180,57 @@ describe("RulesyncPermissions", () => {
           }),
       ).toThrow();
     });
+
+    it("should preserve empty path segments", () => {
+      const config = {
+        permissions: {
+          read: { "//": "allow" },
+        },
+      };
+
+      const instance = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: true,
+      });
+
+      expect(instance.getJson().permissions).toEqual([
+        { tool: "read", pattern: ["", "", ""], action: "allow" },
+      ]);
+      expect(instance.getFileContent()).toEqual(
+        JSON.stringify(
+          {
+            permissions: {
+              read: { "//": "allow" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+    });
+
+    it("should allow MCP tool names with hyphens and dots", () => {
+      const config = {
+        permissions: {
+          "mcp__serena-v2__search.docs": { "**": "allow" },
+        },
+      };
+
+      const instance = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: true,
+      });
+
+      expect(instance.getJson().permissions).toEqual([
+        { tool: "mcp__serena-v2__search.docs", pattern: ["**"], action: "allow" },
+      ]);
+    });
   });
 
   describe("getJson", () => {

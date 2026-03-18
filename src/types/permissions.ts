@@ -4,11 +4,9 @@ export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
 export const PermissionEntrySchema = z.looseObject({
-  tool: z.string().check(z.minLength(1, "tool must be non-empty"), z.regex(/^[a-zA-Z0-9_]+$/)),
+  tool: z.string().check(z.minLength(1, "tool must be non-empty"), z.regex(/^[a-zA-Z0-9_.-]+$/)),
   pattern: z
-    .array(
-      z.string().check(z.minLength(1, "pattern segment must be non-empty"), z.regex(/^[^()]*$/)),
-    )
+    .array(z.string().check(z.regex(/^[^()]*$/)))
     .check(z.minLength(1, "pattern must be non-empty")),
   action: PermissionActionSchema,
 });
@@ -23,7 +21,7 @@ export const PermissionPatternSchema = z
   );
 
 export const PermissionsMapSchema = z.record(
-  z.string().check(z.minLength(1, "tool must be non-empty"), z.regex(/^[a-zA-Z0-9_]+$/)),
+  z.string().check(z.minLength(1, "tool must be non-empty"), z.regex(/^[a-zA-Z0-9_.-]+$/)),
   z.record(PermissionPatternSchema, PermissionActionSchema),
 );
 
@@ -84,7 +82,7 @@ export function splitPatternForBash(joined: string): string[] {
  * Split a joined pattern back to segments for file path tools (/-separated)
  */
 export function splitPatternForPath(joined: string): string[] {
-  return joined.split("/").filter((s) => s !== "");
+  return joined.split("/");
 }
 
 /**

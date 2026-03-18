@@ -76,6 +76,32 @@ describe("OpencodePermissions", () => {
       });
     });
 
+    it("should preserve path patterns with repeated slashes", async () => {
+      const config = {
+        permissions: {
+          read: { "///": "allow" },
+        },
+      };
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const result = await OpencodePermissions.fromRulesyncPermissions({
+        baseDir: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = JSON.parse(result.getFileContent());
+      expect(parsed.permission).toEqual({
+        read: { "///": "allow" },
+      });
+    });
+
     it("should preserve existing non-permission keys", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
@@ -204,6 +230,40 @@ describe("OpencodePermissions", () => {
           { tool: "read", pattern: ["*.env"], action: "ask" },
           { tool: "read", pattern: ["src", "**"], action: "allow" },
         ]),
+      );
+    });
+
+    it("should preserve repeated slashes in path patterns", () => {
+      const opencodeConfig = {
+        permission: {
+          read: { "///": "allow" },
+        },
+      };
+
+      const instance = new OpencodePermissions({
+        baseDir: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(opencodeConfig),
+        validate: false,
+      });
+
+      const rulesync = instance.toRulesyncPermissions();
+      const json = rulesync.getJson();
+
+      expect(json.permissions).toEqual([
+        { tool: "read", pattern: ["", "", "", ""], action: "allow" },
+      ]);
+      expect(rulesync.getFileContent()).toEqual(
+        JSON.stringify(
+          {
+            permissions: {
+              read: { "///": "allow" },
+            },
+          },
+          null,
+          2,
+        ),
       );
     });
   });

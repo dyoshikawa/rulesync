@@ -239,6 +239,33 @@ describe("ClaudecodePermissions", () => {
       const parsed = JSON.parse(result.getFileContent());
       expect(parsed.permissions.allow).toEqual(["mcp__serena__search(**)"]);
     });
+
+    it("should allow MCP tool names with hyphens and dots", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), "{}");
+
+      const config = {
+        permissions: {
+          "mcp__serena-v2__search.docs": { "**": "allow" },
+        },
+      };
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const result = await ClaudecodePermissions.fromRulesyncPermissions({
+        baseDir: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = JSON.parse(result.getFileContent());
+      expect(parsed.permissions.allow).toEqual(["mcp__serena-v2__search.docs(**)"]);
+    });
   });
 
   describe("toRulesyncPermissions", () => {
