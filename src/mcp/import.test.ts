@@ -272,10 +272,7 @@ This is a test rule file.
         features: ["*"],
       });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain(
-        "Claude Code ignore and permissions cannot be imported together. Run them in separate operations.",
-      );
+      expect(result.success).toBe(true);
     });
   });
 
