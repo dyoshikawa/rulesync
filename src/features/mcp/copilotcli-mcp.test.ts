@@ -8,7 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { CopilotCliMcp } from "./copilot-cli-mcp.js";
+import { CopilotCliMcp } from "./copilotcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("CopilotCliMcp", () => {

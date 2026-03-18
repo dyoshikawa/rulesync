@@ -10,7 +10,7 @@ import { logger } from "../../utils/logger.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
-import { CopilotCliMcp } from "./copilot-cli-mcp.js";
+import { CopilotCliMcp } from "./copilotcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
