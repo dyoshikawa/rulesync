@@ -2,7 +2,7 @@ import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
 import type { FetchOptions } from "../../types/fetch.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 export type FetchCommandOptions = FetchOptions & {
   source: string;
@@ -11,18 +11,13 @@ export type FetchCommandOptions = FetchOptions & {
 export async function fetchCommand(logger: Logger, options: FetchCommandOptions): Promise<void> {
   const { source, ...fetchOptions } = options;
 
-  // Configure logger early for error messages
-  logger.configure({
-    verbose: fetchOptions.verbose ?? false,
-    silent: fetchOptions.silent ?? false,
-  });
-
   logger.debug(`Fetching files from ${source}...`);
 
   try {
     const summary = await fetchFiles({
       source,
       options: fetchOptions,
+      logger,
     });
 
     // Capture JSON data if in JSON mode

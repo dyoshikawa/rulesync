@@ -16,7 +16,7 @@ import {
   removeDirectory,
   writeFileContent,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 import {
   GitClientError,
   fetchSkillFiles,
@@ -65,8 +65,9 @@ export async function resolveAndFetchSources(params: {
   sources: SourceEntry[];
   baseDir: string;
   options?: ResolveAndFetchSourcesOptions;
+  logger: Logger;
 }): Promise<ResolveAndFetchSourcesResult> {
-  const { sources, baseDir, options = {} } = params;
+  const { sources, baseDir, options = {}, logger } = params;
 
   if (sources.length === 0) {
     return { fetchedSkillCount: 0, sourcesProcessed: 0 };
@@ -80,7 +81,7 @@ export async function resolveAndFetchSources(params: {
   // Read existing lockfile
   let lock: SourcesLock = options.updateSources
     ? createEmptyLock()
-    : await readLockFile({ baseDir });
+    : await readLockFile({ baseDir, logger });
 
   // Frozen mode: validate lockfile covers all declared sources.
   // Missing curated skills are fetched using locked refs.
@@ -125,6 +126,7 @@ export async function resolveAndFetchSources(params: {
           alreadyFetchedSkillNames: allFetchedSkillNames,
           updateSources: options.updateSources ?? false,
           frozen: options.frozen ?? false,
+          logger,
         });
       } else {
         result = await fetchSource({
@@ -135,6 +137,7 @@ export async function resolveAndFetchSources(params: {
           localSkillNames,
           alreadyFetchedSkillNames: allFetchedSkillNames,
           updateSources: options.updateSources ?? false,
+          logger,
         });
       }
       const { skillCount, fetchedSkillNames, updatedLock } = result;
@@ -147,9 +150,9 @@ export async function resolveAndFetchSources(params: {
     } catch (error) {
       logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
       if (error instanceof GitHubClientError) {
-        logGitHubAuthHints(error);
+        logGitHubAuthHints({ error, logger });
       } else if (error instanceof GitClientError) {
-        logGitClientHints(error);
+        logGitClientHints({ error, logger });
       }
     }
   }
@@ -168,7 +171,7 @@ export async function resolveAndFetchSources(params: {
 
   // Only write lockfile if it has changed (and not in frozen mode)
   if (!options.frozen && JSON.stringify(lock) !== originalLockJson) {
-    await writeLockFile({ baseDir, lock });
+    await writeLockFile({ baseDir, lock, logger });
   } else {
     logger.debug("Lockfile unchanged, skipping write.");
   }
@@ -179,7 +182,8 @@ export async function resolveAndFetchSources(params: {
 /**
  * Log contextual hints for GitClientError to help users troubleshoot.
  */
-function logGitClientHints(error: GitClientError): void {
+function logGitClientHints(params: { error: GitClientError; logger: Logger }): void {
+  const { error, logger } = params;
   if (error.message.includes("not installed")) {
     logger.info("Hint: Install git and ensure it is available on your PATH.");
   } else {
@@ -208,10 +212,12 @@ async function checkLockedSkillsExist(curatedDir: string, skillNames: string[]):
  * Remove previously curated skill directories for a source before re-fetching.
  * Validates that each path resolves within the curated directory to prevent traversal.
  */
-async function cleanPreviousCuratedSkills(
-  curatedDir: string,
-  lockedSkillNames: string[],
-): Promise<void> {
+async function cleanPreviousCuratedSkills(params: {
+  curatedDir: string;
+  lockedSkillNames: string[];
+  logger: Logger;
+}): Promise<void> {
+  const { curatedDir, lockedSkillNames, logger } = params;
   const resolvedCuratedDir = resolve(curatedDir);
   for (const prevSkill of lockedSkillNames) {
     const prevDir = join(curatedDir, prevSkill);
@@ -236,8 +242,9 @@ function shouldSkipSkill(params: {
   sourceKey: string;
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
+  logger: Logger;
 }): boolean {
-  const { skillName, sourceKey, localSkillNames, alreadyFetchedSkillNames } = params;
+  const { skillName, sourceKey, localSkillNames, alreadyFetchedSkillNames, logger } = params;
   if (skillName.includes("..") || skillName.includes("/") || skillName.includes("\\")) {
     logger.warn(
       `Skipping skill with invalid name "${skillName}" from ${sourceKey}: contains path traversal characters.`,
@@ -270,8 +277,9 @@ async function writeSkillAndComputeIntegrity(params: {
   locked: LockedSource | undefined;
   resolvedSha: string;
   sourceKey: string;
+  logger: Logger;
 }): Promise<LockedSkill> {
-  const { skillName, files, curatedDir, locked, resolvedSha, sourceKey } = params;
+  const { skillName, files, curatedDir, locked, resolvedSha, sourceKey, logger } = params;
   const written: Array<{ path: string; content: string }> = [];
 
   for (const file of files) {
@@ -309,9 +317,18 @@ function buildLockUpdate(params: {
   requestedRef: string | undefined;
   resolvedSha: string;
   remoteSkillNames: string[];
+  logger: Logger;
 }): { updatedLock: SourcesLock; fetchedNames: string[] } {
-  const { lock, sourceKey, fetchedSkills, locked, requestedRef, resolvedSha, remoteSkillNames } =
-    params;
+  const {
+    lock,
+    sourceKey,
+    fetchedSkills,
+    locked,
+    requestedRef,
+    resolvedSha,
+    remoteSkillNames,
+    logger,
+  } = params;
   const fetchedNames = Object.keys(fetchedSkills);
 
   // Merge back locked skills that still exist in the remote but were skipped
@@ -356,13 +373,21 @@ async function fetchSource(params: {
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
   updateSources: boolean;
+  logger: Logger;
 }): Promise<{
   skillCount: number;
   fetchedSkillNames: string[];
   updatedLock: SourcesLock;
 }> {
-  const { sourceEntry, client, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources } =
-    params;
+  const {
+    sourceEntry,
+    client,
+    baseDir,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    updateSources,
+    logger,
+  } = params;
   const { lock } = params;
 
   const parsed = parseSource(sourceEntry.source);
@@ -442,7 +467,7 @@ async function fetchSource(params: {
   const fetchedSkills: Record<string, LockedSkill> = {};
 
   if (locked) {
-    await cleanPreviousCuratedSkills(curatedDir, lockedSkillNames);
+    await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
   }
 
   for (const skillDir of filteredDirs) {
@@ -452,6 +477,7 @@ async function fetchSource(params: {
         sourceKey,
         localSkillNames,
         alreadyFetchedSkillNames,
+        logger,
       })
     ) {
       continue;
@@ -495,6 +521,7 @@ async function fetchSource(params: {
       locked,
       resolvedSha,
       sourceKey,
+      logger,
     });
     logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);
   }
@@ -507,6 +534,7 @@ async function fetchSource(params: {
     requestedRef,
     resolvedSha,
     remoteSkillNames: filteredDirs.map((d) => d.name),
+    logger,
   });
 
   return {
@@ -527,9 +555,17 @@ async function fetchSourceViaGit(params: {
   alreadyFetchedSkillNames: Set<string>;
   updateSources: boolean;
   frozen: boolean;
+  logger: Logger;
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
-  const { sourceEntry, baseDir, localSkillNames, alreadyFetchedSkillNames, updateSources, frozen } =
-    params;
+  const {
+    sourceEntry,
+    baseDir,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    updateSources,
+    frozen,
+    logger,
+  } = params;
   const { lock } = params;
   const url = sourceEntry.source;
   const locked = getLockedSource(lock, url);
@@ -596,12 +632,20 @@ async function fetchSourceViaGit(params: {
   const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
 
   if (locked) {
-    await cleanPreviousCuratedSkills(curatedDir, lockedSkillNames);
+    await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
   }
 
   const fetchedSkills: Record<string, LockedSkill> = {};
   for (const skillName of filteredNames) {
-    if (shouldSkipSkill({ skillName, sourceKey: url, localSkillNames, alreadyFetchedSkillNames })) {
+    if (
+      shouldSkipSkill({
+        skillName,
+        sourceKey: url,
+        localSkillNames,
+        alreadyFetchedSkillNames,
+        logger,
+      })
+    ) {
       continue;
     }
 
@@ -612,6 +656,7 @@ async function fetchSourceViaGit(params: {
       locked,
       resolvedSha,
       sourceKey: url,
+      logger,
     });
   }
 
@@ -623,6 +668,7 @@ async function fetchSourceViaGit(params: {
     requestedRef,
     resolvedSha,
     remoteSkillNames: filteredNames,
+    logger,
   });
   return {
     skillCount: result.fetchedNames.length,

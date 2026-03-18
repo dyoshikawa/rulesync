@@ -6,7 +6,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -293,14 +293,16 @@ export class McpProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -320,7 +322,7 @@ export class McpProcessor extends FeatureProcessor {
     try {
       return [await RulesyncMcp.fromFile({})];
     } catch (error) {
-      logger.error(
+      this.logger.error(
         `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       return [];
@@ -349,7 +351,7 @@ export class McpProcessor extends FeatureProcessor {
         });
 
         const toolMcps = toolMcp.isDeletable() ? [toolMcp] : [];
-        logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+        this.logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
         return toolMcps;
       }
 
@@ -360,14 +362,14 @@ export class McpProcessor extends FeatureProcessor {
           global: this.global,
         }),
       ];
-      logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
+      this.logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
       return toolMcps;
     } catch (error) {
       const errorMessage = `Failed to load MCP files for tool target: ${this.toolTarget}: ${formatError(error)}`;
       if (error instanceof Error && error.message.includes("no such file or directory")) {
-        logger.debug(errorMessage);
+        this.logger.debug(errorMessage);
       } else {
-        logger.error(errorMessage);
+        this.logger.error(errorMessage);
       }
       return [];
     }

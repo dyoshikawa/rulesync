@@ -3,10 +3,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+
+const logger = createMockLogger();
 
 describe("ClaudecodeHooks", () => {
   let testDir: string;
@@ -19,6 +22,7 @@ describe("ClaudecodeHooks", () => {
 
   afterEach(async () => {
     await cleanup();
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -281,6 +285,203 @@ describe("ClaudecodeHooks", () => {
         validate: false,
       });
       expect(hooks.isDeletable()).toBe(false);
+    });
+  });
+
+  describe("fromRulesyncHooks - worktree events", () => {
+    it("should generate WorktreeCreate and WorktreeRemove events", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          worktreeCreate: [{ type: "command", command: ".rulesync/hooks/worktree-create.sh" }],
+          worktreeRemove: [{ type: "command", command: ".rulesync/hooks/worktree-remove.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks.WorktreeCreate).toBeDefined();
+      expect(parsed.hooks.WorktreeRemove).toBeDefined();
+      expect(parsed.hooks.WorktreeCreate[0].hooks[0].command).toContain("worktree-create.sh");
+      expect(parsed.hooks.WorktreeRemove[0].hooks[0].command).toContain("worktree-remove.sh");
+    });
+
+    it("should NOT emit matcher for worktreeCreate and worktreeRemove even if defined in config", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          worktreeCreate: [{ type: "command", command: "create.sh", matcher: "*.js" }],
+          worktreeRemove: [{ type: "command", command: "remove.sh", matcher: "*.ts" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks.WorktreeCreate).toBeDefined();
+      expect(parsed.hooks.WorktreeCreate[0].matcher).toBeUndefined();
+      expect(parsed.hooks.WorktreeRemove).toBeDefined();
+      expect(parsed.hooks.WorktreeRemove[0].matcher).toBeUndefined();
+    });
+
+    it("should warn when matcher is defined on worktree events", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const config = {
+        version: 1,
+        hooks: {
+          worktreeCreate: [{ type: "command", command: "create.sh", matcher: "*.js" }],
+          worktreeRemove: [{ type: "command", command: "remove.sh", matcher: "*.ts" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      await ClaudecodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.js" on "worktreeCreate" hook will be ignored'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.ts" on "worktreeRemove" hook will be ignored'),
+      );
+    });
+
+    it("should NOT emit matcher for worktree events in claudecode-specific config", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {},
+        claudecode: {
+          hooks: {
+            worktreeCreate: [
+              { type: "command", command: "create-claude.sh", matcher: "should-be-ignored" },
+            ],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks.WorktreeCreate).toBeDefined();
+      expect(parsed.hooks.WorktreeCreate[0].matcher).toBeUndefined();
+    });
+
+    it("should keep matcher for non-worktree events", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "session.sh", matcher: "*.js" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks.SessionStart[0].matcher).toBe("*.js");
+    });
+  });
+
+  describe("toRulesyncHooks - worktree events", () => {
+    it("should import WorktreeCreate and WorktreeRemove back to canonical names", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        baseDir: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            WorktreeCreate: [
+              { hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/create.sh" }] },
+            ],
+            WorktreeRemove: [
+              { hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/remove.sh" }] },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
+      const json = rulesyncHooks.getJson();
+      expect(json.hooks.worktreeCreate).toHaveLength(1);
+      expect(json.hooks.worktreeCreate?.[0]?.command).toContain("create.sh");
+      expect(json.hooks.worktreeRemove).toHaveLength(1);
+      expect(json.hooks.worktreeRemove?.[0]?.command).toContain("remove.sh");
     });
   });
 

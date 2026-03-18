@@ -7,7 +7,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { init } from "../../lib/init.js";
 import { ensureDir } from "../../utils/file.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 export async function initCommand(logger: Logger): Promise<void> {
   logger.debug("Initializing rulesync...");

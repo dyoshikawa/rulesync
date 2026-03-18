@@ -4,7 +4,7 @@ import {
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
@@ -14,10 +14,20 @@ import { ToolTarget } from "./tool-targets.js";
 export abstract class FeatureProcessor {
   protected readonly baseDir: string;
   protected readonly dryRun: boolean;
+  protected readonly logger: Logger;
 
-  constructor({ baseDir = process.cwd(), dryRun = false }: { baseDir?: string; dryRun?: boolean }) {
+  constructor({
+    baseDir = process.cwd(),
+    dryRun = false,
+    logger,
+  }: {
+    baseDir?: string;
+    dryRun?: boolean;
+    logger: Logger;
+  }) {
     this.baseDir = baseDir;
     this.dryRun = dryRun;
+    this.logger = logger;
   }
 
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
@@ -54,7 +64,7 @@ export abstract class FeatureProcessor {
       }
 
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would write: ${filePath}`);
+        this.logger.info(`[DRY RUN] Would write: ${filePath}`);
       } else {
         await writeFileContent(filePath, contentWithNewline);
       }
@@ -82,7 +92,7 @@ export abstract class FeatureProcessor {
     for (const aiFile of orphanFiles) {
       const filePath = aiFile.getFilePath();
       if (this.dryRun) {
-        logger.info(`[DRY RUN] Would delete: ${filePath}`);
+        this.logger.info(`[DRY RUN] Would delete: ${filePath}`);
       } else {
         await removeFile(filePath);
       }

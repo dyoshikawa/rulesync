@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { findFilesByGlobs } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
@@ -17,6 +17,8 @@ import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand } from "./tool-command.js";
+
+const logger = createMockLogger();
 
 /**
  * Creates a mock getFactory that throws an error for unsupported tool targets.
@@ -34,13 +36,6 @@ vi.mock("../../utils/file.js", async (importOriginal) => {
     findFilesByGlobs: vi.fn(),
   };
 });
-vi.mock("../../utils/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
 // Mock RulesyncCommand after importing it
 vi.mock("./rulesync-command.js");
 vi.mock("./claudecode-command.js", () => ({
@@ -232,15 +227,13 @@ describe("CommandsProcessor", () => {
 
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       expect(processor).toBeInstanceOf(CommandsProcessor);
     });
 
     it("should create instance with claudecode-legacy tool target", () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode-legacy",
       });
@@ -251,6 +244,7 @@ describe("CommandsProcessor", () => {
     it("should throw error for invalid tool target", () => {
       expect(() => {
         processor = new CommandsProcessor({
+          logger,
           baseDir: testDir,
           toolTarget: "invalid" as CommandsProcessorToolTarget,
         });
@@ -258,14 +252,13 @@ describe("CommandsProcessor", () => {
     });
 
     it("should use process.cwd() as default baseDir", () => {
-      processor = new CommandsProcessor({
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, toolTarget: "claudecode" });
       expect(processor).toBeInstanceOf(CommandsProcessor);
     });
 
     it("should accept global parameter", () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -274,20 +267,14 @@ describe("CommandsProcessor", () => {
     });
 
     it("should default global to false", () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       expect((processor as any).global).toBe(false);
     });
   });
 
   describe("convertRulesyncFilesToToolFiles", () => {
     beforeEach(() => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
     });
 
     it("should convert rulesync commands to claudecode commands", async () => {
@@ -327,6 +314,7 @@ describe("CommandsProcessor", () => {
 
     it("should pass global parameter to ClaudecodeCommand.fromRulesyncCommand", async () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -366,10 +354,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should convert rulesync commands to geminicli commands", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "geminicli",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "geminicli" });
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
@@ -403,10 +388,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should convert rulesync commands to roo commands", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "roo",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "roo" });
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
@@ -445,6 +427,7 @@ describe("CommandsProcessor", () => {
 
     it("should pass global parameter to CursorCommand.fromRulesyncCommand", async () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "cursor",
         global: true,
@@ -482,10 +465,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should flatten subdirectory path for supportsSubdirectory=false tools (generate)", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
@@ -516,10 +496,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should preserve subdirectory path for supportsSubdirectory=true tools (generate)", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       const mockRulesyncCommand = new RulesyncCommand({
         baseDir: testDir,
@@ -552,10 +529,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       const commandInPj = new RulesyncCommand({
         baseDir: testDir,
@@ -648,10 +622,7 @@ describe("CommandsProcessor", () => {
 
   describe("convertToolFilesToRulesyncFiles", () => {
     beforeEach(() => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
     });
 
     it("should convert tool commands to rulesync commands", async () => {
@@ -734,10 +705,7 @@ describe("CommandsProcessor", () => {
 
   describe("loadRulesyncFiles", () => {
     beforeEach(() => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
     });
 
     it("should load rulesync command files successfully", async () => {
@@ -876,10 +844,7 @@ describe("CommandsProcessor", () => {
 
   describe("loadToolFiles", () => {
     it("should load claudecode commands with correct parameters", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       const mockPaths = [join(testDir, ".claude", "commands", "test.md")];
       const mockCommand = new ClaudecodeCommand({
@@ -910,10 +875,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load geminicli commands with correct parameters", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "geminicli",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "geminicli" });
 
       const mockPaths = [join(testDir, ".gemini", "commands", "test.toml")];
       const mockCommand = new GeminiCliCommand({
@@ -932,10 +894,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load roo commands with correct parameters", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "roo",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "roo" });
 
       const mockPaths = [join(testDir, ".roo", "commands", "test.md")];
       const mockCommand = new RooCommand({
@@ -958,10 +917,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should throw error when file loading fails", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       const mockPaths = [
         join(testDir, ".claude", "commands", "test1.md"),
@@ -987,6 +943,7 @@ describe("CommandsProcessor", () => {
 
     it("should pass global parameter when loading claudecode commands", async () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -1017,6 +974,7 @@ describe("CommandsProcessor", () => {
 
     it("should pass global parameter when loading cursor commands", async () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "cursor",
         global: true,
@@ -1044,10 +1002,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load tool commands from subdirectories", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       const mockPaths = [
         join(testDir, ".claude", "commands", "pj", "foo.md"),
@@ -1089,10 +1044,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load tool commands from subdirectories for deletion", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "pj", "foo.md"),
@@ -1110,10 +1062,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should produce correct relative paths for deeply nested files in forDeletion mode", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "pj", "sub", "deep.md"),
@@ -1131,6 +1080,7 @@ describe("CommandsProcessor", () => {
 
     it("should throw error for unsupported tool target", async () => {
       processor = new CommandsProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode",
         getFactory: createMockGetFactoryThatThrowsUnsupported,
@@ -1142,10 +1092,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should use top-level only glob for supportsSubdirectory=false tools (import)", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
 
       mockFindFilesByGlobs.mockResolvedValue([]);
 
@@ -1160,10 +1107,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([]);
 
@@ -1241,10 +1185,7 @@ describe("CommandsProcessor", () => {
 
   describe("loadToolFiles with forDeletion: true", () => {
     it("should return files with correct paths for deletion", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([join(testDir, ".claude", "commands", "test.md")]);
 
@@ -1272,10 +1213,7 @@ describe("CommandsProcessor", () => {
       ];
 
       for (const target of targets) {
-        processor = new CommandsProcessor({
-          baseDir: testDir,
-          toolTarget: target,
-        });
+        processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: target });
 
         mockFindFilesByGlobs.mockResolvedValue([]);
 
@@ -1285,10 +1223,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should filter out non-deletable files when forDeletion is true", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "deletable.md"),
@@ -1310,10 +1245,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should reject path traversal in loadToolFiles", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
@@ -1323,10 +1255,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should reject path traversal in loadToolFiles with forDeletion", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
@@ -1338,10 +1267,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should return all files when forDeletion is false regardless of isDeletable", async () => {
-      processor = new CommandsProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       const deletableCommand = {
         baseDir: testDir,

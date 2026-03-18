@@ -1,8 +1,7 @@
 ---
-description: "When you write tests, must follow these guidelines."
-applyTo: "**/*.test.ts"
+description: 'When you write tests, must follow these guidelines.'
+applyTo: '**/*.test.ts'
 ---
-
 # Testing Guidelines
 
 - Test code files should be placed next to the implementation. This is called the co-location pattern.

@@ -1,6 +1,7 @@
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 export type ToolHooksParams = AiFileParams;
@@ -45,7 +46,7 @@ export abstract class ToolHooks extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  abstract toRulesyncHooks(): RulesyncHooks;
+  abstract toRulesyncHooks(options?: { logger?: Logger }): RulesyncHooks;
 
   protected toRulesyncHooksDefault({
     fileContent = undefined,

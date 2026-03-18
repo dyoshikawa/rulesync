@@ -89,7 +89,7 @@ export default defineConfig([
   },
 
   {
-    files: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
+    files: ["src/**/*.test.ts", "src/test-utils/**/*.ts", "scripts/**/*.test.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -111,14 +111,6 @@ export default defineConfig([
     files: ["scripts/**/*.ts"],
     rules: {
       "zod-import/zod-import": "off",
-    },
-  },
-
-  {
-    // CLI entry point uses type assertions for command options
-    files: ["src/cli/index.ts"],
-    rules: {
-      "no-type-assertion/no-type-assertion": "off",
     },
   },
 

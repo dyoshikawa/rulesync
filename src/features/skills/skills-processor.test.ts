@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
@@ -33,6 +34,7 @@ describe("SkillsProcessor", () => {
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -42,6 +44,7 @@ describe("SkillsProcessor", () => {
 
     it("should use default baseDir when not provided", () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         toolTarget: "claudecode",
       });
 
@@ -51,6 +54,7 @@ describe("SkillsProcessor", () => {
     it("should validate tool target with schema", () => {
       expect(() => {
         const _processor = new SkillsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "invalid" as SkillsProcessorToolTarget,
         });
@@ -59,6 +63,7 @@ describe("SkillsProcessor", () => {
 
     it("should accept global parameter", () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -69,6 +74,7 @@ describe("SkillsProcessor", () => {
 
     it("should default global to false", () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -82,6 +88,7 @@ describe("SkillsProcessor", () => {
 
     beforeEach(() => {
       processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -177,6 +184,7 @@ describe("SkillsProcessor", () => {
 
     it("should pass global parameter to ClaudecodeSkill.fromRulesyncSkill", async () => {
       const globalProcessor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -230,6 +238,7 @@ describe("SkillsProcessor", () => {
 
     beforeEach(() => {
       processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -300,6 +309,7 @@ describe("SkillsProcessor", () => {
 
     beforeEach(() => {
       processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -416,6 +426,7 @@ This is skill content`;
       await ensureDir(differentBaseDir);
 
       const globalProcessor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: differentBaseDir,
         toolTarget: "claudecode",
         global: true,
@@ -433,6 +444,7 @@ This is skill content`;
   describe("loadToolDirs", () => {
     it("should delegate to loadClaudecodeSkills for claudecode target", async () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -461,6 +473,7 @@ This is skill content`;
 
     beforeEach(() => {
       processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -548,6 +561,7 @@ Second content`;
     describe("global mode", () => {
       it("should use global paths when global=true", async () => {
         const globalProcessor = new SkillsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
@@ -577,6 +591,7 @@ Global skill content`;
 
       it("should return empty array when global skills directory does not exist", async () => {
         const globalProcessor = new SkillsProcessor({
+          logger: createMockLogger(),
           baseDir: testDir,
           toolTarget: "claudecode",
           global: true,
@@ -591,6 +606,7 @@ Global skill content`;
   describe("loadToolDirsToDelete", () => {
     it("should return the same dirs as loadToolDirs", async () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -618,6 +634,7 @@ Test skill content`;
 
     it("should succeed even when SKILL.md has broken frontmatter", async () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -649,6 +666,7 @@ Content that would fail parsing`;
 
     it("should return empty array when no dirs exist", async () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -802,6 +820,7 @@ Content that would fail parsing`;
   describe("inheritance from DirFeatureProcessor", () => {
     it("should extend DirFeatureProcessor", () => {
       const processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });
@@ -819,6 +838,7 @@ Content that would fail parsing`;
 
     beforeEach(() => {
       processor = new SkillsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
         toolTarget: "claudecode",
       });

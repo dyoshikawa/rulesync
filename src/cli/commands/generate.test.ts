@@ -7,8 +7,8 @@ import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fileExists } from "../../utils/file.js";
-import { Logger } from "../../utils/logger.js";
 import type { GenerateOptions } from "./generate.js";
 import { generateCommand } from "./generate.js";
 
@@ -28,7 +28,7 @@ describe("generateCommand", () => {
   let mockExit: any;
   let mockConfig: any;
   let mockProcessorInstance: any;
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
     // Mock process.cwd to return a consistent value
@@ -59,17 +59,7 @@ describe("generateCommand", () => {
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    // Setup logger mock
-    mockLogger = {
-      configure: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-      error: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
 
     // Setup intersection mock to return the first array by default
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));
@@ -143,22 +133,12 @@ describe("generateCommand", () => {
   });
 
   describe("initial setup", () => {
-    it("should resolve config and configure logger", async () => {
+    it("should resolve config", async () => {
       const options: GenerateOptions = { verbose: true };
 
       await generateCommand(mockLogger, options);
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: false, silent: false });
-    });
-
-    it("should configure verbose logging when config has verbose enabled", async () => {
-      mockConfig.getVerbose.mockReturnValue(true);
-      const options: GenerateOptions = {};
-
-      await generateCommand(mockLogger, options);
-
-      expect(mockLogger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
     });
 
     it("should log generating files message", async () => {
@@ -204,16 +184,18 @@ describe("generateCommand", () => {
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating rule files...");
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        global: false,
-        toolTarget: "claudecode",
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          global: false,
+          toolTarget: "claudecode",
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
     });
 
     it("should pass simulation options to RulesProcessor", async () => {
@@ -223,16 +205,18 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        global: false,
-        toolTarget: "claudecode",
-        simulateCommands: true,
-        simulateSubagents: true,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          global: false,
+          toolTarget: "claudecode",
+          simulateCommands: true,
+          simulateSubagents: true,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
     });
 
     it("should remove old files when delete option is enabled", async () => {
@@ -265,26 +249,30 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir1",
-        global: false,
-        toolTarget: "claudecode",
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir2",
-        global: false,
-        toolTarget: "claudecode",
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "dir1",
+          global: false,
+          toolTarget: "claudecode",
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "dir2",
+          global: false,
+          toolTarget: "claudecode",
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
     });
 
     it("should skip rules when feature is not enabled", async () => {
@@ -308,12 +296,14 @@ describe("generateCommand", () => {
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating MCP files...");
-      expect(McpProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should only process supported MCP targets", async () => {
@@ -374,12 +364,14 @@ describe("generateCommand", () => {
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating command files...");
-      expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should pass includeSimulated flag to getToolTargets", async () => {
@@ -416,11 +408,13 @@ describe("generateCommand", () => {
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating ignore files...");
-      expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        dryRun: false,
-      });
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          dryRun: false,
+        }),
+      );
     });
 
     it("should handle current working directory correctly", async () => {
@@ -430,11 +424,13 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(IgnoreProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        dryRun: false,
-      });
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          dryRun: false,
+        }),
+      );
 
       mockCwd.mockRestore();
     });
@@ -474,12 +470,14 @@ describe("generateCommand", () => {
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating subagent files...");
-      expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: false,
-        dryRun: false,
-      });
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: false,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should pass includeSimulated flag to getToolTargets", async () => {
@@ -516,12 +514,14 @@ describe("generateCommand", () => {
 
         await generateCommand(mockLogger, options);
 
-        expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
-          toolTarget: "claudecode",
-          global: true,
-          dryRun: false,
-        });
+        expect(SubagentsProcessor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            baseDir: ".",
+            toolTarget: "claudecode",
+            global: true,
+            dryRun: false,
+          }),
+        );
       });
 
       it("should only process claudecode target in global mode", async () => {
@@ -536,12 +536,14 @@ describe("generateCommand", () => {
           ["claudecode", "copilot", "cursor"],
           ["claudecode"],
         );
-        expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
-          toolTarget: "claudecode",
-          global: true,
-          dryRun: false,
-        });
+        expect(SubagentsProcessor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            baseDir: ".",
+            toolTarget: "claudecode",
+            global: true,
+            dryRun: false,
+          }),
+        );
       });
 
       it("should not process simulated targets in global mode even if simulateSubagents is true", async () => {
@@ -558,12 +560,14 @@ describe("generateCommand", () => {
           expect.objectContaining({ global: true }),
         );
         expect(SubagentsProcessor).toHaveBeenCalledTimes(1);
-        expect(SubagentsProcessor).toHaveBeenCalledWith({
-          baseDir: ".",
-          toolTarget: "claudecode",
-          global: true,
-          dryRun: false,
-        });
+        expect(SubagentsProcessor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            baseDir: ".",
+            toolTarget: "claudecode",
+            global: true,
+            dryRun: false,
+          }),
+        );
       });
     });
   });
@@ -748,16 +752,18 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: true,
-        simulateCommands: true,
-        simulateSubagents: true,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: true,
+          simulateCommands: true,
+          simulateSubagents: true,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
     });
 
     it("should process delete option in global mode", async () => {
@@ -795,36 +801,42 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir1",
-        toolTarget: "claudecode",
-        global: true,
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir2",
-        toolTarget: "claudecode",
-        global: true,
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
-      expect(RulesProcessor).toHaveBeenCalledWith({
-        baseDir: "dir3",
-        toolTarget: "claudecode",
-        global: true,
-        simulateCommands: false,
-        simulateSubagents: false,
-        simulateSkills: false,
-        skills: [],
-        dryRun: false,
-      });
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "dir1",
+          toolTarget: "claudecode",
+          global: true,
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "dir2",
+          toolTarget: "claudecode",
+          global: true,
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "dir3",
+          toolTarget: "claudecode",
+          global: true,
+          simulateCommands: false,
+          simulateSubagents: false,
+          simulateSkills: false,
+          skills: [],
+          dryRun: false,
+        }),
+      );
       expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
     });
 
@@ -845,12 +857,14 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(CommandsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: true,
-        dryRun: false,
-      });
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: true,
+          dryRun: false,
+        }),
+      );
       expect(CommandsProcessor.getToolTargets).toHaveBeenCalledWith(
         expect.objectContaining({ global: true }),
       );
@@ -873,12 +887,14 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(SubagentsProcessor).toHaveBeenCalledWith({
-        baseDir: ".",
-        toolTarget: "claudecode",
-        global: true,
-        dryRun: false,
-      });
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: true,
+          dryRun: false,
+        }),
+      );
     });
 
     it("should show success message with only rules count in global mode", async () => {

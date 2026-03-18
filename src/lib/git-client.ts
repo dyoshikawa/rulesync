@@ -12,7 +12,7 @@ import {
   readFileContent,
   removeTempDirectory,
 } from "../utils/file.js";
-import { logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
 import { findControlCharacter } from "../utils/validation.js";
 
 const execFileAsync = promisify(execFile);
@@ -32,7 +32,7 @@ export class GitClientError extends Error {
   }
 }
 
-export function validateGitUrl(url: string): void {
+export function validateGitUrl(url: string, options?: { logger?: Logger }): void {
   const ctrl = findControlCharacter(url);
   if (ctrl) {
     throw new GitClientError(
@@ -45,7 +45,7 @@ export function validateGitUrl(url: string): void {
     );
   }
   if (INSECURE_URL_SCHEMES.test(url)) {
-    logger.warn(
+    options?.logger?.warn(
       `URL "${url}" uses an unencrypted protocol. Consider using https:// or ssh:// instead.`,
     );
   }
@@ -128,9 +128,10 @@ export async function fetchSkillFiles(params: {
   url: string;
   ref: string;
   skillsPath: string;
+  logger?: Logger;
 }): Promise<Array<{ relativePath: string; content: string; size: number }>> {
-  const { url, ref, skillsPath } = params;
-  validateGitUrl(url);
+  const { url, ref, skillsPath, logger } = params;
+  validateGitUrl(url, { logger });
   validateRef(ref);
   if (skillsPath.split(/[/\\]/).includes("..") || isAbsolute(skillsPath)) {
     throw new GitClientError(
@@ -168,7 +169,7 @@ export async function fetchSkillFiles(params: {
     await execFileAsync("git", ["-C", tmpDir, "checkout"], { timeout: GIT_TIMEOUT_MS });
     const skillsDir = join(tmpDir, skillsPath);
     if (!(await directoryExists(skillsDir))) return [];
-    return await walkDirectory(skillsDir, skillsDir);
+    return await walkDirectory(skillsDir, skillsDir, 0, { totalFiles: 0, totalSize: 0 }, logger);
   } catch (error) {
     if (error instanceof GitClientError) throw error;
     throw new GitClientError(`Failed to fetch skill files from ${url}`, error);
@@ -189,6 +190,7 @@ async function walkDirectory(
   baseDir: string,
   depth: number = 0,
   ctx: WalkContext = { totalFiles: 0, totalSize: 0 },
+  logger?: Logger,
 ): Promise<Array<{ relativePath: string; content: string; size: number }>> {
   if (depth > MAX_WALK_DEPTH) {
     throw new GitClientError(
@@ -200,15 +202,15 @@ async function walkDirectory(
     if (name === ".git") continue;
     const fullPath = join(dir, name);
     if (await isSymlink(fullPath)) {
-      logger.warn(`Skipping symlink "${fullPath}".`);
+      logger?.warn(`Skipping symlink "${fullPath}".`);
       continue;
     }
     if (await directoryExists(fullPath)) {
-      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1, ctx)));
+      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1, ctx, logger)));
     } else {
       const size = await getFileSize(fullPath);
       if (size > MAX_FILE_SIZE) {
-        logger.warn(
+        logger?.warn(
           `Skipping file "${fullPath}" (${(size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
         );
         continue;

@@ -4,7 +4,7 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import type { SourceEntry } from "../../config/config.js";
 import { Config } from "../../config/config.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
-import { Logger } from "../../utils/logger.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { installCommand } from "./install.js";
 
 // Mock dependencies
@@ -18,19 +18,10 @@ function createMockConfig(sources: SourceEntry[]): Config {
 }
 
 describe("installCommand", () => {
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
-    mockLogger = {
-      configure: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      jsonMode: false,
-      captureData: vi.fn(),
-    } as unknown as Logger;
+    mockLogger = createMockLogger();
   });
 
   afterEach(() => {
@@ -48,15 +39,17 @@ describe("installCommand", () => {
 
       await installCommand(mockLogger, {});
 
-      expect(resolveAndFetchSources).toHaveBeenCalledWith({
-        sources,
-        baseDir: process.cwd(),
-        options: {
-          updateSources: undefined,
-          frozen: undefined,
-          token: undefined,
-        },
-      });
+      expect(resolveAndFetchSources).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sources,
+          baseDir: process.cwd(),
+          options: {
+            updateSources: undefined,
+            frozen: undefined,
+            token: undefined,
+          },
+        }),
+      );
       expect(mockLogger.success).toHaveBeenCalledWith("Installed 3 skill(s) from 1 source(s).");
     });
 
@@ -159,30 +152,6 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockRejectedValue(new Error("Network error"));
 
       await expect(installCommand(mockLogger, {})).rejects.toThrow("Network error");
-    });
-  });
-
-  describe("logger configuration", () => {
-    it("should configure logger with verbose mode", async () => {
-      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
-
-      await installCommand(mockLogger, { verbose: true });
-
-      expect(mockLogger.configure).toHaveBeenCalledWith({
-        verbose: true,
-        silent: false,
-      });
-    });
-
-    it("should configure logger with silent mode", async () => {
-      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
-
-      await installCommand(mockLogger, { silent: true });
-
-      expect(mockLogger.configure).toHaveBeenCalledWith({
-        verbose: false,
-        silent: true,
-      });
     });
   });
 });

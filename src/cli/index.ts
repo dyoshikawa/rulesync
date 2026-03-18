@@ -5,7 +5,8 @@ import { Command } from "commander";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
-import { createLogger, Logger } from "../utils/logger.js";
+import type { Logger } from "../utils/logger.js";
+import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
@@ -14,40 +15,21 @@ import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
+import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "7.18.2";
+const getVersion = () => "7.20.0";
 
-// Extract wrapper function for command handlers
 function wrapCommand(
   name: string,
   errorCode: string,
-  handler: (logger: Logger, options: unknown, globalOpts: Record<string, unknown>) => Promise<void>,
+  handler: (
+    logger: Logger,
+    options: unknown,
+    globalOpts: Record<string, unknown>,
+    positionalArgs: unknown[],
+  ) => Promise<void>,
 ) {
-  return async (...args: unknown[]) => {
-    // Commander passes variable args based on command signature:
-    // - No positional: (options, command)
-    // - With positional: (arg1, arg2, ..., options, command)
-    // The last two are always (options, command)
-    const command = args[args.length - 1] as Command;
-    const options = args[args.length - 2] as Record<string, unknown>;
-    const globalOpts = command.parent?.opts() ?? {};
-    const logger = createLogger(getVersion());
-    logger.setJsonMode(globalOpts.json, name);
-    logger.configure({
-      verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
-      silent: Boolean(globalOpts.silent) || Boolean(options.silent),
-    });
-
-    try {
-      await handler(logger, options, globalOpts);
-      if (globalOpts.json) {
-        logger.outputJson(true);
-      }
-    } catch (error) {
-      logger.error(formatError(error), errorCode);
-      process.exit(1);
-    }
-  };
+  return _wrapCommand({ name, errorCode, handler, getVersion });
 }
 
 const main = async () => {
@@ -64,7 +46,6 @@ const main = async () => {
   program
     .command("init")
     .description("Initialize rulesync in current directory")
-    .option("-j, --json", "Output results as JSON")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
@@ -76,33 +57,24 @@ const main = async () => {
   program
     .command("gitignore")
     .description("Add generated files to .gitignore")
-    .option("-j, --json", "Output results as JSON")
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to include (e.g., 'claudecode,copilot' or '*' for all)",
-      (value) => {
-        return value
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean);
-      },
+      parseCommaSeparatedList,
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to include (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => {
-        return value
-          .split(",")
-          .map((f) => f.trim())
-          .filter(Boolean);
-      },
+      parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("gitignore", "GITIGNORE_FAILED", async (logger, options) => {
         await gitignoreCommand(logger, {
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           targets: (options as { targets?: string[] }).targets,
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           features: (options as { features?: RulesyncFeatures }).features,
         });
       }),
@@ -118,7 +90,7 @@ const main = async () => {
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => value.split(",").map((f) => f.trim()),
+      parseCommaSeparatedList,
     )
     .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")
     .option("-p, --path <path>", "Subdirectory path within the repository")
@@ -131,12 +103,11 @@ const main = async () => {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("fetch", "FETCH_FAILED", async (logger, options, _globalOpts) => {
-        // Fetch command has positional argument <source> passed as first arg
-        // options here is the second-to-last arg in the original call
-        // We need to extract source from the beginning
-        const opts = options as FetchOptions & { source: string };
-        await fetchCommand(logger, opts);
+      wrapCommand("fetch", "FETCH_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const source = positionalArgs[0] as string;
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        await fetchCommand(logger, { ...(options as FetchOptions), source });
       }),
     );
 
@@ -146,18 +117,19 @@ const main = async () => {
     .option(
       "-t, --targets <tool>",
       "Tool to import from (e.g., 'copilot', 'cursor', 'cline')",
-      (value) => value.split(",").map((t) => t.trim()),
+      parseCommaSeparatedList,
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to import (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => value.split(",").map((f) => f.trim()),
+      parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .option("-g, --global", "Import for global(user scope) configuration files")
     .action(
       wrapCommand("import", "IMPORT_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await importCommand(logger, options as ImportOptions);
       }),
     );
@@ -186,11 +158,17 @@ const main = async () => {
     .action(
       wrapCommand("install", "INSTALL_FAILED", async (logger, options) => {
         await installCommand(logger, {
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           update: (options as { update?: boolean }).update,
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           frozen: (options as { frozen?: boolean }).frozen,
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           token: (options as { token?: string }).token,
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           configPath: (options as { config?: string }).config,
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           verbose: (options as { verbose?: boolean }).verbose,
+          // eslint-disable-next-line no-type-assertion/no-type-assertion
           silent: (options as { silent?: boolean }).silent,
         });
       }),
@@ -202,18 +180,18 @@ const main = async () => {
     .option(
       "-t, --targets <tools>",
       "Comma-separated list of tools to generate for (e.g., 'copilot,cursor,cline' or '*' for all)",
-      (value) => value.split(",").map((t) => t.trim()),
+      parseCommaSeparatedList,
     )
     .option(
       "-f, --features <features>",
       `Comma-separated list of features to generate (${ALL_FEATURES.join(",")}) or '*' for all`,
-      (value) => value.split(",").map((f) => f.trim()),
+      parseCommaSeparatedList,
     )
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
       "-b, --base-dir <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
-      (value) => value.split(",").map((p) => p.trim()),
+      parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
@@ -235,6 +213,7 @@ const main = async () => {
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await generateCommand(logger, options as GenerateOptions);
       }),
     );
@@ -249,6 +228,7 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("update", "UPDATE_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await updateCommand(logger, version, options as UpdateCommandOptions);
       }),
     );

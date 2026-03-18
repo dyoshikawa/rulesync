@@ -1,6 +1,6 @@
 {
   "name": "rulesync",
-  "version": "7.18.2",
+  "version": "7.20.0",
   "description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
   "keywords": [
     "ai",
@@ -54,7 +54,7 @@
     "dev": "tsx src/cli/index.ts",
     "docs:build": "vitepress build docs",
     "docs:dev": "vitepress dev docs",
-    "docs:preview": "vitepress serve docs",
+    "docs:preview": "vitepress preview docs",
     "eslint": "eslint . --max-warnings 0 --cache",
     "eslint:fix": "eslint . --fix --max-warnings 0 --cache",
     "fix": "pnpm run fmt && pnpm run oxlint:fix && pnpm run eslint:fix",
@@ -86,7 +86,6 @@
     "@toon-format/toon": "2.1.0",
     "@valibot/to-json-schema": "1.5.0",
     "commander": "14.0.3",
-    "consola": "3.4.2",
     "effect": "3.19.19",
     "es-toolkit": "1.45.1",
     "fastmcp": "3.34.0",

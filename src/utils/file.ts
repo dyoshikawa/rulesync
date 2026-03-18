@@ -6,7 +6,6 @@ import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
 
 import { formatError } from "./error.js";
-import { logger } from "./logger.js";
 import { isEnvTest } from "./vitest.js";
 
 export async function ensureDir(dirPath: string): Promise<void> {
@@ -110,7 +109,6 @@ export async function directoryExists(dirPath: string): Promise<boolean> {
 }
 
 export async function readFileContent(filepath: string): Promise<string> {
-  logger.debug(`Reading file: ${filepath}`);
   return readFile(filepath, "utf-8");
 }
 
@@ -125,7 +123,6 @@ export async function readFileContentOrNull(filepath: string): Promise<string | 
 }
 
 export async function readFileBuffer(filepath: string): Promise<Buffer> {
-  logger.debug(`Reading file buffer: ${filepath}`);
   return readFile(filepath);
 }
 
@@ -142,15 +139,11 @@ export function addTrailingNewline(content: string): string {
 }
 
 export async function writeFileContent(filepath: string, content: string): Promise<void> {
-  logger.debug(`Writing file: ${filepath}`);
-
   await ensureDir(dirname(filepath));
   await writeFile(filepath, content, "utf-8");
 }
 
 export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise<void> {
-  logger.debug(`Writing file buffer: ${filepath}`);
-
   await ensureDir(dirname(filepath));
   await writeFile(filepath, buffer);
 }
@@ -234,7 +227,6 @@ export async function removeDirectory(dirPath: string): Promise<void> {
   // Safety check: prevent deletion of dangerous paths
   const dangerousPaths = [".", "/", "~", "src", "node_modules"];
   if (dangerousPaths.includes(dirPath) || dirPath === "") {
-    logger.warn(`Skipping deletion of dangerous path: ${dirPath}`);
     return;
   }
 
@@ -242,19 +234,18 @@ export async function removeDirectory(dirPath: string): Promise<void> {
     if (await fileExists(dirPath)) {
       await rm(dirPath, { recursive: true, force: true });
     }
-  } catch (error) {
-    logger.warn(`Failed to remove directory ${dirPath}:`, error);
+  } catch {
+    // Best-effort removal; silently ignore errors
   }
 }
 
 export async function removeFile(filepath: string): Promise<void> {
-  logger.debug(`Removing file: ${filepath}`);
   try {
     if (await fileExists(filepath)) {
       await rm(filepath);
     }
-  } catch (error) {
-    logger.warn(`Failed to remove file ${filepath}:`, error);
+  } catch {
+    // Best-effort removal; silently ignore errors
   }
 }
 
@@ -329,8 +320,7 @@ export async function createTempDirectory(prefix = "rulesync-fetch-"): Promise<s
 export async function removeTempDirectory(tempDir: string): Promise<void> {
   try {
     await rm(tempDir, { recursive: true, force: true });
-    logger.debug(`Removed temp directory: ${tempDir}`);
   } catch {
-    logger.debug(`Failed to clean up temp directory: ${tempDir}`);
+    // Best-effort cleanup; silently ignore errors
   }
 }

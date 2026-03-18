@@ -8,7 +8,7 @@ import {
   performBinaryUpdate,
 } from "../../lib/update.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { Logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 
 /**
  * Update command options
@@ -29,9 +29,7 @@ export async function updateCommand(
   currentVersion: string,
   options: UpdateCommandOptions,
 ): Promise<void> {
-  const { check = false, force = false, verbose = false, silent = false, token } = options;
-
-  logger.configure({ verbose, silent });
+  const { check = false, force = false, token } = options;
 
   try {
     const environment = detectExecutionEnvironment();

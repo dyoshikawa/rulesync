@@ -4,23 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { HooksProcessor } from "./hooks-processor.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
-vi.mock("../../utils/logger.js", () => ({
-  logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
+const logger = createMockLogger();
 
 describe("HooksProcessor", () => {
   let testDir: string;
@@ -39,32 +32,24 @@ describe("HooksProcessor", () => {
 
   describe("constructor", () => {
     it("should create instance with cursor target", () => {
-      const processor = new HooksProcessor({
-        baseDir: testDir,
-        toolTarget: "cursor",
-      });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       expect(processor).toBeInstanceOf(HooksProcessor);
     });
 
     it("should create instance with claudecode target", () => {
-      const processor = new HooksProcessor({
-        baseDir: testDir,
-        toolTarget: "claudecode",
-      });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       expect(processor).toBeInstanceOf(HooksProcessor);
     });
 
     it("should create instance with opencode target", () => {
-      const processor = new HooksProcessor({
-        baseDir: testDir,
-        toolTarget: "opencode",
-      });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "opencode" });
       expect(processor).toBeInstanceOf(HooksProcessor);
     });
 
     it("should throw for invalid tool target", () => {
       expect(() => {
         const _p = new HooksProcessor({
+          logger,
           baseDir: testDir,
           toolTarget: "invalid" as "cursor",
         });
@@ -73,6 +58,7 @@ describe("HooksProcessor", () => {
 
     it("should accept global option for claudecode", () => {
       const processor = new HooksProcessor({
+        logger,
         baseDir: testDir,
         toolTarget: "claudecode",
         global: true,
@@ -92,7 +78,7 @@ describe("HooksProcessor", () => {
         }),
       );
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(RulesyncHooks);
@@ -100,7 +86,7 @@ describe("HooksProcessor", () => {
     });
 
     it("should return empty array when hooks file does not exist", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
       expect(logger.error).toHaveBeenCalledWith(
@@ -123,6 +109,7 @@ describe("HooksProcessor", () => {
       await ensureDir(differentBaseDir);
 
       const processor = new HooksProcessor({
+        logger,
         baseDir: differentBaseDir,
         toolTarget: "claudecode",
         global: true,
@@ -141,14 +128,14 @@ describe("HooksProcessor", () => {
         JSON.stringify({ version: 1, hooks: { sessionStart: [] } }),
       );
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(CursorHooks);
     });
 
     it("should return empty array when Cursor hooks file does not exist", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(0);
       expect(logger.debug).toHaveBeenCalledWith(
@@ -163,14 +150,14 @@ describe("HooksProcessor", () => {
         JSON.stringify({ hooks: { SessionStart: [] } }),
       );
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(ClaudecodeHooks);
     });
 
     it("should load Claudecode hooks when .claude/settings.json does not exist (initializes empty)", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       const files = await processor.loadToolFiles();
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(ClaudecodeHooks);
@@ -179,7 +166,7 @@ describe("HooksProcessor", () => {
 
   describe("loadToolFiles with forDeletion", () => {
     it("should return Cursor hooks file for deletion when path exists", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const files = await processor.loadToolFiles({ forDeletion: true });
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(CursorHooks);
@@ -187,7 +174,7 @@ describe("HooksProcessor", () => {
     });
 
     it("should return empty array for claudecode when forDeletion (not deletable)", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       const files = await processor.loadToolFiles({ forDeletion: true });
       expect(files).toHaveLength(0);
     });
@@ -210,7 +197,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(CursorHooks);
@@ -240,7 +227,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(ClaudecodeHooks);
@@ -252,7 +239,7 @@ describe("HooksProcessor", () => {
     });
 
     it("should throw when no rulesync hooks file in list", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
         `No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} found.`,
       );
@@ -274,7 +261,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(logger.warn).toHaveBeenCalledWith(
@@ -301,7 +288,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "opencode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "opencode" });
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(logger.warn).toHaveBeenCalledWith(
@@ -329,7 +316,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("prompt-type"));
@@ -354,7 +341,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "copilot" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "copilot" });
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(logger.warn).toHaveBeenCalledWith(
@@ -379,7 +366,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "opencode" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "opencode" });
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
@@ -399,7 +386,7 @@ describe("HooksProcessor", () => {
         validate: false,
       });
 
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([cursorHooks]);
       expect(rulesyncFiles).toHaveLength(1);
       expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncHooks);
@@ -408,7 +395,7 @@ describe("HooksProcessor", () => {
     });
 
     it("should filter out non-ToolHooks files", async () => {
-      const processor = new HooksProcessor({ baseDir: testDir, toolTarget: "cursor" });
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([
         { getFilePath: () => "/path" } as ToolHooks,
       ]);

@@ -66,7 +66,6 @@
     "commandhistory",
     "commonalization",
     "confbox",
-    "consola",
     "copilotignore",
     "copilotcli",
     "cursorignore",
@@ -325,6 +324,8 @@
     "KAKEHASHI",
     "redirs",
     "symref",
-    "TOCTOU"
+    "TOCTOU",
+    "worktree",
+    "Worktree"
   ]
 }

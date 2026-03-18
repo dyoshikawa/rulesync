@@ -6,6 +6,7 @@ import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
+import { ConsoleLogger } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
@@ -71,7 +72,8 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
     // eslint-disable-next-line no-type-assertion/no-type-assertion
     const tool = config.getTargets()[0] as ToolTarget;
 
-    const importResult = await importFromTool({ config, tool });
+    const logger = new ConsoleLogger({ verbose: false, silent: true });
+    const importResult = await importFromTool({ config, tool, logger });
 
     return buildSuccessResponse({ importResult, config, tool });
   } catch (error) {

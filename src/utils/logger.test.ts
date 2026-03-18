@@ -1,34 +1,72 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logger } from "./logger.js";
+import type { Logger } from "./logger.js";
+import { ConsoleLogger, JsonLogger } from "./logger.js";
 
 // Mock vitest module
 vi.mock("./vitest.js", () => ({
   isEnvTest: () => false,
 }));
 
-describe("Logger", () => {
+describe.each([
+  { name: "ConsoleLogger", createLogger: () => new ConsoleLogger() as Logger },
+  {
+    name: "JsonLogger",
+    createLogger: () => new JsonLogger({ command: "test", version: "1.0.0" }) as Logger,
+  },
+])("$name configure()", ({ createLogger }) => {
+  let logger: Logger;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset logger state
+    logger = createLogger();
+  });
+
+  it("should set verbose and silent flags", () => {
+    logger.configure({ verbose: true, silent: false });
+    expect(logger.verbose).toBe(true);
+    expect(logger.silent).toBe(false);
+
+    logger.configure({ verbose: false, silent: true });
+    expect(logger.verbose).toBe(false);
+    expect(logger.silent).toBe(true);
+  });
+
+  it("should not warn when only one flag is enabled", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logger.configure({ verbose: true, silent: false });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockClear();
+
+    logger.configure({ verbose: false, silent: true });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it("should not warn when both flags are disabled", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     logger.configure({ verbose: false, silent: false });
-    logger.setJsonMode(false, "");
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+});
+
+describe("ConsoleLogger", () => {
+  let logger: ConsoleLogger;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    logger = new ConsoleLogger();
   });
 
   describe("configure()", () => {
-    it("should set verbose and silent flags", () => {
-      logger.configure({ verbose: true, silent: false });
-      expect(logger.verbose).toBe(true);
-      expect(logger.silent).toBe(false);
-
-      logger.configure({ verbose: false, silent: true });
-      expect(logger.verbose).toBe(false);
-      expect(logger.silent).toBe(true);
-    });
-
     it("should warn when both verbose and silent are enabled", () => {
-      const consoleSpy = logger._getConsole();
-      const warnSpy = vi.spyOn(consoleSpy, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
 
@@ -38,61 +76,39 @@ describe("Logger", () => {
 
       warnSpy.mockRestore();
     });
+  });
 
-    it("should not warn when only one flag is enabled", () => {
-      const consoleSpy = logger._getConsole();
-      const warnSpy = vi.spyOn(consoleSpy, "warn").mockImplementation(() => {});
-
-      logger.configure({ verbose: true, silent: false });
-      expect(warnSpy).not.toHaveBeenCalled();
-
-      warnSpy.mockClear();
-
-      logger.configure({ verbose: false, silent: true });
-      expect(warnSpy).not.toHaveBeenCalled();
-
-      warnSpy.mockRestore();
-    });
-
-    it("should not warn when both flags are disabled", () => {
-      const consoleSpy = logger._getConsole();
-      const warnSpy = vi.spyOn(consoleSpy, "warn").mockImplementation(() => {});
-
-      logger.configure({ verbose: false, silent: false });
-      expect(warnSpy).not.toHaveBeenCalled();
-
-      warnSpy.mockRestore();
+  describe("jsonMode", () => {
+    it("should always return false", () => {
+      expect(logger.jsonMode).toBe(false);
     });
   });
 
   describe("silent mode", () => {
     it("should suppress info messages in silent mode", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: true });
       logger.info("test message");
 
-      expect(infoSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
 
-      infoSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("should suppress success messages in silent mode", () => {
-      const consoleSpy = logger._getConsole();
-      const successSpy = vi.spyOn(consoleSpy, "success").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: true });
       logger.success("test message");
 
-      expect(successSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
 
-      successSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("should suppress warning messages in silent mode", () => {
-      const consoleSpy = logger._getConsole();
-      const warnSpy = vi.spyOn(consoleSpy, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: true });
       logger.warn("test message");
@@ -103,8 +119,7 @@ describe("Logger", () => {
     });
 
     it("should NOT suppress error messages in silent mode", () => {
-      const consoleSpy = logger._getConsole();
-      const errorSpy = vi.spyOn(consoleSpy, "error").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: true });
       logger.error("test error");
@@ -115,72 +130,66 @@ describe("Logger", () => {
     });
 
     it("should suppress debug messages in silent mode", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
       logger.debug("test debug");
 
-      expect(infoSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
 
-      infoSpy.mockRestore();
+      logSpy.mockRestore();
     });
   });
 
   describe("verbose mode", () => {
     it("should show debug messages in verbose mode", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: false });
       logger.debug("test debug");
 
-      expect(infoSpy).toHaveBeenCalledWith("test debug");
+      expect(logSpy).toHaveBeenCalledWith("test debug");
 
-      infoSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("should not show debug messages when verbose is disabled", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: false });
       logger.debug("test debug");
 
-      expect(infoSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
 
-      infoSpy.mockRestore();
+      logSpy.mockRestore();
     });
   });
 
   describe("normal mode", () => {
     it("should show info messages in normal mode", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: false });
       logger.info("test message");
 
-      expect(infoSpy).toHaveBeenCalledWith("test message");
+      expect(logSpy).toHaveBeenCalledWith("test message");
 
-      infoSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("should show success messages in normal mode", () => {
-      const consoleSpy = logger._getConsole();
-      const successSpy = vi.spyOn(consoleSpy, "success").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: false });
       logger.success("test message");
 
-      expect(successSpy).toHaveBeenCalledWith("test message");
+      expect(logSpy).toHaveBeenCalledWith("test message");
 
-      successSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("should show warning messages in normal mode", () => {
-      const consoleSpy = logger._getConsole();
-      const warnSpy = vi.spyOn(consoleSpy, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: false });
       logger.warn("test message");
@@ -191,13 +200,22 @@ describe("Logger", () => {
     });
 
     it("should show error messages in normal mode", () => {
-      const consoleSpy = logger._getConsole();
-      const errorSpy = vi.spyOn(consoleSpy, "error").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       logger.configure({ verbose: false, silent: false });
       logger.error("test error");
 
       expect(errorSpy).toHaveBeenCalledWith("test error");
+
+      errorSpy.mockRestore();
+    });
+
+    it("should extract message from Error objects", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      logger.error(new Error("error object message"));
+
+      expect(errorSpy).toHaveBeenCalledWith("error object message");
 
       errorSpy.mockRestore();
     });
@@ -205,68 +223,109 @@ describe("Logger", () => {
 
   describe("precedence", () => {
     it("should prioritize silent mode over verbose mode", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
-      const errorSpy = vi.spyOn(consoleSpy, "error").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
 
       // Debug should not show (suppressed by silent)
       logger.debug("test debug");
-      expect(infoSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
 
       // Info should not show (suppressed by silent)
       logger.info("test info");
-      expect(infoSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
 
       // Errors should still show
       logger.error("test error");
       expect(errorSpy).toHaveBeenCalledWith("test error");
 
-      infoSpy.mockRestore();
+      logSpy.mockRestore();
       errorSpy.mockRestore();
     });
   });
 
-  describe("JSON mode", () => {
-    it("should enable JSON mode", () => {
-      logger.setJsonMode(true, "test");
-      expect(logger.jsonMode).toBe(true);
+  describe("captureData and outputJson", () => {
+    it("captureData should be a no-op", () => {
+      logger.captureData("key", "value");
+      expect(logger.getJsonData()).toEqual({});
     });
 
-    it("should capture data in JSON mode", () => {
-      logger.setJsonMode(true, "test");
+    it("outputJson should be a no-op", () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      logger.outputJson(true);
+      logger.outputJson(false, { code: "ERR", message: "fail" });
+
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+  });
+});
+
+describe("JsonLogger", () => {
+  let logger: JsonLogger;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    logger = new JsonLogger({ command: "test", version: "1.0.0" });
+  });
+
+  describe("configure()", () => {
+    it("should NOT warn when both verbose and silent are enabled (JSON mode suppresses warning)", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      logger.configure({ verbose: true, silent: true });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      // Silent should take precedence
+      expect(logger.verbose).toBe(false);
+      expect(logger.silent).toBe(true);
+
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe("jsonMode", () => {
+    it("should always return true", () => {
+      expect(logger.jsonMode).toBe(true);
+    });
+  });
+
+  describe("captureData", () => {
+    it("should capture data", () => {
       logger.captureData("key", "value");
       expect(logger.getJsonData()).toEqual({ key: "value" });
     });
+  });
 
-    it("should suppress console output in JSON mode", () => {
-      const consoleSpy = logger._getConsole();
-      const infoSpy = vi.spyOn(consoleSpy, "info").mockImplementation(() => {});
-      const successSpy = vi.spyOn(consoleSpy, "success").mockImplementation(() => {});
-      const warnSpy = vi.spyOn(consoleSpy, "warn").mockImplementation(() => {});
-
-      logger.setJsonMode(true, "test");
-      logger.configure({ verbose: false, silent: false });
+  describe("console output suppression", () => {
+    it("should suppress info, success, warn, and debug messages", () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.info("test message");
       logger.success("test success");
       logger.warn("test warn");
+      logger.debug("test debug");
 
-      expect(infoSpy).not.toHaveBeenCalled();
-      expect(successSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
       expect(warnSpy).not.toHaveBeenCalled();
 
-      infoSpy.mockRestore();
-      successSpy.mockRestore();
+      logSpy.mockRestore();
       warnSpy.mockRestore();
     });
+  });
 
+  describe("outputJson", () => {
     it("should output JSON on success", () => {
-      logger.setJsonMode(true, "test");
       logger.captureData("test", "data");
 
-      // Mock console.log
       const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       logger.outputJson(true);
@@ -277,15 +336,12 @@ describe("Logger", () => {
       expect(output.command).toBe("test");
       expect(output.data.test).toBe("data");
       expect(output.timestamp).toBeDefined();
-      expect(output.version).toBeDefined();
+      expect(output.version).toBe("1.0.0");
 
       logSpy.mockRestore();
     });
 
     it("should output JSON on error", () => {
-      logger.setJsonMode(true, "test");
-
-      // Mock console.error
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       logger.outputJson(false, { code: "TEST_ERROR", message: "Test error" });
@@ -299,8 +355,20 @@ describe("Logger", () => {
       errorSpy.mockRestore();
     });
 
+    it("should only output once (guard against duplicate output)", () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      logger.outputJson(true);
+      logger.outputJson(true);
+
+      expect(logSpy).toHaveBeenCalledOnce();
+
+      logSpy.mockRestore();
+    });
+  });
+
+  describe("error", () => {
     it("should output JSON error with stack trace in verbose mode", () => {
-      logger.setJsonMode(true, "test");
       logger.configure({ verbose: true, silent: false });
 
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -312,6 +380,22 @@ describe("Logger", () => {
       const output = JSON.parse(errorSpy.mock.calls[0]![0] as string);
       expect(output.success).toBe(false);
       expect(output.error.stack).toBeDefined();
+
+      errorSpy.mockRestore();
+    });
+
+    it("should output JSON error without stack trace when not verbose", () => {
+      logger.configure({ verbose: false, silent: false });
+
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const error = new Error("Test error");
+      logger.error(error, "TEST_ERROR");
+
+      expect(errorSpy).toHaveBeenCalledOnce();
+      const output = JSON.parse(errorSpy.mock.calls[0]![0] as string);
+      expect(output.success).toBe(false);
+      expect(output.error.stack).toBeUndefined();
 
       errorSpy.mockRestore();
     });

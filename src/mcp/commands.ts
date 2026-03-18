@@ -17,7 +17,9 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
-import { logger } from "../utils/logger.js";
+import { ConsoleLogger } from "../utils/logger.js";
+
+const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 const maxCommandSizeBytes = 1024 * 1024; // 1MB
 const maxCommandsCount = 1000;

@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
-import { logger } from "../../utils/logger.js";
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
   filterGitignoreEntries,
 } from "./gitignore-entries.js";
+
+const logger = createMockLogger();
 
 // These targets intentionally have no gitignore entries because they either
 // don't generate files (e.g., agentsskills) or share paths with their
@@ -61,7 +63,7 @@ describe("filterGitignoreEntries", () => {
 
   describe("target filtering", () => {
     it("should return only matching target entries plus common entries", () => {
-      const result = filterGitignoreEntries({ targets: ["claudecode"] });
+      const result = filterGitignoreEntries({ logger, targets: ["claudecode"] });
 
       // Should include common entries
       expect(result).toContain(".rulesync/skills/.curated/");
@@ -80,7 +82,7 @@ describe("filterGitignoreEntries", () => {
     });
 
     it("should support multiple targets", () => {
-      const result = filterGitignoreEntries({ targets: ["claudecode", "copilot"] });
+      const result = filterGitignoreEntries({ logger, targets: ["claudecode", "copilot"] });
 
       expect(result).toContain("**/CLAUDE.md");
       expect(result).toContain("**/.github/instructions/");
@@ -88,14 +90,14 @@ describe("filterGitignoreEntries", () => {
     });
 
     it("should return all entries when target is wildcard", () => {
-      const result = filterGitignoreEntries({ targets: ["*"] });
+      const result = filterGitignoreEntries({ logger, targets: ["*"] });
       expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
     });
   });
 
   describe("feature filtering", () => {
     it("should return only matching feature entries plus general entries", () => {
-      const result = filterGitignoreEntries({ features: ["rules"] });
+      const result = filterGitignoreEntries({ logger, features: ["rules"] });
 
       // Should include common/general entries
       expect(result).toContain(".rulesync/skills/.curated/");
@@ -116,7 +118,7 @@ describe("filterGitignoreEntries", () => {
     });
 
     it("should support multiple features", () => {
-      const result = filterGitignoreEntries({ features: ["rules", "commands"] });
+      const result = filterGitignoreEntries({ logger, features: ["rules", "commands"] });
 
       expect(result).toContain("**/CLAUDE.md");
       expect(result).toContain("**/.claude/commands/");
@@ -125,7 +127,7 @@ describe("filterGitignoreEntries", () => {
     });
 
     it("should return all entries when feature is wildcard", () => {
-      const result = filterGitignoreEntries({ features: ["*"] });
+      const result = filterGitignoreEntries({ logger, features: ["*"] });
       expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
     });
   });
@@ -245,41 +247,56 @@ describe("filterGitignoreEntries", () => {
     });
 
     it("should warn when an invalid target is provided", () => {
-      filterGitignoreEntries({ targets: ["unknown-target"] });
+      filterGitignoreEntries({ logger, targets: ["unknown-target"] });
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Unknown target 'unknown-target'"),
       );
     });
 
     it("should warn for each invalid target", () => {
-      filterGitignoreEntries({ targets: ["claudecode", "foo", "bar"] });
+      filterGitignoreEntries({ logger, targets: ["claudecode", "foo", "bar"] });
       expect(warnSpy).toHaveBeenCalledTimes(2);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown target 'foo'"));
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown target 'bar'"));
     });
 
     it("should not warn for valid targets", () => {
-      filterGitignoreEntries({ targets: ["claudecode", "copilot", "*"] });
+      filterGitignoreEntries({ logger, targets: ["claudecode", "copilot", "*"] });
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it("should warn when an invalid feature is provided (array format)", () => {
-      filterGitignoreEntries({ features: ["rules", "unknown-feat" as any] });
+      filterGitignoreEntries({ logger, features: ["rules", "unknown-feat" as any] });
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Unknown feature 'unknown-feat'"),
       );
     });
 
     it("should warn when an invalid feature is provided (object format)", () => {
-      filterGitignoreEntries({ features: { claudecode: ["rules", "unknown-feat" as any] } });
+      filterGitignoreEntries({
+        logger,
+        features: { claudecode: ["rules", "unknown-feat" as any] },
+      });
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Unknown feature 'unknown-feat'"),
       );
     });
 
     it("should not warn for valid features", () => {
-      filterGitignoreEntries({ features: ["rules", "commands", "*"] });
+      filterGitignoreEntries({ logger, features: ["rules", "commands", "*"] });
       expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should deduplicate warnings for the same invalid feature across targets (object format)", () => {
+      filterGitignoreEntries({
+        logger,
+        features: {
+          claudecode: ["bogus" as any],
+          copilot: ["bogus" as any],
+        },
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown feature 'bogus'"));
     });
   });
 
