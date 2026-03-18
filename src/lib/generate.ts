@@ -145,11 +145,6 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  const { skipIgnoreTargets, skipPermissionsTargets } = resolveClaudecodeIgnorePermissionsConflict({
-    config,
-    logger,
-  });
-
   // generateIgnoreCore must run before generatePermissionsCore.
   // Both features write to .claude/settings.json's permissions.deny key.
   // The permissions feature preserves Read() entries written by the ignore feature.
@@ -157,7 +152,6 @@ export async function generate(params: {
   const ignoreResult = await generateIgnoreCore({
     config,
     logger,
-    skipTargets: skipIgnoreTargets,
   });
   const mcpResult = await generateMcpCore({ config, logger });
   const commandsResult = await generateCommandsCore({ config, logger });
@@ -168,7 +162,6 @@ export async function generate(params: {
     config,
     logger,
     ignoreResult,
-    skipTargets: skipPermissionsTargets,
   });
   const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 
@@ -202,31 +195,6 @@ export async function generate(params: {
     skills: skillsResult.skills,
     hasDiff,
   };
-}
-
-function resolveClaudecodeIgnorePermissionsConflict(params: { config: Config; logger: Logger }): {
-  skipIgnoreTargets: ToolTarget[];
-  skipPermissionsTargets: ToolTarget[];
-} {
-  const { config, logger } = params;
-  if (!config.getTargets().includes("claudecode")) {
-    return { skipIgnoreTargets: [], skipPermissionsTargets: [] };
-  }
-
-  const claudecodeFeatures = config.getFeatures("claudecode");
-  const hasClaudecodeIgnore = claudecodeFeatures.includes("ignore");
-  const hasClaudecodePermissions = claudecodeFeatures.includes("permissions");
-  if (hasClaudecodeIgnore && hasClaudecodePermissions) {
-    const hasPerTargetFeatures = config.hasPerTargetFeatures();
-    const skipIgnoreTargets: ToolTarget[] = hasPerTargetFeatures ? [] : ["claudecode"];
-    logger.warn(
-      hasPerTargetFeatures
-        ? "Claude Code ignore and permissions cannot be generated together. Skipping permissions for Claude Code. Run them separately to preserve both; combined generation is not lossless."
-        : "Claude Code ignore and permissions cannot be generated together. Skipping permissions for Claude Code to continue. Run them separately to preserve both; combined generation is not lossless.",
-    );
-    return { skipIgnoreTargets, skipPermissionsTargets: ["claudecode"] };
-  }
-  return { skipIgnoreTargets: [], skipPermissionsTargets: [] };
 }
 
 async function generateRulesCore(params: {

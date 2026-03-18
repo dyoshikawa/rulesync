@@ -286,9 +286,8 @@ describe("generate", () => {
     });
   });
 
-  describe("claudecode ignore and permissions conflict", () => {
-    it("should warn and skip permissions when generating ignore and permissions together", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
+  describe("claudecode ignore and permissions orchestration", () => {
+    it("should generate ignore and permissions for claudecode together", async () => {
       mockConfig.getTargets.mockReturnValue(["claudecode"]);
       mockConfig.getFeatures.mockImplementation((target?: string) => {
         if (target === "claudecode") {
@@ -296,22 +295,17 @@ describe("generate", () => {
         }
         return ["ignore", "permissions"];
       });
-      mockConfig.hasPerTargetFeatures.mockReturnValue(true);
 
       const result = await generate({ config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(1);
-      expect(result.permissionsCount).toBe(0);
-      expect(warnSpy).toHaveBeenCalledWith(
-        "Claude Code ignore and permissions cannot be generated together. Skipping permissions for Claude Code. Run them separately to preserve both; combined generation is not lossless.",
-      );
-      warnSpy.mockRestore();
+      expect(result.permissionsCount).toBe(1);
+      expect(IgnoreProcessor).toHaveBeenCalled();
+      expect(PermissionsProcessor).toHaveBeenCalled();
     });
 
-    it("should skip only claudecode permissions with per-target features", async () => {
-      const warnSpy = vi.spyOn(logger, "warn");
+    it("should process both features when enabled per target", async () => {
       mockConfig.getTargets.mockReturnValue(["claudecode", "opencode"]);
-      mockConfig.hasPerTargetFeatures.mockReturnValue(true);
       mockConfig.getFeatures.mockImplementation((target?: string) => {
         if (target === "claudecode") {
           return ["ignore", "permissions"];
@@ -325,11 +319,7 @@ describe("generate", () => {
       const result = await generate({ config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(1);
-      expect(result.permissionsCount).toBe(0);
-      expect(warnSpy).toHaveBeenCalledWith(
-        "Claude Code ignore and permissions cannot be generated together. Skipping permissions for Claude Code. Run them separately to preserve both; combined generation is not lossless.",
-      );
-      warnSpy.mockRestore();
+      expect(result.permissionsCount).toBe(1);
     });
   });
 

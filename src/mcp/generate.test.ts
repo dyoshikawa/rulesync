@@ -7,7 +7,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 import { executeGenerate, type McpGenerateResult } from "./generate.js";
 
 describe("MCP Generate Tools", () => {
@@ -170,11 +170,10 @@ targets: ["agentsmd"]
       expect(result.config?.features.length).toBeGreaterThan(1);
     });
 
-    it("should skip claudecode permissions when ignore is also enabled", async () => {
+    it("should generate ignore and permissions together for claudecode", async () => {
       const rulesyncDir = join(testDir, ".rulesync");
       await ensureDir(rulesyncDir);
       await ensureDir(join(rulesyncDir, "rules"));
-
       await writeFileContent(
         join(rulesyncDir, "rules/overview.md"),
         `---
@@ -183,6 +182,15 @@ targets: ["*"]
 ---
 # Overview`,
       );
+      await writeFileContent(join(rulesyncDir, ".aiignore"), "node_modules\n.env\n");
+      await writeFileContent(
+        join(rulesyncDir, "permissions.json"),
+        JSON.stringify({
+          permissions: {
+            bash: { "rm -rf *": "deny" },
+          },
+        }),
+      );
 
       const result = await executeGenerate({
         targets: ["claudecode"],
@@ -190,6 +198,12 @@ targets: ["*"]
       });
 
       expect(result.success).toBe(true);
+      expect(result.result?.ignoreCount).toBeGreaterThanOrEqual(0);
+      expect(result.result?.permissionsCount).toBeGreaterThanOrEqual(0);
+
+      const settingsRaw = await readFileContent(join(testDir, ".claude", "settings.json"));
+      const settings = JSON.parse(settingsRaw) as { permissions?: { deny?: string[] } };
+      expect(settings.permissions?.deny).toEqual(expect.arrayContaining(["Bash(rm -rf *)"]));
     });
 
     it("should return generation counts in result", async () => {
