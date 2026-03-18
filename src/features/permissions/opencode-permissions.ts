@@ -38,12 +38,12 @@ async function resolveOpencodeConfigFile(
   const jsonPath = join(jsonDir, "opencode.json");
 
   const jsoncContent = await readFileContentOrNull(jsoncPath);
-  if (jsoncContent) {
+  if (jsoncContent !== null) {
     return { fileContent: jsoncContent, relativeFilePath: "opencode.jsonc" };
   }
 
   const jsonContent = await readFileContentOrNull(jsonPath);
-  if (jsonContent) {
+  if (jsonContent !== null) {
     return { fileContent: jsonContent, relativeFilePath: "opencode.json" };
   }
 

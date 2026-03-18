@@ -259,6 +259,7 @@ You can control which individual tools from an MCP server are enabled or disable
 Permissions define tool-level access controls (allow/ask/deny) for AI coding tools. Each entry specifies a tool, a pattern, and an action.
 
 - **Supported targets:** Claude Code (`claudecode`), OpenCode (`opencode`), Codex CLI (`codexcli`)
+- Codex CLI permissions are generate-only (import is not supported).
 - Codex CLI only supports `bash` tool permissions; non-bash entries are skipped with a warning.
 
 Example:
@@ -285,7 +286,7 @@ Example:
 **Tool-specific output:**
 
 - **Claude Code** (`.claude/settings.json`): Stored as `{ "permissions": { "allow": ["Bash(npm *)"], "deny": ["Bash(rm -rf *)"] } }` with PascalCase tool names
-- **OpenCode** (`opencode.json`): Stored as `{ "permission": { "bash": { "npm *": "allow" } } }` with lowercase tool names
+- **OpenCode** (`opencode.jsonc`, preferred): Stored as `{ "permission": { "bash": { "npm *": "allow" } } }` with lowercase tool names (Rulesync writes `opencode.jsonc` when present; `opencode.json` is supported for legacy)
 - **Codex CLI** (`.codex/config.toml`): Stored as TOML `rules.prefix_rules` with action mappings (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
 
 #### JSON Schema Support

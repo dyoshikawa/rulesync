@@ -1,6 +1,6 @@
 # Supported Tools and Features
 
-Rulesync supports both **generation** and **import** for All of the major AI coding tools:
+Rulesync supports both **generation** and **import** for most major AI coding tools (see Codex CLI permissions note below):
 
 | Tool               | --targets    | rules | ignore |   mcp    | commands | subagents | skills | hooks | permissions |
 | ------------------ | ------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: |
@@ -31,3 +31,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 - 🌏: Supports global mode
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
+
+Notes:
+
+- Codex CLI permissions are generate-only (import is not supported).

@@ -14,7 +14,7 @@
 
 **[Documentation](https://dyoshikawa.github.io/rulesync/)** | **[npm](https://www.npmjs.com/package/rulesync)**
 
-A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities, and supports major AI development tools with rules, commands, MCP, ignore files, subagents and skills.
+A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files. Features selective generation, comprehensive import/export capabilities (with some feature-specific limits), and supports major AI development tools with rules, commands, MCP, ignore files, subagents and skills.
 
 > [!NOTE]
 > If you are interested in Rulesync latest news, please follow the maintainer's X(Twitter) account:
@@ -92,6 +92,10 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 - 🌏: Supports global mode
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
+
+Notes:
+
+- Codex CLI permissions are generate-only (import is not supported).
 
 ## Documentation
 
