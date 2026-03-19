@@ -8,6 +8,7 @@ import {
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_HOOKS_FILE_NAME,
   RULESYNC_MCP_FILE_NAME,
+  RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
@@ -52,6 +53,7 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   ignore: [RULESYNC_AIIGNORE_FILE_NAME],
   mcp: [RULESYNC_MCP_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME],
+  permissions: [RULESYNC_PERMISSIONS_FILE_NAME],
 };
 
 /**

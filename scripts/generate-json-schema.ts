@@ -9,8 +9,10 @@ import { ConfigFileSchema } from "../src/config/config.js";
 import {
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_PERMISSIONS_SCHEMA_URL,
 } from "../src/constants/rulesync-paths.js";
 import { RulesyncMcpFileSchema } from "../src/features/mcp/rulesync-mcp.js";
+import { RulesyncPermissionsFileSchema } from "../src/types/permissions.js";
 
 type SchemaMeta = {
   $id: string;
@@ -56,5 +58,16 @@ generateSchema(
   mcpOutputPath,
 );
 
+const permissionsOutputPath = join(process.cwd(), "permissions-schema.json");
+generateSchema(
+  RulesyncPermissionsFileSchema,
+  {
+    $id: RULESYNC_PERMISSIONS_SCHEMA_URL,
+    title: "Rulesync Permissions Configuration",
+    description: "Permissions configuration file for Rulesync CLI tool",
+  },
+  permissionsOutputPath,
+);
+
 // Format generated schema files with oxfmt for consistent formatting
-execFileSync("npx", ["oxfmt", outputPath, mcpOutputPath]);
+execFileSync("npx", ["oxfmt", outputPath, mcpOutputPath, permissionsOutputPath]);
