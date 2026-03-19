@@ -252,9 +252,8 @@ async function generateRulesCore(params: {
 async function generateIgnoreCore(params: {
   config: Config;
   logger: Logger;
-  skipTargets?: ToolTarget[];
 }): Promise<FeatureGenerateResult> {
-  const { config, logger, skipTargets = [] } = params;
+  const { config, logger } = params;
 
   const supportedIgnoreTargets = IgnoreProcessor.getToolTargets();
   warnUnsupportedTargets({
@@ -278,9 +277,6 @@ async function generateIgnoreCore(params: {
       continue;
     }
 
-    if (skipTargets.includes(toolTarget)) {
-      continue;
-    }
     for (const baseDir of config.getBaseDirs()) {
       try {
         const processor = new IgnoreProcessor({
@@ -613,9 +609,10 @@ async function generatePermissionsCore(params: {
   /** Required to enforce that ignore generation has completed before permissions generation.
    * Both features write to .claude/settings.json's permissions.deny key. */
   ignoreResult: FeatureGenerateResult;
-  skipTargets?: ToolTarget[];
 }): Promise<FeatureGenerateResult> {
-  const { config, skipTargets = [] } = params;
+  // Ensure ignore generation completed before permissions (compile-time + runtime ordering)
+  void params.ignoreResult;
+  const { config, logger } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -634,9 +631,6 @@ async function generatePermissionsCore(params: {
 
   for (const baseDir of config.getBaseDirs()) {
     for (const toolTarget of toolTargets) {
-      if (skipTargets.includes(toolTarget)) {
-        continue;
-      }
       if (!config.getFeatures(toolTarget).includes("permissions")) {
         continue;
       }
@@ -645,6 +639,7 @@ async function generatePermissionsCore(params: {
         baseDir,
         toolTarget,
         dryRun: config.isPreviewMode(),
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
