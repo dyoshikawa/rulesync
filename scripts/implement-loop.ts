@@ -1,57 +1,19 @@
 // oxlint-disable no-console
 
 import { createOpencode } from "@opencode-ai/sdk";
-import type { OpencodeClient } from "@opencode-ai/sdk";
 import { z } from "zod/mini";
-import type { ZodMiniType } from "zod/mini";
 
 import { formatError } from "../src/utils/error.js";
-
-type SessionContext = {
-  client: OpencodeClient;
-  sessionId: string;
-};
-
-const sendPrompt = async ({
-  client,
-  sessionId,
-  text,
-}: SessionContext & { text: string }): Promise<string> => {
-  const result = await client.session.prompt({
-    path: { id: sessionId },
-    body: {
-      parts: [{ type: "text", text }],
-    },
-  });
-  if (!result.data) {
-    throw new Error(`Prompt failed: ${JSON.stringify(result.error)}`);
-  }
-  const textParts = result.data.parts.filter((p) => p.type === "text");
-  return textParts.map((p) => ("text" in p ? p.text : "")).join("\n");
-};
-
-const sendPromptWithJsonParse = async <T>({
-  client,
-  sessionId,
-  text,
-  schema,
-}: SessionContext & {
-  text: string;
-  schema: ZodMiniType<T>;
-}): Promise<T> => {
-  const raw = await sendPrompt({ client, sessionId, text });
-  const jsonMatches = [...raw.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const lastMatch = jsonMatches.at(-1);
-  if (!lastMatch?.[1]) {
-    throw new Error(`Expected JSON code block in response. Raw output:\n${raw.slice(0, 500)}`);
-  }
-  const jsonStr = lastMatch[1].trim();
-  try {
-    return schema.parse(JSON.parse(jsonStr));
-  } catch (cause) {
-    throw new Error(`Failed to parse JSON response. Raw output:\n${raw.slice(0, 500)}`, { cause });
-  }
-};
+import {
+  MAX_REVIEW_FIX_RETRIES,
+  sendPrompt,
+  sendPromptWithJsonParse,
+  stepCheckMergeBlockers,
+  stepCreateScrapIssue,
+  stepFixAndCommitPush,
+  stepReviewPr,
+} from "./opencode-helpers.js";
+import type { SessionContext } from "./opencode-helpers.js";
 
 const InvestigationResultSchema = z.looseObject({
   plan: z.string(),
@@ -66,27 +28,6 @@ const ImplementationResultSchema = z.looseObject({
   remainingWork: z.optional(z.string()),
 });
 type ImplementationResult = z.infer<typeof ImplementationResultSchema>;
-
-const ReviewResultSchema = z.looseObject({
-  findings: z.array(
-    z.looseObject({
-      number: z.number(),
-      severity: z.enum(["low", "mid", "high", "critical"]),
-      description: z.string(),
-      file: z.optional(z.string()),
-      line: z.optional(z.number()),
-    }),
-  ),
-  overallSummary: z.string(),
-});
-type ReviewResult = z.infer<typeof ReviewResultSchema>;
-
-const MergeBlockerCheckResultSchema = z.looseObject({
-  hasMergeBlockers: z.boolean(),
-  mergeBlockers: z.array(z.string()),
-  nonBlockingFindings: z.array(z.string()),
-});
-type MergeBlockerCheckResult = z.infer<typeof MergeBlockerCheckResultSchema>;
 
 const step1Investigate = async ({
   client,
@@ -197,101 +138,7 @@ const step4CommitPushPr = async ({ client, sessionId }: SessionContext): Promise
   });
 };
 
-const step5ReviewPr = async ({ client, sessionId }: SessionContext): Promise<ReviewResult> => {
-  console.log("\n=== Step 5: Review PR ===");
-  return sendPromptWithJsonParse({
-    client,
-    sessionId,
-    schema: ReviewResultSchema,
-    text: `Execute the /review-pr skill on the current branch's PR. Review the code changes for both code quality and security issues.
-
-After the review, respond ONLY with a JSON block:
-\`\`\`json
-{
-  "findings": [
-    {
-      "number": 1,
-      "severity": "low|mid|high|critical",
-      "description": "description of the finding",
-      "file": "optional file path",
-      "line": 0
-    }
-  ],
-  "overallSummary": "overall review summary"
-}
-\`\`\``,
-  });
-};
-
-const step6CheckMergeBlockers = async ({
-  client,
-  sessionId,
-  reviewResult,
-}: SessionContext & { reviewResult: ReviewResult }): Promise<MergeBlockerCheckResult> => {
-  console.log("\n=== Step 6: Check Merge Blockers ===");
-  return sendPromptWithJsonParse({
-    client,
-    sessionId,
-    schema: MergeBlockerCheckResultSchema,
-    text: `Analyze the following review findings and determine which are merge blockers.
-
-Merge blockers are findings with severity "high" or "critical" that indicate:
-- Security vulnerabilities
-- Data loss risks
-- Breaking changes without migration
-- Critical bugs
-
-## Review Findings
-${JSON.stringify(reviewResult.findings, null, 2)}
-
-Respond ONLY with a JSON block:
-\`\`\`json
-{
-  "hasMergeBlockers": true or false,
-  "mergeBlockers": ["list of merge blocker descriptions"],
-  "nonBlockingFindings": ["list of non-blocking finding descriptions"]
-}
-\`\`\``,
-  });
-};
-
-const step7FixAndPush = async ({
-  client,
-  sessionId,
-  mergeBlockers,
-}: SessionContext & { mergeBlockers: string[] }): Promise<string> => {
-  console.log("\n=== Step 7: Fix Merge Blockers and Push ===");
-  return sendPrompt({
-    client,
-    sessionId,
-    text: `The following merge blockers were identified in the review. Fix them all:
-
-${mergeBlockers.map((b, i) => `${i + 1}. ${b}`).join("\n")}
-
-After fixing, execute the /commit-push-pr skill to commit and push the changes.
-Report back when done.`,
-  });
-};
-
-const step8CreateScrapIssue = async ({
-  client,
-  sessionId,
-  nonBlockingFindings,
-}: SessionContext & { nonBlockingFindings: string[] }): Promise<string> => {
-  console.log("\n=== Step 8: Create Scrap Issue for Non-blocking Findings ===");
-  return sendPrompt({
-    client,
-    sessionId,
-    text: `Execute the /create-scrap-issue skill to create a GitHub issue for the following non-blocking review findings that should be addressed later:
-
-${nonBlockingFindings.map((f, i) => `${i + 1}. ${f}`).join("\n")}
-
-Create a single issue consolidating all these findings.`,
-  });
-};
-
 const MAX_IMPLEMENTATION_RETRIES = 3;
-const MAX_REVIEW_FIX_RETRIES = 3;
 
 const main = async () => {
   const instruction = process.argv.slice(2).join(" ");
@@ -352,12 +199,12 @@ const main = async () => {
     console.log(`PR result: ${prResult}`);
 
     // Step 5: Review PR
-    const reviewResult = await step5ReviewPr({ client, sessionId });
+    const reviewResult = await stepReviewPr({ client, sessionId });
     console.log(`Review summary: ${reviewResult.overallSummary}`);
     console.log(`Findings: ${reviewResult.findings.length}`);
 
     // Step 6: Check merge blockers and fix if needed
-    let mergeBlockerCheck = await step6CheckMergeBlockers({
+    let mergeBlockerCheck = await stepCheckMergeBlockers({
       client,
       sessionId,
       reviewResult,
@@ -371,15 +218,15 @@ const main = async () => {
       );
 
       // Step 7: Fix merge blockers and push
-      await step7FixAndPush({
+      await stepFixAndCommitPush({
         client,
         sessionId,
         mergeBlockers: mergeBlockerCheck.mergeBlockers,
       });
 
       // Re-review after fixes
-      const reReviewResult = await step5ReviewPr({ client, sessionId });
-      mergeBlockerCheck = await step6CheckMergeBlockers({
+      const reReviewResult = await stepReviewPr({ client, sessionId });
+      mergeBlockerCheck = await stepCheckMergeBlockers({
         client,
         sessionId,
         reviewResult: reReviewResult,
@@ -396,7 +243,7 @@ const main = async () => {
       console.log(
         `Creating scrap issue for ${mergeBlockerCheck.nonBlockingFindings.length} non-blocking findings...`,
       );
-      const issueResult = await step8CreateScrapIssue({
+      const issueResult = await stepCreateScrapIssue({
         client,
         sessionId,
         nonBlockingFindings: mergeBlockerCheck.nonBlockingFindings,
