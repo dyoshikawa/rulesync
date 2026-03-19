@@ -6,7 +6,7 @@ import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { logger } from "../../utils/logger.js";
+import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -91,12 +91,14 @@ export class PermissionsProcessor extends FeatureProcessor {
     baseDir = process.cwd(),
     toolTarget,
     dryRun = false,
+    logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     dryRun?: boolean;
+    logger: Logger;
   }) {
-    super({ baseDir, dryRun });
+    super({ baseDir, dryRun, logger });
     const result = PermissionsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -115,7 +117,7 @@ export class PermissionsProcessor extends FeatureProcessor {
         }),
       ];
     } catch (error) {
-      logger.error(
+      this.logger.error(
         `Failed to load Rulesync permissions file (${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       return [];
@@ -137,7 +139,7 @@ export class PermissionsProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
         });
         const list = toolPermissions.isDeletable?.() !== false ? [toolPermissions] : [];
-        logger.debug(
+        this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} permissions files for deletion`,
         );
         return list;
@@ -147,14 +149,14 @@ export class PermissionsProcessor extends FeatureProcessor {
         baseDir: this.baseDir,
         validate: true,
       });
-      logger.debug(`Successfully loaded 1 ${this.toolTarget} permissions file`);
+      this.logger.debug(`Successfully loaded 1 ${this.toolTarget} permissions file`);
       return [toolPermissions];
     } catch (error) {
       const msg = `Failed to load permissions files for tool target: ${this.toolTarget}: ${formatError(error)}`;
       if (error instanceof Error && error.message.includes("no such file or directory")) {
-        logger.debug(msg);
+        this.logger.debug(msg);
       } else {
-        logger.error(msg);
+        this.logger.error(msg);
       }
       return [];
     }
@@ -175,6 +177,7 @@ export class PermissionsProcessor extends FeatureProcessor {
       baseDir: this.baseDir,
       rulesyncPermissions,
       validate: true,
+      logger: this.logger,
     });
     return [toolPermissions];
   }

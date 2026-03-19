@@ -6,7 +6,6 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionEntry } from "../../types/permissions.js";
 import { buildRulesyncPermissionsFileContent } from "../../types/permissions.js";
 import { readOrInitializeFileContent } from "../../utils/file.js";
-import { logger } from "../../utils/logger.js";
 import type { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -84,6 +83,7 @@ export class CodexcliPermissions extends ToolPermissions {
     baseDir = process.cwd(),
     rulesyncPermissions,
     validate = true,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CodexcliPermissions> {
     const paths = this.getSettablePaths();
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
@@ -105,7 +105,7 @@ export class CodexcliPermissions extends ToolPermissions {
     }
 
     if (skippedTools.size > 0) {
-      logger.warn(
+      logger?.warn(
         `Codex CLI only supports bash permissions. Skipped tool(s): ${[...skippedTools].join(", ")}`,
       );
     }

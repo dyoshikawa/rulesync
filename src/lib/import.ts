@@ -380,6 +380,7 @@ async function importPermissionsCore(params: {
   const permissionsProcessor = new PermissionsProcessor({
     baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
+    logger,
   });
 
   const toolFiles = await permissionsProcessor.loadToolFiles();

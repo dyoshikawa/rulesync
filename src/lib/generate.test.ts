@@ -296,7 +296,7 @@ describe("generate", () => {
         return ["ignore", "permissions"];
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(1);
       expect(result.permissionsCount).toBe(1);
@@ -316,7 +316,7 @@ describe("generate", () => {
         return [];
       });
 
-      const result = await generate({ config: mockConfig as never });
+      const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.ignoreCount).toBe(1);
       expect(result.permissionsCount).toBe(1);

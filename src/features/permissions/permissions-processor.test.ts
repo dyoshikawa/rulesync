@@ -3,9 +3,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
+
+const logger = createMockLogger();
 
 describe("PermissionsProcessor", () => {
   let testDir: string;
@@ -24,20 +27,20 @@ describe("PermissionsProcessor", () => {
   describe("constructor", () => {
     it("should accept valid tool targets", () => {
       expect(
-        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "claudecode" }),
+        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "claudecode", logger }),
       ).not.toThrow();
       expect(
-        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "opencode" }),
+        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "opencode", logger }),
       ).not.toThrow();
       expect(
-        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "codexcli" }),
+        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "codexcli", logger }),
       ).not.toThrow();
     });
 
     it("should reject invalid tool targets", () => {
-      expect(() => new PermissionsProcessor({ baseDir: testDir, toolTarget: "cursor" })).toThrow(
-        "Invalid tool target for PermissionsProcessor",
-      );
+      expect(
+        () => new PermissionsProcessor({ baseDir: testDir, toolTarget: "cursor", logger }),
+      ).toThrow("Invalid tool target for PermissionsProcessor");
     });
   });
 
@@ -75,6 +78,7 @@ describe("PermissionsProcessor", () => {
       const processor = new PermissionsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
+        logger,
       });
 
       const files = await processor.loadRulesyncFiles();
@@ -85,6 +89,7 @@ describe("PermissionsProcessor", () => {
       const processor = new PermissionsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
+        logger,
       });
 
       const files = await processor.loadRulesyncFiles();
@@ -107,6 +112,7 @@ describe("PermissionsProcessor", () => {
       const processor = new PermissionsProcessor({
         baseDir: testDir,
         toolTarget: "claudecode",
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -131,6 +137,7 @@ describe("PermissionsProcessor", () => {
       const processor = new PermissionsProcessor({
         baseDir: testDir,
         toolTarget: "opencode",
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
@@ -156,6 +163,7 @@ describe("PermissionsProcessor", () => {
       const processor = new PermissionsProcessor({
         baseDir: testDir,
         toolTarget: "codexcli",
+        logger,
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();

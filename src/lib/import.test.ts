@@ -255,7 +255,11 @@ describe("importFromTool", () => {
     it("should import ignore and permissions together", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore", "permissions"]);
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(1);
       expect(result.permissionsCount).toBe(1);
@@ -270,7 +274,11 @@ describe("importFromTool", () => {
         return [];
       });
 
-      const result = await importFromTool({ config: mockConfig as never, tool: "claudecode" });
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
 
       expect(result.ignoreCount).toBe(1);
       expect(result.permissionsCount).toBe(1);
