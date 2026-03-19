@@ -11,6 +11,7 @@ export const ALL_TOOL_TARGETS = [
   "cline",
   "codexcli",
   "copilot",
+  "copilotcli",
   "cursor",
   "factorydroid",
   "geminicli",
