@@ -40,7 +40,10 @@ const sendPromptWithJsonParse = async <T>({
 }): Promise<T> => {
   const raw = await sendPrompt({ client, sessionId, text });
   const jsonMatch = raw.match(/```json\s*([\s\S]*?)```/);
-  const jsonStr = jsonMatch?.[1]?.trim() ?? raw.trim();
+  if (!jsonMatch?.[1]) {
+    throw new Error(`Expected JSON code block in response. Raw output:\n${raw.slice(0, 500)}`);
+  }
+  const jsonStr = jsonMatch[1].trim();
   try {
     return schema.parse(JSON.parse(jsonStr));
   } catch (cause) {
@@ -48,23 +51,23 @@ const sendPromptWithJsonParse = async <T>({
   }
 };
 
-const InvestigationResultSchema = z.object({
+const InvestigationResultSchema = z.looseObject({
   plan: z.string(),
   filesInvolved: z.array(z.string()),
   summary: z.string(),
 });
 type InvestigationResult = z.infer<typeof InvestigationResultSchema>;
 
-const ImplementationResultSchema = z.object({
+const ImplementationResultSchema = z.looseObject({
   completed: z.boolean(),
   summary: z.string(),
   remainingWork: z.string().optional(),
 });
 type ImplementationResult = z.infer<typeof ImplementationResultSchema>;
 
-const ReviewResultSchema = z.object({
+const ReviewResultSchema = z.looseObject({
   findings: z.array(
-    z.object({
+    z.looseObject({
       number: z.number(),
       severity: z.enum(["low", "mid", "high", "critical"]),
       description: z.string(),
@@ -76,7 +79,7 @@ const ReviewResultSchema = z.object({
 });
 type ReviewResult = z.infer<typeof ReviewResultSchema>;
 
-const MergeBlockerCheckResultSchema = z.object({
+const MergeBlockerCheckResultSchema = z.looseObject({
   hasMergeBlockers: z.boolean(),
   mergeBlockers: z.array(z.string()),
   nonBlockingFindings: z.array(z.string()),
@@ -289,10 +292,10 @@ const MAX_IMPLEMENTATION_RETRIES = 3;
 const MAX_REVIEW_FIX_RETRIES = 3;
 
 const main = async () => {
-  const instruction = process.argv[2];
+  const instruction = process.argv.slice(2).join(" ");
   if (!instruction) {
     console.error("Usage: tsx scripts/implement-loop.ts <issue-or-instruction>");
-    console.error('  Example: tsx scripts/implement-loop.ts "Fix the login bug described in #123"');
+    console.error("  Example: tsx scripts/implement-loop.ts Fix the login bug described in #123");
     process.exit(1);
   }
 
@@ -321,21 +324,21 @@ const main = async () => {
       instruction,
       investigation,
     });
-    console.log(`Implementation completed: ${String(implementationResult.completed)}`);
+    console.log(`Implementation completed: ${implementationResult.completed}`);
 
     // Step 3: Retry implementation if not completed
     let retries = 0;
     while (!implementationResult.completed && retries < MAX_IMPLEMENTATION_RETRIES) {
       retries++;
       console.log(
-        `Implementation not completed, retrying (${String(retries)}/${String(MAX_IMPLEMENTATION_RETRIES)})...`,
+        `Implementation not completed, retrying (${retries}/${MAX_IMPLEMENTATION_RETRIES})...`,
       );
       implementationResult = await step3ContinueImplementation({
         client,
         sessionId,
         previousResult: implementationResult,
       });
-      console.log(`Implementation completed: ${String(implementationResult.completed)}`);
+      console.log(`Implementation completed: ${implementationResult.completed}`);
     }
 
     if (!implementationResult.completed) {
@@ -349,7 +352,7 @@ const main = async () => {
     // Step 5: Review PR
     const reviewResult = await step5ReviewPr({ client, sessionId });
     console.log(`Review summary: ${reviewResult.overallSummary}`);
-    console.log(`Findings: ${String(reviewResult.findings.length)}`);
+    console.log(`Findings: ${reviewResult.findings.length}`);
 
     // Step 6: Check merge blockers and fix if needed
     let mergeBlockerCheck = await step6CheckMergeBlockers({
@@ -362,7 +365,7 @@ const main = async () => {
     while (mergeBlockerCheck.hasMergeBlockers && reviewFixRetries < MAX_REVIEW_FIX_RETRIES) {
       reviewFixRetries++;
       console.log(
-        `Merge blockers found (${String(mergeBlockerCheck.mergeBlockers.length)}), fixing (${String(reviewFixRetries)}/${String(MAX_REVIEW_FIX_RETRIES)})...`,
+        `Merge blockers found (${mergeBlockerCheck.mergeBlockers.length}), fixing (${reviewFixRetries}/${MAX_REVIEW_FIX_RETRIES})...`,
       );
 
       // Step 7: Fix merge blockers and push
@@ -389,7 +392,7 @@ const main = async () => {
     // Step 8: Create scrap issue for non-blocking findings
     if (mergeBlockerCheck.nonBlockingFindings.length > 0) {
       console.log(
-        `Creating scrap issue for ${String(mergeBlockerCheck.nonBlockingFindings.length)} non-blocking findings...`,
+        `Creating scrap issue for ${mergeBlockerCheck.nonBlockingFindings.length} non-blocking findings...`,
       );
       const issueResult = await step8CreateScrapIssue({
         client,
@@ -405,9 +408,9 @@ const main = async () => {
     console.log("\n=== Complete ===");
     console.log(`Implementation: ${implementationResult.summary}`);
     console.log(`Review: ${reviewResult.overallSummary}`);
-    console.log(`Merge blockers resolved: ${String(reviewFixRetries)} fix rounds`);
+    console.log(`Merge blockers resolved: ${reviewFixRetries} fix rounds`);
     console.log(
-      `Non-blocking findings: ${String(mergeBlockerCheck.nonBlockingFindings.length)} (${mergeBlockerCheck.nonBlockingFindings.length > 0 ? "tracked in scrap issue" : "none"})`,
+      `Non-blocking findings: ${mergeBlockerCheck.nonBlockingFindings.length} (${mergeBlockerCheck.nonBlockingFindings.length > 0 ? "tracked in scrap issue" : "none"})`,
     );
   } finally {
     server.close();
