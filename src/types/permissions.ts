@@ -31,7 +31,7 @@ export type PermissionRules = z.infer<typeof PermissionRulesSchema>;
  *   "edit": { "*": "deny", "src/**": "allow" }
  * }
  */
-export const PermissionsConfigSchema = z.object({
+export const PermissionsConfigSchema = z.looseObject({
   permission: z.record(z.string(), PermissionRulesSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;

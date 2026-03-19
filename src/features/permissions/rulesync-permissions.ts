@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import {
+  RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -40,7 +41,7 @@ export class RulesyncPermissions extends RulesyncFile {
   static getSettablePaths(): RulesyncPermissionsSettablePaths {
     return {
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: "permissions.json",
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
     };
   }
 
