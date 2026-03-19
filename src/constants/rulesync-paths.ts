@@ -8,6 +8,10 @@ export const RULESYNC_COMMANDS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PA
 export const RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "subagents");
 export const RULESYNC_MCP_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "mcp.json");
 export const RULESYNC_HOOKS_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "hooks.json");
+export const RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  "permissions.json",
+);
 export const RULESYNC_AIIGNORE_FILE_NAME = ".aiignore";
 export const RULESYNC_AIIGNORE_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
 export const RULESYNC_IGNORE_RELATIVE_FILE_PATH = ".rulesyncignore";
@@ -22,12 +26,15 @@ export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 // File names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";
 export const RULESYNC_HOOKS_FILE_NAME = "hooks.json";
+export const RULESYNC_PERMISSIONS_FILE_NAME = "permissions.json";
 
 // JSON Schema URLs (published as GitHub release assets)
 export const RULESYNC_CONFIG_SCHEMA_URL =
   "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json";
 export const RULESYNC_MCP_SCHEMA_URL =
   "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json";
+export const RULESYNC_PERMISSIONS_SCHEMA_URL =
+  "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json";
 
 // Size limits
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
