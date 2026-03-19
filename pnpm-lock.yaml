@@ -63,6 +63,9 @@ importers:
       '@eslint/js':
         specifier: 9.39.4
         version: 9.39.4
+      '@opencode-ai/sdk':
+        specifier: 1.2.27
+        version: 1.2.27
       '@openrouter/sdk':
         specifier: 0.9.11
         version: 0.9.11
@@ -1090,6 +1093,9 @@ packages:
 
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
+
+  '@opencode-ai/sdk@1.2.27':
+    resolution: {integrity: sha512-Wk0o/I+Fo+wE3zgvlJDs8Fb67KlKqX0PrV8dK5adSDkANq6r4Z25zXJg2iOir+a8ntg3rAcpel1OY4FV/TwRUA==}
 
   '@openrouter/sdk@0.9.11':
     resolution: {integrity: sha512-BgFu6NcIJO4a9aVjr04y3kZ8pyM71j15I+bzfVAGEvxnj+KQNIkBYQGgwrG3D+aT1QpDKLki8btcQmpaxUas6A==}
@@ -5681,6 +5687,8 @@ snapshots:
 
   '@one-ini/wasm@0.1.1':
     optional: true
+
+  '@opencode-ai/sdk@1.2.27': {}
 
   '@openrouter/sdk@0.9.11':
     dependencies:
