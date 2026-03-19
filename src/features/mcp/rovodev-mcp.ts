@@ -14,8 +14,6 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-const CURSOR_ENV_VAR_PATTERN = /\$\{env:([^}]+)\}/g;
-
 /**
  * Type guard to check if a value is a valid McpServers object
  *
@@ -26,54 +24,13 @@ function isMcpServers(value: unknown): value is McpServers {
 }
 
 /**
- * Convert Cursor env format to canonical format
- * - ${env:VAR} -> ${VAR}
+ * Rovodev MCP: global only at ~/.rovodev/mcp.json.
+ * Same shape as Cursor: { mcpServers: { ... } }. See Rovodev MCP docs.
+ * Project-level MCP is not supported; use --global when generating.
  */
-function convertEnvFromCursorFormat(mcpServers: McpServers): McpServers {
-  return Object.fromEntries(
-    Object.entries(mcpServers).map(([name, config]) => [
-      name,
-      {
-        ...config,
-        ...(config.env && {
-          env: Object.fromEntries(
-            Object.entries(config.env).map(([k, v]) => [
-              k,
-              v.replace(CURSOR_ENV_VAR_PATTERN, "${$1}"),
-            ]),
-          ),
-        }),
-      },
-    ]),
-  );
-}
+export type RovodevMcpParams = ToolMcpParams;
 
-/**
- * Convert canonical env format to Cursor format
- * - ${VAR} -> ${env:VAR} (avoids double-converting)
- */
-function convertEnvToCursorFormat(mcpServers: McpServers): McpServers {
-  return Object.fromEntries(
-    Object.entries(mcpServers).map(([name, config]) => [
-      name,
-      {
-        ...config,
-        ...(config.env && {
-          env: Object.fromEntries(
-            Object.entries(config.env).map(([k, v]) => [
-              k,
-              v.replace(/\$\{(?!env:)([^}:]+)\}/g, "${env:$1}"),
-            ]),
-          ),
-        }),
-      },
-    ]),
-  );
-}
-
-export type CursorMcpParams = ToolMcpParams;
-
-export class CursorMcp extends ToolMcp {
+export class RovodevMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
@@ -83,7 +40,7 @@ export class CursorMcp extends ToolMcp {
         this.json = JSON.parse(this.fileContent);
       } catch (error) {
         throw new Error(
-          `Failed to parse Cursor MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
+          `Failed to parse Rovodev MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
           { cause: error },
         );
       }
@@ -97,12 +54,12 @@ export class CursorMcp extends ToolMcp {
   }
 
   override isDeletable(): boolean {
-    return !this.global;
+    return false;
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".cursor",
+      relativeDirPath: ".rovodev",
       relativeFilePath: "mcp.json",
     };
   }
@@ -111,7 +68,10 @@ export class CursorMcp extends ToolMcp {
     baseDir = process.cwd(),
     validate = true,
     global = false,
-  }: ToolMcpFromFileParams): Promise<CursorMcp> {
+  }: ToolMcpFromFileParams): Promise<RovodevMcp> {
+    if (!global) {
+      throw new Error("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
+    }
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
@@ -120,13 +80,13 @@ export class CursorMcp extends ToolMcp {
       json = JSON.parse(fileContent);
     } catch (error) {
       throw new Error(
-        `Failed to parse Cursor MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
+        `Failed to parse Rovodev MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
         { cause: error },
       );
     }
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
-    return new CursorMcp({
+    return new RovodevMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -141,7 +101,10 @@ export class CursorMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
-  }: ToolMcpFromRulesyncMcpParams): Promise<CursorMcp> {
+  }: ToolMcpFromRulesyncMcpParams): Promise<RovodevMcp> {
+    if (!global) {
+      throw new Error("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
+    }
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
@@ -153,22 +116,21 @@ export class CursorMcp extends ToolMcp {
       json = JSON.parse(fileContent);
     } catch (error) {
       throw new Error(
-        `Failed to parse Cursor MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
+        `Failed to parse Rovodev MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
         { cause: error },
       );
     }
 
     const rulesyncJson = rulesyncMcp.getJson();
     const mcpServers = isMcpServers(rulesyncJson.mcpServers) ? rulesyncJson.mcpServers : {};
-    const transformedServers = convertEnvToCursorFormat(mcpServers);
 
-    const cursorConfig = { ...json, mcpServers: transformedServers };
+    const rovodevConfig = { ...json, mcpServers };
 
-    return new CursorMcp({
+    return new RovodevMcp({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(cursorConfig, null, 2),
+      fileContent: JSON.stringify(rovodevConfig, null, 2),
       validate,
       global,
     });
@@ -176,13 +138,10 @@ export class CursorMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
-    const transformedServers = convertEnvFromCursorFormat(mcpServers);
-
     const transformedJson = {
       ...this.json,
-      mcpServers: transformedServers,
+      mcpServers,
     };
-
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify(transformedJson, null, 2),
     });
@@ -197,8 +156,8 @@ export class CursorMcp extends ToolMcp {
     relativeDirPath,
     relativeFilePath,
     global = false,
-  }: ToolMcpForDeletionParams): CursorMcp {
-    return new CursorMcp({
+  }: ToolMcpForDeletionParams): RovodevMcp {
+    return new RovodevMcp({
       baseDir,
       relativeDirPath,
       relativeFilePath,

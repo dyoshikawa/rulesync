@@ -304,5 +304,6 @@ rulesync.local.jsonc
 **/.rooignore
 **/.roo/mcp.json
 **/.roo/subagents/
+**/.rovodev/
 **/.warp/
 **/WARP.md

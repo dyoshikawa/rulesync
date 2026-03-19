@@ -21,6 +21,8 @@ type RooMcpServers = Record<string, Record<string, unknown>>;
 
 /**
  * Type guard to check if a value is a valid RooMcpServers object
+ *
+ * @todo Tech debt: same object-shape guard as `isMcpServers` in cursor-mcp / rovodev-mcp (this file names it `isRooMcpServers`). Refactor into one shared helper (e.g. under `types/mcp` or `tool-mcp`).
  */
 function isRooMcpServers(value: unknown): value is RooMcpServers {
   return value !== undefined && value !== null && typeof value === "object";

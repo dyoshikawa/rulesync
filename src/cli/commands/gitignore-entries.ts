@@ -15,7 +15,11 @@ export type GitignoreEntryTag = {
 
 export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Common / general
-  { target: "common", feature: "general", entry: `${RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH}/` },
+  {
+    target: "common",
+    feature: "general",
+    entry: `${RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH}/`,
+  },
   { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
   { target: "common", feature: "general", entry: "rulesync.local.jsonc" },
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
@@ -33,14 +37,22 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "claudecode", feature: "rules", entry: "**/CLAUDE.md" },
   { target: "claudecode", feature: "rules", entry: "**/CLAUDE.local.md" },
   { target: "claudecode", feature: "rules", entry: "**/.claude/CLAUDE.md" },
-  { target: "claudecode", feature: "rules", entry: "**/.claude/CLAUDE.local.md" },
+  {
+    target: "claudecode",
+    feature: "rules",
+    entry: "**/.claude/CLAUDE.local.md",
+  },
   { target: "claudecode", feature: "rules", entry: "**/.claude/rules/" },
   { target: "claudecode", feature: "commands", entry: "**/.claude/commands/" },
   { target: "claudecode", feature: "subagents", entry: "**/.claude/agents/" },
   { target: "claudecode", feature: "skills", entry: "**/.claude/skills/" },
   { target: "claudecode", feature: "mcp", entry: "**/.mcp.json" },
   { target: "claudecode", feature: "general", entry: "**/.claude/memories/" },
-  { target: "claudecode", feature: "general", entry: "**/.claude/settings.local.json" },
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: "**/.claude/settings.local.json",
+  },
 
   // Cline
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },
@@ -64,16 +76,36 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "deepagents", feature: "rules", entry: "**/.deepagents/memories/" },
   { target: "deepagents", feature: "mcp", entry: "**/.deepagents/.mcp.json" },
   { target: "deepagents", feature: "skills", entry: "**/.deepagents/skills/" },
-  { target: "deepagents", feature: "subagents", entry: "**/.deepagents/agents/" },
-  { target: "deepagents", feature: "hooks", entry: "**/.deepagents/hooks.json" },
+  {
+    target: "deepagents",
+    feature: "subagents",
+    entry: "**/.deepagents/agents/",
+  },
+  {
+    target: "deepagents",
+    feature: "hooks",
+    entry: "**/.deepagents/hooks.json",
+  },
 
   // Factory Droid
   { target: "factorydroid", feature: "rules", entry: "**/.factory/rules/" },
-  { target: "factorydroid", feature: "commands", entry: "**/.factory/commands/" },
-  { target: "factorydroid", feature: "subagents", entry: "**/.factory/droids/" },
+  {
+    target: "factorydroid",
+    feature: "commands",
+    entry: "**/.factory/commands/",
+  },
+  {
+    target: "factorydroid",
+    feature: "subagents",
+    entry: "**/.factory/droids/",
+  },
   { target: "factorydroid", feature: "skills", entry: "**/.factory/skills/" },
   { target: "factorydroid", feature: "mcp", entry: "**/.factory/mcp.json" },
-  { target: "factorydroid", feature: "general", entry: "**/.factory/settings.json" },
+  {
+    target: "factorydroid",
+    feature: "general",
+    entry: "**/.factory/settings.json",
+  },
 
   // Gemini CLI
   { target: "geminicli", feature: "rules", entry: "**/GEMINI.md" },
@@ -89,7 +121,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "goose", feature: "ignore", entry: "**/.gooseignore" },
 
   // GitHub Copilot
-  { target: "copilot", feature: "rules", entry: "**/.github/copilot-instructions.md" },
+  {
+    target: "copilot",
+    feature: "rules",
+    entry: "**/.github/copilot-instructions.md",
+  },
   { target: "copilot", feature: "rules", entry: "**/.github/instructions/" },
   { target: "copilot", feature: "commands", entry: "**/.github/prompts/" },
   { target: "copilot", feature: "subagents", entry: "**/.github/agents/" },
@@ -98,7 +134,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "copilot", feature: "mcp", entry: "**/.vscode/mcp.json" },
 
   // GitHub Copilot CLI
-  { target: "copilotcli", feature: "mcp", entry: "**/.copilot/mcp-config.json" },
+  {
+    target: "copilotcli",
+    feature: "mcp",
+    entry: "**/.copilot/mcp-config.json",
+  },
 
   // Junie
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },
@@ -141,6 +181,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "roo", feature: "ignore", entry: "**/.rooignore" },
   { target: "roo", feature: "mcp", entry: "**/.roo/mcp.json" },
   { target: "roo", feature: "subagents", entry: "**/.roo/subagents/" },
+
+  // Rovodev
+  { target: "rovodev", feature: "subagents", entry: "**/.rovodev/subagents/" },
+  { target: "rovodev", feature: "skills", entry: "**/.rovodev/skills/" },
 
   // Warp
   { target: "warp", feature: "rules", entry: "**/.warp/" },
