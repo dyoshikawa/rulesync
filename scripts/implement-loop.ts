@@ -4,15 +4,18 @@ import { createOpencode } from "@opencode-ai/sdk";
 import type { OpencodeClient } from "@opencode-ai/sdk";
 import { z } from "zod";
 
+import { formatError } from "../src/utils/error.js";
+
+type SessionContext = {
+  client: OpencodeClient;
+  sessionId: string;
+};
+
 const sendPrompt = async ({
   client,
   sessionId,
   text,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-  text: string;
-}): Promise<string> => {
+}: SessionContext & { text: string }): Promise<string> => {
   const result = await client.session.prompt({
     path: { id: sessionId },
     body: {
@@ -31,16 +34,18 @@ const sendPromptWithJsonParse = async <T>({
   sessionId,
   text,
   schema,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
+}: SessionContext & {
   text: string;
   schema: z.ZodType<T>;
 }): Promise<T> => {
   const raw = await sendPrompt({ client, sessionId, text });
   const jsonMatch = raw.match(/```json\s*([\s\S]*?)```/);
   const jsonStr = jsonMatch?.[1]?.trim() ?? raw.trim();
-  return schema.parse(JSON.parse(jsonStr));
+  try {
+    return schema.parse(JSON.parse(jsonStr));
+  } catch (cause) {
+    throw new Error(`Failed to parse JSON response. Raw output:\n${raw.slice(0, 500)}`, { cause });
+  }
 };
 
 const InvestigationResultSchema = z.object({
@@ -76,16 +81,13 @@ const MergeBlockerCheckResultSchema = z.object({
   mergeBlockers: z.array(z.string()),
   nonBlockingFindings: z.array(z.string()),
 });
+type MergeBlockerCheckResult = z.infer<typeof MergeBlockerCheckResultSchema>;
 
 const step1Investigate = async ({
   client,
   sessionId,
   instruction,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-  instruction: string;
-}): Promise<InvestigationResult> => {
+}: SessionContext & { instruction: string }): Promise<InvestigationResult> => {
   console.log("\n=== Step 1: Investigation and Planning ===");
   return sendPromptWithJsonParse({
     client,
@@ -93,7 +95,9 @@ const step1Investigate = async ({
     schema: InvestigationResultSchema,
     text: `You are given the following task/issue to work on:
 
+<user-task>
 ${instruction}
+</user-task>
 
 Investigate the codebase to understand the relevant code, dependencies, and context needed to complete this task.
 Then create an implementation plan.
@@ -114,9 +118,7 @@ const step2Implement = async ({
   sessionId,
   instruction,
   investigation,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
+}: SessionContext & {
   instruction: string;
   investigation: InvestigationResult;
 }): Promise<ImplementationResult> => {
@@ -128,7 +130,9 @@ const step2Implement = async ({
     text: `Based on the following task and investigation plan, implement the changes.
 
 ## Task
+<user-task>
 ${instruction}
+</user-task>
 
 ## Investigation Summary
 ${investigation.summary}
@@ -154,11 +158,7 @@ const step3ContinueImplementation = async ({
   client,
   sessionId,
   previousResult,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-  previousResult: ImplementationResult;
-}): Promise<ImplementationResult> => {
+}: SessionContext & { previousResult: ImplementationResult }): Promise<ImplementationResult> => {
   console.log("\n=== Step 3: Continue Implementation ===");
   return sendPromptWithJsonParse({
     client,
@@ -183,13 +183,7 @@ Continue and complete the implementation. Respond ONLY with a JSON block:
   });
 };
 
-const step4CommitPushPr = async ({
-  client,
-  sessionId,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-}): Promise<string> => {
+const step4CommitPushPr = async ({ client, sessionId }: SessionContext): Promise<string> => {
   console.log("\n=== Step 4: Commit, Push, and Create PR ===");
   return sendPrompt({
     client,
@@ -198,13 +192,7 @@ const step4CommitPushPr = async ({
   });
 };
 
-const step5ReviewPr = async ({
-  client,
-  sessionId,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-}): Promise<ReviewResult> => {
+const step5ReviewPr = async ({ client, sessionId }: SessionContext): Promise<ReviewResult> => {
   console.log("\n=== Step 5: Review PR ===");
   return sendPromptWithJsonParse({
     client,
@@ -234,11 +222,7 @@ const step6CheckMergeBlockers = async ({
   client,
   sessionId,
   reviewResult,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-  reviewResult: ReviewResult;
-}) => {
+}: SessionContext & { reviewResult: ReviewResult }): Promise<MergeBlockerCheckResult> => {
   console.log("\n=== Step 6: Check Merge Blockers ===");
   return sendPromptWithJsonParse({
     client,
@@ -266,16 +250,12 @@ Respond ONLY with a JSON block:
   });
 };
 
-const step6FixAndPush = async ({
+const step7FixAndPush = async ({
   client,
   sessionId,
   mergeBlockers,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-  mergeBlockers: string[];
-}): Promise<string> => {
-  console.log("\n=== Step 6b: Fix Merge Blockers and Push ===");
+}: SessionContext & { mergeBlockers: string[] }): Promise<string> => {
+  console.log("\n=== Step 7: Fix Merge Blockers and Push ===");
   return sendPrompt({
     client,
     sessionId,
@@ -288,16 +268,12 @@ Report back when done.`,
   });
 };
 
-const step7CreateScrapIssue = async ({
+const step8CreateScrapIssue = async ({
   client,
   sessionId,
   nonBlockingFindings,
-}: {
-  client: OpencodeClient;
-  sessionId: string;
-  nonBlockingFindings: string[];
-}): Promise<string> => {
-  console.log("\n=== Step 7: Create Scrap Issue for Non-blocking Findings ===");
+}: SessionContext & { nonBlockingFindings: string[] }): Promise<string> => {
+  console.log("\n=== Step 8: Create Scrap Issue for Non-blocking Findings ===");
   return sendPrompt({
     client,
     sessionId,
@@ -324,7 +300,6 @@ const main = async () => {
   console.log(`Instruction: ${instruction}`);
 
   const { client, server } = await createOpencode();
-  console.log(`OpenCode server started at ${server.url}`);
 
   try {
     const session = await client.session.create();
@@ -364,8 +339,7 @@ const main = async () => {
     }
 
     if (!implementationResult.completed) {
-      console.error("Implementation did not complete after max retries. Aborting.");
-      process.exit(1);
+      throw new Error("Implementation did not complete after max retries. Aborting.");
     }
 
     // Step 4: Commit, push, and create PR
@@ -391,7 +365,8 @@ const main = async () => {
         `Merge blockers found (${String(mergeBlockerCheck.mergeBlockers.length)}), fixing (${String(reviewFixRetries)}/${String(MAX_REVIEW_FIX_RETRIES)})...`,
       );
 
-      await step6FixAndPush({
+      // Step 7: Fix merge blockers and push
+      await step7FixAndPush({
         client,
         sessionId,
         mergeBlockers: mergeBlockerCheck.mergeBlockers,
@@ -407,19 +382,16 @@ const main = async () => {
     }
 
     if (mergeBlockerCheck.hasMergeBlockers) {
-      console.error("Merge blockers remain after max fix retries:");
-      for (const blocker of mergeBlockerCheck.mergeBlockers) {
-        console.error(`  - ${blocker}`);
-      }
-      process.exit(1);
+      const blockerList = mergeBlockerCheck.mergeBlockers.map((b) => `  - ${b}`).join("\n");
+      throw new Error(`Merge blockers remain after max fix retries:\n${blockerList}`);
     }
 
-    // Step 7: Create scrap issue for non-blocking findings
+    // Step 8: Create scrap issue for non-blocking findings
     if (mergeBlockerCheck.nonBlockingFindings.length > 0) {
       console.log(
         `Creating scrap issue for ${String(mergeBlockerCheck.nonBlockingFindings.length)} non-blocking findings...`,
       );
-      const issueResult = await step7CreateScrapIssue({
+      const issueResult = await step8CreateScrapIssue({
         client,
         sessionId,
         nonBlockingFindings: mergeBlockerCheck.nonBlockingFindings,
@@ -429,7 +401,7 @@ const main = async () => {
       console.log("No non-blocking findings to track.");
     }
 
-    // Step 8: Done
+    // Done
     console.log("\n=== Complete ===");
     console.log(`Implementation: ${implementationResult.summary}`);
     console.log(`Review: ${reviewResult.overallSummary}`);
@@ -442,7 +414,7 @@ const main = async () => {
   }
 };
 
-main().catch((error) => {
-  console.error("Fatal error:", error);
+main().catch((error: unknown) => {
+  console.error(`Fatal error: ${formatError(error)}`);
   process.exit(1);
 });
