@@ -48,6 +48,7 @@ import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
+import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -81,6 +82,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "qwencode",
   "replit",
   "roo",
+  "rovodev",
   "warp",
   "windsurf",
 ];
@@ -418,6 +420,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     },
   ],
   [
+    "rovodev",
+    {
+      class: RovodevRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
     "warp",
     {
       class: WarpRule,
@@ -526,6 +539,10 @@ export class RulesProcessor extends FeatureProcessor {
     const toolRules = nonLocalRootRules
       .map((rulesyncRule) => {
         if (!factory.class.isTargetedByRulesyncRule(rulesyncRule)) {
+          return null;
+        }
+        // Rovodev supports only the root rule (AGENTS.md); skip non-root rulesync rules
+        if (this.toolTarget === "rovodev" && !rulesyncRule.getFrontmatter().root) {
           return null;
         }
         return factory.class.fromRulesyncRule({

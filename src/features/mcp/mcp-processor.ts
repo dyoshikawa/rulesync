@@ -19,6 +19,7 @@ import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
+import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -46,6 +47,7 @@ const mcpProcessorToolTargetTuple = [
   "junie",
   "opencode",
   "roo",
+  "rovodev",
 ] as const;
 
 export type McpProcessorToolTarget = (typeof mcpProcessorToolTargetTuple)[number];
@@ -234,6 +236,18 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       meta: {
         supportsProject: true,
         supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "rovodev",
+    {
+      class: RovodevMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

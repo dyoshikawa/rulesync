@@ -33,6 +33,7 @@ describe("tool targets", () => {
         "qwencode",
         "replit",
         "roo",
+        "rovodev",
         "warp",
         "windsurf",
         "zed",

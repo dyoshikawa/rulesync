@@ -20,6 +20,7 @@ import { JunieSubagent } from "./junie-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
+import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
@@ -69,6 +70,7 @@ const subagentsProcessorToolTargetTuple = [
   "kiro",
   "opencode",
   "roo",
+  "rovodev",
 ] as const;
 
 export type SubagentsProcessorToolTarget = (typeof subagentsProcessorToolTargetTuple)[number];
@@ -163,6 +165,13 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: RooSubagent,
       meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
+  ],
+  [
+    "rovodev",
+    {
+      class: RovodevSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
 ]);

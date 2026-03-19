@@ -131,6 +131,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "roo", feature: "mcp", entry: "**/.roo/mcp.json" },
   { target: "roo", feature: "subagents", entry: "**/.roo/subagents/" },
 
+  // Rovodev (Atlassian Rovo Dev CLI) - AGENTS.md already covered by agentsmd; MCP is global-only (~/.rovodev/mcp.json)
+  { target: "rovodev", feature: "rules", entry: "**/.rovodev/" },
+  { target: "rovodev", feature: "subagents", entry: "**/.rovodev/subagents/" },
+  { target: "rovodev", feature: "skills", entry: "**/.rovodev/skills/" },
+
   // Warp
   { target: "warp", feature: "rules", entry: "**/.warp/" },
   { target: "warp", feature: "rules", entry: "**/WARP.md" },

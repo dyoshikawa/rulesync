@@ -696,6 +696,7 @@ Content that would fail parsing`;
           "opencode",
           "replit",
           "roo",
+          "rovodev",
         ]),
       );
     });
@@ -721,6 +722,7 @@ Content that would fail parsing`;
           "opencode",
           "replit",
           "roo",
+          "rovodev",
         ]),
       );
     });
@@ -744,6 +746,7 @@ Content that would fail parsing`;
           "opencode",
           "replit",
           "roo",
+          "rovodev",
         ]),
       );
     });
@@ -775,6 +778,7 @@ Content that would fail parsing`;
         "kilo",
         "opencode",
         "roo",
+        "rovodev",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
@@ -795,6 +799,7 @@ Content that would fail parsing`;
         "kilo",
         "opencode",
         "roo",
+        "rovodev",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });

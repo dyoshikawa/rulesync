@@ -25,6 +25,7 @@ import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
 import { RooSkill } from "./roo-skill.js";
+import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import { getLocalSkillDirNames } from "./skills-utils.js";
@@ -80,6 +81,7 @@ const skillsProcessorToolTargetTuple = [
   "opencode",
   "replit",
   "roo",
+  "rovodev",
 ] as const;
 
 export type SkillsProcessorToolTarget = (typeof skillsProcessorToolTargetTuple)[number];
@@ -208,6 +210,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "roo",
     {
       class: RooSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "rovodev",
+    {
+      class: RovodevSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -918,7 +918,7 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, cursor, factorydroid, and opencode as global-supported targets", () => {
+    it("should return global-supported targets including rovodev", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
@@ -928,6 +928,7 @@ Second global content`;
         "cursor",
         "factorydroid",
         "opencode",
+        "rovodev",
       ]);
     });
 
@@ -969,6 +970,7 @@ Second global content`;
           "kiro",
           "opencode",
           "roo",
+          "rovodev",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);
