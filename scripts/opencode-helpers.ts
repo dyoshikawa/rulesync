@@ -37,17 +37,78 @@ export const sendPromptWithJsonParse = async <T>({
   schema: ZodMiniType<T>;
 }): Promise<T> => {
   const raw = await sendPrompt({ client, sessionId, text });
-  const jsonMatches = [...raw.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const lastMatch = jsonMatches.at(-1);
-  if (!lastMatch?.[1]) {
-    throw new Error(`Expected JSON code block in response. Raw output:\n${raw.slice(0, 500)}`);
+  return parseJsonResponse({ raw, schema });
+};
+
+const uniqueCandidates = (candidates: string[]): string[] => {
+  const seen = new Set<string>();
+  return candidates
+    .map((candidate) => candidate.trim())
+    .filter((candidate) => candidate.length > 0)
+    .filter((candidate) => {
+      if (seen.has(candidate)) {
+        return false;
+      }
+      seen.add(candidate);
+      return true;
+    });
+};
+
+const findJsonCandidates = (raw: string): string[] => {
+  const candidates: string[] = [];
+  const jsonMatches = [...raw.matchAll(/```json\s*([\s\S]*?)```/gi)];
+  candidates.push(...jsonMatches.map((match) => match[1] ?? ""));
+
+  const anyFenceMatches = [...raw.matchAll(/```\s*([\s\S]*?)```/g)];
+  candidates.push(...anyFenceMatches.map((match) => match[1] ?? ""));
+
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    candidates.push(trimmed);
   }
-  const jsonStr = lastMatch[1].trim();
-  try {
-    return schema.parse(JSON.parse(jsonStr));
-  } catch (cause) {
-    throw new Error(`Failed to parse JSON response. Raw output:\n${raw.slice(0, 500)}`, { cause });
+
+  const braceMatch = raw.match(/\{[\s\S]*\}/);
+  if (braceMatch?.[0]) {
+    candidates.push(braceMatch[0]);
   }
+
+  const arrayMatch = raw.match(/\[[\s\S]*\]/);
+  if (arrayMatch?.[0]) {
+    candidates.push(arrayMatch[0]);
+  }
+
+  return uniqueCandidates(candidates);
+};
+
+export const parseJsonResponse = <T>({
+  raw,
+  schema,
+  label,
+}: {
+  raw: string;
+  schema: ZodMiniType<T>;
+  label?: string;
+}): T => {
+  const candidates = findJsonCandidates(raw);
+  if (candidates.length === 0) {
+    const labelSuffix = label ? ` for ${label}` : "";
+    throw new Error(`Expected JSON response${labelSuffix}. Raw output:\n${raw.slice(0, 500)}`);
+  }
+
+  const errors: Error[] = [];
+  for (const candidate of candidates) {
+    try {
+      return schema.parse(JSON.parse(candidate));
+    } catch (cause) {
+      errors.push(cause instanceof Error ? cause : new Error(String(cause)));
+    }
+  }
+
+  const labelSuffix = label ? ` for ${label}` : "";
+  throw new Error(
+    `Failed to parse JSON response${labelSuffix} after ${candidates.length} attempt(s). Raw output:\n${raw.slice(0, 500)}`,
+    { cause: errors.at(-1) },
+  );
 };
 
 export const ReviewResultSchema = z.looseObject({

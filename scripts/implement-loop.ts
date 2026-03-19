@@ -6,6 +6,7 @@ import { z } from "zod/mini";
 import { formatError } from "../src/utils/error.js";
 import {
   MAX_REVIEW_FIX_RETRIES,
+  parseJsonResponse,
   sendPrompt,
   sendPromptWithJsonParse,
   stepCheckMergeBlockers,
@@ -28,6 +29,21 @@ const ImplementationResultSchema = z.looseObject({
   remainingWork: z.optional(z.string()),
 });
 type ImplementationResult = z.infer<typeof ImplementationResultSchema>;
+
+type StepName = "investigate" | "implement" | "continue" | "commit" | "review" | "merge";
+
+type ImplementationProgress = {
+  sessionId: string;
+  instruction: string;
+  startedAt: string;
+  updatedAt: string;
+  stage: StepName;
+  investigation?: InvestigationResult;
+  implementation?: ImplementationResult;
+  retries: number;
+};
+
+const PROGRESS_LOG_PREFIX = "[implement-loop]";
 
 const step1Investigate = async ({
   client,
@@ -69,10 +85,9 @@ const step2Implement = async ({
   investigation: InvestigationResult;
 }): Promise<ImplementationResult> => {
   console.log("\n=== Step 2: Implementation ===");
-  return sendPromptWithJsonParse({
+  const raw = await sendPrompt({
     client,
     sessionId,
-    schema: ImplementationResultSchema,
     text: `Based on the following task and investigation plan, implement the changes.
 
 ## Task
@@ -98,6 +113,7 @@ Implement the changes now. After implementation, respond ONLY with a JSON block:
 }
 \`\`\``,
   });
+  return parseJsonResponse({ raw, schema: ImplementationResultSchema, label: "implementation" });
 };
 
 const step3ContinueImplementation = async ({
@@ -106,10 +122,9 @@ const step3ContinueImplementation = async ({
   previousResult,
 }: SessionContext & { previousResult: ImplementationResult }): Promise<ImplementationResult> => {
   console.log("\n=== Step 3: Continue Implementation ===");
-  return sendPromptWithJsonParse({
+  const raw = await sendPrompt({
     client,
     sessionId,
-    schema: ImplementationResultSchema,
     text: `The previous implementation was not completed.
 
 ## Previous Summary
@@ -127,6 +142,11 @@ Continue and complete the implementation. Respond ONLY with a JSON block:
 }
 \`\`\``,
   });
+  return parseJsonResponse({
+    raw,
+    schema: ImplementationResultSchema,
+    label: "continue implementation",
+  });
 };
 
 const step4CommitPushPr = async ({ client, sessionId }: SessionContext): Promise<string> => {
@@ -139,6 +159,68 @@ const step4CommitPushPr = async ({ client, sessionId }: SessionContext): Promise
 };
 
 const MAX_IMPLEMENTATION_RETRIES = 3;
+
+const progressStore = new Map<string, ImplementationProgress>();
+
+const createProgress = (instruction: string, sessionId: string): ImplementationProgress => {
+  const timestamp = new Date().toISOString();
+  return {
+    sessionId,
+    instruction,
+    startedAt: timestamp,
+    updatedAt: timestamp,
+    stage: "investigate",
+    retries: 0,
+  };
+};
+
+const updateProgress = (
+  progress: ImplementationProgress,
+  patch: Partial<ImplementationProgress>,
+): ImplementationProgress => {
+  const updated: ImplementationProgress = {
+    ...progress,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  Object.assign(progress, updated);
+  progressStore.set(progress.sessionId, progress);
+  const message = {
+    stage: progress.stage,
+    retries: progress.retries,
+    updatedAt: progress.updatedAt,
+  };
+  console.log(`${PROGRESS_LOG_PREFIX} progress ${JSON.stringify(message)}`);
+  return progress;
+};
+
+const logStageError = (stage: StepName, error: unknown): void => {
+  console.error(`${PROGRESS_LOG_PREFIX} ${stage} failed: ${formatError(error)}`);
+};
+
+const logProgressSnapshot = (progress: ImplementationProgress): void => {
+  const snapshot = {
+    sessionId: progress.sessionId,
+    stage: progress.stage,
+    retries: progress.retries,
+    updatedAt: progress.updatedAt,
+    investigation: progress.investigation
+      ? {
+          summary: progress.investigation.summary,
+          plan: progress.investigation.plan,
+          filesInvolved: progress.investigation.filesInvolved,
+        }
+      : undefined,
+    implementation: progress.implementation
+      ? {
+          completed: progress.implementation.completed,
+          summary: progress.implementation.summary,
+          remainingWork: progress.implementation.remainingWork,
+        }
+      : undefined,
+  };
+  console.error(`${PROGRESS_LOG_PREFIX} last progress ${JSON.stringify(snapshot, null, 2)}`);
+};
 
 const main = async () => {
   const instruction = process.argv.slice(2).join(" ");
@@ -153,62 +235,118 @@ const main = async () => {
 
   const { client, server } = await createOpencode();
 
+  let sessionId: string | undefined;
   try {
     const session = await client.session.create();
     if (!session.data) {
       throw new Error("Failed to create session");
     }
-    const sessionId = session.data.id;
+    sessionId = session.data.id;
     console.log(`Session created: ${sessionId}`);
 
+    const progress = createProgress(instruction, sessionId);
+    progressStore.set(sessionId, progress);
+
     // Step 1: Investigate
-    const investigation = await step1Investigate({ client, sessionId, instruction });
+    let investigation: InvestigationResult;
+    try {
+      investigation = await step1Investigate({ client, sessionId, instruction });
+      updateProgress(progress, { stage: "investigate", investigation });
+    } catch (error) {
+      logStageError("investigate", error);
+      throw error;
+    }
     console.log(`Investigation summary: ${investigation.summary}`);
     console.log(`Plan: ${investigation.plan}`);
 
     // Step 2: Implement
-    let implementationResult = await step2Implement({
-      client,
-      sessionId,
-      instruction,
-      investigation,
-    });
-    console.log(`Implementation completed: ${implementationResult.completed}`);
+    let implementationResult: ImplementationResult;
+    try {
+      updateProgress(progress, { stage: "implement" });
+      implementationResult = await step2Implement({
+        client,
+        sessionId,
+        instruction,
+        investigation,
+      });
+      updateProgress(progress, { stage: "implement", implementation: implementationResult });
+      console.log(`Implementation completed: ${implementationResult.completed}`);
+    } catch (error) {
+      logStageError("implement", error);
+      throw error;
+    }
 
     // Step 3: Retry implementation if not completed
     let retries = 0;
+    updateProgress(progress, { retries });
     while (!implementationResult.completed && retries < MAX_IMPLEMENTATION_RETRIES) {
       retries++;
       console.log(
         `Implementation not completed, retrying (${retries}/${MAX_IMPLEMENTATION_RETRIES})...`,
       );
-      implementationResult = await step3ContinueImplementation({
-        client,
-        sessionId,
-        previousResult: implementationResult,
-      });
-      console.log(`Implementation completed: ${implementationResult.completed}`);
+      updateProgress(progress, { stage: "continue", retries });
+      try {
+        implementationResult = await step3ContinueImplementation({
+          client,
+          sessionId,
+          previousResult: implementationResult,
+        });
+        updateProgress(progress, {
+          stage: "continue",
+          retries,
+          implementation: implementationResult,
+        });
+        console.log(`Implementation completed: ${implementationResult.completed}`);
+      } catch (error) {
+        logStageError("continue", error);
+        throw error;
+      }
     }
 
     if (!implementationResult.completed) {
-      throw new Error("Implementation did not complete after max retries. Aborting.");
+      updateProgress(progress, { stage: "continue", implementation: implementationResult });
+      const remainingWork = implementationResult.remainingWork ?? "Unknown remaining work";
+      throw new Error(
+        `Implementation did not complete after max retries. Remaining work: ${remainingWork}`,
+      );
     }
 
     // Step 4: Commit, push, and create PR
-    const prResult = await step4CommitPushPr({ client, sessionId });
-    console.log(`PR result: ${prResult}`);
+    let prResult: string;
+    try {
+      updateProgress(progress, { stage: "commit" });
+      prResult = await step4CommitPushPr({ client, sessionId });
+      console.log(`PR result: ${prResult}`);
+    } catch (error) {
+      logStageError("commit", error);
+      throw error;
+    }
 
     // Step 5: Review PR
-    const reviewResult = await stepReviewPr({ client, sessionId });
-    console.log(`Review summary: ${reviewResult.overallSummary}`);
-    console.log(`Findings: ${reviewResult.findings.length}`);
+    let reviewResult;
+    try {
+      updateProgress(progress, { stage: "review" });
+      reviewResult = await stepReviewPr({ client, sessionId });
+      console.log(`Review summary: ${reviewResult.overallSummary}`);
+      console.log(`Findings: ${reviewResult.findings.length}`);
+    } catch (error) {
+      logStageError("review", error);
+      throw error;
+    }
 
     // Step 6: Check merge blockers and fix if needed
-    let mergeBlockerCheck = await stepCheckMergeBlockers({
-      client,
-      sessionId,
-      reviewResult,
-    });
+    let mergeBlockerCheck;
+    try {
+      updateProgress(progress, { stage: "merge" });
+      mergeBlockerCheck = await stepCheckMergeBlockers({
+        client,
+        sessionId,
+        reviewResult,
+      });
+    } catch (error) {
+      logStageError("merge", error);
+      throw error;
+    }
 
     let reviewFixRetries = 0;
     while (mergeBlockerCheck.hasMergeBlockers && reviewFixRetries < MAX_REVIEW_FIX_RETRIES) {
@@ -261,12 +399,19 @@ const main = async () => {
     console.log(
       `Non-blocking findings: ${mergeBlockerCheck.nonBlockingFindings.length} (${mergeBlockerCheck.nonBlockingFindings.length > 0 ? "tracked in scrap issue" : "none"})`,
     );
+  } catch (error) {
+    console.error(`Fatal error: ${formatError(error)}`);
+    const lastProgress = sessionId ? progressStore.get(sessionId) : undefined;
+    if (lastProgress) {
+      logProgressSnapshot(lastProgress);
+    }
+    throw error;
   } finally {
     server?.close();
   }
 };
 
 main().catch((error: unknown) => {
-  console.error(`Fatal error: ${formatError(error)}`);
+  console.error(`Implement loop failed: ${formatError(error)}`);
   process.exit(1);
 });
