@@ -1,5 +1,9 @@
 ---
-description: "Command: review-pr"
+name: review-pr
+description: >-
+  Review a pull request for code quality and security issues. Use when the user
+  wants to review a PR, check PR code changes, or audit a pull request. Triggers
+  on: "review PR", "review pull request", "check this PR", "/review-pr".
 targets:
   - "*"
 ---

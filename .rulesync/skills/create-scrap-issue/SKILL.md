@@ -1,10 +1,12 @@
 ---
-targets:
-  - "*"
+name: create-scrap-issue
 description: >-
   Create a GitHub issue that consolidates passed content into a single scrap
   issue with background context and solution details, labeled as
-  maintainer-scrap.
+  maintainer-scrap. Use when the user wants to create a scrap issue, jot down
+  notes as a GitHub issue, or save findings for later.
+targets:
+  - "*"
 ---
 
 Create a single GitHub issue that consolidates all the content provided by the user.
