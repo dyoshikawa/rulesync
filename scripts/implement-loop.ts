@@ -2,7 +2,8 @@
 
 import { createOpencode } from "@opencode-ai/sdk";
 import type { OpencodeClient } from "@opencode-ai/sdk";
-import { z } from "zod";
+import { z } from "zod/mini";
+import type { ZodMiniType } from "zod/mini";
 
 import { formatError } from "../src/utils/error.js";
 
@@ -36,14 +37,15 @@ const sendPromptWithJsonParse = async <T>({
   schema,
 }: SessionContext & {
   text: string;
-  schema: z.ZodType<T>;
+  schema: ZodMiniType<T>;
 }): Promise<T> => {
   const raw = await sendPrompt({ client, sessionId, text });
-  const jsonMatch = raw.match(/```json\s*([\s\S]*?)```/);
-  if (!jsonMatch?.[1]) {
+  const jsonMatches = [...raw.matchAll(/```json\s*([\s\S]*?)```/g)];
+  const lastMatch = jsonMatches.at(-1);
+  if (!lastMatch?.[1]) {
     throw new Error(`Expected JSON code block in response. Raw output:\n${raw.slice(0, 500)}`);
   }
-  const jsonStr = jsonMatch[1].trim();
+  const jsonStr = lastMatch[1].trim();
   try {
     return schema.parse(JSON.parse(jsonStr));
   } catch (cause) {
@@ -61,7 +63,7 @@ type InvestigationResult = z.infer<typeof InvestigationResultSchema>;
 const ImplementationResultSchema = z.looseObject({
   completed: z.boolean(),
   summary: z.string(),
-  remainingWork: z.string().optional(),
+  remainingWork: z.optional(z.string()),
 });
 type ImplementationResult = z.infer<typeof ImplementationResultSchema>;
 
@@ -71,8 +73,8 @@ const ReviewResultSchema = z.looseObject({
       number: z.number(),
       severity: z.enum(["low", "mid", "high", "critical"]),
       description: z.string(),
-      file: z.string().optional(),
-      line: z.number().optional(),
+      file: z.optional(z.string()),
+      line: z.optional(z.number()),
     }),
   ),
   overallSummary: z.string(),
@@ -413,7 +415,7 @@ const main = async () => {
       `Non-blocking findings: ${mergeBlockerCheck.nonBlockingFindings.length} (${mergeBlockerCheck.nonBlockingFindings.length > 0 ? "tracked in scrap issue" : "none"})`,
     );
   } finally {
-    server.close();
+    server?.close();
   }
 };
 
