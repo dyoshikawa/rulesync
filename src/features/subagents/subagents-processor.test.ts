@@ -918,13 +918,14 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, cursor, factorydroid, and opencode as global-supported targets", () => {
+    it("should return claudecode, codexcli, cursor, factorydroid, and opencode as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toEqual([
         "claudecode",
         "claudecode-legacy",
+        "codexcli",
         "cursor",
         "factorydroid",
         "opencode",
@@ -935,7 +936,6 @@ Second global content`;
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(toolTargets).not.toContain("copilot");
-      expect(toolTargets).not.toContain("codexcli");
       expect(toolTargets).not.toContain("agentsmd");
       expect(toolTargets).not.toContain("geminicli");
       expect(toolTargets).not.toContain("roo");

@@ -106,7 +106,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "codexcli",
     {
       class: CodexCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.toml" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.toml" },
     },
   ],
   [
