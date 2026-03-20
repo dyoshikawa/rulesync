@@ -326,7 +326,7 @@ describe("CodexCliSubagent", () => {
       expect(codexcliSubagent.getBody()).not.toContain("developer_instructions");
     });
 
-    it("should use global paths when global is true", () => {
+    it("should use same relative path when global is true", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -353,7 +353,7 @@ describe("CodexCliSubagent", () => {
       expect(codexcliSubagent.getBody()).toContain('name = "global-agent"');
     });
 
-    it("should use local paths when global is false", () => {
+    it("should use same relative path when global is false", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -427,7 +427,7 @@ describe("CodexCliSubagent", () => {
       ).rejects.toThrow();
     });
 
-    it("should load from global path when global is true", async () => {
+    it("should load with same relative path when global is true", async () => {
       const agentsDir = join(testDir, ".codex", "agents");
       const tomlContent = [
         'name = "global-test-agent"',
