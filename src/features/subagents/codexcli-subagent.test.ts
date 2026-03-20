@@ -352,6 +352,33 @@ describe("CodexCliSubagent", () => {
       expect(codexcliSubagent.getRelativeDirPath()).toBe(join(".codex", "agents"));
       expect(codexcliSubagent.getBody()).toContain('name = "global-agent"');
     });
+
+    it("should use local paths when global is false", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "local-agent.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "local-agent",
+          description: "A local agent",
+        },
+        body: "Local agent content",
+        validate: true,
+      });
+
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        rulesyncSubagent,
+        validate: true,
+        global: false,
+      }) as CodexCliSubagent;
+
+      expect(codexcliSubagent).toBeInstanceOf(CodexCliSubagent);
+      expect(codexcliSubagent.getRelativeDirPath()).toBe(join(".codex", "agents"));
+      expect(codexcliSubagent.getBody()).toContain('name = "local-agent"');
+    });
   });
 
   describe("fromFile", () => {
