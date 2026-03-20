@@ -33,7 +33,7 @@ jobs:
           ref: main
 
       - name: Setup mise
-        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v2
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v2
         with:
           experimental: true
 
@@ -79,7 +79,7 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
 
       - name: Upload assets to release
-        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           draft: true
