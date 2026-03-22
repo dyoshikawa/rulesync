@@ -47,7 +47,11 @@ function isDeepagentsHooksFile(val: unknown): val is DeepagentsHooksFile {
  */
 function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHookEntry[] {
   const supported: Set<string> = new Set(DEEPAGENTS_HOOK_EVENTS);
-  // Merge shared hooks + deepagents-specific overrides
+  // Merge shared hooks + deepagents-specific overrides.
+  // Note: this class handles the deepagents.hooks merge internally rather than
+  // relying on the processor's pre-merged effectiveHooks, because the processor
+  // passes the raw RulesyncHooks config. The processor's warning path also
+  // computes its own effective merge for logging purposes, which is consistent.
   const effectiveHooks: HooksConfig["hooks"] = {
     ...config.hooks,
     ...config.deepagents?.hooks,

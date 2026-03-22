@@ -77,7 +77,7 @@ export class DeepagentsSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".",
+      baseDir: ".", // RulesyncSubagent baseDir is always the project root directory.
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,

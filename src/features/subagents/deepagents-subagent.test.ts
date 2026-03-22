@@ -125,6 +125,44 @@ You are a test agent.`;
     });
   });
 
+  describe("toRulesyncSubagent", () => {
+    it("should convert back to rulesync subagent preserving name and body", () => {
+      const subagent = new DeepagentsSubagent({
+        baseDir: testDir,
+        relativeDirPath: join(".deepagents", "agents"),
+        relativeFilePath: "my-agent.md",
+        frontmatter: { name: "My Agent", description: "Does things.", model: "claude-sonnet-4-6" },
+        body: "You are an agent.",
+        fileContent: "",
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      const frontmatter = rulesyncSubagent.getFrontmatter();
+
+      expect(frontmatter.name).toBe("My Agent");
+      expect(frontmatter.description).toBe("Does things.");
+      expect(rulesyncSubagent.getBody()).toBe("You are an agent.");
+    });
+
+    it("should store model in deepagents tool-specific section", () => {
+      const subagent = new DeepagentsSubagent({
+        baseDir: testDir,
+        relativeDirPath: join(".deepagents", "agents"),
+        relativeFilePath: "my-agent.md",
+        frontmatter: { name: "Agent", description: "Desc.", model: "claude-haiku-4-5-20251001" },
+        body: "System prompt.",
+        fileContent: "",
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      const frontmatter = rulesyncSubagent.getFrontmatter();
+
+      expect((frontmatter.deepagents as Record<string, unknown>)?.model).toBe(
+        "claude-haiku-4-5-20251001",
+      );
+    });
+  });
+
   describe("isTargetedByRulesyncSubagent", () => {
     it("should return true for deepagents target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
