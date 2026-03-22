@@ -13,6 +13,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
@@ -41,6 +42,7 @@ const mcpProcessorToolTargetTuple = [
   "copilot",
   "copilotcli",
   "cursor",
+  "deepagents",
   "factorydroid",
   "geminicli",
   "kilo",
@@ -161,6 +163,18 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     "cursor",
     {
       class: CursorMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "deepagents",
+    {
+      class: DeepagentsMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

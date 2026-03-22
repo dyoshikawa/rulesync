@@ -963,6 +963,7 @@ Second global content`;
           "codexcli",
           "copilot",
           "cursor",
+          "deepagents",
           "factorydroid",
           "geminicli",
           "junie",

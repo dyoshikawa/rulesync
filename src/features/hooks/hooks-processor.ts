@@ -6,6 +6,7 @@ import {
   CLAUDE_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
+  DEEPAGENTS_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
@@ -18,6 +19,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
@@ -38,6 +40,7 @@ const hooksProcessorToolTargetTuple = [
   "opencode",
   "factorydroid",
   "geminicli",
+  "deepagents",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -148,14 +151,26 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       supportsMatcher: true,
     },
   ],
+  [
+    "deepagents",
+    {
+      class: DeepagentsHooks,
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: DEEPAGENTS_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: false,
+    },
+  ],
 ]);
 
-const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.keys()];
+const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.entries()]
+  .filter(([, f]) => f.meta.supportsProject)
+  .map(([t]) => t);
 const hooksProcessorToolTargetsGlobal: ToolTarget[] = [...toolHooksFactories.entries()]
   .filter(([, f]) => f.meta.supportsGlobal)
   .map(([t]) => t);
 const hooksProcessorToolTargetsImportable: ToolTarget[] = [...toolHooksFactories.entries()]
-  .filter(([, f]) => f.meta.supportsImport)
+  .filter(([, f]) => f.meta.supportsProject && f.meta.supportsImport)
   .map(([t]) => t);
 const hooksProcessorToolTargetsGlobalImportable: ToolTarget[] = [...toolHooksFactories.entries()]
   .filter(([, f]) => f.meta.supportsGlobal && f.meta.supportsImport)
