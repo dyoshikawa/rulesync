@@ -418,7 +418,13 @@ describe("HooksProcessor", () => {
 
     it("should return claudecode, opencode, factorydroid, and geminicli for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["claudecode", "opencode", "factorydroid", "geminicli", "deepagents"]);
+      expect(targets).toEqual([
+        "claudecode",
+        "opencode",
+        "factorydroid",
+        "geminicli",
+        "deepagents",
+      ]);
     });
 
     it("should exclude non-importable targets when importOnly is true", () => {

@@ -7,8 +7,8 @@ import {
   DEEPAGENTS_HOOK_EVENTS,
   DEEPAGENTS_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import { formatError } from "../../utils/error.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -32,6 +32,7 @@ function isDeepagentsHooksFile(val: unknown): val is DeepagentsHooksFile {
     typeof val === "object" &&
     val !== null &&
     "hooks" in val &&
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
     Array.isArray((val as { hooks: unknown }).hooks)
   );
 }
@@ -85,11 +86,7 @@ function deepagentsToCanonicalHooks(hooksEntries: DeepagentsHookEntry[]): HooksC
 
     // Reconstruct command string: if it's ["bash", "-c", "..."], extract the script
     let command: string;
-    if (
-      entry.command.length === 3 &&
-      entry.command[0] === "bash" &&
-      entry.command[1] === "-c"
-    ) {
+    if (entry.command.length === 3 && entry.command[0] === "bash" && entry.command[1] === "-c") {
       command = entry.command[2] ?? "";
     } else {
       // Fallback: join all parts

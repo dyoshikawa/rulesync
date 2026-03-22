@@ -94,6 +94,7 @@ export class DeepagentsSubagent extends ToolSubagent {
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const deepagentsSection = this.filterToolSpecificSection(
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
       (rulesyncFrontmatter.deepagents as Record<string, unknown>) ?? {},
       ["name", "description"],
     );

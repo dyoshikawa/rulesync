@@ -51,9 +51,7 @@ describe("DeepagentsHooks", () => {
       const deepagentsDir = join(testDir, ".deepagents");
       await ensureDir(deepagentsDir);
       const content = JSON.stringify({
-        hooks: [
-          { command: ["bash", "-c", "echo hello"], events: ["session.start"] },
-        ],
+        hooks: [{ command: ["bash", "-c", "echo hello"], events: ["session.start"] }],
       });
       await writeFileContent(join(deepagentsDir, "hooks.json"), content);
 
@@ -91,14 +89,14 @@ describe("DeepagentsHooks", () => {
       expect(Array.isArray(parsed.hooks)).toBe(true);
       expect(parsed.hooks.length).toBe(2);
 
-      const sessionStartEntry = parsed.hooks.find(
-        (h: { events?: string[] }) => h.events?.includes("session.start"),
+      const sessionStartEntry = parsed.hooks.find((h: { events?: string[] }) =>
+        h.events?.includes("session.start"),
       );
       expect(sessionStartEntry).toBeDefined();
       expect(sessionStartEntry.command).toEqual(["bash", "-c", "echo session started"]);
 
-      const stopEntry = parsed.hooks.find(
-        (h: { events?: string[] }) => h.events?.includes("task.complete"),
+      const stopEntry = parsed.hooks.find((h: { events?: string[] }) =>
+        h.events?.includes("task.complete"),
       );
       expect(stopEntry).toBeDefined();
       expect(stopEntry.command).toEqual(["bash", "-c", "echo task done"]);
@@ -176,8 +174,8 @@ describe("DeepagentsHooks", () => {
       const parsed = JSON.parse(hooks.getFileContent());
 
       // The override replaces the shared hook for sessionStart
-      const sessionEntries = parsed.hooks.filter(
-        (h: { events?: string[] }) => h.events?.includes("session.start"),
+      const sessionEntries = parsed.hooks.filter((h: { events?: string[] }) =>
+        h.events?.includes("session.start"),
       );
       expect(sessionEntries.length).toBe(1);
       expect(sessionEntries[0].command[2]).toBe("echo overridden");
