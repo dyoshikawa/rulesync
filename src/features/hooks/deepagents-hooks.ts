@@ -28,13 +28,8 @@ type DeepagentsHooksFile = {
 };
 
 function isDeepagentsHooksFile(val: unknown): val is DeepagentsHooksFile {
-  return (
-    typeof val === "object" &&
-    val !== null &&
-    "hooks" in val &&
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    Array.isArray((val as { hooks: unknown }).hooks)
-  );
+  if (typeof val !== "object" || val === null || !("hooks" in val)) return false;
+  return Array.isArray(val.hooks);
 }
 
 /**
