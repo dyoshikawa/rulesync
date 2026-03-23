@@ -133,9 +133,9 @@
     "vitepress": "1.6.4",
     "vitest": "4.1.0"
   },
-  "packageManager": "pnpm@10.28.1",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.0.0",
+    "pnpm": ">=10"
   },
   "publishConfig": {
     "access": "public"
