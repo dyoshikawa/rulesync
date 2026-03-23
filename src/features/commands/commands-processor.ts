@@ -201,7 +201,7 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
       meta: {
         extension: "md",
         supportsProject: true,
-        supportsGlobal: true,
+        supportsGlobal: false,
         isSimulated: true,
         supportsSubdirectory: false,
       },

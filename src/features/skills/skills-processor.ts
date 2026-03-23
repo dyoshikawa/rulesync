@@ -159,7 +159,7 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "factorydroid",
     {
       class: FactorydroidSkill,
-      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: true },
+      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
     },
   ],
   [

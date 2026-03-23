@@ -127,7 +127,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "factorydroid",
     {
       class: FactorydroidSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: true, filePattern: "*.md" },
+      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [
