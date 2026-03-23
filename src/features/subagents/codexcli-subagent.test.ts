@@ -325,6 +325,60 @@ describe("CodexCliSubagent", () => {
       expect(codexcliSubagent.getBody()).not.toContain("description");
       expect(codexcliSubagent.getBody()).not.toContain("developer_instructions");
     });
+
+    it("should use same relative path when global is true", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "global-agent.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "global-agent",
+          description: "A global agent",
+        },
+        body: "Global agent content",
+        validate: true,
+      });
+
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        rulesyncSubagent,
+        validate: true,
+        global: true,
+      }) as CodexCliSubagent;
+
+      expect(codexcliSubagent).toBeInstanceOf(CodexCliSubagent);
+      expect(codexcliSubagent.getRelativeDirPath()).toBe(join(".codex", "agents"));
+      expect(codexcliSubagent.getBody()).toContain('name = "global-agent"');
+    });
+
+    it("should use same relative path when global is false", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "local-agent.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "local-agent",
+          description: "A local agent",
+        },
+        body: "Local agent content",
+        validate: true,
+      });
+
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        rulesyncSubagent,
+        validate: true,
+        global: false,
+      }) as CodexCliSubagent;
+
+      expect(codexcliSubagent).toBeInstanceOf(CodexCliSubagent);
+      expect(codexcliSubagent.getRelativeDirPath()).toBe(join(".codex", "agents"));
+      expect(codexcliSubagent.getBody()).toContain('name = "local-agent"');
+    });
   });
 
   describe("fromFile", () => {
@@ -371,6 +425,28 @@ describe("CodexCliSubagent", () => {
           validate: true,
         }),
       ).rejects.toThrow();
+    });
+
+    it("should load with same relative path when global is true", async () => {
+      const agentsDir = join(testDir, ".codex", "agents");
+      const tomlContent = [
+        'name = "global-test-agent"',
+        'description = "A global test agent"',
+        'developer_instructions = "Global agent body"',
+      ].join("\n");
+
+      await writeFileContent(join(agentsDir, "global-test-agent.toml"), tomlContent);
+
+      const subagent = await CodexCliSubagent.fromFile({
+        baseDir: testDir,
+        relativeFilePath: "global-test-agent.toml",
+        validate: true,
+        global: true,
+      });
+
+      expect(subagent).toBeInstanceOf(CodexCliSubagent);
+      expect(subagent.getRelativeDirPath()).toBe(join(".codex", "agents"));
+      expect(subagent.getBody()).toContain('name = "global-test-agent"');
     });
   });
 
