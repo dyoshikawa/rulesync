@@ -1172,7 +1172,6 @@ describe("CommandsProcessor", () => {
           "claudecode-legacy",
           "cline",
           "cursor",
-          "factorydroid",
           "geminicli",
           "junie",
           "codexcli",
