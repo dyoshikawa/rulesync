@@ -31,6 +31,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
     }),
   ),
+  deepagents: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+    }),
+  ),
   copilot: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -57,6 +62,9 @@ export type RulesyncSkillFrontmatterInput = {
     "short-description"?: string;
   };
   opencode?: {
+    "allowed-tools"?: string[];
+  };
+  deepagents?: {
     "allowed-tools"?: string[];
   };
   copilot?: {

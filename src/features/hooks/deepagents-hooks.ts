@@ -63,6 +63,7 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHookEntry[] 
     for (const def of definitions) {
       if (def.type === "prompt") continue;
       if (!def.command) continue;
+      if (def.matcher) continue;
 
       entries.push({
         command: ["bash", "-c", def.command],

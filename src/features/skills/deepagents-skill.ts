@@ -111,6 +111,9 @@ export class DeepagentsSkill extends ToolSkill {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(frontmatter["allowed-tools"] && {
+        deepagents: { "allowed-tools": frontmatter["allowed-tools"] },
+      }),
     };
 
     return new RulesyncSkill({
@@ -137,6 +140,7 @@ export class DeepagentsSkill extends ToolSkill {
     const deepagentsFrontmatter: DeepagentsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      "allowed-tools": rulesyncFrontmatter.deepagents?.["allowed-tools"],
     };
 
     return new DeepagentsSkill({

@@ -64,7 +64,7 @@ describe("DeepagentsSkill", () => {
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["read_file", "write_file"]);
     });
 
-    it("should throw on invalid frontmatter when validate=true", () => {
+    it("should not throw on invalid frontmatter when validate=false", () => {
       expect(
         () =>
           new DeepagentsSkill({
