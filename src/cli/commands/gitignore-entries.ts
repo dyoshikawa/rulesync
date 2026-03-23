@@ -59,6 +59,14 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "cursor", feature: "rules", entry: "**/.cursor/" },
   { target: "cursor", feature: "ignore", entry: "**/.cursorignore" },
 
+  // deepagents-cli
+  { target: "deepagents", feature: "rules", entry: "**/.deepagents/AGENTS.md" },
+  { target: "deepagents", feature: "rules", entry: "**/.deepagents/memories/" },
+  { target: "deepagents", feature: "mcp", entry: "**/.deepagents/.mcp.json" },
+  { target: "deepagents", feature: "skills", entry: "**/.deepagents/skills/" },
+  { target: "deepagents", feature: "subagents", entry: "**/.deepagents/agents/" },
+  { target: "deepagents", feature: "hooks", entry: "**/.deepagents/hooks.json" },
+
   // Factory Droid
   { target: "factorydroid", feature: "rules", entry: "**/.factory/rules/" },
   { target: "factorydroid", feature: "commands", entry: "**/.factory/commands/" },

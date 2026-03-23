@@ -73,6 +73,12 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.warp/");
       expect(content).toContain("**/.codex/memories/");
       expect(content).toContain("**/.codex/skills/");
+      expect(content).toContain("**/.deepagents/AGENTS.md");
+      expect(content).toContain("**/.deepagents/memories/");
+      expect(content).toContain("**/.deepagents/.mcp.json");
+      expect(content).toContain("**/.deepagents/skills/");
+      expect(content).toContain("**/.deepagents/agents/");
+      expect(content).toContain("**/.deepagents/hooks.json");
       expect(content).not.toContain("**/.agent/rules/");
       expect(content).not.toContain("**/.agent/workflows/");
       expect(content).not.toContain("**/.agent/skills/");

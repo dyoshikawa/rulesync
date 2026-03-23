@@ -38,6 +38,7 @@ import { ClineRule } from "./cline-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
+import { DeepagentsRule } from "./deepagents-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
 import { GooseRule } from "./goose-rule.js";
@@ -71,6 +72,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "codexcli",
   "copilot",
   "cursor",
+  "deepagents",
   "factorydroid",
   "geminicli",
   "goose",
@@ -290,6 +292,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: CursorRule,
       meta: {
         extension: "mdc",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "deepagents",
+    {
+      class: DeepagentsRule,
+      meta: {
+        extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
       },

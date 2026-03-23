@@ -150,6 +150,17 @@ export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
   "setup",
 ];
 
+/** Hook events supported by deepagents-cli. */
+export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "permissionRequest",
+  "postToolUseFailure",
+  "stop",
+  "preCompact",
+];
+
 /** Hook events supported by Gemini CLI. */
 export const GEMINICLI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -179,6 +190,7 @@ export const HooksConfigSchema = z.looseObject({
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -321,4 +333,24 @@ export const CANONICAL_TO_GEMINICLI_EVENT_NAMES: Record<string, string> = {
  */
 export const GEMINICLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_GEMINICLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to deepagents-cli dot-notation.
+ */
+export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session.start",
+  sessionEnd: "session.end",
+  beforeSubmitPrompt: "user.prompt",
+  permissionRequest: "permission.request",
+  postToolUseFailure: "tool.error",
+  stop: "task.complete",
+  preCompact: "context.compact",
+};
+
+/**
+ * Map deepagents-cli dot-notation event names to canonical camelCase.
+ */
+export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

@@ -13,6 +13,7 @@ export const ALL_TOOL_TARGETS = [
   "copilot",
   "copilotcli",
   "cursor",
+  "deepagents",
   "factorydroid",
   "geminicli",
   "goose",

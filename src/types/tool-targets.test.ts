@@ -24,6 +24,7 @@ describe("tool targets", () => {
         "copilot",
         "copilotcli",
         "cursor",
+        "deepagents",
         "factorydroid",
         "geminicli",
         "goose",
