@@ -111,16 +111,30 @@ async function processEmptyFeatureGeneration(params: {
   return { count: totalCount, paths: [], hasDiff };
 }
 
+const SIMULATE_OPTION_MAP: Partial<Record<Feature, string>> = {
+  commands: "--simulate-commands",
+  subagents: "--simulate-subagents",
+  skills: "--simulate-skills",
+};
+
 function warnUnsupportedTargets(params: {
   config: Config;
   supportedTargets: ToolTarget[];
+  simulatedTargets?: ToolTarget[];
   featureName: Feature;
   logger: Logger;
 }): void {
-  const { config, supportedTargets, featureName, logger } = params;
+  const { config, supportedTargets, simulatedTargets = [], featureName, logger } = params;
   for (const target of config.getTargets()) {
     if (!supportedTargets.includes(target) && config.getFeatures(target).includes(featureName)) {
-      logger.warn(`Target '${target}' does not support the feature '${featureName}'. Skipping.`);
+      const simulateOption = SIMULATE_OPTION_MAP[featureName];
+      if (simulateOption && simulatedTargets.includes(target)) {
+        logger.warn(
+          `Target '${target}' only supports simulated '${featureName}'. Use '${simulateOption}' to enable it. Skipping.`,
+        );
+      } else {
+        logger.warn(`Target '${target}' does not support the feature '${featureName}'. Skipping.`);
+      }
     }
   }
 }
@@ -370,6 +384,7 @@ async function generateCommandsCore(params: {
   warnUnsupportedTargets({
     config,
     supportedTargets: supportedCommandsTargets,
+    simulatedTargets: CommandsProcessor.getToolTargetsSimulated(),
     featureName: "commands",
     logger,
   });
@@ -425,6 +440,7 @@ async function generateSubagentsCore(params: {
   warnUnsupportedTargets({
     config,
     supportedTargets: supportedSubagentsTargets,
+    simulatedTargets: SubagentsProcessor.getToolTargetsSimulated(),
     featureName: "subagents",
     logger,
   });
@@ -481,6 +497,7 @@ async function generateSkillsCore(params: {
   warnUnsupportedTargets({
     config,
     supportedTargets: supportedSkillsTargets,
+    simulatedTargets: SkillsProcessor.getToolTargetsSimulated(),
     featureName: "skills",
     logger,
   });
