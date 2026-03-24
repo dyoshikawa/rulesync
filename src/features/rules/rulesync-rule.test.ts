@@ -458,6 +458,37 @@ Claude Code-specific rule body`;
       expect(rule.getBody()).toBe("Claude Code-specific rule body");
     });
 
+    it("should handle antigravity configuration in frontmatter", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+
+      const ruleContent = `---
+root: false
+targets:
+  - antigravity
+description: Antigravity rule
+antigravity:
+  trigger: "glob"
+  globs:
+    - "*.md"
+---
+
+Antigravity-specific rule body`;
+
+      const filePath = join(rulesDir, "antigravity-rule.md");
+      await writeFileContent(filePath, ruleContent);
+
+      const rule = await RulesyncRule.fromFile({
+        relativeFilePath: "antigravity-rule.md",
+      });
+
+      expect(rule.getFrontmatter().antigravity).toEqual({
+        trigger: "glob",
+        globs: ["*.md"],
+      });
+      expect(rule.getBody()).toBe("Antigravity-specific rule body");
+    });
+
     it("should load rule with localRoot field", async () => {
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
