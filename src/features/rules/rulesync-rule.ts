@@ -30,21 +30,21 @@ export const RulesyncRuleFrontmatterSchema = z.object({
     }),
   ),
   claudecode: z.optional(
-    z.object({
+    z.looseObject({
       // Glob patterns for conditional rules (takes precedence over globs)
       // @example ["src/**/*.ts", "tests/**/*.test.ts"]
       paths: z.optional(z.array(z.string())),
     }),
   ),
   cursor: z.optional(
-    z.object({
+    z.looseObject({
       alwaysApply: z.optional(z.boolean()),
       description: z.optional(z.string()),
       globs: z.optional(z.array(z.string())),
     }),
   ),
   copilot: z.optional(
-    z.object({
+    z.looseObject({
       excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
     }),
   ),
@@ -157,16 +157,10 @@ export class RulesyncRule extends RulesyncFile {
     }
 
     const validatedFrontmatter: RulesyncRuleFrontmatter = {
+      ...result.data,
       root: result.data.root ?? false,
       localRoot: result.data.localRoot ?? false,
-      targets: result.data.targets ?? ["*"],
-      description: result.data.description,
       globs: result.data.globs ?? [],
-      agentsmd: result.data.agentsmd,
-      claudecode: result.data.claudecode,
-      cursor: result.data.cursor,
-      copilot: result.data.copilot,
-      antigravity: result.data.antigravity,
     };
 
     return new RulesyncRule({
