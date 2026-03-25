@@ -729,6 +729,56 @@ This has leading and trailing whitespace.
       expect(result.success).toBe(false);
     });
 
+    it("should preserve unknown keys in tool-specific sub-schemas via z.looseObject", () => {
+      const frontmatter = {
+        cursor: {
+          alwaysApply: true,
+          futureField: "preserved",
+        },
+        copilot: {
+          excludeAgent: "code-review" as const,
+          newOption: 42,
+        },
+        claudecode: {
+          paths: ["src/**/*.ts"],
+          experimentalFlag: true,
+        },
+        antigravity: {
+          trigger: "glob",
+          globs: ["*.md"],
+          extraSetting: "kept",
+        },
+        agentsmd: {
+          subprojectPath: "packages/app",
+          unknownProp: ["a", "b"],
+        },
+      };
+
+      const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      expect(result.data?.cursor).toEqual({
+        alwaysApply: true,
+        futureField: "preserved",
+      });
+      expect(result.data?.copilot).toEqual({
+        excludeAgent: "code-review",
+        newOption: 42,
+      });
+      expect(result.data?.claudecode).toEqual({
+        paths: ["src/**/*.ts"],
+        experimentalFlag: true,
+      });
+      expect(result.data?.antigravity).toEqual({
+        trigger: "glob",
+        globs: ["*.md"],
+        extraSetting: "kept",
+      });
+      expect(result.data?.agentsmd).toEqual({
+        subprojectPath: "packages/app",
+        unknownProp: ["a", "b"],
+      });
+    });
+
     it("should allow partial cursor configuration", () => {
       const frontmatter = {
         cursor: {
