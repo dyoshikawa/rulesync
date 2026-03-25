@@ -163,7 +163,10 @@ export class RulesyncRule extends RulesyncFile {
       description: result.data.description,
       globs: result.data.globs ?? [],
       agentsmd: result.data.agentsmd,
+      claudecode: result.data.claudecode,
       cursor: result.data.cursor,
+      copilot: result.data.copilot,
+      antigravity: result.data.antigravity,
     };
 
     return new RulesyncRule({
