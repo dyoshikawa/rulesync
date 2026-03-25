@@ -173,9 +173,7 @@ package-lock.json
 
 .cspellcache
 
-.serena/cache/
-.serena/memories/
-.serena/.gitignore
+.serena/
 
 data
 
