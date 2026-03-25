@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { McpServers } from "../../types/mcp.js";
+import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -13,15 +13,6 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
-
-/**
- * Type guard to check if a value is a valid McpServers object
- *
- * @todo Tech debt: duplicated `isMcpServers` logic across MCP implementations (cursor-mcp, rovodev-mcp; roo-mcp uses `isRooMcpServers` for the same object-shape check). Refactor into one shared helper (e.g. under `types/mcp` or `tool-mcp`).
- */
-function isMcpServers(value: unknown): value is McpServers {
-  return value !== undefined && value !== null && typeof value === "object";
-}
 
 /**
  * Rovodev MCP: global only at ~/.rovodev/mcp.json.
