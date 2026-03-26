@@ -161,6 +161,31 @@ describe("RovodevMcp", () => {
     });
   });
 
+  describe("toRulesyncMcp", () => {
+    it("should not propagate unknown top-level keys from Rovodev mcp.json", () => {
+      const rovodev = new RovodevMcp({
+        baseDir: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: validMcpConfig.mcpServers,
+          hypotheticalRovodevExtension: { ignored: true },
+        }),
+        validate: false,
+        global: true,
+      });
+
+      const rulesyncMcp = rovodev.toRulesyncMcp();
+
+      expect(rulesyncMcp.getJson()).toEqual(
+        expect.objectContaining({
+          mcpServers: validMcpConfig.mcpServers,
+        }),
+      );
+      expect(Object.keys(rulesyncMcp.getJson())).not.toContain("hypotheticalRovodevExtension");
+    });
+  });
+
   describe("round-trip conversion", () => {
     it("should round-trip RulesyncMcp through RovodevMcp and back", async () => {
       const rulesyncMcp = new RulesyncMcp({

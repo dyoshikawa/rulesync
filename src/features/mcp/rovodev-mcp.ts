@@ -129,12 +129,10 @@ export class RovodevMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
-    const transformedJson = {
-      ...this.json,
-      mcpServers,
-    };
+    // Do not spread the full Rovodev JSON: future tool-specific top-level keys must not leak
+    // into rulesync mcp.json (unlike Cursor, which intentionally preserves extra keys today).
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify(transformedJson, null, 2),
+      fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
   }
 
