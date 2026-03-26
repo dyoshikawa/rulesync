@@ -106,7 +106,7 @@ export abstract class AiFile {
   }
 
   getRelativePathFromCwd(): string {
-    return path.join(this.relativeDirPath, this.relativeFilePath);
+    return path.join(this.relativeDirPath, this.relativeFilePath).replace(/\\/g, "/");
   }
 
   setFileContent(newFileContent: string): void {
