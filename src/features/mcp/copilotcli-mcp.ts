@@ -17,12 +17,7 @@ export type CopilotcliMcpParams = ToolMcpParams;
 
 type CopilotcliMcpConfig = {
   mcpServers?: {
-    [key: string]: {
-      type: "stdio";
-      command: string;
-      args?: string[];
-      env?: Record<string, string>;
-    };
+    [key: string]: Record<string, unknown>;
   };
 };
 
@@ -64,10 +59,10 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
     }
 
     result[name] = {
+      ...(server as Record<string, unknown>), // Use original server object to preserve ALL fields
       type: "stdio",
       command,
       ...(args && { args }),
-      ...(parsed.env && { env: parsed.env }),
     };
   }
 

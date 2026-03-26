@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_MCP_FILE_NAME,
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -625,6 +626,43 @@ describe("CopilotcliMcp", () => {
       // Verify data integrity - type field is restored
       expect(newCopilotcliMcp.getJson()).toEqual({ mcpServers: originalServers });
       expect(newCopilotcliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
+    });
+
+    it("should preserve unknown fields like \"tools\" and \"url\" during conversion", async () => {
+      const originalServers = {
+        "test-server": {
+          command: "node",
+          args: ["main.js"],
+          tools: ["tool1", "tool2"], // Specific to Copilot CLI or other tools
+          url: "http://localhost:8080", // Specific to SSE/HTTP servers
+          headers: { "X-Test": "Value" },
+          unknown_field: "value",
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_MCP_FILE_NAME,
+        fileContent: JSON.stringify({ mcpServers: originalServers }, null, 2),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        baseDir: testDir,
+        rulesyncMcp,
+      });
+
+      // Verification: All fields should be preserved, and "type": "stdio" added
+      const json = copilotCliMcp.getJson();
+      expect(json.mcpServers!["test-server"]).toEqual({
+        ...originalServers["test-server"],
+        type: "stdio",
+      });
+
+      // Round-trip back to RulesyncMcp
+      const backToRulesync = copilotCliMcp.toRulesyncMcp();
+      const backJson = JSON.parse(backToRulesync.getFileContent());
+      expect(backJson.mcpServers["test-server"]).toEqual(originalServers["test-server"]);
     });
 
     it("should maintain data consistency across transformations", async () => {
