@@ -59,7 +59,7 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
     }
 
     result[name] = {
-      ...(server as Record<string, unknown>), // Use original server object to preserve ALL fields
+      ...server, // server is already compatible with the target structure
       type: "stdio",
       command,
       ...(args && { args }),

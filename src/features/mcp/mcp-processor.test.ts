@@ -12,11 +12,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
-import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
-import { JunieMcp } from "./junie-mcp.js";
-import { KiloMcp } from "./kilo-mcp.js";
-import { KiroMcp } from "./kiro-mcp.js";
 import {
   McpProcessor,
   type McpProcessorToolTarget,
@@ -33,11 +29,7 @@ vi.mock("./codexcli-mcp.js");
 vi.mock("./copilot-mcp.js");
 vi.mock("./copilotcli-mcp.js");
 vi.mock("./cursor-mcp.js");
-vi.mock("./factorydroid-mcp.js");
 vi.mock("./geminicli-mcp.js");
-vi.mock("./junie-mcp.js");
-vi.mock("./kilo-mcp.js");
-vi.mock("./kiro-mcp.js");
 vi.mock("./opencode-mcp.js");
 vi.mock("./roo-mcp.js");
 vi.mock("./rulesync-mcp.js");

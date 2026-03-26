@@ -628,7 +628,7 @@ describe("CopilotcliMcp", () => {
       expect(newCopilotcliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
     });
 
-    it("should preserve unknown fields like \"tools\" and \"url\" during conversion", async () => {
+    it('should preserve unknown fields like "tools" and "url" during conversion', async () => {
       const originalServers = {
         "test-server": {
           command: "node",
