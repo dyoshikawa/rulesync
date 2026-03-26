@@ -24,3 +24,11 @@ export const McpServerSchema = z.looseObject({
 
 export const McpServersSchema = z.record(z.string(), McpServerSchema);
 export type McpServers = z.infer<typeof McpServersSchema>;
+
+/**
+ * Loose guard for `mcpServers` values from parsed JSON: a non-null object.
+ * Tool MCP layers use this before structural transforms; stricter validation may follow elsewhere.
+ */
+export function isMcpServers(value: unknown): value is McpServers {
+  return value !== undefined && value !== null && typeof value === "object";
+}

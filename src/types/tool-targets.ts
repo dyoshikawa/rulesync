@@ -24,6 +24,7 @@ export const ALL_TOOL_TARGETS = [
   "qwencode",
   "replit",
   "roo",
+  "rovodev",
   "warp",
   "windsurf",
   "zed",

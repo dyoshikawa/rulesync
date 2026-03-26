@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { McpServers } from "../../types/mcp.js";
+import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -18,13 +18,6 @@ import {
 // we use Record<string, unknown> as the intermediate type for Roo-specific format
 
 type RooMcpServers = Record<string, Record<string, unknown>>;
-
-/**
- * Type guard to check if a value is a valid RooMcpServers object
- */
-function isRooMcpServers(value: unknown): value is RooMcpServers {
-  return value !== undefined && value !== null && typeof value === "object";
-}
 
 /**
  * Convert Rulesync MCP format to Roo MCP format
@@ -51,14 +44,20 @@ function convertToRooFormat(mcpServers: McpServers): RooMcpServers {
  * - type: "streamable-http" -> "http"
  * - transport: "streamable-http" -> "http"
  */
-function convertFromRooFormat(mcpServers: RooMcpServers): McpServers {
+function convertFromRooFormat(mcpServers: unknown): McpServers {
+  if (!isMcpServers(mcpServers)) {
+    return {};
+  }
   return Object.fromEntries(
     Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      const converted: Record<string, unknown> = { ...serverConfig };
-      if (serverConfig.type === "streamable-http") {
+      const converted: Record<string, unknown> =
+        typeof serverConfig === "object" && serverConfig !== null && !Array.isArray(serverConfig)
+          ? Object.fromEntries(Object.entries(serverConfig))
+          : {};
+      if (converted.type === "streamable-http") {
         converted.type = "http";
       }
-      if (serverConfig.transport === "streamable-http") {
+      if (converted.transport === "streamable-http") {
         converted.transport = "http";
       }
       return [serverName, converted];
@@ -124,10 +123,7 @@ export class RooMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const rawMcpServers: RooMcpServers = isRooMcpServers(this.json.mcpServers)
-      ? this.json.mcpServers
-      : {};
-    const convertedMcpServers = convertFromRooFormat(rawMcpServers);
+    const convertedMcpServers = convertFromRooFormat(this.json.mcpServers);
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
     });

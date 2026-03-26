@@ -918,7 +918,7 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, codexcli, cursor, and opencode as global-supported targets", () => {
+    it("should return claudecode, codexcli, cursor, opencode, and rovodev as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
@@ -928,6 +928,7 @@ Second global content`;
         "codexcli",
         "cursor",
         "opencode",
+        "rovodev",
       ]);
     });
 
@@ -970,6 +971,7 @@ Second global content`;
           "kiro",
           "opencode",
           "roo",
+          "rovodev",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

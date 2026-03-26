@@ -49,6 +49,7 @@ import { OpenCodeRule } from "./opencode-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
+import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -83,6 +84,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "qwencode",
   "replit",
   "roo",
+  "rovodev",
   "warp",
   "windsurf",
 ];
@@ -427,6 +429,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
           subagents: { subagentClass: RooSubagent },
         },
         createsSeparateConventionsRule: true,
+      },
+    },
+  ],
+  [
+    "rovodev",
+    {
+      class: RovodevRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
       },
     },
   ],
