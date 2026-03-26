@@ -143,7 +143,7 @@ export abstract class AiDir {
   }
 
   getRelativePathFromCwd(): string {
-    return path.join(this.relativeDirPath, this.dirName);
+    return path.join(this.relativeDirPath, this.dirName).replace(/\\/g, "/");
   }
 
   getGlobal(): boolean {
