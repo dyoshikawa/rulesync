@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
@@ -442,7 +442,7 @@ async function collectFeatureFiles(params: {
   const results = await Promise.all(
     tasks.map(async ({ featurePath }) => {
       const fullPath =
-        basePath === "." || basePath === "" ? featurePath : join(basePath, featurePath);
+        basePath === "." || basePath === "" ? featurePath : posix.join(basePath, featurePath);
       const collected: Array<{ remotePath: string; relativePath: string; size: number }> = [];
 
       try {

@@ -1,4 +1,6 @@
-import { join } from "node:path";
+import { posix } from "node:path";
+
+const { join } = posix;
 
 export const RULESYNC_CONFIG_RELATIVE_FILE_PATH = "rulesync.jsonc";
 export const RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH = "rulesync.local.jsonc";
