@@ -122,10 +122,6 @@ export class RovodevSubagent extends ToolSubagent {
   }
 
   validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
     const result = RovodevSubagentFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
