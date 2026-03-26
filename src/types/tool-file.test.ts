@@ -44,6 +44,22 @@ describe("ToolFile", () => {
     await cleanup();
     vi.restoreAllMocks();
   });
+  describe("getRelativePathFromCwd - cross-platform path separator", () => {
+    it("should use forward slashes only, even when path segments contain backslashes", () => {
+      // Simulate Windows: path.relative() returns backslash-separated paths like "sub\\rule.md"
+      const file = new TestToolFile({
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "sub\\rule.md",
+        fileContent: "content",
+        validate: false,
+      });
+      expect(
+        file.getRelativePathFromCwd(),
+        `getRelativePathFromCwd() must not contain backslashes`,
+      ).not.toContain("\\");
+    });
+  });
+
   describe("inheritance from AiFile", () => {
     it("should inherit all AiFile functionality", () => {
       const file = new TestToolFile({
