@@ -95,7 +95,7 @@ export class RovodevSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
-  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
+  }: ToolSubagentFromRulesyncSubagentParams): RovodevSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const rovodevSection = rulesyncFrontmatter.rovodev ?? {};
 
