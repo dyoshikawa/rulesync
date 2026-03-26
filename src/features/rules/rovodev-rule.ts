@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -9,24 +10,31 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 
 export type RovodevRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-export type RovodevRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
+/** Project paths; `nonRoot` is a stable subdirectory for `ToolRule` typing (no rulesync non-root rules yet). */
+export type RovodevRuleSettablePaths = ToolRuleSettablePaths & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRoot?: undefined;
-  alternativeRoots?: undefined;
+  alternativeRoots: Array<{
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }>;
 };
 
 /**
- * Rovodev rule: AGENTS.md at repo root only. No memory/non-root rules.
- * Rovodev uses AGENTS.md format; see https://developer.atlassian.com/platform/rovodev-cli/
+ * Rovodev CLI memory: project `.rovodev/AGENTS.md` (canonical rulesync output), mirrored `./AGENTS.md`
+ * for [Rovo Dev project memory](https://support.atlassian.com/rovo/docs/use-memory-in-rovo-dev-cli/),
+ * and user `~/.rovodev/AGENTS.md` in global mode. `localRoot` rulesync maps to `./AGENTS.local.md`.
+ *
+ * @see https://developer.atlassian.com/platform/rovodev-cli/
  */
 export class RovodevRule extends ToolRule {
   constructor({ fileContent, root, ...rest }: RovodevRuleParams) {
@@ -37,16 +45,26 @@ export class RovodevRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): RovodevRuleSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): RovodevRuleSettablePaths | ToolRuleSettablePathsGlobal {
+    const rovodevAgents = {
+      relativeDirPath: ".rovodev",
+      relativeFilePath: "AGENTS.md",
+    };
+    if (global) {
+      return {
+        root: rovodevAgents,
+      };
+    }
     return {
-      root: {
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+      root: rovodevAgents,
+      alternativeRoots: [{ relativeDirPath: ".", relativeFilePath: "AGENTS.md" }],
+      nonRoot: {
+        relativeDirPath: join(".rovodev", ".rulesync", "modular-rules"),
       },
     };
   }
@@ -54,22 +72,42 @@ export class RovodevRule extends ToolRule {
   static async fromFile({
     baseDir = process.cwd(),
     relativeFilePath,
+    relativeDirPath: overrideDirPath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<RovodevRule> {
+    const paths = this.getSettablePaths({ global });
+    const relativeDirPath = overrideDirPath ?? paths.root.relativeDirPath;
+
     if (relativeFilePath !== "AGENTS.md") {
       throw new Error(
-        `Rovodev rules support only AGENTS.md at repo root, got: ${relativeFilePath}`,
+        `Rovodev rules support only AGENTS.md under .rovodev/ or project root, got: ${join(relativeDirPath, relativeFilePath)}`,
       );
     }
-    const fileContent = await readFileContent(join(baseDir, "AGENTS.md"));
-    const paths = this.getSettablePaths();
+
+    const allowed =
+      relativeDirPath === paths.root.relativeDirPath ||
+      ("alternativeRoots" in paths &&
+        paths.alternativeRoots?.some(
+          (alt) =>
+            alt.relativeDirPath === relativeDirPath && alt.relativeFilePath === relativeFilePath,
+        ));
+
+    if (!allowed) {
+      throw new Error(
+        `Rovodev AGENTS.md must be at ${join(paths.root.relativeDirPath, paths.root.relativeFilePath)} or project root, got: ${join(relativeDirPath, relativeFilePath)}`,
+      );
+    }
+
+    const fileContent = await readFileContent(join(baseDir, relativeDirPath, relativeFilePath));
 
     return new RovodevRule({
       baseDir,
-      relativeDirPath: paths.root.relativeDirPath,
-      relativeFilePath: paths.root.relativeFilePath,
+      relativeDirPath,
+      relativeFilePath,
       fileContent,
       validate,
+      global,
       root: true,
     });
   }
@@ -78,6 +116,7 @@ export class RovodevRule extends ToolRule {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolRuleForDeletionParams): RovodevRule {
     return new RovodevRule({
       baseDir,
@@ -85,7 +124,8 @@ export class RovodevRule extends ToolRule {
       relativeFilePath: relativeFilePath ?? "AGENTS.md",
       fileContent: "",
       validate: false,
-      root: true,
+      global,
+      root: relativeFilePath === "AGENTS.md",
     });
   }
 
@@ -93,24 +133,43 @@ export class RovodevRule extends ToolRule {
     baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): RovodevRule {
     if (!rulesyncRule.getFrontmatter().root) {
       throw new Error(
-        "Rovodev supports only the root rule (AGENTS.md); non-root rules are not supported.",
+        "Rovodev supports only the root rule for AGENTS.md; non-root rules are not supported.",
       );
     }
+    const rootPath = this.getSettablePaths({ global }).root;
     return new RovodevRule(
       this.buildToolRuleParamsDefault({
         baseDir,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
+        global,
+        rootPath,
         nonRootPath: undefined,
       }),
     );
   }
 
   toRulesyncRule(): RulesyncRule {
+    if (this.getRelativeFilePath() === "AGENTS.local.md") {
+      return new RulesyncRule({
+        baseDir: this.getBaseDir(),
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "AGENTS.local.md",
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          localRoot: true,
+          globs: [],
+        },
+        body: this.getFileContent(),
+        validate: true,
+      });
+    }
+
     return this.toRulesyncRuleDefault();
   }
 
@@ -119,8 +178,10 @@ export class RovodevRule extends ToolRule {
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-    if (!isRoot) {
+    const fm = rulesyncRule.getFrontmatter();
+    const isRoot = fm.root ?? false;
+    const isLocalRoot = fm.localRoot ?? false;
+    if (!isRoot && !isLocalRoot) {
       return false;
     }
 

@@ -14,8 +14,16 @@ export type ToolSkillFromRulesyncSkillParams = {
 };
 
 export type ToolSkillSettablePaths = {
+  /** Primary output and first import root (highest precedence when the same skill name exists in multiple roots). */
   relativeDirPath: string;
+  /** Extra directories to scan for import and deletion (e.g. Rovo Dev `.agents/skills/` alongside `.rovodev/skills/`). */
+  alternativeSkillRoots?: string[];
 };
+
+/** Ordered skill directory roots: primary first. */
+export function toolSkillSearchRoots(paths: ToolSkillSettablePaths): string[] {
+  return [paths.relativeDirPath, ...(paths.alternativeSkillRoots ?? [])];
+}
 
 export type ToolSkillFromDirParams = {
   baseDir?: string;

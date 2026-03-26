@@ -29,8 +29,14 @@ type RovodevSubagentParams = {
 } & AiFileParams;
 
 /**
- * Rovodev subagent: .rovodev/subagents/*.md (project) or ~/.rovodev/subagents/*.md (global).
- * Same format as AGENTS.md subagents (YAML frontmatter + body). Not simulated.
+ * Rovo Dev CLI subagents: markdown with YAML frontmatter plus body (system prompt).
+ *
+ * - **Project:** `.rovodev/subagents/*.md`
+ * - **User:** `~/.rovodev/subagents/*.md` (same relative path under home when syncing with `--global`)
+ *
+ * Optional frontmatter fields such as `tools` are preserved under the rulesync `rovodev` key on round-trip.
+ *
+ * @see https://support.atlassian.com/rovo/docs/use-subagents-in-rovo-dev-cli/
  */
 export class RovodevSubagent extends ToolSubagent {
   private readonly frontmatter: RovodevSubagentFrontmatter;
