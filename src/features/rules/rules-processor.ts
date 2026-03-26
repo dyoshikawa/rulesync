@@ -21,12 +21,14 @@ import { CommandsProcessor } from "../commands/commands-processor.js";
 import { FactorydroidCommand } from "../commands/factorydroid-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
+import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { FactorydroidSubagent } from "../subagents/factorydroid-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
+import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AntigravityRule } from "./antigravity-rule.js";
@@ -131,8 +133,8 @@ type SkillClassType = {
 };
 
 /**
- * Configuration for additional conventions (simulated features).
- * Specifies which simulated features are supported for the tool and their paths.
+ * Configuration for additional convention paths embedded in the root rule (e.g. AGENTS.md).
+ * Used for simulated features and for native subagents/skills when `ruleDiscoveryMode` is `toon`.
  */
 type AdditionalConventionsConfig = {
   /** Command feature configuration */
@@ -172,7 +174,7 @@ type ToolRuleFactory = {
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
     ruleDiscoveryMode: RuleDiscoveryMode;
-    /** Configuration for additional conventions (simulated features) */
+    /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
     createsSeparateConventionsRule?: boolean;
@@ -440,6 +442,10 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
+        additionalConventions: {
+          subagents: { subagentClass: RovodevSubagent },
+          skills: { skillClass: RovodevSkill },
+        },
       },
     },
   ],
