@@ -18,15 +18,26 @@ function makeTestDir(
 }
 
 describe("AiDir.getRelativePathFromCwd - cross-platform path separator", () => {
-  it("should use forward slashes only, even when relativeDirPath contains backslashes", () => {
-    // Simulate Windows: relativeDirPath set from a platform-native path
+it.each([
+    [
+      "Windows style input", 
+      ".rulesync\\skills", 
+      "my-skill", 
+      ".rulesync/skills/my-skill"
+    ],
+    [
+      "POSIX style input", 
+      ".rulesync/skills", 
+      "my-skill", 
+      ".rulesync/skills/my-skill"
+    ],
+  ])("should format to POSIX paths consistently (%s)", (_, relativeDirPath, dirName, expected) => {
     const dir = makeTestDir({
-      relativeDirPath: ".rulesync\\skills",
-      dirName: "my-skill",
+      relativeDirPath,
+      dirName,
     });
-    expect(
-      dir.getRelativePathFromCwd(),
-      "getRelativePathFromCwd() must not contain backslashes",
-    ).not.toContain("\\");
+    const result = dir.getRelativePathFromCwd();
+    expect(result).toBe(expected);
+    expect(result, "getRelativePathFromCwd() must not contain backslashes").not.toContain("\\");
   });
 });

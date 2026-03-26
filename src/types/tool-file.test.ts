@@ -45,18 +45,29 @@ describe("ToolFile", () => {
     vi.restoreAllMocks();
   });
   describe("getRelativePathFromCwd - cross-platform path separator", () => {
-    it("should use forward slashes only, even when path segments contain backslashes", () => {
-      // Simulate Windows: path.relative() returns backslash-separated paths like "sub\\rule.md"
+    it.each([
+[
+        "Windows style paths", 
+        ".cursor\\rules",
+        "sub\\rule.md", 
+        ".cursor/rules/sub/rule.md"
+      ],
+      [
+        "POSIX style paths", 
+        ".cursor/rules",
+        "sub/rule.md", 
+        ".cursor/rules/sub/rule.md"
+      ]
+    ])("should output forward slashes only for %s", (_, relativeDirPath, relativeFilePath, expected) => {
       const file = new TestToolFile({
         relativeDirPath: ".cursor/rules",
         relativeFilePath: "sub\\rule.md",
         fileContent: "content",
         validate: false,
       });
-      expect(
-        file.getRelativePathFromCwd(),
-        `getRelativePathFromCwd() must not contain backslashes`,
-      ).not.toContain("\\");
+      const result = file.getRelativePathFromCwd();
+      expect(result).toBe(expected);
+      expect(result).not.toContain("\\");
     });
   });
 
