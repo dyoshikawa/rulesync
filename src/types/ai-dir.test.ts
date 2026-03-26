@@ -18,19 +18,9 @@ function makeTestDir(
 }
 
 describe("AiDir.getRelativePathFromCwd - cross-platform path separator", () => {
-it.each([
-    [
-      "Windows style input", 
-      ".rulesync\\skills", 
-      "my-skill", 
-      ".rulesync/skills/my-skill"
-    ],
-    [
-      "POSIX style input", 
-      ".rulesync/skills", 
-      "my-skill", 
-      ".rulesync/skills/my-skill"
-    ],
+  it.each([
+    ["Windows style input", ".rulesync\\skills", "my-skill", ".rulesync/skills/my-skill"],
+    ["POSIX style input", ".rulesync/skills", "my-skill", ".rulesync/skills/my-skill"],
   ])("should format to POSIX paths consistently (%s)", (_, relativeDirPath, dirName, expected) => {
     const dir = makeTestDir({
       relativeDirPath,

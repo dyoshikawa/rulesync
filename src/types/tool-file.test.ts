@@ -46,29 +46,22 @@ describe("ToolFile", () => {
   });
   describe("getRelativePathFromCwd - cross-platform path separator", () => {
     it.each([
-[
-        "Windows style paths", 
-        ".cursor\\rules",
-        "sub\\rule.md", 
-        ".cursor/rules/sub/rule.md"
-      ],
-      [
-        "POSIX style paths", 
-        ".cursor/rules",
-        "sub/rule.md", 
-        ".cursor/rules/sub/rule.md"
-      ]
-    ])("should output forward slashes only for %s", (_, relativeDirPath, relativeFilePath, expected) => {
-      const file = new TestToolFile({
-        relativeDirPath: ".cursor/rules",
-        relativeFilePath: "sub\\rule.md",
-        fileContent: "content",
-        validate: false,
-      });
-      const result = file.getRelativePathFromCwd();
-      expect(result).toBe(expected);
-      expect(result).not.toContain("\\");
-    });
+      ["Windows style paths", ".cursor\\rules", "sub\\rule.md", ".cursor/rules/sub/rule.md"],
+      ["POSIX style paths", ".cursor/rules", "sub/rule.md", ".cursor/rules/sub/rule.md"],
+    ])(
+      "should output forward slashes only for %s",
+      (_, relativeDirPath, relativeFilePath, expected) => {
+        const file = new TestToolFile({
+          relativeDirPath: ".cursor/rules",
+          relativeFilePath: "sub\\rule.md",
+          fileContent: "content",
+          validate: false,
+        });
+        const result = file.getRelativePathFromCwd();
+        expect(result).toBe(expected);
+        expect(result).not.toContain("\\");
+      },
+    );
   });
 
   describe("inheritance from AiFile", () => {
