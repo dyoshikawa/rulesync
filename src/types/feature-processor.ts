@@ -1,3 +1,4 @@
+import { fileContentsEquivalent } from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   readFileContentOrNull,
@@ -59,7 +60,7 @@ export abstract class FeatureProcessor {
       const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
       const existingContent = await readFileContentOrNull(filePath);
 
-      if (existingContent === contentWithNewline) {
+      if (fileContentsEquivalent(filePath, contentWithNewline, existingContent)) {
         continue;
       }
 
