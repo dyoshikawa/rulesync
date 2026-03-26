@@ -650,6 +650,63 @@ describe("fetchFiles", () => {
     expect(summary.files[0]?.relativePath).toBe("rules/overview.md");
   });
 
+  it("should send forward-slash paths to GitHub API even when path.join produces backslashes", async () => {
+    // This test verifies that paths sent to GitHub API always use forward slashes.
+    // On Windows, path.join("packages/shared", "rules") produces "packages\\shared\\rules",
+    // which would break the GitHub API call.
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        // Verify no backslashes in any path sent to GitHub API
+        expect(path, `GitHub API path "${path}" must not contain backslashes`).not.toContain("\\");
+
+        if (path === "packages/shared/rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "packages/shared/rules/overview.md",
+              type: "file",
+              sha: "abc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "packages/shared") {
+          return Promise.resolve([
+            {
+              name: "mcp.json",
+              path: "packages/shared/mcp.json",
+              type: "file",
+              sha: "def",
+              size: 50,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("content");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo:packages/shared",
+      options: { features: ["rules", "mcp"] },
+      baseDir: testDir,
+    });
+
+    expect(summary.created).toBeGreaterThanOrEqual(1);
+
+    // Double-check: all listDirectory calls used forward-slash paths
+    for (const call of mockClientInstance.listDirectory.mock.calls) {
+      const apiPath = call[2] as string;
+      expect(apiPath, `GitHub API path "${apiPath}" must use forward slashes`).not.toContain("\\");
+    }
+  });
+
   it("should reject path traversal attempts", async () => {
     mockClientInstance.listDirectory.mockImplementation(
       (owner: string, repo: string, path: string) => {

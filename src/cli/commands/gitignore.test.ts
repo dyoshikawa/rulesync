@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import { filterGitignoreEntries } from "./gitignore-entries.js";
+import { ALL_GITIGNORE_ENTRIES, filterGitignoreEntries } from "./gitignore-entries.js";
 import { gitignoreCommand } from "./gitignore.js";
 
 const buildRulesyncBlock = (): string => {
@@ -11,6 +11,14 @@ const buildRulesyncBlock = (): string => {
 };
 
 vi.mock("../../utils/file.js");
+
+describe("gitignore entries", () => {
+  it("should use forward slashes only in all entries for .gitignore compatibility", () => {
+    for (const entry of ALL_GITIGNORE_ENTRIES) {
+      expect(entry, `Entry "${entry}" should not contain backslashes`).not.toContain("\\");
+    }
+  });
+});
 
 describe("gitignoreCommand", () => {
   const mockGitignorePath = "/workspace/.gitignore";
