@@ -549,6 +549,26 @@ describe("RulesProcessor", () => {
 
       expect(rootFiles.length).toBe(0);
     });
+
+    it("should load Rovodev modular rules but skip reserved memory names with warning", async () => {
+      const modularDir = join(testDir, ".rovodev", ".rulesync", "modular-rules");
+      await ensureDir(modularDir);
+      await writeFileContent(join(modularDir, "ok.md"), "# OK");
+      await writeFileContent(join(modularDir, "AGENTS.md"), "# misplaced");
+      await writeFileContent(join(modularDir, "AGENTS.local.md"), "# misplaced local");
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const files = await processor.loadToolFiles();
+      const nonRoot = files.filter(
+        (f): f is RovodevRule => f instanceof RovodevRule && !f.isRoot(),
+      );
+
+      expect(nonRoot.map((f) => f.getRelativeFilePath())).toEqual(["ok.md"]);
+      expect(warnSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+      warnSpy.mockRestore();
+    });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {

@@ -1092,6 +1092,21 @@ export class RulesProcessor extends FeatureProcessor {
           join(nonRootBaseDir, "**", `*.${factory.meta.extension}`),
         );
 
+        const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
+        const nonRootPathsForImport =
+          !forDeletion && this.toolTarget === "rovodev"
+            ? nonRootFilePaths.filter((filePath) => {
+                const relativeFilePath = relative(nonRootBaseDir, filePath);
+                const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
+                if (!ok) {
+                  this.logger.warn(
+                    `Skipping reserved Rovodev path under modular-rules (import): ${join(modularRootRelative, relativeFilePath)}`,
+                  );
+                }
+                return ok;
+              })
+            : nonRootFilePaths;
+
         if (forDeletion) {
           return nonRootFilePaths
             .map((filePath) => {
@@ -1111,7 +1126,7 @@ export class RulesProcessor extends FeatureProcessor {
         }
 
         return await Promise.all(
-          nonRootFilePaths.map((filePath) => {
+          nonRootPathsForImport.map((filePath) => {
             const relativeFilePath = relative(nonRootBaseDir, filePath);
             checkPathTraversal({
               relativePath: relativeFilePath,
@@ -1119,6 +1134,7 @@ export class RulesProcessor extends FeatureProcessor {
             });
             return factory.class.fromFile({
               baseDir: this.baseDir,
+              relativeDirPath: modularRootRelative,
               relativeFilePath,
               global: this.global,
             });
