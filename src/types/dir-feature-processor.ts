@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { fileContentsEquivalent } from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   ensureDir,
@@ -80,7 +81,7 @@ export abstract class DirFeatureProcessor {
         });
         mainFileContent = addTrailingNewline(content);
         const existingContent = await readFileContentOrNull(mainFilePath);
-        if (existingContent !== mainFileContent) {
+        if (!fileContentsEquivalent(mainFilePath, mainFileContent, existingContent)) {
           dirHasChanges = true;
         }
       }
@@ -94,7 +95,7 @@ export abstract class DirFeatureProcessor {
         if (!dirHasChanges) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
           const existingContent = await readFileContentOrNull(filePath);
-          if (existingContent !== contentWithNewline) {
+          if (!fileContentsEquivalent(filePath, contentWithNewline, existingContent)) {
             dirHasChanges = true;
           }
         }
