@@ -311,6 +311,130 @@ describe("OpenCodeRule", () => {
       expect(opencodeRuleWithValidation.getFileContent()).toContain("# Validation Test");
       expect(opencodeRuleWithoutValidation.getFileContent()).toContain("# Validation Test");
     });
+
+    it("should handle subprojectPath from agentsmd field", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["opencode"],
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        },
+        body: "# Subproject OpenCode\n\nContent for subproject.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(opencodeRule.getFileContent()).toBe(
+        "# Subproject OpenCode\n\nContent for subproject.",
+      );
+      expect(opencodeRule.getRelativeDirPath()).toBe("packages/my-app");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should ignore subprojectPath for root rules", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: true,
+          targets: ["opencode"],
+          agentsmd: {
+            subprojectPath: "packages/my-app", // Should be ignored
+          },
+        },
+        body: "# Root OpenCode\n\nRoot content.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(opencodeRule.getFileContent()).toBe("# Root OpenCode\n\nRoot content.");
+      expect(opencodeRule.getRelativeDirPath()).toBe(".");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should handle empty subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["opencode"],
+          agentsmd: {
+            subprojectPath: "",
+          },
+        },
+        body: "# Empty Subproject OpenCode\n\nContent.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(opencodeRule.getFileContent()).toBe("# Empty Subproject OpenCode\n\nContent.");
+      expect(opencodeRule.getRelativeDirPath()).toBe(".opencode/memories");
+      expect(opencodeRule.getRelativeFilePath()).toBe("test.md");
+    });
+
+    it("should handle complex nested subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "nested.md",
+        frontmatter: {
+          root: false,
+          targets: ["opencode"],
+          agentsmd: {
+            subprojectPath: "packages/apps/my-app/src",
+          },
+        },
+        body: "# Nested Subproject OpenCode\n\nDeeply nested content.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(opencodeRule.getFileContent()).toBe(
+        "# Nested Subproject OpenCode\n\nDeeply nested content.",
+      );
+      expect(opencodeRule.getRelativeDirPath()).toBe("packages/apps/my-app/src");
+      expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should handle undefined agentsmd field", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["opencode"],
+        },
+        body: "# No agentsmd\n\nContent without agentsmd.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        baseDir: testDir,
+        rulesyncRule,
+      });
+
+      expect(opencodeRule.getFileContent()).toBe("# No agentsmd\n\nContent without agentsmd.");
+    });
   });
 
   describe("toRulesyncRule", () => {

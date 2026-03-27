@@ -101,7 +101,7 @@ export class OpenCodeRule extends ToolRule {
   }: ToolRuleFromRulesyncRuleParams): OpenCodeRule {
     const paths = this.getSettablePaths({ global });
     return new OpenCodeRule(
-      this.buildToolRuleParamsDefault({
+      this.buildToolRuleParamsAgentsmd({
         baseDir,
         rulesyncRule,
         validate,
