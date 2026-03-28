@@ -81,7 +81,13 @@ export abstract class DirFeatureProcessor {
         });
         mainFileContent = addTrailingNewline(content);
         const existingContent = await readFileContentOrNull(mainFilePath);
-        if (!fileContentsEquivalent(mainFilePath, mainFileContent, existingContent)) {
+        if (
+          !fileContentsEquivalent({
+            filePath: mainFilePath,
+            expected: mainFileContent,
+            existing: existingContent,
+          })
+        ) {
           dirHasChanges = true;
         }
       }
@@ -95,7 +101,13 @@ export abstract class DirFeatureProcessor {
         if (!dirHasChanges) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
           const existingContent = await readFileContentOrNull(filePath);
-          if (!fileContentsEquivalent(filePath, contentWithNewline, existingContent)) {
+          if (
+            !fileContentsEquivalent({
+              filePath,
+              expected: contentWithNewline,
+              existing: existingContent,
+            })
+          ) {
             dirHasChanges = true;
           }
         }
