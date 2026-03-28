@@ -100,11 +100,15 @@ function tryFileContentsEquivalent(
  * Uses structured comparison for JSON/JSONC (via jsonc-parser), YAML, TOML, and Markdown-like
  * frontmatter files (.md, .mdc — same gray-matter path as elsewhere).
  */
-export function fileContentsEquivalent(
-  filePath: string,
-  expected: string,
-  existing: string | null,
-): boolean {
+export function fileContentsEquivalent({
+  filePath,
+  expected,
+  existing,
+}: {
+  filePath: string;
+  expected: string;
+  existing: string | null;
+}): boolean {
   if (existing === null) {
     return false;
   }

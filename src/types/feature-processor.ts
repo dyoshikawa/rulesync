@@ -60,7 +60,13 @@ export abstract class FeatureProcessor {
       const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
       const existingContent = await readFileContentOrNull(filePath);
 
-      if (fileContentsEquivalent(filePath, contentWithNewline, existingContent)) {
+      if (
+        fileContentsEquivalent({
+          filePath,
+          expected: contentWithNewline,
+          existing: existingContent,
+        })
+      ) {
         continue;
       }
 

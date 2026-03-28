@@ -6,7 +6,9 @@ import { stringifyFrontmatter } from "./frontmatter.js";
 
 describe("fileContentsEquivalent", () => {
   it("returns false when existing is null", () => {
-    expect(fileContentsEquivalent("/x/a.json", "{}", null)).toBe(false);
+    expect(fileContentsEquivalent({ filePath: "/x/a.json", expected: "{}", existing: null })).toBe(
+      false,
+    );
   });
 
   it("treats JSON with different formatting as equivalent", () => {
@@ -15,16 +17,40 @@ describe("fileContentsEquivalent", () => {
   "x": 1,
   "y": [2, 3]
 }`;
-    expect(fileContentsEquivalent("/project/settings.json", `${a}\n`, `${b}\n`)).toBe(true);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/project/settings.json",
+        expected: `${a}\n`,
+        existing: `${b}\n`,
+      }),
+    ).toBe(true);
   });
 
   it("detects real JSON value changes", () => {
-    expect(fileContentsEquivalent("/x/c.json", '{"a":1}\n', '{"a":2}\n')).toBe(false);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/x/c.json",
+        expected: '{"a":1}\n',
+        existing: '{"a":2}\n',
+      }),
+    ).toBe(false);
   });
 
   it("falls back to text compare for invalid JSON", () => {
-    expect(fileContentsEquivalent("/x/broken.json", "not json\n", "not json\n")).toBe(true);
-    expect(fileContentsEquivalent("/x/broken.json", "not json\n", "not json 2\n")).toBe(false);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/x/broken.json",
+        expected: "not json\n",
+        existing: "not json\n",
+      }),
+    ).toBe(true);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/x/broken.json",
+        expected: "not json\n",
+        existing: "not json 2\n",
+      }),
+    ).toBe(false);
   });
 
   it("treats JSONC with comments and formatting differences as equivalent", () => {
@@ -33,19 +59,29 @@ describe("fileContentsEquivalent", () => {
   "mcp": { "x": 1 }
 }`;
     const b = '{"mcp":{"x":1}}';
-    expect(fileContentsEquivalent("/x/opencode.jsonc", `${a}\n`, `${b}\n`)).toBe(true);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/x/opencode.jsonc",
+        expected: `${a}\n`,
+        existing: `${b}\n`,
+      }),
+    ).toBe(true);
   });
 
   it("treats YAML with different layout as equivalent", () => {
     const a = "a: 1\nb:\n  c: 2\n";
     const b = "a: 1\nb: {c: 2}\n";
-    expect(fileContentsEquivalent("/x/copilot-mcp.yml", a, b)).toBe(true);
+    expect(
+      fileContentsEquivalent({ filePath: "/x/copilot-mcp.yml", expected: a, existing: b }),
+    ).toBe(true);
   });
 
   it("treats TOML with different layout as equivalent when semantic match", () => {
     const a = `[sec]\na = 1\n`;
     const b = `[sec]\na=1\n\n`;
-    expect(fileContentsEquivalent("/x/config.toml", a, b)).toBe(true);
+    expect(fileContentsEquivalent({ filePath: "/x/config.toml", expected: a, existing: b })).toBe(
+      true,
+    );
   });
 
   it("treats markdown as equivalent when frontmatter differs only in YAML layout or key order", () => {
@@ -59,7 +95,13 @@ name: test
 
 Hello
 `;
-    expect(fileContentsEquivalent("/skill/SKILL.md", generated, onDisk)).toBe(true);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/skill/SKILL.md",
+        expected: generated,
+        existing: onDisk,
+      }),
+    ).toBe(true);
   });
 
   it("uses the same markdown rules for .mdc (e.g. Cursor rules)", () => {
@@ -72,7 +114,13 @@ name: test
 
 Hello
 `;
-    expect(fileContentsEquivalent(".cursor/rules/rule.mdc", generated, onDisk)).toBe(true);
+    expect(
+      fileContentsEquivalent({
+        filePath: ".cursor/rules/rule.mdc",
+        expected: generated,
+        existing: onDisk,
+      }),
+    ).toBe(true);
   });
 
   it("treats avoidBlockScalars-flattened frontmatter as equivalent to prettier-styled YAML", () => {
@@ -87,11 +135,21 @@ description: "line1 line2"
 
 Body
 `;
-    expect(fileContentsEquivalent("/skill/SKILL.md", generated, onDisk)).toBe(true);
+    expect(
+      fileContentsEquivalent({
+        filePath: "/skill/SKILL.md",
+        expected: generated,
+        existing: onDisk,
+      }),
+    ).toBe(true);
   });
 
   it("uses strict text compare for unknown extensions", () => {
-    expect(fileContentsEquivalent("/x/foo.txt", "a\n", "a\n")).toBe(true);
-    expect(fileContentsEquivalent("/x/foo.txt", "a\n", "b\n")).toBe(false);
+    expect(
+      fileContentsEquivalent({ filePath: "/x/foo.txt", expected: "a\n", existing: "a\n" }),
+    ).toBe(true);
+    expect(
+      fileContentsEquivalent({ filePath: "/x/foo.txt", expected: "a\n", existing: "b\n" }),
+    ).toBe(false);
   });
 });
