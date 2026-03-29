@@ -27,7 +27,7 @@ runs:
         elif [[ "$INPUT_TEXT" == *"kimi"* ]]; then
           echo "model=openrouter/moonshotai/kimi-k2.5" >> $GITHUB_OUTPUT
         else
-          echo "model=zai-coding-plan/glm-5" >> $GITHUB_OUTPUT
+          echo "model=zai-coding-plan/glm-5.1" >> $GITHUB_OUTPUT
         fi
         CLEANED="${INPUT_TEXT//\/oc/}"
         CLEANED="${CLEANED//\/opencode/}"
