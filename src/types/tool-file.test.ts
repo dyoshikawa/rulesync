@@ -52,8 +52,9 @@ describe("ToolFile", () => {
       "should output forward slashes only for %s",
       (_, relativeDirPath, relativeFilePath, expected) => {
         const file = new TestToolFile({
-          relativeDirPath: ".cursor/rules",
-          relativeFilePath: "sub\\rule.md",
+          baseDir: testDir,
+          relativeDirPath,
+          relativeFilePath,
           fileContent: "content",
           validate: false,
         });
