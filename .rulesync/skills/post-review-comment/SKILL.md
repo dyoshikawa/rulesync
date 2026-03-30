@@ -1,9 +1,10 @@
 ---
-targets:
-  - "*"
+name: post-review-comment
 description: >-
   Post line-level review comments and an overall review comment on a PR in
   English with a natural, concise writing style
+targets:
+  - "*"
 ---
 
 target_pr = $ARGUMENTS

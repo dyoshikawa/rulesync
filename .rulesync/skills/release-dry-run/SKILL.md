@@ -1,4 +1,5 @@
 ---
+name: release-dry-run
 description: "Dry run for release: summarize changes since last release and suggest version bump."
 targets:
   - "*"
