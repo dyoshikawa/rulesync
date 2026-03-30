@@ -1,7 +1,8 @@
 ---
+name: explain-pr
+description: "Explain a PR: the background problem and the proposed solution"
 targets:
   - "*"
-description: "Explain a PR: the background problem and the proposed solution"
 ---
 
 target_pr = $ARGUMENTS

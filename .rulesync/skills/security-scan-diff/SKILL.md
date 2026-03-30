@@ -1,4 +1,5 @@
 ---
+name: security-scan-diff
 description: "Scan for malicious code in git diff between a tag/commit and HEAD"
 targets:
   - "*"

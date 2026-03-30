@@ -1,4 +1,5 @@
 ---
+name: clean-worktrees
 description: "Clean git worktrees created by git-worktree-runner"
 targets:
   - "*"

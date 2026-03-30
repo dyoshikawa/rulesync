@@ -1,9 +1,10 @@
 ---
-targets:
-  - "*"
+name: create-issue
 description: >-
   Create a GitHub issue with detailed description, purpose, and appropriate
   labels
+targets:
+  - "*"
 ---
 
 # Create GitHub Issue

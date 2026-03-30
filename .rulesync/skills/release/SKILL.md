@@ -1,4 +1,5 @@
 ---
+name: release
 description: "Release a new version of the project."
 targets:
   - "*"
