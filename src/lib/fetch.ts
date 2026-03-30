@@ -35,6 +35,7 @@ import {
   createTempDirectory,
   fileExists,
   removeTempDirectory,
+  toPosixPath,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -284,8 +285,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // Resolve options
   const resolvedRef = options.ref ?? parsed.ref;
   // Normalize backslashes to forward slashes for GitHub API compatibility.
-  // On Windows, paths may contain backslashes which are invalid in API requests.
-  const resolvedPath = (options.path ?? parsed.path ?? ".").replace(/\\/g, "/");
+  const resolvedPath = toPosixPath(options.path ?? parsed.path ?? ".");
   const outputDir = options.output ?? RULESYNC_RELATIVE_DIR_PATH;
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
   const enabledFeatures = resolveFeatures(options.features);

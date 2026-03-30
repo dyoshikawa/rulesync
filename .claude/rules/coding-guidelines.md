@@ -1,6 +1,6 @@
 ---
-description: 'When you write any code, must follow these guidelines.'
-applyTo: '**/*.ts'
+paths:
+  - '**/*.ts'
 ---
 # Coding Guidelines
 

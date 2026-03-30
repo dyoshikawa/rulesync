@@ -1,6 +1,6 @@
 import path, { basename, join, relative, resolve } from "node:path";
 
-import { findFilesByGlobs, readFileBuffer } from "../utils/file.js";
+import { findFilesByGlobs, readFileBuffer, toPosixPath } from "../utils/file.js";
 
 export type ValidationResult =
   | {
@@ -143,11 +143,7 @@ export abstract class AiDir {
   }
 
   getRelativePathFromCwd(): string {
-    // Use path.join + replace instead of path.posix.join because input segments
-    // (relativeDirPath, dirName) may already contain backslashes on Windows.
-    // path.posix.join does not normalize backslashes, so we must use path.join
-    // (which handles OS-native separators) and then normalize to POSIX format.
-    return path.join(this.relativeDirPath, this.dirName).replace(/\\/g, "/");
+    return toPosixPath(path.join(this.relativeDirPath, this.dirName));
   }
 
   getGlobal(): boolean {
