@@ -283,7 +283,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
 
   // Resolve options
   const resolvedRef = options.ref ?? parsed.ref;
-  const resolvedPath = options.path ?? parsed.path ?? ".";
+  // Normalize backslashes to forward slashes for GitHub API compatibility.
+  // On Windows, paths may contain backslashes which are invalid in API requests.
+  const resolvedPath = (options.path ?? parsed.path ?? ".").replace(/\\/g, "/");
   const outputDir = options.output ?? RULESYNC_RELATIVE_DIR_PATH;
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
   const enabledFeatures = resolveFeatures(options.features);

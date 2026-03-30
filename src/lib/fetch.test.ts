@@ -650,10 +650,10 @@ describe("fetchFiles", () => {
     expect(summary.files[0]?.relativePath).toBe("rules/overview.md");
   });
 
-  it("should send forward-slash paths to GitHub API even when path.join produces backslashes", async () => {
-    // This test verifies that paths sent to GitHub API always use forward slashes.
-    // On Windows, path.join("packages/shared", "rules") produces "packages\\shared\\rules",
-    // which would break the GitHub API call.
+  it.each([
+    ["POSIX style input", "owner/repo:packages/shared"],
+    ["Windows style input (backslashes in subdir)", "owner/repo:packages\\shared"],
+  ])("should send forward-slash paths to GitHub API (%s)", async (_label, source) => {
     mockClientInstance.listDirectory.mockImplementation(
       (owner: string, repo: string, path: string) => {
         // Verify no backslashes in any path sent to GitHub API
@@ -693,7 +693,7 @@ describe("fetchFiles", () => {
 
     const summary = await fetchFiles({
       logger,
-      source: "owner/repo:packages/shared",
+      source,
       options: { features: ["rules", "mcp"] },
       baseDir: testDir,
     });

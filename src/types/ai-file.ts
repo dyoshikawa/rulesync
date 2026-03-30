@@ -106,6 +106,10 @@ export abstract class AiFile {
   }
 
   getRelativePathFromCwd(): string {
+    // Use path.join + replace instead of path.posix.join because input segments
+    // (relativeDirPath, relativeFilePath) may already contain backslashes on Windows.
+    // path.posix.join does not normalize backslashes, so we must use path.join
+    // (which handles OS-native separators) and then normalize to POSIX format.
     return path.join(this.relativeDirPath, this.relativeFilePath).replace(/\\/g, "/");
   }
 
