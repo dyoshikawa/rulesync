@@ -76,7 +76,7 @@ jobs:
 
             Then, check the environment variable $INPUT_NEW_VERSION. If it is not empty, use that value (without v prefix) as $new_version. For example, if $INPUT_NEW_VERSION is "1.0.0", the new version is "1.0.0".
 
-            If $INPUT_NEW_VERSION is empty, determine the new version automatically by performing the  /release-dry-run command.
+            If $INPUT_NEW_VERSION is empty, determine the new version automatically by performing the  release-dry-run skill.
 
             Let's resume the release process.
 
