@@ -44,6 +44,27 @@ describe("ToolFile", () => {
     await cleanup();
     vi.restoreAllMocks();
   });
+  describe("getRelativePathFromCwd - cross-platform path separator", () => {
+    it.each([
+      ["Windows style paths", ".cursor\\rules", "sub\\rule.md", ".cursor/rules/sub/rule.md"],
+      ["POSIX style paths", ".cursor/rules", "sub/rule.md", ".cursor/rules/sub/rule.md"],
+    ])(
+      "should output forward slashes only for %s",
+      (_, relativeDirPath, relativeFilePath, expected) => {
+        const file = new TestToolFile({
+          baseDir: testDir,
+          relativeDirPath,
+          relativeFilePath,
+          fileContent: "content",
+          validate: false,
+        });
+        const result = file.getRelativePathFromCwd();
+        expect(result).toBe(expected);
+        expect(result).not.toContain("\\");
+      },
+    );
+  });
+
   describe("inheritance from AiFile", () => {
     it("should inherit all AiFile functionality", () => {
       const file = new TestToolFile({
