@@ -17,7 +17,7 @@ import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "7.23.0";
+const getVersion = () => "7.24.0";
 
 function wrapCommand(
   name: string,
