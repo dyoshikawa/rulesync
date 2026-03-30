@@ -926,7 +926,14 @@ export class RulesProcessor extends FeatureProcessor {
         return dirName === "" ? "." : dirName;
       };
 
-      /** Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable. */
+      /**
+       * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable.
+       *
+       * Two modes:
+       * - **Root mode** (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.baseDir`.
+       * - **Non-root mode** (with `baseDirOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(baseDirOverride, filePath)`,
+       *   traversal checks `relativeFilePath` against `baseDirOverride`.
+       */
       const buildDeletionRulesFromPaths = (
         filePaths: string[],
         opts?: { baseDirOverride?: string; relativeDirPathOverride?: string },
@@ -1063,10 +1070,16 @@ export class RulesProcessor extends FeatureProcessor {
           join(nonRootBaseDir, "**", `*.${factory.meta.extension}`),
         );
 
+        if (forDeletion) {
+          return buildDeletionRulesFromPaths(nonRootFilePaths, {
+            baseDirOverride: nonRootBaseDir,
+            relativeDirPathOverride: settablePaths.nonRoot?.relativeDirPath ?? ".",
+          });
+        }
+
         const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
-        // Filter reserved Rovodev basenames only on the import path; deletion uses the unfiltered nonRootFilePaths.
         const nonRootPathsForImport =
-          !forDeletion && this.toolTarget === "rovodev"
+          this.toolTarget === "rovodev"
             ? nonRootFilePaths.filter((filePath) => {
                 const relativeFilePath = relative(nonRootBaseDir, filePath);
                 const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
@@ -1078,13 +1091,6 @@ export class RulesProcessor extends FeatureProcessor {
                 return ok;
               })
             : nonRootFilePaths;
-
-        if (forDeletion) {
-          return buildDeletionRulesFromPaths(nonRootFilePaths, {
-            baseDirOverride: nonRootBaseDir,
-            relativeDirPathOverride: settablePaths.nonRoot?.relativeDirPath ?? ".",
-          });
-        }
 
         return await Promise.all(
           nonRootPathsForImport.map((filePath) => {
