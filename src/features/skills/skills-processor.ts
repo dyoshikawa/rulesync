@@ -36,6 +36,7 @@ import {
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
+  toolSkillSearchRoots,
 } from "./tool-skill.js";
 
 /**
@@ -398,44 +399,71 @@ export class SkillsProcessor extends DirFeatureProcessor {
   async loadToolDirs(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
+    const roots = toolSkillSearchRoots(paths);
 
-    const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
-    const dirNames = dirPaths.map((path) => basename(path));
+    const seenDirNames = new Set<string>();
+    const loadEntries: Array<{ root: string; dirName: string }> = [];
+
+    for (const root of roots) {
+      const skillsDirPath = join(this.baseDir, root);
+      if (!(await directoryExists(skillsDirPath))) {
+        continue;
+      }
+      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+      for (const dirPath of dirPaths) {
+        const dirName = basename(dirPath);
+        if (seenDirNames.has(dirName)) {
+          continue;
+        }
+        seenDirNames.add(dirName);
+        loadEntries.push({ root, dirName });
+      }
+    }
 
     const toolSkills = await Promise.all(
-      dirNames.map((dirName) =>
+      loadEntries.map(({ root, dirName }) =>
         factory.class.fromDir({
           baseDir: this.baseDir,
+          relativeDirPath: root,
           dirName,
           global: this.global,
         }),
       ),
     );
 
-    this.logger.debug(`Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills`);
+    this.logger.debug(
+      `Successfully loaded ${toolSkills.length} skills from ${roots.length} root(s): ${roots.join(", ")}`,
+    );
     return toolSkills;
   }
 
   async loadToolDirsToDelete(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
+    const roots = toolSkillSearchRoots(paths);
 
-    const skillsDirPath = join(this.baseDir, paths.relativeDirPath);
-    const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
-    const dirNames = dirPaths.map((path) => basename(path));
-
-    const toolSkills = dirNames.map((dirName) =>
-      factory.class.forDeletion({
-        baseDir: this.baseDir,
-        relativeDirPath: paths.relativeDirPath,
-        dirName,
-        global: this.global,
-      }),
-    );
+    const toolSkills: AiDir[] = [];
+    for (const root of roots) {
+      const skillsDirPath = join(this.baseDir, root);
+      if (!(await directoryExists(skillsDirPath))) {
+        continue;
+      }
+      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+      for (const dirPath of dirPaths) {
+        const dirName = basename(dirPath);
+        toolSkills.push(
+          factory.class.forDeletion({
+            baseDir: this.baseDir,
+            relativeDirPath: root,
+            dirName,
+            global: this.global,
+          }),
+        );
+      }
+    }
 
     this.logger.debug(
-      `Successfully loaded ${toolSkills.length} ${paths.relativeDirPath} skills for deletion`,
+      `Successfully loaded ${toolSkills.length} skills for deletion under ${roots.join(", ")}`,
     );
     return toolSkills;
   }

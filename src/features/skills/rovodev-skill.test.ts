@@ -21,6 +21,7 @@ describe("RovodevSkill", () => {
   let cleanup: () => Promise<void>;
 
   const rovodevSkillsRel = () => join(".rovodev", "skills");
+  const agentsSkillsRel = () => join(".agents", "skills");
 
   beforeEach(async () => {
     const testSetup = await setupTestDirectory();
@@ -35,15 +36,17 @@ describe("RovodevSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .rovodev/skills for project mode", () => {
+    it("should return .rovodev/skills primary and .agents/skills as alternative", () => {
       expect(RovodevSkill.getSettablePaths()).toEqual({
         relativeDirPath: rovodevSkillsRel(),
+        alternativeSkillRoots: [agentsSkillsRel()],
       });
     });
 
-    it("should return the same path for global mode", () => {
+    it("should return the same roots for global mode (under home baseDir)", () => {
       expect(RovodevSkill.getSettablePaths({ global: true })).toEqual({
         relativeDirPath: rovodevSkillsRel(),
+        alternativeSkillRoots: [agentsSkillsRel()],
       });
     });
   });
@@ -138,6 +141,24 @@ describe("RovodevSkill", () => {
         description: "Test skill description",
       });
       expect(skill.getBody()).toBe("Skill body content.");
+    });
+
+    it("should load skill from .agents/skills when relativeDirPath is set", async () => {
+      const skillDir = join(testDir, agentsSkillsRel(), "agents-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        skillFileForDir("agents-skill", "From .agents/skills"),
+      );
+
+      const skill = await RovodevSkill.fromDir({
+        baseDir: testDir,
+        relativeDirPath: agentsSkillsRel(),
+        dirName: "agents-skill",
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(agentsSkillsRel());
+      expect(skill.getFrontmatter().name).toBe("agents-skill");
     });
 
     it("should pass global through from loadSkillDirContent", async () => {

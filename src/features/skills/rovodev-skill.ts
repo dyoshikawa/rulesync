@@ -34,8 +34,14 @@ export type RovodevSkillParams = {
 };
 
 /**
- * Rovodev skill: .rovodev/skills/<name>/ (project) or ~/.rovodev/skills/<name>/ (global).
- * Same format as AgentsSkills (SKILL.md with name, description). Not simulated.
+ * Rovo Dev CLI Agent Skills: one directory per skill with `SKILL.md` (Agent Skills protocol).
+ *
+ * - **Project:** `.rovodev/skills/<skill-name>/` (canonical sync target) or `.agents/skills/<skill-name>/`
+ * - **User:** `~/.rovodev/skills/<skill-name>/` or `~/.agents/skills/<skill-name>/` (same relative paths under home in global mode)
+ *
+ * Import scans `.rovodev/skills` first, then `.agents/skills`. Generation writes only under `.rovodev/skills`.
+ *
+ * @see https://support.atlassian.com/rovo/docs/extend-rovo-dev-cli-with-agent-skills/
  */
 export class RovodevSkill extends ToolSkill {
   constructor({
@@ -72,6 +78,7 @@ export class RovodevSkill extends ToolSkill {
   static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
     return {
       relativeDirPath: join(".rovodev", "skills"),
+      alternativeSkillRoots: [join(".agents", "skills")],
     };
   }
 

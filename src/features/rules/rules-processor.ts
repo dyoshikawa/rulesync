@@ -21,12 +21,14 @@ import { CommandsProcessor } from "../commands/commands-processor.js";
 import { FactorydroidCommand } from "../commands/factorydroid-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
+import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { FactorydroidSubagent } from "../subagents/factorydroid-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
+import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AntigravityRule } from "./antigravity-rule.js";
@@ -131,8 +133,8 @@ type SkillClassType = {
 };
 
 /**
- * Configuration for additional conventions (simulated features).
- * Specifies which simulated features are supported for the tool and their paths.
+ * Configuration for additional convention paths embedded in the root rule (e.g. AGENTS.md).
+ * Used for simulated features and for native subagents/skills when `ruleDiscoveryMode` is `toon`.
  */
 type AdditionalConventionsConfig = {
   /** Command feature configuration */
@@ -172,7 +174,7 @@ type ToolRuleFactory = {
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
     ruleDiscoveryMode: RuleDiscoveryMode;
-    /** Configuration for additional conventions (simulated features) */
+    /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
     createsSeparateConventionsRule?: boolean;
@@ -438,8 +440,12 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: RovodevRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        additionalConventions: {
+          subagents: { subagentClass: RovodevSubagent },
+          skills: { skillClass: RovodevSkill },
+        },
       },
     },
   ],
@@ -624,6 +630,25 @@ export class RulesProcessor extends FeatureProcessor {
     const newContent = referenceSection + conventionsSection + rootRule.getFileContent();
     rootRule.setFileContent(newContent);
 
+    if (this.toolTarget === "rovodev" && !this.global && rootRule instanceof RovodevRule) {
+      const primary = RovodevRule.getSettablePaths({ global: false }).root;
+      if (
+        rootRule.getRelativeDirPath() === primary.relativeDirPath &&
+        rootRule.getRelativeFilePath() === primary.relativeFilePath
+      ) {
+        toolRules.push(
+          new RovodevRule({
+            baseDir: this.baseDir,
+            relativeDirPath: ".",
+            relativeFilePath: "AGENTS.md",
+            fileContent: newContent,
+            validate: true,
+            root: true,
+          }),
+        );
+      }
+    }
+
     return toolRules;
   }
 
@@ -660,6 +685,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Handle localRoot rule generation based on tool target.
    * - Claude Code: generates `./CLAUDE.local.md`
    * - Claude Code Legacy: generates `./CLAUDE.local.md`
+   * - Rovodev: generates `./AGENTS.local.md` (Rovo Dev CLI project memory)
    * - Other tools: appends content to the root file with one blank line separator
    */
   private handleLocalRootRule(
@@ -696,6 +722,17 @@ export class RulesProcessor extends FeatureProcessor {
           fileContent: localRootBody,
           validate: true,
           root: true, // Treat as root so it doesn't have frontmatter
+        }),
+      );
+    } else if (this.toolTarget === "rovodev") {
+      toolRules.push(
+        new RovodevRule({
+          baseDir: this.baseDir,
+          relativeDirPath: ".",
+          relativeFilePath: "AGENTS.local.md",
+          fileContent: localRootBody,
+          validate: true,
+          root: true,
         }),
       );
     } else {
@@ -955,10 +992,34 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       this.logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
-      // Load CLAUDE.local.md files for deletion (claudecode and claudecode-legacy only)
+      // Load CLAUDE.local.md / AGENTS.local.md for deletion (claudecode, claudecode-legacy, rovodev)
       const localRootToolRules = await (async () => {
         if (!forDeletion) {
           return [];
+        }
+
+        if (this.toolTarget === "rovodev") {
+          if (this.global) {
+            return [];
+          }
+          const uniqueLocalRootFilePaths = await findFilesByGlobs(
+            join(this.baseDir, "AGENTS.local.md"),
+          );
+          return uniqueLocalRootFilePaths
+            .map((filePath) => {
+              const relativeDirPath = resolveRelativeDirPath(filePath);
+              checkPathTraversal({
+                relativePath: relativeDirPath,
+                intendedRootDir: this.baseDir,
+              });
+              return factory.class.forDeletion({
+                baseDir: this.baseDir,
+                relativeDirPath,
+                relativeFilePath: basename(filePath),
+                global: this.global,
+              });
+            })
+            .filter((rule) => rule.isDeletable());
         }
 
         if (this.toolTarget !== "claudecode" && this.toolTarget !== "claudecode-legacy") {
@@ -995,6 +1056,32 @@ export class RulesProcessor extends FeatureProcessor {
         `Found ${localRootToolRules.length} local root tool rule files for deletion`,
       );
 
+      const rovodevMirrorDeletionRules = await (async () => {
+        if (!forDeletion || this.toolTarget !== "rovodev" || this.global) {
+          return [];
+        }
+        const primaryPaths = await findFilesByGlobs(join(this.baseDir, ".rovodev", "AGENTS.md"));
+        if (primaryPaths.length === 0) {
+          return [];
+        }
+        const mirrorPaths = await findFilesByGlobs(join(this.baseDir, "AGENTS.md"));
+        return mirrorPaths
+          .map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.baseDir,
+            });
+            return factory.class.forDeletion({
+              baseDir: this.baseDir,
+              relativeDirPath,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            });
+          })
+          .filter((rule) => rule.isDeletable());
+      })();
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -1004,6 +1091,21 @@ export class RulesProcessor extends FeatureProcessor {
         const nonRootFilePaths = await findFilesByGlobs(
           join(nonRootBaseDir, "**", `*.${factory.meta.extension}`),
         );
+
+        const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
+        const nonRootPathsForImport =
+          !forDeletion && this.toolTarget === "rovodev"
+            ? nonRootFilePaths.filter((filePath) => {
+                const relativeFilePath = relative(nonRootBaseDir, filePath);
+                const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
+                if (!ok) {
+                  this.logger.warn(
+                    `Skipping reserved Rovodev path under modular-rules (import): ${join(modularRootRelative, relativeFilePath)}`,
+                  );
+                }
+                return ok;
+              })
+            : nonRootFilePaths;
 
         if (forDeletion) {
           return nonRootFilePaths
@@ -1024,7 +1126,7 @@ export class RulesProcessor extends FeatureProcessor {
         }
 
         return await Promise.all(
-          nonRootFilePaths.map((filePath) => {
+          nonRootPathsForImport.map((filePath) => {
             const relativeFilePath = relative(nonRootBaseDir, filePath);
             checkPathTraversal({
               relativePath: relativeFilePath,
@@ -1032,6 +1134,7 @@ export class RulesProcessor extends FeatureProcessor {
             });
             return factory.class.fromFile({
               baseDir: this.baseDir,
+              relativeDirPath: modularRootRelative,
               relativeFilePath,
               global: this.global,
             });
@@ -1040,7 +1143,12 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       this.logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
-      return [...rootToolRules, ...localRootToolRules, ...nonRootToolRules];
+      return [
+        ...rootToolRules,
+        ...localRootToolRules,
+        ...rovodevMirrorDeletionRules,
+        ...nonRootToolRules,
+      ];
     } catch (error) {
       this.logger.error(`Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`);
       return [];

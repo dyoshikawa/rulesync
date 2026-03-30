@@ -13,6 +13,7 @@ import { ClaudecodeRule } from "./claudecode-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
+import { RovodevRule } from "./rovodev-rule.js";
 import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { WarpRule } from "./warp-rule.js";
@@ -548,6 +549,26 @@ describe("RulesProcessor", () => {
 
       expect(rootFiles.length).toBe(0);
     });
+
+    it("should load Rovodev modular rules but skip reserved memory names with warning", async () => {
+      const modularDir = join(testDir, ".rovodev", ".rulesync", "modular-rules");
+      await ensureDir(modularDir);
+      await writeFileContent(join(modularDir, "ok.md"), "# OK");
+      await writeFileContent(join(modularDir, "AGENTS.md"), "# misplaced");
+      await writeFileContent(join(modularDir, "AGENTS.local.md"), "# misplaced local");
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const files = await processor.loadToolFiles();
+      const nonRoot = files.filter(
+        (f): f is RovodevRule => f instanceof RovodevRule && !f.isRoot(),
+      );
+
+      expect(nonRoot.map((f) => f.getRelativeFilePath())).toEqual(["ok.md"]);
+      expect(warnSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+      warnSpy.mockRestore();
+    });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
@@ -700,6 +721,37 @@ Content that would fail parsing`;
       expect(filePaths).toContain("CLAUDE.local.md");
     });
 
+    it("should include AGENTS.local.md for deletion for rovodev", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Local");
+
+      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("AGENTS.local.md");
+    });
+
+    it("should include project-root AGENTS.md for deletion when .rovodev/AGENTS.md exists (mirror)", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Primary");
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Mirror");
+
+      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const rootAgents = filesToDelete.filter((f) => f.getRelativeFilePath() === "AGENTS.md");
+      expect(rootAgents.length).toBeGreaterThanOrEqual(1);
+      expect(rootAgents.some((f) => f.getRelativeDirPath() === ".")).toBe(true);
+    });
+
     it("should include .claude/CLAUDE.local.md for deletion when only in .claude/ directory", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root from .claude");
@@ -735,7 +787,7 @@ Content that would fail parsing`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, claudecode-legacy, codexcli, geminicli, kilo, copilot and opencode as global targets", () => {
+    it("should return global-capable rule targets in map order", () => {
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       expect(globalTargets).toEqual([
@@ -748,6 +800,7 @@ Content that would fail parsing`;
         "goose",
         "kilo",
         "opencode",
+        "rovodev",
       ]);
     });
 
@@ -777,7 +830,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("goose");
       expect(globalTargets).toContain("opencode");
-      expect(globalTargets.length).toBe(9);
+      expect(globalTargets).toContain("rovodev");
+      expect(globalTargets.length).toBe(10);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -1118,6 +1172,79 @@ targets: ["*"]
       expect(localRule).toBeDefined();
       expect(localRule?.getRelativeDirPath()).toBe(".");
       expect(localRule?.getFileContent()).toBe("# Local content");
+    });
+
+    it("should write .rovodev/AGENTS.md and mirror ./AGENTS.md for rovodev project mode", async () => {
+      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["rovodev"],
+          },
+          body: "# Rovodev root",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const primary = result.find(
+        (r) =>
+          r instanceof RovodevRule &&
+          r.getRelativeDirPath() === ".rovodev" &&
+          r.getRelativeFilePath() === "AGENTS.md",
+      );
+      const mirror = result.find(
+        (r) =>
+          r instanceof RovodevRule &&
+          r.getRelativeDirPath() === "." &&
+          r.getRelativeFilePath() === "AGENTS.md",
+      );
+
+      expect(primary).toBeDefined();
+      expect(mirror).toBeDefined();
+      expect(mirror?.getFileContent()).toBe(primary?.getFileContent());
+      expect(mirror?.getFileContent()).toContain("# Rovodev root");
+    });
+
+    it("should generate AGENTS.local.md for rovodev localRoot rule", async () => {
+      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["rovodev"],
+          },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: {
+            localRoot: true,
+            targets: ["rovodev"],
+          },
+          body: "# Local memory",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const localRule = result.find(
+        (r) => r instanceof RovodevRule && r.getRelativeFilePath() === "AGENTS.local.md",
+      );
+      expect(localRule).toBeDefined();
+      expect(localRule?.getFileContent()).toBe("# Local memory");
+      expect(localRule?.getRelativeDirPath()).toBe(".");
     });
 
     it("should append localRoot content to root file for other tools", async () => {

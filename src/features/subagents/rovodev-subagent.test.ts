@@ -141,7 +141,7 @@ oops`;
         rulesyncSubagent,
         validate: true,
         global: false,
-      }) as RovodevSubagent;
+      });
 
       expect(rovodev).toBeInstanceOf(RovodevSubagent);
       expect(rovodev.getRelativeDirPath()).toBe(join(".rovodev", "subagents"));
@@ -182,7 +182,7 @@ oops`;
         relativeDirPath: join(".rovodev", "subagents"),
         rulesyncSubagent,
         validate: true,
-      }) as RovodevSubagent;
+      });
 
       expect(rovodev.getFrontmatter().name).toBe("top-name");
       expect(rovodev.getFrontmatter().description).toBe("top-desc");
@@ -289,7 +289,7 @@ oops`;
         relativeDirPath: join(".rovodev", "subagents"),
         rulesyncSubagent,
         validate: true,
-      }) as RovodevSubagent;
+      });
 
       const back = rovodev.toRulesyncSubagent();
       expect(back.getFrontmatter().name).toBe("RT");

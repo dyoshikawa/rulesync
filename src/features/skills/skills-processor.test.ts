@@ -7,6 +7,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
+import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import {
   SkillsProcessor,
@@ -466,6 +467,61 @@ This is skill content`;
         "Unsupported tool target: unsupported",
       );
     });
+
+    it("should load rovodev skills from .agents/skills when .rovodev/skills is absent", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "rovodev",
+      });
+      const skillDir = join(testDir, ".agents", "skills", "imported-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---
+name: imported-skill
+description: From alternative root
+---
+Skill body`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(toolDirs[0]).toBeInstanceOf(RovodevSkill);
+      const skill = toolDirs[0] as RovodevSkill;
+      expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
+      expect(skill.getBody()).toBe("Skill body");
+    });
+
+    it("should prefer .rovodev/skills over .agents/skills for the same skill name", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "rovodev",
+      });
+      const writeSkill = async (base: string, body: string) => {
+        const dir = join(testDir, base, "dup-skill");
+        await ensureDir(dir);
+        await writeFileContent(
+          join(dir, "SKILL.md"),
+          `---
+name: dup-skill
+description: d
+---
+${body}`,
+        );
+      };
+      await writeSkill(join(".rovodev", "skills"), "from-rovo");
+      await writeSkill(join(".agents", "skills"), "from-agents");
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      const skill = toolDirs[0] as RovodevSkill;
+      expect(skill.getBody()).toBe("from-rovo");
+      expect(skill.getRelativeDirPath()).toBe(join(".rovodev", "skills"));
+    });
   });
 
   describe("loadClaudecodeSkills", () => {
@@ -673,6 +729,26 @@ Content that would fail parsing`;
 
       const dirsToDelete = await processor.loadToolDirsToDelete();
       expect(dirsToDelete).toEqual([]);
+    });
+
+    it("should list rovodev skills in both .rovodev/skills and .agents/skills for deletion", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "rovodev",
+      });
+      const rovoDir = join(testDir, ".rovodev", "skills", "a-skill");
+      const agentsDir = join(testDir, ".agents", "skills", "b-skill");
+      await ensureDir(rovoDir);
+      await ensureDir(agentsDir);
+      await writeFileContent(join(rovoDir, "SKILL.md"), "x");
+      await writeFileContent(join(agentsDir, "SKILL.md"), "y");
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete).toHaveLength(2);
+      const roots = dirsToDelete.map((d) => (d as RovodevSkill).getRelativeDirPath()).toSorted();
+      expect(roots).toEqual([join(".agents", "skills"), join(".rovodev", "skills")]);
     });
   });
 

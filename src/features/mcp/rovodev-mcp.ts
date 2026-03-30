@@ -4,6 +4,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -13,6 +14,26 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+
+function parseRovodevMcpJson(
+  fileContent: string,
+  relativeDirPath: string,
+  relativeFilePath: string,
+): Record<string, unknown> {
+  const configPath = join(relativeDirPath, relativeFilePath);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch (error) {
+    throw new Error(`Failed to parse Rovodev MCP config at ${configPath}: ${formatError(error)}`, {
+      cause: error,
+    });
+  }
+  if (!isRecord(parsed)) {
+    throw new Error(`Failed to parse Rovodev MCP config at ${configPath}: expected a JSON object`);
+  }
+  return parsed;
+}
 
 /**
  * Rovodev MCP: global only at ~/.rovodev/mcp.json.
@@ -27,14 +48,11 @@ export class RovodevMcp extends ToolMcp {
   constructor(params: ToolMcpParams) {
     super(params);
     if (this.fileContent !== undefined) {
-      try {
-        this.json = JSON.parse(this.fileContent);
-      } catch (error) {
-        throw new Error(
-          `Failed to parse Rovodev MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
-          { cause: error },
-        );
-      }
+      this.json = parseRovodevMcpJson(
+        this.fileContent,
+        this.relativeDirPath,
+        this.relativeFilePath,
+      );
     } else {
       this.json = {};
     }
@@ -66,15 +84,7 @@ export class RovodevMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Rovodev MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new RovodevMcp({
@@ -102,15 +112,7 @@ export class RovodevMcp extends ToolMcp {
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Rovodev MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
     const rulesyncJson = rulesyncMcp.getJson();
     const mcpServers = isMcpServers(rulesyncJson.mcpServers) ? rulesyncJson.mcpServers : {};
@@ -129,12 +131,10 @@ export class RovodevMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
-    const transformedJson = {
-      ...this.json,
-      mcpServers,
-    };
+    // Do not spread the full Rovodev JSON: future tool-specific top-level keys must not leak
+    // into rulesync mcp.json (unlike Cursor, which intentionally preserves extra keys today).
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify(transformedJson, null, 2),
+      fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
   }
 

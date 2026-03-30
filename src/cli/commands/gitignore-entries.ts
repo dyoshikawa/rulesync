@@ -23,6 +23,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
   { target: "common", feature: "general", entry: "rulesync.local.jsonc" },
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
+  { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
 
   // AGENTS.md
   { target: "agentsmd", feature: "rules", entry: "**/AGENTS.md" },
@@ -183,8 +184,14 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "roo", feature: "subagents", entry: "**/.roo/subagents/" },
 
   // Rovodev
+  {
+    target: "rovodev",
+    feature: "general",
+    entry: "**/.rovodev/AGENTS.md",
+  },
   { target: "rovodev", feature: "subagents", entry: "**/.rovodev/subagents/" },
   { target: "rovodev", feature: "skills", entry: "**/.rovodev/skills/" },
+  { target: "rovodev", feature: "skills", entry: "**/.agents/skills/" },
 
   // Warp
   { target: "warp", feature: "rules", entry: "**/.warp/" },
