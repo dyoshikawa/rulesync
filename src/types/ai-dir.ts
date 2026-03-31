@@ -1,6 +1,6 @@
 import path, { basename, join, relative, resolve } from "node:path";
 
-import { findFilesByGlobs, readFileBuffer } from "../utils/file.js";
+import { findFilesByGlobs, readFileBuffer, toPosixPath } from "../utils/file.js";
 
 export type ValidationResult =
   | {
@@ -142,8 +142,11 @@ export abstract class AiDir {
     return this.otherFiles;
   }
 
+  /**
+   * Returns the relative path from CWD with POSIX separators for consistent cross-platform output.
+   */
   getRelativePathFromCwd(): string {
-    return path.join(this.relativeDirPath, this.dirName).replace(/\\/g, "/");
+    return toPosixPath(path.join(this.relativeDirPath, this.dirName));
   }
 
   getGlobal(): boolean {

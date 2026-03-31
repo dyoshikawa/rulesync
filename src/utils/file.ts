@@ -29,6 +29,16 @@ export async function readOrInitializeFileContent(
   }
 }
 
+/**
+ * Converts OS-native path separators to POSIX forward slashes.
+ * Use this instead of `path.posix.join` when input segments may already
+ * contain backslashes (e.g., on Windows), because `path.posix.join` does
+ * not normalize backslashes.
+ */
+export function toPosixPath(p: string): string {
+  return p.replace(/\\/g, "/");
+}
+
 export function checkPathTraversal({
   relativePath,
   intendedRootDir,

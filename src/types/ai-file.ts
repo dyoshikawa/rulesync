@@ -1,5 +1,7 @@
 import path, { relative, resolve } from "node:path";
 
+import { toPosixPath } from "../utils/file.js";
+
 export type ValidationResult =
   | {
       success: true;
@@ -105,8 +107,11 @@ export abstract class AiFile {
     return this.fileContent;
   }
 
+  /**
+   * Returns the relative path from CWD with POSIX separators for consistent cross-platform output.
+   */
   getRelativePathFromCwd(): string {
-    return path.join(this.relativeDirPath, this.relativeFilePath).replace(/\\/g, "/");
+    return toPosixPath(path.join(this.relativeDirPath, this.relativeFilePath));
   }
 
   setFileContent(newFileContent: string): void {
