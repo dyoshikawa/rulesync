@@ -107,6 +107,9 @@ export abstract class AiFile {
     return this.fileContent;
   }
 
+  /**
+   * Returns the relative path from CWD with POSIX separators for consistent cross-platform output.
+   */
   getRelativePathFromCwd(): string {
     return toPosixPath(path.join(this.relativeDirPath, this.relativeFilePath));
   }

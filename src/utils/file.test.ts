@@ -26,6 +26,7 @@ import {
   removeFile,
   resolvePath,
   toKebabCaseFilename,
+  toPosixPath,
   validateBaseDir,
   writeFileContent,
   writeJsonFile,
@@ -58,6 +59,20 @@ describe("file utilities", () => {
 
       await expect(ensureDir(dirPath)).resolves.toBeUndefined();
       expect(await directoryExists(dirPath)).toBe(true);
+    });
+  });
+
+  describe("toPosixPath", () => {
+    it.each([
+      ["backslashes to forward slashes", "packages\\shared\\nested", "packages/shared/nested"],
+      ["already POSIX path unchanged", "packages/shared/nested", "packages/shared/nested"],
+      ["mixed separators", "packages/shared\\nested", "packages/shared/nested"],
+      ["consecutive backslashes", "packages\\\\shared", "packages//shared"],
+      ["empty string", "", ""],
+      ["single backslash", "\\", "/"],
+      ["root-like path", "\\packages\\shared", "/packages/shared"],
+    ])("should convert %s", (_label, input, expected) => {
+      expect(toPosixPath(input)).toBe(expected);
     });
   });
 

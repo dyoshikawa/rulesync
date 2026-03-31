@@ -653,17 +653,18 @@ describe("fetchFiles", () => {
   it.each([
     ["POSIX style input", "owner/repo:packages/shared"],
     ["Windows style input (backslashes in subdir)", "owner/repo:packages\\shared"],
+    ["mixed separators in subdir", "owner/repo:packages/shared\\nested"],
   ])("should send forward-slash paths to GitHub API (%s)", async (_label, source) => {
     mockClientInstance.listDirectory.mockImplementation(
       (owner: string, repo: string, path: string) => {
         // Verify no backslashes in any path sent to GitHub API
         expect(path, `GitHub API path "${path}" must not contain backslashes`).not.toContain("\\");
 
-        if (path === "packages/shared/rules") {
+        if (path.endsWith("/rules")) {
           return Promise.resolve([
             {
               name: "overview.md",
-              path: "packages/shared/rules/overview.md",
+              path: `${path}/overview.md`,
               type: "file",
               sha: "abc",
               size: 100,
@@ -671,11 +672,11 @@ describe("fetchFiles", () => {
             },
           ]);
         }
-        if (path === "packages/shared") {
+        if (!path.endsWith("/rules") && !path.includes(".")) {
           return Promise.resolve([
             {
               name: "mcp.json",
-              path: "packages/shared/mcp.json",
+              path: `${path}/mcp.json`,
               type: "file",
               sha: "def",
               size: 50,
