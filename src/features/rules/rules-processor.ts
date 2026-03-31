@@ -39,6 +39,7 @@ import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
+import { CopilotcliRule } from "./copilotcli-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
@@ -74,6 +75,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "cline",
   "codexcli",
   "copilot",
+  "copilotcli",
   "cursor",
   "deepagents",
   "factorydroid",
@@ -283,6 +285,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     "copilot",
     {
       class: CopilotRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "copilotcli",
+    {
+      class: CopilotcliRule,
       meta: {
         extension: "md",
         supportsGlobal: true,
