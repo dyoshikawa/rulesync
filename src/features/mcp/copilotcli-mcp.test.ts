@@ -391,6 +391,60 @@ describe("CopilotcliMcp", () => {
         },
       });
     });
+
+    it("should force stdio type even when another type is provided", async () => {
+      const inputMcpServers = {
+        "typed-server": {
+          type: "http" as const,
+          command: "node",
+          args: ["server.js"],
+          url: "http://localhost:3000/mcp",
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+      });
+
+      expect(copilotCliMcp.getJson()).toEqual({
+        mcpServers: {
+          "typed-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            url: "http://localhost:3000/mcp",
+          },
+        },
+      });
+    });
+
+    it("should throw error when server has unknown fields but no command", async () => {
+      const inputMcpServers = {
+        "unknown-fields-no-command": {
+          url: "http://localhost:3000/mcp",
+          headers: {
+            Authorization: "Bearer test-token",
+          },
+          unknown_field: "value",
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      await expect(
+        CopilotcliMcp.fromRulesyncMcp({
+          rulesyncMcp,
+        }),
+      ).rejects.toThrow('MCP server "unknown-fields-no-command" is missing a command');
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -497,6 +551,36 @@ describe("CopilotcliMcp", () => {
 
       expect(rulesyncMcp.getJson()).toEqual({
         mcpServers: {},
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+      });
+    });
+
+    it("should preserve non-stdio type when converting back to RulesyncMcp", () => {
+      const inputMcpServers = {
+        "http-server": {
+          type: "http" as const,
+          command: "node",
+          args: ["server.js"],
+          url: "http://localhost:3000/mcp",
+        },
+      };
+      const copilotCliMcp = new CopilotcliMcp({
+        relativeDirPath: ".copilot",
+        relativeFilePath: "mcp-config.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      const rulesyncMcp = copilotCliMcp.toRulesyncMcp();
+
+      expect(rulesyncMcp.getJson()).toEqual({
+        mcpServers: {
+          "http-server": {
+            type: "http",
+            command: "node",
+            args: ["server.js"],
+            url: "http://localhost:3000/mcp",
+          },
+        },
         $schema: RULESYNC_MCP_SCHEMA_URL,
       });
     });

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
+import { McpServerSchema, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -16,11 +16,11 @@ import {
 export type CopilotcliMcpParams = ToolMcpParams;
 
 type CopilotcliMcpConfig = {
-  mcpServers?: Record<string, McpServer & Record<string, unknown>>;
+  mcpServers?: McpServers;
 };
 
 /**
- * Adds "type": "stdio" to each MCP server config if not present.
+ * Adds "type": "stdio" to each MCP server config.
  * GitHub Copilot CLI requires the "type" field for each server.
  * @throws Error if a server doesn't have a command (Copilot CLI stdio servers require a command)
  */
@@ -56,19 +56,12 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
       args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
     }
 
-    // Use the parsed object for the base, then override with normalized command/args
-    // and ensure type is set to "stdio" if not present.
-    // We spread server as well to keep unknown fields as suggested by reviewers.
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const serverRecord = server as Record<string, unknown>;
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     result[name] = {
-      ...serverRecord,
       ...parsed,
-      type: parsed.type ?? "stdio",
+      type: "stdio",
       command,
       ...(args && { args }),
-    } as McpServer & Record<string, unknown>;
+    };
   }
 
   return result;
@@ -81,6 +74,11 @@ function removeTypeField(config: CopilotcliMcpConfig): McpServers {
   const result: McpServers = {};
 
   for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
+    if (server.type !== "stdio") {
+      result[name] = server;
+      continue;
+    }
+
     const { type: _, ...rest } = server;
     result[name] = rest;
   }
@@ -109,13 +107,7 @@ export class CopilotcliMcp extends ToolMcp {
     return !this.global;
   }
 
-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    if (global) {
-      return {
-        relativeDirPath: ".copilot",
-        relativeFilePath: "mcp-config.json",
-      };
-    }
+  static getSettablePaths({ global: _global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
       relativeDirPath: ".copilot",
       relativeFilePath: "mcp-config.json",
