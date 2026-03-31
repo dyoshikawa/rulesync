@@ -473,10 +473,19 @@ async function generateSubagentsCore(params: {
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
 
-      if (toolTarget === "geminicli") {
+      if (toolTarget === "geminicli" && toolFiles.length > 0) {
         const settingsPath = join(baseDir, ".gemini", "settings.json");
         const settingsContent = await readFileContentOrNull(settingsPath);
-        const existing = settingsContent ? JSON.parse(settingsContent) : {};
+        // JSON.parse returns any — inferred type avoids explicit any annotation and type assertions
+        const existing = await (async () => {
+          if (!settingsContent) return {};
+          try {
+            return JSON.parse(settingsContent);
+          } catch {
+            logger.warn(`Could not parse ${settingsPath}, skipping enableAgents injection`);
+            return {};
+          }
+        })();
         const existingExperimental = existing.experimental ?? {};
         if (existingExperimental.enableAgents !== true) {
           const patched = {

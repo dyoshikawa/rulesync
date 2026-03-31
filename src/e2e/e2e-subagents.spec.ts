@@ -90,7 +90,35 @@ You are the planner.
     const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
     const settings = JSON.parse(settingsContent);
     expect(settings.experimental?.enableAgents).toBe(true);
-    expect(settings.mcpServers).toBeDefined();
+    expect(settings.mcpServers).toEqual({ myServer: { command: "node" } });
+  });
+
+  it("should preserve other experimental flags when injecting experimental.enableAgents", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".gemini", "settings.json"),
+      JSON.stringify({ experimental: { otherFlag: true } }, null, 2),
+    );
+
+    const subagentContent = `---
+name: planner
+targets: ["geminicli"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      subagentContent,
+    );
+
+    await runGenerate({ target: "geminicli", features: "subagents" });
+
+    const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
+    const settings = JSON.parse(settingsContent);
+    expect(settings.experimental?.enableAgents).toBe(true);
+    expect(settings.experimental?.otherFlag).toBe(true);
   });
 
   it("should preserve opencode.mode when generating OpenCode subagents", async () => {
