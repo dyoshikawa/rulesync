@@ -121,30 +121,6 @@ You are the planner.
     expect(settings.experimental?.otherFlag).toBe(true);
   });
 
-  it("should be idempotent when generating geminicli subagents", async () => {
-    const testDir = getTestDir();
-
-    const subagentContent = `---
-name: planner
-targets: ["geminicli"]
-description: "Plans implementation tasks"
----
-You are the planner.
-`;
-    await writeFileContent(
-      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
-      subagentContent,
-    );
-
-    // First run
-    const result1 = await runGenerate({ target: "geminicli", features: "subagents" });
-    expect(result1.stdout).toContain(".gemini/settings.json");
-
-    // Second run
-    const result2 = await runGenerate({ target: "geminicli", features: "subagents" });
-    expect(result2.stdout).not.toContain(".gemini/settings.json");
-  });
-
   it("should preserve opencode.mode when generating OpenCode subagents", async () => {
     const testDir = getTestDir();
 

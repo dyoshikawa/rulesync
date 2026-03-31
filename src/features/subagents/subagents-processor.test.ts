@@ -2,101 +2,87 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { RulesyncFile } from "../../types/rulesync-file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
-import { GeminiCliSubagent } from "./geminicli-subagent.js";
+import { CodexCliSubagent } from "./codexcli-subagent.js";
+import { CopilotSubagent } from "./copilot-subagent.js";
+import { CursorSubagent } from "./cursor-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
   SubagentsProcessor,
   SubagentsProcessorToolTarget,
+  SubagentsProcessorToolTargetSchema,
   subagentsProcessorToolTargets,
   subagentsProcessorToolTargetsSimulated,
 } from "./subagents-processor.js";
-import { ToolSubagent } from "./tool-subagent.js";
 
-// Mock file system and other utils
-vi.mock("../../utils/file.js", async () => {
-  const actual = await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
-  return {
-    ...actual,
-    directoryExists: vi.fn(),
-    listDirectoryFiles: vi.fn(),
-    findFilesByGlobs: vi.fn(),
-    readFileContent: vi.fn(),
-    readFileContentOrNull: vi.fn(),
-    writeJsonFile: vi.fn(),
-  };
-});
-
-import {
-  directoryExists,
-  findFilesByGlobs,
-  listDirectoryFiles,
-  readFileContentOrNull,
-  writeJsonFile,
-} from "../../utils/file.js";
+/**
+ * Creates a mock getFactory that throws an error for unsupported tool targets.
+ * Used to test error handling when an invalid tool target is provided.
+ */
+const createMockGetFactoryThatThrowsUnsupported = () => {
+  throw new Error("Unsupported tool target: unsupported");
+};
 
 describe("SubagentsProcessor", () => {
-  let logger = createMockLogger();
+  let testDir: string;
+  let cleanup: () => Promise<void>;
 
-  beforeEach(() => {
-    logger = createMockLogger();
-    vi.mocked(directoryExists).mockResolvedValue(true);
-    vi.mocked(listDirectoryFiles).mockResolvedValue([]);
-    vi.mocked(findFilesByGlobs).mockResolvedValue([]);
-    vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+  beforeEach(async () => {
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
   });
 
   describe("constructor", () => {
-    it("should create an instance with valid target", () => {
+    it("should create instance with valid tool target", () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
         toolTarget: "claudecode",
-        logger,
       });
+
       expect(processor).toBeInstanceOf(SubagentsProcessor);
     });
 
-    it("should create an instance with global: true", () => {
+    it("should use default baseDir when not provided", () => {
       const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         toolTarget: "claudecode",
-        global: true,
-        logger,
       });
+
       expect(processor).toBeInstanceOf(SubagentsProcessor);
     });
 
-    it("should throw error with invalid target", () => {
+    it("should validate tool target with schema", () => {
       expect(() => {
         const _processor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
           toolTarget: "invalid" as SubagentsProcessorToolTarget,
-          logger,
         });
-      }).toThrow("Invalid tool target for SubagentsProcessor");
+      }).toThrow();
     });
 
-    it("should use process.cwd() as default baseDir", () => {
-      const processor = new SubagentsProcessor({
-        toolTarget: "claudecode",
-        logger,
-      });
-      // Accessing protected baseDir through any for test
-      expect((processor as any).baseDir).toBe(process.cwd());
-    });
-
-    it("should use provided baseDir", () => {
-      const processor = new SubagentsProcessor({
-        baseDir: "/custom/path",
-        toolTarget: "claudecode",
-        logger,
-      });
-      expect((processor as any).baseDir).toBe("/custom/path");
+    it("should accept all valid tool targets", () => {
+      for (const toolTarget of subagentsProcessorToolTargets) {
+        expect(() => {
+          const _processor = new SubagentsProcessor({
+            logger: createMockLogger(),
+            baseDir: testDir,
+            toolTarget,
+          });
+        }).not.toThrow();
+      }
     });
   });
 
@@ -105,50 +91,212 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
         toolTarget: "claudecode",
-        logger,
       });
     });
 
-    it("should convert RulesyncSubagent to ToolSubagent", async () => {
+    it("should filter and convert RulesyncSubagent instances for claudecode", async () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test.md",
-        frontmatter: { name: "test", targets: ["*"], description: "test" },
-        body: "body",
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
       });
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+      // Create a mixed array with different file types
+      const rulesyncFiles = [
+        rulesyncSubagent,
+        // Add a mock non-subagent file
+        {
+          getFilePath: () => "not-a-subagent.md",
+          getFileContent: () => "not a subagent",
+        } as any,
+      ];
 
-      expect(toolFiles.length).toBe(1);
-      expect(toolFiles[0]).toBeInstanceOf(ToolSubagent);
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+
+      expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
     });
 
-    it("should filter out subagents not targeted for the tool", async () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: ".",
-        relativeDirPath: ".rulesync/subagents",
-        relativeFilePath: "test.md",
-        frontmatter: { name: "test", targets: ["cursor"], description: "test" },
-        body: "body",
+    it("should convert with global flag when processor is in global mode", async () => {
+      const globalProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        global: true,
       });
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "global-test-agent.md",
+        frontmatter: {
+          name: "global-test-agent",
+          description: "Global test agent description",
+          targets: ["*"],
+        },
+        body: "Global test agent content",
+        validate: false,
+      });
 
-      expect(toolFiles.length).toBe(0);
+      const toolFiles = await globalProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+      // The global flag should be passed through to ClaudecodeSubagent.fromRulesyncSubagent
+      const claudecodeSubagent = toolFiles[0] as ClaudecodeSubagent;
+      expect(claudecodeSubagent.getFrontmatter().name).toBe("global-test-agent");
     });
 
-    it("should handle empty array", async () => {
+    it("should handle empty rulesync files array", async () => {
       const toolFiles = await processor.convertRulesyncFilesToToolFiles([]);
-      expect(toolFiles.length).toBe(0);
+      expect(toolFiles).toEqual([]);
     });
 
-    it("should handle non-RulesyncSubagent files", async () => {
-      const otherFile = { getFilePath: () => "test.txt" } as RulesyncFile;
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles([otherFile]);
-      expect(toolFiles.length).toBe(0);
+    it("should handle array with no RulesyncSubagent instances", async () => {
+      const rulesyncFiles = [
+        { getFilePath: () => "file1.md" } as any,
+        { getFilePath: () => "file2.md" } as any,
+      ];
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should throw error for unsupported tool target", async () => {
+      const unsupportedProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        getFactory: createMockGetFactoryThatThrowsUnsupported,
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: { name: "test", description: "test", targets: ["*"] },
+        body: "test",
+        validate: false,
+      });
+
+      await expect(
+        unsupportedProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]),
+      ).rejects.toThrow("Unsupported tool target: unsupported");
+    });
+
+    it("should convert RulesyncSubagent to CopilotSubagent for copilot target", async () => {
+      const copilotProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await copilotProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CopilotSubagent);
+    });
+
+    it("should convert RulesyncSubagent to CursorSubagent for cursor target", async () => {
+      const cursorProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await cursorProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CursorSubagent);
+    });
+
+    it("should convert RulesyncSubagent to CodexCliSubagent for codexcli target", async () => {
+      const codexcliProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "test-agent.md",
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+          targets: ["*"],
+        },
+        body: "Test agent content",
+        validate: false,
+      });
+
+      const toolFiles = await codexcliProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CodexCliSubagent);
+    });
+
+    it("should convert RulesyncSubagent to OpenCodeSubagent for opencode target", async () => {
+      const opencodeProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "opencode-agent.md",
+        frontmatter: {
+          name: "opencode-agent",
+          description: "Handles opencode tasks",
+          targets: ["opencode"],
+        },
+        body: "Opencode agent body",
+        validate: false,
+      });
+
+      const toolFiles = await opencodeProcessor.convertRulesyncFilesToToolFiles([rulesyncSubagent]);
+
+      expect(toolFiles).toHaveLength(1);
+      const [opencodeSubagent] = toolFiles;
+      expect(opencodeSubagent?.getRelativeDirPath()).toBe(".opencode/agent");
     });
   });
 
@@ -157,45 +305,121 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
         toolTarget: "claudecode",
-        logger,
       });
     });
 
-    it("should convert ToolSubagent to RulesyncSubagent", async () => {
-      const toolSubagent = new ClaudecodeSubagent({
-        baseDir: ".",
+    it("should filter and convert ToolSubagent instances", async () => {
+      const claudecodeSubagent = new ClaudecodeSubagent({
+        baseDir: testDir,
         relativeDirPath: ".claude/agents",
-        relativeFilePath: "test.md",
-        frontmatter: { name: "test", description: "test" },
-        body: "body",
-        fileContent: "---\nname: test\ndescription: test\n---\nbody",
+        relativeFilePath: "test-agent.md",
+        fileContent: `---
+name: test-agent
+description: Test agent description
+---
+Test agent content`,
+        frontmatter: {
+          name: "test-agent",
+          description: "Test agent description",
+        },
+        body: "Test agent content",
+        validate: false,
       });
 
-      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([toolSubagent]);
+      const toolFiles = [
+        claudecodeSubagent,
+        // Add a mock non-subagent file
+        {
+          getFilePath: () => "not-a-subagent.md",
+          getFileContent: () => "not a subagent",
+        } as any,
+      ];
 
-      expect(rulesyncFiles.length).toBe(1);
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+
+      expect(rulesyncFiles).toHaveLength(1);
       expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
-      expect(rulesyncFiles[0]!.getRelativeFilePath()).toBe("test.md");
     });
 
-    it("should skip simulated subagents", async () => {
-      // Create a mock simulated subagent
-      const mockSimulated = {
-        getRelativeFilePath: () => "simulated.md",
-      } as any;
-      // Object.setPrototypeOf to make it pass instanceof check if needed
-      Object.setPrototypeOf(mockSimulated, SimulatedSubagent.prototype);
-
-      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([mockSimulated]);
-
-      expect(rulesyncFiles.length).toBe(0);
-      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Skipping simulated"));
-    });
-
-    it("should handle empty array", async () => {
+    it("should handle empty tool files array", async () => {
       const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles([]);
-      expect(rulesyncFiles.length).toBe(0);
+      expect(rulesyncFiles).toEqual([]);
+    });
+
+    it("should handle array with no ToolSubagent instances", async () => {
+      const toolFiles = [
+        { getFilePath: () => "file1.md" } as any,
+        { getFilePath: () => "file2.md" } as any,
+      ];
+
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+      expect(rulesyncFiles).toEqual([]);
+    });
+
+    it("should skip simulated subagents when converting to rulesync", async () => {
+      const claudecodeSubagent = new ClaudecodeSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".claude/agents",
+        relativeFilePath: "claude-agent.md",
+        fileContent: `---
+name: claude-agent
+description: Claude agent
+---
+Claude content`,
+        frontmatter: {
+          name: "claude-agent",
+          description: "Claude agent",
+        },
+        body: "Claude content",
+        validate: false,
+      });
+
+      const copilotSubagent = new CopilotSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".github/agents",
+        relativeFilePath: "copilot-agent.md",
+        frontmatter: {
+          name: "copilot-agent",
+          description: "Copilot agent",
+          tools: ["agent/runSubagent"],
+        },
+        body: "Copilot content",
+        fileContent: "",
+        validate: false,
+      });
+
+      const cursorSubagent = new CursorSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".cursor/agents",
+        relativeFilePath: "cursor-agent.md",
+        frontmatter: {
+          name: "cursor-agent",
+          description: "Cursor agent",
+        },
+        body: "Cursor content",
+        fileContent: "",
+        validate: false,
+      });
+
+      const codexCliSubagent = new CodexCliSubagent({
+        baseDir: testDir,
+        relativeDirPath: ".codex/agents",
+        relativeFilePath: "codex-agent.toml",
+        body: 'name = "codex-agent"\ndescription = "CodexCli agent"',
+        fileContent: 'name = "codex-agent"\ndescription = "CodexCli agent"',
+        validate: false,
+      });
+
+      const toolFiles = [claudecodeSubagent, copilotSubagent, cursorSubagent, codexCliSubagent];
+
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+
+      // Claudecode, Copilot, Cursor, and CodexCli subagents should all be converted (non-simulated)
+      expect(rulesyncFiles).toHaveLength(4);
+      expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
     });
   });
 
@@ -204,311 +428,533 @@ describe("SubagentsProcessor", () => {
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
         toolTarget: "claudecode",
-        logger,
       });
     });
 
-    it("should load subagents from .rulesync/subagents directory", async () => {
-      vi.mocked(directoryExists).mockResolvedValue(true);
-      vi.mocked(listDirectoryFiles).mockResolvedValue(["planner.md", "researcher.md", "README.md"]);
-
-      // Mock RulesyncSubagent.fromFile
-      const fromFileSpy = vi.spyOn(RulesyncSubagent, "fromFile").mockImplementation(
-        async ({ relativeFilePath }) =>
-          new RulesyncSubagent({
-            baseDir: ".",
-            relativeDirPath: ".rulesync/subagents",
-            relativeFilePath,
-            frontmatter: { name: relativeFilePath, targets: ["*"], description: "desc" },
-            body: "body",
-          }),
-      );
-
-      const files = await processor.loadRulesyncFiles();
-
-      expect(files.length).toBe(3); // Only .md files, including README.md
-      expect(fromFileSpy).toHaveBeenCalledTimes(3);
+    it("should return empty array when subagents directory does not exist", async () => {
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(rulesyncFiles).toEqual([]);
     });
 
-    it("should return empty array if directory does not exist", async () => {
-      vi.mocked(directoryExists).mockResolvedValue(false);
+    it("should return empty array when no markdown files exist", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
 
-      const files = await processor.loadRulesyncFiles();
+      // Create non-markdown files
+      await writeFileContent(join(subagentsDir, "readme.txt"), "Not a markdown file");
+      await writeFileContent(join(subagentsDir, "config.json"), "{}");
 
-      expect(files.length).toBe(0);
-      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("not found"));
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(rulesyncFiles).toEqual([]);
     });
 
-    it("should return empty array if no markdown files found", async () => {
-      vi.mocked(directoryExists).mockResolvedValue(true);
-      vi.mocked(listDirectoryFiles).mockResolvedValue(["test.json", "test.txt"]);
+    it("should load valid markdown subagent files", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
 
-      const files = await processor.loadRulesyncFiles();
+      const validSubagentContent = `---
+name: test-agent
+description: Test agent description
+targets: ["*"]
+---
+This is a test agent content`;
 
-      expect(files.length).toBe(0);
-      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("No markdown files found"));
+      await writeFileContent(join(subagentsDir, "test-agent.md"), validSubagentContent);
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
+      const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("test-agent");
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("Test agent description");
+      expect(rulesyncSubagent.getBody()).toBe("This is a test agent content");
     });
 
-    it("should skip files that fail to load", async () => {
-      vi.mocked(directoryExists).mockResolvedValue(true);
-      vi.mocked(listDirectoryFiles).mockResolvedValue(["good.md", "bad.md"]);
+    it("should load multiple valid subagent files", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
 
-      vi.spyOn(RulesyncSubagent, "fromFile").mockImplementation(async ({ relativeFilePath }) => {
-        if (relativeFilePath === "bad.md") {
-          throw new Error("Load failed");
-        }
-        return new RulesyncSubagent({
-          baseDir: ".",
-          relativeDirPath: ".rulesync/subagents",
-          relativeFilePath,
-          frontmatter: { name: "good", targets: ["*"], description: "desc" },
-          body: "body",
-        });
+      const subagent1Content = `---
+name: agent-1
+description: First agent
+targets: ["claudecode"]
+---
+First agent content`;
+
+      const subagent2Content = `---
+name: agent-2
+description: Second agent
+targets: ["*"]
+---
+Second agent content`;
+
+      await writeFileContent(join(subagentsDir, "agent-1.md"), subagent1Content);
+      await writeFileContent(join(subagentsDir, "agent-2.md"), subagent2Content);
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(2);
+      expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
+
+      const names = rulesyncFiles
+        .map((file) => (file as RulesyncSubagent).getFrontmatter().name)
+        .toSorted();
+      expect(names).toEqual(["agent-1", "agent-2"]);
+    });
+
+    it("should skip invalid subagent files and continue loading valid ones", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+
+      const validContent = `---
+name: valid-agent
+description: Valid agent
+targets: ["*"]
+---
+Valid content`;
+
+      const invalidContent = `---
+invalid yaml: [
+---
+Invalid content`;
+
+      await writeFileContent(join(subagentsDir, "valid.md"), validContent);
+      await writeFileContent(join(subagentsDir, "invalid.md"), invalidContent);
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      const validRulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
+      expect(validRulesyncSubagent.getFrontmatter().name).toBe("valid-agent");
+    });
+
+    it("should load rulesync files from cwd even when baseDir is different (global mode)", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+
+      const validSubagentContent = `---
+name: global-agent
+description: Global agent description
+targets: ["*"]
+---
+Global agent content`;
+
+      await writeFileContent(join(subagentsDir, "global-agent.md"), validSubagentContent);
+
+      // Use a different baseDir to simulate global mode (baseDir = homeDir)
+      const differentBaseDir = join(testDir, "fake-home");
+      await ensureDir(differentBaseDir);
+
+      const globalProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: differentBaseDir,
+        toolTarget: "claudecode",
+        global: true,
       });
 
-      const files = await processor.loadRulesyncFiles();
+      const rulesyncFiles = await globalProcessor.loadRulesyncFiles();
 
-      expect(files.length).toBe(1);
-      expect(files[0]!.getRelativeFilePath()).toBe("good.md");
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Failed to load subagent"));
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
+      const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("global-agent");
     });
   });
 
   describe("loadToolFiles", () => {
+    it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
+    });
+
+    it("should delegate to loadCopilotSubagents for copilot target", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "copilot",
+      });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
+    });
+
+    it("should delegate to loadCursorSubagents for cursor target", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "cursor",
+      });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
+    });
+
+    it("should delegate to loadCodexCliSubagents for codexcli target", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+      const toolFiles = await processor.loadToolFiles();
+      expect(Array.isArray(toolFiles)).toBe(true);
+    });
+
+    it("should throw error for unsupported tool target", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        getFactory: createMockGetFactoryThatThrowsUnsupported,
+      });
+
+      await expect(processor.loadToolFiles()).rejects.toThrow(
+        "Unsupported tool target: unsupported",
+      );
+    });
+  });
+
+  describe("loadCopilotSubagents", () => {
     let processor: SubagentsProcessor;
 
     beforeEach(() => {
       processor = new SubagentsProcessor({
-        toolTarget: "claudecode",
-        logger,
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "copilot",
       });
     });
 
-    it("should load tool-specific subagents", async () => {
-      vi.mocked(findFilesByGlobs).mockResolvedValue([
-        "/.claude/agents/planner.md",
-        "/.claude/agents/researcher.md",
-      ]);
-
-      // Mock factory classes
-      const fromFileSpy = vi.spyOn(ClaudecodeSubagent, "fromFile").mockImplementation(
-        async ({ relativeFilePath }) =>
-          new ClaudecodeSubagent({
-            baseDir: ".",
-            relativeDirPath: ".claude/agents",
-            relativeFilePath,
-            frontmatter: { name: relativeFilePath, description: "desc" },
-            body: "body",
-            fileContent: "content",
-          }),
-      );
-
-      const files = await processor.loadToolFiles();
-
-      expect(files.length).toBe(2);
-      expect(fromFileSpy).toHaveBeenCalledTimes(2);
+    it("should return empty array when subagents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
     });
 
-    it("should handle global mode", async () => {
-      const globalProcessor = new SubagentsProcessor({
-        toolTarget: "claudecode",
-        global: true,
-        logger,
-      });
+    it("should load copilot subagent files from .github/agents", async () => {
+      const subagentsDir = join(testDir, ".github", "agents");
+      await ensureDir(subagentsDir);
 
-      vi.mocked(findFilesByGlobs).mockResolvedValue(["/home/.claude/agents/global.md"]);
+      const subagentContent = `---
+name: copilot-agent
+description: Copilot agent description
+---
+Copilot agent content`;
 
-      const fromFileSpy = vi.spyOn(ClaudecodeSubagent, "fromFile").mockResolvedValue({} as any);
+      await writeFileContent(join(subagentsDir, "copilot-agent.md"), subagentContent);
 
-      await globalProcessor.loadToolFiles();
+      const toolFiles = await processor.loadToolFiles();
 
-      expect(fromFileSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          global: true,
-        }),
-      );
-    });
-
-    it("should load files for deletion", async () => {
-      vi.mocked(findFilesByGlobs).mockResolvedValue(["/.claude/agents/old.md"]);
-
-      const forDeletionSpy = vi.spyOn(ClaudecodeSubagent, "forDeletion").mockImplementation(
-        ({ relativeFilePath }) =>
-          ({
-            getRelativeFilePath: () => relativeFilePath,
-            isDeletable: () => true,
-          }) as any,
-      );
-
-      const files = await processor.loadToolFiles({ forDeletion: true });
-
-      expect(files.length).toBe(1);
-      expect(forDeletionSpy).toHaveBeenCalled();
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CopilotSubagent);
     });
   });
 
-  describe("postGenerate", () => {
-    let testDir: string;
-    let cleanup: () => Promise<void>;
+  describe("loadCursorSubagents", () => {
+    let processor: SubagentsProcessor;
 
-    beforeEach(async () => {
-      ({ testDir, cleanup } = await setupTestDirectory());
-    });
-
-    afterEach(async () => {
-      await cleanup();
-    });
-
-    it("should inject experimental.enableAgents into .gemini/settings.json for geminicli", async () => {
-      const processor = new SubagentsProcessor({
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
-        toolTarget: "geminicli",
-        logger,
+        toolTarget: "cursor",
       });
-
-      const toolFiles = [
-        new GeminiCliSubagent({
-          baseDir: testDir,
-          relativeDirPath: ".gemini/agents",
-          relativeFilePath: "test.md",
-          frontmatter: { name: "test", description: "test" },
-          body: "body",
-        }),
-      ];
-
-      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
-
-      const result = await processor.postGenerate(toolFiles);
-
-      expect(result.count).toBe(1);
-      expect(result.paths).toContain(join(".gemini", "settings.json"));
-      expect(result.hasDiff).toBe(true);
-      expect(writeJsonFile).toHaveBeenCalledWith(
-        join(testDir, ".gemini", "settings.json"),
-        expect.objectContaining({
-          experimental: { enableAgents: true },
-        }),
-      );
     });
 
-    it("should preserve existing experimental flags in .gemini/settings.json", async () => {
-      const processor = new SubagentsProcessor({
+    it("should return empty array when subagents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should load cursor subagent files from .cursor/agents", async () => {
+      const subagentsDir = join(testDir, ".cursor", "agents");
+      await ensureDir(subagentsDir);
+
+      const subagentContent = `---
+name: cursor-agent
+description: Cursor agent description
+---
+Cursor agent content`;
+
+      await writeFileContent(join(subagentsDir, "cursor-agent.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CursorSubagent);
+    });
+  });
+
+  describe("loadCodexCliSubagents", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
-        toolTarget: "geminicli",
-        logger,
+        toolTarget: "codexcli",
       });
-
-      const toolFiles = [{} as any]; // Length > 0
-
-      vi.mocked(readFileContentOrNull).mockResolvedValue(
-        JSON.stringify({
-          experimental: { existingFlag: true },
-        }),
-      );
-
-      await processor.postGenerate(toolFiles);
-
-      expect(writeJsonFile).toHaveBeenCalledWith(
-        join(testDir, ".gemini", "settings.json"),
-        expect.objectContaining({
-          experimental: { existingFlag: true, enableAgents: true },
-        }),
-      );
     });
 
-    it("should not inject if experimental.enableAgents is already true", async () => {
-      const processor = new SubagentsProcessor({
+    it("should return empty array when subagents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should load codexcli subagent files from .codex/agents", async () => {
+      const agentsDir = join(testDir, ".codex", "agents");
+      await ensureDir(agentsDir);
+
+      const tomlContent = 'name = "codex-agent"\ndescription = "CodexCli agent description"';
+
+      await writeFileContent(join(agentsDir, "codex-agent.toml"), tomlContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(CodexCliSubagent);
+    });
+  });
+
+  describe("loadClaudecodeSubagents", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        logger: createMockLogger(),
         baseDir: testDir,
-        toolTarget: "geminicli",
-        logger,
-      });
-
-      const toolFiles = [{} as any];
-
-      vi.mocked(readFileContentOrNull).mockResolvedValue(
-        JSON.stringify({
-          experimental: { enableAgents: true },
-        }),
-      );
-
-      const result = await processor.postGenerate(toolFiles);
-
-      expect(result.count).toBe(0);
-      expect(result.hasDiff).toBe(false);
-      expect(writeJsonFile).not.toHaveBeenCalled();
-    });
-
-    it("should skip if toolTarget is not geminicli", async () => {
-      const processor = new SubagentsProcessor({
         toolTarget: "claudecode",
-        logger,
       });
-
-      const result = await processor.postGenerate([{} as any]);
-
-      expect(result.count).toBe(0);
-      expect(writeJsonFile).not.toHaveBeenCalled();
     });
 
-    it("should skip if no toolFiles generated", async () => {
-      const processor = new SubagentsProcessor({
-        toolTarget: "geminicli",
-        logger,
-      });
-
-      const result = await processor.postGenerate([]);
-
-      expect(result.count).toBe(0);
-      expect(writeJsonFile).not.toHaveBeenCalled();
+    it("should return empty array when agents directory does not exist", async () => {
+      const toolFiles = await processor.loadToolFiles();
+      expect(toolFiles).toEqual([]);
     });
 
-    it("should handle invalid JSON in settings.json gracefully", async () => {
-      const processor = new SubagentsProcessor({
-        baseDir: testDir,
-        toolTarget: "geminicli",
-        logger,
-      });
+    it("should load claudecode subagent files from .claude/agents", async () => {
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
 
-      vi.mocked(readFileContentOrNull).mockResolvedValue("invalid json");
+      const subagentContent = `---
+name: claude-agent
+description: Claude agent description
+---
+Claude agent content`;
 
-      await processor.postGenerate([{} as any]);
+      await writeFileContent(join(agentsDir, "claude-agent.md"), subagentContent);
 
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Could not parse"));
-      // Should treat as empty object and proceed
-      expect(writeJsonFile).toHaveBeenCalledWith(
-        join(testDir, ".gemini", "settings.json"),
-        expect.objectContaining({
-          experimental: { enableAgents: true },
-        }),
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+    });
+
+    it("should load multiple claudecode subagent files", async () => {
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      const agent1Content = `---
+name: agent-1
+description: First Claude agent
+---
+First content`;
+
+      const agent2Content = `---
+name: agent-2
+description: Second Claude agent
+---
+Second content`;
+
+      await writeFileContent(join(agentsDir, "agent-1.md"), agent1Content);
+      await writeFileContent(join(agentsDir, "agent-2.md"), agent2Content);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(2);
+      expect(toolFiles.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+    });
+
+    it("should throw error when file fails to load", async () => {
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      // Create a file that will cause loading to fail (invalid format without frontmatter)
+      await writeFileContent(
+        join(agentsDir, "might-fail.md"),
+        "Invalid format without frontmatter",
       );
+
+      await expect(processor.loadToolFiles()).rejects.toThrow();
+    });
+
+    describe("global mode", () => {
+      it("should use global paths when global=true", async () => {
+        const globalProcessor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        // In test mode, global paths still resolve relative to testDir
+        const globalAgentsDir = join(testDir, ".claude", "agents");
+        await ensureDir(globalAgentsDir);
+
+        const subagentContent = `---
+name: global-agent
+description: Global agent description
+---
+Global agent content`;
+
+        await writeFileContent(join(globalAgentsDir, "global-agent.md"), subagentContent);
+
+        const toolFiles = await globalProcessor.loadToolFiles();
+
+        expect(toolFiles).toHaveLength(1);
+        expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+        const claudecodeSubagent = toolFiles[0] as ClaudecodeSubagent;
+        expect(claudecodeSubagent.getFrontmatter().name).toBe("global-agent");
+        expect(claudecodeSubagent.getRelativeDirPath()).toBe(join(".claude", "agents"));
+      });
+
+      it("should return empty array when global agents directory does not exist", async () => {
+        const globalProcessor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const toolFiles = await globalProcessor.loadToolFiles();
+        expect(toolFiles).toEqual([]);
+      });
+
+      it("should load multiple global subagent files", async () => {
+        const globalProcessor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const globalAgentsDir = join(testDir, ".claude", "agents");
+        await ensureDir(globalAgentsDir);
+
+        const agent1Content = `---
+name: global-agent-1
+description: First global agent
+---
+First global content`;
+
+        const agent2Content = `---
+name: global-agent-2
+description: Second global agent
+---
+Second global content`;
+
+        await writeFileContent(join(globalAgentsDir, "global-agent-1.md"), agent1Content);
+        await writeFileContent(join(globalAgentsDir, "global-agent-2.md"), agent2Content);
+
+        const toolFiles = await globalProcessor.loadToolFiles();
+
+        expect(toolFiles).toHaveLength(2);
+        expect(toolFiles.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+
+        const names = toolFiles
+          .map((file) => (file as ClaudecodeSubagent).getFrontmatter().name)
+          .toSorted();
+        expect(names).toEqual(["global-agent-1", "global-agent-2"]);
+      });
     });
   });
 
   describe("getToolTargets", () => {
-    it("should return project targets excluding simulated by default", () => {
-      const targets = SubagentsProcessor.getToolTargets();
-      expect(targets).toContain("claudecode");
-      expect(targets).toContain("geminicli");
-      // Simulated targets should be excluded if includeSimulated is false (default)
-      // Since I changed them to false, they are now included!
-      expect(targets).toContain("agentsmd");
+    it("should exclude simulated targets by default", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets();
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("claudecode-legacy");
+      expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("opencode");
+      expect(toolTargets).toContain("cursor");
+      expect(toolTargets).toContain("codexcli");
+    });
+
+    it("should exclude simulated targets when includeSimulated is false", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ includeSimulated: false });
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("claudecode-legacy");
+      expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("opencode");
+      expect(toolTargets).toContain("cursor");
+      expect(toolTargets).toContain("codexcli");
     });
 
     it("should include simulated targets when includeSimulated is true", () => {
-      const targets = SubagentsProcessor.getToolTargets({ includeSimulated: true });
-      expect(targets).toContain("claudecode");
-      expect(targets).toContain("geminicli");
+      const toolTargets = SubagentsProcessor.getToolTargets({ includeSimulated: true });
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toContain("claudecode");
+      expect(toolTargets).toContain("claudecode-legacy");
+      expect(toolTargets).toContain("copilot");
+      expect(toolTargets).toContain("cursor");
+      expect(toolTargets).toContain("codexcli");
+      expect(toolTargets).toContain("opencode");
+      expect(toolTargets).toEqual(subagentsProcessorToolTargets);
     });
 
-    it("should return only global targets in global mode", () => {
-      const targets = SubagentsProcessor.getToolTargets({ global: true });
-      expect(targets).toContain("claudecode");
-      expect(targets).not.toContain("copilot"); // copilot supportsGlobal is false
+    it("should be callable without instance", () => {
+      expect(() => SubagentsProcessor.getToolTargets()).not.toThrow();
+    });
+  });
+
+  describe("getToolTargets with global: true", () => {
+    it("should return claudecode, codexcli, cursor, opencode, and rovodev as global-supported targets", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
+
+      expect(Array.isArray(toolTargets)).toBe(true);
+      expect(toolTargets).toEqual([
+        "claudecode",
+        "claudecode-legacy",
+        "codexcli",
+        "cursor",
+        "opencode",
+        "rovodev",
+      ]);
+    });
+
+    it("should not include simulated targets", () => {
+      const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
+
+      expect(toolTargets).not.toContain("copilot");
+      expect(toolTargets).not.toContain("agentsmd");
+      expect(toolTargets).not.toContain("factorydroid");
+      expect(toolTargets).not.toContain("geminicli");
+      expect(toolTargets).not.toContain("roo");
+    });
+
+    it("should be callable without instance", () => {
+      expect(() => SubagentsProcessor.getToolTargets({ global: true })).not.toThrow();
     });
   });
 
   describe("type exports and constants", () => {
+    it("should export SubagentsProcessorToolTargetSchema", () => {
+      expect(SubagentsProcessorToolTargetSchema).toBeDefined();
+      expect(() => SubagentsProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
+      expect(() => SubagentsProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();
+      expect(() => SubagentsProcessorToolTargetSchema.parse("invalid")).toThrow();
+    });
+
     it("should export subagentsProcessorToolTargets constant", () => {
       expect(new Set(subagentsProcessorToolTargets)).toEqual(
         new Set([
@@ -532,17 +978,222 @@ describe("SubagentsProcessor", () => {
     });
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
-      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(new Set([]));
+      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
+        new Set(["agentsmd", "factorydroid", "geminicli", "roo"]),
+      );
+      expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });
 
     it("should have valid SubagentsProcessorToolTarget type", () => {
       const validTargets: SubagentsProcessorToolTarget[] = [
+        "agentsmd",
+        "claudecode",
+        "claudecode-legacy",
+        "copilot",
+        "cursor",
+        "codexcli",
+        "opencode",
+      ];
+      validTargets.forEach((target) => {
+        expect(subagentsProcessorToolTargets).toContain(target);
+      });
+    });
+  });
+
+  describe("inheritance from FeatureProcessor", () => {
+    it("should extend FeatureProcessor", () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      expect(processor).toBeInstanceOf(SubagentsProcessor);
+      // Should have inherited baseDir property and other FeatureProcessor functionality
+      expect(typeof processor.convertRulesyncFilesToToolFiles).toBe("function");
+      expect(typeof processor.convertToolFilesToRulesyncFiles).toBe("function");
+      expect(typeof processor.loadRulesyncFiles).toBe("function");
+      expect(typeof processor.loadToolFiles).toBe("function");
+    });
+  });
+
+  describe("error handling and edge cases", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+    });
+
+    it("should handle file system errors gracefully during rulesync file loading", async () => {
+      // Create directory but make it inaccessible (this test might be platform-specific)
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+
+      // Write a file with invalid content that will cause parsing errors
+      await writeFileContent(
+        join(subagentsDir, "broken.md"),
+        "This is not valid frontmatter content",
+      );
+
+      // Should not throw, should continue and return what it can parse
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(Array.isArray(rulesyncFiles)).toBe(true);
+    });
+
+    it("should handle mixed file types in directories", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+
+      // Mix of valid, invalid, and non-markdown files
+      await writeFileContent(
+        join(subagentsDir, "valid.md"),
+        `---
+name: valid
+description: Valid agent
+targets: ["*"]
+---
+Valid content`,
+      );
+
+      await writeFileContent(
+        join(subagentsDir, "invalid.md"),
+        "Invalid markdown without frontmatter",
+      );
+      await writeFileContent(join(subagentsDir, "not-markdown.txt"), "This is not markdown");
+      await writeFileContent(join(subagentsDir, "README.md"), "# This is a readme, not a subagent");
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      // Should filter to only markdown files and only successfully parsed ones
+      expect(rulesyncFiles.length).toBeGreaterThanOrEqual(0);
+      expect(rulesyncFiles.every((file) => file instanceof RulesyncSubagent)).toBe(true);
+    });
+  });
+
+  describe("loadToolFiles with forDeletion: true", () => {
+    it("should return files with correct paths for deletion", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      const subagentContent = `---
+name: test-agent
+description: Test agent
+---
+Test agent content`;
+
+      await writeFileContent(join(agentsDir, "test-agent.md"), subagentContent);
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("test-agent.md");
+    });
+
+    it("should work for all supported tool targets", async () => {
+      const targets: SubagentsProcessorToolTarget[] = [
+        "agentsmd",
         "claudecode",
         "copilot",
         "cursor",
+        "codexcli",
         "geminicli",
+        "roo",
       ];
-      expect(validTargets.length).toBeGreaterThan(0);
+
+      for (const target of targets) {
+        const processor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
+          toolTarget: target,
+        });
+
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+        // Should return empty array since no files exist
+        expect(filesToDelete).toEqual([]);
+      }
+    });
+
+    it("should return empty array when no files exist", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+      expect(filesToDelete).toEqual([]);
+    });
+
+    it("should handle multiple files correctly", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      const agent1 = `---
+name: agent-1
+description: First agent
+---
+First agent`;
+
+      const agent2 = `---
+name: agent-2
+description: Second agent
+---
+Second agent`;
+
+      await writeFileContent(join(agentsDir, "agent-1.md"), agent1);
+      await writeFileContent(join(agentsDir, "agent-2.md"), agent2);
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(2);
+      expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
+    });
+
+    it("should succeed even when file has broken frontmatter", async () => {
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      // File with broken YAML frontmatter (unclosed bracket, invalid syntax)
+      const brokenFrontmatter = `---
+name: [broken-agent
+description: This frontmatter is invalid YAML
+  - unclosed bracket
+  invalid: : syntax
+---
+Content that would fail parsing`;
+
+      await writeFileContent(join(agentsDir, "broken-agent.md"), brokenFrontmatter);
+
+      // forDeletion should succeed without parsing file content
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("broken-agent.md");
     });
   });
 });
