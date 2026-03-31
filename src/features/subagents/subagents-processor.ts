@@ -145,7 +145,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "geminicli",
     {
       class: GeminiCliSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [

@@ -19,7 +19,7 @@ import { FeatureProcessor } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { fileExists, readFileContentOrNull, writeJsonFile } from "../utils/file.js";
+import { fileExists } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 
@@ -472,36 +472,6 @@ async function generateSubagentsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
-
-      if (toolTarget === "geminicli" && toolFiles.length > 0) {
-        const settingsPath = join(baseDir, ".gemini", "settings.json");
-        const settingsContent = await readFileContentOrNull(settingsPath);
-        // JSON.parse returns any — inferred type avoids explicit any annotation and type assertions
-        const existing = await (async () => {
-          if (!settingsContent) return {};
-          try {
-            return JSON.parse(settingsContent);
-          } catch {
-            logger.warn(`Could not parse ${settingsPath}, skipping enableAgents injection`);
-            return {};
-          }
-        })();
-        const existingExperimental = existing.experimental ?? {};
-        if (existingExperimental.enableAgents !== true) {
-          const patched = {
-            ...existing,
-            experimental: { ...existingExperimental, enableAgents: true },
-          };
-          if (config.isPreviewMode()) {
-            logger.info(`[DRY RUN] Would write: ${settingsPath}`);
-          } else {
-            await writeJsonFile(settingsPath, patched);
-          }
-          totalCount++;
-          allPaths.push(join(".gemini", "settings.json"));
-          hasDiff = true;
-        }
-      }
     }
   }
 

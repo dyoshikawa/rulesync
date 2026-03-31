@@ -7,10 +7,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import {
-  SimulatedSubagentFrontmatter,
-  SimulatedSubagentFrontmatterSchema,
-} from "./simulated-subagent.js";
+import { ToolSubagent } from "./tool-subagent.js";
 
 describe("GeminiCliSubagent", () => {
   let testDir: string;
@@ -123,7 +120,7 @@ Body content`;
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
-            } as SimulatedSubagentFrontmatter,
+            } as { name: string },
             body: "Body content",
             validate: true,
           }),
@@ -172,7 +169,7 @@ Body content`;
   });
 
   describe("toRulesyncSubagent", () => {
-    it("should throw error as it is a simulated file", () => {
+    it("should convert to RulesyncSubagent", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
         relativeDirPath: ".gemini/agents",
@@ -185,9 +182,11 @@ Body content`;
         validate: true,
       });
 
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("Test Agent");
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("Test description");
+      expect(rulesyncSubagent.getBody()).toBe("Test body");
     });
   });
 
@@ -366,7 +365,7 @@ Body content`;
           description: "Valid description",
         },
         body: "Valid body",
-        validate: false, // Skip validation in constructor to test validate method
+        validate: false,
       });
 
       const result = subagent.validate();
@@ -382,55 +381,14 @@ Body content`;
         frontmatter: {
           name: "Agent",
           description: "Agent with extra properties",
-          // Additional properties should be allowed but not validated
           extra: "property",
-        } as any,
+        },
         body: "Body content",
         validate: false,
       });
 
       const result = subagent.validate();
-      // The validation should pass as long as required fields are present
       expect(result.success).toBe(true);
-    });
-  });
-
-  describe("SimulatedSubagentFrontmatterSchema", () => {
-    it("should validate valid frontmatter with name and description", () => {
-      const validFrontmatter = {
-        name: "Test Agent",
-        description: "Test description",
-      };
-
-      const result = SimulatedSubagentFrontmatterSchema.parse(validFrontmatter);
-      expect(result).toEqual(validFrontmatter);
-    });
-
-    it("should throw error for frontmatter without name", () => {
-      const invalidFrontmatter = {
-        description: "Test description",
-      };
-
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
-    });
-
-    it("should accept frontmatter without description (description is optional)", () => {
-      const frontmatter = {
-        name: "Test Agent",
-      };
-
-      const result = SimulatedSubagentFrontmatterSchema.parse(frontmatter);
-      expect(result.name).toBe("Test Agent");
-      expect(result.description).toBeUndefined();
-    });
-
-    it("should throw error for frontmatter with invalid types", () => {
-      const invalidFrontmatter = {
-        name: 123, // Should be string
-        description: "Test",
-      };
-
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
   });
 
@@ -535,7 +493,7 @@ Body content`;
   });
 
   describe("inheritance", () => {
-    it("should inherit from SimulatedSubagent", () => {
+    it("should be an instance of ToolSubagent", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
         relativeDirPath: ".gemini/agents",
@@ -549,10 +507,7 @@ Body content`;
       });
 
       expect(subagent).toBeInstanceOf(GeminiCliSubagent);
-      // Test that it inherits methods from parent class
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      expect(subagent).toBeInstanceOf(ToolSubagent);
     });
   });
 
@@ -602,7 +557,7 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        validate: false, // Skip validation to allow empty targets array
+        validate: false,
       });
 
       expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
