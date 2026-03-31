@@ -7,8 +7,15 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import {
+  directoryExists,
+  findFilesByGlobs,
+  listDirectoryFiles,
+  readFileContentOrNull,
+  writeJsonFile,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import type { FeatureGenerateResult } from "../../utils/result.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
@@ -89,7 +96,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "agentsmd",
     {
       class: AgentsmdSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [
@@ -138,14 +145,14 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "factorydroid",
     {
       class: FactorydroidSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [
     "geminicli",
     {
       class: GeminiCliSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [
@@ -173,7 +180,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "roo",
     {
       class: RooSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [
@@ -262,9 +269,10 @@ export class SubagentsProcessor extends FeatureProcessor {
         if (!factory.class.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
           return null;
         }
+        const settablePaths = factory.class.getSettablePaths({ global: this.global });
         return factory.class.fromRulesyncSubagent({
           baseDir: this.baseDir,
-          relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+          relativeDirPath: settablePaths.relativeDirPath,
           rulesyncSubagent: rulesyncSubagent,
           global: this.global,
         });
@@ -398,6 +406,45 @@ export class SubagentsProcessor extends FeatureProcessor {
       `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
     );
     return toolSubagents;
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   */
+  async postGenerate(toolFiles: ToolFile[]): Promise<FeatureGenerateResult> {
+    if (this.toolTarget === "geminicli" && toolFiles.length > 0) {
+      const settingsPath = join(this.baseDir, ".gemini", "settings.json");
+      const settingsContent = await readFileContentOrNull(settingsPath);
+      // JSON.parse returns any — inferred type avoids explicit any annotation and type assertions
+      const existing = await (async () => {
+        if (!settingsContent) return {};
+        try {
+          return JSON.parse(settingsContent);
+        } catch {
+          this.logger.warn(`Could not parse ${settingsPath}, skipping enableAgents injection`);
+          return {};
+        }
+      })();
+      const existingExperimental = existing.experimental ?? {};
+      if (existingExperimental.enableAgents !== true) {
+        const patched = {
+          ...existing,
+          experimental: { ...existingExperimental, enableAgents: true },
+        };
+        if (this.dryRun) {
+          this.logger.info(`[DRY RUN] Would write: ${settingsPath}`);
+        } else {
+          await writeJsonFile(settingsPath, patched);
+        }
+        return {
+          count: 1,
+          paths: [join(".gemini", "settings.json")],
+          hasDiff: true,
+        };
+      }
+    }
+
+    return { count: 0, paths: [], hasDiff: false };
   }
 
   /**

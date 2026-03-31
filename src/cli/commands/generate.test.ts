@@ -71,6 +71,7 @@ describe("generateCommand", () => {
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
       convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
       writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+      postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
     };
 
     // Setup processor static method mocks
@@ -88,6 +89,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       } as any;
     });
     vi.mocked(IgnoreProcessor).mockImplementation(function () {
@@ -97,6 +99,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       } as any;
     });
     vi.mocked(McpProcessor).mockImplementation(function () {
@@ -106,6 +109,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       } as any;
     });
     vi.mocked(SubagentsProcessor).mockImplementation(function () {
@@ -115,6 +119,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       } as any;
     });
     vi.mocked(CommandsProcessor).mockImplementation(function () {
@@ -124,6 +129,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       } as any;
     });
   });
@@ -230,6 +236,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return customMockInstance as any;
@@ -330,6 +337,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
       vi.mocked(McpProcessor).mockImplementation(function () {
         return customMockInstance as any;
@@ -584,7 +592,8 @@ describe("generateCommand", () => {
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
-        } as any;
+          postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
+        };
       });
 
       const options: GenerateOptions = {};
@@ -604,20 +613,25 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 2, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
+
       const mcpMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
+
       const commandsMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
 
       vi.mocked(RulesProcessor).mockImplementation(function () {
@@ -673,7 +687,9 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
+
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return customMockInstance as any;
       });
@@ -779,6 +795,7 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return customMockInstance as any;
@@ -909,7 +926,9 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 5, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
+
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return customMockInstance as any;
       });
@@ -944,6 +963,7 @@ describe("generateCommand", () => {
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
+          postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
         } as any;
       });
       vi.mocked(McpProcessor).mockImplementation(function () {
@@ -953,6 +973,7 @@ describe("generateCommand", () => {
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
+          postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
         } as any;
       });
       vi.mocked(CommandsProcessor).mockImplementation(function () {
@@ -962,6 +983,7 @@ describe("generateCommand", () => {
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
+          postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
         } as any;
       });
       vi.mocked(SubagentsProcessor).mockImplementation(function () {
@@ -971,6 +993,7 @@ describe("generateCommand", () => {
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
+          postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
         } as any;
       });
 
@@ -1000,7 +1023,9 @@ describe("generateCommand", () => {
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 2, paths: [] }),
+        postGenerate: vi.fn().mockResolvedValue({ count: 0, paths: [], hasDiff: false }),
       };
+
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockRulesProcessor as any;
       });

@@ -6,7 +6,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
-import type { WriteResult } from "../utils/result.js";
+import type { FeatureGenerateResult, WriteResult } from "../utils/result.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
@@ -46,6 +46,14 @@ export abstract class FeatureProcessor {
     _params: { global?: boolean; includeSimulated?: boolean } = {},
   ): ToolTarget[] {
     throw new Error("Not implemented");
+  }
+
+  /**
+   * Hook called after files are generated.
+   * Can be used to perform additional actions like injecting config into existing files.
+   */
+  async postGenerate(_toolFiles: ToolFile[]): Promise<FeatureGenerateResult> {
+    return { count: 0, paths: [], hasDiff: false };
   }
 
   /**

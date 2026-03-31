@@ -60,7 +60,9 @@ export async function runGenerate({
     features,
     ...(global ? ["--global"] : []),
   ];
-  return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
+  // Filter out NODE_ENV to allow logging in E2E tests
+  const { NODE_ENV: _env, ...restEnv } = process.env;
+  return execFileAsync(rulesyncCmd, args, { env: { ...restEnv, ...env } });
 }
 
 /**
@@ -74,7 +76,9 @@ export async function runImport({
   features: string;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [...rulesyncArgs, "import", "--targets", target, "--features", features];
-  return execFileAsync(rulesyncCmd, args);
+  // Filter out NODE_ENV to allow logging in E2E tests
+  const { NODE_ENV: _env, ...restEnv } = process.env;
+  return execFileAsync(rulesyncCmd, args, { env: { ...restEnv } });
 }
 
 /**

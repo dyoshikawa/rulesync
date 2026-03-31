@@ -16,10 +16,11 @@ import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
-import type { Feature } from "../types/features.js";
-import type { ToolTarget } from "../types/tool-targets.js";
+import { Feature } from "../types/features.js";
+import { ToolFile } from "../types/tool-file.js";
+import { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { fileExists, readFileContentOrNull, writeJsonFile } from "../utils/file.js";
+import { fileExists } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 
@@ -236,9 +237,11 @@ async function generateRulesCore(params: {
         toolFiles,
       });
 
-      totalCount += result.count;
-      allPaths.push(...result.paths);
-      if (result.hasDiff) hasDiff = true;
+      const postResult = await processor.postGenerate(toolFiles);
+
+      totalCount += result.count + postResult.count;
+      allPaths.push(...result.paths, ...postResult.paths);
+      if (result.hasDiff || postResult.hasDiff) hasDiff = true;
     }
   }
 
@@ -284,9 +287,10 @@ async function generateIgnoreCore(params: {
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
         let result;
+        let toolFiles: ToolFile[] = [];
 
         if (rulesyncFiles.length > 0) {
-          const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+          toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
           result = await processFeatureGeneration({
             config,
             processor,
@@ -299,9 +303,11 @@ async function generateIgnoreCore(params: {
           });
         }
 
-        totalCount += result.count;
-        allPaths.push(...result.paths);
-        if (result.hasDiff) hasDiff = true;
+        const postResult = await processor.postGenerate(toolFiles);
+
+        totalCount += result.count + postResult.count;
+        allPaths.push(...result.paths, ...postResult.paths);
+        if (result.hasDiff || postResult.hasDiff) hasDiff = true;
       } catch (error) {
         logger.warn(
           `Failed to generate ${toolTarget} ignore files for ${baseDir}: ${formatError(error)}`,
@@ -357,9 +363,11 @@ async function generateMcpCore(params: {
         toolFiles,
       });
 
-      totalCount += result.count;
-      allPaths.push(...result.paths);
-      if (result.hasDiff) hasDiff = true;
+      const postResult = await processor.postGenerate(toolFiles);
+
+      totalCount += result.count + postResult.count;
+      allPaths.push(...result.paths, ...postResult.paths);
+      if (result.hasDiff || postResult.hasDiff) hasDiff = true;
     }
   }
 
@@ -413,9 +421,11 @@ async function generateCommandsCore(params: {
         toolFiles,
       });
 
-      totalCount += result.count;
-      allPaths.push(...result.paths);
-      if (result.hasDiff) hasDiff = true;
+      const postResult = await processor.postGenerate(toolFiles);
+
+      totalCount += result.count + postResult.count;
+      allPaths.push(...result.paths, ...postResult.paths);
+      if (result.hasDiff || postResult.hasDiff) hasDiff = true;
     }
   }
 
@@ -469,39 +479,11 @@ async function generateSubagentsCore(params: {
         toolFiles,
       });
 
-      totalCount += result.count;
-      allPaths.push(...result.paths);
-      if (result.hasDiff) hasDiff = true;
+      const postResult = await processor.postGenerate(toolFiles);
 
-      if (toolTarget === "geminicli" && toolFiles.length > 0) {
-        const settingsPath = join(baseDir, ".gemini", "settings.json");
-        const settingsContent = await readFileContentOrNull(settingsPath);
-        // JSON.parse returns any — inferred type avoids explicit any annotation and type assertions
-        const existing = await (async () => {
-          if (!settingsContent) return {};
-          try {
-            return JSON.parse(settingsContent);
-          } catch {
-            logger.warn(`Could not parse ${settingsPath}, skipping enableAgents injection`);
-            return {};
-          }
-        })();
-        const existingExperimental = existing.experimental ?? {};
-        if (existingExperimental.enableAgents !== true) {
-          const patched = {
-            ...existing,
-            experimental: { ...existingExperimental, enableAgents: true },
-          };
-          if (config.isPreviewMode()) {
-            logger.info(`[DRY RUN] Would write: ${settingsPath}`);
-          } else {
-            await writeJsonFile(settingsPath, patched);
-          }
-          totalCount++;
-          allPaths.push(join(".gemini", "settings.json"));
-          hasDiff = true;
-        }
-      }
+      totalCount += result.count + postResult.count;
+      allPaths.push(...result.paths, ...postResult.paths);
+      if (result.hasDiff || postResult.hasDiff) hasDiff = true;
     }
   }
 
@@ -563,9 +545,11 @@ async function generateSkillsCore(params: {
         toolDirs,
       });
 
-      totalCount += result.count;
-      allPaths.push(...result.paths);
-      if (result.hasDiff) hasDiff = true;
+      const postResult = await processor.postGenerate(toolDirs);
+
+      totalCount += result.count + postResult.count;
+      allPaths.push(...result.paths, ...postResult.paths);
+      if (result.hasDiff || postResult.hasDiff) hasDiff = true;
     }
   }
 
@@ -608,6 +592,7 @@ async function generateHooksCore(params: {
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       let result;
+      let toolFiles: ToolFile[] = [];
 
       if (rulesyncFiles.length === 0) {
         result = await processEmptyFeatureGeneration({
@@ -615,7 +600,7 @@ async function generateHooksCore(params: {
           processor,
         });
       } else {
-        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+        toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
         result = await processFeatureGeneration({
           config,
           processor,
@@ -623,9 +608,11 @@ async function generateHooksCore(params: {
         });
       }
 
-      totalCount += result.count;
-      allPaths.push(...result.paths);
-      if (result.hasDiff) hasDiff = true;
+      const postResult = await processor.postGenerate(toolFiles);
+
+      totalCount += result.count + postResult.count;
+      allPaths.push(...result.paths, ...postResult.paths);
+      if (result.hasDiff || postResult.hasDiff) hasDiff = true;
     }
   }
 
