@@ -936,7 +936,7 @@ export class RulesProcessor extends FeatureProcessor {
        */
       const buildDeletionRulesFromPaths = (
         filePaths: string[],
-        opts?: { baseDirOverride?: string; relativeDirPathOverride?: string },
+        opts?: { baseDirOverride: string; relativeDirPathOverride: string },
       ): ToolRule[] => {
         const effectiveBaseDir = opts?.baseDirOverride ?? this.baseDir;
         return filePaths
@@ -1073,7 +1073,7 @@ export class RulesProcessor extends FeatureProcessor {
         if (forDeletion) {
           return buildDeletionRulesFromPaths(nonRootFilePaths, {
             baseDirOverride: nonRootBaseDir,
-            relativeDirPathOverride: settablePaths.nonRoot?.relativeDirPath ?? ".",
+            relativeDirPathOverride: settablePaths.nonRoot.relativeDirPath,
           });
         }
 

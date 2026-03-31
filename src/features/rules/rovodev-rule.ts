@@ -119,7 +119,7 @@ export class RovodevRule extends ToolRule {
     return this.fromRootFile({
       baseDir,
       relativeFilePath,
-      relativeDirPath: overrideDirPath,
+      overrideDirPath,
       validate,
       global,
       paths,
@@ -159,14 +159,14 @@ export class RovodevRule extends ToolRule {
   private static async fromRootFile({
     baseDir,
     relativeFilePath,
-    relativeDirPath: overrideDirPath,
+    overrideDirPath,
     validate,
     global,
     paths,
   }: {
     baseDir: string;
     relativeFilePath: string;
-    relativeDirPath: string | undefined;
+    overrideDirPath: string | undefined;
     validate: boolean;
     global: boolean;
     paths: RovodevRuleSettablePaths | ToolRuleSettablePathsGlobal;
