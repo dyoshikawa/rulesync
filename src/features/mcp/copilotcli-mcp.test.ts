@@ -489,6 +489,28 @@ describe("CopilotcliMcp", () => {
       });
     });
 
+    it("should throw error when remote server has no url or httpUrl", async () => {
+      const inputMcpServers = {
+        "remote-server": {
+          type: "http" as const,
+          headers: {
+            Authorization: "Bearer token",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      await expect(
+        CopilotcliMcp.fromRulesyncMcp({
+          rulesyncMcp,
+        }),
+      ).rejects.toThrow('MCP server "remote-server" is missing a url or httpUrl');
+    });
+
     it("should require command for local type servers", async () => {
       const inputMcpServers = {
         "local-server": {

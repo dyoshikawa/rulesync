@@ -43,6 +43,7 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
  * Adds "type": "stdio" to each MCP server config if not present.
  * GitHub Copilot CLI requires the "type" field for each server.
  * @throws Error if a stdio server doesn't have a command
+ * @throws Error if an http/sse server doesn't have a url or httpUrl
  */
 function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"] {
   const result: NonNullable<CopilotcliMcpConfig["mcpServers"]> = {};
@@ -52,6 +53,12 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
     const type = resolveCopilotcliServerType(parsed);
 
     if (isRemoteServerType(type)) {
+      if (!parsed.url && !parsed.httpUrl) {
+        throw new Error(
+          `MCP server "${name}" is missing a url or httpUrl. GitHub Copilot CLI ${type} servers require a non-empty url or httpUrl.`,
+        );
+      }
+
       result[name] = {
         ...parsed,
         type,
