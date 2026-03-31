@@ -24,6 +24,7 @@ export const McpServerSchema = z.looseObject({
 
 export const McpServersSchema = z.record(z.string(), McpServerSchema);
 export type McpServers = z.infer<typeof McpServersSchema>;
+export type McpServer = z.infer<typeof McpServerSchema>;
 
 /**
  * Loose guard for `mcpServers` values from parsed JSON: a non-null plain object.

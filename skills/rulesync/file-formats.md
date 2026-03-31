@@ -53,6 +53,29 @@ Hooks run scripts at lifecycle events (e.g. session start, before tool use). Eve
 
 > **Note:** GitHub Copilot's format uses separate `powershell` and `bash` fields for hooks. Rulesync supports only a single `command` field and resolves this by emitting the command under the `powershell` key on Windows, and under the `bash` key on all other platforms.
 
+## `.copilot/mcp-config.json`
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "serena": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"]
+    }
+  }
+}
+```
+
+This file is used by the GitHub Copilot CLI for MCP server configuration. Rulesync manages this file by converting from the unified `.rulesync/mcp.json` format.
+
+- **Project mode:** `.copilot/mcp-config.json` (relative to project root)
+- **Global mode:** `~/.copilot/mcp-config.json` (relative to home directory)
+
+Rulesync ensures that each server entry contains the mandatory `"type": "stdio"` field required by the Copilot CLI.
+
 Use optional **override keys** so tool-specific events and config live in one file without leaking to others: `cursor.hooks` for Cursor-only events, `claudecode.hooks` for Claude-only, `opencode.hooks` for OpenCode-only, `copilot.hooks` for GitHub Copilot-only, `geminicli.hooks` for Gemini CLI-only. Events in shared `hooks` that a tool does not support are skipped for that tool (and a warning is logged at generate time).
 
 Example:
