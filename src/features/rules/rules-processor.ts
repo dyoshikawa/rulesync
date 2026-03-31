@@ -926,6 +926,42 @@ export class RulesProcessor extends FeatureProcessor {
         return dirName === "" ? "." : dirName;
       };
 
+      /**
+       * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable.
+       *
+       * Two modes:
+       * - Root mode (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.baseDir`.
+       * - Non-root mode (with `baseDirOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(baseDirOverride, filePath)`,
+       *   traversal checks `relativeFilePath` against `baseDirOverride`.
+       */
+      const buildDeletionRulesFromPaths = (
+        filePaths: string[],
+        opts?: { baseDirOverride: string; relativeDirPathOverride: string },
+      ): ToolRule[] => {
+        const isNonRoot = opts !== undefined;
+        const effectiveBaseDir = isNonRoot ? opts.baseDirOverride : this.baseDir;
+        return filePaths
+          .map((filePath) => {
+            const relativeDirPath = isNonRoot
+              ? opts.relativeDirPathOverride
+              : resolveRelativeDirPath(filePath);
+            const relativeFilePath = isNonRoot
+              ? relative(effectiveBaseDir, filePath)
+              : basename(filePath);
+            checkPathTraversal({
+              relativePath: isNonRoot ? relativeFilePath : relativeDirPath,
+              intendedRootDir: effectiveBaseDir,
+            });
+            return factory.class.forDeletion({
+              baseDir: this.baseDir,
+              relativeDirPath,
+              relativeFilePath,
+              global: this.global,
+            });
+          })
+          .filter((rule) => rule.isDeletable());
+      };
+
       const findFilesWithFallback = async (
         primaryGlob: string,
         alternativeRoots: typeof settablePaths.alternativeRoots,
@@ -957,21 +993,7 @@ export class RulesProcessor extends FeatureProcessor {
         );
 
         if (forDeletion) {
-          return uniqueRootFilePaths
-            .map((filePath) => {
-              const relativeDirPath = resolveRelativeDirPath(filePath);
-              checkPathTraversal({
-                relativePath: relativeDirPath,
-                intendedRootDir: this.baseDir,
-              });
-              return factory.class.forDeletion({
-                baseDir: this.baseDir,
-                relativeDirPath,
-                relativeFilePath: basename(filePath),
-                global: this.global,
-              });
-            })
-            .filter((rule) => rule.isDeletable());
+          return buildDeletionRulesFromPaths(uniqueRootFilePaths);
         }
 
         return await Promise.all(
@@ -1005,21 +1027,7 @@ export class RulesProcessor extends FeatureProcessor {
           const uniqueLocalRootFilePaths = await findFilesByGlobs(
             join(this.baseDir, "AGENTS.local.md"),
           );
-          return uniqueLocalRootFilePaths
-            .map((filePath) => {
-              const relativeDirPath = resolveRelativeDirPath(filePath);
-              checkPathTraversal({
-                relativePath: relativeDirPath,
-                intendedRootDir: this.baseDir,
-              });
-              return factory.class.forDeletion({
-                baseDir: this.baseDir,
-                relativeDirPath,
-                relativeFilePath: basename(filePath),
-                global: this.global,
-              });
-            })
-            .filter((rule) => rule.isDeletable());
+          return buildDeletionRulesFromPaths(uniqueLocalRootFilePaths);
         }
 
         if (this.toolTarget !== "claudecode" && this.toolTarget !== "claudecode-legacy") {
@@ -1036,21 +1044,7 @@ export class RulesProcessor extends FeatureProcessor {
           (alt) => join(this.baseDir, alt.relativeDirPath, "CLAUDE.local.md"),
         );
 
-        return uniqueLocalRootFilePaths
-          .map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.baseDir,
-            });
-            return factory.class.forDeletion({
-              baseDir: this.baseDir,
-              relativeDirPath,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            });
-          })
-          .filter((rule) => rule.isDeletable());
+        return buildDeletionRulesFromPaths(uniqueLocalRootFilePaths);
       })();
       this.logger.debug(
         `Found ${localRootToolRules.length} local root tool rule files for deletion`,
@@ -1065,21 +1059,7 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
         const mirrorPaths = await findFilesByGlobs(join(this.baseDir, "AGENTS.md"));
-        return mirrorPaths
-          .map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.baseDir,
-            });
-            return factory.class.forDeletion({
-              baseDir: this.baseDir,
-              relativeDirPath,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            });
-          })
-          .filter((rule) => rule.isDeletable());
+        return buildDeletionRulesFromPaths(mirrorPaths);
       })();
 
       const nonRootToolRules = await (async () => {
@@ -1092,9 +1072,16 @@ export class RulesProcessor extends FeatureProcessor {
           join(nonRootBaseDir, "**", `*.${factory.meta.extension}`),
         );
 
+        if (forDeletion) {
+          return buildDeletionRulesFromPaths(nonRootFilePaths, {
+            baseDirOverride: nonRootBaseDir,
+            relativeDirPathOverride: settablePaths.nonRoot.relativeDirPath,
+          });
+        }
+
         const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
         const nonRootPathsForImport =
-          !forDeletion && this.toolTarget === "rovodev"
+          this.toolTarget === "rovodev"
             ? nonRootFilePaths.filter((filePath) => {
                 const relativeFilePath = relative(nonRootBaseDir, filePath);
                 const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
@@ -1106,24 +1093,6 @@ export class RulesProcessor extends FeatureProcessor {
                 return ok;
               })
             : nonRootFilePaths;
-
-        if (forDeletion) {
-          return nonRootFilePaths
-            .map((filePath) => {
-              const relativeFilePath = relative(nonRootBaseDir, filePath);
-              checkPathTraversal({
-                relativePath: relativeFilePath,
-                intendedRootDir: nonRootBaseDir,
-              });
-              return factory.class.forDeletion({
-                baseDir: this.baseDir,
-                relativeDirPath: settablePaths.nonRoot?.relativeDirPath ?? ".",
-                relativeFilePath,
-                global: this.global,
-              });
-            })
-            .filter((rule) => rule.isDeletable());
-        }
 
         return await Promise.all(
           nonRootPathsForImport.map((filePath) => {

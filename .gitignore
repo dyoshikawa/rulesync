@@ -220,6 +220,7 @@ docs/.vitepress/cache
 .rulesync/rules/*.local.md
 rulesync.local.jsonc
 !.rulesync/.aiignore
+**/AGENTS.local.md
 **/AGENTS.md
 **/.agents/
 **/.augment/rules/
@@ -304,6 +305,10 @@ rulesync.local.jsonc
 **/.rooignore
 **/.roo/mcp.json
 **/.roo/subagents/
-**/.rovodev/
+**/.rovodev/AGENTS.md
+**/.rovodev/subagents/
+**/.rovodev/skills/
+**/.rovodev/.rulesync/
+**/.agents/skills/
 **/.warp/
 **/WARP.md

@@ -17,8 +17,8 @@ export type RovodevRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-/** Basenames reserved for project memory; not modular rules under `.rovodev/.rulesync/modular-rules/`. */
-const DISALLOWED_ROVODEV_MODULAR_RULE_BASENAMES = new Set(["AGENTS.md", "AGENTS.local.md"]);
+/** Basenames reserved for project memory; not modular rules under `.rovodev/.rulesync/modular-rules/`. Lower-cased for case-insensitive comparison (macOS/Windows). */
+const DISALLOWED_ROVODEV_MODULAR_RULE_BASENAMES = new Set(["agents.md", "agents.local.md"]);
 
 /** Project paths; `nonRoot` is modular rules under `.rovodev/.rulesync/modular-rules/`. */
 export type RovodevRuleSettablePaths = ToolRuleSettablePaths & {
@@ -53,7 +53,7 @@ export class RovodevRule extends ToolRule {
       if (segment === "" || segment === "." || segment === "..") {
         continue;
       }
-      if (DISALLOWED_ROVODEV_MODULAR_RULE_BASENAMES.has(segment)) {
+      if (DISALLOWED_ROVODEV_MODULAR_RULE_BASENAMES.has(segment.toLowerCase())) {
         return false;
       }
     }
@@ -107,23 +107,70 @@ export class RovodevRule extends ToolRule {
       paths.nonRoot &&
       overrideDirPath === paths.nonRoot.relativeDirPath
     ) {
-      if (!this.isAllowedModularRulesRelativePath(relativeFilePath)) {
-        throw new Error(
-          `Reserved Rovodev memory basename under modular-rules (not a modular rule): ${join(overrideDirPath, relativeFilePath)}`,
-        );
-      }
-      const fileContent = await readFileContent(join(baseDir, overrideDirPath, relativeFilePath));
-      return new RovodevRule({
+      return this.fromModularFile({
         baseDir,
-        relativeDirPath: overrideDirPath,
         relativeFilePath,
-        fileContent,
+        relativeDirPath: overrideDirPath,
         validate,
         global,
-        root: false,
       });
     }
 
+    return this.fromRootFile({
+      baseDir,
+      relativeFilePath,
+      overrideDirPath,
+      validate,
+      global,
+      paths,
+    });
+  }
+
+  private static async fromModularFile({
+    baseDir,
+    relativeFilePath,
+    relativeDirPath,
+    validate,
+    global,
+  }: {
+    baseDir: string;
+    relativeFilePath: string;
+    relativeDirPath: string;
+    validate: boolean;
+    global: boolean;
+  }): Promise<RovodevRule> {
+    if (!this.isAllowedModularRulesRelativePath(relativeFilePath)) {
+      throw new Error(
+        `Reserved Rovodev memory basename under modular-rules (not a modular rule): ${join(relativeDirPath, relativeFilePath)}`,
+      );
+    }
+    const fileContent = await readFileContent(join(baseDir, relativeDirPath, relativeFilePath));
+    return new RovodevRule({
+      baseDir,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent,
+      validate,
+      global,
+      root: false,
+    });
+  }
+
+  private static async fromRootFile({
+    baseDir,
+    relativeFilePath,
+    overrideDirPath,
+    validate,
+    global,
+    paths,
+  }: {
+    baseDir: string;
+    relativeFilePath: string;
+    overrideDirPath: string | undefined;
+    validate: boolean;
+    global: boolean;
+    paths: RovodevRuleSettablePaths | ToolRuleSettablePathsGlobal;
+  }): Promise<RovodevRule> {
     const relativeDirPath = overrideDirPath ?? paths.root.relativeDirPath;
 
     const agentsMdExpectedLocationsDescription =

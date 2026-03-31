@@ -347,6 +347,15 @@ describe("RovodevRule", () => {
       expect(RovodevRule.isAllowedModularRulesRelativePath("AGENTS.local.md")).toBe(false);
       expect(RovodevRule.isAllowedModularRulesRelativePath(join("x", "AGENTS.md"))).toBe(false);
     });
+
+    it("should reject reserved basenames case-insensitively", () => {
+      expect(RovodevRule.isAllowedModularRulesRelativePath("agents.md")).toBe(false);
+      expect(RovodevRule.isAllowedModularRulesRelativePath("Agents.md")).toBe(false);
+      expect(RovodevRule.isAllowedModularRulesRelativePath("AGENTS.MD")).toBe(false);
+      expect(RovodevRule.isAllowedModularRulesRelativePath("agents.local.md")).toBe(false);
+      expect(RovodevRule.isAllowedModularRulesRelativePath("Agents.Local.Md")).toBe(false);
+      expect(RovodevRule.isAllowedModularRulesRelativePath(join("x", "agents.md"))).toBe(false);
+    });
   });
 
   describe("round-trip", () => {
