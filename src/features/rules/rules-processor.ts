@@ -930,24 +930,26 @@ export class RulesProcessor extends FeatureProcessor {
        * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable.
        *
        * Two modes:
-       * - **Root mode** (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.baseDir`.
-       * - **Non-root mode** (with `baseDirOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(baseDirOverride, filePath)`,
+       * - Root mode (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.baseDir`.
+       * - Non-root mode (with `baseDirOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(baseDirOverride, filePath)`,
        *   traversal checks `relativeFilePath` against `baseDirOverride`.
        */
       const buildDeletionRulesFromPaths = (
         filePaths: string[],
         opts?: { baseDirOverride: string; relativeDirPathOverride: string },
       ): ToolRule[] => {
-        const effectiveBaseDir = opts?.baseDirOverride ?? this.baseDir;
+        const isNonRoot = opts !== undefined;
+        const effectiveBaseDir = isNonRoot ? opts.baseDirOverride : this.baseDir;
         return filePaths
           .map((filePath) => {
-            const relativeDirPath =
-              opts?.relativeDirPathOverride ?? resolveRelativeDirPath(filePath);
-            const relativeFilePath = opts?.baseDirOverride
+            const relativeDirPath = isNonRoot
+              ? opts.relativeDirPathOverride
+              : resolveRelativeDirPath(filePath);
+            const relativeFilePath = isNonRoot
               ? relative(effectiveBaseDir, filePath)
               : basename(filePath);
             checkPathTraversal({
-              relativePath: opts?.baseDirOverride ? relativeFilePath : relativeDirPath,
+              relativePath: isNonRoot ? relativeFilePath : relativeDirPath,
               intendedRootDir: effectiveBaseDir,
             });
             return factory.class.forDeletion({
