@@ -20,6 +20,12 @@ A Node.js CLI tool that automatically generates configuration files for various 
 > If you are interested in Rulesync latest news, please follow the maintainer's X(Twitter) account:
 > [@dyoshikawa1993](https://x.com/dyoshikawa1993)
 
+<p align="center">
+  <a href="https://github.com/sponsors/dyoshikawa">
+    <img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=githubsponsors&style=for-the-badge" alt="Sponsor" />
+  </a>
+</p>
+
 ## Installation
 
 ```bash
