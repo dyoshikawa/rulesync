@@ -114,6 +114,17 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "worktreeRemove",
 ];
 
+/** Hook events supported by Kilo. */
+export const KILO_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+  "afterFileEdit",
+  "afterShellExecution",
+  "permissionRequest",
+];
+
 /** Hook events supported by OpenCode. */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -188,6 +199,7 @@ export const HooksConfigSchema = z.looseObject({
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -278,6 +290,19 @@ export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
 export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_FACTORYDROID_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
+
+/**
+ * Map canonical camelCase event names to Kilo dot-notation.
+ */
+export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session.created",
+  preToolUse: "tool.execute.before",
+  postToolUse: "tool.execute.after",
+  stop: "session.idle",
+  afterFileEdit: "file.edited",
+  afterShellExecution: "command.executed",
+  permissionRequest: "permission.asked",
+};
 
 /**
  * Map canonical camelCase event names to OpenCode dot-notation.

@@ -8,6 +8,7 @@ import {
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
+  KILO_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
   type HookEvent,
@@ -24,6 +25,7 @@ import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
+import { KiloHooks } from "./kilo-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
@@ -34,6 +36,7 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 
 const hooksProcessorToolTargetTuple = [
+  "kilo",
   "cursor",
   "claudecode",
   "copilot",
@@ -111,6 +114,20 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       supportedEvents: COPILOT_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: false,
+    },
+  ],
+  [
+    "kilo",
+    {
+      class: KiloHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: KILO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
     },
   ],
   [

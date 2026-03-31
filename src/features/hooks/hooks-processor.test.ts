@@ -404,22 +404,24 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, opencode, factorydroid, and geminicli for project mode", () => {
+    it("should return cursor, claudecode, copilot, opencode, kilo, factorydroid, and geminicli for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
         "cursor",
         "claudecode",
         "copilot",
+        "kilo",
         "opencode",
         "factorydroid",
         "geminicli",
       ]);
     });
 
-    it("should return claudecode, opencode, factorydroid, and geminicli for global mode", () => {
+    it("should return claudecode, opencode, kilo, factorydroid, and geminicli for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
         "claudecode",
+        "kilo",
         "opencode",
         "factorydroid",
         "geminicli",
