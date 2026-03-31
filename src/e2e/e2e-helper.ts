@@ -44,11 +44,13 @@ export async function runGenerate({
   target,
   features,
   global = false,
+  simulateSubagents = false,
   env,
 }: {
   target: string;
   features: string;
   global?: boolean;
+  simulateSubagents?: boolean;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
@@ -59,6 +61,7 @@ export async function runGenerate({
     "--features",
     features,
     ...(global ? ["--global"] : []),
+    ...(simulateSubagents ? ["--simulate-subagents"] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }

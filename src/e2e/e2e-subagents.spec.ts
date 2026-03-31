@@ -15,10 +15,22 @@ describe("E2E: subagents", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
-    { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
-    { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
-    { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
-  ])("should generate $target subagents", async ({ target, outputPath }) => {
+    {
+      target: "claudecode",
+      outputPath: join(".claude", "agents", "planner.md"),
+      simulateSubagents: false,
+    },
+    {
+      target: "cursor",
+      outputPath: join(".cursor", "agents", "planner.md"),
+      simulateSubagents: false,
+    },
+    {
+      target: "geminicli",
+      outputPath: join(".gemini", "agents", "planner.md"),
+      simulateSubagents: true,
+    },
+  ])("should generate $target subagents", async ({ target, outputPath, simulateSubagents }) => {
     const testDir = getTestDir();
 
     // Setup: Create .rulesync/subagents/planner.md
@@ -35,7 +47,7 @@ You are the planner. Analyze files and create a plan.
     );
 
     // Execute: Generate subagents for the target
-    await runGenerate({ target, features: "subagents" });
+    await runGenerate({ target, features: "subagents", simulateSubagents });
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
@@ -58,7 +70,7 @@ You are the planner. Analyze files and create a plan.
       subagentContent,
     );
 
-    await runGenerate({ target: "geminicli", features: "subagents" });
+    await runGenerate({ target: "geminicli", features: "subagents", simulateSubagents: true });
 
     const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
     const settings = JSON.parse(settingsContent);
@@ -85,7 +97,7 @@ You are the planner.
       subagentContent,
     );
 
-    await runGenerate({ target: "geminicli", features: "subagents" });
+    await runGenerate({ target: "geminicli", features: "subagents", simulateSubagents: true });
 
     const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
     const settings = JSON.parse(settingsContent);
@@ -113,7 +125,7 @@ You are the planner.
       subagentContent,
     );
 
-    await runGenerate({ target: "geminicli", features: "subagents" });
+    await runGenerate({ target: "geminicli", features: "subagents", simulateSubagents: true });
 
     const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
     const settings = JSON.parse(settingsContent);
