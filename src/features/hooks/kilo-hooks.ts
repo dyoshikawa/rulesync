@@ -5,7 +5,7 @@ import type { HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_KILO_EVENT_NAMES,
   CONTROL_CHARS,
-  OPENCODE_HOOK_EVENTS,
+  KILO_HOOK_EVENTS,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -18,7 +18,7 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * OpenCode event names that are top-level named hooks on the Hooks interface.
+ * Kilo event names that are top-level named hooks on the Hooks interface.
  * These receive `(input, output)` parameters with `input.tool` for matcher support.
  * All other events must be routed through the generic `event` handler.
  */
@@ -61,14 +61,14 @@ type KiloHandler = {
 type KiloHandlerGroup = Record<string, KiloHandler[]>;
 
 /**
- * Group canonical hook definitions by their OpenCode event name.
- * Filters to command-type hooks and maps canonical events to OpenCode events.
+ * Group canonical hook definitions by their Kilo event name.
+ * Filters to command-type hooks and maps canonical events to Kilo events.
  */
 function groupByKiloEvent(config: HooksConfig): {
   namedEventHandlers: KiloHandlerGroup;
   genericEventHandlers: KiloHandlerGroup;
 } {
-  const kiloSupported: Set<string> = new Set(OPENCODE_HOOK_EVENTS);
+  const kiloSupported: Set<string> = new Set(KILO_HOOK_EVENTS);
   const configHooks = { ...config.hooks, ...config.kilo?.hooks };
   const effectiveHooks: HooksConfig["hooks"] = {};
 
@@ -112,7 +112,7 @@ function groupByKiloEvent(config: HooksConfig): {
 /**
  * Generate the JavaScript plugin file content from canonical hooks config.
  *
- * OpenCode plugins support two patterns:
+ * Kilo plugins support two patterns:
  * 1. Named typed hooks (top-level keys like "tool.execute.before") — receive (input, output)
  * 2. Generic event handler — receives { event } and filters by event.type
  *
@@ -218,7 +218,7 @@ export class KiloHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    throw new Error("Not implemented because OpenCode hooks are generated as a plugin file.");
+    throw new Error("Not implemented because Kilo hooks are generated as a plugin file.");
   }
 
   validate(): ValidationResult {

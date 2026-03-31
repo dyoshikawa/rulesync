@@ -41,7 +41,7 @@ describe("KiloHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should filter shared hooks to OpenCode-supported events only", () => {
+    it("should filter shared hooks to Kilo-supported events only", () => {
       const config = {
         version: 1,
         hooks: {
@@ -50,9 +50,9 @@ describe("KiloHooks", () => {
           afterFileEdit: [{ command: "format.sh" }],
           afterShellExecution: [{ command: "post-shell.sh" }],
           permissionRequest: [{ command: "perm-check.sh" }],
-          // notification is not supported by OpenCode
-          notification: [{ command: "notify.sh" }],
-          // beforeSubmitPrompt has no OpenCode equivalent
+          // notification is not supported by Kilo
+          notification: [{ type: "command", command: "echo no" }],
+          // beforeSubmitPrompt has no Kilo equivalent
           beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
         },
       };
@@ -460,7 +460,7 @@ describe("KiloHooks", () => {
   });
 
   describe("toRulesyncHooks", () => {
-    it("should throw because OpenCode hooks cannot be converted back", () => {
+    it("should throw because Kilo hooks cannot be converted back", () => {
       const kiloHooks = new KiloHooks({
         baseDir: testDir,
         relativeDirPath: join(".kilo", "plugins"),
@@ -470,7 +470,7 @@ describe("KiloHooks", () => {
       });
 
       expect(() => kiloHooks.toRulesyncHooks()).toThrow(
-        "Not implemented because OpenCode hooks are generated as a plugin file.",
+        "Not implemented because Kilo hooks are generated as a plugin file.",
       );
     });
   });
