@@ -6,6 +6,8 @@ targets:
 description: Guidelines to avoid GitHub Actions script injection vulnerabilities.
 globs:
   - ".github/workflows/*.yml"
+agentsmd:
+  subprojectPath: ".github/workflows"
 ---
 
 # GitHub Actions Security: Script Injection
