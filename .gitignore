@@ -262,6 +262,7 @@ rulesync.local.jsonc
 **/GEMINI.md
 **/.gemini/commands/
 **/.gemini/subagents/
+**/.gemini/agents/
 **/.gemini/skills/
 **/.geminiignore
 **/.gemini/memories/

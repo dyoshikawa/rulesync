@@ -13,7 +13,7 @@ import {
 export class GeminiCliSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".gemini", "subagents"),
+      relativeDirPath: join(".gemini", "agents"),
     };
   }
 

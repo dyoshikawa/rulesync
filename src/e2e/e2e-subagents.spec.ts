@@ -17,6 +17,7 @@ describe("E2E: subagents", () => {
   it.each([
     { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
+    { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -40,6 +41,56 @@ You are the planner. Analyze files and create a plan.
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("planner");
     expect(generatedContent).toContain("Analyze files and create a plan.");
+  });
+
+  it("should inject experimental.enableAgents into .gemini/settings.json when generating geminicli subagents", async () => {
+    const testDir = getTestDir();
+
+    const subagentContent = `---
+name: planner
+targets: ["geminicli"]
+description: "Plans implementation tasks"
+---
+You are the planner. Analyze files and create a plan.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      subagentContent,
+    );
+
+    await runGenerate({ target: "geminicli", features: "subagents" });
+
+    const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
+    const settings = JSON.parse(settingsContent);
+    expect(settings.experimental?.enableAgents).toBe(true);
+  });
+
+  it("should preserve existing settings when injecting experimental.enableAgents", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".gemini", "settings.json"),
+      JSON.stringify({ mcpServers: { myServer: { command: "node" } } }, null, 2),
+    );
+
+    const subagentContent = `---
+name: planner
+targets: ["geminicli"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      subagentContent,
+    );
+
+    await runGenerate({ target: "geminicli", features: "subagents" });
+
+    const settingsContent = await readFileContent(join(testDir, ".gemini", "settings.json"));
+    const settings = JSON.parse(settingsContent);
+    expect(settings.experimental?.enableAgents).toBe(true);
+    expect(settings.mcpServers).toBeDefined();
   });
 
   it("should preserve opencode.mode when generating OpenCode subagents", async () => {

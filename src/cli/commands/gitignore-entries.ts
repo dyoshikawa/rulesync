@@ -111,7 +111,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Gemini CLI
   { target: "geminicli", feature: "rules", entry: "**/GEMINI.md" },
   { target: "geminicli", feature: "commands", entry: "**/.gemini/commands/" },
-  { target: "geminicli", feature: "subagents", entry: "**/.gemini/subagents/" },
+  { target: "geminicli", feature: "subagents", entry: "**/.gemini/agents/" },
   { target: "geminicli", feature: "skills", entry: "**/.gemini/skills/" },
   { target: "geminicli", feature: "ignore", entry: "**/.geminiignore" },
   { target: "geminicli", feature: "general", entry: "**/.gemini/memories/" },
