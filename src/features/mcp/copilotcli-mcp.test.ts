@@ -448,6 +448,67 @@ describe("CopilotcliMcp", () => {
       });
     });
 
+    it("should preserve transport-based remote servers and add type field", async () => {
+      const inputMcpServers = {
+        "http-server": {
+          transport: "http" as const,
+          url: "http://localhost:3000/mcp",
+          headers: {
+            Authorization: "Bearer token",
+          },
+        },
+        "sse-server": {
+          transport: "sse" as const,
+          url: "http://localhost:4000/sse",
+          headers: {
+            "X-Test": "true",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+      });
+
+      expect(copilotCliMcp.getJson()).toEqual({
+        mcpServers: {
+          "http-server": {
+            type: "http",
+            ...inputMcpServers["http-server"],
+          },
+          "sse-server": {
+            type: "sse",
+            ...inputMcpServers["sse-server"],
+          },
+        },
+      });
+    });
+
+    it("should require command for local type servers", async () => {
+      const inputMcpServers = {
+        "local-server": {
+          type: "local" as const,
+          cwd: testDir,
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      await expect(
+        CopilotcliMcp.fromRulesyncMcp({
+          rulesyncMcp,
+        }),
+      ).rejects.toThrow('MCP server "local-server" is missing a command');
+    });
+
     it("should preserve existing non-stdio type when converting", async () => {
       const inputMcpServers = {
         "typed-server": {

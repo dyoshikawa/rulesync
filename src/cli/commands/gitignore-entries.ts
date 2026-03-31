@@ -7,10 +7,18 @@ import {
 import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 
+type GitignoreEntryTarget = ToolTarget | "common";
+
 export type GitignoreEntryTag = {
-  readonly target: ToolTarget | "common";
+  readonly target: GitignoreEntryTarget | ReadonlyArray<GitignoreEntryTarget>;
   readonly feature: Feature | "general";
   readonly entry: string;
+};
+
+const normalizeGitignoreEntryTargets = (
+  target: GitignoreEntryTag["target"],
+): ReadonlyArray<GitignoreEntryTarget> => {
+  return typeof target === "string" ? [target] : target;
 };
 
 export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
@@ -126,11 +134,15 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // GitHub Copilot
   {
-    target: "copilot",
+    target: ["copilot", "copilotcli"],
     feature: "rules",
     entry: "**/.github/copilot-instructions.md",
   },
-  { target: "copilot", feature: "rules", entry: "**/.github/instructions/" },
+  {
+    target: ["copilot", "copilotcli"],
+    feature: "rules",
+    entry: "**/.github/instructions/",
+  },
   { target: "copilot", feature: "commands", entry: "**/.github/prompts/" },
   { target: "copilot", feature: "subagents", entry: "**/.github/agents/" },
   { target: "copilot", feature: "skills", entry: "**/.github/skills/" },
@@ -216,16 +228,32 @@ type FilterGitignoreEntriesParams = {
 };
 
 const isTargetSelected = (
-  target: ToolTarget | "common",
+  target: GitignoreEntryTag["target"],
   selectedTargets: ReadonlyArray<string> | undefined,
 ): boolean => {
-  if (target === "common") return true;
+  const targets = normalizeGitignoreEntryTargets(target);
+
+  if (targets.includes("common")) return true;
   if (!selectedTargets || selectedTargets.length === 0) return true;
   if (selectedTargets.includes("*")) return true;
-  return selectedTargets.includes(target);
+  return targets.some((candidate) => selectedTargets.includes(candidate));
 };
 
-const isFeatureSelected = (
+const getSelectedGitignoreEntryTargets = (
+  target: GitignoreEntryTag["target"],
+  selectedTargets: ReadonlyArray<string> | undefined,
+): ReadonlyArray<GitignoreEntryTarget> => {
+  const targets = normalizeGitignoreEntryTargets(target);
+
+  if (targets.includes("common")) return ["common"];
+  if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
+    return targets;
+  }
+
+  return targets.filter((candidate) => selectedTargets.includes(candidate));
+};
+
+const isFeatureSelectedForTarget = (
   feature: Feature | "general",
   target: ToolTarget | "common",
   features: RulesyncFeatures | undefined,
@@ -249,6 +277,16 @@ const isFeatureSelected = (
   if (!targetFeatures) return true;
   if (targetFeatures.includes("*")) return true;
   return targetFeatures.includes(feature);
+};
+
+const isFeatureSelected = (
+  feature: Feature | "general",
+  target: GitignoreEntryTag["target"],
+  features: RulesyncFeatures | undefined,
+): boolean => {
+  return normalizeGitignoreEntryTargets(target).some((candidate) =>
+    isFeatureSelectedForTarget(feature, candidate, features),
+  );
 };
 
 const warnInvalidTargets = (targets: ReadonlyArray<string>, logger?: Logger): void => {
@@ -304,7 +342,8 @@ export const filterGitignoreEntries = (
 
   for (const tag of GITIGNORE_ENTRY_REGISTRY) {
     if (!isTargetSelected(tag.target, targets)) continue;
-    if (!isFeatureSelected(tag.feature, tag.target, features)) continue;
+    const selectedTagTargets = getSelectedGitignoreEntryTargets(tag.target, targets);
+    if (!isFeatureSelected(tag.feature, selectedTagTargets, features)) continue;
     if (seen.has(tag.entry)) continue;
     seen.add(tag.entry);
     result.push(tag.entry);

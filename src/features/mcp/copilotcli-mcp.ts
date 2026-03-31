@@ -19,6 +19,26 @@ type CopilotcliMcpConfig = {
   mcpServers?: Record<string, McpServer & Record<string, unknown>>;
 };
 
+type CopilotcliServerType = NonNullable<McpServer["type"]>;
+
+const isRemoteServerType = (
+  type: CopilotcliServerType,
+): type is Extract<CopilotcliServerType, "http" | "sse"> => {
+  return type === "http" || type === "sse";
+};
+
+const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType => {
+  if (server.type) {
+    return server.type;
+  }
+
+  if (server.transport === "http" || server.transport === "sse") {
+    return server.transport;
+  }
+
+  return "stdio";
+};
+
 /**
  * Adds "type": "stdio" to each MCP server config if not present.
  * GitHub Copilot CLI requires the "type" field for each server.
@@ -29,9 +49,9 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
 
   for (const [name, server] of Object.entries(mcpServers)) {
     const parsed = McpServerSchema.parse(server);
-    const type = parsed.type ?? "stdio";
+    const type = resolveCopilotcliServerType(parsed);
 
-    if (type !== "stdio") {
+    if (isRemoteServerType(type)) {
       result[name] = {
         ...parsed,
         type,

@@ -1,0 +1,307 @@
+diff --git a/src/features/mcp/copilotcli-mcp.test.ts b/src/features/mcp/copilotcli-mcp.test.ts
+index 93ef8170..d5b956b9 100644
+--- a/src/features/mcp/copilotcli-mcp.test.ts
++++ b/src/features/mcp/copilotcli-mcp.test.ts
+@@ -391,6 +391,60 @@ describe("CopilotcliMcp", () => {
+         },
+       });
+     });
++
++    it("should force stdio type even when another type is provided", async () => {
++      const inputMcpServers = {
++        "typed-server": {
++          type: "http" as const,
++          command: "node",
++          args: ["server.js"],
++          url: "http://localhost:3000/mcp",
++        },
++      };
++      const rulesyncMcp = new RulesyncMcp({
++        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
++        relativeFilePath: "mcp.json",
++        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
++      });
++
++      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
++        rulesyncMcp,
++      });
++
++      expect(copilotCliMcp.getJson()).toEqual({
++        mcpServers: {
++          "typed-server": {
++            type: "stdio",
++            command: "node",
++            args: ["server.js"],
++            url: "http://localhost:3000/mcp",
++          },
++        },
++      });
++    });
++
++    it("should throw error when server has unknown fields but no command", async () => {
++      const inputMcpServers = {
++        "unknown-fields-no-command": {
++          url: "http://localhost:3000/mcp",
++          headers: {
++            Authorization: "Bearer test-token",
++          },
++          unknown_field: "value",
++        },
++      };
++      const rulesyncMcp = new RulesyncMcp({
++        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
++        relativeFilePath: "mcp.json",
++        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
++      });
++
++      await expect(
++        CopilotcliMcp.fromRulesyncMcp({
++          rulesyncMcp,
++        }),
++      ).rejects.toThrow('MCP server "unknown-fields-no-command" is missing a command');
++    });
+   });
+ 
+   describe("toRulesyncMcp", () => {
+@@ -500,6 +554,36 @@ describe("CopilotcliMcp", () => {
+         $schema: RULESYNC_MCP_SCHEMA_URL,
+       });
+     });
++
++    it("should preserve non-stdio type when converting back to RulesyncMcp", () => {
++      const inputMcpServers = {
++        "http-server": {
++          type: "http" as const,
++          command: "node",
++          args: ["server.js"],
++          url: "http://localhost:3000/mcp",
++        },
++      };
++      const copilotCliMcp = new CopilotcliMcp({
++        relativeDirPath: ".copilot",
++        relativeFilePath: "mcp-config.json",
++        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
++      });
++
++      const rulesyncMcp = copilotCliMcp.toRulesyncMcp();
++
++      expect(rulesyncMcp.getJson()).toEqual({
++        mcpServers: {
++          "http-server": {
++            type: "http",
++            command: "node",
++            args: ["server.js"],
++            url: "http://localhost:3000/mcp",
++          },
++        },
++        $schema: RULESYNC_MCP_SCHEMA_URL,
++      });
++    });
+   });
+ 
+   describe("validate", () => {
+diff --git a/src/features/mcp/copilotcli-mcp.ts b/src/features/mcp/copilotcli-mcp.ts
+index ff9753db..26371028 100644
+--- a/src/features/mcp/copilotcli-mcp.ts
++++ b/src/features/mcp/copilotcli-mcp.ts
+@@ -1,7 +1,7 @@
+ import { join } from "node:path";
+ 
+ import { ValidationResult } from "../../types/ai-file.js";
+-import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
++import { McpServerSchema, type McpServers } from "../../types/mcp.js";
+ import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+ import { RulesyncMcp } from "./rulesync-mcp.js";
+ import {
+@@ -16,11 +16,11 @@ import {
+ export type CopilotcliMcpParams = ToolMcpParams;
+ 
+ type CopilotcliMcpConfig = {
+-  mcpServers?: Record<string, McpServer & Record<string, unknown>>;
++  mcpServers?: McpServers;
+ };
+ 
+ /**
+- * Adds "type": "stdio" to each MCP server config if not present.
++ * Adds "type": "stdio" to each MCP server config.
+  * GitHub Copilot CLI requires the "type" field for each server.
+  * @throws Error if a server doesn't have a command (Copilot CLI stdio servers require a command)
+  */
+@@ -56,19 +56,12 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
+       args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
+     }
+ 
+-    // Use the parsed object for the base, then override with normalized command/args
+-    // and ensure type is set to "stdio" if not present.
+-    // We spread server as well to keep unknown fields as suggested by reviewers.
+-    // eslint-disable-next-line no-type-assertion/no-type-assertion
+-    const serverRecord = server as Record<string, unknown>;
+-    // eslint-disable-next-line no-type-assertion/no-type-assertion
+     result[name] = {
+-      ...serverRecord,
+       ...parsed,
+-      type: parsed.type ?? "stdio",
++      type: "stdio",
+       command,
+       ...(args && { args }),
+-    } as McpServer & Record<string, unknown>;
++    };
+   }
+ 
+   return result;
+@@ -81,6 +74,11 @@ function removeTypeField(config: CopilotcliMcpConfig): McpServers {
+   const result: McpServers = {};
+ 
+   for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
++    if (server.type !== "stdio") {
++      result[name] = server;
++      continue;
++    }
++
+     const { type: _, ...rest } = server;
+     result[name] = rest;
+   }
+@@ -109,13 +107,7 @@ export class CopilotcliMcp extends ToolMcp {
+     return !this.global;
+   }
+ 
+-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
+-    if (global) {
+-      return {
+-        relativeDirPath: ".copilot",
+-        relativeFilePath: "mcp-config.json",
+-      };
+-    }
++  static getSettablePaths({ global: _global }: { global?: boolean } = {}): ToolMcpSettablePaths {
+     return {
+       relativeDirPath: ".copilot",
+       relativeFilePath: "mcp-config.json",
+diff --git a/src/features/rules/copilotcli-rule.ts b/src/features/rules/copilotcli-rule.ts
+new file mode 100644
+index 00000000..8575be8d
+--- /dev/null
++++ b/src/features/rules/copilotcli-rule.ts
+@@ -0,0 +1,41 @@
++import { ToolTarget } from "../../types/tool-targets.js";
++import { CopilotRule } from "./copilot-rule.js";
++import { RulesyncRule } from "./rulesync-rule.js";
++import {
++  ToolRuleForDeletionParams,
++  ToolRuleFromFileParams,
++  ToolRuleFromRulesyncRuleParams,
++} from "./tool-rule.js";
++
++export class CopilotcliRule extends CopilotRule {
++  private static fromCopilotRule(copilotRule: CopilotRule): CopilotcliRule {
++    return new CopilotcliRule({
++      baseDir: copilotRule.getBaseDir(),
++      relativeDirPath: copilotRule.getRelativeDirPath(),
++      relativeFilePath: copilotRule.getRelativeFilePath(),
++      frontmatter: copilotRule.getFrontmatter(),
++      body: copilotRule.getBody(),
++      validate: true,
++      root: copilotRule.isRoot(),
++    });
++  }
++
++  static override fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): CopilotcliRule {
++    return this.fromCopilotRule(CopilotRule.fromRulesyncRule(params));
++  }
++
++  static override async fromFile(params: ToolRuleFromFileParams): Promise<CopilotcliRule> {
++    return this.fromCopilotRule(await CopilotRule.fromFile(params));
++  }
++
++  static override forDeletion(params: ToolRuleForDeletionParams): CopilotcliRule {
++    return this.fromCopilotRule(CopilotRule.forDeletion(params));
++  }
++
++  static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
++    return this.isTargetedByRulesyncRuleDefault({
++      rulesyncRule,
++      toolTarget: "copilotcli" satisfies ToolTarget,
++    });
++  }
++}
+diff --git a/src/features/rules/rules-processor.test.ts b/src/features/rules/rules-processor.test.ts
+index 60e3da0d..cbab91f5 100644
+--- a/src/features/rules/rules-processor.test.ts
++++ b/src/features/rules/rules-processor.test.ts
+@@ -11,6 +11,7 @@ import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
+ import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
+ import { ClaudecodeRule } from "./claudecode-rule.js";
+ import { CopilotRule } from "./copilot-rule.js";
++import { CopilotcliRule } from "./copilotcli-rule.js";
+ import { CursorRule } from "./cursor-rule.js";
+ import { OpenCodeRule } from "./opencode-rule.js";
+ import { RovodevRule } from "./rovodev-rule.js";
+@@ -186,6 +187,7 @@ describe("RulesProcessor", () => {
+     it("should correctly validate and filter rules for each supported tool", async () => {
+       const testCases = [
+         { toolTarget: "copilot" as const, ruleClass: CopilotRule },
++        { toolTarget: "copilotcli" as const, ruleClass: CopilotcliRule },
+         { toolTarget: "cursor" as const, ruleClass: CursorRule },
+         { toolTarget: "claudecode" as const, ruleClass: ClaudecodeRule },
+         { toolTarget: "warp" as const, ruleClass: WarpRule },
+@@ -795,6 +797,7 @@ Content that would fail parsing`;
+         "claudecode-legacy",
+         "codexcli",
+         "copilot",
++        "copilotcli",
+         "factorydroid",
+         "geminicli",
+         "goose",
+@@ -825,13 +828,14 @@ Content that would fail parsing`;
+       expect(globalTargets).toContain("claudecode-legacy");
+       expect(globalTargets).toContain("codexcli");
+       expect(globalTargets).toContain("copilot");
++      expect(globalTargets).toContain("copilotcli");
+       expect(globalTargets).toContain("factorydroid");
+       expect(globalTargets).toContain("geminicli");
+       expect(globalTargets).toContain("kilo");
+       expect(globalTargets).toContain("goose");
+       expect(globalTargets).toContain("opencode");
+       expect(globalTargets).toContain("rovodev");
+-      expect(globalTargets.length).toBe(10);
++      expect(globalTargets.length).toBe(11);
+ 
+       // These targets should NOT be in global mode
+       expect(globalTargets).not.toContain("cursor");
+diff --git a/src/features/rules/rules-processor.ts b/src/features/rules/rules-processor.ts
+index 2f64feb3..2886c85c 100644
+--- a/src/features/rules/rules-processor.ts
++++ b/src/features/rules/rules-processor.ts
+@@ -39,6 +39,7 @@ import { ClaudecodeRule } from "./claudecode-rule.js";
+ import { ClineRule } from "./cline-rule.js";
+ import { CodexcliRule } from "./codexcli-rule.js";
+ import { CopilotRule } from "./copilot-rule.js";
++import { CopilotcliRule } from "./copilotcli-rule.js";
+ import { CursorRule } from "./cursor-rule.js";
+ import { DeepagentsRule } from "./deepagents-rule.js";
+ import { FactorydroidRule } from "./factorydroid-rule.js";
+@@ -74,6 +75,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
+   "cline",
+   "codexcli",
+   "copilot",
++  "copilotcli",
+   "cursor",
+   "deepagents",
+   "factorydroid",
+@@ -290,6 +292,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
+       },
+     },
+   ],
++  [
++    "copilotcli",
++    {
++      class: CopilotcliRule,
++      meta: {
++        extension: "md",
++        supportsGlobal: true,
++        ruleDiscoveryMode: "auto",
++      },
++    },
++  ],
+   [
+     "cursor",
+     {

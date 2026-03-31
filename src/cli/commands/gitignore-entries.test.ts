@@ -30,7 +30,11 @@ describe("GITIGNORE_ENTRY_REGISTRY", () => {
   });
 
   it("should cover all tool targets except intentionally excluded ones", () => {
-    const registeredTargets = new Set(GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.target));
+    const registeredTargets = new Set(
+      GITIGNORE_ENTRY_REGISTRY.flatMap((tag) =>
+        Array.isArray(tag.target) ? tag.target : [tag.target],
+      ),
+    );
     for (const target of ALL_TOOL_TARGETS) {
       if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) {
         expect(registeredTargets).not.toContain(target);
@@ -87,6 +91,15 @@ describe("filterGitignoreEntries", () => {
       expect(result).toContain("**/CLAUDE.md");
       expect(result).toContain("**/.github/instructions/");
       expect(result).not.toContain("**/.cursor/");
+    });
+
+    it("should include shared copilot rule entries for copilotcli target", () => {
+      const result = filterGitignoreEntries({ logger, targets: ["copilotcli"] });
+
+      expect(result).toContain("**/.github/copilot-instructions.md");
+      expect(result).toContain("**/.github/instructions/");
+      expect(result).toContain("**/.copilot/mcp-config.json");
+      expect(result).not.toContain("**/.github/prompts/");
     });
 
     it("should return all entries when target is wildcard", () => {
@@ -189,8 +202,9 @@ describe("filterGitignoreEntries", () => {
       // copilot commands
       expect(result).toContain("**/.github/prompts/");
 
-      // copilot has ["commands"] so copilot rules should NOT be included
-      expect(result).not.toContain("**/.github/copilot-instructions.md");
+      // Shared copilot/copilotcli rule entries stay included because copilotcli
+      // is not restricted in this per-target feature map.
+      expect(result).toContain("**/.github/copilot-instructions.md");
 
       // claudecode commands should NOT be included
       expect(result).not.toContain("**/.claude/commands/");
@@ -232,6 +246,19 @@ describe("filterGitignoreEntries", () => {
       expect(result).toContain("**/.github/prompts/");
       expect(result).not.toContain("**/.github/copilot-instructions.md");
       expect(result).not.toContain("**/.cursor/");
+    });
+
+    it("should include shared entries when copilotcli enables matching features", () => {
+      const result = filterGitignoreEntries({
+        features: {
+          copilot: ["commands"],
+          copilotcli: ["rules"],
+        },
+      });
+
+      expect(result).toContain("**/.github/copilot-instructions.md");
+      expect(result).toContain("**/.github/instructions/");
+      expect(result).toContain("**/.github/prompts/");
     });
   });
 
