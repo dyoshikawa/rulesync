@@ -10,6 +10,7 @@ import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
+import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import {
@@ -26,6 +27,7 @@ vi.mock("./claudecode-mcp.js");
 vi.mock("./cline-mcp.js");
 vi.mock("./codexcli-mcp.js");
 vi.mock("./copilot-mcp.js");
+vi.mock("./copilotcli-mcp.js");
 vi.mock("./cursor-mcp.js");
 vi.mock("./geminicli-mcp.js");
 vi.mock("./opencode-mcp.js");
@@ -77,6 +79,13 @@ describe("McpProcessor", () => {
     (CopilotMcp as any).fromFile = vi.fn();
     (CopilotMcp as any).fromRulesyncMcp = vi.fn();
     (CopilotMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
+      ...params,
+      isDeletable: () => true,
+      getRelativeFilePath: () => params.relativeFilePath,
+    }));
+    (CopilotcliMcp as any).fromFile = vi.fn();
+    (CopilotcliMcp as any).fromRulesyncMcp = vi.fn();
+    (CopilotcliMcp as any).forDeletion = vi.fn().mockImplementation((params) => ({
       ...params,
       isDeletable: () => true,
       getRelativeFilePath: () => params.relativeFilePath,
@@ -325,6 +334,63 @@ describe("McpProcessor", () => {
           baseDir: testDir,
           validate: true,
           global: false,
+        });
+      });
+    });
+
+    describe("copilotcli", () => {
+      it("should load CopilotcliMcp files", async () => {
+        const mockMcp = new CopilotcliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".copilot",
+          relativeFilePath: "mcp-config.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.mocked(CopilotcliMcp.fromFile).mockResolvedValue(mockMcp);
+
+        const processor = new McpProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
+          toolTarget: "copilotcli",
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(CopilotcliMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: false,
+        });
+      });
+
+      it("should load CopilotcliMcp files in global mode", async () => {
+        const mockMcp = new CopilotcliMcp({
+          baseDir: testDir,
+          relativeDirPath: ".copilot",
+          relativeFilePath: "mcp-config.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.mocked(CopilotcliMcp.fromFile).mockResolvedValue(mockMcp);
+
+        const processor = new McpProcessor({
+          logger: createMockLogger(),
+          baseDir: testDir,
+          toolTarget: "copilotcli",
+          global: true,
+        });
+
+        const files = await processor.loadToolFiles();
+
+        expect(files).toHaveLength(1);
+        expect(files[0]).toBe(mockMcp);
+        expect(CopilotcliMcp.fromFile).toHaveBeenCalledWith({
+          baseDir: testDir,
+          validate: true,
+          global: true,
         });
       });
     });
@@ -659,6 +725,75 @@ describe("McpProcessor", () => {
       });
     });
 
+    it("should convert rulesync files to copilotcli tool files", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = new CopilotcliMcp({
+        baseDir: testDir,
+        relativeDirPath: ".copilot",
+        relativeFilePath: "mcp-config.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(CopilotcliMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "copilotcli",
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(CopilotcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+    });
+
+    it("should convert rulesync files to copilotcli tool files in global mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mockToolMcp = new CopilotcliMcp({
+        baseDir: testDir,
+        relativeDirPath: ".copilot",
+        relativeFilePath: "mcp-config.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.mocked(CopilotcliMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        baseDir: testDir,
+        toolTarget: "copilotcli",
+        global: true,
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBe(mockToolMcp);
+      expect(CopilotcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
+        baseDir: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+    });
+
     it("should convert rulesync files to cursor tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
         baseDir: testDir,
@@ -956,6 +1091,7 @@ describe("McpProcessor", () => {
       expect(targets).toContain("claudecode-legacy");
       expect(targets).toContain("cline");
       expect(targets).toContain("copilot");
+      expect(targets).toContain("copilotcli");
       expect(targets).toContain("cursor");
       expect(targets).toContain("roo");
       expect(targets).toContain("codexcli"); // codexcli supports both project and global
@@ -965,6 +1101,7 @@ describe("McpProcessor", () => {
   describe("McpProcessorToolTargetSchema", () => {
     it("should validate valid tool targets", () => {
       expect(() => McpProcessorToolTargetSchema.parse("copilot")).not.toThrow();
+      expect(() => McpProcessorToolTargetSchema.parse("copilotcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("cursor")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("claudecode-legacy")).not.toThrow();

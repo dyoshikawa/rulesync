@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { McpServerSchema, McpServers } from "../../types/mcp.js";
+import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -16,14 +16,7 @@ import {
 export type CopilotcliMcpParams = ToolMcpParams;
 
 type CopilotcliMcpConfig = {
-  mcpServers?: {
-    [key: string]: {
-      type: "stdio";
-      command: string;
-      args?: string[];
-      env?: Record<string, string>;
-    };
-  };
+  mcpServers?: Record<string, McpServer & Record<string, unknown>>;
 };
 
 /**
@@ -32,7 +25,7 @@ type CopilotcliMcpConfig = {
  * @throws Error if a server doesn't have a command (Copilot CLI stdio servers require a command)
  */
 function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"] {
-  const result: CopilotcliMcpConfig["mcpServers"] = {};
+  const result: NonNullable<CopilotcliMcpConfig["mcpServers"]> = {};
 
   for (const [name, server] of Object.entries(mcpServers)) {
     // Parse and validate the server config
@@ -63,12 +56,19 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
       args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
     }
 
+    // Use the parsed object for the base, then override with normalized command/args
+    // and ensure type is set to "stdio" if not present.
+    // We spread server as well to keep unknown fields as suggested by reviewers.
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
+    const serverRecord = server as Record<string, unknown>;
+    // eslint-disable-next-line no-type-assertion/no-type-assertion
     result[name] = {
-      type: "stdio",
+      ...serverRecord,
+      ...parsed,
+      type: parsed.type ?? "stdio",
       command,
       ...(args && { args }),
-      ...(parsed.env && { env: parsed.env }),
-    };
+    } as McpServer & Record<string, unknown>;
   }
 
   return result;
