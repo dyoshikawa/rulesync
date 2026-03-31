@@ -64,6 +64,15 @@ Example:
       "type": "stdio",
       "command": "uvx",
       "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"]
+    },
+    "github": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    },
+    "local-dev": {
+      "type": "local",
+      "command": "node",
+      "args": ["scripts/start-local-mcp.js"]
     }
   }
 }
@@ -74,7 +83,7 @@ This file is used by the GitHub Copilot CLI for MCP server configuration. Rulesy
 - **Project mode:** `.copilot/mcp-config.json` (relative to project root)
 - **Global mode:** `~/.copilot/mcp-config.json` (relative to home directory)
 
-Rulesync ensures that each server entry contains the mandatory `"type": "stdio"` field required by the Copilot CLI.
+Rulesync preserves explicit `type` values for `http`, `sse`, and `local` servers. For command-based servers that omit a transport type, Rulesync emits the mandatory `"type": "stdio"` field required by the Copilot CLI.
 
 Use optional **override keys** so tool-specific events and config live in one file without leaking to others: `cursor.hooks` for Cursor-only events, `claudecode.hooks` for Claude-only, `opencode.hooks` for OpenCode-only, `copilot.hooks` for GitHub Copilot-only, `geminicli.hooks` for Gemini CLI-only. Events in shared `hooks` that a tool does not support are skipped for that tool (and a warning is logged at generate time).
 

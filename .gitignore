@@ -169,6 +169,9 @@ package-lock.json
 
 .pnpm-store
 
+/.issue-*.md
+/.pr-*.diff
+
 .rulesync/rules/my-instructions.md
 
 .cspellcache
