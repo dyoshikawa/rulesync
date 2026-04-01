@@ -91,6 +91,7 @@ export class GeminiCliSubagent extends ToolSubagent {
     baseDir = process.cwd(),
     rulesyncSubagent,
     validate = true,
+    global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const geminicliSection = rulesyncFrontmatter.geminicli ?? {};
@@ -105,7 +106,7 @@ export class GeminiCliSubagent extends ToolSubagent {
     const fileContent = stringifyFrontmatter(body, geminicliSubagentFrontmatter, {
       avoidBlockScalars: true,
     });
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
 
     return new GeminiCliSubagent({
       baseDir,
@@ -115,6 +116,7 @@ export class GeminiCliSubagent extends ToolSubagent {
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -147,8 +149,9 @@ export class GeminiCliSubagent extends ToolSubagent {
     baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolSubagentFromFileParams): Promise<GeminiCliSubagent> {
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
@@ -166,6 +169,7 @@ export class GeminiCliSubagent extends ToolSubagent {
       body: content.trim(),
       fileContent,
       validate,
+      global,
     });
   }
 
