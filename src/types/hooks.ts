@@ -300,7 +300,8 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
  * Map canonical camelCase event names to Kilo dot-notation.
  * (Currently identical to OpenCode)
  */
-export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> = CANONICAL_TO_OPENCODE_EVENT_NAMES;
+export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
+  CANONICAL_TO_OPENCODE_EVENT_NAMES;
 
 /**
  * Map canonical camelCase event names to Copilot camelCase.

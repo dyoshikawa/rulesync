@@ -1,13 +1,16 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
-import { z } from "zod/mini";
-
-import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
+import {
+  OpenCodeStyleSubagent,
+  OpenCodeStyleSubagentFrontmatter,
+  OpenCodeStyleSubagentFrontmatterSchema,
+  OpenCodeStyleSubagentParams,
+} from "./opencode-style-subagent.js";
+import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
   ToolSubagentForDeletionParams,
@@ -16,39 +19,13 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export const KiloSubagentFrontmatterSchema = z.looseObject({
-  description: z.optional(z.string()),
-  mode: z._default(z.string(), "subagent"),
-  name: z.optional(z.string()),
-});
+export const KiloSubagentFrontmatterSchema = OpenCodeStyleSubagentFrontmatterSchema;
+export type KiloSubagentFrontmatter = OpenCodeStyleSubagentFrontmatter;
+export type KiloSubagentParams = OpenCodeStyleSubagentParams;
 
-export type KiloSubagentFrontmatter = z.infer<typeof KiloSubagentFrontmatterSchema>;
-
-export type KiloSubagentParams = {
-  frontmatter: KiloSubagentFrontmatter;
-  body: string;
-} & AiFileParams;
-
-export class KiloSubagent extends ToolSubagent {
-  private readonly frontmatter: KiloSubagentFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: KiloSubagentParams) {
-    if (rest.validate !== false) {
-      const result = KiloSubagentFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
+export class KiloSubagent extends OpenCodeStyleSubagent {
+  protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
+    return "kilo";
   }
 
   static getSettablePaths({
@@ -59,33 +36,6 @@ export class KiloSubagent extends ToolSubagent {
     return {
       relativeDirPath: global ? join(".config", "kilo", "agent") : join(".kilo", "agent"),
     };
-  }
-
-  getFrontmatter(): KiloSubagentFrontmatter {
-    return this.frontmatter;
-  }
-
-  getBody(): string {
-    return this.body;
-  }
-
-  toRulesyncSubagent(): RulesyncSubagent {
-    const { description, mode, name, ...kiloSection } = this.frontmatter;
-    const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["*"] as const,
-      name: name ?? basename(this.getRelativeFilePath(), ".md"),
-      description,
-      kilo: { mode, ...kiloSection },
-    };
-
-    return new RulesyncSubagent({
-      baseDir: ".", // RulesyncSubagent baseDir is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
-      validate: true,
-    });
   }
 
   static fromRulesyncSubagent({
@@ -118,24 +68,6 @@ export class KiloSubagent extends ToolSubagent {
       validate,
       global,
     });
-  }
-
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    const result = KiloSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {

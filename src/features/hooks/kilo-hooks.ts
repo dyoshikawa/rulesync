@@ -1,10 +1,7 @@
 import { join } from "node:path";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import {
-  CANONICAL_TO_KILO_EVENT_NAMES,
-  KILO_HOOK_EVENTS,
-} from "../../types/hooks.js";
+import { CANONICAL_TO_KILO_EVENT_NAMES, KILO_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -62,7 +59,7 @@ export class KiloHooks extends ToolHooks {
       config,
       KILO_HOOK_EVENTS,
       "kilo",
-      CANONICAL_TO_KILO_EVENT_NAMES
+      CANONICAL_TO_KILO_EVENT_NAMES,
     );
     const paths = KiloHooks.getSettablePaths({ global });
     return new KiloHooks({

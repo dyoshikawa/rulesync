@@ -1,10 +1,7 @@
 import { join } from "node:path";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import {
-  CANONICAL_TO_OPENCODE_EVENT_NAMES,
-  OPENCODE_HOOK_EVENTS,
-} from "../../types/hooks.js";
+import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -62,7 +59,7 @@ export class OpencodeHooks extends ToolHooks {
       config,
       OPENCODE_HOOK_EVENTS,
       "opencode",
-      CANONICAL_TO_OPENCODE_EVENT_NAMES
+      CANONICAL_TO_OPENCODE_EVENT_NAMES,
     );
     const paths = OpencodeHooks.getSettablePaths({ global });
     return new OpencodeHooks({

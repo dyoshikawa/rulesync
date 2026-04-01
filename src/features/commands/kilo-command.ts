@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { optional, z } from "zod/mini";
+import { z } from "zod/mini";
 
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -17,9 +17,9 @@ import {
 
 export const KiloCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
-  agent: optional(z.string()),
-  subtask: optional(z.boolean()),
-  model: optional(z.string()),
+  agent: z.optional(z.string()),
+  subtask: z.optional(z.boolean()),
+  model: z.optional(z.string()),
 });
 
 export type KiloCommandFrontmatter = z.infer<typeof KiloCommandFrontmatterSchema>;
@@ -116,10 +116,6 @@ export class KiloCommand extends ToolCommand {
   }
 
   validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
     const result = KiloCommandFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };

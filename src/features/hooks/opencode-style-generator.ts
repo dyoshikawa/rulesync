@@ -38,7 +38,7 @@ export function generateOpencodeStylePluginCode(
 
   const namedEventHandlers: HandlerGroup = {};
   const genericEventHandlers: HandlerGroup = {};
-  
+
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     const toolEvent = eventMap[canonicalEvent];
     if (!toolEvent) continue;
