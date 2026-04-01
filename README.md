@@ -71,7 +71,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | Gemini CLI          | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    🎮     | ✅ 🌏  | ✅ 🌏 |
 | Goose               | goose        | ✅ 🌏 |   ✅   |          |          |           |        |       |
 | GitHub Copilot      | copilot      | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |
-| GitHub Copilot CLI  | copilotcli   |       |        |  ✅ 🌏   |          |           |        |       |
+| GitHub Copilot CLI  | copilotcli   | ✅ 🌏 |        |  ✅ 🌏   |          |           |        |       |
 | Cursor              | cursor       |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |
 | deepagents-cli      | deepagents   |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |
 | Factory Droid       | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |

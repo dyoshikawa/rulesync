@@ -19,26 +19,59 @@ type CopilotcliMcpConfig = {
   mcpServers?: Record<string, McpServer & Record<string, unknown>>;
 };
 
+type CopilotcliServerType = NonNullable<McpServer["type"]>;
+
+const isRemoteServerType = (
+  type: CopilotcliServerType,
+): type is Extract<CopilotcliServerType, "http" | "sse"> => {
+  return type === "http" || type === "sse";
+};
+
+const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType => {
+  if (server.type) {
+    return server.type;
+  }
+
+  if (server.transport === "http" || server.transport === "sse" || server.transport === "local") {
+    return server.transport;
+  }
+
+  return "stdio";
+};
+
 /**
- * Adds "type": "stdio" to each MCP server config if not present.
+ * Resolves and sets the transport type for each MCP server config.
  * GitHub Copilot CLI requires the "type" field for each server.
- * @throws Error if a server doesn't have a command (Copilot CLI stdio servers require a command)
+ * @throws Error if a stdio/local server doesn't have a command
+ * @throws Error if an http/sse server doesn't have a url or httpUrl
  */
 function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"] {
   const result: NonNullable<CopilotcliMcpConfig["mcpServers"]> = {};
 
   for (const [name, server] of Object.entries(mcpServers)) {
-    // Parse and validate the server config
     const parsed = McpServerSchema.parse(server);
+    const type = resolveCopilotcliServerType(parsed);
 
-    // Copilot CLI stdio servers require a non-empty command
+    if (isRemoteServerType(type)) {
+      if (!parsed.url && !parsed.httpUrl) {
+        throw new Error(
+          `MCP server "${name}" is missing a url or httpUrl. GitHub Copilot CLI ${type} servers require a non-empty url or httpUrl.`,
+        );
+      }
+
+      result[name] = {
+        ...parsed,
+        type,
+      };
+      continue;
+    }
+
     if (!parsed.command) {
       throw new Error(
-        `MCP server "${name}" is missing a command. GitHub Copilot CLI stdio servers require a non-empty command.`,
+        `MCP server "${name}" is missing a command. GitHub Copilot CLI ${type} servers require a non-empty command.`,
       );
     }
 
-    // Handle command as string or array
     let command: string;
     let args: string[] | undefined;
 
@@ -46,29 +79,20 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
       command = parsed.command;
       args = parsed.args;
     } else {
-      // command is an array: first element is command, rest are args
       const [cmd, ...cmdArgs] = parsed.command;
       if (!cmd) {
         throw new Error(`MCP server "${name}" has an empty command array.`);
       }
       command = cmd;
-      // Merge command array args with existing args
       args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
     }
 
-    // Use the parsed object for the base, then override with normalized command/args
-    // and ensure type is set to "stdio" if not present.
-    // We spread server as well to keep unknown fields as suggested by reviewers.
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const serverRecord = server as Record<string, unknown>;
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     result[name] = {
-      ...serverRecord,
       ...parsed,
-      type: parsed.type ?? "stdio",
+      type,
       command,
       ...(args && { args }),
-    } as McpServer & Record<string, unknown>;
+    };
   }
 
   return result;
@@ -81,6 +105,11 @@ function removeTypeField(config: CopilotcliMcpConfig): McpServers {
   const result: McpServers = {};
 
   for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
+    if (server.type !== "stdio") {
+      result[name] = server;
+      continue;
+    }
+
     const { type: _, ...rest } = server;
     result[name] = rest;
   }
@@ -109,13 +138,7 @@ export class CopilotcliMcp extends ToolMcp {
     return !this.global;
   }
 
-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    if (global) {
-      return {
-        relativeDirPath: ".copilot",
-        relativeFilePath: "mcp-config.json",
-      };
-    }
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
       relativeDirPath: ".copilot",
       relativeFilePath: "mcp-config.json",

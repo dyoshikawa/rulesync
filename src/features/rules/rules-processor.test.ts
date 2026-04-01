@@ -11,6 +11,7 @@ import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
+import { CopilotcliRule } from "./copilotcli-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
@@ -186,6 +187,7 @@ describe("RulesProcessor", () => {
     it("should correctly validate and filter rules for each supported tool", async () => {
       const testCases = [
         { toolTarget: "copilot" as const, ruleClass: CopilotRule },
+        { toolTarget: "copilotcli" as const, ruleClass: CopilotcliRule },
         { toolTarget: "cursor" as const, ruleClass: CursorRule },
         { toolTarget: "claudecode" as const, ruleClass: ClaudecodeRule },
         { toolTarget: "warp" as const, ruleClass: WarpRule },
@@ -795,6 +797,7 @@ Content that would fail parsing`;
         "claudecode-legacy",
         "codexcli",
         "copilot",
+        "copilotcli",
         "factorydroid",
         "geminicli",
         "goose",
@@ -825,13 +828,14 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("copilot");
+      expect(globalTargets).toContain("copilotcli");
       expect(globalTargets).toContain("factorydroid");
       expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("goose");
       expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("rovodev");
-      expect(globalTargets.length).toBe(10);
+      expect(globalTargets.length).toBe(11);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
