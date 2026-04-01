@@ -32,7 +32,7 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
     return server.type;
   }
 
-  if (server.transport === "http" || server.transport === "sse") {
+  if (server.transport === "http" || server.transport === "sse" || server.transport === "local") {
     return server.transport;
   }
 
@@ -40,9 +40,9 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
 };
 
 /**
- * Adds "type": "stdio" to each MCP server config if not present.
+ * Resolves and sets the transport type for each MCP server config.
  * GitHub Copilot CLI requires the "type" field for each server.
- * @throws Error if a stdio server doesn't have a command
+ * @throws Error if a stdio/local server doesn't have a command
  * @throws Error if an http/sse server doesn't have a url or httpUrl
  */
 function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"] {
@@ -68,7 +68,7 @@ function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"]
 
     if (!parsed.command) {
       throw new Error(
-        `MCP server "${name}" is missing a command. GitHub Copilot CLI stdio servers require a non-empty command.`,
+        `MCP server "${name}" is missing a command. GitHub Copilot CLI ${type} servers require a non-empty command.`,
       );
     }
 
