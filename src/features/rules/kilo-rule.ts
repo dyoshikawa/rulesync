@@ -7,29 +7,47 @@ import {
   ToolRule,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
+  type ToolRuleFromRulesyncRuleParams,
+  ToolRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
-export type KiloRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
+export type KiloRuleParams = ToolRuleParams;
 
-/**
- * Rule generator for Kilo Code
- *
- * Generates Markdown rule files for Kilo Code's custom rules system.
- * Supports both project-level and global rules using the `.kilocode/rules` directory.
- */
+export type KiloRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+};
+
+export type KiloRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
+
 export class KiloRule extends ToolRule {
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): KiloRuleSettablePaths {
+  static getSettablePaths({
+    global,
+    excludeToolDir,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): KiloRuleSettablePaths | KiloRuleSettablePathsGlobal {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: buildToolPath(".config/kilo", ".", excludeToolDir),
+          relativeFilePath: "AGENTS.md",
+        },
+      };
+    }
     return {
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      },
       nonRoot: {
-        relativeDirPath: buildToolPath(".kilocode", "rules", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(".kilo", "rules", excludeToolDir),
       },
     };
   }
@@ -38,17 +56,40 @@ export class KiloRule extends ToolRule {
     baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<KiloRule> {
-    const fileContent = await readFileContent(
-      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
-    );
+    const paths = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
+    if (isRoot) {
+      const relativePath = paths.root.relativeFilePath;
+      const fileContent = await readFileContent(
+        join(baseDir, paths.root.relativeDirPath, relativePath),
+      );
+
+      return new KiloRule({
+        baseDir,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
+    }
+
+    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(join(baseDir, relativePath));
     return new KiloRule({
       baseDir,
-      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
+      root: false,
     });
   }
 
@@ -56,13 +97,16 @@ export class KiloRule extends ToolRule {
     baseDir = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): KiloRule {
+    const paths = this.getSettablePaths({ global });
     return new KiloRule(
-      this.buildToolRuleParamsDefault({
+      this.buildToolRuleParamsAgentsmd({
         baseDir,
         rulesyncRule,
         validate,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }
@@ -72,6 +116,8 @@ export class KiloRule extends ToolRule {
   }
 
   validate(): ValidationResult {
+    // Kilo rules are always valid since they use plain markdown format
+    // Similar to AgentsMdRule, no complex frontmatter validation needed
     return { success: true, error: null };
   }
 
@@ -79,13 +125,18 @@ export class KiloRule extends ToolRule {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolRuleForDeletionParams): KiloRule {
+    const paths = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+
     return new KiloRule({
       baseDir,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",
       validate: false,
+      root: isRoot,
     });
   }
 

@@ -18,6 +18,7 @@ import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
+import { KiloSubagent } from "./kilo-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
@@ -59,6 +60,7 @@ type ToolSubagentFactory = {
  * Using a tuple to preserve order for consistent iteration.
  */
 const subagentsProcessorToolTargetTuple = [
+  "kilo",
   "agentsmd",
   "claudecode",
   "claudecode-legacy",
@@ -160,6 +162,13 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: KiroSubagent,
       meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+    },
+  ],
+  [
+    "kilo",
+    {
+      class: KiloSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [
