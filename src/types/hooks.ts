@@ -114,17 +114,6 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "worktreeRemove",
 ];
 
-/** Hook events supported by Kilo. */
-export const KILO_HOOK_EVENTS: readonly HookEvent[] = [
-  "sessionStart",
-  "preToolUse",
-  "postToolUse",
-  "stop",
-  "afterFileEdit",
-  "afterShellExecution",
-  "permissionRequest",
-];
-
 /** Hook events supported by OpenCode. */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -135,6 +124,9 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterShellExecution",
   "permissionRequest",
 ];
+
+/** Hook events supported by Kilo. (Currently identical to OpenCode) */
+export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
 
 /** Hook events supported by Copilot. */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
@@ -292,19 +284,6 @@ export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obj
 );
 
 /**
- * Map canonical camelCase event names to Kilo dot-notation.
- */
-export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> = {
-  sessionStart: "session.created",
-  preToolUse: "tool.execute.before",
-  postToolUse: "tool.execute.after",
-  stop: "session.idle",
-  afterFileEdit: "file.edited",
-  afterShellExecution: "command.executed",
-  permissionRequest: "permission.asked",
-};
-
-/**
  * Map canonical camelCase event names to OpenCode dot-notation.
  */
 export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
@@ -316,6 +295,12 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   afterShellExecution: "command.executed",
   permissionRequest: "permission.asked",
 };
+
+/**
+ * Map canonical camelCase event names to Kilo dot-notation.
+ * (Currently identical to OpenCode)
+ */
+export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> = CANONICAL_TO_OPENCODE_EVENT_NAMES;
 
 /**
  * Map canonical camelCase event names to Copilot camelCase.

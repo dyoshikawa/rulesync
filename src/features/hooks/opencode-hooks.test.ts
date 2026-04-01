@@ -236,8 +236,8 @@ describe("OpencodeHooks", () => {
         [
           "export const RulesyncHooksPlugin = async ({ $ }) => {",
           "  return {",
-          "  }",
-          "}",
+          "  };",
+          "};",
           "",
         ].join("\n"),
       );

@@ -147,7 +147,7 @@ vi.mocked(KiloCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(KiloCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
 vi.mocked(KiloCommand).getSettablePaths = vi
   .fn()
-  .mockReturnValue({ relativeDirPath: join(".kilocode", "workflows") });
+  .mockReturnValue({ relativeDirPath: join(".kilo", "workflows") });
 vi.mocked(KiloCommand).forDeletion = vi.fn().mockImplementation((params) => ({
   ...params,
   isDeletable: () => true,

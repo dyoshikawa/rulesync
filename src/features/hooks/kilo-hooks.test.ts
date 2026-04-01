@@ -236,8 +236,8 @@ describe("KiloHooks", () => {
         [
           "export const RulesyncHooksPlugin = async ({ $ }) => {",
           "  return {",
-          "  }",
-          "}",
+          "  };",
+          "};",
           "",
         ].join("\n"),
       );

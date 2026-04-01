@@ -163,11 +163,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "junie", feature: "subagents", entry: "**/.junie/agents/" },
 
   // Kilo Code
-  { target: "kilo", feature: "rules", entry: "**/.kilocode/rules/" },
-  { target: "kilo", feature: "skills", entry: "**/.kilocode/skills/" },
-  { target: "kilo", feature: "commands", entry: "**/.kilocode/workflows/" },
-  { target: "kilo", feature: "mcp", entry: "**/.kilocode/mcp.json" },
-  { target: "kilo", feature: "ignore", entry: "**/.kilocodeignore" },
+  { target: "kilo", feature: "rules", entry: "**/.kilo/rules/" },
+  { target: "kilo", feature: "skills", entry: "**/.kilo/skills/" },
+  { target: "kilo", feature: "commands", entry: "**/.kilo/workflows/" },
+  { target: "kilo", feature: "mcp", entry: "**/.kilo/mcp.json" },
+  { target: "kilo", feature: "ignore", entry: "**/.kiloignore" },
 
   // Kiro
   { target: "kiro", feature: "rules", entry: "**/.kiro/steering/" },
