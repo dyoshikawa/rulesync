@@ -12,7 +12,7 @@ export const McpServerSchema = z.looseObject({
   timeout: z.optional(z.number()),
   trust: z.optional(z.boolean()),
   cwd: z.optional(z.string()),
-  transport: z.optional(z.enum(["stdio", "sse", "http"])),
+  transport: z.optional(z.enum(["local", "stdio", "sse", "http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),
