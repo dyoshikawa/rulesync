@@ -27,7 +27,7 @@
     "DISABLE_AUTOUPDATER": "0",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
-    "CLAUDE_CODE_NO_FLICKER": "1"
+    "CLAUDE_CODE_NO_FLICKER": "0"
   },
   "sandbox": {
     "enabled": true,
