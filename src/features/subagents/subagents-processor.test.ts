@@ -918,7 +918,7 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, codexcli, cursor, opencode, and rovodev as global-supported targets", () => {
+    it("should return claudecode, codexcli, cursor, kilo, opencode, and rovodev as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
@@ -927,6 +927,7 @@ Second global content`;
         "claudecode-legacy",
         "codexcli",
         "cursor",
+        "kilo",
         "opencode",
         "rovodev",
       ]);
@@ -968,6 +969,7 @@ Second global content`;
           "factorydroid",
           "geminicli",
           "junie",
+          "kilo",
           "kiro",
           "opencode",
           "roo",
@@ -992,6 +994,7 @@ Second global content`;
         "copilot",
         "cursor",
         "codexcli",
+        "kilo",
         "opencode",
       ];
       validTargets.forEach((target) => {

@@ -284,11 +284,11 @@ rulesync.local.jsonc
 **/.junie/mcp.json
 **/.junie/skills/
 **/.junie/agents/
-**/.kilocode/rules/
-**/.kilocode/skills/
-**/.kilocode/workflows/
-**/.kilocode/mcp.json
-**/.kilocodeignore
+**/.kilo/rules/
+**/.kilo/skills/
+**/.kilo/workflows/
+**/.kilo/mcp.json
+**/.kiloignore
 **/.kiro/steering/
 **/.kiro/prompts/
 **/.kiro/skills/

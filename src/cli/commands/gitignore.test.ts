@@ -69,9 +69,9 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.opencode/agent/");
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
-      expect(content).toContain("**/.kilocode/skills/");
-      expect(content).toContain("**/.kilocode/rules/");
-      expect(content).toContain("**/.kilocode/workflows/");
+      expect(content).toContain("**/.kilo/skills/");
+      expect(content).toContain("**/.kilo/rules/");
+      expect(content).toContain("**/.kilo/workflows/");
       expect(content).toContain("**/.roo/skills/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
@@ -232,7 +232,7 @@ dist/`;
       expect(mockLogger.success).toHaveBeenCalledWith("Updated .gitignore with rulesync entries:");
 
       expect(mockLogger.info).toHaveBeenCalledWith("  **/.cursor/");
-      expect(mockLogger.info).toHaveBeenCalledWith("  **/.kilocode/rules/");
+      expect(mockLogger.info).toHaveBeenCalledWith("  **/.kilo/rules/");
       expect(mockLogger.info).toHaveBeenCalledWith("  **/.opencode/agent/");
       expect(mockLogger.info).toHaveBeenCalledWith("  **/CLAUDE.md");
     });

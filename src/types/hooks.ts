@@ -125,6 +125,9 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
 ];
 
+/** Hook events supported by Kilo. (Currently identical to OpenCode) */
+export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
+
 /** Hook events supported by Copilot. */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -188,6 +191,7 @@ export const HooksConfigSchema = z.looseObject({
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -291,6 +295,13 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   afterShellExecution: "command.executed",
   permissionRequest: "permission.asked",
 };
+
+/**
+ * Map canonical camelCase event names to Kilo dot-notation.
+ * (Currently identical to OpenCode)
+ */
+export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
+  CANONICAL_TO_OPENCODE_EVENT_NAMES;
 
 /**
  * Map canonical camelCase event names to Copilot camelCase.

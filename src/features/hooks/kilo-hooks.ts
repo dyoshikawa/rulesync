@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
+import { CANONICAL_TO_KILO_EVENT_NAMES, KILO_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -13,7 +13,7 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-export class OpencodeHooks extends ToolHooks {
+export class KiloHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super({
       ...params,
@@ -24,8 +24,8 @@ export class OpencodeHooks extends ToolHooks {
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
       relativeDirPath: options?.global
-        ? join(".config", "opencode", "plugins")
-        : join(".opencode", "plugins"),
+        ? join(".config", "kilo", "plugins")
+        : join(".kilo", "plugins"),
       relativeFilePath: "rulesync-hooks.js",
     };
   }
@@ -34,12 +34,12 @@ export class OpencodeHooks extends ToolHooks {
     baseDir = process.cwd(),
     validate = true,
     global = false,
-  }: ToolHooksFromFileParams): Promise<OpencodeHooks> {
-    const paths = OpencodeHooks.getSettablePaths({ global });
+  }: ToolHooksFromFileParams): Promise<KiloHooks> {
+    const paths = KiloHooks.getSettablePaths({ global });
     const fileContent = await readFileContent(
       join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
     );
-    return new OpencodeHooks({
+    return new KiloHooks({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -53,16 +53,16 @@ export class OpencodeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
-  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): OpencodeHooks {
+  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): KiloHooks {
     const config = rulesyncHooks.getJson();
     const fileContent = generateOpencodeStylePluginCode(
       config,
-      OPENCODE_HOOK_EVENTS,
-      "opencode",
-      CANONICAL_TO_OPENCODE_EVENT_NAMES,
+      KILO_HOOK_EVENTS,
+      "kilo",
+      CANONICAL_TO_KILO_EVENT_NAMES,
     );
-    const paths = OpencodeHooks.getSettablePaths({ global });
-    return new OpencodeHooks({
+    const paths = KiloHooks.getSettablePaths({ global });
+    return new KiloHooks({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -72,7 +72,7 @@ export class OpencodeHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    throw new Error("Not implemented because OpenCode hooks are generated as a plugin file.");
+    throw new Error("Not implemented because Kilo hooks are generated as a plugin file.");
   }
 
   validate(): ValidationResult {
@@ -83,8 +83,8 @@ export class OpencodeHooks extends ToolHooks {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolHooksForDeletionParams): OpencodeHooks {
-    return new OpencodeHooks({
+  }: ToolHooksForDeletionParams): KiloHooks {
+    return new KiloHooks({
       baseDir,
       relativeDirPath,
       relativeFilePath,

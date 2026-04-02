@@ -19,13 +19,13 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export const OpenCodeSubagentFrontmatterSchema = OpenCodeStyleSubagentFrontmatterSchema;
-export type OpenCodeSubagentFrontmatter = OpenCodeStyleSubagentFrontmatter;
-export type OpenCodeSubagentParams = OpenCodeStyleSubagentParams;
+export const KiloSubagentFrontmatterSchema = OpenCodeStyleSubagentFrontmatterSchema;
+export type KiloSubagentFrontmatter = OpenCodeStyleSubagentFrontmatter;
+export type KiloSubagentParams = OpenCodeStyleSubagentParams;
 
-export class OpenCodeSubagent extends OpenCodeStyleSubagent {
+export class KiloSubagent extends OpenCodeStyleSubagent {
   protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
-    return "opencode";
+    return "kilo";
   }
 
   static getSettablePaths({
@@ -34,7 +34,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     global?: boolean;
   } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "opencode", "agent") : join(".opencode", "agent"),
+      relativeDirPath: global ? join(".config", "kilo", "agent") : join(".kilo", "agent"),
     };
   }
 
@@ -45,22 +45,22 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const opencodeSection = rulesyncFrontmatter.opencode ?? {};
+    const kiloSection = rulesyncFrontmatter.kilo ?? {};
 
-    const opencodeFrontmatter: OpenCodeSubagentFrontmatter = {
-      ...opencodeSection,
+    const kiloFrontmatter: KiloSubagentFrontmatter = {
+      ...kiloSection,
       description: rulesyncFrontmatter.description,
-      mode: typeof opencodeSection.mode === "string" ? opencodeSection.mode : "subagent",
+      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "subagent",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     };
 
     const body = rulesyncSubagent.getBody();
-    const fileContent = stringifyFrontmatter(body, opencodeFrontmatter);
+    const fileContent = stringifyFrontmatter(body, kiloFrontmatter);
     const paths = this.getSettablePaths({ global });
 
-    return new OpenCodeSubagent({
+    return new KiloSubagent({
       baseDir,
-      frontmatter: opencodeFrontmatter,
+      frontmatter: kiloFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
@@ -73,7 +73,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     return this.isTargetedByRulesyncSubagentDefault({
       rulesyncSubagent,
-      toolTarget: "opencode",
+      toolTarget: "kilo",
     });
   }
 
@@ -82,18 +82,18 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolSubagentFromFileParams): Promise<OpenCodeSubagent> {
+  }: ToolSubagentFromFileParams): Promise<KiloSubagent> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
-    const result = OpenCodeSubagentFrontmatterSchema.safeParse(frontmatter);
+    const result = KiloSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new OpenCodeSubagent({
+    return new KiloSubagent({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -109,8 +109,8 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     baseDir = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolSubagentForDeletionParams): OpenCodeSubagent {
-    return new OpenCodeSubagent({
+  }: ToolSubagentForDeletionParams): KiloSubagent {
+    return new KiloSubagent({
       baseDir,
       relativeDirPath,
       relativeFilePath,

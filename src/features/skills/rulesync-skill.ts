@@ -31,6 +31,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
     }),
   ),
+  kilo: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+    }),
+  ),
   deepagents: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -62,6 +67,9 @@ export type RulesyncSkillFrontmatterInput = {
     "short-description"?: string;
   };
   opencode?: {
+    "allowed-tools"?: string[];
+  };
+  kilo?: {
     "allowed-tools"?: string[];
   };
   deepagents?: {

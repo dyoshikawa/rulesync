@@ -15,14 +15,15 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-const KiloSkillFrontmatterSchema = z.looseObject({
+export const KiloSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  "allowed-tools": z.optional(z.array(z.string())),
 });
 
-type KiloSkillFrontmatter = z.infer<typeof KiloSkillFrontmatterSchema>;
+export type KiloSkillFrontmatter = z.infer<typeof KiloSkillFrontmatterSchema>;
 
-type KiloSkillParams = {
+export type KiloSkillParams = {
   baseDir?: string;
   relativeDirPath?: string;
   dirName: string;
@@ -33,14 +34,10 @@ type KiloSkillParams = {
   global?: boolean;
 };
 
-/**
- * Represents a Kilo Code skill directory.
- * Skills are stored under .kilocode/skills/ directories with SKILL.md files.
- */
 export class KiloSkill extends ToolSkill {
   constructor({
     baseDir = process.cwd(),
-    relativeDirPath = join(".kilocode", "skills"),
+    relativeDirPath = join(".kilo", "skills"),
     dirName,
     frontmatter,
     body,
@@ -69,13 +66,9 @@ export class KiloSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths({
-    global: _global = false,
-  }: {
-    global?: boolean;
-  } = {}): ToolSkillSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     return {
-      relativeDirPath: join(".kilocode", "skills"),
+      relativeDirPath: global ? join(".config", "kilo", "skills") : join(".kilo", "skills"),
     };
   }
 
@@ -89,28 +82,18 @@ export class KiloSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    if (!this.mainFile) {
+    if (this.mainFile === undefined) {
       return {
         success: false,
         error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
       };
     }
-
     const result = KiloSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
         error: new Error(
           `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    if (result.data.name !== this.getDirName()) {
-      return {
-        success: false,
-        error: new Error(
-          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
         ),
       };
     }
@@ -124,6 +107,11 @@ export class KiloSkill extends ToolSkill {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(frontmatter["allowed-tools"] && {
+        kilo: {
+          "allowed-tools": frontmatter["allowed-tools"],
+        },
+      }),
     };
 
     return new RulesyncSkill({
@@ -144,18 +132,20 @@ export class KiloSkill extends ToolSkill {
     validate = true,
     global = false,
   }: ToolSkillFromRulesyncSkillParams): KiloSkill {
-    const settablePaths = KiloSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const kiloFrontmatter: KiloSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      "allowed-tools": rulesyncFrontmatter.kilo?.["allowed-tools"],
     };
+
+    const settablePaths = KiloSkill.getSettablePaths({ global });
 
     return new KiloSkill({
       baseDir,
       relativeDirPath: settablePaths.relativeDirPath,
-      dirName: kiloFrontmatter.name,
+      dirName: rulesyncSkill.getDirName(),
       frontmatter: kiloFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
@@ -180,18 +170,6 @@ export class KiloSkill extends ToolSkill {
       const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
-
-    if (result.data.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.baseDir,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
       );
     }
 
