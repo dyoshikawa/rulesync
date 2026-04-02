@@ -112,4 +112,40 @@ describe("DeepagentsMcp", () => {
       expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
     });
   });
+
+  describe("toRulesyncMcp", () => {
+    it("should convert deepagents mcp config to rulesync format", () => {
+      const mcp = new DeepagentsMcp({
+        baseDir: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "test-server": { command: "npx", args: ["-y", "test-server"] },
+          },
+          extra: true,
+        }),
+      });
+
+      const rulesyncMcp = mcp.toRulesyncMcp();
+
+      expect(rulesyncMcp.getMcpServers()).toEqual({
+        "test-server": { command: "npx", args: ["-y", "test-server"] },
+      });
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create a placeholder file for deletion", () => {
+      const mcp = DeepagentsMcp.forDeletion({
+        baseDir: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: ".mcp.json",
+      });
+
+      expect(mcp.getRelativeDirPath()).toBe(".deepagents");
+      expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
+      expect(mcp.getFileContent()).toBe("{}");
+    });
+  });
 });

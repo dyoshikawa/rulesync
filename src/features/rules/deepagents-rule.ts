@@ -57,6 +57,7 @@ export class DeepagentsRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<DeepagentsRule> {
+    const settablePaths = this.getSettablePaths();
     const isRoot = relativeFilePath === "AGENTS.md";
     const relativePath = isRoot
       ? join(".deepagents", "AGENTS.md")
@@ -66,8 +67,8 @@ export class DeepagentsRule extends ToolRule {
     return new DeepagentsRule({
       baseDir,
       relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
+        ? settablePaths.root.relativeDirPath
+        : settablePaths.nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
       fileContent,
       validate,

@@ -230,5 +230,51 @@ describe("DeepagentsHooks", () => {
       expect(canonical.hooks.sessionStart).toBeDefined();
       expect(canonical.hooks.sessionEnd).toBeDefined();
     });
+
+    it("should skip malformed hook entries", () => {
+      const hooks = new DeepagentsHooks({
+        baseDir: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: [null, "invalid", { events: ["session.start"] }, { command: [] }],
+        }),
+      });
+
+      const rulesyncHooks = hooks.toRulesyncHooks();
+
+      expect(rulesyncHooks.getJson().hooks).toEqual({});
+    });
+
+    it("should join command parts when bash fallback pattern is not used", () => {
+      const hooks = new DeepagentsHooks({
+        baseDir: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: [{ command: ["pnpm", "test", "--runInBand"], events: ["task.complete"] }],
+        }),
+      });
+
+      const rulesyncHooks = hooks.toRulesyncHooks();
+
+      expect(rulesyncHooks.getJson().hooks.stop).toEqual([
+        { type: "command", command: "pnpm test --runInBand" },
+      ]);
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create a placeholder hooks file for deletion", () => {
+      const hooks = DeepagentsHooks.forDeletion({
+        baseDir: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+      });
+
+      expect(hooks.getRelativeDirPath()).toBe(".deepagents");
+      expect(hooks.getRelativeFilePath()).toBe("hooks.json");
+      expect(JSON.parse(hooks.getFileContent())).toEqual({ hooks: [] });
+    });
   });
 });
