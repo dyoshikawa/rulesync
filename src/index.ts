@@ -1,6 +1,6 @@
 import { ConfigResolver } from "./config/config-resolver.js";
-import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
-import { importFromTool as coreImportFromTool } from "./lib/import.js";
+import { checkRulesyncDirExists, generate as coreGenerate, type GenerateResult } from "./lib/generate.js";
+import { importFromTool as coreImportFromTool, type ImportResult } from "./lib/import.js";
 import type { Feature } from "./types/features.js";
 import type { ToolTarget } from "./types/tool-targets.js";
 import { ConsoleLogger } from "./utils/logger.js";
@@ -12,15 +12,18 @@ export { ALL_TOOL_TARGETS } from "./types/tool-targets.js";
 export type { GenerateResult } from "./lib/generate.js";
 export type { ImportResult } from "./lib/import.js";
 
-export type GenerateOptions = {
-  targets?: ToolTarget[];
-  features?: Feature[];
-  baseDirs?: string[];
+type BaseOptions = {
   configPath?: string;
   verbose?: boolean;
   silent?: boolean;
-  delete?: boolean;
   global?: boolean;
+};
+
+export type GenerateOptions = BaseOptions & {
+  targets?: ToolTarget[];
+  features?: Feature[];
+  baseDirs?: string[];
+  delete?: boolean;
   simulateCommands?: boolean;
   simulateSubagents?: boolean;
   simulateSkills?: boolean;
@@ -28,16 +31,12 @@ export type GenerateOptions = {
   check?: boolean;
 };
 
-export type ImportOptions = {
+export type ImportOptions = BaseOptions & {
   target: ToolTarget;
   features?: Feature[];
-  configPath?: string;
-  verbose?: boolean;
-  silent?: boolean;
-  global?: boolean;
 };
 
-export async function generate(options: GenerateOptions = {}) {
+export async function generate(options: GenerateOptions = {}): Promise<GenerateResult> {
   const { silent = true, verbose = false, ...rest } = options;
   const logger = new ConsoleLogger({ verbose, silent });
 
@@ -49,20 +48,21 @@ export async function generate(options: GenerateOptions = {}) {
 
   for (const baseDir of config.getBaseDirs()) {
     if (!(await checkRulesyncDirExists({ baseDir }))) {
-      throw new Error(".rulesync directory not found. Run 'rulesync init' first.");
+      throw new Error(`.rulesync directory not found in '${baseDir}'. Run 'rulesync init' first.`);
     }
   }
 
   return coreGenerate({ config, logger });
 }
 
-export async function importFromTool(options: ImportOptions) {
-  const { target, silent = true, verbose = false, ...rest } = options;
+export async function importFromTool(options: ImportOptions): Promise<ImportResult> {
+  const { target, features, silent = true, verbose = false, ...rest } = options;
   const logger = new ConsoleLogger({ verbose, silent });
 
   const config = await ConfigResolver.resolve({
     ...rest,
     targets: [target],
+    features,
     verbose,
     silent,
   });
