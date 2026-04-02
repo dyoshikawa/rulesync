@@ -15,8 +15,18 @@ describe("E2E: subagents", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
-    { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
-    { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
+    {
+      target: "claudecode",
+      outputPath: join(".claude", "agents", "planner.md"),
+    },
+    {
+      target: "cursor",
+      outputPath: join(".cursor", "agents", "planner.md"),
+    },
+    {
+      target: "geminicli",
+      outputPath: join(".gemini", "agents", "planner.md"),
+    },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 

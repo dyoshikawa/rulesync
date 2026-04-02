@@ -181,6 +181,8 @@ Based on the user's instruction, create a plan while analyzing the related files
 Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
 ```
 
+> **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
+
 ## `.rulesync/skills/*/SKILL.md`
 
 Example:

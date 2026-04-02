@@ -7,10 +7,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import {
-  SimulatedSubagentFrontmatter,
-  SimulatedSubagentFrontmatterSchema,
-} from "./simulated-subagent.js";
+import { ToolSubagent } from "./tool-subagent.js";
 
 describe("GeminiCliSubagent", () => {
   let testDir: string;
@@ -49,7 +46,7 @@ Body content`;
     it("should return correct paths for geminicli subagents", () => {
       const paths = GeminiCliSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: join(".gemini", "agents"),
       });
     });
   });
@@ -58,7 +55,7 @@ Body content`;
     it("should create instance with valid markdown content", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test GeminiCli Agent",
@@ -81,7 +78,7 @@ Body content`;
     it("should create instance with empty name and description", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
@@ -101,7 +98,7 @@ Body content`;
     it("should create instance without validation when validate is false", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -119,11 +116,11 @@ Body content`;
         () =>
           new GeminiCliSubagent({
             baseDir: testDir,
-            relativeDirPath: ".gemini/subagents",
+            relativeDirPath: ".gemini/agents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
-            } as SimulatedSubagentFrontmatter,
+            } as { name: string },
             body: "Body content",
             validate: true,
           }),
@@ -135,7 +132,7 @@ Body content`;
     it("should return the body content", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -153,7 +150,7 @@ Body content`;
     it("should return frontmatter with name and description", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test GeminiCli Agent",
@@ -172,10 +169,10 @@ Body content`;
   });
 
   describe("toRulesyncSubagent", () => {
-    it("should throw error as it is a simulated file", () => {
+    it("should convert to RulesyncSubagent", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -185,9 +182,11 @@ Body content`;
         validate: true,
       });
 
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("Test Agent");
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("Test description");
+      expect(rulesyncSubagent.getBody()).toBe("Test body");
     });
   });
 
@@ -208,7 +207,7 @@ Body content`;
 
       const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         rulesyncSubagent,
         validate: true,
       }) as GeminiCliSubagent;
@@ -220,7 +219,7 @@ Body content`;
         description: "Test description from rulesync",
       });
       expect(geminiCliSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(geminiCliSubagent.getRelativeDirPath()).toBe(".gemini/subagents");
+      expect(geminiCliSubagent.getRelativeDirPath()).toBe(".gemini/agents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -239,7 +238,7 @@ Body content`;
 
       const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         rulesyncSubagent,
         validate: true,
       }) as GeminiCliSubagent;
@@ -263,7 +262,7 @@ Body content`;
 
       const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         rulesyncSubagent,
         validate: true,
       }) as GeminiCliSubagent;
@@ -277,7 +276,7 @@ Body content`;
 
   describe("fromFile", () => {
     it("should load GeminiCliSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents");
+      const subagentsDir = join(testDir, ".gemini", "agents");
       const filePath = join(subagentsDir, "test-file-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -300,7 +299,7 @@ Body content`;
     });
 
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".gemini", "agents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -325,7 +324,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents");
+      const subagentsDir = join(testDir, ".gemini", "agents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -340,7 +339,7 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".gemini", "subagents");
+      const subagentsDir = join(testDir, ".gemini", "agents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
@@ -359,14 +358,14 @@ Body content`;
     it("should return success for valid frontmatter", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
           description: "Valid description",
         },
         body: "Valid body",
-        validate: false, // Skip validation in constructor to test validate method
+        validate: false,
       });
 
       const result = subagent.validate();
@@ -377,60 +376,19 @@ Body content`;
     it("should handle frontmatter with additional properties", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
           description: "Agent with extra properties",
-          // Additional properties should be allowed but not validated
           extra: "property",
-        } as any,
+        },
         body: "Body content",
         validate: false,
       });
 
       const result = subagent.validate();
-      // The validation should pass as long as required fields are present
       expect(result.success).toBe(true);
-    });
-  });
-
-  describe("SimulatedSubagentFrontmatterSchema", () => {
-    it("should validate valid frontmatter with name and description", () => {
-      const validFrontmatter = {
-        name: "Test Agent",
-        description: "Test description",
-      };
-
-      const result = SimulatedSubagentFrontmatterSchema.parse(validFrontmatter);
-      expect(result).toEqual(validFrontmatter);
-    });
-
-    it("should throw error for frontmatter without name", () => {
-      const invalidFrontmatter = {
-        description: "Test description",
-      };
-
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
-    });
-
-    it("should accept frontmatter without description (description is optional)", () => {
-      const frontmatter = {
-        name: "Test Agent",
-      };
-
-      const result = SimulatedSubagentFrontmatterSchema.parse(frontmatter);
-      expect(result.name).toBe("Test Agent");
-      expect(result.description).toBeUndefined();
-    });
-
-    it("should throw error for frontmatter with invalid types", () => {
-      const invalidFrontmatter = {
-        name: 123, // Should be string
-        description: "Test",
-      };
-
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
     });
   });
 
@@ -438,7 +396,7 @@ Body content`;
     it("should handle empty body content", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -461,7 +419,7 @@ Body content`;
 
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -482,7 +440,7 @@ Body content`;
 
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -499,7 +457,7 @@ Body content`;
     it("should handle multi-line name and description", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -520,7 +478,7 @@ Body content`;
 
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
@@ -535,10 +493,10 @@ Body content`;
   });
 
   describe("inheritance", () => {
-    it("should inherit from SimulatedSubagent", () => {
+    it("should be an instance of ToolSubagent", () => {
       const subagent = new GeminiCliSubagent({
         baseDir: testDir,
-        relativeDirPath: ".gemini/subagents",
+        relativeDirPath: ".gemini/agents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
@@ -549,10 +507,7 @@ Body content`;
       });
 
       expect(subagent).toBeInstanceOf(GeminiCliSubagent);
-      // Test that it inherits methods from parent class
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+      expect(subagent).toBeInstanceOf(ToolSubagent);
     });
   });
 
@@ -602,7 +557,7 @@ Body content`;
           description: "Test description",
         },
         body: "Test content",
-        validate: false, // Skip validation to allow empty targets array
+        validate: false,
       });
 
       expect(GeminiCliSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);

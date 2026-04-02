@@ -265,7 +265,7 @@ rulesync.local.jsonc
 **/.factory/settings.json
 **/GEMINI.md
 **/.gemini/commands/
-**/.gemini/subagents/
+**/.gemini/agents/
 **/.gemini/skills/
 **/.geminiignore
 **/.gemini/memories/
