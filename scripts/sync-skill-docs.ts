@@ -9,8 +9,10 @@ const DOCS_DIR = join(process.cwd(), "docs");
 const FRONTMATTER = `---
 name: rulesync
 description: >-
-  Rulesync CLI tool documentation - unified AI rule file management
-  for various AI coding tools
+  Generates and syncs AI rule configuration files (.cursorrules, CLAUDE.md,
+  copilot-instructions.md) across 20+ coding tools from a single source.
+  Use when syncing AI rules, running rulesync commands, importing or
+  generating rule files, or managing shared AI coding configurations.
 targets: ["*"]
 ---`;
 
@@ -135,17 +137,68 @@ function main(): void {
     }
   }
 
-  // Write SKILL.md
-  const description = vitepressConfig.description ?? "";
+  // Build reference links from sidebar TOC
+  const refLines: string[] = [];
+  for (const entry of sidebar) {
+    if (entry.items) {
+      const links = entry.items
+        .filter((item) => item.link)
+        .map((item) => `[${item.text}](./${basename(item.link ?? "")}.md)`)
+        .join(", ");
+      if (links) refLines.push(`- ${links}`);
+    } else if (entry.link) {
+      refLines.push(`- [${entry.text}](./${basename(entry.link)}.md)`);
+    }
+  }
+
+  // Write SKILL.md with inline quick start, workflow, and command reference
   const skillContent = [
     FRONTMATTER,
     "",
     "# Rulesync",
     "",
-    description,
+    "Rulesync generates and synchronizes AI rule configuration files across 20+ coding tools (Claude Code, Cursor, Copilot, Windsurf, Cline, Gemini CLI, and more) from a single set of unified rule files in `.rulesync/`.",
     "",
-    "## Table of Contents",
-    ...tocLines,
+    "## Quick Start",
+    "",
+    "```bash",
+    "# Install",
+    "npm install -g rulesync",
+    "",
+    "# New project: initialize config, rules, and directory structure",
+    "rulesync init",
+    "",
+    "# Import existing AI tool configs into unified format",
+    "rulesync import --targets claudecode    # From CLAUDE.md",
+    "rulesync import --targets cursor        # From .cursorrules",
+    "rulesync import --targets copilot       # From .github/copilot-instructions.md",
+    "",
+    "# Generate tool-specific configs from unified rules",
+    'rulesync generate --targets "*" --features "*"',
+    "```",
+    "",
+    "## Core Workflow",
+    "",
+    "1. **Init** - `rulesync init` creates `rulesync.jsonc` config and `.rulesync/` directory with sample rules",
+    "2. **Write rules** - Add shared AI rules in `.rulesync/rules/`, MCP configs in `.rulesync/mcp/`, commands in `.rulesync/commands/`",
+    "3. **Generate** - `rulesync generate` produces tool-specific files (CLAUDE.md, .cursorrules, .github/copilot-instructions.md, etc.)",
+    "4. **Verify** - `rulesync generate --dry-run` previews changes; `--check` validates files are up to date (useful in CI)",
+    "",
+    "## Key Commands",
+    "",
+    "| Command                                          | Purpose                                          |",
+    "| ------------------------------------------------ | ------------------------------------------------ |",
+    "| `rulesync init`                                  | Scaffold project with config and sample rules    |",
+    '| `rulesync generate --targets "*" --features "*"` | Generate all tool configs from unified rules     |',
+    "| `rulesync import --targets <tool>`               | Import existing tool config into unified format  |",
+    "| `rulesync fetch owner/repo --features skills`    | Fetch rules or skills from a remote repository   |",
+    "| `rulesync install`                               | Install skill sources declared in rulesync.jsonc |",
+    "| `rulesync generate --check`                      | CI check that generated files are up to date     |",
+    "| `rulesync generate --dry-run`                    | Preview changes without writing files            |",
+    "",
+    "## Detailed Reference",
+    "",
+    ...refLines,
     "",
   ].join("\n");
   writeFileSync(join(SKILL_DIR, "SKILL.md"), skillContent);

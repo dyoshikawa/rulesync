@@ -1,42 +1,58 @@
 ---
 name: rulesync
 description: >-
-  Rulesync CLI tool documentation - unified AI rule file management
-  for various AI coding tools
+  Generates and syncs AI rule configuration files (.cursorrules, CLAUDE.md,
+  copilot-instructions.md) across 20+ coding tools from a single source.
+  Use when syncing AI rules, running rulesync commands, importing or
+  generating rule files, or managing shared AI coding configurations.
 targets: ["*"]
 ---
 
 # Rulesync
 
-A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.
+Rulesync generates and synchronizes AI rule configuration files across 20+ coding tools (Claude Code, Cursor, Copilot, Windsurf, Cline, Gemini CLI, and more) from a single set of unified rule files in `.rulesync/`.
 
-## Table of Contents
+## Quick Start
 
-### Getting Started
+```bash
+# Install
+npm install -g rulesync
 
-- [Installation](./installation.md)
-- [Quick Start](./quick-start.md)
+# New project: initialize config, rules, and directory structure
+rulesync init
 
-### Guide
+# Import existing AI tool configs into unified format
+rulesync import --targets claudecode    # From CLAUDE.md
+rulesync import --targets cursor        # From .cursorrules
+rulesync import --targets copilot       # From .github/copilot-instructions.md
 
-- [Why Rulesync?](./why-rulesync.md)
-- [Configuration](./configuration.md)
-- [Global Mode](./global-mode.md)
-- [Simulated Features](./simulated-features.md)
-- [Declarative Sources](./declarative-sources.md)
-- [Official Skills](./official-skills.md)
-- [Dry Run](./dry-run.md)
-- [Case Studies](./case-studies.md)
+# Generate tool-specific configs from unified rules
+rulesync generate --targets "*" --features "*"
+```
 
-### Reference
+## Core Workflow
 
-- [Supported Tools](./supported-tools.md)
-- [CLI Commands](./cli-commands.md)
-- [File Formats](./file-formats.md)
-- [MCP Server](./mcp-server.md)
+1. **Init** - `rulesync init` creates `rulesync.jsonc` config and `.rulesync/` directory with sample rules
+2. **Write rules** - Add shared AI rules in `.rulesync/rules/`, MCP configs in `.rulesync/mcp/`, commands in `.rulesync/commands/`
+3. **Generate** - `rulesync generate` produces tool-specific files (CLAUDE.md, .cursorrules, .github/copilot-instructions.md, etc.)
+4. **Verify** - `rulesync generate --dry-run` previews changes; `--check` validates files are up to date (useful in CI)
 
-### API
+## Key Commands
 
+| Command                                          | Purpose                                          |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `rulesync init`                                  | Scaffold project with config and sample rules    |
+| `rulesync generate --targets "*" --features "*"` | Generate all tool configs from unified rules     |
+| `rulesync import --targets <tool>`               | Import existing tool config into unified format  |
+| `rulesync fetch owner/repo --features skills`    | Fetch rules or skills from a remote repository   |
+| `rulesync install`                               | Install skill sources declared in rulesync.jsonc |
+| `rulesync generate --check`                      | CI check that generated files are up to date     |
+| `rulesync generate --dry-run`                    | Preview changes without writing files            |
+
+## Detailed Reference
+
+- [Installation](./installation.md), [Quick Start](./quick-start.md)
+- [Why Rulesync?](./why-rulesync.md), [Configuration](./configuration.md), [Global Mode](./global-mode.md), [Simulated Features](./simulated-features.md), [Declarative Sources](./declarative-sources.md), [Official Skills](./official-skills.md), [Dry Run](./dry-run.md), [Case Studies](./case-studies.md)
+- [Supported Tools](./supported-tools.md), [CLI Commands](./cli-commands.md), [File Formats](./file-formats.md), [MCP Server](./mcp-server.md)
 - [Programmatic API](./programmatic-api.md)
-
 - [FAQ](./faq.md)
