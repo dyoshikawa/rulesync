@@ -833,6 +833,29 @@ describe("generate", () => {
 
       expect(result.hasDiff).toBe(true);
     });
+
+    it("should return hasDiff: true when orphan files would be deleted in dry run mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getDelete.mockReturnValue(true);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      const existingFiles = [createMockAiFile("/path/to/orphan", "orphan content")];
+      const generatedFiles = [createMockAiFile("/path/to/kept", "content")];
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as RulesProcessor;
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.hasDiff).toBe(true);
+    });
   });
 
   describe("unsupported target-feature warning", () => {

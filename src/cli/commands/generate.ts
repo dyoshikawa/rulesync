@@ -119,6 +119,18 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     logger.captureData("skills", result.skills ?? []);
   }
 
+  // Handle --check mode exit code
+  if (check) {
+    if (result.hasDiff) {
+      throw new CLIError(
+        "Files are not up to date. Run 'rulesync generate' to update.",
+        ErrorCodes.GENERATION_FAILED,
+      );
+    } else {
+      logger.success("✓ All files are up to date.");
+    }
+  }
+
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");
     logger.info(`✓ All files are up to date (${enabledFeatures})`);
@@ -138,17 +150,5 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   } else {
     logger.success(`🎉 All done! Written ${totalGenerated} file(s) total (${parts.join(" + ")})`);
-  }
-
-  // Handle --check mode exit code
-  if (check) {
-    if (result.hasDiff) {
-      throw new CLIError(
-        "Files are not up to date. Run 'rulesync generate' to update.",
-        ErrorCodes.GENERATION_FAILED,
-      );
-    } else {
-      logger.success("✓ All files are up to date.");
-    }
   }
 }
