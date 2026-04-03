@@ -1,5 +1,9 @@
 import { ConfigResolver } from "./config/config-resolver.js";
-import { checkRulesyncDirExists, generate as coreGenerate, type GenerateResult } from "./lib/generate.js";
+import {
+  checkRulesyncDirExists,
+  generate as coreGenerate,
+  type GenerateResult,
+} from "./lib/generate.js";
 import { importFromTool as coreImportFromTool, type ImportResult } from "./lib/import.js";
 import type { Feature } from "./types/features.js";
 import type { ToolTarget } from "./types/tool-targets.js";
