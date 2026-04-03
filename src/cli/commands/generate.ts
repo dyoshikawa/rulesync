@@ -128,6 +128,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
       );
     } else {
       logger.success("✓ All files are up to date.");
+      return;
     }
   }
 
