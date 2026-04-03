@@ -138,6 +138,21 @@ describe("DeepagentsRule", () => {
     });
   });
 
+  describe("forDeletion", () => {
+    it("should create a placeholder root rule for deletion", () => {
+      const rule = DeepagentsRule.forDeletion({
+        baseDir: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(".deepagents");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getFileContent()).toBe("");
+    });
+  });
+
   describe("isTargetedByRulesyncRule", () => {
     it("should return true when target is deepagents", () => {
       const rulesyncRule = new RulesyncRule({

@@ -66,10 +66,7 @@ export class DeepagentsSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    if (options?.global) {
-      throw new Error("DeepagentsSkill does not support global mode.");
-    }
+  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
     return {
       relativeDirPath: join(".deepagents", "skills"),
     };
@@ -140,7 +137,9 @@ export class DeepagentsSkill extends ToolSkill {
     const deepagentsFrontmatter: DeepagentsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      "allowed-tools": rulesyncFrontmatter.deepagents?.["allowed-tools"],
+      ...(rulesyncFrontmatter.deepagents?.["allowed-tools"] && {
+        "allowed-tools": rulesyncFrontmatter.deepagents["allowed-tools"],
+      }),
     };
 
     return new DeepagentsSkill({

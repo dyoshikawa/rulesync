@@ -180,6 +180,9 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   ],
 ]);
 
+// Project-mode generation/import should only expose tools that actually write
+// hooks into the workspace. This keeps global-only targets like deepagents out
+// of project target lists while still allowing them in global mode.
 const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.entries()]
   .filter(([, f]) => f.meta.supportsProject)
   .map(([t]) => t);

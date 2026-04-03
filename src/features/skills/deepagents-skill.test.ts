@@ -28,10 +28,9 @@ describe("DeepagentsSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".deepagents", "skills"));
     });
 
-    it("should throw when global mode requested", () => {
-      expect(() => DeepagentsSkill.getSettablePaths({ global: true })).toThrow(
-        "DeepagentsSkill does not support global mode.",
-      );
+    it("should return project path for global mode", () => {
+      const paths = DeepagentsSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".deepagents", "skills"));
     });
   });
 
@@ -119,6 +118,20 @@ Do the thing.`;
       expect(skill.getDirName()).toBe("my-skill");
       expect(skill.getBody()).toBe("Instructions here.");
     });
+
+    it("should omit allowed-tools when deepagents frontmatter is absent", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/skills",
+        dirName: "my-skill",
+        frontmatter: { name: "My Skill", description: "Does something.", targets: ["*"] },
+        body: "Instructions here.",
+      });
+
+      const skill = DeepagentsSkill.fromRulesyncSkill({ baseDir: testDir, rulesyncSkill });
+
+      expect(skill.getFrontmatter()).not.toHaveProperty("allowed-tools");
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
@@ -173,6 +186,20 @@ Do the thing.`;
       expect(rulesyncSkill.getFrontmatter().name).toBe("My Skill");
       expect(rulesyncSkill.getFrontmatter().description).toBe("Does something.");
       expect(rulesyncSkill.getFrontmatter().targets).toEqual(["*"]);
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create a deletable placeholder skill", () => {
+      const skill = DeepagentsSkill.forDeletion({
+        baseDir: testDir,
+        relativeDirPath: join(".deepagents", "skills"),
+        dirName: "my-skill",
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(join(".deepagents", "skills"));
+      expect(skill.getDirName()).toBe("my-skill");
+      expect(skill.getBody()).toBe("");
     });
   });
 });

@@ -82,6 +82,7 @@ function deepagentsToCanonicalHooks(hooksEntries: DeepagentsHookEntry[]): HooksC
   const canonical: HooksConfig["hooks"] = {};
 
   for (const entry of hooksEntries) {
+    if (typeof entry !== "object" || entry === null) continue;
     if (!Array.isArray(entry.command) || entry.command.length === 0) continue;
 
     // Reconstruct command string: if it's ["bash", "-c", "..."], extract the script
