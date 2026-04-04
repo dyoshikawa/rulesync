@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -164,7 +164,7 @@ export class GeminiCliSubagent extends ToolSubagent {
     return new GeminiCliSubagent({
       baseDir,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
+      relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
       fileContent,

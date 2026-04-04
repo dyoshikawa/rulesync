@@ -310,7 +310,7 @@ Body content`;
         validate: true,
       });
 
-      expect(subagent.getRelativeFilePath()).toBe("subdir/nested-agent.md");
+      expect(subagent.getRelativeFilePath()).toBe("nested-agent.md");
     });
 
     it("should throw error when file does not exist", async () => {
