@@ -4,6 +4,7 @@ import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-path
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   CLAUDE_HOOK_EVENTS,
+  CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
@@ -20,6 +21,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
@@ -39,6 +41,7 @@ const hooksProcessorToolTargetTuple = [
   "kilo",
   "cursor",
   "claudecode",
+  "codexcli",
   "copilot",
   "opencode",
   "factorydroid",
@@ -99,6 +102,20 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       },
       supportedEvents: CLAUDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "codexcli",
+    {
+      class: CodexcliHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CODEXCLI_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],
