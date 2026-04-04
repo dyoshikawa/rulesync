@@ -21,7 +21,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
-import { CodexcliHooks } from "./codexcli-hooks.js";
+import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
@@ -369,7 +369,15 @@ export class HooksProcessor extends FeatureProcessor {
       validate: true,
       global: this.global,
     });
-    return [toolHooks];
+
+    const result: ToolFile[] = [toolHooks];
+
+    // For codexcli, also generate .codex/config.toml with the feature flag
+    if (this.toolTarget === "codexcli") {
+      result.push(await CodexcliConfigToml.fromBaseDir({ baseDir: this.baseDir }));
+    }
+
+    return result;
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {

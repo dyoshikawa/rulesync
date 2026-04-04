@@ -11,13 +11,9 @@ import {
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
 } from "../../types/hooks.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
-import {
-  readFileContentOrNull,
-  readOrInitializeFileContent,
-  writeFileContent,
-  ensureDir,
-} from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -58,14 +54,18 @@ function canonicalToCodexcliHooks(config: HooksConfig): Record<string, unknown[]
     }
     const entries: unknown[] = [];
     for (const [matcherKey, defs] of byMatcher) {
-      const hooks = defs.map((def) => ({
-        type: def.type ?? "command",
+      const commandDefs = defs.filter((def) => !def.type || def.type === "command");
+      if (commandDefs.length === 0) continue;
+      const hooks = commandDefs.map((def) => ({
+        type: "command" as const,
         ...(def.command !== undefined && def.command !== null && { command: def.command }),
         ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
       }));
       entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
     }
-    codex[codexEventName] = entries;
+    if (entries.length > 0) {
+      codex[codexEventName] = entries;
+    }
   }
   return codex;
 }
@@ -127,15 +127,13 @@ function codexcliHooksToCanonical(codexHooks: unknown): HooksConfig["hooks"] {
 }
 
 /**
- * Ensure the `[features] codex_hooks = true` flag is set in .codex/config.toml.
- * Reads the existing file (or creates it), parses TOML, sets the flag, and writes back.
- * Preserves all other config sections (e.g. mcp_servers).
+ * Build the content for `.codex/config.toml` with `[features] codex_hooks = true`.
+ * Reads the existing file (if any), parses TOML, sets the flag, and returns the content
+ * without writing to disk. The caller is responsible for writing via the normal write phase.
  */
-async function ensureCodexHooksFeatureFlag({ baseDir }: { baseDir: string }): Promise<void> {
-  const configDir = join(baseDir, ".codex");
-  const configPath = join(configDir, "config.toml");
-  await ensureDir(configDir);
-  const existingContent = await readOrInitializeFileContent(configPath, smolToml.stringify({}));
+async function buildCodexConfigTomlContent({ baseDir }: { baseDir: string }): Promise<string> {
+  const configPath = join(baseDir, ".codex", "config.toml");
+  const existingContent = (await readFileContentOrNull(configPath)) ?? smolToml.stringify({});
   const configToml = smolToml.parse(existingContent);
 
   if (typeof configToml.features !== "object" || configToml.features === null) {
@@ -145,7 +143,27 @@ async function ensureCodexHooksFeatureFlag({ baseDir }: { baseDir: string }): Pr
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   (configToml.features as smolToml.TomlTable).codex_hooks = true;
 
-  await writeFileContent(configPath, smolToml.stringify(configToml));
+  return smolToml.stringify(configToml);
+}
+
+/**
+ * Represents the `.codex/config.toml` file as a generated ToolFile,
+ * so it goes through the normal write phase and respects dry-run mode.
+ */
+export class CodexcliConfigToml extends ToolFile {
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+
+  static async fromBaseDir({ baseDir }: { baseDir: string }): Promise<CodexcliConfigToml> {
+    const fileContent = await buildCodexConfigTomlContent({ baseDir });
+    return new CodexcliConfigToml({
+      baseDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent,
+    });
+  }
 }
 
 export class CodexcliHooks extends ToolHooks {
@@ -187,9 +205,6 @@ export class CodexcliHooks extends ToolHooks {
     const config = rulesyncHooks.getJson();
     const codexHooks = canonicalToCodexcliHooks(config);
     const fileContent = JSON.stringify({ hooks: codexHooks }, null, 2);
-
-    // Side effect: ensure feature flag in config.toml
-    await ensureCodexHooksFeatureFlag({ baseDir });
 
     return new CodexcliHooks({
       baseDir,

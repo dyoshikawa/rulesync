@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { CodexcliHooks } from "./codexcli-hooks.js";
+import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 function createMockAiFileParams(
@@ -135,7 +135,7 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.Stop[0].hooks[0].command).toBe("echo stop");
     });
 
-    it("should write feature flag to config.toml", async () => {
+    it("should not write config.toml as a side effect", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
@@ -154,38 +154,37 @@ describe("CodexcliHooks", () => {
 
       const { readFileContentOrNull } = await import("../../utils/file.js");
       const configContent = await readFileContentOrNull(join(testDir, ".codex", "config.toml"));
-      expect(configContent).not.toBeNull();
-      expect(configContent).toContain("codex_hooks");
+      expect(configContent).toBeNull();
     });
 
-    it("should preserve existing config.toml content when writing feature flag", async () => {
-      await ensureDir(join(testDir, ".codex"));
-      await writeFileContent(
-        join(testDir, ".codex", "config.toml"),
-        '[mcp_servers.myserver]\ncommand = "node"\n',
-      );
-
+    it("should filter out non-command hook types", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
             hooks: {
-              sessionStart: [{ command: "echo start" }],
+              sessionStart: [
+                { type: "command", command: "echo start" },
+                { type: "prompt", command: "summarize" },
+              ],
+              preToolUse: [{ type: "prompt", command: "review" }],
             },
           }),
         }),
       );
 
-      await CodexcliHooks.fromRulesyncHooks({
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
         baseDir: testDir,
         rulesyncHooks,
         validate: true,
       });
 
-      const { readFileContentOrNull } = await import("../../utils/file.js");
-      const configContent = await readFileContentOrNull(join(testDir, ".codex", "config.toml"));
-      expect(configContent).toContain("codex_hooks");
-      expect(configContent).toContain("mcp_servers");
-      expect(configContent).toContain("myserver");
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks.SessionStart[0].hooks).toHaveLength(1);
+      expect(parsed.hooks.SessionStart[0].hooks[0].type).toBe("command");
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("echo start");
+      // preToolUse had only prompt hooks, so it should be excluded entirely
+      expect(parsed.hooks.PreToolUse).toBeUndefined();
     });
   });
 
@@ -330,5 +329,43 @@ describe("CodexcliHooks", () => {
       const parsed = JSON.parse(hooks.getFileContent());
       expect(parsed.hooks).toEqual({});
     });
+  });
+});
+
+describe("CodexcliConfigToml", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it("should generate config.toml with codex_hooks feature flag", async () => {
+    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    expect(configToml.getFileContent()).toContain("codex_hooks");
+  });
+
+  it("should preserve existing config.toml content", async () => {
+    await ensureDir(join(testDir, ".codex"));
+    await writeFileContent(
+      join(testDir, ".codex", "config.toml"),
+      '[mcp_servers.myserver]\ncommand = "node"\n',
+    );
+
+    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    const content = configToml.getFileContent();
+    expect(content).toContain("codex_hooks");
+    expect(content).toContain("mcp_servers");
+    expect(content).toContain("myserver");
+  });
+
+  it("should set correct file paths", async () => {
+    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    expect(configToml.getRelativeDirPath()).toBe(".codex");
+    expect(configToml.getRelativeFilePath()).toBe("config.toml");
   });
 });
