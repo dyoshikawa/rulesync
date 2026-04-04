@@ -21,3 +21,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
   - It is NOT the same as `.rulesync/skills/`, which holds the project's own skill definitions used during generation.
   - Do not modify the root `skills/` directory unless you intend to change the official skills distributed to users.
 - The contents of `docs/` and `skills/rulesync/` are automatically synchronized by `scripts/sync-skill-docs.ts`. Be aware that their content may overlap.
+
+I'm a Japanese developer. So you must always answer in Japanese. On the other hand, reasoning(thinking) should be in English to improve token efficiency.
+
+However, this project is for English speaking people. So when you write any code, comments, documentation, commit messages, PR title and PR descriptions, you must always use English.
