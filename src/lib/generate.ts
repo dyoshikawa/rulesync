@@ -228,13 +228,21 @@ async function generateRulesCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      let result;
 
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      if (rulesyncFiles.length === 0) {
+        result = await processEmptyFeatureGeneration({
+          config,
+          processor,
+        });
+      } else {
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+        result = await processFeatureGeneration({
+          config,
+          processor,
+          toolFiles,
+        });
+      }
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -349,13 +357,21 @@ async function generateMcpCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      let result;
 
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      if (rulesyncFiles.length === 0) {
+        result = await processEmptyFeatureGeneration({
+          config,
+          processor,
+        });
+      } else {
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+        result = await processFeatureGeneration({
+          config,
+          processor,
+          toolFiles,
+        });
+      }
 
       totalCount += result.count;
       allPaths.push(...result.paths);
