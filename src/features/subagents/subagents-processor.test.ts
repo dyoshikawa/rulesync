@@ -10,7 +10,6 @@ import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
-import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SubagentsProcessor,
@@ -564,33 +563,6 @@ Global agent content`;
       const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
       expect(rulesyncSubagent.getFrontmatter().name).toBe("global-agent");
     });
-
-    it("should preserve nested rulesync paths for Gemini CLI", async () => {
-      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "team");
-      await ensureDir(subagentsDir);
-
-      await writeFileContent(
-        join(subagentsDir, "planner.md"),
-        `---
-name: nested-agent
-description: Nested agent description
-targets: ["geminicli"]
----
-Nested agent content`,
-      );
-
-      const geminiProcessor = new SubagentsProcessor({
-        logger: createMockLogger(),
-        baseDir: testDir,
-        toolTarget: "geminicli",
-      });
-
-      const rulesyncFiles = await geminiProcessor.loadRulesyncFiles();
-
-      expect(rulesyncFiles).toHaveLength(1);
-      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
-      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe(join("team", "planner.md"));
-    });
   });
 
   describe("loadToolFiles", () => {
@@ -645,32 +617,6 @@ Nested agent content`,
       await expect(processor.loadToolFiles()).rejects.toThrow(
         "Unsupported tool target: unsupported",
       );
-    });
-
-    it("should preserve nested Gemini CLI tool paths", async () => {
-      const geminiProcessor = new SubagentsProcessor({
-        logger: createMockLogger(),
-        baseDir: testDir,
-        toolTarget: "geminicli",
-      });
-
-      const subagentsDir = join(testDir, ".gemini", "agents", "team");
-      await ensureDir(subagentsDir);
-
-      await writeFileContent(
-        join(subagentsDir, "planner.md"),
-        `---
-name: planner
-description: Nested gemini agent
----
-Gemini nested content`,
-      );
-
-      const toolFiles = await geminiProcessor.loadToolFiles();
-
-      expect(toolFiles).toHaveLength(1);
-      expect(toolFiles[0]).toBeInstanceOf(GeminiCliSubagent);
-      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("team", "planner.md"));
     });
   });
 
@@ -1251,31 +1197,6 @@ Content that would fail parsing`;
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
       expect(filesToDelete[0]?.getRelativeFilePath()).toBe("broken-agent.md");
-    });
-
-    it("should preserve nested Gemini CLI tool paths for deletion", async () => {
-      const geminiProcessor = new SubagentsProcessor({
-        logger: createMockLogger(),
-        baseDir: testDir,
-        toolTarget: "geminicli",
-      });
-
-      const agentsDir = join(testDir, ".gemini", "agents", "team");
-      await ensureDir(agentsDir);
-      await writeFileContent(
-        join(agentsDir, "planner.md"),
-        `---
-name: planner
-description: Nested gemini agent
----
-Gemini nested content`,
-      );
-
-      const filesToDelete = await geminiProcessor.loadToolFiles({ forDeletion: true });
-
-      expect(filesToDelete).toHaveLength(1);
-      expect(filesToDelete[0]).toBeInstanceOf(GeminiCliSubagent);
-      expect(filesToDelete[0]?.getRelativeFilePath()).toBe(join("team", "planner.md"));
     });
   });
 });

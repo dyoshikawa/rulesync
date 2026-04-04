@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -391,9 +391,9 @@ Simple body content.`;
       expect(subagent.getBody()).toBe("Simple body content.");
     });
 
-    it("should preserve nested relativeFilePath", async () => {
+    it("should use basename for relativeFilePath", async () => {
       const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-      const filePath = join(subagentsDir, "team", "test-fromfile-nested.md");
+      const filePath = join(subagentsDir, "test-fromfile-nested.md");
       const fileContent = `---
 targets: ["*"]
 name: nested-subagent
@@ -404,10 +404,11 @@ Nested content.`;
       await writeFileContent(filePath, fileContent);
 
       const subagent = await RulesyncSubagent.fromFile({
-        relativeFilePath: join("team", "test-fromfile-nested.md"),
+        relativeFilePath: "test-fromfile-nested.md",
       });
 
-      expect(subagent.getRelativeFilePath()).toBe(join("team", "test-fromfile-nested.md"));
+      expect(subagent.getRelativeFilePath()).toBe("test-fromfile-nested.md");
+      expect(basename("test-fromfile-nested.md")).toBe("test-fromfile-nested.md");
     });
 
     it("should succeed for file without description (description is optional)", async () => {
