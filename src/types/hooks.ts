@@ -179,6 +179,15 @@ export const GEMINICLI_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
 ];
 
+/** Hook events supported by Codex CLI. */
+export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -194,6 +203,7 @@ export const HooksConfigSchema = z.looseObject({
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
@@ -344,6 +354,24 @@ export const CANONICAL_TO_GEMINICLI_EVENT_NAMES: Record<string, string> = {
  */
 export const GEMINICLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_GEMINICLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Codex CLI PascalCase.
+ */
+export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+};
+
+/**
+ * Map Codex CLI PascalCase event names to canonical camelCase.
+ */
+export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CODEXCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
